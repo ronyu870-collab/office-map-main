@@ -1,0 +1,1751 @@
+{
+  "summary": {
+    "total": 189,
+    "matched": 148,
+    "unmatched": 41,
+    "match_rate": "78.3%",
+    "new_matches": 0,
+    "improved_matches": 0,
+    "validation_issues": 36,
+    "retry2_new": 0
+  },
+  "validation_issues": [
+    {
+      "name": "银泰中心",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.458257,
+      "supabase_lat": 39.907001,
+      "centroid_lng": 116.457764,
+      "centroid_lat": 39.907501,
+      "centroid_distance_m": 69.7,
+      "inside": false
+    },
+    {
+      "name": "启皓北京",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.456336,
+      "supabase_lat": 39.947734,
+      "centroid_lng": 116.457031,
+      "centroid_lat": 39.947456,
+      "centroid_distance_m": 66.8,
+      "inside": false
+    },
+    {
+      "name": "浦项中心",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.488747,
+      "supabase_lat": 39.998971,
+      "centroid_lng": 116.489326,
+      "centroid_lat": 39.999369,
+      "centroid_distance_m": 66.3,
+      "inside": false
+    },
+    {
+      "name": "英蓝国际金融中心",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.357825,
+      "supabase_lat": 39.920574,
+      "centroid_lng": 116.357299,
+      "centroid_lat": 39.92,
+      "centroid_distance_m": 78.0,
+      "inside": false
+    },
+    {
+      "name": "太平洋保险大厦",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.366067,
+      "supabase_lat": 39.918211,
+      "centroid_lng": 116.365263,
+      "centroid_lat": 39.918228,
+      "centroid_distance_m": 68.6,
+      "inside": false
+    },
+    {
+      "name": "亮马桥外交办公大楼",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.463427,
+      "supabase_lat": 39.950882,
+      "centroid_lng": 116.463089,
+      "centroid_lat": 39.951378,
+      "centroid_distance_m": 62.2,
+      "inside": true
+    },
+    {
+      "name": "泰禾长安中心B座",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.220038,
+      "supabase_lat": 39.90465,
+      "centroid_lng": 116.219385,
+      "centroid_lat": 39.90509,
+      "centroid_distance_m": 74.1,
+      "inside": false
+    },
+    {
+      "name": "鼎好DH3-A座",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.314195,
+      "supabase_lat": 39.984395,
+      "centroid_lng": 116.314672,
+      "centroid_lat": 39.984795,
+      "centroid_distance_m": 60.3,
+      "inside": false
+    },
+    {
+      "name": "长安兴融中心-4号楼",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.361343,
+      "supabase_lat": 39.904939,
+      "centroid_lng": 116.360686,
+      "centroid_lat": 39.904624,
+      "centroid_distance_m": 66.1,
+      "inside": true
+    },
+    {
+      "name": "PICC大厦",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.460321,
+      "supabase_lat": 39.906941,
+      "centroid_lng": 116.460582,
+      "centroid_lat": 39.906318,
+      "centroid_distance_m": 72.8,
+      "inside": false
+    },
+    {
+      "name": "利星行广场",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.482346,
+      "supabase_lat": 39.994131,
+      "centroid_lng": 116.482103,
+      "centroid_lat": 39.99346,
+      "centroid_distance_m": 77.4,
+      "inside": false
+    },
+    {
+      "name": "中海广场",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.45642,
+      "supabase_lat": 39.910934,
+      "centroid_lng": 116.457223,
+      "centroid_lat": 39.910856,
+      "centroid_distance_m": 69.1,
+      "inside": false
+    },
+    {
+      "name": "中融信托大厦",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.373533,
+      "supabase_lat": 39.887097,
+      "centroid_lng": 116.372619,
+      "centroid_lat": 39.887213,
+      "centroid_distance_m": 79.0,
+      "inside": false
+    },
+    {
+      "name": "月坛金融中心E座",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.353911,
+      "supabase_lat": 39.915055,
+      "centroid_lng": 116.35312,
+      "centroid_lat": 39.915012,
+      "centroid_distance_m": 67.6,
+      "inside": false
+    },
+    {
+      "name": "青海金融大厦",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.322521,
+      "supabase_lat": 39.864006,
+      "centroid_lng": 116.323263,
+      "centroid_lat": 39.863978,
+      "centroid_distance_m": 63.4,
+      "inside": false
+    },
+    {
+      "name": "环球贸易中心E座",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.410736,
+      "supabase_lat": 39.966329,
+      "centroid_lng": 116.411428,
+      "centroid_lat": 39.96615,
+      "centroid_distance_m": 62.2,
+      "inside": false
+    },
+    {
+      "name": "融科资讯中心C座",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.326695,
+      "supabase_lat": 39.9832,
+      "centroid_lng": 116.326339,
+      "centroid_lat": 39.983757,
+      "centroid_distance_m": 69.0,
+      "inside": false
+    },
+    {
+      "name": "中航广场一期",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.328911,
+      "supabase_lat": 39.972012,
+      "centroid_lng": 116.329075,
+      "centroid_lat": 39.97122,
+      "centroid_distance_m": 89.2,
+      "inside": false
+    },
+    {
+      "name": "华贸中心三座",
+      "issue": "较大偏差",
+      "supabase_lng": 116.481981,
+      "supabase_lat": 39.909311,
+      "centroid_lng": 116.481918,
+      "centroid_lat": 39.910311,
+      "centroid_distance_m": 111.4,
+      "inside": false
+    },
+    {
+      "name": "佳程广场",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.458304,
+      "supabase_lat": 39.956475,
+      "centroid_lng": 116.457669,
+      "centroid_lat": 39.957106,
+      "centroid_distance_m": 88.6,
+      "inside": false
+    },
+    {
+      "name": "中海金融中心T1&T4",
+      "issue": "较大偏差",
+      "supabase_lng": 116.377078,
+      "supabase_lat": 39.888674,
+      "centroid_lng": 116.377476,
+      "centroid_lat": 39.88775,
+      "centroid_distance_m": 108.2,
+      "inside": false
+    },
+    {
+      "name": "民生金融中心",
+      "issue": "较大偏差",
+      "supabase_lng": 116.419886,
+      "supabase_lat": 39.907198,
+      "centroid_lng": 116.419724,
+      "centroid_lat": 39.908112,
+      "centroid_distance_m": 102.6,
+      "inside": false
+    },
+    {
+      "name": "远洋大厦",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.359885,
+      "supabase_lat": 39.906007,
+      "centroid_lng": 116.360637,
+      "centroid_lat": 39.906611,
+      "centroid_distance_m": 92.9,
+      "inside": false
+    },
+    {
+      "name": "诺金写字楼",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.481365,
+      "supabase_lat": 39.977279,
+      "centroid_lng": 116.480873,
+      "centroid_lat": 39.978082,
+      "centroid_distance_m": 98.7,
+      "inside": false
+    },
+    {
+      "name": "玖安广场",
+      "issue": "较大偏差",
+      "supabase_lng": 116.408915,
+      "supabase_lat": 39.952121,
+      "centroid_lng": 116.408771,
+      "centroid_lat": 39.95108,
+      "centroid_distance_m": 116.4,
+      "inside": false
+    },
+    {
+      "name": "北京侨福芳草地",
+      "issue": "较大偏差",
+      "supabase_lng": 116.449285,
+      "supabase_lat": 39.919803,
+      "centroid_lng": 116.448068,
+      "centroid_lat": 39.920291,
+      "centroid_distance_m": 117.1,
+      "inside": false
+    },
+    {
+      "name": "理想国际大厦",
+      "issue": "较大偏差",
+      "supabase_lng": 116.31006,
+      "supabase_lat": 39.984499,
+      "centroid_lng": 116.311363,
+      "centroid_lat": 39.984723,
+      "centroid_distance_m": 113.8,
+      "inside": false
+    },
+    {
+      "name": "国贸大厦A座(三期)",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.458154,
+      "supabase_lat": 39.912298,
+      "centroid_lng": 116.458508,
+      "centroid_lat": 39.911651,
+      "centroid_distance_m": 78.1,
+      "inside": false
+    },
+    {
+      "name": "嘉里中心",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.45963,
+      "supabase_lat": 39.914045,
+      "centroid_lng": 116.460052,
+      "centroid_lat": 39.914784,
+      "centroid_distance_m": 89.7,
+      "inside": false
+    },
+    {
+      "name": "中粮广场（AB座）",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.429908,
+      "supabase_lat": 39.90704,
+      "centroid_lng": 116.430686,
+      "centroid_lat": 39.90769,
+      "centroid_distance_m": 98.1,
+      "inside": false
+    },
+    {
+      "name": "亚洲金融大厦CDE座",
+      "issue": "较大偏差",
+      "supabase_lng": 116.389689,
+      "supabase_lat": 40.008393,
+      "centroid_lng": 116.390809,
+      "centroid_lat": 40.008104,
+      "centroid_distance_m": 100.6,
+      "inside": false
+    },
+    {
+      "name": "盈科中心（AB座）",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.458326,
+      "supabase_lat": 39.932928,
+      "centroid_lng": 116.459453,
+      "centroid_lat": 39.932783,
+      "centroid_distance_m": 97.4,
+      "inside": false
+    },
+    {
+      "name": "北辰中心",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.387447,
+      "supabase_lat": 40.004252,
+      "centroid_lng": 116.388167,
+      "centroid_lat": 40.003725,
+      "centroid_distance_m": 84.8,
+      "inside": false
+    },
+    {
+      "name": "国贸大厦B座(三期)",
+      "issue": "较大偏差",
+      "supabase_lng": 116.460515,
+      "supabase_lat": 39.912938,
+      "centroid_lng": 116.46149,
+      "centroid_lat": 39.913532,
+      "centroid_distance_m": 106.2,
+      "inside": false
+    },
+    {
+      "name": "融新科技中心",
+      "issue": "较大偏差",
+      "supabase_lng": 116.468274,
+      "supabase_lat": 40.021752,
+      "centroid_lng": 116.468545,
+      "centroid_lat": 40.020747,
+      "centroid_distance_m": 114.1,
+      "inside": false
+    },
+    {
+      "name": "哈德门广场东塔",
+      "issue": "轻微偏差",
+      "supabase_lng": 116.42127,
+      "supabase_lat": 39.899689,
+      "centroid_lng": 116.420278,
+      "centroid_lat": 39.899621,
+      "centroid_distance_m": 85.0,
+      "inside": false
+    }
+  ],
+  "unmatched_buildings": [
+    "世界侨商中心2号楼（侨商）",
+    "世界侨商中心3号楼（侨商）",
+    "中国太平金融中心",
+    "中海地产广场",
+    "中海财富中心",
+    "中粮广场C座",
+    "中航产融大厦",
+    "丽泽SOHO",
+    "丽泽天地",
+    "丽泽平安金融中心",
+    "丽金中心（AB座）",
+    "保利大都汇（4#2#1#）",
+    "冠捷大厦",
+    "凤凰置地广场A座",
+    "凤凰置地广场F&H座",
+    "利星行中心",
+    "北辰世纪中心",
+    "华熙Live中心",
+    "华瑞大厦",
+    "合景国际金融广场（4B)",
+    "国家会议中心",
+    "国家金融信息大厦",
+    "国贸写字楼1座",
+    "复地金融中心B座（南塔）",
+    "富泽人寿大厦",
+    "平安幸福中心",
+    "新光大中心5A",
+    "汇亚大厦",
+    "润世中心",
+    "现代汽车大厦",
+    "翔鹰大厦",
+    "聚杰金融大厦",
+    "远洋乐堤港二座",
+    "通州C01",
+    "金唐中心",
+    "金辉大厦",
+    "铭丰中心",
+    "阿里巴巴望京A座",
+    "霄云路33号",
+    "颐堤港",
+    "鼎兴大厦"
+  ],
+  "matched_buildings": [
+    {
+      "name": "银泰中心",
+      "osm_id": 1147437712,
+      "distance_m": 67.9,
+      "inside": false,
+      "centroid_dist_m": 69.7,
+      "source": "osm",
+      "points": 6
+    },
+    {
+      "name": "搜狐网络大厦",
+      "osm_id": 1044614697,
+      "distance_m": 14.9,
+      "inside": true,
+      "centroid_dist_m": 12.4,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "启皓北京",
+      "osm_id": 260266587,
+      "distance_m": 66.5,
+      "inside": false,
+      "centroid_dist_m": 66.8,
+      "source": "osm",
+      "points": 19
+    },
+    {
+      "name": "丽金智地中心西塔",
+      "osm_id": 486561116,
+      "distance_m": 24.2,
+      "inside": true,
+      "centroid_dist_m": 30.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "西海国际中心",
+      "osm_id": 950261534,
+      "distance_m": 24.1,
+      "inside": true,
+      "centroid_dist_m": 26.6,
+      "source": "osm",
+      "points": 21
+    },
+    {
+      "name": "中信大厦",
+      "osm_id": 764431881,
+      "distance_m": 34.6,
+      "inside": true,
+      "centroid_dist_m": 41.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "锦什坊街叁拾伍号",
+      "osm_id": 521048247,
+      "distance_m": 33.7,
+      "inside": false,
+      "centroid_dist_m": 30.6,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "财富金融中心（FFC）",
+      "osm_id": 764434455,
+      "distance_m": 19.5,
+      "inside": false,
+      "centroid_dist_m": 15.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "紫檀大厦",
+      "osm_id": 1301782403,
+      "distance_m": 28.2,
+      "inside": false,
+      "centroid_dist_m": 30.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "三星大厦（中区+低区）",
+      "osm_id": 764431888,
+      "distance_m": 37.1,
+      "inside": false,
+      "centroid_dist_m": 35.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "远洋锐中心",
+      "osm_id": 1095088003,
+      "distance_m": 35.7,
+      "inside": false,
+      "centroid_dist_m": 36.6,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "浦项中心",
+      "osm_id": 945348472,
+      "distance_m": 65.7,
+      "inside": false,
+      "centroid_dist_m": 66.3,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "致真大厦",
+      "osm_id": 657908137,
+      "distance_m": 36.3,
+      "inside": false,
+      "centroid_dist_m": 33.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "英蓝国际金融中心",
+      "osm_id": 521048272,
+      "distance_m": 75.0,
+      "inside": false,
+      "centroid_dist_m": 78.0,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "哈银国际中心",
+      "osm_id": 940020338,
+      "distance_m": 25.1,
+      "inside": false,
+      "centroid_dist_m": 23.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "远洋国际中心二期",
+      "osm_id": 764445994,
+      "distance_m": 37.2,
+      "inside": false,
+      "centroid_dist_m": 35.5,
+      "source": "osm",
+      "points": 6
+    },
+    {
+      "name": "城奥大厦",
+      "osm_id": 1314158419,
+      "distance_m": 25.5,
+      "inside": false,
+      "centroid_dist_m": 31.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "友邦金融中心",
+      "osm_id": 477835697,
+      "distance_m": 8.8,
+      "inside": true,
+      "centroid_dist_m": 7.7,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "太平洋保险大厦",
+      "osm_id": 521057770,
+      "distance_m": 67.0,
+      "inside": false,
+      "centroid_dist_m": 68.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "新华保险大厦（NCI）",
+      "osm_id": 233523283,
+      "distance_m": 39.5,
+      "inside": true,
+      "centroid_dist_m": 49.9,
+      "source": "osm",
+      "points": 11
+    },
+    {
+      "name": "亮马桥外交办公大楼",
+      "osm_id": 234215541,
+      "distance_m": 59.2,
+      "inside": true,
+      "centroid_dist_m": 62.2,
+      "source": "osm",
+      "points": 17
+    },
+    {
+      "name": "汇京双子座大厦",
+      "osm_id": 233523265,
+      "distance_m": 3.1,
+      "inside": true,
+      "centroid_dist_m": 8.7,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "乐成中心",
+      "osm_id": 638337383,
+      "distance_m": 11.1,
+      "inside": true,
+      "centroid_dist_m": 15.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "平安国际金融中心",
+      "osm_id": 840208553,
+      "distance_m": 24.2,
+      "inside": false,
+      "centroid_dist_m": 27.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "天润财富中心",
+      "osm_id": 1215921569,
+      "distance_m": 30.7,
+      "inside": true,
+      "centroid_dist_m": 36.2,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "五矿广场",
+      "osm_id": 536927227,
+      "distance_m": 33.3,
+      "inside": false,
+      "centroid_dist_m": 38.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "泰禾长安中心B座",
+      "osm_id": 321301384,
+      "distance_m": 77.3,
+      "inside": false,
+      "centroid_dist_m": 74.1,
+      "source": "osm",
+      "points": 8
+    },
+    {
+      "name": "三星大厦（高区 CBD管委会）",
+      "osm_id": 764431888,
+      "distance_m": 19.7,
+      "inside": false,
+      "centroid_dist_m": 16.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "鼎好DH3-A座",
+      "osm_id": 1002580378,
+      "distance_m": 56.3,
+      "inside": false,
+      "centroid_dist_m": 60.3,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "环球贸易中心F座",
+      "osm_id": 917243584,
+      "distance_m": 24.5,
+      "inside": false,
+      "centroid_dist_m": 27.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "金嘉大厦",
+      "osm_id": 521048252,
+      "distance_m": 30.1,
+      "inside": false,
+      "centroid_dist_m": 24.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "鼎好DH3-B/C座",
+      "osm_id": 481936649,
+      "distance_m": 35.4,
+      "inside": false,
+      "centroid_dist_m": 42.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中海国际中心",
+      "osm_id": 262362359,
+      "distance_m": 56.4,
+      "inside": false,
+      "centroid_dist_m": 50.3,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "国际财源中心（IFC）",
+      "osm_id": 1147872448,
+      "distance_m": 46.7,
+      "inside": false,
+      "centroid_dist_m": 50.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中海大厦B座",
+      "osm_id": 1324042216,
+      "distance_m": 46.3,
+      "inside": false,
+      "centroid_dist_m": 49.0,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中国技术交易大厦",
+      "osm_id": 1433682843,
+      "distance_m": 32.3,
+      "inside": false,
+      "centroid_dist_m": 33.0,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中关村资本大厦",
+      "osm_id": 1464917607,
+      "distance_m": 16.4,
+      "inside": false,
+      "centroid_dist_m": 13.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "泓晟国际中心",
+      "osm_id": 536929297,
+      "distance_m": 27.4,
+      "inside": false,
+      "centroid_dist_m": 28.5,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "长安兴融中心-4号楼",
+      "osm_id": 161807611,
+      "distance_m": 48.2,
+      "inside": true,
+      "centroid_dist_m": 66.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北京国际俱乐部二期（C座）",
+      "osm_id": 469532480,
+      "distance_m": 19.9,
+      "inside": false,
+      "centroid_dist_m": 21.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "东方广场西区",
+      "osm_id": 932754739,
+      "distance_m": 7.1,
+      "inside": true,
+      "centroid_dist_m": 17.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中海大厦C、D座",
+      "osm_id": 1324042216,
+      "distance_m": 11.2,
+      "inside": true,
+      "centroid_dist_m": 7.3,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "华润大厦",
+      "osm_id": 478407362,
+      "distance_m": 33.4,
+      "inside": false,
+      "centroid_dist_m": 33.5,
+      "source": "osm",
+      "points": 12
+    },
+    {
+      "name": "远洋国际中心A座",
+      "osm_id": 764446001,
+      "distance_m": 1.3,
+      "inside": true,
+      "centroid_dist_m": 6.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "卫通大厦",
+      "osm_id": 313367526,
+      "distance_m": 44.7,
+      "inside": true,
+      "centroid_dist_m": 56.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北投投资大厦",
+      "osm_id": 250712232,
+      "distance_m": 24.4,
+      "inside": true,
+      "centroid_dist_m": 30.1,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "招商局广场",
+      "osm_id": 250712236,
+      "distance_m": 26.1,
+      "inside": false,
+      "centroid_dist_m": 33.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中钢国际广场",
+      "osm_id": 944504050,
+      "distance_m": 30.7,
+      "inside": false,
+      "centroid_dist_m": 24.3,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "万通中心D座",
+      "osm_id": 371402225,
+      "distance_m": 31.0,
+      "inside": false,
+      "centroid_dist_m": 33.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "清华科技园-火炬大厦",
+      "osm_id": 239267018,
+      "distance_m": 11.2,
+      "inside": false,
+      "centroid_dist_m": 15.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中关村东升科技园·学北园",
+      "osm_id": 1424429481,
+      "distance_m": 59.0,
+      "inside": false,
+      "centroid_dist_m": 51.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "保利国际广场1座",
+      "osm_id": 244010337,
+      "distance_m": 45.1,
+      "inside": false,
+      "centroid_dist_m": 47.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "东方广场东区",
+      "osm_id": 476128791,
+      "distance_m": 60.3,
+      "inside": false,
+      "centroid_dist_m": 57.6,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "宝钢大厦",
+      "osm_id": 233523283,
+      "distance_m": 44.4,
+      "inside": true,
+      "centroid_dist_m": 34.0,
+      "source": "osm",
+      "points": 11
+    },
+    {
+      "name": "中建财富国际中心",
+      "osm_id": 630766838,
+      "distance_m": 15.9,
+      "inside": false,
+      "centroid_dist_m": 13.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "时尚万科中心",
+      "osm_id": 612292257,
+      "distance_m": 14.6,
+      "inside": true,
+      "centroid_dist_m": 23.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "PICC大厦",
+      "osm_id": 233137384,
+      "distance_m": 71.3,
+      "inside": false,
+      "centroid_dist_m": 72.8,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "蚂蚁T空间（丽金智地中心东塔）",
+      "osm_id": 486561122,
+      "distance_m": 26.0,
+      "inside": true,
+      "centroid_dist_m": 21.3,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中国电子大厦",
+      "osm_id": 1303633461,
+      "distance_m": 28.9,
+      "inside": false,
+      "centroid_dist_m": 30.1,
+      "source": "osm",
+      "points": 6
+    },
+    {
+      "name": "WWT世界财富大厦",
+      "osm_id": 233497497,
+      "distance_m": 24.6,
+      "inside": true,
+      "centroid_dist_m": 25.1,
+      "source": "osm",
+      "points": 24
+    },
+    {
+      "name": "凯恒中心",
+      "osm_id": 351678884,
+      "distance_m": 37.8,
+      "inside": true,
+      "centroid_dist_m": 39.0,
+      "source": "osm",
+      "points": 23
+    },
+    {
+      "name": "环球贸易中心C、D座",
+      "osm_id": 913811995,
+      "distance_m": 17.8,
+      "inside": true,
+      "centroid_dist_m": 14.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "东湖国际中心",
+      "osm_id": 361714072,
+      "distance_m": 37.6,
+      "inside": false,
+      "centroid_dist_m": 35.6,
+      "source": "osm",
+      "points": 13
+    },
+    {
+      "name": "远洋光华国际AB座-纺织厂",
+      "osm_id": 338085198,
+      "distance_m": 43.5,
+      "inside": false,
+      "centroid_dist_m": 47.0,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "东方金融中心",
+      "osm_id": 136146034,
+      "distance_m": 30.8,
+      "inside": false,
+      "centroid_dist_m": 28.7,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "金地中心",
+      "osm_id": 764453126,
+      "distance_m": 16.0,
+      "inside": true,
+      "centroid_dist_m": 24.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中国人寿中心",
+      "osm_id": 257208832,
+      "distance_m": 43.9,
+      "inside": true,
+      "centroid_dist_m": 39.4,
+      "source": "osm",
+      "points": 13
+    },
+    {
+      "name": "国航世纪大厦",
+      "osm_id": 940020360,
+      "distance_m": 61.5,
+      "inside": false,
+      "centroid_dist_m": 55.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "哈德门广场西塔",
+      "osm_id": 1041490033,
+      "distance_m": 13.6,
+      "inside": false,
+      "centroid_dist_m": 11.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "国寿金融中心",
+      "osm_id": 764431921,
+      "distance_m": 42.6,
+      "inside": false,
+      "centroid_dist_m": 42.5,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "和泓大厦南塔",
+      "osm_id": 529761029,
+      "distance_m": 9.3,
+      "inside": false,
+      "centroid_dist_m": 10.5,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "众秀大厦",
+      "osm_id": 764431885,
+      "distance_m": 20.5,
+      "inside": false,
+      "centroid_dist_m": 17.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北京来福士中心",
+      "osm_id": 347816928,
+      "distance_m": 58.2,
+      "inside": false,
+      "centroid_dist_m": 55.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中关村东升科技园·东畔科创中心",
+      "osm_id": 270586655,
+      "distance_m": 7.3,
+      "inside": false,
+      "centroid_dist_m": 7.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "泰康国际大厦",
+      "osm_id": 656347773,
+      "distance_m": 27.5,
+      "inside": false,
+      "centroid_dist_m": 25.8,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "嘉铭中心",
+      "osm_id": 347675501,
+      "distance_m": 25.7,
+      "inside": false,
+      "centroid_dist_m": 25.9,
+      "source": "osm",
+      "points": 8
+    },
+    {
+      "name": "华贸中心（一座、二座）",
+      "osm_id": 764451628,
+      "distance_m": 25.2,
+      "inside": false,
+      "centroid_dist_m": 28.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "融科资讯中心A座",
+      "osm_id": 1435206285,
+      "distance_m": 25.3,
+      "inside": true,
+      "centroid_dist_m": 25.4,
+      "source": "osm",
+      "points": 23
+    },
+    {
+      "name": "航宇大厦B座",
+      "osm_id": 257208834,
+      "distance_m": 30.8,
+      "inside": false,
+      "centroid_dist_m": 37.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "盈科中心C座",
+      "osm_id": 347800528,
+      "distance_m": 51.6,
+      "inside": false,
+      "centroid_dist_m": 56.3,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "丰铭国际大厦",
+      "osm_id": 891420295,
+      "distance_m": 48.8,
+      "inside": false,
+      "centroid_dist_m": 51.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北辰时代大厦",
+      "osm_id": 1493362746,
+      "distance_m": 60.4,
+      "inside": false,
+      "centroid_dist_m": 59.5,
+      "source": "osm",
+      "points": 21
+    },
+    {
+      "name": "远洋光华国际ABC座-远洋自持",
+      "osm_id": 1147348909,
+      "distance_m": 15.0,
+      "inside": false,
+      "centroid_dist_m": 12.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "泰康金融大厦",
+      "osm_id": 764431770,
+      "distance_m": 38.5,
+      "inside": false,
+      "centroid_dist_m": 33.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "利星行广场",
+      "osm_id": 297317483,
+      "distance_m": 75.7,
+      "inside": false,
+      "centroid_dist_m": 77.4,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "新时代大厦",
+      "osm_id": 478494907,
+      "distance_m": 50.0,
+      "inside": false,
+      "centroid_dist_m": 57.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "互联网金融中心",
+      "osm_id": 945068547,
+      "distance_m": 27.0,
+      "inside": false,
+      "centroid_dist_m": 21.7,
+      "source": "osm",
+      "points": 13
+    },
+    {
+      "name": "正大中心",
+      "osm_id": 764431876,
+      "distance_m": 13.4,
+      "inside": false,
+      "centroid_dist_m": 14.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "国贸写字楼2座",
+      "osm_id": 1022407217,
+      "distance_m": 27.8,
+      "inside": true,
+      "centroid_dist_m": 35.3,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "泰康集团大厦",
+      "osm_id": 764431923,
+      "distance_m": 38.1,
+      "inside": false,
+      "centroid_dist_m": 38.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中环世贸中心D座",
+      "osm_id": 233497497,
+      "distance_m": 56.9,
+      "inside": false,
+      "centroid_dist_m": 56.8,
+      "source": "osm",
+      "points": 24
+    },
+    {
+      "name": "晋商联合大厦",
+      "osm_id": 638714856,
+      "distance_m": 55.5,
+      "inside": false,
+      "centroid_dist_m": 52.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "航空科技大厦",
+      "osm_id": 1046719859,
+      "distance_m": 38.1,
+      "inside": false,
+      "centroid_dist_m": 44.7,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "京印国际中心",
+      "osm_id": 691045646,
+      "distance_m": 24.8,
+      "inside": false,
+      "centroid_dist_m": 25.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "卓著中心",
+      "osm_id": 521048244,
+      "distance_m": 34.0,
+      "inside": false,
+      "centroid_dist_m": 34.0,
+      "source": "osm",
+      "points": 12
+    },
+    {
+      "name": "保利蓟门壹号",
+      "osm_id": 1347758669,
+      "distance_m": 53.5,
+      "inside": false,
+      "centroid_dist_m": 54.5,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北京理工大学国防科技园（理工大学）",
+      "osm_id": 950261594,
+      "distance_m": 31.5,
+      "inside": false,
+      "centroid_dist_m": 36.5,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "阳光金融中心",
+      "osm_id": 1197842040,
+      "distance_m": 58.8,
+      "inside": false,
+      "centroid_dist_m": 56.9,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "丰融国际大厦",
+      "osm_id": 656347396,
+      "distance_m": 60.5,
+      "inside": false,
+      "centroid_dist_m": 59.8,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "融科资讯中心B座",
+      "osm_id": 1428176147,
+      "distance_m": 52.8,
+      "inside": false,
+      "centroid_dist_m": 52.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "文化创意大厦",
+      "osm_id": 277745181,
+      "distance_m": 34.5,
+      "inside": false,
+      "centroid_dist_m": 30.5,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "盈泰商务中心",
+      "osm_id": 521048332,
+      "distance_m": 43.7,
+      "inside": false,
+      "centroid_dist_m": 43.0,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "世纪财富中心西塔",
+      "osm_id": 1147348912,
+      "distance_m": 56.7,
+      "inside": false,
+      "centroid_dist_m": 58.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "钰珵大厦",
+      "osm_id": 1474345126,
+      "distance_m": 41.6,
+      "inside": false,
+      "centroid_dist_m": 41.9,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "东方广场中区",
+      "osm_id": 476128794,
+      "distance_m": 33.0,
+      "inside": false,
+      "centroid_dist_m": 35.2,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "中海广场",
+      "osm_id": 764434415,
+      "distance_m": 78.0,
+      "inside": false,
+      "centroid_dist_m": 69.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "兆泰国际中心（AB座）",
+      "osm_id": 469518313,
+      "distance_m": 12.9,
+      "inside": true,
+      "centroid_dist_m": 11.0,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "中融信托大厦",
+      "osm_id": 519901039,
+      "distance_m": 74.1,
+      "inside": false,
+      "centroid_dist_m": 79.0,
+      "source": "osm",
+      "points": 10
+    },
+    {
+      "name": "奥南五号大厦A座（天圆祥泰大厦）",
+      "osm_id": 630766846,
+      "distance_m": 16.9,
+      "inside": false,
+      "centroid_dist_m": 17.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "有研科技创新中心",
+      "osm_id": 1125740166,
+      "distance_m": 44.2,
+      "inside": false,
+      "centroid_dist_m": 45.7,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "奥南五号大厦B座（恒毅大厦）",
+      "osm_id": 630766843,
+      "distance_m": 25.6,
+      "inside": false,
+      "centroid_dist_m": 19.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "凯晨世贸中心",
+      "osm_id": 67522363,
+      "distance_m": 25.2,
+      "inside": false,
+      "centroid_dist_m": 27.4,
+      "source": "osm",
+      "points": 14
+    },
+    {
+      "name": "中青旅大厦",
+      "osm_id": 520864129,
+      "distance_m": 25.3,
+      "inside": false,
+      "centroid_dist_m": 35.2,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "环球金融中心",
+      "osm_id": 764431803,
+      "distance_m": 27.7,
+      "inside": false,
+      "centroid_dist_m": 25.1,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "月坛金融中心E座",
+      "osm_id": 975170237,
+      "distance_m": 64.9,
+      "inside": false,
+      "centroid_dist_m": 67.6,
+      "source": "osm",
+      "points": 16
+    },
+    {
+      "name": "金宝大厦",
+      "osm_id": 637225471,
+      "distance_m": 2.2,
+      "inside": true,
+      "centroid_dist_m": 4.0,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "居然大厦",
+      "osm_id": 242200081,
+      "distance_m": 17.5,
+      "inside": false,
+      "centroid_dist_m": 16.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "青海金融大厦",
+      "osm_id": 638714863,
+      "distance_m": 68.9,
+      "inside": false,
+      "centroid_dist_m": 63.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "环球贸易中心E座",
+      "osm_id": 991085036,
+      "distance_m": 62.4,
+      "inside": false,
+      "centroid_dist_m": 62.2,
+      "source": "osm",
+      "points": 6
+    },
+    {
+      "name": "骏豪中央公园A1",
+      "osm_id": 764438446,
+      "distance_m": 58.0,
+      "inside": false,
+      "centroid_dist_m": 53.6,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "环球贸易中心A、B座",
+      "osm_id": 889164909,
+      "distance_m": 15.2,
+      "inside": false,
+      "centroid_dist_m": 14.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "欧美汇大厦",
+      "osm_id": 944504060,
+      "distance_m": 25.3,
+      "inside": false,
+      "centroid_dist_m": 29.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "英皇集团中心",
+      "osm_id": 233523275,
+      "distance_m": 23.8,
+      "inside": true,
+      "centroid_dist_m": 21.5,
+      "source": "osm",
+      "points": 17
+    },
+    {
+      "name": "融科资讯中心C座",
+      "osm_id": 302986248,
+      "distance_m": 66.7,
+      "inside": false,
+      "centroid_dist_m": 69.0,
+      "source": "osm",
+      "points": 23
+    },
+    {
+      "name": "金融街中心",
+      "osm_id": 521048273,
+      "distance_m": 49.2,
+      "inside": false,
+      "centroid_dist_m": 50.9,
+      "source": "osm",
+      "points": 9
+    },
+    {
+      "name": "大家保险大厦B座",
+      "osm_id": 1147437713,
+      "distance_m": 32.3,
+      "inside": false,
+      "centroid_dist_m": 33.9,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中航广场一期",
+      "osm_id": 935527837,
+      "distance_m": 91.0,
+      "inside": false,
+      "centroid_dist_m": 89.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "华贸中心三座",
+      "osm_id": 1037020722,
+      "distance_m": 110.6,
+      "inside": false,
+      "centroid_dist_m": 111.4,
+      "source": "osm",
+      "points": 17
+    },
+    {
+      "name": "佳程广场",
+      "osm_id": 940020309,
+      "distance_m": 88.6,
+      "inside": false,
+      "centroid_dist_m": 88.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中海金融中心T1&T4",
+      "osm_id": 1240417494,
+      "distance_m": 109.0,
+      "inside": false,
+      "centroid_dist_m": 108.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "民生金融中心",
+      "osm_id": 103016624,
+      "distance_m": 104.9,
+      "inside": false,
+      "centroid_dist_m": 102.6,
+      "source": "osm",
+      "points": 13
+    },
+    {
+      "name": "远洋大厦",
+      "osm_id": 521039207,
+      "distance_m": 93.8,
+      "inside": false,
+      "centroid_dist_m": 92.9,
+      "source": "osm",
+      "points": 17
+    },
+    {
+      "name": "诺金写字楼",
+      "osm_id": 532218247,
+      "distance_m": 95.2,
+      "inside": false,
+      "centroid_dist_m": 98.7,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "玖安广场",
+      "osm_id": 917251007,
+      "distance_m": 118.9,
+      "inside": false,
+      "centroid_dist_m": 116.4,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北京侨福芳草地",
+      "osm_id": 1212188173,
+      "distance_m": 116.3,
+      "inside": false,
+      "centroid_dist_m": 117.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "理想国际大厦",
+      "osm_id": 1002580382,
+      "distance_m": 118.4,
+      "inside": false,
+      "centroid_dist_m": 113.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "国贸大厦A座(三期)",
+      "osm_id": 764434416,
+      "distance_m": 82.5,
+      "inside": false,
+      "centroid_dist_m": 78.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "新动力金融科技中心",
+      "osm_id": 468420595,
+      "distance_m": 14.9,
+      "inside": false,
+      "centroid_dist_m": 16.2,
+      "source": "osm",
+      "points": 10
+    },
+    {
+      "name": "嘉里中心",
+      "osm_id": 345716071,
+      "distance_m": 91.3,
+      "inside": false,
+      "centroid_dist_m": 89.7,
+      "source": "osm",
+      "points": 20
+    },
+    {
+      "name": "信达中心",
+      "osm_id": 351305081,
+      "distance_m": 30.4,
+      "inside": false,
+      "centroid_dist_m": 36.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "中粮广场（AB座）",
+      "osm_id": 478407348,
+      "distance_m": 98.5,
+      "inside": false,
+      "centroid_dist_m": 98.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "亚洲金融大厦CDE座",
+      "osm_id": 1168481796,
+      "distance_m": 101.2,
+      "inside": false,
+      "centroid_dist_m": 100.6,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "盈科中心（AB座）",
+      "osm_id": 347800528,
+      "distance_m": 93.1,
+      "inside": false,
+      "centroid_dist_m": 97.4,
+      "source": "osm",
+      "points": 7
+    },
+    {
+      "name": "北辰中心",
+      "osm_id": 1168481797,
+      "distance_m": 85.7,
+      "inside": false,
+      "centroid_dist_m": 84.8,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "国贸大厦B座(三期)",
+      "osm_id": 764434420,
+      "distance_m": 103.3,
+      "inside": false,
+      "centroid_dist_m": 106.2,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "北京金融科技中心",
+      "osm_id": 468420614,
+      "distance_m": 9.4,
+      "inside": true,
+      "centroid_dist_m": 6.0,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "融新科技中心",
+      "osm_id": 928745296,
+      "distance_m": 111.0,
+      "inside": false,
+      "centroid_dist_m": 114.1,
+      "source": "osm",
+      "points": 5
+    },
+    {
+      "name": "哈德门广场东塔",
+      "osm_id": 1041490033,
+      "distance_m": 83.3,
+      "inside": false,
+      "centroid_dist_m": 85.0,
+      "source": "osm",
+      "points": 5
+    }
+  ]
+}

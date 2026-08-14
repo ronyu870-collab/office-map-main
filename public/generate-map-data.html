@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地图数据生成工具</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #003e7e;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    button {
+      background: #003e7e;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #002a5c;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #log {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .log-item {
+      margin: 5px 0;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .info { color: #3b82f6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🗺️ 北京地图数据生成工具</h1>
+    <p class="subtitle">自动从高德地图 API 抓取行政区划和地铁线路数据</p>
+    
+    <button id="generateBtn" onclick="generateData()">开始生成数据</button>
+    <button onclick="clearLog()">清空日志</button>
+    
+    <div id="log"></div>
+  </div>
+
+  <script>
+    // 高德地图配置
+    const AMAP_KEY = '52a4c9550fbf0eb95da83d2fbbb72b41';
+    const AMAP_SECURITY_CODE = '609358c2250d8be789d1319c888a7572';
+    
+    window._AMapSecurityConfig = {
+      securityJsCode: AMAP_SECURITY_CODE
+    };
+
+    // 预设数据
+    const DISTRICTS = ['朝阳区', '海淀区', '东城区', '西城区', '丰台区', '石景山区', '通州区', '顺义区', '昌平区', '大兴区'];
+    const SUBWAY_LINES = [
+      '地铁1号线八通线',  // 使用完整名称获取主线
+      '地铁2号线',
+      '地铁4号线大兴线',  // 使用完整名称
+      '地铁5号线',
+      '地铁6号线',
+      '地铁7号线',
+      '地铁8号线',
+      '地铁9号线',
+      '地铁10号线',
+      '地铁13号线',
+      '地铁14号线',
+      '地铁15号线',
+      '地铁16号线',
+      '地铁17号线',
+      '地铁昌平线',
+      '地铁亦庄线',
+      '地铁房山线',
+      '地铁首都机场线',
+    ];
+
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const item = document.createElement('div');
+      item.className = `log-item ${type}`;
+      item.textContent = message;
+      logDiv.appendChild(item);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    function fetchDistrictBoundary(AMap, districtName) {
+      return new Promise((resolve, reject) => {
+        log(`  → 正在抓取: ${districtName}`, 'info');
+        
+        const districtSearch = new AMap.DistrictSearch({
+          extensions: 'all',
+          subdistrict: 0,
+          level: 'district'
+        });
+
+        // 添加超时处理
+        const timeout = setTimeout(() => {
+          reject(new Error(`${districtName} 抓取超时`));
+        }, 15000);
+
+        // 直接搜索区名（不加前缀）
+        districtSearch.search(districtName, (status, result) => {
+          clearTimeout(timeout);
+          
+          if (status === 'complete' && result.districtList && result.districtList.length > 0) {
+            const district = result.districtList[0];
+            const boundaries = district.boundaries || [];
+            
+            if (boundaries.length === 0) {
+              log(`  ⚠️  ${districtName} 没有边界数据`, 'error');
+              reject(new Error(`${districtName} 没有边界数据`));
+              return;
+            }
+            
+            const serializedBoundaries = boundaries.map(boundary => {
+              return boundary.map(lngLat => [lngLat.lng, lngLat.lat]);
+            });
+
+            log(`  ✓ ${districtName} 抓取成功 (${boundaries.length} 个边界)`, 'success');
+            
+            resolve({
+              name: districtName,
+              boundaries: serializedBoundaries
+            });
+          } else {
+            log(`  ✗ ${districtName} 抓取失败: ${status}`, 'error');
+            reject(new Error(`无法获取 ${districtName} 的边界数据: ${status}`));
+          }
+        });
+      });
+    }
+
+    function fetchSubwayLine(AMap, lineName) {
+      return new Promise((resolve, reject) => {
+        log(`  → 正在抓取: ${lineName}`, 'info');
+        
+        const lineSearch = new AMap.LineSearch({
+          pageIndex: 1,
+          city: '北京',
+          pageSize: 10,  // 获取多条结果
+          extensions: 'all'
+        });
+
+        // 添加超时处理
+        const timeout = setTimeout(() => {
+          reject(new Error(`${lineName} 抓取超时`));
+        }, 15000);
+
+        lineSearch.search(lineName, (status, result) => {
+          clearTimeout(timeout);
+          
+          log(`  ← ${lineName} 返回状态: ${status}`, 'info');
+          
+          if (status === 'complete' && result.info === 'OK' && result.lineInfo && result.lineInfo.length > 0) {
+            log(`    找到 ${result.lineInfo.length} 条线路`, 'info');
+            
+            // 过滤并选择最佳线路
+            let bestLine = null;
+            let maxStations = 0;
+            
+            for (const line of result.lineInfo) {
+              const stationCount = line.via_stops ? line.via_stops.length : 0;
+              const lineName = line.name || '';
+              
+              // 跳过支线、专线等
+              if (lineName.includes('支线') || lineName.includes('专线') || lineName.includes('摆渡')) {
+                log(`    跳过: ${lineName} (${stationCount}站)`, 'info');
+                continue;
+              }
+              
+              // 选择站点数最多的线路
+              if (stationCount > maxStations) {
+                maxStations = stationCount;
+                bestLine = line;
+              }
+            }
+            
+            if (!bestLine) {
+              // 如果过滤后没有结果，就用第一条
+              bestLine = result.lineInfo[0];
+              log(`    使用第一条线路: ${bestLine.name}`, 'info');
+            } else {
+              log(`    选择最佳线路: ${bestLine.name} (${maxStations}站)`, 'success');
+            }
+            
+            const path = (bestLine.path || []).map(lngLat => [lngLat.lng, lngLat.lat]);
+            const stations = (bestLine.via_stops || []).map(stop => ({
+              id: stop.id || '',
+              name: stop.name || '',
+              center: [stop.location.lng, stop.location.lat]
+            }));
+
+            log(`  ✓ ${lineName} 抓取成功 (${stations.length} 个站点)`, 'success');
+
+            resolve({
+              name: lineName,
+              path,
+              stations
+            });
+          } else {
+            log(`  ✗ ${lineName} 抓取失败: ${status}`, 'error');
+            reject(new Error(`无法获取 ${lineName} 的线路数据: ${status}`));
+          }
+        });
+      });
+    }
+
+    async function generateData() {
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = true;
+      clearLog();
+
+      try {
+        log('🚀 开始加载高德地图 API...', 'info');
+        
+        // 动态加载高德地图
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&plugin=AMap.DistrictSearch,AMap.LineSearch`;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+
+        log('✅ 高德地图 API 加载成功', 'success');
+        log(`📍 准备抓取 ${DISTRICTS.length} 个行政区`, 'info');
+        log(`🚇 准备抓取 ${SUBWAY_LINES.length} 条地铁线路`, 'info');
+
+        // 抓取行政区（逐个抓取，避免并发问题）
+        log('📍 正在抓取行政区边界...', 'info');
+        const districts = [];
+        for (const districtName of DISTRICTS) {
+          try {
+            const district = await fetchDistrictBoundary(AMap, districtName);
+            districts.push(district);
+            // 添加延迟，避免请求过快
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (error) {
+            log(`⚠️  跳过 ${districtName}: ${error.message}`, 'error');
+          }
+        }
+        log(`✅ 成功抓取 ${districts.length} 个行政区边界`, 'success');
+
+        // 抓取地铁线路（逐个抓取，避免并发问题）
+        log('🚇 正在抓取地铁线路...', 'info');
+        const subways = [];
+        for (const lineName of SUBWAY_LINES) {
+          try {
+            const subway = await fetchSubwayLine(AMap, lineName);
+            subways.push(subway);
+            // 添加延迟，避免请求过快
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (error) {
+            log(`⚠️  跳过 ${lineName}: ${error.message}`, 'error');
+          }
+        }
+        log(`✅ 成功抓取 ${subways.length} 条地铁线路`, 'success');
+
+        // 组合数据
+        const mapData = {
+          version: '1.0.0',
+          generatedAt: new Date().toISOString(),
+          districts,
+          subways
+        };
+
+        // 下载文件
+        const jsonString = JSON.stringify(mapData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'beijing_map_data.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        const totalStations = subways.reduce((sum, line) => sum + line.stations.length, 0);
+        log('✅ 数据导出成功！', 'success');
+        log(`📊 数据统计:`, 'info');
+        log(`   - 行政区: ${districts.length} 个`, 'info');
+        log(`   - 地铁线路: ${subways.length} 条`, 'info');
+        log(`   - 地铁站点: ${totalStations} 个`, 'info');
+        log(`   - 文件大小: ${(jsonString.length / 1024).toFixed(2)} KB`, 'info');
+        log('', 'info');
+        log('📁 请将下载的 beijing_map_data.json 文件放到项目的 public/data/ 目录下', 'info');
+
+      } catch (error) {
+        log(`❌ 数据抓取失败: ${error.message}`, 'error');
+        console.error(error);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

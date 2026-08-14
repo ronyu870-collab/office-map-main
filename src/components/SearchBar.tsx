@@ -1,0 +1,134 @@
+'use client';
+
+import * as React from 'react';
+
+export interface SearchBarProps {
+  /** 输入框占位符 */
+  placeholder?: string;
+  /**
+   * 搜索回调：把用户输入的“当前值”抛给父组件
+   * - 组件内部不做任何请求逻辑
+   */
+  onSearch: (value: string) => void;
+  /**
+   * 防抖时间（毫秒）
+   * - 默认 250ms：输入流畅且不会过于频繁触发
+   * - 设为 0：禁用防抖（每次输入都立即触发）
+   */
+  debounceMs?: number;
+  /** 可选：受控值（不传则组件内部自维护） */
+  value?: string;
+  /** 可选：受控模式下的 onChange */
+  onChange?: (value: string) => void;
+}
+
+function useDebouncedCallback<T extends (...args: any[]) => void>(cb: T, delayMs: number) {
+  const cbRef = React.useRef(cb);
+  React.useEffect(() => {
+    cbRef.current = cb;
+  }, [cb]);
+
+  const timerRef = React.useRef<number | null>(null);
+
+  const cancel = React.useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const flush = React.useCallback(
+    (...args: Parameters<T>) => {
+      cancel();
+      cbRef.current(...args);
+    },
+    [cancel],
+  );
+
+  const debounced = React.useCallback(
+    (...args: Parameters<T>) => {
+      cancel();
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
+        cbRef.current(...args);
+      }, Math.max(0, delayMs));
+    },
+    [cancel, delayMs],
+  );
+
+  React.useEffect(() => cancel, [cancel]);
+
+  return { debounced, flush, cancel };
+}
+
+export function SearchBar({
+  placeholder = '搜索…',
+  onSearch,
+  debounceMs = 250,
+  value,
+  onChange,
+}: SearchBarProps) {
+  const isControlled = typeof value === 'string';
+  const [inner, setInner] = React.useState('');
+  const currentValue = isControlled ? value : inner;
+
+  const { debounced, flush } = useDebouncedCallback((v: string) => onSearch(v), debounceMs);
+
+  function setValue(next: string) {
+    if (!isControlled) setInner(next);
+    onChange?.(next);
+  }
+
+  return (
+    <div className="flex w-full items-center gap-2">
+      <div className="relative flex w-full items-center">
+        <span className="pointer-events-none absolute left-3 inline-flex h-5 w-5 items-center justify-center text-zinc-400">
+          {/* 无依赖放大镜 SVG */}
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+            <path
+              d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
+            <path
+              d="M16.5 16.5 21 21"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+
+        <input
+          value={currentValue}
+          onChange={e => {
+            const v = e.target.value;
+            setValue(v);
+            if (debounceMs > 0) debounced(v);
+            else onSearch(v);
+          }}
+          onKeyDown={e => {
+            // 参考旧版：按 Enter 触发搜索（map.html / index.html 的输入框都有 Enter 逻辑）
+            if (e.key === 'Enter') {
+              flush(currentValue.trim());
+            }
+          }}
+          placeholder={placeholder}
+          className="w-full rounded-md border border-zinc-200 bg-zinc-50 py-2 pl-10 pr-3 text-sm text-zinc-900 outline-none transition-colors duration-200 focus:border-primary focus:bg-white"
+          type="search"
+          inputMode="search"
+          autoComplete="off"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={() => flush(currentValue.trim())}
+        className="shrink-0 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 focus:outline-none"
+      >
+        搜索
+      </button>
+    </div>
+  );
+}
+

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>测试高德 API</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    #log { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>测试高德地图 API</h1>
+  <button onclick="testAPI()">开始测试</button>
+  <div id="log"></div>
+
+  <script>
+    const AMAP_KEY = '52a4c9550fbf0eb95da83d2fbbb72b41';
+    const AMAP_SECURITY_CODE = '609358c2250d8be789d1319c888a7572';
+    
+    window._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY_CODE };
+
+    function log(msg) {
+      document.getElementById('log').innerHTML += msg + '\n';
+      console.log(msg);
+    }
+
+    async function testAPI() {
+      document.getElementById('log').innerHTML = '';
+      
+      try {
+        log('加载高德地图 API...');
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&plugin=AMap.DistrictSearch,AMap.LineSearch`;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        log('✅ API 加载成功\n');
+
+        // 测试 DistrictSearch
+        log('测试 DistrictSearch...');
+        const districtSearch = new AMap.DistrictSearch({
+          extensions: 'all',
+          subdistrict: 0,
+          level: 'district'
+        });
+
+        const testTerms = ['朝阳区', '北京朝阳区', '北京市朝阳区', '110105'];
+        
+        for (const term of testTerms) {
+          await new Promise((resolve) => {
+            log(`  搜索: "${term}"`);
+            districtSearch.search(term, (status, result) => {
+              log(`    状态: ${status}`);
+              if (result && result.districtList) {
+                log(`    结果数: ${result.districtList.length}`);
+                if (result.districtList.length > 0) {
+                  const d = result.districtList[0];
+                  log(`    名称: ${d.name}`);
+                  log(`    中心: ${d.center}`);
+                  log(`    边界数: ${d.boundaries ? d.boundaries.length : 0}`);
+                }
+              }
+              log('');
+              resolve();
+            });
+          });
+        }
+
+        // 测试 LineSearch
+        log('\n测试 LineSearch...');
+        const lineSearch = new AMap.LineSearch({
+          pageIndex: 1,
+          city: '北京',
+          pageSize: 10,  // 增加返回数量，看看有多少结果
+          extensions: 'all'
+        });
+
+        const testLines = ['地铁1号线', '1号线', '北京地铁1号线', '地铁1号线八通线'];
+        
+        for (const lineName of testLines) {
+          await new Promise((resolve) => {
+            log(`  搜索: "${lineName}"`);
+            lineSearch.search(lineName, (status, result) => {
+              log(`    状态: ${status}`);
+              log(`    info: ${result.info}`);
+              if (result.lineInfo && result.lineInfo.length > 0) {
+                log(`    找到 ${result.lineInfo.length} 条线路:`);
+                result.lineInfo.forEach((line, idx) => {
+                  log(`      [${idx}] ${line.name} - 站点数: ${line.via_stops ? line.via_stops.length : 0}`);
+                  if (line.via_stops && line.via_stops.length > 0) {
+                    log(`          首站: ${line.via_stops[0].name}`);
+                    log(`          末站: ${line.via_stops[line.via_stops.length - 1].name}`);
+                  }
+                });
+              }
+              log('');
+              resolve();
+            });
+          });
+        }
+
+        log('\n✅ 测试完成');
+
+      } catch (error) {
+        log(`\n❌ 错误: ${error.message}`);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水印效果测试 - 0.1 透明度</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+  h2 { color: #333; }
+  .preview { text-align: center; margin: 20px 0; }
+  canvas { border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); max-width: 100%; }
+  .info { color: #666; font-size: 14px; margin: 8px 0; }
+  button { background: #003e7e; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button:hover { background: #002b5e; }
+</style>
+</head>
+<body>
+<h2>水印效果预览 — globalAlpha = 0.1</h2>
+<p class="info">模拟图表（柱状图 + 折线图）叠加 colliers-watermark.png，透明度 0.1</p>
+
+<div class="preview">
+  <canvas id="output"></canvas>
+</div>
+<p class="info" id="status">正在生成...</p>
+<button onclick="downloadImg()">下载测试图片</button>
+
+<script>
+const canvas = document.getElementById('output');
+const ctx = canvas.getContext('2d');
+const W = 1200, H = 800;
+canvas.width = W;
+canvas.height = H;
+
+// 1. 绘制模拟图表底图
+ctx.fillStyle = '#ffffff';
+ctx.fillRect(0, 0, W, H);
+
+// 网格线
+ctx.strokeStyle = '#e5e5e5';
+ctx.lineWidth = 1;
+for (let y = 100; y < H - 80; y += 60) {
+  ctx.beginPath(); ctx.moveTo(80, y); ctx.lineTo(W - 40, y); ctx.stroke();
+}
+
+// Y轴标签
+ctx.fillStyle = '#999';
+ctx.font = '12px sans-serif';
+ctx.textAlign = 'right';
+for (let i = 0; i <= 10; i++) {
+  const y = H - 80 - (i / 10) * (H - 200);
+  ctx.fillText(i * 10, 70, y + 4);
+}
+
+// 柱状图
+const bars = [65, 78, 52, 91, 83, 56, 72, 88, 45, 67, 73, 59];
+const barW = (W - 160) / bars.length - 8;
+bars.forEach((v, i) => {
+  const x = 100 + i * (barW + 8);
+  const barH = (v / 100) * (H - 220);
+  const y = H - 80 - barH;
+  const grad = ctx.createLinearGradient(x, y, x, H - 80);
+  grad.addColorStop(0, '#4A90E2');
+  grad.addColorStop(1, '#003e7e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, barW, barH);
+  // 柱顶标签
+  ctx.fillStyle = '#333';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(v, x + barW/2, y - 6);
+});
+
+// 折线图
+ctx.strokeStyle = '#F5A623';
+ctx.lineWidth = 3;
+ctx.setLineDash([]);
+ctx.beginPath();
+const lineData = [42, 48, 55, 50, 62, 58, 68, 60, 72, 65, 70, 67];
+lineData.forEach((v, i) => {
+  const x = 100 + i * (barW + 8) + barW / 2;
+  const y = H - 80 - (v / 100) * (H - 220);
+  if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+});
+ctx.stroke();
+
+// 折线数据点
+lineData.forEach((v, i) => {
+  const x = 100 + i * (barW + 8) + barW / 2;
+  const y = H - 80 - (v / 100) * (H - 220);
+  ctx.fillStyle = '#F5A623';
+  ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2); ctx.fill();
+});
+
+// 标题
+ctx.fillStyle = '#333';
+ctx.font = 'bold 18px sans-serif';
+ctx.textAlign = 'center';
+ctx.fillText('子市场租金对比 (示例)', W/2, 45);
+
+// 图例
+ctx.fillStyle = '#003e7e';
+ctx.fillRect(W/2 - 100, 65, 12, 12);
+ctx.fillStyle = '#333'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+ctx.fillText('平均租金 (元/㎡/月)', W/2 - 84, 75);
+ctx.strokeStyle = '#F5A623'; ctx.lineWidth = 2;
+ctx.beginPath(); ctx.moveTo(W/2 + 30, 71); ctx.lineTo(W/2 + 60, 71); ctx.stroke();
+ctx.fillText('空置率 (%)', W/2 + 64, 75);
+
+// X轴标签
+ctx.fillStyle = '#999'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+const labels = ['CBD', '金融街', '中关村', '望京', '燕莎', '东二环', '丽泽', '通州', '亦庄', '丰台', '石景山', '上地'];
+labels.forEach((l, i) => {
+  ctx.fillText(l, 100 + i * (barW + 8) + barW/2, H - 55);
+});
+
+// 2. 加载水印图片并叠加
+const wmImg = new Image();
+wmImg.onload = function() {
+  // 水印居中，宽度 60%，透明度 0.1
+  const wmW = W * 0.6;
+  const wmH = (wmImg.naturalHeight / wmImg.naturalWidth) * wmW;
+  ctx.save();
+  ctx.globalAlpha = 0.1;
+  ctx.drawImage(wmImg, (W - wmW) / 2, (H - wmH) / 2, wmW, wmH);
+  ctx.restore();
+  document.getElementById('status').textContent =
+    '✅ 水印已叠加 (globalAlpha=0.1, 宽度60%, 居中)。导出尺寸: ' + W + '×' + H;
+};
+wmImg.onerror = function() {
+  document.getElementById('status').textContent = '⚠️ 水印图片加载失败，请确保 /colliers-watermark.png 存在';
+};
+wmImg.src = '/colliers-watermark.png';
+
+function downloadImg() {
+  const link = document.createElement('a');
+  link.download = 'watermark-test-alpha-0.1.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,7909 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "018f6bcc-7a11-4494-bd54-2511563ea772",
+        "building_name": "银泰中心",
+        "point_lng": 116.458257,
+        "point_lat": 39.907001,
+        "osm_id": 1147437712,
+        "match_distance_m": 67.9,
+        "match_inside": false,
+        "building_type": "transportation",
+        "building_levels": "",
+        "validation_centroid_dist_m": 69.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4576451,
+              39.9075369
+            ],
+            [
+              116.4576448,
+              39.9074666
+            ],
+            [
+              116.4578632,
+              39.907466
+            ],
+            [
+              116.4578939,
+              39.907466
+            ],
+            [
+              116.4578942,
+              39.9075363
+            ],
+            [
+              116.4576451,
+              39.9075369
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "02b2515f-4559-4991-9e4a-465655461530",
+        "building_name": "搜狐网络大厦",
+        "point_lng": 116.332112,
+        "point_lat": 39.993716,
+        "osm_id": 1044614697,
+        "match_distance_m": 14.9,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 12.4,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3321134,
+              39.9936208
+            ],
+            [
+              116.3321002,
+              39.9939953
+            ],
+            [
+              116.3322841,
+              39.9939991
+            ],
+            [
+              116.3322866,
+              39.9939279
+            ],
+            [
+              116.3322067,
+              39.9939263
+            ],
+            [
+              116.3322148,
+              39.993695
+            ],
+            [
+              116.3323362,
+              39.9936974
+            ],
+            [
+              116.3323387,
+              39.9936255
+            ],
+            [
+              116.3321134,
+              39.9936208
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "072d0b17-f3eb-4690-9673-8286c858b7c0",
+        "building_name": "启皓北京",
+        "point_lng": 116.456336,
+        "point_lat": 39.947734,
+        "osm_id": 260266587,
+        "match_distance_m": 66.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 66.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4567569,
+              39.9469071
+            ],
+            [
+              116.4576803,
+              39.9471274
+            ],
+            [
+              116.4575966,
+              39.9473681
+            ],
+            [
+              116.4573583,
+              39.9473203
+            ],
+            [
+              116.4572874,
+              39.9475224
+            ],
+            [
+              116.457272,
+              39.9475664
+            ],
+            [
+              116.4571767,
+              39.9478379
+            ],
+            [
+              116.4576306,
+              39.947951
+            ],
+            [
+              116.4575512,
+              39.948212
+            ],
+            [
+              116.4567285,
+              39.9479292
+            ],
+            [
+              116.4567433,
+              39.9475616
+            ],
+            [
+              116.4567206,
+              39.9475193
+            ],
+            [
+              116.4567027,
+              39.9474708
+            ],
+            [
+              116.4566963,
+              39.9474161
+            ],
+            [
+              116.4566995,
+              39.9473378
+            ],
+            [
+              116.4567238,
+              39.9472657
+            ],
+            [
+              116.4567449,
+              39.9472296
+            ],
+            [
+              116.4567595,
+              39.9472197
+            ],
+            [
+              116.4567569,
+              39.9469071
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "080387f0-d658-4681-8bf8-68a818fe3636",
+        "building_name": "丽金智地中心西塔",
+        "point_lng": 116.319635,
+        "point_lat": 39.956309,
+        "osm_id": 486561116,
+        "match_distance_m": 24.2,
+        "match_inside": true,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 30.7,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.318985,
+              39.9562012
+            ],
+            [
+              116.3197359,
+              39.9562432
+            ],
+            [
+              116.3197264,
+              39.9563432
+            ],
+            [
+              116.3189755,
+              39.9563013
+            ],
+            [
+              116.318985,
+              39.9562012
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "0a5a58e4-1c0a-4898-9434-2b3ee40fc3e1",
+        "building_name": "西海国际中心",
+        "point_lng": 116.308831,
+        "point_lat": 39.963826,
+        "osm_id": 950261534,
+        "match_distance_m": 24.1,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 26.6,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3077444,
+              39.9637547
+            ],
+            [
+              116.3078655,
+              39.9637986
+            ],
+            [
+              116.3078237,
+              39.9638663
+            ],
+            [
+              116.3083736,
+              39.9640657
+            ],
+            [
+              116.3084134,
+              39.9640012
+            ],
+            [
+              116.308533,
+              39.9640446
+            ],
+            [
+              116.3086381,
+              39.9638743
+            ],
+            [
+              116.3093841,
+              39.9641449
+            ],
+            [
+              116.3092759,
+              39.9643201
+            ],
+            [
+              116.3094193,
+              39.964372
+            ],
+            [
+              116.3095415,
+              39.9641741
+            ],
+            [
+              116.3094107,
+              39.9641267
+            ],
+            [
+              116.3094583,
+              39.9640495
+            ],
+            [
+              116.3086966,
+              39.9637732
+            ],
+            [
+              116.3086492,
+              39.96385
+            ],
+            [
+              116.3085169,
+              39.963802
+            ],
+            [
+              116.3084151,
+              39.9639668
+            ],
+            [
+              116.3078967,
+              39.9637789
+            ],
+            [
+              116.3079992,
+              39.9636129
+            ],
+            [
+              116.3078625,
+              39.9635633
+            ],
+            [
+              116.3077444,
+              39.9637547
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "0a62ab8e-8faf-4435-aecf-101753475f4b",
+        "building_name": "中信大厦",
+        "point_lng": 116.466276,
+        "point_lat": 39.912916,
+        "osm_id": 764431881,
+        "match_distance_m": 34.6,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 41.9,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4661664,
+              39.9136555
+            ],
+            [
+              116.4668718,
+              39.9136329
+            ],
+            [
+              116.4668211,
+              39.9127023
+            ],
+            [
+              116.4661156,
+              39.912725
+            ],
+            [
+              116.4661664,
+              39.9136555
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "0c74e8d4-7323-4ec0-971c-4d45d4c170af",
+        "building_name": "锦什坊街叁拾伍号",
+        "point_lng": 116.36223,
+        "point_lat": 39.920558,
+        "osm_id": 521048247,
+        "match_distance_m": 33.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "3",
+        "validation_centroid_dist_m": 30.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3625186,
+              39.9206266
+            ],
+            [
+              116.3626835,
+              39.9206281
+            ],
+            [
+              116.3626899,
+              39.9202184
+            ],
+            [
+              116.3625866,
+              39.9202174
+            ],
+            [
+              116.3625885,
+              39.9200959
+            ],
+            [
+              116.3618374,
+              39.920089
+            ],
+            [
+              116.3618355,
+              39.9202095
+            ],
+            [
+              116.362525,
+              39.9202159
+            ],
+            [
+              116.3625186,
+              39.9206266
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "0e42ddae-b8c6-4828-a5eb-70f294d078c3",
+        "building_name": "财富金融中心（FFC）",
+        "point_lng": 116.460552,
+        "point_lat": 39.917729,
+        "osm_id": 764434455,
+        "match_distance_m": 19.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 15.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4607939,
+              39.9177967
+            ],
+            [
+              116.4604989,
+              39.9172783
+            ],
+            [
+              116.4603864,
+              39.9173159
+            ],
+            [
+              116.4606814,
+              39.9178343
+            ],
+            [
+              116.4607939,
+              39.9177967
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "13dd3bbe-5575-4601-8caf-1fb2c311c567",
+        "building_name": "紫檀大厦",
+        "point_lng": 116.541798,
+        "point_lat": 39.91255,
+        "osm_id": 1301782403,
+        "match_distance_m": 28.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 30.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.5414823,
+              39.9122208
+            ],
+            [
+              116.5421692,
+              39.9122216
+            ],
+            [
+              116.5421655,
+              39.9123715
+            ],
+            [
+              116.5414797,
+              39.9123737
+            ],
+            [
+              116.5414823,
+              39.9122208
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "1439a0a2-4b65-4883-828d-70606753d30a",
+        "building_name": "三星大厦（中区+低区）",
+        "point_lng": 116.464627,
+        "point_lat": 39.912332,
+        "osm_id": 764431888,
+        "match_distance_m": 37.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 35.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.464486,
+              39.9120549
+            ],
+            [
+              116.464891,
+              39.9120621
+            ],
+            [
+              116.4648944,
+              39.9119485
+            ],
+            [
+              116.4644894,
+              39.9119413
+            ],
+            [
+              116.464486,
+              39.9120549
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "16f949e5-51aa-45d5-b429-8f55864e1c1a",
+        "building_name": "远洋锐中心",
+        "point_lng": 116.327628,
+        "point_lat": 39.86524,
+        "osm_id": 1095088003,
+        "match_distance_m": 35.7,
+        "match_inside": false,
+        "building_type": "retail",
+        "building_levels": "",
+        "validation_centroid_dist_m": 36.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3276821,
+              39.865753
+            ],
+            [
+              116.3270493,
+              39.8657334
+            ],
+            [
+              116.3270442,
+              39.8661682
+            ],
+            [
+              116.328662,
+              39.8661604
+            ],
+            [
+              116.3291928,
+              39.8649029
+            ],
+            [
+              116.3280802,
+              39.864613
+            ],
+            [
+              116.3276974,
+              39.8650596
+            ],
+            [
+              116.3280904,
+              39.8652594
+            ],
+            [
+              116.3276821,
+              39.865753
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "1baf921f-3b14-4321-a7ef-645b972704df",
+        "building_name": "浦项中心",
+        "point_lng": 116.488747,
+        "point_lat": 39.998971,
+        "osm_id": 945348472,
+        "match_distance_m": 65.7,
+        "match_inside": false,
+        "building_type": "grandstand",
+        "building_levels": "",
+        "validation_centroid_dist_m": 66.3,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4894198,
+              39.9993395
+            ],
+            [
+              116.4893578,
+              39.9994373
+            ],
+            [
+              116.489283,
+              39.9994095
+            ],
+            [
+              116.4892407,
+              39.9993938
+            ],
+            [
+              116.4892563,
+              39.9993693
+            ],
+            [
+              116.4893027,
+              39.999296
+            ],
+            [
+              116.4894198,
+              39.9993395
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "1bf6505b-07ee-47a0-bc57-03cb30db2f56",
+        "building_name": "致真大厦",
+        "point_lng": 116.351564,
+        "point_lat": 39.977324,
+        "osm_id": 657908137,
+        "match_distance_m": 36.3,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 33.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.351468,
+              39.9771005
+            ],
+            [
+              116.351478,
+              39.9769016
+            ],
+            [
+              116.3518593,
+              39.9769129
+            ],
+            [
+              116.3518493,
+              39.9771117
+            ],
+            [
+              116.351468,
+              39.9771005
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "1c822300-ac2c-4347-86df-4fb48d560ffe",
+        "building_name": "英蓝国际金融中心",
+        "point_lng": 116.357825,
+        "point_lat": 39.920574,
+        "osm_id": 521048272,
+        "match_distance_m": 75.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "4",
+        "validation_centroid_dist_m": 78.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3569468,
+              39.9200431
+            ],
+            [
+              116.3578346,
+              39.9200369
+            ],
+            [
+              116.357832,
+              39.919932
+            ],
+            [
+              116.3569361,
+              39.9199443
+            ],
+            [
+              116.3569468,
+              39.9200431
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "1f84bc13-2ffc-4fcd-8460-c3cc739b8418",
+        "building_name": "哈银国际中心",
+        "point_lng": 116.459281,
+        "point_lat": 39.960483,
+        "osm_id": 940020338,
+        "match_distance_m": 25.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 23.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4592449,
+              39.9606894
+            ],
+            [
+              116.4593832,
+              39.9608179
+            ],
+            [
+              116.4596447,
+              39.9606526
+            ],
+            [
+              116.4595063,
+              39.960524
+            ],
+            [
+              116.4592449,
+              39.9606894
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "21446972-3df0-4dd3-9684-1220e1df54b5",
+        "building_name": "远洋国际中心二期",
+        "point_lng": 116.492122,
+        "point_lat": 39.916186,
+        "osm_id": 764445994,
+        "match_distance_m": 37.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 35.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4917426,
+              39.9161386
+            ],
+            [
+              116.4917874,
+              39.9161384
+            ],
+            [
+              116.491909,
+              39.9161378
+            ],
+            [
+              116.491905,
+              39.9156605
+            ],
+            [
+              116.4917386,
+              39.9156613
+            ],
+            [
+              116.4917426,
+              39.9161386
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "298ed80a-2be9-463a-a363-65f7e5248b54",
+        "building_name": "城奥大厦",
+        "point_lng": 116.404676,
+        "point_lat": 39.979906,
+        "osm_id": 1314158419,
+        "match_distance_m": 25.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 31.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.404003,
+              39.9798316
+            ],
+            [
+              116.404004,
+              39.9797001
+            ],
+            [
+              116.4048702,
+              39.9797041
+            ],
+            [
+              116.4048691,
+              39.9798355
+            ],
+            [
+              116.404003,
+              39.9798316
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "29bd72c2-f1b6-4cbb-baf2-cc6f89079e27",
+        "building_name": "友邦金融中心",
+        "point_lng": 116.462524,
+        "point_lat": 39.92768,
+        "osm_id": 477835697,
+        "match_distance_m": 8.8,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 7.7,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4622298,
+              39.9277641
+            ],
+            [
+              116.4622867,
+              39.9277801
+            ],
+            [
+              116.4622796,
+              39.9277949
+            ],
+            [
+              116.4630646,
+              39.9280163
+            ],
+            [
+              116.4632252,
+              39.9276815
+            ],
+            [
+              116.4623833,
+              39.9274441
+            ],
+            [
+              116.4622298,
+              39.9277641
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2b32319b-5d08-42b1-b9d2-bf041478b108",
+        "building_name": "太平洋保险大厦",
+        "point_lng": 116.366067,
+        "point_lat": 39.918211,
+        "osm_id": 521057770,
+        "match_distance_m": 67.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 68.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3651893,
+              39.9183171
+            ],
+            [
+              116.3653502,
+              39.9183254
+            ],
+            [
+              116.3653716,
+              39.9180929
+            ],
+            [
+              116.3652161,
+              39.9180867
+            ],
+            [
+              116.3651893,
+              39.9183171
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2bb78ea5-1e65-4f9f-8755-3c9f35d26bd1",
+        "building_name": "新华保险大厦（NCI）",
+        "point_lng": 116.446972,
+        "point_lat": 39.90768,
+        "osm_id": 233523283,
+        "match_distance_m": 39.5,
+        "match_inside": true,
+        "building_type": "hotel",
+        "building_levels": "",
+        "validation_centroid_dist_m": 49.9,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4456114,
+              39.907697
+            ],
+            [
+              116.4465138,
+              39.9077288
+            ],
+            [
+              116.4465157,
+              39.9078413
+            ],
+            [
+              116.4455054,
+              39.9078094
+            ],
+            [
+              116.4454967,
+              39.9079805
+            ],
+            [
+              116.4467063,
+              39.9080215
+            ],
+            [
+              116.4475921,
+              39.907933
+            ],
+            [
+              116.4476416,
+              39.907843
+            ],
+            [
+              116.4476366,
+              39.9075411
+            ],
+            [
+              116.4456093,
+              39.9075722
+            ],
+            [
+              116.4456114,
+              39.907697
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2cfd332f-a35a-43c3-a260-0d859f1fc23f",
+        "building_name": "亮马桥外交办公大楼",
+        "point_lng": 116.463427,
+        "point_lat": 39.950882,
+        "osm_id": 234215541,
+        "match_distance_m": 59.2,
+        "match_inside": true,
+        "building_type": "government",
+        "building_levels": "",
+        "validation_centroid_dist_m": 62.2,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4625909,
+              39.9516718
+            ],
+            [
+              116.4626499,
+              39.9505821
+            ],
+            [
+              116.4635238,
+              39.9508434
+            ],
+            [
+              116.4634975,
+              39.9509707
+            ],
+            [
+              116.4630598,
+              39.9508475
+            ],
+            [
+              116.4629718,
+              39.9508884
+            ],
+            [
+              116.462886,
+              39.9509193
+            ],
+            [
+              116.4628511,
+              39.9515423
+            ],
+            [
+              116.4634278,
+              39.951567
+            ],
+            [
+              116.4634266,
+              39.9516661
+            ],
+            [
+              116.4633554,
+              39.9516615
+            ],
+            [
+              116.4633604,
+              39.9516926
+            ],
+            [
+              116.4632667,
+              39.9516903
+            ],
+            [
+              116.4632611,
+              39.9517686
+            ],
+            [
+              116.4628994,
+              39.9517541
+            ],
+            [
+              116.4628994,
+              39.9516862
+            ],
+            [
+              116.4625909,
+              39.9516718
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2dae7566-117d-4151-b4d8-c68b36457bc4",
+        "building_name": "汇京双子座大厦",
+        "point_lng": 116.448639,
+        "point_lat": 39.90775,
+        "osm_id": 233523265,
+        "match_distance_m": 3.1,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "12",
+        "validation_centroid_dist_m": 8.7,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4478322,
+              39.9076981
+            ],
+            [
+              116.4485559,
+              39.9077049
+            ],
+            [
+              116.4485526,
+              39.9079119
+            ],
+            [
+              116.4487265,
+              39.9079135
+            ],
+            [
+              116.4487298,
+              39.9077066
+            ],
+            [
+              116.4494228,
+              39.9077131
+            ],
+            [
+              116.449425,
+              39.9075713
+            ],
+            [
+              116.4478344,
+              39.9075563
+            ],
+            [
+              116.4478322,
+              39.9076981
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2e0e1c0d-9762-49f3-9f85-ec20370a1ec8",
+        "building_name": "乐成中心",
+        "point_lng": 116.462324,
+        "point_lat": 39.894899,
+        "osm_id": 638337383,
+        "match_distance_m": 11.1,
+        "match_inside": true,
+        "building_type": "apartments",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 15.4,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4628297,
+              39.8948946
+            ],
+            [
+              116.462824,
+              39.8947187
+            ],
+            [
+              116.4619577,
+              39.8947352
+            ],
+            [
+              116.4619634,
+              39.894911
+            ],
+            [
+              116.4628297,
+              39.8948946
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2e9d581b-523e-4f23-9ac6-0019455b5cb4",
+        "building_name": "平安国际金融中心",
+        "point_lng": 116.460091,
+        "point_lat": 39.94978,
+        "osm_id": 840208553,
+        "match_distance_m": 24.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 27.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4596007,
+              39.9496781
+            ],
+            [
+              116.4600197,
+              39.9496848
+            ],
+            [
+              116.4600151,
+              39.949856
+            ],
+            [
+              116.459596,
+              39.9498493
+            ],
+            [
+              116.4596007,
+              39.9496781
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "318735b6-d1fa-4918-ae4d-4fb265e23327",
+        "building_name": "天润财富中心",
+        "point_lng": 116.427741,
+        "point_lat": 39.911344,
+        "osm_id": 1215921569,
+        "match_distance_m": 30.7,
+        "match_inside": true,
+        "building_type": "commercial",
+        "building_levels": "",
+        "validation_centroid_dist_m": 36.2,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4280745,
+              39.9120165
+            ],
+            [
+              116.4274905,
+              39.9120164
+            ],
+            [
+              116.4274908,
+              39.9111685
+            ],
+            [
+              116.4280739,
+              39.9111686
+            ],
+            [
+              116.4280739,
+              39.9113412
+            ],
+            [
+              116.4278782,
+              39.9113411
+            ],
+            [
+              116.4278778,
+              39.9118698
+            ],
+            [
+              116.4280746,
+              39.9118699
+            ],
+            [
+              116.4280745,
+              39.9120165
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "334cbbeb-ab66-4233-b4e2-8e1f927df843",
+        "building_name": "五矿广场",
+        "point_lng": 116.432842,
+        "point_lat": 39.931558,
+        "osm_id": 536927227,
+        "match_distance_m": 33.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 38.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4323239,
+              39.9319108
+            ],
+            [
+              116.4323296,
+              39.9315591
+            ],
+            [
+              116.4327342,
+              39.9315629
+            ],
+            [
+              116.4327285,
+              39.9319146
+            ],
+            [
+              116.4323239,
+              39.9319108
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "33b37872-397e-4135-96bf-588da171fc6a",
+        "building_name": "泰禾长安中心B座",
+        "point_lng": 116.220038,
+        "point_lat": 39.90465,
+        "osm_id": 321301384,
+        "match_distance_m": 77.3,
+        "match_inside": false,
+        "building_type": "commercial",
+        "building_levels": "",
+        "validation_centroid_dist_m": 74.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.2198559,
+              39.9052215
+            ],
+            [
+              116.2200815,
+              39.9053276
+            ],
+            [
+              116.2204163,
+              39.9050987
+            ],
+            [
+              116.2201033,
+              39.9048419
+            ],
+            [
+              116.2183349,
+              39.9048084
+            ],
+            [
+              116.2180802,
+              39.9049982
+            ],
+            [
+              116.2183495,
+              39.9051992
+            ],
+            [
+              116.2198559,
+              39.9052215
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "365a9f79-2d97-4090-93b6-bd4bf8d55f29",
+        "building_name": "三星大厦（高区 CBD管委会）",
+        "point_lng": 116.464467,
+        "point_lat": 39.912049,
+        "osm_id": 764431888,
+        "match_distance_m": 19.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 16.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.464486,
+              39.9120549
+            ],
+            [
+              116.464891,
+              39.9120621
+            ],
+            [
+              116.4648944,
+              39.9119485
+            ],
+            [
+              116.4644894,
+              39.9119413
+            ],
+            [
+              116.464486,
+              39.9120549
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "38227a6f-c163-42e5-b915-9c44ffaf171d",
+        "building_name": "鼎好DH3-A座",
+        "point_lng": 116.314195,
+        "point_lat": 39.984395,
+        "osm_id": 1002580378,
+        "match_distance_m": 56.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 60.3,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3148922,
+              39.984837
+            ],
+            [
+              116.3148946,
+              39.9847414
+            ],
+            [
+              116.3143421,
+              39.9847332
+            ],
+            [
+              116.3143397,
+              39.9848288
+            ],
+            [
+              116.3148922,
+              39.984837
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "389e12ca-cb06-434c-bc4f-8a0365bcfe32",
+        "building_name": "环球贸易中心F座",
+        "point_lng": 116.410693,
+        "point_lat": 39.965497,
+        "osm_id": 917243584,
+        "match_distance_m": 24.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 27.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4101686,
+              39.9654292
+            ],
+            [
+              116.4101778,
+              39.9652686
+            ],
+            [
+              116.4107663,
+              39.9652887
+            ],
+            [
+              116.4107617,
+              39.9654492
+            ],
+            [
+              116.4101686,
+              39.9654292
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "3e01c1f8-c940-4e3f-bfea-a7a970f686b7",
+        "building_name": "金嘉大厦",
+        "point_lng": 116.36,
+        "point_lat": 39.921086,
+        "osm_id": 521048252,
+        "match_distance_m": 30.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "5",
+        "validation_centroid_dist_m": 24.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3597739,
+              39.9212917
+            ],
+            [
+              116.3608146,
+              39.921302
+            ],
+            [
+              116.3608146,
+              39.9211806
+            ],
+            [
+              116.3597739,
+              39.9211683
+            ],
+            [
+              116.3597739,
+              39.9212917
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "3fcdd4c8-5614-4d62-a601-00f18fe4c9ec",
+        "building_name": "鼎好DH3-B/C座",
+        "point_lng": 116.313918,
+        "point_lat": 39.983756,
+        "osm_id": 481936649,
+        "match_distance_m": 35.4,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "3",
+        "validation_centroid_dist_m": 42.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3130863,
+              39.9838901
+            ],
+            [
+              116.3139365,
+              39.9838998
+            ],
+            [
+              116.3139392,
+              39.9837617
+            ],
+            [
+              116.313089,
+              39.9837519
+            ],
+            [
+              116.3130863,
+              39.9838901
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "407a6a77-dbf8-49fb-bcc0-55b9a08ea0dc",
+        "building_name": "中海国际中心",
+        "point_lng": 116.357285,
+        "point_lat": 39.93162,
+        "osm_id": 262362359,
+        "match_distance_m": 56.4,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 50.3,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3575775,
+              39.9316867
+            ],
+            [
+              116.3582444,
+              39.9316857
+            ],
+            [
+              116.3582449,
+              39.931878
+            ],
+            [
+              116.357578,
+              39.9318789
+            ],
+            [
+              116.3575775,
+              39.9316867
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "47fee42f-9fc1-48a1-8aa6-19886edfb51b",
+        "building_name": "国际财源中心（IFC）",
+        "point_lng": 116.452709,
+        "point_lat": 39.907549,
+        "osm_id": 1147872448,
+        "match_distance_m": 46.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 50.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4533824,
+              39.9078834
+            ],
+            [
+              116.453383,
+              39.9077825
+            ],
+            [
+              116.4528448,
+              39.9077805
+            ],
+            [
+              116.4528442,
+              39.9078815
+            ],
+            [
+              116.4533824,
+              39.9078834
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "4b602aa7-80e1-4351-aac7-e5709fcb17b0",
+        "building_name": "中海大厦B座",
+        "point_lng": 116.178591,
+        "point_lat": 39.908421,
+        "osm_id": 1324042216,
+        "match_distance_m": 46.3,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 49.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.1778597,
+              39.9084664
+            ],
+            [
+              116.1778518,
+              39.9081527
+            ],
+            [
+              116.1782781,
+              39.9081464
+            ],
+            [
+              116.1782859,
+              39.9084602
+            ],
+            [
+              116.1778597,
+              39.9084664
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "52f17894-8210-4fb3-b35f-f3150f36363e",
+        "building_name": "中国技术交易大厦",
+        "point_lng": 116.307531,
+        "point_lat": 39.984256,
+        "osm_id": 1433682843,
+        "match_distance_m": 32.3,
+        "match_inside": false,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 33.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3074998,
+              39.9845908
+            ],
+            [
+              116.3075046,
+              39.9844785
+            ],
+            [
+              116.3077542,
+              39.9844842
+            ],
+            [
+              116.3077474,
+              39.9845954
+            ],
+            [
+              116.3074998,
+              39.9845908
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "55419861-51a8-4b1c-836b-8bb9de1c08ec",
+        "building_name": "中关村资本大厦",
+        "point_lng": 116.337732,
+        "point_lat": 39.957118,
+        "osm_id": 1464917607,
+        "match_distance_m": 16.4,
+        "match_inside": false,
+        "building_type": "university",
+        "building_levels": "",
+        "validation_centroid_dist_m": 13.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3374733,
+              39.9570184
+            ],
+            [
+              116.3374814,
+              39.9569292
+            ],
+            [
+              116.3381931,
+              39.9569668
+            ],
+            [
+              116.3381851,
+              39.9570561
+            ],
+            [
+              116.3374733,
+              39.9570184
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "557ca98c-79d8-474f-8460-bf49b08570a3",
+        "building_name": "泓晟国际中心",
+        "point_lng": 116.432895,
+        "point_lat": 39.930644,
+        "osm_id": 536929297,
+        "match_distance_m": 27.4,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 28.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4324834,
+              39.9308195
+            ],
+            [
+              116.4324814,
+              39.9303673
+            ],
+            [
+              116.4326775,
+              39.9303668
+            ],
+            [
+              116.4326795,
+              39.930819
+            ],
+            [
+              116.4324834,
+              39.9308195
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "56f89841-8bf0-4248-bc03-ad5c69d4aeac",
+        "building_name": "长安兴融中心-4号楼",
+        "point_lng": 116.361343,
+        "point_lat": 39.904939,
+        "osm_id": 161807611,
+        "match_distance_m": 48.2,
+        "match_inside": true,
+        "building_type": "office",
+        "building_levels": "",
+        "validation_centroid_dist_m": 66.1,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3599005,
+              39.9043701
+            ],
+            [
+              116.3598942,
+              39.9049927
+            ],
+            [
+              116.3618652,
+              39.9050045
+            ],
+            [
+              116.3618715,
+              39.9043819
+            ],
+            [
+              116.3599005,
+              39.9043701
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "5cb55817-5e6c-4c08-aef2-318fa1ebb8f2",
+        "building_name": "北京国际俱乐部二期（C座）",
+        "point_lng": 116.43926,
+        "point_lat": 39.909474,
+        "osm_id": 469532480,
+        "match_distance_m": 19.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 21.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4389803,
+              39.9096298
+            ],
+            [
+              116.4391776,
+              39.9096285
+            ],
+            [
+              116.4391767,
+              39.909542
+            ],
+            [
+              116.4389794,
+              39.9095432
+            ],
+            [
+              116.4389803,
+              39.9096298
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "5d313590-9ecd-484f-925c-62be0b5d3790",
+        "building_name": "东方广场西区",
+        "point_lng": 116.412649,
+        "point_lat": 39.909443,
+        "osm_id": 932754739,
+        "match_distance_m": 7.1,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 17.9,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4122917,
+              39.9099203
+            ],
+            [
+              116.4123364,
+              39.9090783
+            ],
+            [
+              116.4129564,
+              39.9090908
+            ],
+            [
+              116.4129117,
+              39.9099281
+            ],
+            [
+              116.4122917,
+              39.9099203
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "5dfe3499-43e8-49a3-a8f0-9129188fffe2",
+        "building_name": "中海大厦C、D座",
+        "point_lng": 116.178037,
+        "point_lat": 39.908404,
+        "osm_id": 1324042216,
+        "match_distance_m": 11.2,
+        "match_inside": true,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 7.3,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.1778597,
+              39.9084664
+            ],
+            [
+              116.1778518,
+              39.9081527
+            ],
+            [
+              116.1782781,
+              39.9081464
+            ],
+            [
+              116.1782859,
+              39.9084602
+            ],
+            [
+              116.1778597,
+              39.9084664
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "5f024b40-14a2-493e-a0d9-43492b5f8ddf",
+        "building_name": "华润大厦",
+        "point_lng": 116.434079,
+        "point_lat": 39.912909,
+        "osm_id": 478407362,
+        "match_distance_m": 33.4,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "2",
+        "validation_centroid_dist_m": 33.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4339507,
+              39.9125963
+            ],
+            [
+              116.434001,
+              39.9125979
+            ],
+            [
+              116.4339994,
+              39.9126272
+            ],
+            [
+              116.4340197,
+              39.9126454
+            ],
+            [
+              116.4340577,
+              39.9126464
+            ],
+            [
+              116.4340732,
+              39.9126287
+            ],
+            [
+              116.4341437,
+              39.9126309
+            ],
+            [
+              116.434143,
+              39.9126427
+            ],
+            [
+              116.4344089,
+              39.912651
+            ],
+            [
+              116.4344156,
+              39.9125241
+            ],
+            [
+              116.4339553,
+              39.9125098
+            ],
+            [
+              116.4339507,
+              39.9125963
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "620e729b-d8fe-4d10-9ca6-770f70c0f69e",
+        "building_name": "远洋国际中心A座",
+        "point_lng": 116.49162,
+        "point_lat": 39.914782,
+        "osm_id": 764446001,
+        "match_distance_m": 1.3,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 6.2,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.491292,
+              39.9148045
+            ],
+            [
+              116.4919209,
+              39.9148405
+            ],
+            [
+              116.4919307,
+              39.9147397
+            ],
+            [
+              116.4913018,
+              39.9147037
+            ],
+            [
+              116.491292,
+              39.9148045
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6385abc1-e93f-4284-9a71-f93f8e6ab636",
+        "building_name": "卫通大厦",
+        "point_lng": 116.328764,
+        "point_lat": 39.977064,
+        "osm_id": 313367526,
+        "match_distance_m": 44.7,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 56.7,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3277015,
+              39.9775328
+            ],
+            [
+              116.3277399,
+              39.9769331
+            ],
+            [
+              116.3289162,
+              39.9769883
+            ],
+            [
+              116.3288634,
+              39.9775843
+            ],
+            [
+              116.3277015,
+              39.9775328
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "645b40dd-d95a-4117-aabf-7a5197dd8b7b",
+        "building_name": "北投投资大厦",
+        "point_lng": 116.402757,
+        "point_lat": 39.978278,
+        "osm_id": 250712232,
+        "match_distance_m": 24.4,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 30.1,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4023342,
+              39.9777863
+            ],
+            [
+              116.4025295,
+              39.9784129
+            ],
+            [
+              116.402795,
+              39.9784176
+            ],
+            [
+              116.4028041,
+              39.9781861
+            ],
+            [
+              116.4027602,
+              39.9779205
+            ],
+            [
+              116.4027248,
+              39.9777068
+            ],
+            [
+              116.4023342,
+              39.9777863
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "67e9d533-000f-4b09-aaea-a9ba1f52949e",
+        "building_name": "招商局广场",
+        "point_lng": 116.404641,
+        "point_lat": 39.977864,
+        "osm_id": 250712236,
+        "match_distance_m": 26.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 33.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4038059,
+              39.9779322
+            ],
+            [
+              116.4050049,
+              39.9779608
+            ],
+            [
+              116.4049996,
+              39.9780918
+            ],
+            [
+              116.4038006,
+              39.9780632
+            ],
+            [
+              116.4038059,
+              39.9779322
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "69470d01-2e04-439c-b7c3-12ebc27ab43b",
+        "building_name": "中钢国际广场",
+        "point_lng": 116.313304,
+        "point_lat": 39.982116,
+        "osm_id": 944504050,
+        "match_distance_m": 30.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 24.3,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3132764,
+              39.9821365
+            ],
+            [
+              116.3132704,
+              39.9822789
+            ],
+            [
+              116.3140021,
+              39.9822972
+            ],
+            [
+              116.3140081,
+              39.9821547
+            ],
+            [
+              116.3132764,
+              39.9821365
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6a59f2eb-ff19-4b86-aa14-809ce0aa8a9a",
+        "building_name": "万通中心D座",
+        "point_lng": 116.456973,
+        "point_lat": 39.919557,
+        "osm_id": 371402225,
+        "match_distance_m": 31.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 33.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4563544,
+              39.9195094
+            ],
+            [
+              116.4570977,
+              39.9195131
+            ],
+            [
+              116.4570881,
+              39.9192065
+            ],
+            [
+              116.4563346,
+              39.9192035
+            ],
+            [
+              116.4563544,
+              39.9195094
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6a6230ee-d659-491d-9a3d-7932356de22e",
+        "building_name": "清华科技园-火炬大厦",
+        "point_lng": 116.330709,
+        "point_lat": 39.994513,
+        "osm_id": 239267018,
+        "match_distance_m": 11.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 15.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3302911,
+              39.9946616
+            ],
+            [
+              116.3310459,
+              39.9946645
+            ],
+            [
+              116.3310466,
+              39.9945563
+            ],
+            [
+              116.3302917,
+              39.9945534
+            ],
+            [
+              116.3302911,
+              39.9946616
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6d4f0e17-bc33-4787-a63e-606ae10e2dd0",
+        "building_name": "中关村东升科技园·学北园",
+        "point_lng": 116.351227,
+        "point_lat": 40.018578,
+        "osm_id": 1424429481,
+        "match_distance_m": 59.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 51.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.351525,
+              40.0187041
+            ],
+            [
+              116.3518801,
+              40.0188607
+            ],
+            [
+              116.3523003,
+              40.0183019
+            ],
+            [
+              116.3519452,
+              40.0181453
+            ],
+            [
+              116.351525,
+              40.0187041
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6d8101c6-08aa-43c2-a4e4-4d54e0dda9f8",
+        "building_name": "保利国际广场1座",
+        "point_lng": 116.49165,
+        "point_lat": 39.996348,
+        "osm_id": 244010337,
+        "match_distance_m": 45.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 47.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4911217,
+              39.9960044
+            ],
+            [
+              116.4913261,
+              39.9961838
+            ],
+            [
+              116.4914859,
+              39.996077
+            ],
+            [
+              116.4912816,
+              39.9958976
+            ],
+            [
+              116.4911217,
+              39.9960044
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6e996a64-7a22-4cd6-b435-1e0433555c99",
+        "building_name": "东方广场东区",
+        "point_lng": 116.416316,
+        "point_lat": 39.909562,
+        "osm_id": 476128791,
+        "match_distance_m": 60.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 57.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4162807,
+              39.9092414
+            ],
+            [
+              116.4163853,
+              39.9092476
+            ],
+            [
+              116.4164067,
+              39.9089554
+            ],
+            [
+              116.4163209,
+              39.9089513
+            ],
+            [
+              116.4163209,
+              39.9088917
+            ],
+            [
+              116.4161009,
+              39.9088958
+            ],
+            [
+              116.4161063,
+              39.9089842
+            ],
+            [
+              116.4162753,
+              39.9089986
+            ],
+            [
+              116.4162807,
+              39.9092414
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "707f0944-4988-47e7-b316-7e35681100a0",
+        "building_name": "宝钢大厦",
+        "point_lng": 116.446022,
+        "point_lat": 39.9077,
+        "osm_id": 233523283,
+        "match_distance_m": 44.4,
+        "match_inside": true,
+        "building_type": "hotel",
+        "building_levels": "",
+        "validation_centroid_dist_m": 34.0,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4456114,
+              39.907697
+            ],
+            [
+              116.4465138,
+              39.9077288
+            ],
+            [
+              116.4465157,
+              39.9078413
+            ],
+            [
+              116.4455054,
+              39.9078094
+            ],
+            [
+              116.4454967,
+              39.9079805
+            ],
+            [
+              116.4467063,
+              39.9080215
+            ],
+            [
+              116.4475921,
+              39.907933
+            ],
+            [
+              116.4476416,
+              39.907843
+            ],
+            [
+              116.4476366,
+              39.9075411
+            ],
+            [
+              116.4456093,
+              39.9075722
+            ],
+            [
+              116.4456114,
+              39.907697
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "749e53a6-9d2e-40f0-8d36-e42a6e6ad36d",
+        "building_name": "中建财富国际中心",
+        "point_lng": 116.406354,
+        "point_lat": 39.979452,
+        "osm_id": 630766838,
+        "match_distance_m": 15.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 13.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4061975,
+              39.9793974
+            ],
+            [
+              116.4065623,
+              39.9794139
+            ],
+            [
+              116.4065768,
+              39.9792254
+            ],
+            [
+              116.406212,
+              39.979209
+            ],
+            [
+              116.4061975,
+              39.9793974
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "768182da-88f0-4190-9dd1-ff3c7a1639a4",
+        "building_name": "时尚万科中心",
+        "point_lng": 116.4915,
+        "point_lat": 39.922075,
+        "osm_id": 612292257,
+        "match_distance_m": 14.6,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 23.9,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.490785,
+              39.9221443
+            ],
+            [
+              116.4907852,
+              39.9220275
+            ],
+            [
+              116.4918746,
+              39.9220289
+            ],
+            [
+              116.4918744,
+              39.9221457
+            ],
+            [
+              116.490785,
+              39.9221443
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "78042253-6e6d-4442-9a71-0ce3de344e02",
+        "building_name": "PICC大厦",
+        "point_lng": 116.460321,
+        "point_lat": 39.906941,
+        "osm_id": 233137384,
+        "match_distance_m": 71.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 72.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4607791,
+              39.9062511
+            ],
+            [
+              116.4597027,
+              39.9062619
+            ],
+            [
+              116.4597049,
+              39.9063919
+            ],
+            [
+              116.4607815,
+              39.9063812
+            ],
+            [
+              116.4607828,
+              39.9064602
+            ],
+            [
+              116.4609655,
+              39.9064584
+            ],
+            [
+              116.4609611,
+              39.9062012
+            ],
+            [
+              116.4607783,
+              39.906203
+            ],
+            [
+              116.4607791,
+              39.9062511
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7852d43e-dce4-49d0-945f-f92505ede844",
+        "building_name": "蚂蚁T空间（丽金智地中心东塔）",
+        "point_lng": 116.320807,
+        "point_lat": 39.956309,
+        "osm_id": 486561122,
+        "match_distance_m": 26.0,
+        "match_inside": true,
+        "building_type": "hotel",
+        "building_levels": "",
+        "validation_centroid_dist_m": 21.3,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3208074,
+              39.9561955
+            ],
+            [
+              116.3214196,
+              39.9562332
+            ],
+            [
+              116.3214078,
+              39.9563465
+            ],
+            [
+              116.3207955,
+              39.9563087
+            ],
+            [
+              116.3208074,
+              39.9561955
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "79441fa4-be79-434d-b231-ff2a640a6da9",
+        "building_name": "中国电子大厦",
+        "point_lng": 116.311772,
+        "point_lat": 39.979518,
+        "osm_id": 1303633461,
+        "match_distance_m": 28.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 30.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3113125,
+              39.9796784
+            ],
+            [
+              116.3113101,
+              39.9797294
+            ],
+            [
+              116.311307,
+              39.9797975
+            ],
+            [
+              116.3120477,
+              39.9798178
+            ],
+            [
+              116.3120532,
+              39.9796986
+            ],
+            [
+              116.3113125,
+              39.9796784
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7a42a934-042a-4ab6-b9cc-017c2c1b6805",
+        "building_name": "WWT世界财富大厦",
+        "point_lng": 116.456769,
+        "point_lat": 39.907882,
+        "osm_id": 233497497,
+        "match_distance_m": 24.6,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 25.1,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4572515,
+              39.9078922
+            ],
+            [
+              116.4572898,
+              39.9077652
+            ],
+            [
+              116.4572874,
+              39.9075878
+            ],
+            [
+              116.4569798,
+              39.9075969
+            ],
+            [
+              116.4569917,
+              39.907725
+            ],
+            [
+              116.4568988,
+              39.9077597
+            ],
+            [
+              116.4568272,
+              39.9078036
+            ],
+            [
+              116.4567676,
+              39.9078567
+            ],
+            [
+              116.4567307,
+              39.9079116
+            ],
+            [
+              116.4567175,
+              39.9079902
+            ],
+            [
+              116.4567255,
+              39.9080609
+            ],
+            [
+              116.4567588,
+              39.9081288
+            ],
+            [
+              116.4568201,
+              39.9082005
+            ],
+            [
+              116.4568747,
+              39.9082335
+            ],
+            [
+              116.4569441,
+              39.9082682
+            ],
+            [
+              116.4570376,
+              39.9081479
+            ],
+            [
+              116.4571075,
+              39.9081641
+            ],
+            [
+              116.4571804,
+              39.9081598
+            ],
+            [
+              116.4572464,
+              39.9081357
+            ],
+            [
+              116.4572965,
+              39.9080948
+            ],
+            [
+              116.457324,
+              39.9080429
+            ],
+            [
+              116.4573251,
+              39.9079868
+            ],
+            [
+              116.4572999,
+              39.9079342
+            ],
+            [
+              116.4572515,
+              39.9078922
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7b7867fb-c597-4228-873f-3afcadbbda9f",
+        "building_name": "凯恒中心",
+        "point_lng": 116.432884,
+        "point_lat": 39.923518,
+        "osm_id": 351678884,
+        "match_distance_m": 37.8,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "12",
+        "validation_centroid_dist_m": 39.0,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4321067,
+              39.9236919
+            ],
+            [
+              116.432489,
+              39.9236622
+            ],
+            [
+              116.4333659,
+              39.9236587
+            ],
+            [
+              116.4333857,
+              39.9235565
+            ],
+            [
+              116.433477,
+              39.923485
+            ],
+            [
+              116.433477,
+              39.9233719
+            ],
+            [
+              116.4333469,
+              39.92329
+            ],
+            [
+              116.4331334,
+              39.92329
+            ],
+            [
+              116.432819,
+              39.9233645
+            ],
+            [
+              116.4328209,
+              39.9233228
+            ],
+            [
+              116.4324502,
+              39.9233287
+            ],
+            [
+              116.4319689,
+              39.9233526
+            ],
+            [
+              116.4319592,
+              39.9233883
+            ],
+            [
+              116.4319009,
+              39.9233972
+            ],
+            [
+              116.4318621,
+              39.9234181
+            ],
+            [
+              116.4318194,
+              39.9234538
+            ],
+            [
+              116.4317864,
+              39.9235044
+            ],
+            [
+              116.4317786,
+              39.9235639
+            ],
+            [
+              116.4318039,
+              39.9236339
+            ],
+            [
+              116.4319203,
+              39.923689
+            ],
+            [
+              116.4320019,
+              39.9236949
+            ],
+            [
+              116.4320601,
+              39.9236875
+            ],
+            [
+              116.4321067,
+              39.9236919
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7b7a2a04-85c3-4da6-bc56-bbc4a4fb0ea8",
+        "building_name": "环球贸易中心C、D座",
+        "point_lng": 116.410104,
+        "point_lat": 39.967172,
+        "osm_id": 913811995,
+        "match_distance_m": 17.8,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 14.8,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4099319,
+              39.9673507
+            ],
+            [
+              116.4099369,
+              39.9671555
+            ],
+            [
+              116.410629,
+              39.967166
+            ],
+            [
+              116.4106239,
+              39.9673613
+            ],
+            [
+              116.4099319,
+              39.9673507
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7c2c2afb-f684-4f7f-ab1d-1732e274445f",
+        "building_name": "东湖国际中心",
+        "point_lng": 116.464185,
+        "point_lat": 40.008174,
+        "osm_id": 361714072,
+        "match_distance_m": 37.6,
+        "match_inside": false,
+        "building_type": "school",
+        "building_levels": "",
+        "validation_centroid_dist_m": 35.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4643411,
+              40.0081564
+            ],
+            [
+              116.4647226,
+              40.0081595
+            ],
+            [
+              116.4647248,
+              40.0079964
+            ],
+            [
+              116.4645097,
+              40.0079946
+            ],
+            [
+              116.464511,
+              40.0079029
+            ],
+            [
+              116.4647258,
+              40.0079046
+            ],
+            [
+              116.4647278,
+              40.0077552
+            ],
+            [
+              116.4643697,
+              40.0077523
+            ],
+            [
+              116.4643678,
+              40.0078944
+            ],
+            [
+              116.4644227,
+              40.0078949
+            ],
+            [
+              116.4644214,
+              40.0079939
+            ],
+            [
+              116.4643434,
+              40.0079933
+            ],
+            [
+              116.4643411,
+              40.0081564
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7f0bfd28-21ac-4428-a291-0e562007023a",
+        "building_name": "远洋光华国际AB座-纺织厂",
+        "point_lng": 116.454354,
+        "point_lat": 39.916048,
+        "osm_id": 338085198,
+        "match_distance_m": 43.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "55",
+        "validation_centroid_dist_m": 47.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4540528,
+              39.9166981
+            ],
+            [
+              116.4540689,
+              39.9164307
+            ],
+            [
+              116.4540582,
+              39.9161468
+            ],
+            [
+              116.4542996,
+              39.9161838
+            ],
+            [
+              116.4545249,
+              39.9161427
+            ],
+            [
+              116.4545249,
+              39.9164595
+            ],
+            [
+              116.454541,
+              39.9167064
+            ],
+            [
+              116.4542889,
+              39.9167228
+            ],
+            [
+              116.4540528,
+              39.9166981
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "85169004-52ca-4757-9e9f-9e0ee7f8c035",
+        "building_name": "东方金融中心",
+        "point_lng": 116.477237,
+        "point_lat": 39.975314,
+        "osm_id": 136146034,
+        "match_distance_m": 30.8,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 28.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4766493,
+              39.9753261
+            ],
+            [
+              116.476767,
+              39.9754412
+            ],
+            [
+              116.4774231,
+              39.9750106
+            ],
+            [
+              116.4774409,
+              39.9749358
+            ],
+            [
+              116.4774183,
+              39.9748645
+            ],
+            [
+              116.477357,
+              39.9748221
+            ],
+            [
+              116.4771834,
+              39.9749409
+            ],
+            [
+              116.4771842,
+              39.9749854
+            ],
+            [
+              116.4766493,
+              39.9753261
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "857c1d5b-6def-4263-9ca1-f4c8c58b89a4",
+        "building_name": "金地中心",
+        "point_lng": 116.474482,
+        "point_lat": 39.909105,
+        "osm_id": 764453126,
+        "match_distance_m": 16.0,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 24.7,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4748943,
+              39.9095552
+            ],
+            [
+              116.4750652,
+              39.9094416
+            ],
+            [
+              116.4743705,
+              39.9088265
+            ],
+            [
+              116.4741996,
+              39.90894
+            ],
+            [
+              116.4748943,
+              39.9095552
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "86a3f44f-3aa5-4eca-ab56-185f7926697d",
+        "building_name": "中国人寿中心",
+        "point_lng": 116.359101,
+        "point_lat": 39.916286,
+        "osm_id": 257208832,
+        "match_distance_m": 43.9,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 39.4,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3589568,
+              39.9162134
+            ],
+            [
+              116.3593378,
+              39.9162112
+            ],
+            [
+              116.3593409,
+              39.9165314
+            ],
+            [
+              116.3604763,
+              39.9165249
+            ],
+            [
+              116.3604792,
+              39.9168262
+            ],
+            [
+              116.3593573,
+              39.9168326
+            ],
+            [
+              116.3593568,
+              39.9167814
+            ],
+            [
+              116.3591648,
+              39.9167825
+            ],
+            [
+              116.3591639,
+              39.9166929
+            ],
+            [
+              116.3590622,
+              39.9166935
+            ],
+            [
+              116.3590616,
+              39.9166252
+            ],
+            [
+              116.3589606,
+              39.9166123
+            ],
+            [
+              116.3589568,
+              39.9162134
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "877e2902-1023-4fb8-bd74-651a46c53e27",
+        "building_name": "国航世纪大厦",
+        "point_lng": 116.462344,
+        "point_lat": 39.955026,
+        "osm_id": 940020360,
+        "match_distance_m": 61.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 55.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4623354,
+              39.954754
+            ],
+            [
+              116.4625044,
+              39.95476
+            ],
+            [
+              116.4625381,
+              39.9542018
+            ],
+            [
+              116.4623692,
+              39.9541958
+            ],
+            [
+              116.4623354,
+              39.954754
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "88f1bc16-9821-446d-a19f-7a3d908c9833",
+        "building_name": "哈德门广场西塔",
+        "point_lng": 116.420148,
+        "point_lat": 39.899582,
+        "osm_id": 1041490033,
+        "match_distance_m": 13.6,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 11.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4202043,
+              39.8995917
+            ],
+            [
+              116.4203906,
+              39.8995953
+            ],
+            [
+              116.4203884,
+              39.8996643
+            ],
+            [
+              116.420202,
+              39.8996607
+            ],
+            [
+              116.4202043,
+              39.8995917
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "8b7ee586-566a-418c-8fe4-985de7f55242",
+        "building_name": "国寿金融中心",
+        "point_lng": 116.46903,
+        "point_lat": 39.911173,
+        "osm_id": 764431921,
+        "match_distance_m": 42.6,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 42.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.468638,
+              39.910912
+            ],
+            [
+              116.468925,
+              39.9109151
+            ],
+            [
+              116.4689277,
+              39.9107691
+            ],
+            [
+              116.4686407,
+              39.910766
+            ],
+            [
+              116.468638,
+              39.910912
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "8dd263ae-52d5-4243-80ea-2e9a75afd0da",
+        "building_name": "和泓大厦南塔",
+        "point_lng": 116.323984,
+        "point_lat": 39.958472,
+        "osm_id": 529761029,
+        "match_distance_m": 9.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 10.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3235994,
+              39.95846
+            ],
+            [
+              116.3243497,
+              39.9585111
+            ],
+            [
+              116.3243324,
+              39.9586492
+            ],
+            [
+              116.3235895,
+              39.9586
+            ],
+            [
+              116.3235994,
+              39.95846
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "90c3643e-a735-4fd9-bb3d-f7c925733073",
+        "building_name": "众秀大厦",
+        "point_lng": 116.464667,
+        "point_lat": 39.912919,
+        "osm_id": 764431885,
+        "match_distance_m": 20.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 17.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4648065,
+              39.9128758
+            ],
+            [
+              116.4648065,
+              39.912598
+            ],
+            [
+              116.4644551,
+              39.912598
+            ],
+            [
+              116.4644551,
+              39.9128758
+            ],
+            [
+              116.4648065,
+              39.9128758
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "93299bdf-f564-45d6-8df1-365d2c173de7",
+        "building_name": "北京来福士中心",
+        "point_lng": 116.432683,
+        "point_lat": 39.939697,
+        "osm_id": 347816928,
+        "match_distance_m": 58.2,
+        "match_inside": false,
+        "building_type": "commercial",
+        "building_levels": "",
+        "validation_centroid_dist_m": 55.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4324643,
+              39.9393335
+            ],
+            [
+              116.4326857,
+              39.9393345
+            ],
+            [
+              116.432688,
+              39.9390263
+            ],
+            [
+              116.4324666,
+              39.9390253
+            ],
+            [
+              116.4324643,
+              39.9393335
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "93a3c5db-e991-440b-ba12-4305d4ebd572",
+        "building_name": "中关村东升科技园·东畔科创中心",
+        "point_lng": 116.365174,
+        "point_lat": 40.004451,
+        "osm_id": 270586655,
+        "match_distance_m": 7.3,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 7.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3648611,
+              40.0044401
+            ],
+            [
+              116.3654147,
+              40.0046848
+            ],
+            [
+              116.3654838,
+              40.0045931
+            ],
+            [
+              116.3649302,
+              40.0043484
+            ],
+            [
+              116.3648611,
+              40.0044401
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "96ac3d97-1f96-4b3a-bae5-d539d876ede7",
+        "building_name": "泰康国际大厦",
+        "point_lng": 116.362589,
+        "point_lat": 39.917659,
+        "osm_id": 656347773,
+        "match_distance_m": 27.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 25.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3625238,
+              39.9175492
+            ],
+            [
+              116.3625223,
+              39.9173074
+            ],
+            [
+              116.3626735,
+              39.9173068
+            ],
+            [
+              116.3626739,
+              39.9173641
+            ],
+            [
+              116.3625966,
+              39.9173644
+            ],
+            [
+              116.362597,
+              39.9174293
+            ],
+            [
+              116.3626806,
+              39.917429
+            ],
+            [
+              116.3626813,
+              39.9175486
+            ],
+            [
+              116.3625238,
+              39.9175492
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "97ad8edb-830c-4f1d-a274-faa53961a770",
+        "building_name": "嘉铭中心",
+        "point_lng": 116.460537,
+        "point_lat": 39.927996,
+        "osm_id": 347675501,
+        "match_distance_m": 25.7,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 25.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4606741,
+              39.9283471
+            ],
+            [
+              116.4606514,
+              39.9281196
+            ],
+            [
+              116.4600732,
+              39.9279953
+            ],
+            [
+              116.4600538,
+              39.9280515
+            ],
+            [
+              116.4600181,
+              39.9281544
+            ],
+            [
+              116.4605206,
+              39.928267
+            ],
+            [
+              116.4605337,
+              39.9283488
+            ],
+            [
+              116.4606741,
+              39.9283471
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "9bec02ff-a072-4da7-9a93-93a9b1541824",
+        "building_name": "华贸中心（一座、二座）",
+        "point_lng": 116.480183,
+        "point_lat": 39.909422,
+        "osm_id": 764451628,
+        "match_distance_m": 25.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 28.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4797679,
+              39.9096704
+            ],
+            [
+              116.4800675,
+              39.9096658
+            ],
+            [
+              116.4800595,
+              39.9093592
+            ],
+            [
+              116.4797598,
+              39.9093638
+            ],
+            [
+              116.4797679,
+              39.9096704
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "9e03a3a5-473d-4c9d-b3dd-2ec8530ca3a6",
+        "building_name": "融科资讯中心A座",
+        "point_lng": 116.325236,
+        "point_lat": 39.984261,
+        "osm_id": 1435206285,
+        "match_distance_m": 25.3,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 25.4,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3249158,
+              39.9840598
+            ],
+            [
+              116.3249191,
+              39.983895
+            ],
+            [
+              116.3250928,
+              39.9838971
+            ],
+            [
+              116.3250936,
+              39.9838582
+            ],
+            [
+              116.3252597,
+              39.9838602
+            ],
+            [
+              116.3252585,
+              39.9839196
+            ],
+            [
+              116.3253003,
+              39.9839201
+            ],
+            [
+              116.3252993,
+              39.9839705
+            ],
+            [
+              116.325262,
+              39.98397
+            ],
+            [
+              116.3253784,
+              39.9840657
+            ],
+            [
+              116.3255074,
+              39.9840683
+            ],
+            [
+              116.3255063,
+              39.9840998
+            ],
+            [
+              116.3256583,
+              39.9841028
+            ],
+            [
+              116.3256526,
+              39.9842706
+            ],
+            [
+              116.3249666,
+              39.9842568
+            ],
+            [
+              116.324972,
+              39.9841014
+            ],
+            [
+              116.3253623,
+              39.9841092
+            ],
+            [
+              116.3253197,
+              39.9840904
+            ],
+            [
+              116.3252459,
+              39.9840208
+            ],
+            [
+              116.3252454,
+              39.9840472
+            ],
+            [
+              116.3251561,
+              39.9840461
+            ],
+            [
+              116.3251558,
+              39.9840626
+            ],
+            [
+              116.3249158,
+              39.9840598
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "9ecb55a8-a807-4aac-829c-91f763de5240",
+        "building_name": "航宇大厦B座",
+        "point_lng": 116.360324,
+        "point_lat": 39.915083,
+        "osm_id": 257208834,
+        "match_distance_m": 30.8,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 37.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3595338,
+              39.915151
+            ],
+            [
+              116.3605205,
+              39.9151492
+            ],
+            [
+              116.3605211,
+              39.9153319
+            ],
+            [
+              116.3595343,
+              39.9153336
+            ],
+            [
+              116.3595338,
+              39.915151
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "a2f345ad-4e29-476d-9a65-6215a1ae5f3d",
+        "building_name": "盈科中心C座",
+        "point_lng": 116.458823,
+        "point_lat": 39.932631,
+        "osm_id": 347800528,
+        "match_distance_m": 51.6,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 56.3,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4597744,
+              39.9328394
+            ],
+            [
+              116.4597801,
+              39.9327015
+            ],
+            [
+              116.4591673,
+              39.9327015
+            ],
+            [
+              116.459173,
+              39.9327809
+            ],
+            [
+              116.4592507,
+              39.9327798
+            ],
+            [
+              116.4592478,
+              39.9328405
+            ],
+            [
+              116.4597744,
+              39.9328394
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "a42f81cd-65ff-42c9-8892-913177f44773",
+        "building_name": "丰铭国际大厦",
+        "point_lng": 116.367302,
+        "point_lat": 39.918021,
+        "osm_id": 891420295,
+        "match_distance_m": 48.8,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 51.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.366577,
+              39.9179642
+            ],
+            [
+              116.366591,
+              39.917744
+            ],
+            [
+              116.3669611,
+              39.9177579
+            ],
+            [
+              116.366947,
+              39.9179781
+            ],
+            [
+              116.366577,
+              39.9179642
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "a750c629-9460-40b8-be11-f009e7d025a3",
+        "building_name": "北辰时代大厦",
+        "point_lng": 116.4064,
+        "point_lat": 39.991325,
+        "osm_id": 1493362746,
+        "match_distance_m": 60.4,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "24",
+        "validation_centroid_dist_m": 59.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4068503,
+              39.9914792
+            ],
+            [
+              116.4069736,
+              39.9914805
+            ],
+            [
+              116.4069729,
+              39.9915194
+            ],
+            [
+              116.4070575,
+              39.9915203
+            ],
+            [
+              116.4070582,
+              39.9914813
+            ],
+            [
+              116.4071733,
+              39.9914825
+            ],
+            [
+              116.4071712,
+              39.9916046
+            ],
+            [
+              116.4071298,
+              39.9916042
+            ],
+            [
+              116.4071291,
+              39.9916472
+            ],
+            [
+              116.4071704,
+              39.9916476
+            ],
+            [
+              116.4071695,
+              39.991701
+            ],
+            [
+              116.4070285,
+              39.9916996
+            ],
+            [
+              116.4070294,
+              39.9916462
+            ],
+            [
+              116.4069827,
+              39.9916457
+            ],
+            [
+              116.4069818,
+              39.9916991
+            ],
+            [
+              116.4068465,
+              39.9916977
+            ],
+            [
+              116.4068474,
+              39.9916443
+            ],
+            [
+              116.4068828,
+              39.9916447
+            ],
+            [
+              116.4068836,
+              39.9916017
+            ],
+            [
+              116.4068482,
+              39.9916014
+            ],
+            [
+              116.4068503,
+              39.9914792
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "a8fa6842-a3aa-4657-b443-1eb37f1b20f2",
+        "building_name": "远洋光华国际ABC座-远洋自持",
+        "point_lng": 116.454438,
+        "point_lat": 39.915409,
+        "osm_id": 1147348909,
+        "match_distance_m": 15.0,
+        "match_inside": false,
+        "building_type": "transportation",
+        "building_levels": "",
+        "validation_centroid_dist_m": 12.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4544589,
+              39.915462
+            ],
+            [
+              116.4544627,
+              39.9153894
+            ],
+            [
+              116.4547653,
+              39.9153807
+            ],
+            [
+              116.4547653,
+              39.9154649
+            ],
+            [
+              116.4544589,
+              39.915462
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "aa927c69-78f1-4084-b8db-2deaf01f9986",
+        "building_name": "泰康金融大厦",
+        "point_lng": 116.463305,
+        "point_lat": 39.920458,
+        "osm_id": 764431770,
+        "match_distance_m": 38.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 33.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4631489,
+              39.9203876
+            ],
+            [
+              116.463161,
+              39.9199145
+            ],
+            [
+              116.4630479,
+              39.9199128
+            ],
+            [
+              116.4630358,
+              39.9203859
+            ],
+            [
+              116.4631489,
+              39.9203876
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "abe062d5-2a20-49dc-ad9e-2149a14d6b48",
+        "building_name": "利星行广场",
+        "point_lng": 116.482346,
+        "point_lat": 39.994131,
+        "osm_id": 297317483,
+        "match_distance_m": 75.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 77.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4817945,
+              39.9934218
+            ],
+            [
+              116.482255,
+              39.9934693
+            ],
+            [
+              116.4822272,
+              39.9936273
+            ],
+            [
+              116.4823897,
+              39.993644
+            ],
+            [
+              116.4824413,
+              39.9933504
+            ],
+            [
+              116.4818183,
+              39.9932862
+            ],
+            [
+              116.4817945,
+              39.9934218
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "b7d6cc15-5c06-4d79-bda4-0d0716470e93",
+        "building_name": "新时代大厦",
+        "point_lng": 116.358503,
+        "point_lat": 39.931864,
+        "osm_id": 478494907,
+        "match_distance_m": 50.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 57.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3579559,
+              39.9325383
+            ],
+            [
+              116.358359,
+              39.9325389
+            ],
+            [
+              116.3583608,
+              39.9319167
+            ],
+            [
+              116.3579576,
+              39.931916
+            ],
+            [
+              116.3579559,
+              39.9325383
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "b9e1e8fc-5d95-4799-9a74-30fb82b50834",
+        "building_name": "互联网金融中心",
+        "point_lng": 116.313133,
+        "point_lat": 39.979318,
+        "osm_id": 945068547,
+        "match_distance_m": 27.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 21.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3125149,
+              39.9792439
+            ],
+            [
+              116.3133155,
+              39.9792601
+            ],
+            [
+              116.3133129,
+              39.9793363
+            ],
+            [
+              116.3137471,
+              39.9793451
+            ],
+            [
+              116.3137516,
+              39.9792137
+            ],
+            [
+              116.3138507,
+              39.9792157
+            ],
+            [
+              116.3138561,
+              39.9790566
+            ],
+            [
+              116.3137045,
+              39.9790535
+            ],
+            [
+              116.3136988,
+              39.979221
+            ],
+            [
+              116.3133397,
+              39.9792138
+            ],
+            [
+              116.3133417,
+              39.9791557
+            ],
+            [
+              116.3125185,
+              39.9791391
+            ],
+            [
+              116.3125149,
+              39.9792439
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "ba24c1f5-747f-4f96-b2f1-d75422b167e6",
+        "building_name": "正大中心",
+        "point_lng": 116.467852,
+        "point_lat": 39.912578,
+        "osm_id": 764431876,
+        "match_distance_m": 13.4,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 14.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4676201,
+              39.9125075
+            ],
+            [
+              116.4678776,
+              39.9125178
+            ],
+            [
+              116.4678812,
+              39.9124649
+            ],
+            [
+              116.4676237,
+              39.9124546
+            ],
+            [
+              116.4676201,
+              39.9125075
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "bd7c4ae5-632f-4f55-910b-3826be7a1f8f",
+        "building_name": "国贸写字楼2座",
+        "point_lng": 116.460469,
+        "point_lat": 39.910838,
+        "osm_id": 1022407217,
+        "match_distance_m": 27.8,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 35.3,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4593469,
+              39.9105641
+            ],
+            [
+              116.4593465,
+              39.9111554
+            ],
+            [
+              116.4597669,
+              39.9111543
+            ],
+            [
+              116.4607082,
+              39.9111572
+            ],
+            [
+              116.4609668,
+              39.9111561
+            ],
+            [
+              116.4609672,
+              39.9105646
+            ],
+            [
+              116.4593469,
+              39.9105641
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "be90ec0b-0e4d-4305-9268-f3bb7e073253",
+        "building_name": "泰康集团大厦",
+        "point_lng": 116.467692,
+        "point_lat": 39.911215,
+        "osm_id": 764431923,
+        "match_distance_m": 38.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 38.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4678401,
+              39.9116136
+            ],
+            [
+              116.4682062,
+              39.9116136
+            ],
+            [
+              116.4682062,
+              39.9112772
+            ],
+            [
+              116.4678401,
+              39.9112772
+            ],
+            [
+              116.4678401,
+              39.9116136
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c27b6246-8e1f-4ad1-a5ad-a918551d53fc",
+        "building_name": "中环世贸中心D座",
+        "point_lng": 116.456758,
+        "point_lat": 39.907509,
+        "osm_id": 233497497,
+        "match_distance_m": 56.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 56.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4572515,
+              39.9078922
+            ],
+            [
+              116.4572898,
+              39.9077652
+            ],
+            [
+              116.4572874,
+              39.9075878
+            ],
+            [
+              116.4569798,
+              39.9075969
+            ],
+            [
+              116.4569917,
+              39.907725
+            ],
+            [
+              116.4568988,
+              39.9077597
+            ],
+            [
+              116.4568272,
+              39.9078036
+            ],
+            [
+              116.4567676,
+              39.9078567
+            ],
+            [
+              116.4567307,
+              39.9079116
+            ],
+            [
+              116.4567175,
+              39.9079902
+            ],
+            [
+              116.4567255,
+              39.9080609
+            ],
+            [
+              116.4567588,
+              39.9081288
+            ],
+            [
+              116.4568201,
+              39.9082005
+            ],
+            [
+              116.4568747,
+              39.9082335
+            ],
+            [
+              116.4569441,
+              39.9082682
+            ],
+            [
+              116.4570376,
+              39.9081479
+            ],
+            [
+              116.4571075,
+              39.9081641
+            ],
+            [
+              116.4571804,
+              39.9081598
+            ],
+            [
+              116.4572464,
+              39.9081357
+            ],
+            [
+              116.4572965,
+              39.9080948
+            ],
+            [
+              116.457324,
+              39.9080429
+            ],
+            [
+              116.4573251,
+              39.9079868
+            ],
+            [
+              116.4572999,
+              39.9079342
+            ],
+            [
+              116.4572515,
+              39.9078922
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c327e182-bdd1-430e-87d7-cf58e2130436",
+        "building_name": "晋商联合大厦",
+        "point_lng": 116.326415,
+        "point_lat": 39.862975,
+        "osm_id": 638714856,
+        "match_distance_m": 55.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "4",
+        "validation_centroid_dist_m": 52.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3259519,
+              39.8627657
+            ],
+            [
+              116.3262071,
+              39.862765
+            ],
+            [
+              116.3262049,
+              39.8623308
+            ],
+            [
+              116.3259498,
+              39.8623315
+            ],
+            [
+              116.3259519,
+              39.8627657
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c3efd2e2-261a-4814-b655-f80730fc4c0c",
+        "building_name": "航空科技大厦",
+        "point_lng": 116.419182,
+        "point_lat": 40.027232,
+        "osm_id": 1046719859,
+        "match_distance_m": 38.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 44.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4181416,
+              40.0272797
+            ],
+            [
+              116.4181415,
+              40.027438
+            ],
+            [
+              116.4182546,
+              40.027438
+            ],
+            [
+              116.4193603,
+              40.027438
+            ],
+            [
+              116.4193846,
+              40.0274043
+            ],
+            [
+              116.4193846,
+              40.0272798
+            ],
+            [
+              116.4181416,
+              40.0272797
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c6e9d363-8e15-4f20-9aa7-311b502485a4",
+        "building_name": "京印国际中心",
+        "point_lng": 116.375727,
+        "point_lat": 39.868418,
+        "osm_id": 691045646,
+        "match_distance_m": 24.8,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "5",
+        "validation_centroid_dist_m": 25.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.375497,
+              39.8686272
+            ],
+            [
+              116.3755426,
+              39.8683493
+            ],
+            [
+              116.3753977,
+              39.8683432
+            ],
+            [
+              116.3753602,
+              39.8686211
+            ],
+            [
+              116.375497,
+              39.8686272
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c8ad987a-ec4a-4403-8579-3110e81158ca",
+        "building_name": "卓著中心",
+        "point_lng": 116.361866,
+        "point_lat": 39.918222,
+        "osm_id": 521048244,
+        "match_distance_m": 34.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "3",
+        "validation_centroid_dist_m": 34.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3620725,
+              39.9186216
+            ],
+            [
+              116.3624722,
+              39.9186278
+            ],
+            [
+              116.3624775,
+              39.9185187
+            ],
+            [
+              116.3623998,
+              39.9185208
+            ],
+            [
+              116.3624212,
+              39.9180888
+            ],
+            [
+              116.3623515,
+              39.9180209
+            ],
+            [
+              116.3619411,
+              39.9180147
+            ],
+            [
+              116.3619357,
+              39.918134
+            ],
+            [
+              116.3622254,
+              39.9181238
+            ],
+            [
+              116.362212,
+              39.9185146
+            ],
+            [
+              116.3620859,
+              39.9185084
+            ],
+            [
+              116.3620725,
+              39.9186216
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cb5ff778-473c-4fc4-9f3c-4dba6f6018d9",
+        "building_name": "保利蓟门壹号",
+        "point_lng": 116.35248,
+        "point_lat": 39.973826,
+        "osm_id": 1347758669,
+        "match_distance_m": 53.5,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 54.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3519672,
+              39.9734323
+            ],
+            [
+              116.3519691,
+              39.9733278
+            ],
+            [
+              116.3525014,
+              39.9733335
+            ],
+            [
+              116.3524995,
+              39.9734381
+            ],
+            [
+              116.3519672,
+              39.9734323
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cbab8116-265d-45f0-8b5c-f4a54e2b9e15",
+        "building_name": "北京理工大学国防科技园（理工大学）",
+        "point_lng": 116.31085,
+        "point_lat": 39.960914,
+        "osm_id": 950261594,
+        "match_distance_m": 31.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 36.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3102281,
+              39.9610986
+            ],
+            [
+              116.3108236,
+              39.9610986
+            ],
+            [
+              116.3108236,
+              39.961002
+            ],
+            [
+              116.3102281,
+              39.961002
+            ],
+            [
+              116.3102281,
+              39.9610986
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cceeb0c8-4966-40e8-9370-9200c2d744c9",
+        "building_name": "阳光金融中心",
+        "point_lng": 116.462922,
+        "point_lat": 39.912017,
+        "osm_id": 1197842040,
+        "match_distance_m": 58.8,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 56.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4623843,
+              39.9117423
+            ],
+            [
+              116.4629413,
+              39.9117388
+            ],
+            [
+              116.4629367,
+              39.9112626
+            ],
+            [
+              116.462745,
+              39.9112661
+            ],
+            [
+              116.462745,
+              39.9115497
+            ],
+            [
+              116.4623881,
+              39.9115532
+            ],
+            [
+              116.4623843,
+              39.9117423
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cdc20b1b-1935-4e9b-a15a-37c52df21d49",
+        "building_name": "丰融国际大厦",
+        "point_lng": 116.365214,
+        "point_lat": 39.916988,
+        "osm_id": 656347396,
+        "match_distance_m": 60.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 59.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3648952,
+              39.917477
+            ],
+            [
+              116.3648955,
+              39.9173605
+            ],
+            [
+              116.3654426,
+              39.9173616
+            ],
+            [
+              116.3654414,
+              39.9177586
+            ],
+            [
+              116.3652635,
+              39.9177582
+            ],
+            [
+              116.3652644,
+              39.9174777
+            ],
+            [
+              116.3648952,
+              39.917477
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cdebccad-fbc9-4ec1-9292-6353b642aba5",
+        "building_name": "融科资讯中心B座",
+        "point_lng": 116.326467,
+        "point_lat": 39.984666,
+        "osm_id": 1428176147,
+        "match_distance_m": 52.8,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 52.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3263784,
+              39.9851577
+            ],
+            [
+              116.3263844,
+              39.9850883
+            ],
+            [
+              116.3267783,
+              39.9851083
+            ],
+            [
+              116.3267723,
+              39.9851776
+            ],
+            [
+              116.3263784,
+              39.9851577
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "d3beae91-06f4-4d39-a944-794e58b49d1a",
+        "building_name": "文化创意大厦",
+        "point_lng": 116.416551,
+        "point_lat": 40.03865,
+        "osm_id": 277745181,
+        "match_distance_m": 34.5,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "14",
+        "validation_centroid_dist_m": 30.5,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.416204,
+              40.0385982
+            ],
+            [
+              116.417117,
+              40.0385934
+            ],
+            [
+              116.4171158,
+              40.0384557
+            ],
+            [
+              116.4163946,
+              40.0384595
+            ],
+            [
+              116.4163902,
+              40.0379658
+            ],
+            [
+              116.4161983,
+              40.0379668
+            ],
+            [
+              116.416204,
+              40.0385982
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "d69fc07a-b253-4282-9164-e49252486747",
+        "building_name": "盈泰商务中心",
+        "point_lng": 116.360331,
+        "point_lat": 39.911403,
+        "osm_id": 521048332,
+        "match_distance_m": 43.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "9",
+        "validation_centroid_dist_m": 43.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3606,
+              39.911736
+            ],
+            [
+              116.3609245,
+              39.911736
+            ],
+            [
+              116.3609245,
+              39.9114912
+            ],
+            [
+              116.3606,
+              39.9114953
+            ],
+            [
+              116.3606,
+              39.911736
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "d774a9fc-7568-41dd-bf3c-5b583643ab95",
+        "building_name": "世纪财富中心西塔",
+        "point_lng": 116.455983,
+        "point_lat": 39.914081,
+        "osm_id": 1147348912,
+        "match_distance_m": 56.7,
+        "match_inside": false,
+        "building_type": "transportation",
+        "building_levels": "",
+        "validation_centroid_dist_m": 58.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4561988,
+              39.9146629
+            ],
+            [
+              116.4562085,
+              39.9144851
+            ],
+            [
+              116.45612,
+              39.9144823
+            ],
+            [
+              116.4561103,
+              39.9146601
+            ],
+            [
+              116.4561988,
+              39.9146629
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "d81d9bb0-3ccd-4fd9-8c69-79fd916b1529",
+        "building_name": "钰珵大厦",
+        "point_lng": 116.386738,
+        "point_lat": 39.989441,
+        "osm_id": 1474345126,
+        "match_distance_m": 41.6,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 41.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3862497,
+              39.9893044
+            ],
+            [
+              116.3863114,
+              39.9893064
+            ],
+            [
+              116.3863144,
+              39.989252
+            ],
+            [
+              116.3863858,
+              39.9892543
+            ],
+            [
+              116.3863893,
+              39.9891924
+            ],
+            [
+              116.3862561,
+              39.989188
+            ],
+            [
+              116.3862497,
+              39.9893044
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "db1e47df-ae4a-42a8-801b-6891e476533d",
+        "building_name": "东方广场中区",
+        "point_lng": 116.414436,
+        "point_lat": 39.909474,
+        "osm_id": 476128794,
+        "match_distance_m": 33.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 35.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4149919,
+              39.9096683
+            ],
+            [
+              116.4150073,
+              39.9093235
+            ],
+            [
+              116.4145984,
+              39.9093128
+            ],
+            [
+              116.4145931,
+              39.9094311
+            ],
+            [
+              116.4148779,
+              39.9094386
+            ],
+            [
+              116.4148677,
+              39.909665
+            ],
+            [
+              116.4149919,
+              39.9096683
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "dbb0029c-12ef-475c-a4e0-80fc36f0443f",
+        "building_name": "中海广场",
+        "point_lng": 116.45642,
+        "point_lat": 39.910934,
+        "osm_id": 764434415,
+        "match_distance_m": 78.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 69.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.456838,
+              39.9110584
+            ],
+            [
+              116.4578037,
+              39.9110553
+            ],
+            [
+              116.4578011,
+              39.9105524
+            ],
+            [
+              116.4568352,
+              39.9105555
+            ],
+            [
+              116.456838,
+              39.9110584
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "dcf9d8ae-d4ab-450e-99b4-b00ef29269b5",
+        "building_name": "兆泰国际中心（AB座）",
+        "point_lng": 116.435881,
+        "point_lat": 39.919317,
+        "osm_id": 469518313,
+        "match_distance_m": 12.9,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 11.0,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4358316,
+              39.9193258
+            ],
+            [
+              116.4358316,
+              39.9192317
+            ],
+            [
+              116.4361049,
+              39.9192338
+            ],
+            [
+              116.4361579,
+              39.9192873
+            ],
+            [
+              116.4361496,
+              39.9193429
+            ],
+            [
+              116.4361133,
+              39.9193772
+            ],
+            [
+              116.4360436,
+              39.9193943
+            ],
+            [
+              116.436024,
+              39.9193258
+            ],
+            [
+              116.4358316,
+              39.9193258
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "dd0181c8-1d8a-4f05-8099-1df2917e9f63",
+        "building_name": "中融信托大厦",
+        "point_lng": 116.373533,
+        "point_lat": 39.887097,
+        "osm_id": 519901039,
+        "match_distance_m": 74.1,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "5",
+        "validation_centroid_dist_m": 79.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3721484,
+              39.8874769
+            ],
+            [
+              116.3733071,
+              39.8874811
+            ],
+            [
+              116.3733125,
+              39.8870736
+            ],
+            [
+              116.3731784,
+              39.8870736
+            ],
+            [
+              116.3731864,
+              39.8869912
+            ],
+            [
+              116.372304,
+              39.8869912
+            ],
+            [
+              116.3722986,
+              39.8870571
+            ],
+            [
+              116.3721565,
+              39.8870509
+            ],
+            [
+              116.3721511,
+              39.8874564
+            ],
+            [
+              116.3721484,
+              39.8874769
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "dd3da9f7-d9f4-4a38-8331-ae1d94d5dd45",
+        "building_name": "奥南五号大厦A座（天圆祥泰大厦）",
+        "point_lng": 116.406387,
+        "point_lat": 39.981515,
+        "osm_id": 630766846,
+        "match_distance_m": 16.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 17.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4062807,
+              39.9813212
+            ],
+            [
+              116.4062807,
+              39.9814075
+            ],
+            [
+              116.4065382,
+              39.9814075
+            ],
+            [
+              116.4065382,
+              39.9813212
+            ],
+            [
+              116.4062807,
+              39.9813212
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "dd43e666-038e-4ffc-bb13-bb118d7a6b0e",
+        "building_name": "有研科技创新中心",
+        "point_lng": 116.371113,
+        "point_lat": 39.967322,
+        "osm_id": 1125740166,
+        "match_distance_m": 44.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 45.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3715778,
+              39.9676724
+            ],
+            [
+              116.3717473,
+              39.9676728
+            ],
+            [
+              116.3717483,
+              39.9674224
+            ],
+            [
+              116.3712902,
+              39.9674212
+            ],
+            [
+              116.3712896,
+              39.9675519
+            ],
+            [
+              116.3715783,
+              39.9675526
+            ],
+            [
+              116.3715778,
+              39.9676724
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e31e917a-74b6-4601-b409-49d0a1164967",
+        "building_name": "奥南五号大厦B座（恒毅大厦）",
+        "point_lng": 116.406387,
+        "point_lat": 39.980615,
+        "osm_id": 630766843,
+        "match_distance_m": 25.6,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 19.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4063048,
+              39.9806265
+            ],
+            [
+              116.4063044,
+              39.9807149
+            ],
+            [
+              116.4070528,
+              39.9807169
+            ],
+            [
+              116.4070532,
+              39.9806285
+            ],
+            [
+              116.4063048,
+              39.9806265
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e54b4d84-7439-4941-99e9-e6b3b3050f44",
+        "building_name": "凯晨世贸中心",
+        "point_lng": 116.364708,
+        "point_lat": 39.906123,
+        "osm_id": 67522363,
+        "match_distance_m": 25.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 27.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3640187,
+              39.9065306
+            ],
+            [
+              116.3643215,
+              39.9065309
+            ],
+            [
+              116.3654146,
+              39.906532
+            ],
+            [
+              116.3654151,
+              39.9062333
+            ],
+            [
+              116.3652372,
+              39.9062331
+            ],
+            [
+              116.365237,
+              39.9063505
+            ],
+            [
+              116.3648208,
+              39.9063501
+            ],
+            [
+              116.3648209,
+              39.9062512
+            ],
+            [
+              116.3645681,
+              39.906251
+            ],
+            [
+              116.364568,
+              39.9063663
+            ],
+            [
+              116.364149,
+              39.9063659
+            ],
+            [
+              116.3641492,
+              39.906264
+            ],
+            [
+              116.3640191,
+              39.9062639
+            ],
+            [
+              116.3640187,
+              39.9065306
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e93cfdc3-2e32-4aee-bc32-c6b94fbe253d",
+        "building_name": "中青旅大厦",
+        "point_lng": 116.43256,
+        "point_lat": 39.937841,
+        "osm_id": 520864129,
+        "match_distance_m": 25.3,
+        "match_inside": false,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 35.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4314642,
+              39.9377252
+            ],
+            [
+              116.4325826,
+              39.9377127
+            ],
+            [
+              116.4325872,
+              39.9381135
+            ],
+            [
+              116.4327465,
+              39.9381086
+            ],
+            [
+              116.4327511,
+              39.9375671
+            ],
+            [
+              116.4314711,
+              39.9375885
+            ],
+            [
+              116.4314642,
+              39.9377252
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "ed1b84f8-99e8-4c61-ab00-66dcf37c9a44",
+        "building_name": "环球金融中心",
+        "point_lng": 116.459044,
+        "point_lat": 39.918732,
+        "osm_id": 764431803,
+        "match_distance_m": 27.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 25.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4592255,
+              39.9186052
+            ],
+            [
+              116.4592229,
+              39.9183532
+            ],
+            [
+              116.4585228,
+              39.9183575
+            ],
+            [
+              116.4585254,
+              39.9186087
+            ],
+            [
+              116.4586647,
+              39.9186078
+            ],
+            [
+              116.4586637,
+              39.9185092
+            ],
+            [
+              116.4590902,
+              39.9185066
+            ],
+            [
+              116.4590913,
+              39.918606
+            ],
+            [
+              116.4592255,
+              39.9186052
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "ed97ecb6-a6a8-4590-883c-6c07e8dc2802",
+        "building_name": "月坛金融中心E座",
+        "point_lng": 116.353911,
+        "point_lat": 39.915055,
+        "osm_id": 975170237,
+        "match_distance_m": 64.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 67.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3526585,
+              39.9149302
+            ],
+            [
+              116.3528739,
+              39.9148757
+            ],
+            [
+              116.3530773,
+              39.9148569
+            ],
+            [
+              116.3532349,
+              39.9148699
+            ],
+            [
+              116.3533148,
+              39.9148815
+            ],
+            [
+              116.353408,
+              39.9149019
+            ],
+            [
+              116.3534726,
+              39.9149161
+            ],
+            [
+              116.3535635,
+              39.9149589
+            ],
+            [
+              116.3535515,
+              39.9150935
+            ],
+            [
+              116.353415,
+              39.915157
+            ],
+            [
+              116.3532466,
+              39.9151973
+            ],
+            [
+              116.3530933,
+              39.915207
+            ],
+            [
+              116.3529319,
+              39.9151885
+            ],
+            [
+              116.3527803,
+              39.9151414
+            ],
+            [
+              116.3526458,
+              39.9150877
+            ],
+            [
+              116.3526585,
+              39.9149302
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "eef226b8-9242-45b6-9903-29df43a2cb86",
+        "building_name": "金宝大厦",
+        "point_lng": 116.419957,
+        "point_lat": 39.916098,
+        "osm_id": 637225471,
+        "match_distance_m": 2.2,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 4.0,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4198124,
+              39.916117
+            ],
+            [
+              116.4200579,
+              39.916119
+            ],
+            [
+              116.4200587,
+              39.9160573
+            ],
+            [
+              116.4198133,
+              39.9160552
+            ],
+            [
+              116.4198124,
+              39.916117
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "ef04702b-e1d4-4595-811f-54453e5184ca",
+        "building_name": "居然大厦",
+        "point_lng": 116.432541,
+        "point_lat": 39.938437,
+        "osm_id": 242200081,
+        "match_distance_m": 17.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 16.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4323653,
+              39.9383356
+            ],
+            [
+              116.4323672,
+              39.9382237
+            ],
+            [
+              116.4327858,
+              39.9382277
+            ],
+            [
+              116.432784,
+              39.9383396
+            ],
+            [
+              116.4323653,
+              39.9383356
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "f1645733-451b-4e08-8ef2-3b7c95e3cbe4",
+        "building_name": "青海金融大厦",
+        "point_lng": 116.322521,
+        "point_lat": 39.864006,
+        "osm_id": 638714863,
+        "match_distance_m": 68.9,
+        "match_inside": false,
+        "building_type": "commercial",
+        "building_levels": "",
+        "validation_centroid_dist_m": 63.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3230127,
+              39.86408
+            ],
+            [
+              116.3236403,
+              39.8640759
+            ],
+            [
+              116.3236375,
+              39.8638244
+            ],
+            [
+              116.3230099,
+              39.8638285
+            ],
+            [
+              116.3230127,
+              39.86408
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "f2124a21-1749-41dd-a9f5-33cabbcecbc7",
+        "building_name": "环球贸易中心E座",
+        "point_lng": 116.410736,
+        "point_lat": 39.966329,
+        "osm_id": 991085036,
+        "match_distance_m": 62.4,
+        "match_inside": false,
+        "building_type": "transportation",
+        "building_levels": "",
+        "validation_centroid_dist_m": 62.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4114679,
+              39.966261
+            ],
+            [
+              116.4113639,
+              39.9662588
+            ],
+            [
+              116.4113717,
+              39.9660393
+            ],
+            [
+              116.4114213,
+              39.9660404
+            ],
+            [
+              116.4114759,
+              39.9660415
+            ],
+            [
+              116.4114679,
+              39.966261
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "f7d48781-17d2-4109-9dbb-7f854a79151f",
+        "building_name": "骏豪中央公园A1",
+        "point_lng": 116.477131,
+        "point_lat": 39.932174,
+        "osm_id": 764438446,
+        "match_distance_m": 58.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "5",
+        "validation_centroid_dist_m": 53.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4769918,
+              39.9320431
+            ],
+            [
+              116.4767557,
+              39.932041
+            ],
+            [
+              116.4762139,
+              39.9318765
+            ],
+            [
+              116.4762059,
+              39.9316605
+            ],
+            [
+              116.4763427,
+              39.9316564
+            ],
+            [
+              116.4763588,
+              39.9317984
+            ],
+            [
+              116.4767718,
+              39.9319341
+            ],
+            [
+              116.4769998,
+              39.93193
+            ],
+            [
+              116.4769918,
+              39.9320431
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "f8db3586-054e-4235-a84e-dd44b88b50fc",
+        "building_name": "环球贸易中心A、B座",
+        "point_lng": 116.409907,
+        "point_lat": 39.968014,
+        "osm_id": 889164909,
+        "match_distance_m": 15.2,
+        "match_inside": false,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 14.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4095428,
+              39.9681714
+            ],
+            [
+              116.4095472,
+              39.9680738
+            ],
+            [
+              116.4104403,
+              39.9680975
+            ],
+            [
+              116.4104359,
+              39.9681949
+            ],
+            [
+              116.4095428,
+              39.9681714
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "f9d4bfed-c80c-4d82-9cc2-26170e37ef39",
+        "building_name": "欧美汇大厦",
+        "point_lng": 116.312645,
+        "point_lat": 39.980358,
+        "osm_id": 944504060,
+        "match_distance_m": 25.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 29.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.313193,
+              39.9804336
+            ],
+            [
+              116.312688,
+              39.9804269
+            ],
+            [
+              116.312691,
+              39.9802936
+            ],
+            [
+              116.313196,
+              39.9803003
+            ],
+            [
+              116.313193,
+              39.9804336
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "fa7e4b4d-aef0-431e-9720-65348ab9ad46",
+        "building_name": "英皇集团中心",
+        "point_lng": 116.444738,
+        "point_lat": 39.907772,
+        "osm_id": 233523275,
+        "match_distance_m": 23.8,
+        "match_inside": true,
+        "building_type": "yes",
+        "building_levels": "9",
+        "validation_centroid_dist_m": 21.5,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4445774,
+              39.9078712
+            ],
+            [
+              116.444627,
+              39.9079124
+            ],
+            [
+              116.444689,
+              39.9079156
+            ],
+            [
+              116.4447675,
+              39.907952
+            ],
+            [
+              116.4452097,
+              39.9079488
+            ],
+            [
+              116.4453068,
+              39.9078791
+            ],
+            [
+              116.4453461,
+              39.9078791
+            ],
+            [
+              116.4453481,
+              39.9078141
+            ],
+            [
+              116.4453068,
+              39.9077428
+            ],
+            [
+              116.4453068,
+              39.9076176
+            ],
+            [
+              116.4453316,
+              39.9075938
+            ],
+            [
+              116.4453316,
+              39.9075589
+            ],
+            [
+              116.4452841,
+              39.9075193
+            ],
+            [
+              116.4446229,
+              39.9075193
+            ],
+            [
+              116.4445919,
+              39.9075415
+            ],
+            [
+              116.4445815,
+              39.9075843
+            ],
+            [
+              116.4445774,
+              39.9078712
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "fb98e079-9c6b-46d3-8521-a28ab07ecf80",
+        "building_name": "融科资讯中心C座",
+        "point_lng": 116.326695,
+        "point_lat": 39.9832,
+        "osm_id": 302986248,
+        "match_distance_m": 66.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 69.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.325922,
+              39.984102
+            ],
+            [
+              116.32634,
+              39.9840996
+            ],
+            [
+              116.3265971,
+              39.9839168
+            ],
+            [
+              116.3266908,
+              39.9839853
+            ],
+            [
+              116.326804,
+              39.9839924
+            ],
+            [
+              116.3268077,
+              39.9838967
+            ],
+            [
+              116.3266483,
+              39.9837682
+            ],
+            [
+              116.3266463,
+              39.9835785
+            ],
+            [
+              116.3268028,
+              39.9834487
+            ],
+            [
+              116.3268036,
+              39.9833508
+            ],
+            [
+              116.3267047,
+              39.9833373
+            ],
+            [
+              116.3265934,
+              39.9834085
+            ],
+            [
+              116.3261632,
+              39.9834069
+            ],
+            [
+              116.326022,
+              39.9834753
+            ],
+            [
+              116.326118,
+              39.9835644
+            ],
+            [
+              116.3261116,
+              39.9837031
+            ],
+            [
+              116.3261463,
+              39.983723
+            ],
+            [
+              116.3261429,
+              39.9837907
+            ],
+            [
+              116.3260816,
+              39.9838493
+            ],
+            [
+              116.325997,
+              39.9839086
+            ],
+            [
+              116.325888,
+              39.9839752
+            ],
+            [
+              116.3258411,
+              39.9840332
+            ],
+            [
+              116.325922,
+              39.984102
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "fce3689b-b463-4f05-a2da-db1ba3a85fd3",
+        "building_name": "金融街中心",
+        "point_lng": 116.358533,
+        "point_lat": 39.919136,
+        "osm_id": 521048273,
+        "match_distance_m": 49.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "9",
+        "validation_centroid_dist_m": 50.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.357781,
+              39.9192387
+            ],
+            [
+              116.357832,
+              39.9192778
+            ],
+            [
+              116.358076,
+              39.919284
+            ],
+            [
+              116.3581377,
+              39.9192408
+            ],
+            [
+              116.3581324,
+              39.9190371
+            ],
+            [
+              116.3580841,
+              39.9190001
+            ],
+            [
+              116.3578293,
+              39.9189898
+            ],
+            [
+              116.3577783,
+              39.9190371
+            ],
+            [
+              116.357781,
+              39.9192387
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "fdc82786-46c2-4b8b-8e5e-b3d47437031a",
+        "building_name": "大家保险大厦B座",
+        "point_lng": 116.454917,
+        "point_lat": 39.907768,
+        "osm_id": 1147437713,
+        "match_distance_m": 32.3,
+        "match_inside": false,
+        "building_type": "transportation",
+        "building_levels": "",
+        "validation_centroid_dist_m": 33.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4545776,
+              39.9080225
+            ],
+            [
+              116.4546615,
+              39.9080221
+            ],
+            [
+              116.4546604,
+              39.907872
+            ],
+            [
+              116.4545765,
+              39.9078724
+            ],
+            [
+              116.4545776,
+              39.9080225
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "01d6e2e5-74c0-47d3-b8e2-af6f9fa80f78",
+        "building_name": "中航广场一期",
+        "point_lng": 116.328911,
+        "point_lat": 39.972012,
+        "osm_id": 935527837,
+        "match_distance_m": 91.0,
+        "match_inside": false,
+        "building_type": "greenhouse",
+        "building_levels": "",
+        "validation_centroid_dist_m": 89.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3288925,
+              39.9712607
+            ],
+            [
+              116.3289029,
+              39.971137
+            ],
+            [
+              116.3293481,
+              39.971159
+            ],
+            [
+              116.3293377,
+              39.9712827
+            ],
+            [
+              116.3288925,
+              39.9712607
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "09f9402a-274a-4920-bef3-8dcfcb643820",
+        "building_name": "华贸中心三座",
+        "point_lng": 116.481981,
+        "point_lat": 39.909311,
+        "osm_id": 1037020722,
+        "match_distance_m": 110.6,
+        "match_inside": false,
+        "building_type": "hotel",
+        "building_levels": "",
+        "validation_centroid_dist_m": 111.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4816078,
+              39.9104094
+            ],
+            [
+              116.4818855,
+              39.9104092
+            ],
+            [
+              116.4818854,
+              39.9103607
+            ],
+            [
+              116.4823472,
+              39.9103603
+            ],
+            [
+              116.4823471,
+              39.9103181
+            ],
+            [
+              116.4823745,
+              39.9103181
+            ],
+            [
+              116.4823744,
+              39.9102447
+            ],
+            [
+              116.482334,
+              39.9102448
+            ],
+            [
+              116.4823339,
+              39.9102021
+            ],
+            [
+              116.4817727,
+              39.9102028
+            ],
+            [
+              116.4817728,
+              39.9102418
+            ],
+            [
+              116.4815974,
+              39.910242
+            ],
+            [
+              116.4815975,
+              39.9102935
+            ],
+            [
+              116.4815826,
+              39.9102935
+            ],
+            [
+              116.4815828,
+              39.9103716
+            ],
+            [
+              116.4816077,
+              39.9103716
+            ],
+            [
+              116.4816078,
+              39.9104094
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "27592e3a-c83b-4d21-8d1b-d175ff9a9678",
+        "building_name": "佳程广场",
+        "point_lng": 116.458304,
+        "point_lat": 39.956475,
+        "osm_id": 940020309,
+        "match_distance_m": 88.6,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 88.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4574306,
+              39.9569724
+            ],
+            [
+              116.4578891,
+              39.9573929
+            ],
+            [
+              116.4580257,
+              39.9573054
+            ],
+            [
+              116.4575672,
+              39.9568848
+            ],
+            [
+              116.4574306,
+              39.9569724
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "2a0947db-2248-47de-ba28-854212f96399",
+        "building_name": "中海金融中心T1&T4",
+        "point_lng": 116.377078,
+        "point_lat": 39.888674,
+        "osm_id": 1240417494,
+        "match_distance_m": 109.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 108.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3774261,
+              39.8877684
+            ],
+            [
+              116.3775522,
+              39.8877645
+            ],
+            [
+              116.37755,
+              39.8877225
+            ],
+            [
+              116.3774239,
+              39.8877264
+            ],
+            [
+              116.3774261,
+              39.8877684
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "3297327f-e5ee-48c3-b8d9-b7e7dcda9155",
+        "building_name": "民生金融中心",
+        "point_lng": 116.419886,
+        "point_lat": 39.907198,
+        "osm_id": 103016624,
+        "match_distance_m": 104.9,
+        "match_inside": false,
+        "building_type": "office",
+        "building_levels": "6",
+        "validation_centroid_dist_m": 102.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4190478,
+              39.9078036
+            ],
+            [
+              116.4204839,
+              39.9078188
+            ],
+            [
+              116.420485,
+              39.9081685
+            ],
+            [
+              116.4203712,
+              39.908166
+            ],
+            [
+              116.420337,
+              39.9086156
+            ],
+            [
+              116.4198671,
+              39.9086156
+            ],
+            [
+              116.4199002,
+              39.9080966
+            ],
+            [
+              116.4195784,
+              39.9080985
+            ],
+            [
+              116.4195811,
+              39.9080183
+            ],
+            [
+              116.41934,
+              39.9080171
+            ],
+            [
+              116.4193342,
+              39.9081205
+            ],
+            [
+              116.4190436,
+              39.9081179
+            ],
+            [
+              116.4190478,
+              39.9078036
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "383fe2c3-9e6b-4adb-8b62-d17a36e64a13",
+        "building_name": "远洋大厦",
+        "point_lng": 116.359885,
+        "point_lat": 39.906007,
+        "osm_id": 521039207,
+        "match_distance_m": 93.8,
+        "match_inside": false,
+        "building_type": "hotel",
+        "building_levels": "7",
+        "validation_centroid_dist_m": 92.9,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.360058,
+              39.9068551
+            ],
+            [
+              116.3602856,
+              39.9068544
+            ],
+            [
+              116.3602841,
+              39.9065578
+            ],
+            [
+              116.3605135,
+              39.9065571
+            ],
+            [
+              116.3605148,
+              39.9068253
+            ],
+            [
+              116.3607442,
+              39.9068246
+            ],
+            [
+              116.3607428,
+              39.9065498
+            ],
+            [
+              116.3611464,
+              39.9065486
+            ],
+            [
+              116.3611479,
+              39.906853
+            ],
+            [
+              116.3613696,
+              39.9068524
+            ],
+            [
+              116.3613673,
+              39.9063869
+            ],
+            [
+              116.3607798,
+              39.9063886
+            ],
+            [
+              116.3607795,
+              39.9063369
+            ],
+            [
+              116.3604912,
+              39.9063377
+            ],
+            [
+              116.3604915,
+              39.9064004
+            ],
+            [
+              116.3600557,
+              39.9064017
+            ],
+            [
+              116.360058,
+              39.9068551
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "3a11c56b-8725-496a-9e3d-08a4cd83cfed",
+        "building_name": "诺金写字楼",
+        "point_lng": 116.481365,
+        "point_lat": 39.977279,
+        "osm_id": 532218247,
+        "match_distance_m": 95.2,
+        "match_inside": false,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 98.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4809949,
+              39.9782676
+            ],
+            [
+              116.4805657,
+              39.9778862
+            ],
+            [
+              116.4806894,
+              39.9778044
+            ],
+            [
+              116.4811186,
+              39.9781859
+            ],
+            [
+              116.4809949,
+              39.9782676
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "40ca690f-e058-43bf-b914-c39120b5ae23",
+        "building_name": "玖安广场",
+        "point_lng": 116.408915,
+        "point_lat": 39.952121,
+        "osm_id": 917251007,
+        "match_distance_m": 118.9,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 116.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4086803,
+              39.9511779
+            ],
+            [
+              116.4088653,
+              39.9511935
+            ],
+            [
+              116.408908,
+              39.9509317
+            ],
+            [
+              116.408719,
+              39.9509192
+            ],
+            [
+              116.4086803,
+              39.9511779
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "66a9d5f9-a9ac-4c63-9aa1-00897288c845",
+        "building_name": "北京侨福芳草地",
+        "point_lng": 116.449285,
+        "point_lat": 39.919803,
+        "osm_id": 1212188173,
+        "match_distance_m": 116.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 117.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4480805,
+              39.9203747
+            ],
+            [
+              116.4481477,
+              39.9203524
+            ],
+            [
+              116.4480514,
+              39.9201617
+            ],
+            [
+              116.4479774,
+              39.9201909
+            ],
+            [
+              116.4480805,
+              39.9203747
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "6ec798c0-64f0-4790-b1a8-90f9f2542566",
+        "building_name": "理想国际大厦",
+        "point_lng": 116.31006,
+        "point_lat": 39.984499,
+        "osm_id": 1002580382,
+        "match_distance_m": 118.4,
+        "match_inside": false,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 113.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3111318,
+              39.984767
+            ],
+            [
+              116.3117071,
+              39.9847777
+            ],
+            [
+              116.311711,
+              39.984656
+            ],
+            [
+              116.3111357,
+              39.9846452
+            ],
+            [
+              116.3111318,
+              39.984767
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7016ecd5-d3aa-4db3-8083-e93c884b928e",
+        "building_name": "国贸大厦A座(三期)",
+        "point_lng": 116.458154,
+        "point_lat": 39.912298,
+        "osm_id": 764434416,
+        "match_distance_m": 82.5,
+        "match_inside": false,
+        "building_type": "commercial",
+        "building_levels": "",
+        "validation_centroid_dist_m": 78.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4588056,
+              39.9119013
+            ],
+            [
+              116.4587981,
+              39.9112797
+            ],
+            [
+              116.45807,
+              39.9112761
+            ],
+            [
+              116.4580593,
+              39.9118942
+            ],
+            [
+              116.4588056,
+              39.9119013
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7b35b879-eb38-4274-b4aa-9c0d8298d6ec",
+        "building_name": "新动力金融科技中心",
+        "point_lng": 116.33965,
+        "point_lat": 39.937641,
+        "osm_id": 468420595,
+        "match_distance_m": 14.9,
+        "match_inside": false,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 16.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.339396,
+              39.937798
+            ],
+            [
+              116.3393982,
+              39.9377363
+            ],
+            [
+              116.3394317,
+              39.9376798
+            ],
+            [
+              116.3395098,
+              39.9376695
+            ],
+            [
+              116.3395724,
+              39.9376815
+            ],
+            [
+              116.339588,
+              39.9377123
+            ],
+            [
+              116.339655,
+              39.937726
+            ],
+            [
+              116.3396304,
+              39.9377997
+            ],
+            [
+              116.3395322,
+              39.9378031
+            ],
+            [
+              116.339396,
+              39.937798
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "7d1fd8d5-6400-48f3-9e34-225b3fe9418e",
+        "building_name": "嘉里中心",
+        "point_lng": 116.45963,
+        "point_lat": 39.914045,
+        "osm_id": 345716071,
+        "match_distance_m": 91.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "2",
+        "validation_centroid_dist_m": 89.7,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4594355,
+              39.914713
+            ],
+            [
+              116.4594419,
+              39.9148804
+            ],
+            [
+              116.4595204,
+              39.9150367
+            ],
+            [
+              116.459662,
+              39.9151641
+            ],
+            [
+              116.459841,
+              39.9152454
+            ],
+            [
+              116.4600443,
+              39.9152791
+            ],
+            [
+              116.4602511,
+              39.9152616
+            ],
+            [
+              116.46044,
+              39.9151948
+            ],
+            [
+              116.4605916,
+              39.9150855
+            ],
+            [
+              116.4606903,
+              39.9149451
+            ],
+            [
+              116.4607259,
+              39.9147879
+            ],
+            [
+              116.4606948,
+              39.9146301
+            ],
+            [
+              116.4606002,
+              39.914488
+            ],
+            [
+              116.4604432,
+              39.9143717
+            ],
+            [
+              116.4602447,
+              39.9143019
+            ],
+            [
+              116.4600273,
+              39.9142866
+            ],
+            [
+              116.4598156,
+              39.9143275
+            ],
+            [
+              116.4596336,
+              39.91442
+            ],
+            [
+              116.4595019,
+              39.9145535
+            ],
+            [
+              116.4594355,
+              39.914713
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c3a22c0d-d654-408a-bd77-609ee4eb9193",
+        "building_name": "信达中心",
+        "point_lng": 116.437934,
+        "point_lat": 39.942477,
+        "osm_id": 351305081,
+        "match_distance_m": 30.4,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 36.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4372665,
+              39.9426919
+            ],
+            [
+              116.4372643,
+              39.942543
+            ],
+            [
+              116.4379857,
+              39.9425366
+            ],
+            [
+              116.437988,
+              39.9426855
+            ],
+            [
+              116.4372665,
+              39.9426919
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c6c2fb9f-d5cf-4e1f-a5e2-b939339cc95b",
+        "building_name": "中粮广场（AB座）",
+        "point_lng": 116.429908,
+        "point_lat": 39.90704,
+        "osm_id": 478407348,
+        "match_distance_m": 98.5,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 98.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.430599,
+              39.9077313
+            ],
+            [
+              116.4308176,
+              39.9077313
+            ],
+            [
+              116.4308162,
+              39.9076274
+            ],
+            [
+              116.4305963,
+              39.9076295
+            ],
+            [
+              116.430599,
+              39.9077313
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "c8b8387b-e707-4e01-9a6f-0f2a080a03e7",
+        "building_name": "亚洲金融大厦CDE座",
+        "point_lng": 116.389689,
+        "point_lat": 40.008393,
+        "osm_id": 1168481796,
+        "match_distance_m": 101.2,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 100.6,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3907926,
+              40.0081365
+            ],
+            [
+              116.3907862,
+              40.008058
+            ],
+            [
+              116.3908326,
+              40.0080558
+            ],
+            [
+              116.3908389,
+              40.0081343
+            ],
+            [
+              116.3907926,
+              40.0081365
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cac33bfd-627b-47cc-af2b-47e6e6d938d6",
+        "building_name": "盈科中心（AB座）",
+        "point_lng": 116.458326,
+        "point_lat": 39.932928,
+        "osm_id": 347800528,
+        "match_distance_m": 93.1,
+        "match_inside": false,
+        "building_type": "residential",
+        "building_levels": "",
+        "validation_centroid_dist_m": 97.4,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4597744,
+              39.9328394
+            ],
+            [
+              116.4597801,
+              39.9327015
+            ],
+            [
+              116.4591673,
+              39.9327015
+            ],
+            [
+              116.459173,
+              39.9327809
+            ],
+            [
+              116.4592507,
+              39.9327798
+            ],
+            [
+              116.4592478,
+              39.9328405
+            ],
+            [
+              116.4597744,
+              39.9328394
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "cfb8468b-3860-4b4d-b6f7-fac314c1c415",
+        "building_name": "北辰中心",
+        "point_lng": 116.387447,
+        "point_lat": 40.004252,
+        "osm_id": 1168481797,
+        "match_distance_m": 85.7,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 84.8,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3881707,
+              40.0037717
+            ],
+            [
+              116.3881271,
+              40.0036632
+            ],
+            [
+              116.3881615,
+              40.0036551
+            ],
+            [
+              116.3882051,
+              40.0037636
+            ],
+            [
+              116.3881707,
+              40.0037717
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e0cf95ad-8302-43a2-9791-fd0cc341386e",
+        "building_name": "国贸大厦B座(三期)",
+        "point_lng": 116.460515,
+        "point_lat": 39.912938,
+        "osm_id": 764434420,
+        "match_distance_m": 103.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "1",
+        "validation_centroid_dist_m": 106.2,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4616254,
+              39.9135691
+            ],
+            [
+              116.4616244,
+              39.9134745
+            ],
+            [
+              116.4612865,
+              39.9134766
+            ],
+            [
+              116.4612874,
+              39.9135711
+            ],
+            [
+              116.4616254,
+              39.9135691
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e473db5a-1d4d-4ddf-9f2c-b2fae90919dc",
+        "building_name": "北京金融科技中心",
+        "point_lng": 116.340574,
+        "point_lat": 39.936719,
+        "osm_id": 468420614,
+        "match_distance_m": 9.4,
+        "match_inside": true,
+        "building_type": "apartments",
+        "building_levels": "",
+        "validation_centroid_dist_m": 6.0,
+        "validation_inside": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.3404837,
+              39.9367337
+            ],
+            [
+              116.3408461,
+              39.9367312
+            ],
+            [
+              116.3408493,
+              39.9366142
+            ],
+            [
+              116.34049,
+              39.9366191
+            ],
+            [
+              116.3404837,
+              39.9367337
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e5c5b5d2-e551-4dc0-a90a-5a0f9deedbd6",
+        "building_name": "融新科技中心",
+        "point_lng": 116.468274,
+        "point_lat": 40.021752,
+        "osm_id": 928745296,
+        "match_distance_m": 111.0,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 114.1,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4688611,
+              40.0206798
+            ],
+            [
+              116.4683157,
+              40.0210567
+            ],
+            [
+              116.4680707,
+              40.0208489
+            ],
+            [
+              116.4686161,
+              40.020472
+            ],
+            [
+              116.4688611,
+              40.0206798
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "building_id": "e8ad9033-39b1-430c-9b9c-30da3a05b5e9",
+        "building_name": "哈德门广场东塔",
+        "point_lng": 116.42127,
+        "point_lat": 39.899689,
+        "osm_id": 1041490033,
+        "match_distance_m": 83.3,
+        "match_inside": false,
+        "building_type": "yes",
+        "building_levels": "",
+        "validation_centroid_dist_m": 85.0,
+        "validation_inside": false
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              116.4202043,
+              39.8995917
+            ],
+            [
+              116.4203906,
+              39.8995953
+            ],
+            [
+              116.4203884,
+              39.8996643
+            ],
+            [
+              116.420202,
+              39.8996607
+            ],
+            [
+              116.4202043,
+              39.8995917
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

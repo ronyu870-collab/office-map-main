@@ -1,0 +1,128 @@
+/* AG Grid 自定义样式 (Theming API) */
+
+/* 网格容器 */
+.grid-panel-container {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  border: 1px solid rgb(229 231 235);
+  background: white;
+}
+
+/* 列分隔线 */
+.ag-root-wrapper .ag-cell {
+  border-right: 1px solid rgb(243 244 246);
+}
+
+/* 操作列单元格：减小内边距，防止按钮被裁切 */
+.ag-root-wrapper .ag-cell[col-id="__actions"] {
+  padding: 0 4px;
+}
+
+.ag-root-wrapper .ag-header-cell {
+  border-right: 1px solid rgb(229 231 235);
+}
+
+/* 最后一列不显示右边框 */
+.ag-root-wrapper .ag-cell:last-child,
+.ag-root-wrapper .ag-header-cell:last-child {
+  border-right: none;
+}
+
+/* pinned 列分隔线加强 */
+.ag-root-wrapper .ag-pinned-left-header,
+.ag-root-wrapper .ag-pinned-left-cols-container {
+  border-right: 2px solid rgb(229 231 235);
+}
+
+.ag-root-wrapper .ag-pinned-right-header,
+.ag-root-wrapper .ag-pinned-right-cols-container {
+  border-left: 2px solid rgb(229 231 235);
+}
+
+/* 操作列按钮样式 */
+.grid-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid rgb(229 231 235);
+  background: white;
+  color: rgb(75 85 99);
+  cursor: pointer;
+  transition: all 150ms ease;
+  white-space: nowrap;
+  gap: 3px;
+  line-height: 1.2;
+}
+.grid-action-btn:hover {
+  background: rgb(249 250 251);
+  border-color: rgb(209 213 219);
+  color: rgb(55 65 81);
+}
+.grid-action-btn:active {
+  transform: scale(0.97);
+}
+.grid-action-btn-primary {
+  border-color: #003e7e;
+  color: #003e7e;
+  background: rgb(239 246 255);
+}
+.grid-action-btn-primary:hover {
+  background: rgb(219 234 254);
+}
+.grid-action-btn-danger {
+  border-color: rgb(239 68 68);
+  color: rgb(239 68 68);
+  background: rgb(254 242 242);
+}
+.grid-action-btn-danger:hover {
+  background: rgb(254 226 226);
+}
+.grid-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* 空状态 */
+.ag-overlay-no-rows-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: rgb(156 163 175);
+  font-size: 14px;
+}
+
+/* 加载状态 */
+.ag-overlay-loading-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(107 114 128);
+  font-size: 14px;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(243 244 246);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(209 213 219);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(156 163 175);
+}
