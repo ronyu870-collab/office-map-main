@@ -20,6 +20,49 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-24 — Colliers Data 2.0 UI foundation and performance baseline
+
+### Area
+Design system / workspace layout / frontend performance observability
+
+### What changed
+
+- Established the first Colliers Data 2.0 design-token layer under `src/styles/tokens.css`, covering workspace/surface colors, text hierarchy, brand and semantic colors, spacing, typography scale, radii, shadows, z-index, and motion durations.
+- Updated global typography to the intended institutional system stack (`Arial`, `PingFang SC`, `Microsoft YaHei`, system sans-serif) while preserving the existing Colliers brand color contract.
+- Added reusable UI primitives for Button, Input, Badge, Panel, PageHeader, Toolbar, and Loading/Empty/Error states.
+- Added a reusable `WorkspaceShell` that supports the different navigation, GIS, data-entry, and administration workspace layouts without forcing every page into one card template.
+- Added `PerformanceReporter` using Next.js Web Vitals reporting plus browser long-task observation. Measurements are published as a local `colliers:performance` browser event and are logged in development; no telemetry is transmitted externally.
+- Added `docs/performance-baseline.md` defining repeatable Home, Map, Quarterly Update, Lease Submission, and Admin measurement scenarios plus user-perceived latency targets.
+- No existing business page has been migrated to the new primitives in this foundation change; the refactor remains behavior-preserving by design.
+
+### Why
+
+The current product has accumulated page-specific colors, radii, headers, loading patterns, and large client-side workspaces. Beginning the 2.0 redesign by directly restyling Home or Map would create another layer of one-off UI decisions and would make performance claims subjective.
+
+This change therefore establishes two prerequisites first: a shared visual language appropriate for a dense commercial-real-estate intelligence workbench, and a common measurement contract that subsequent Home, Map, data-entry, and Admin refactors can use for before/after comparisons.
+
+### Impact
+
+- Existing workflows and permissions are intentionally unchanged.
+- Subsequent pages can adopt consistent visual primitives without duplicating style decisions.
+- Future performance work can distinguish immediate visual feedback, route-shell responsiveness, browser long tasks, and network/data completion instead of treating them as one vague loading-time metric.
+- The new foundation does not introduce an analytics backend or send performance data outside the browser.
+
+### Verification
+
+- The branch is intended to pass the repository `npm run verify` quality gate before merge.
+- Pull-request CI will be used as the authoritative TypeScript, lint, test, and production-build verification because this connected GitHub editing environment does not execute the repository locally.
+- The first consumer migrations are intentionally deferred so verification can isolate foundation/API correctness from page-level behavioral changes.
+
+### Follow-up
+
+- PR 2: migrate the authenticated system shell and Home workspace to the new foundation and remove duplicate session-gating behavior where safe.
+- PR 3: split Map state/runtime responsibilities while preserving current Map UI before the Map 2.0 visual migration.
+- Add richer primitives such as Select, SearchInput, Drawer, Popover, FilterChip, and table-specific controls when a real workspace migration requires them rather than building unused abstractions up front.
+- Capture concrete production-like before/after measurements for each migrated workspace using the baseline scenarios.
+
+---
+
 ## 2026-08-24 — P0 dependency security baseline
 
 ### Area
