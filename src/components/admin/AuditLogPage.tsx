@@ -205,7 +205,7 @@ export function AuditLogPage() {
       let query = applyFilters(supabase.from('audit_logs').select('*', { count: 'exact' })).order('created_at', { ascending: false });
       const { data, count, error } = await query.range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
       if (error) throw error;
-      const mapped = (data || []).map(log => ({ ...log, user_name: userNames.get(log.user_id) })) as AuditLogWithUser[];
+      const mapped = (data || []).map((log: AuditLog) => ({ ...log, user_name: userNames.get(log.user_id) })) as AuditLogWithUser[];
       setLogs(mapped); setTotalCount(count || 0); setLastUpdated(new Date());
     } catch (error) { console.error('获取审计日志失败:', error); setLogs([]); setTotalCount(0); setLoadError('日志暂时无法加载，请刷新后重试。'); }
     finally { setLoading(false); }

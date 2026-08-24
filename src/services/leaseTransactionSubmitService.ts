@@ -775,7 +775,7 @@ export async function updateTransaction(
 
     const { data: existing, error: fetchError } = await supabase
       .from("lease_transactions")
-      .select("submitter_id, face_rent, effective_rent")
+      .select("submitter_id, face_rent, effective_rent, new_building")
       .eq("id", id.trim())
       .single();
 
@@ -933,7 +933,7 @@ export async function updateTransaction(
         buildingToCheck &&
         areaToCheck &&
         areaToCheck > 0 &&
-        !existing.is_manual_building
+        transaction.is_manual_building !== true
       ) {
         const { data: buildingRow } = await supabase
           .from("buildings")

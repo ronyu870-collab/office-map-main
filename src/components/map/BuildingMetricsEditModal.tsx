@@ -202,7 +202,7 @@ export function BuildingMetricsEditModal({
   const calculatedVacancyRate = React.useMemo(() => {
     return calculateVacancyRate(
       parseNumericInput(formData.vacant_area),
-      buildingInfo?.total_area
+      buildingInfo?.total_area ?? null
     );
   }, [formData.vacant_area, buildingInfo?.total_area]);
 

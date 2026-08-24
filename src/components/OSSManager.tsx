@@ -119,7 +119,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   }, []);
 
   // 新增：获取 Authorization header
-  const getAuthHeader = async () => {
+  const getAuthHeader = async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     return token ? { 'Authorization': `Bearer ${token}` } : {};

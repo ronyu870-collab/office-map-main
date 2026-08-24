@@ -13,7 +13,7 @@ const myTheme = themeQuartz.withParams({
   backgroundColor: '#ffffff',
   foregroundColor: '#374151',
   headerBackgroundColor: '#f9fafb',
-  headerForegroundColor: '#6b7280',
+  headerTextColor: '#6b7280',
   borderColor: '#e5e7eb',
   rowHoverColor: '#f9fafb',
   selectedRowBackgroundColor: '#eff6ff',
@@ -64,7 +64,6 @@ const AG_GRID_LOCALE_ZH = {
   searchOoo: '搜索...',
   // 其他
   blanks: '空白',
-  noRowsToShow: '暂无数据',
   enabled: '启用',
   pinColumn: '固定列',
   pinLeft: '固定到左侧',
@@ -464,8 +463,6 @@ export function GridPanel({ config, dicts = {}, onRefreshDicts }: GridPanelProps
         <div className="w-full h-full">
           <AgGridReact
             ref={gridRef}
-            // Theming API 不会替 AgGridReact 根节点继承 flex 高度；显式约束避免出现“数据已加载但网格白屏”。
-            style={{ width: '100%', height: '100%' }}
             theme={myTheme}
             localeText={AG_GRID_LOCALE_ZH}
             rowData={filtered}

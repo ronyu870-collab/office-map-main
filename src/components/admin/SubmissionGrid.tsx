@@ -10,7 +10,7 @@ const submissionTheme = themeQuartz.withParams({
   backgroundColor: '#ffffff',
   foregroundColor: '#374151',
   headerBackgroundColor: '#f9fafb',
-  headerForegroundColor: '#6b7280',
+  headerTextColor: '#6b7280',
   borderColor: '#e5e7eb',
   rowHoverColor: '#f9fafb',
   fontSize: 13,

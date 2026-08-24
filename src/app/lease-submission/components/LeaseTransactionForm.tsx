@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { X, AlertTriangle, CheckCircle, Loader2, Building2, Info, FileText, Calendar } from 'lucide-react';
 
@@ -278,7 +278,7 @@ export function LeaseTransactionForm({
     setValue,
     setError,
   } = useForm<LeaseTransactionFormData>({
-    resolver: zodResolver(leaseTransactionSchema),
+    resolver: zodResolver(leaseTransactionSchema) as Resolver<LeaseTransactionFormData>,
     mode: 'onSubmit', // 🔥 改为仅在提交时校验，避免填写过程中出现错误提示
     defaultValues: {
       is_manual_building: false,

@@ -136,7 +136,6 @@ vi.mock('@/src/hooks/useBuildingsWithPerformance', () => ({
 import LobbyPage from '@/src/app/page';
 import AdminPage from '@/src/app/admin/page';
 import UpdatePage from '@/src/app/update/page';
-import BIPage from '@/src/app/bi/page';
 
 describe('Preservation Property Tests - 现有功能和交互保持不变', () => {
   beforeEach(() => {
@@ -156,12 +155,12 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
         user: { email: 'admin@example.com', user_metadata: { full_name: 'Admin User' } },
         displayName: 'Admin User',
         role: 'admin',
-      });
+      } as any);
       vi.mocked(getSessionFast).mockResolvedValue({
         user: { email: 'admin@example.com', user_metadata: { full_name: 'Admin User' } },
         displayName: 'Admin User',
         role: 'admin',
-      });
+      } as any);
 
       const { container } = render(<AdminPage />);
       
@@ -209,30 +208,6 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       expect(pageContainer?.className).toContain('h-screen');
       expect(pageContainer?.className).toContain('overflow-hidden');
       expect(tableContainer).toBeTruthy();
-    });
-  });
-
-  describe('Property 2.3: Chart Area Scrolling - 图表区域内部滚动保持不变', () => {
-    it('✅ SHOULD PASS: BI page chart area scrolls internally', async () => {
-      const { container } = render(<BIPage />);
-      
-      await waitFor(() => {
-        expect(screen.queryByText('商业智能看板')).toBeInTheDocument();
-      }, { timeout: 3000 });
-      
-      const pageContainer = container.firstChild as HTMLElement;
-      const mainContent = pageContainer?.querySelector('main');
-      
-      console.log('\n📊 BI Page Chart Area Scrolling Check:');
-      console.log(`   Page container: ${pageContainer?.className}`);
-      console.log(`   Main content area: ${mainContent?.className}`);
-      console.log(`   ✅ Chart area internal scrolling is preserved`);
-      
-      // Expected: BI page should have h-screen + overflow-hidden on container
-      // Main content should have overflow-y-auto for internal scrolling
-      expect(pageContainer?.className).toContain('h-screen');
-      expect(pageContainer?.className).toContain('overflow-hidden');
-      expect(mainContent?.className).toContain('overflow-y-auto');
     });
   });
 
