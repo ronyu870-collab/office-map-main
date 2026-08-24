@@ -272,6 +272,26 @@ export function MapWorkbenchView({
 }: MapWorkbenchViewProps) {
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);
 
+  const toggleFilterPanel = () => {
+    const nextOpen = !isFilterPanelOpen;
+    if (nextOpen && isSupplyOpen) onSupplyOpenChange(false);
+    if (nextOpen && isListVisible) onCloseList();
+    onFilterPanelOpenChange(nextOpen);
+  };
+
+  const toggleSupplyPanel = () => {
+    const nextOpen = !isSupplyOpen;
+    if (nextOpen && isFilterPanelOpen) onFilterPanelOpenChange(false);
+    if (nextOpen && isListVisible) onCloseList();
+    onSupplyOpenChange(nextOpen);
+  };
+
+  const openBuildingList = () => {
+    if (isFilterPanelOpen) onFilterPanelOpenChange(false);
+    if (isSupplyOpen) onSupplyOpenChange(false);
+    onOpenList();
+  };
+
   return (
     <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#e8edf3] text-slate-900">
       <header className="relative z-[500] flex h-[58px] shrink-0 items-center justify-between border-b border-slate-200/90 bg-[#f8fafc]/95 px-3 shadow-sm backdrop-blur-xl sm:px-5">
@@ -312,14 +332,14 @@ export function MapWorkbenchView({
 
         <div className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
           <div className="pointer-events-auto flex shrink-0 gap-2">
-            <IconButton label="筛选" active={isFilterPanelOpen} onClick={() => onFilterPanelOpenChange(!isFilterPanelOpen)}>
+            <IconButton label="筛选" active={isFilterPanelOpen} onClick={toggleFilterPanel}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
             </IconButton>
           </div>
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
             {hasActiveFilters ? (
-              <div className="flex min-h-10 items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/95 px-2.5 py-1.5 shadow-lg shadow-slate-900/8 backdrop-blur-xl" aria-label="已生效筛选条件">
+              <div className="flex min-h-10 items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/95 px-2.5 py-1.5 shadow-lg shadow-slate-900/10 backdrop-blur-xl" aria-label="已生效筛选条件">
                 <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">筛选</span>
                 {keyword ? (
                   <button
@@ -347,13 +367,13 @@ export function MapWorkbenchView({
                 <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]">清空</button>
               </div>
             ) : (
-              <div className="rounded-xl border border-slate-200/90 bg-white/95 shadow-lg shadow-slate-900/8 backdrop-blur-xl">
+              <div className="rounded-xl border border-slate-200/90 bg-white/95 shadow-lg shadow-slate-900/10 backdrop-blur-xl">
                 <SearchBar placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
               </div>
             )}
           </div>
 
-          <div className="pointer-events-auto hidden shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-lg shadow-slate-900/8 backdrop-blur-xl sm:flex" role="group" aria-label="地图显示模式">
+          <div className="pointer-events-auto hidden shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-lg shadow-slate-900/10 backdrop-blur-xl sm:flex" role="group" aria-label="地图显示模式">
             {MODE_OPTIONS.map(({ mode, label }, index) => (
               <button
                 key={mode}
@@ -368,14 +388,14 @@ export function MapWorkbenchView({
           </div>
 
           <div className="pointer-events-auto flex shrink-0 gap-2">
-            <IconButton label="未来供应" active={isSupplyOpen} onClick={() => onSupplyOpenChange(!isSupplyOpen)}>
+            <IconButton label="未来供应" active={isSupplyOpen} onClick={toggleSupplyPanel}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
             </IconButton>
             <button
               type="button"
-              onClick={onOpenList}
+              onClick={openBuildingList}
               disabled={!canOpenList}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 px-3 text-[10px] font-medium text-slate-600 shadow-lg shadow-slate-900/8 backdrop-blur-xl transition hover:border-[#003e7e]/30 hover:text-[#003e7e] disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 px-3 text-[10px] font-medium text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-xl transition hover:border-[#003e7e]/30 hover:text-[#003e7e] disabled:cursor-not-allowed disabled:opacity-45"
               title={!canOpenList ? '完成筛选或搜索后查看项目列表' : '查看项目列表'}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
@@ -384,8 +404,22 @@ export function MapWorkbenchView({
           </div>
         </div>
 
+        <div className="pointer-events-auto absolute bottom-[80px] right-3 z-[265] flex overflow-hidden rounded-xl border border-white/80 bg-white/92 shadow-lg shadow-slate-900/10 backdrop-blur-md sm:hidden" role="group" aria-label="移动端地图显示模式">
+          {MODE_OPTIONS.map(({ mode, label }, index) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={renderMode === mode}
+              onClick={() => onRenderModeChange(mode)}
+              className={`h-9 px-2.5 text-[9px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/25 ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[#003e7e] text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {isFilterPanelOpen ? (
-          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[370] flex flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/96 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">
+          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/96 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">
             <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
               <div>
                 <div className="text-sm font-semibold text-slate-900">市场筛选</div>
@@ -394,7 +428,7 @@ export function MapWorkbenchView({
               <button
                 type="button"
                 onClick={() => onFilterPanelOpenChange(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
                 aria-label="关闭筛选"
               >
                 <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -459,14 +493,18 @@ export function MapWorkbenchView({
         {mapReady && !mapError ? <MetricStrip stats={stats} /> : null}
 
         {isListVisible ? (
-          <FloatingBuildingList
-            buildings={combinedBuildingList}
-            displayOverrides={displayOverrides}
-            onClose={onCloseList}
-            onBuildingClick={onBuildingClick}
-            targetBuildingId={targetBuildingId}
-            onBuildingHover={onBuildingHover}
-          />
+          <div className="pointer-events-none absolute inset-0 z-[355]">
+            <div className="pointer-events-auto absolute bottom-0 right-3 top-[52px] w-[340px] max-w-[90vw] sm:right-4">
+              <FloatingBuildingList
+                buildings={combinedBuildingList}
+                displayOverrides={displayOverrides}
+                onClose={onCloseList}
+                onBuildingClick={onBuildingClick}
+                targetBuildingId={targetBuildingId}
+                onBuildingHover={onBuildingHover}
+              />
+            </div>
+          </div>
         ) : null}
       </main>
     </div>
