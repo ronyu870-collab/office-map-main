@@ -31,7 +31,6 @@
     "lucide-react": "^1.7.0",
     "next": "16.2.12",
     "nprogress": "^0.2.0",
-    "puppeteer-core": "^24.43.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.73.1",
@@ -71,6 +70,9 @@
   },
   "overrides": {
     "postcss": "8.5.25",
-    "sharp": "0.35.3"
+    "sharp": "0.35.3",
+    "ali-oss": {
+      "urllib": "2.41.0"
+    }
   }
 }
