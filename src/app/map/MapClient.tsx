@@ -1,12 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
-import dynamic from 'next/dynamic';
-
-import { SearchBar } from '@/src/components/SearchBar';
-import { SidebarFilter, type SidebarFilterState, type CompareGroup, type SidebarFilterCommand } from '@/src/components/SidebarFilter';
-import { StatCard } from '@/src/components/StatCard';
+import type { SidebarFilterState, CompareGroup, SidebarFilterCommand } from '@/src/components/SidebarFilter';
 import { getSession } from '@/src/services/Auth';
 import { useAppSession } from '@/src/components/SessionProvider';
 import type { MapController } from '@/src/services/MapController';
@@ -17,13 +12,6 @@ import { retryAsync } from '@/src/utils/retryAsync';
 // 管理员编辑楼宇指标数据弹窗
 import { BuildingMetricsEditModal } from '@/src/components/map/BuildingMetricsEditModal';
 import {
-  MAP_DISTRICTS as MOCK_DISTRICTS,
-  MAP_LEEDS as MOCK_LEEDS,
-  MAP_SUBMARKETS as MOCK_SUBMARKETS,
-  MAP_SUBMARKETS_SECONDARY as MOCK_SUBMARKETS_SECONDARY,
-  MAP_SUBWAYS as MOCK_SUBWAYS,
-  SUPPLY_CALENDAR_CATEGORIES,
-  SUPPLY_CALENDAR_LABELS,
   buildActiveFilterChips,
   buildDistrictLeedStats,
   buildFutureSupplyCalendar,
@@ -35,46 +23,7 @@ import {
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
 import { useMapRuntime } from './runtime/useMapRuntime';
-
-// 🌟 Phase 2: 动态按需加载悬浮楼宇列表组件
-const FloatingBuildingList = dynamic(() => import('./components/FloatingBuildingList'), { 
-  ssr: false,
-  loading: () => (
-    <div className="absolute bottom-6 right-6 z-[200] flex items-center justify-center w-12 h-12">
-      <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-    </div>
-  )
-});
-
-function MapLegend({ mode }: { mode: RenderMode }) {
-  const config = {
-    default: {
-      title: '项目类型',
-      items: [
-        { label: '存量写字楼', className: 'bg-[#003e7e]' },
-        { label: '产业园区', className: 'bg-[#64748b]' },
-        { label: '未来供应', className: 'border border-[#64748b] bg-white' },
-      ],
-    },
-    rent: { title: '净有效租金（元/㎡/月）', items: [{ label: '低', className: 'bg-[#dbeafe]' }, { label: '中', className: 'bg-[#60a5fa]' }, { label: '高', className: 'bg-[#1d4ed8]' }] },
-    vacancy: { title: '空置率', items: [{ label: '低', className: 'bg-[#fef3c7]' }, { label: '中', className: 'bg-[#f59e0b]' }, { label: '高', className: 'bg-[#b45309]' }] },
-    leed: { title: 'LEED 认证', items: [{ label: '未认证', className: 'bg-zinc-300' }, { label: 'Silver / Gold', className: 'bg-[#60a5fa]' }, { label: 'Platinum', className: 'bg-[#1d4ed8]' }] },
-  }[mode];
-
-  return (
-    <div className="pointer-events-none absolute bottom-0 left-0 z-[9999] rounded-tr-md border border-zinc-200/80 bg-white/95 px-3 py-2.5 shadow-lg shadow-zinc-900/5 backdrop-blur-sm" aria-label={`${config.title}图例`}>
-      <div className="mb-2 text-[10px] font-semibold tracking-wide text-zinc-600">{config.title}</div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1.5">
-        {config.items.map(item => (
-          <div key={item.label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-            <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${item.className}`} />
-            {item.label}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+import { MapWorkbenchView } from './components/MapWorkbenchView';
 
 function MapAuthLoading() { 
   return ( 
@@ -183,6 +132,7 @@ export default function MapWorkbenchPage() {
   const [isListVisible, setIsListVisible] = React.useState(false);
   const [userHasInteracted, setUserHasInteracted] = React.useState(false);
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
 
   const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
@@ -555,250 +505,49 @@ export default function MapWorkbenchPage() {
   if (!allowed) return <MapAuthLoading />;
 
   return (
-    <div className="h-screen h-[100dvh] overflow-hidden bg-gray-50 text-zinc-900 flex flex-col">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75 shrink-0">
-        <div className="relative mx-auto flex max-w-[1600px] items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-6 xl:gap-8 min-w-0">
-            <div className="shrink-0">
-              <h1 className="text-sm font-semibold tracking-wide text-blue-950 sm:text-base">COLLIERS DATA</h1>
-              <p className="text-[11px] text-zinc-500 sm:text-xs">办公楼市场监测 · 核心地图工作台</p>
-            </div>
-            <div className="hidden lg:flex items-center gap-3 border-l border-zinc-200 pl-6 xl:pl-8">
-              <StatCard title="净有效租金" value={stats.avgRent} unit="元/㎡/月" />
-              <StatCard title="空置率" value={stats.overallVacancyPct} unit="%" />
-              <StatCard title="视野项目" value={stats.visibleProjectCount} unit="个" />
-              <StatCard title="总体量" value={stats.totalArea} unit="㎡" />
-            </div>
-            <div className="relative hidden shrink-0 lg:block">
-              <button
-                type="button"
-                aria-expanded={isSupplyOpen}
-                aria-controls="future-supply-panel"
-                onClick={() => setIsSupplyOpen(open => !open)}
-                className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:border-[#003e7e]/40 hover:text-[#003e7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
-              >
-                <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                供应日历
-                <span className="tabular-nums text-zinc-400">{futureSupplies.length}</span>
-              </button>
-              {isSupplyOpen && (
-                <div id="future-supply-panel" className="absolute left-0 top-[calc(100%+10px)] z-[400] w-[390px] max-w-[calc(100vw-32px)] rounded-lg border border-zinc-200 bg-white p-3 shadow-lg shadow-zinc-900/10">
-                  <div className="mb-2.5 flex items-center justify-between border-b border-zinc-100 pb-2">
-                    <div className="text-xs font-semibold text-zinc-800">供应日历</div>
-                    <div className="text-[10px] text-zinc-400">未来项目按预计入市年份</div>
-                  </div>
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {SUPPLY_CALENDAR_CATEGORIES.map(category => {
-                      const data = futureSupplyCalendar[category];
-                      return (
-                        <div key={category} className="min-w-0 rounded-md bg-zinc-50 px-1.5 py-2 text-center">
-                          <div className="truncate text-[10px] text-zinc-500">{SUPPLY_CALENDAR_LABELS[category]}</div>
-                          <div className="mt-1 text-base font-semibold tabular-nums text-[#003e7e]">{data.total}</div>
-                          <div className="mt-1 whitespace-nowrap text-[9px] text-zinc-400">办公 {data.office}</div>
-                          <div className="text-[9px] text-zinc-400">园区 {data.park}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* 右侧工具栏：搜索提示 & 返回主页按钮 */}
-          <div className="flex items-center gap-4 shrink-0">
-            {/* 开发者工具：导出地图数据按钮 */}
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                onClick={handleExportMapData}
-                disabled={isExporting || !mapReady}
-                className="group flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="开发者工具：导出地图数据到本地 JSON"
-              >
-                {isExporting ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    导出中...
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                      <polyline points="7 10 12 15 17 10"></polyline>
-                      <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    导出数据
-                  </>
-                )}
-              </button>
-            )}
-            
-            <Link href="/" className="group flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-blue-600">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:-translate-x-0.5">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-              返回主页
-            </Link>
-          </div>
-        </div>
-      </header>
+    <>
+      <MapWorkbenchView
+        stats={stats}
+        futureSupplyCalendar={futureSupplyCalendar}
+        futureSuppliesCount={futureSupplies.length}
+        activeFilterChips={activeFilterChips}
+        keyword={keyword}
+        renderMode={renderMode}
+        isFilterPanelOpen={isFilterPanelOpen}
+        isSupplyOpen={isSupplyOpen}
+        isListVisible={isListVisible}
+        canOpenList={userHasInteracted || Boolean(keyword)}
+        currentSubwayStations={currentSubwayStations}
+        filterCommand={filterCommand}
+        mapReady={mapReady}
+        mapError={mapError}
+        mapDataLoading={mapDataLoading}
+        hasBuildings={allBuildings.length > 0}
+        isExporting={isExporting}
+        combinedBuildingList={combinedBuildingList}
+        displayOverrides={displayOverrides}
+        targetBuildingId={targetBuildingId}
+        onFilterPanelOpenChange={setIsFilterPanelOpen}
+        onSupplyOpenChange={setIsSupplyOpen}
+        onFilterChange={handleFilterChange}
+        onCompareGroupsChange={handleCompareGroupsChange}
+        onKeywordChange={setKeyword}
+        onSearch={handleSearch}
+        onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
+        onResetFilters={() => issueFilterCommand('reset')}
+        onRenderModeChange={setRenderMode}
+        onOpenList={() => setIsListVisible(true)}
+        onCloseList={() => setIsListVisible(false)}
+        onRetryMap={() => {
+          const controller = controllerRef.current;
+          if (controller && mapReady) void loadMapData(controller);
+          else window.location.reload();
+        }}
+        onExportMapData={handleExportMapData}
+        onBuildingClick={handleBuildingClick}
+        onBuildingHover={handleBuildingHover}
+      />
 
-      <main className="mx-auto flex min-h-0 max-w-[1600px] flex-1 flex-col gap-0 overflow-hidden px-4 py-4 sm:px-6 lg:flex-row lg:items-stretch w-full">
-        <aside className="w-full shrink-0 lg:w-64 lg:pt-1 lg:pr-6 lg:border-r lg:border-zinc-200 lg:overflow-y-auto lg:max-h-full">
-          <SidebarFilter
-            title="全局筛选"
-            districts={MOCK_DISTRICTS}
-            submarkets={MOCK_SUBMARKETS}
-            submarketsSecondary={MOCK_SUBMARKETS_SECONDARY}
-            leeds={MOCK_LEEDS}
-            subwayLines={MOCK_SUBWAYS}
-            availableStations={currentSubwayStations}
-            onFilterChange={handleFilterChange}
-            onCompareGroupsChange={handleCompareGroupsChange}
-            filterCommand={filterCommand}
-          />
-        </aside>
-
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:pl-6">
-          {/* 地图工具栏：检索、显示模式与项目列表保持在同一操作层级 */}
-          <div className="relative flex items-center gap-3 flex-wrap">
-            <div className="min-w-[220px] flex-1">
-              {activeFilterChips.length > 0 ? (
-                <div className="flex min-w-0 w-full items-center gap-2 overflow-x-auto rounded-md border border-zinc-200 bg-white px-2.5 py-2" aria-label="已生效筛选条件">
-                  <span className="shrink-0 text-[11px] font-medium text-zinc-400">已选</span>
-                  {keyword && (
-                    <button
-                      type="button"
-                      onClick={() => { void handleSearch(''); }}
-                      className="group flex max-w-[220px] shrink-0 items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600 transition-colors hover:border-[#003e7e]/40 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
-                      title={`清除搜索：${keyword}`}
-                    >
-                      <span className="truncate">搜索：{keyword}</span>
-                      <span aria-hidden="true" className="text-zinc-400 group-hover:text-[#003e7e]">×</span>
-                    </button>
-                  )}
-                  {activeFilterChips.map(chip => (
-                    <button
-                      key={chip.id}
-                      type="button"
-                      onClick={() => issueFilterCommand('patch', chip.patch)}
-                      className="group flex max-w-[220px] shrink-0 items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600 transition-colors hover:border-[#003e7e]/40 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
-                      title={`移除条件：${chip.label}`}
-                    >
-                      <span className="truncate">{chip.label}</span>
-                      <span aria-hidden="true" className="text-zinc-400 group-hover:text-[#003e7e]">×</span>
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => issueFilterCommand('reset')}
-                    className="shrink-0 px-1 text-[11px] font-medium text-zinc-500 transition-colors hover:text-[#003e7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
-                  >
-                    清空
-                  </button>
-                </div>
-              ) : (
-                <SearchBar placeholder="搜索项目名称、商圈或关键词…" debounceMs={280} value={keyword} onChange={setKeyword} onSearch={handleSearch} />
-              )}
-            </div>
-            <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-zinc-200 bg-white" role="group" aria-label="地图显示模式">
-              {([
-                ['default', '项目类型'],
-                ['rent', '租金热力'],
-                ['vacancy', '空置率'],
-                ['leed', 'LEED 认证'],
-              ] as const).map(([mode, label], index) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={renderMode === mode}
-                  onClick={() => setRenderMode(mode)}
-                  className={`shrink-0 px-3 py-1.5 text-xs font-medium transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30 ${index > 0 ? 'border-l border-zinc-200' : ''} ${renderMode === mode ? 'bg-[#003e7e] text-white' : 'text-zinc-600 hover:bg-zinc-50'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsListVisible(true)}
-              disabled={!userHasInteracted && !keyword}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-[#003e7e] bg-white px-3 py-1.5 text-xs font-medium text-[#003e7e] transition-colors hover:bg-[#003e7e] hover:text-white disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-white"
-              title={!userHasInteracted && !keyword ? '完成筛选或搜索后查看项目列表' : '查看项目列表'}
-            >
-              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
-              项目列表
-            </button>
-          </div>
-
-          <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-4 lg:hidden">
-            <StatCard title="净有效租金" value={stats.avgRent} unit="元/㎡/月" />
-            <StatCard title="空置率" value={stats.overallVacancyPct} unit="%" />
-            <StatCard title="视野项目" value={stats.visibleProjectCount} unit="个" />
-            <StatCard title="总体量" value={stats.totalArea} unit="㎡" />
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-            <div id="map-container" className="relative min-h-0 w-full flex-1 bg-[#f8f9fa]">
-              {mapError ? (
-                <div className="absolute inset-0 flex items-center justify-center p-4">
-                  <div className="max-w-[520px] rounded-lg border border-rose-200 bg-rose-50 p-4 text-left">
-                    <div className="text-sm font-semibold text-rose-700">地图加载失败</div>
-                    <div className="mt-2 text-xs leading-relaxed text-rose-700/90 break-all">{mapError}</div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const controller = controllerRef.current;
-                        if (controller && mapReady) void loadMapData(controller);
-                        else window.location.reload();
-                      }}
-                      className="mt-3 rounded-md bg-rose-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
-                    >
-                      重新加载
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {!mapReady && !mapError ? (
-                <div className="absolute inset-0 flex items-center justify-center p-4">
-                  <div className="rounded-lg border border-zinc-200 bg-white/90 px-4 py-3 text-center shadow-sm">
-                    <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-                    <div className="mt-2 text-xs text-zinc-600">地图正在加载…</div>
-                  </div>
-                </div>
-              ) : null}
-
-              {mapReady && mapDataLoading && allBuildings.length === 0 && !mapError ? (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 p-4">
-                  <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-center shadow-sm">
-                    <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-                    <div className="mt-2 text-xs text-zinc-600">正在读取楼宇数据…</div>
-                  </div>
-                </div>
-              ) : null}
-
-              {mapReady && !mapError && <MapLegend mode={renderMode} />}
-              
-              {/* 🌟 Phase 2: 按需加载悬浮楼宇列表 - 仅在 isListVisible 为 true 时挂载 */}
-              {isListVisible && (
-                <FloatingBuildingList
-                  buildings={combinedBuildingList}
-                  displayOverrides={displayOverrides}
-                  onClose={() => setIsListVisible(false)}
-                  onBuildingClick={handleBuildingClick}
-                  targetBuildingId={targetBuildingId}
-                  onBuildingHover={handleBuildingHover}
-                />
-              )}
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* 管理员编辑楼宇指标数据弹窗 */}
       {editingBuilding && (
         <BuildingMetricsEditModal
           buildingId={editingBuilding.id}
@@ -806,7 +555,6 @@ export default function MapWorkbenchPage() {
           isOpen={true}
           onClose={() => setEditingBuilding(null)}
           onSave={async () => {
-            // 刷新地图数据
             if (controllerRef.current) {
               try {
                 await controllerRef.current.refreshBuildingData(editingBuilding.id);
@@ -817,6 +565,6 @@ export default function MapWorkbenchPage() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

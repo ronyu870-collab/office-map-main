@@ -48,6 +48,8 @@ export interface SidebarFilterProps {
   onFilterChange: (state: SidebarFilterState) => void; title?: string;
   onCompareGroupsChange?: (groups: CompareGroup[]) => void;
   filterCommand?: SidebarFilterCommand | null;
+  embedded?: boolean;
+  defaultExpanded?: boolean;
 }
 
 function uniqStrings(items: string[]): string[] { 
@@ -107,7 +109,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
   });
 
   // ── 全局筛选折叠状态 ──
-  const [globalFilterOpen, setGlobalFilterOpen] = React.useState(false);
+  const [globalFilterOpen, setGlobalFilterOpen] = React.useState(props.defaultExpanded ?? false);
 
   // ── 项目对比筛选状态 ──
   const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>([]);
@@ -310,15 +312,15 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
   return (
     <aside className="w-full">
-      <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-200/60 bg-white px-3 py-2 sm:hidden">
+      <div className={`${props.embedded ? 'hidden' : 'flex'} items-center justify-between gap-3 rounded-md border border-zinc-200/60 bg-white px-3 py-2 sm:hidden`}>
         <div className="min-w-0"><div className="text-[12px] font-semibold tracking-wide text-zinc-900">{title}</div></div>
         <button type="button" onClick={() => setIsMobileOpen(v => !v)} className="shrink-0 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[12px] font-medium text-zinc-700">{isMobileOpen ? '收起' : '展开筛选'}</button>
       </div>
 
-      <div className={`${isMobileOpen ? 'block' : 'hidden'} sm:block`}>
-        <div className="mt-2 rounded-md border border-zinc-200/60 bg-white p-3 sm:mt-0">
+      <div className={`${props.embedded ? 'block' : isMobileOpen ? 'block' : 'hidden'} sm:block`}>
+        <div className={props.embedded ? 'bg-transparent p-0' : 'mt-2 rounded-md border border-zinc-200/60 bg-white p-3 sm:mt-0'}>
           <div
-            className="hidden items-center justify-between sm:flex mb-2 pb-2 border-b border-zinc-100 cursor-pointer hover:bg-zinc-50 -mx-1 px-1 py-1 rounded-md transition-colors"
+            className={`${props.embedded ? 'flex' : 'hidden sm:flex'} items-center justify-between mb-2 pb-2 border-b border-zinc-100 cursor-pointer hover:bg-zinc-50 -mx-1 px-1 py-1 rounded-md transition-colors`}
             onClick={() => setGlobalFilterOpen(v => !v)}
           >
             <div className="text-[13px] font-bold tracking-wide text-zinc-900">{title}</div>
