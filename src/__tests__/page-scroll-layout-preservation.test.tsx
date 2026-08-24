@@ -18,14 +18,31 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as fc from 'fast-check';
 
-// Mock Next.js modules
+// Mock Next.js navigation with stable functions that are re-seeded before each test.
+// This prevents mock implementation leakage between preservation tests and covers
+// the current Next.js navigation APIs used by AdminPage and UpdatePage.
+const navigationMocks = vi.hoisted(() => ({
+  useRouter: vi.fn(),
+  useSearchParams: vi.fn(),
+  usePathname: vi.fn(),
+}));
+
+const supabaseMocks = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  from: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
-  }),
-  usePathname: () => '/',
+  useRouter: navigationMocks.useRouter,
+  useSearchParams: navigationMocks.useSearchParams,
+  usePathname: navigationMocks.usePathname,
+}));
+
+vi.mock('@/src/services/supabaseClient', () => ({
+  supabase: {
+    auth: { getSession: supabaseMocks.getSession },
+    from: supabaseMocks.from,
+  },
 }));
 
 vi.mock('next/link', () => ({
@@ -97,7 +114,10 @@ vi.mock('@/src/components/NoticeBanner', () => ({
 vi.mock('@/src/hooks/useBuildings', () => ({
   useBuildings: () => ({
     buildings: Array.from({ length: 5 }, (_, i) => ({
-      id: i,
+      id: `building-${i}`,
+      name: `Building ${i}`,
+      submarket: 'CBD',
+      grade: 'A',
       '写字楼名称': `Building ${i}`,
       '总面积': 10000,
       '空置面积': 1000,
@@ -116,7 +136,10 @@ vi.mock('@/src/hooks/useBuildings', () => ({
 vi.mock('@/src/hooks/useBuildingsWithPerformance', () => ({
   useBuildingsWithPerformance: () => ({
     buildings: Array.from({ length: 5 }, (_, i) => ({
-      id: i,
+      id: `building-${i}`,
+      name: `Building ${i}`,
+      submarket: 'CBD',
+      grade: 'A',
       '写字楼名称': `Building ${i}`,
       '总面积': 10000,
       '空置面积': 1000,
@@ -136,10 +159,57 @@ vi.mock('@/src/hooks/useBuildingsWithPerformance', () => ({
 import LobbyPage from '@/src/app/page';
 import AdminPage from '@/src/app/admin/page';
 import UpdatePage from '@/src/app/update/page';
-import BIPage from '@/src/app/bi/page';
 
 describe('Preservation Property Tests - 现有功能和交互保持不变', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    navigationMocks.useRouter.mockReturnValue({
+      push: vi.fn(),
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+    });
+    navigationMocks.useSearchParams.mockReturnValue(new URLSearchParams());
+    navigationMocks.usePathname.mockReturnValue('/');
+
+    const session = {
+      user: {
+        id: 'user-123',
+        email: 'test@example.com',
+        user_metadata: { full_name: 'Test User' },
+      },
+      displayName: 'Test User',
+      role: 'editor',
+    };
+    const { getSession, getSessionFast } = await import('@/src/services/Auth');
+    vi.mocked(getSession).mockResolvedValue(session as any);
+    vi.mocked(getSessionFast).mockResolvedValue(session as any);
+
+    supabaseMocks.getSession.mockResolvedValue({
+      data: { session: { user: session.user, access_token: 'test-token' } },
+      error: null,
+    });
+
+    const makeQuery = (data: unknown) => {
+      const query: any = { data, error: null };
+      for (const method of ['select', 'eq', 'in', 'order', 'limit', 'gte', 'lte', 'not', 'neq', 'ilike']) {
+        query[method] = vi.fn(() => query);
+      }
+      query.single = vi.fn(async () => ({ data, error: null }));
+      query.maybeSingle = vi.fn(async () => ({ data, error: null }));
+      return query;
+    };
+
+    const roleQuery = makeQuery({ role: 'editor' });
+    const assignmentQuery = makeQuery([{ building_id: 'building-0' }]);
+    const emptyQuery = makeQuery([]);
+    supabaseMocks.from.mockImplementation((table: string) => {
+      if (table === 'user_roles') return roleQuery;
+      if (table === 'building_assignments') return assignmentQuery;
+      return emptyQuery;
+    });
+
     // Reset viewport
     Object.defineProperty(window, 'innerHeight', {
       writable: true,
@@ -153,20 +223,20 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       // Mock admin session
       const { getSession, getSessionFast } = await import('@/src/services/Auth');
       vi.mocked(getSession).mockResolvedValue({
-        user: { email: 'admin@example.com', user_metadata: { full_name: 'Admin User' } },
+        user: { id: 'admin-123', email: 'admin@example.com', user_metadata: { full_name: 'Admin User' } },
         displayName: 'Admin User',
         role: 'admin',
-      });
+      } as any);
       vi.mocked(getSessionFast).mockResolvedValue({
-        user: { email: 'admin@example.com', user_metadata: { full_name: 'Admin User' } },
+        user: { id: 'admin-123', email: 'admin@example.com', user_metadata: { full_name: 'Admin User' } },
         displayName: 'Admin User',
         role: 'admin',
-      });
+      } as any);
 
       const { container } = render(<AdminPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('系统管理后台')).toBeInTheDocument();
+        expect(screen.queryByText('数据库管理')).toBeInTheDocument();
       }, { timeout: 3000 });
       
       const pageContainer = container.firstChild as HTMLElement;
@@ -193,10 +263,9 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       
       await waitFor(() => {
         expect(screen.queryByText('季度数据填报')).toBeInTheDocument();
+        expect(container.querySelector('.overflow-auto')).toBeTruthy();
       }, { timeout: 3000 });
       
-      // Observation: Update page uses h-screen + overflow-hidden on container
-      // Table area has overflow-auto for internal scrolling
       const pageContainer = container.firstChild as HTMLElement;
       const tableContainer = pageContainer?.querySelector('.overflow-auto');
       
@@ -209,30 +278,6 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       expect(pageContainer?.className).toContain('h-screen');
       expect(pageContainer?.className).toContain('overflow-hidden');
       expect(tableContainer).toBeTruthy();
-    });
-  });
-
-  describe('Property 2.3: Chart Area Scrolling - 图表区域内部滚动保持不变', () => {
-    it('✅ SHOULD PASS: BI page chart area scrolls internally', async () => {
-      const { container } = render(<BIPage />);
-      
-      await waitFor(() => {
-        expect(screen.queryByText('商业智能看板')).toBeInTheDocument();
-      }, { timeout: 3000 });
-      
-      const pageContainer = container.firstChild as HTMLElement;
-      const mainContent = pageContainer?.querySelector('main');
-      
-      console.log('\n📊 BI Page Chart Area Scrolling Check:');
-      console.log(`   Page container: ${pageContainer?.className}`);
-      console.log(`   Main content area: ${mainContent?.className}`);
-      console.log(`   ✅ Chart area internal scrolling is preserved`);
-      
-      // Expected: BI page should have h-screen + overflow-hidden on container
-      // Main content should have overflow-y-auto for internal scrolling
-      expect(pageContainer?.className).toContain('h-screen');
-      expect(pageContainer?.className).toContain('overflow-hidden');
-      expect(mainContent?.className).toContain('overflow-y-auto');
     });
   });
 

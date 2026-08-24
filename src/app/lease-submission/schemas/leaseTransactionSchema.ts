@@ -53,10 +53,7 @@ export const leaseTransactionSchema = z.object({
 
   transaction_year: z.preprocess(
     preprocessRequiredNumber,
-    z.number({ 
-      required_error: '请选择成交年份', 
-      invalid_type_error: '请选择成交年份' 
-    })
+    z.number({ error: '请选择成交年份' })
       .int('成交年份必须为整数')
       .min(2000, '成交年份不能早于2000年')
       .max(2050, '成交年份不能晚于2050年')
@@ -70,20 +67,14 @@ export const leaseTransactionSchema = z.object({
 
   area_sqm: z.preprocess(
     preprocessRequiredNumber,
-    z.number({ 
-      required_error: '请填写租赁面积', 
-      invalid_type_error: '租赁面积必须为数字' 
-    })
+    z.number({ error: '租赁面积必须为数字' })
       .positive('面积必须大于0')
       .max(1000000, '面积不能超过100万平方米')
   ),
 
   effective_rent: z.preprocess(
     preprocessRequiredNumber,
-    z.number({ 
-      required_error: '请填写有效租金', 
-      invalid_type_error: '有效租金必须为数字' 
-    })
+    z.number({ error: '有效租金必须为数字' })
       .nonnegative('有效租金不能为负数')
       .max(1000, '有效租金不得超过 1000 元/㎡/月，请核对金额或单位后修改。')
   ),
@@ -104,11 +95,7 @@ export const leaseTransactionSchema = z.object({
 
   enterprise_type: z.enum(
     ['央国企', '外企', '民企', '其他'],
-    {
-      required_error: '请选择企业类型',
-      invalid_type_error: '请选择有效的企业类型',
-      errorMap: () => ({ message: '请选择有效的企业类型' })
-    }
+    { error: '请选择有效的企业类型' }
   ),
 
   industry: z
@@ -120,8 +107,7 @@ export const leaseTransactionSchema = z.object({
     .min(1, '请选择所属子行业'),
 
   demand_type: z.enum(['新租', '搬迁', '扩租', '续租', '未知'], {
-    required_error: '请选择需求类型',
-    invalid_type_error: '请选择有效的类型',
+    error: '请选择有效的类型',
   }),
 
   relocation_area_change: z
@@ -194,10 +180,7 @@ export const leaseTransactionSchema = z.object({
   // 🔥 face_rent 是必填字段（在表单中标记了 required），但允许为 0
   face_rent: z.preprocess(
     preprocessRequiredNumber,
-    z.number({ 
-      required_error: '请填写表面租金', 
-      invalid_type_error: '表面租金必须为数字' 
-    })
+    z.number({ error: '表面租金必须为数字' })
       .nonnegative('表面租金不能为负数')
       .max(1000, '表面租金不得超过 1000 元/㎡/月，请核对金额或单位后修改。')
   ),

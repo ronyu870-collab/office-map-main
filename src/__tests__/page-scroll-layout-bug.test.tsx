@@ -93,14 +93,13 @@ vi.mock('@/src/components/NoticeBanner', () => ({
 
 // Import pages after mocks are set up
 import LobbyPage from '@/src/app/page';
-import BIPage from '@/src/app/bi/page';
 import SettingsPage from '@/src/app/settings/page';
 import OSSPage from '@/src/app/oss/page';
 
 /**
  * Page types for testing
  */
-type PageType = 'home' | 'bi' | 'settings' | 'oss';
+type PageType = 'home' | 'settings' | 'oss';
 
 interface PageLayoutInfo {
   pageType: PageType;
@@ -207,51 +206,6 @@ describe('Bug Condition Exploration - Page Scroll Layout', () => {
       expect(layoutInfo.hasPageScroll).toBe(false);
     });
 
-    it('❌ EXPECTED TO FAIL: BI page (/bi) should NOT have page-level scrolling', async () => {
-      // Mock buildings data
-      vi.mock('@/src/hooks/useBuildingsWithPerformance', () => ({
-        useBuildingsWithPerformance: () => ({
-          buildings: Array.from({ length: 100 }, (_, i) => ({
-            id: i,
-            name: `Building ${i}`,
-            '总面积': 10000,
-            '空置面积': 1000,
-            '净有效租金': 100,
-            '写字楼等级': 'A',
-            '子市场': 'CBD',
-            record_year: '2025',
-            record_quarter: 'Q4',
-          })),
-          isLoading: false,
-          error: null,
-          mutate: vi.fn(),
-        }),
-      }));
-      
-      const { container } = render(<BIPage />);
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const pageContainer = container.firstChild as HTMLElement;
-      if (pageContainer) {
-        pageContainer.setAttribute('data-page-type', 'bi');
-      }
-      
-      const layoutInfo = analyzePageLayout(pageContainer);
-      
-      console.log('\n📊 BI Page Layout Analysis:');
-      console.log(`   Container Classes: ${layoutInfo.containerClasses}`);
-      console.log(`   Main Content Classes: ${layoutInfo.mainContentClasses}`);
-      console.log(`   Has Page Scroll: ${layoutInfo.hasPageScroll ? '❌ YES (BUG!)' : '✅ NO'}`);
-      console.log(`   Bug Condition: ${isBugCondition(layoutInfo) ? '❌ TRUE (BUG EXISTS)' : '✅ FALSE'}`);
-      
-      // Expected Behavior (will FAIL on unfixed code):
-      expect(layoutInfo.containerClasses).toContain('h-screen');
-      expect(layoutInfo.containerClasses).toContain('overflow-hidden');
-      expect(layoutInfo.mainContentClasses).toContain('overflow-y-auto');
-      expect(layoutInfo.hasPageScroll).toBe(false);
-    });
-
     it('❌ EXPECTED TO FAIL: Settings page (/settings) should NOT have page-level scrolling', async () => {
       const { container } = render(<SettingsPage />);
       
@@ -307,7 +261,6 @@ describe('Bug Condition Exploration - Page Scroll Layout', () => {
     it('❌ EXPECTED TO FAIL: Property - All non-admin pages should use fixed height layout', async () => {
       const pageComponents = [
         { name: 'home', component: LobbyPage },
-        { name: 'bi', component: BIPage },
         { name: 'settings', component: SettingsPage },
         { name: 'oss', component: OSSPage },
       ];

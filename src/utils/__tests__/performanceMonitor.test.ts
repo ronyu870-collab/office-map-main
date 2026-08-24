@@ -9,11 +9,9 @@ import {
 } from '../performanceMonitor';
 
 describe('performanceMonitor', () => {
-  const originalEnv = process.env.NODE_ENV;
-
   beforeEach(() => {
     // Set to development mode for testing
-    process.env.NODE_ENV = 'development';
+    vi.stubEnv('NODE_ENV', 'development');
     
     // Mock console methods
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -25,7 +23,7 @@ describe('performanceMonitor', () => {
 
   afterEach(() => {
     // Restore original environment
-    process.env.NODE_ENV = originalEnv;
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 

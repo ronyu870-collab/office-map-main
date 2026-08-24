@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   checkDuplicate,
+  checkFuzzyDuplicate,
   submitTransaction,
   getMySubmissions,
   getWeeklyProgress,
@@ -59,143 +60,62 @@ describe('leaseTransactionSubmitService', () => {
   });
 
   // ========================================
-  // 4.2 checkDuplicate 函数测试
+  // 4.2 duplicate-check tests
   // ========================================
-  describe('checkDuplicate', () => {
-    /**
-     * 测试无重复记录时的返回结果
-     * Validates: Requirements 2.1, 2.2
-     */
-    it('should return hasDuplicate false when no duplicates exist', async () => {
-      // Mock RPC 返回空数组
-      mockedSupabase.rpc = vi.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
+  describe('duplicate checks', () => {
+    it('keeps deprecated checkDuplicate fail-open because it has no area input', async () => {
       const result = await checkDuplicate('测试公司', '测试楼宇', '2024Q1');
 
-      expect(result.hasDuplicate).toBe(false);
-      expect(result.duplicates).toHaveLength(0);
-      expect(mockedSupabase.rpc).toHaveBeenCalledWith('check_duplicate_transaction', {
-        p_company: '测试公司',
-        p_building: '测试楼宇',
-        p_quarter: '2024Q1',
-      });
+      expect(result).toEqual({ hasDuplicate: false, duplicates: [] });
+      expect(mockedSupabase.rpc).not.toHaveBeenCalled();
     });
 
-    /**
-     * 测试有重复记录时的返回结果
-     * Validates: Requirements 2.1, 2.3
-     */
-    it('should return duplicates when they exist', async () => {
-      // Mock RPC 返回重复记录
-      const mockDuplicates = [
-        {
-          id: 'uuid-1',
-          company: '已存在公司',
-          new_building: '已存在楼宇',
-          transaction_quarter: '2024Q1',
-          transaction_date: '2024-03-15',
-          area_sqm: 500,
-          submitter_name: '测试用户',
-          created_at: '2024-03-15T10:00:00Z',
-        },
-        {
-          id: 'uuid-2',
-          company: '已存在公司',
-          new_building: '已存在楼宇',
-          transaction_quarter: '2024Q1',
-          transaction_date: '2024-03-10',
-          area_sqm: 300,
-          submitter_name: '其他用户',
-          created_at: '2024-03-10T09:00:00Z',
-        },
-      ];
+    it('returns no duplicate for invalid fuzzy-check input without querying', async () => {
+      const result = await checkFuzzyDuplicate('测试公司', '测试楼宇', 0, '2024Q1');
 
-      mockedSupabase.rpc = vi.fn().mockResolvedValue({
-        data: mockDuplicates,
-        error: null,
-      });
+      expect(result).toEqual({ hasDuplicate: false, duplicates: [] });
+      expect(mockedSupabase.from).not.toHaveBeenCalled();
+    });
 
-      const result = await checkDuplicate('已存在公司', '已存在楼宇', '2024Q1');
+    it('returns matching fuzzy duplicates from the current fluent query path', async () => {
+      const row = {
+        id: 'uuid-1',
+        company: '测试公司',
+        new_building: '测试楼宇',
+        area_sqm: 500,
+        transaction_quarter: '2024Q1',
+        transaction_date: null,
+        submitter_name: '测试用户',
+        submitter_id: 'user-123',
+        created_at: '2024-03-15T10:00:00Z',
+      };
+      const query: any = { data: [row], error: null };
+      for (const method of ['select', 'eq', 'gte', 'lte', 'not', 'order', 'limit', 'neq']) {
+        query[method] = vi.fn(() => query);
+      }
+      mockedSupabase.from = vi.fn(() => query) as any;
+
+      const result = await checkFuzzyDuplicate('测试公司', '测试楼宇', 500, '2024Q1');
 
       expect(result.hasDuplicate).toBe(true);
-      expect(result.duplicates).toHaveLength(2);
-      expect(result.duplicates[0].company).toBe('已存在公司');
-      expect(result.duplicates[0].new_building).toBe('已存在楼宇');
+      expect(result.duplicates).toHaveLength(1);
+      expect(result.duplicates[0].company).toBe('测试公司');
+      expect(mockedSupabase.from).toHaveBeenCalledWith('lease_transactions');
     });
 
-    /**
-     * 测试参数缺失时的错误抛出 - 企业名称缺失
-     * Validates: Requirements 2.4
-     */
-    it('should throw error when company is missing', async () => {
-      await expect(checkDuplicate('', '测试楼宇', '2024Q1')).rejects.toThrow(
-        '企业名称为必填参数'
-      );
-    });
-
-    /**
-     * 测试参数缺失时的错误抛出 - 楼宇名称缺失
-     * Validates: Requirements 2.4
-     */
-    it('should throw error when building is missing', async () => {
-      await expect(checkDuplicate('测试公司', '', '2024Q1')).rejects.toThrow(
-        '楼宇名称为必填参数'
-      );
-    });
-
-    /**
-     * 测试参数缺失时的错误抛出 - 季度缺失
-     * Validates: Requirements 2.4
-     */
-    it('should throw error when quarter is missing', async () => {
-      await expect(checkDuplicate('测试公司', '测试楼宇', '')).rejects.toThrow(
-        '季度为必填参数'
-      );
-    });
-
-    /**
-     * 测试参数为空白字符串时的错误抛出
-     * Validates: Requirements 2.4
-     */
-    it('should throw error when company is whitespace only', async () => {
-      await expect(checkDuplicate('   ', '测试楼宇', '2024Q1')).rejects.toThrow(
-        '企业名称为必填参数'
-      );
-    });
-
-    /**
-     * 测试 RPC 调用失败时的错误处理
-     * Validates: Requirements 2.4
-     */
-    it('should handle RPC error gracefully', async () => {
-      mockedSupabase.rpc = vi.fn().mockResolvedValue({
+    it('fails open when the fuzzy duplicate query reports an error', async () => {
+      const query: any = {
         data: null,
         error: { code: 'PGRST301', message: 'Connection timeout' },
-      });
+      };
+      for (const method of ['select', 'eq', 'gte', 'lte', 'not', 'order', 'limit', 'neq']) {
+        query[method] = vi.fn(() => query);
+      }
+      mockedSupabase.from = vi.fn(() => query) as any;
 
-      await expect(checkDuplicate('测试公司', '测试楼宇', '2024Q1')).rejects.toThrow();
-    });
+      const result = await checkFuzzyDuplicate('测试公司', '测试楼宇', 500, '2024Q1');
 
-    /**
-     * 测试参数会被 trim 处理
-     * Validates: Requirements 2.2
-     */
-    it('should trim parameters before sending to RPC', async () => {
-      mockedSupabase.rpc = vi.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      await checkDuplicate('  测试公司  ', '  测试楼宇  ', '  2024Q1  ');
-
-      expect(mockedSupabase.rpc).toHaveBeenCalledWith('check_duplicate_transaction', {
-        p_company: '测试公司',
-        p_building: '测试楼宇',
-        p_quarter: '2024Q1',
-      });
+      expect(result).toEqual({ hasDuplicate: false, duplicates: [] });
     });
   });
 
@@ -298,7 +218,17 @@ describe('leaseTransactionSubmitService', () => {
      * 测试必填字段缺失时的失败情况 - 缺少 transaction_date
      * Validates: Requirements 8.1, 8.2
      */
-    it('should fail when transaction_date is missing', async () => {
+    it('should allow transaction_date to be omitted because year and quarter are canonical', async () => {
+      const mockInsert = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { id: 'uuid-new' },
+            error: null,
+          }),
+        }),
+      });
+      mockedSupabase.from = vi.fn().mockReturnValue({ insert: mockInsert });
+
       const transaction = {
         company: '测试公司',
         new_building: '测试楼宇',
@@ -310,9 +240,8 @@ describe('leaseTransactionSubmitService', () => {
 
       const result = await submitTransaction(transaction);
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('缺少必填字段');
-      expect(result.error).toContain('transaction_date');
+      expect(result.success).toBe(true);
+      expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({ transaction_date: null }));
     });
 
     /**
@@ -355,8 +284,7 @@ describe('leaseTransactionSubmitService', () => {
       const result = await submitTransaction(transaction);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('必须为有效数字');
-      expect(result.error).toContain('area_sqm');
+      expect(result.error).toContain('格式错误');
     });
 
     /**
@@ -378,7 +306,7 @@ describe('leaseTransactionSubmitService', () => {
       const result = await submitTransaction(transaction);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('必须为有效数字');
+      expect(result.error).toContain('格式错误');
     });
 
     it('should reject an effective rent above 1000 yuan per sqm per month', async () => {
@@ -440,13 +368,12 @@ describe('leaseTransactionSubmitService', () => {
      * 测试年份季度不一致时的失败情况
      * Validates: Requirements 8.1, 8.3
      */
-    it('should fail when year and quarter are inconsistent', async () => {
+    it('should reject an invalid quarter format', async () => {
       const transaction: LeaseTransaction = {
         company: '测试公司',
         new_building: '测试楼宇',
-        transaction_date: '2024-03-15',
         transaction_year: 2024,
-        transaction_quarter: '2023Q1', // 年份不一致
+        transaction_quarter: '2024-Q1',
         submitter_id: 'user-123',
         submitter_name: '测试用户',
       };
@@ -454,7 +381,7 @@ describe('leaseTransactionSubmitService', () => {
       const result = await submitTransaction(transaction);
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('成交年份与季度不一致');
+      expect(result.error).toContain('成交季度格式错误');
     });
 
     /**
@@ -603,6 +530,7 @@ describe('leaseTransactionSubmitService', () => {
         fit_out_months: 2,
         rent_free_months: 1,
         effective_rent: 7.5,
+        is_manual_building: true,
       };
 
       const mockInsert = vi.fn().mockReturnValue({
@@ -632,6 +560,7 @@ describe('leaseTransactionSubmitService', () => {
         fit_out_months: 2,
         rent_free_months: 1,
         effective_rent: 7.5,
+        is_manual_building: true,
       };
 
       const result = await submitTransaction(transaction);
@@ -641,185 +570,64 @@ describe('leaseTransactionSubmitService', () => {
   });
 
   // ========================================
-  // 4.4 getMySubmissions 函数测试
+  // 4.4 getMySubmissions tests
   // ========================================
   describe('getMySubmissions', () => {
-    /**
-     * 测试成功获取用户提交历史
-     * Validates: Requirements 4.1, 4.2, 4.4
-     */
-    it('should return submissions for the user', async () => {
-      const mockSubmissions = [
-        {
-          id: 'uuid-1',
-          company: '公司A',
-          new_building: '楼宇A',
-          transaction_date: '2024-03-15',
-          transaction_year: 2024,
-          transaction_quarter: '2024Q1',
-          submitter_id: 'user-123',
-          submitter_name: '测试用户',
-          created_at: '2024-03-15T10:00:00Z',
-        },
-        {
-          id: 'uuid-2',
-          company: '公司B',
-          new_building: '楼宇B',
-          transaction_date: '2024-03-10',
-          transaction_year: 2024,
-          transaction_quarter: '2024Q1',
-          submitter_id: 'user-123',
-          submitter_name: '测试用户',
-          created_at: '2024-03-10T09:00:00Z',
-        },
+    function mockSubmissionQuery(result: { data: unknown; error: unknown }) {
+      const limit = vi.fn().mockResolvedValue(result);
+      const order = vi.fn().mockReturnValue({ limit });
+      const eq = vi.fn().mockReturnValue({ order });
+      const select = vi.fn().mockReturnValue({ eq });
+      mockedSupabase.from = vi.fn().mockReturnValue({ select });
+      return { select, eq, order, limit };
+    }
+
+    it('returns submissions for the user', async () => {
+      const submissions = [
+        { id: 'uuid-1', company: '公司A', submitter_id: 'user-123' },
+        { id: 'uuid-2', company: '公司B', submitter_id: 'user-123' },
       ];
-
-      const mockOrder = vi.fn().mockResolvedValue({
-        data: mockSubmissions,
-        error: null,
-      });
-
-      const mockEq = vi.fn().mockReturnValue({
-        order: mockOrder,
-      });
-
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: mockEq,
-      });
-
-      mockedSupabase.from = vi.fn().mockReturnValue({
-        select: mockSelect,
-      });
+      mockSubmissionQuery({ data: submissions, error: null });
 
       const result = await getMySubmissions('user-123');
 
-      expect(Array.isArray(result)).toBe(true);
       expect(result).toHaveLength(2);
       expect(result[0].company).toBe('公司A');
-      expect(result[1].company).toBe('公司B');
     });
 
-    /**
-     * 测试参数缺失时的错误抛出
-     * Validates: Requirements 4.2, 4.5
-     */
-    it('should throw error when userId is missing', async () => {
+    it('rejects a missing user id', async () => {
       await expect(getMySubmissions('')).rejects.toThrow('用户 ID 为必填参数');
     });
 
-    /**
-     * 测试参数为空白字符串时的错误抛出
-     * Validates: Requirements 4.2, 4.5
-     */
-    it('should throw error when userId is whitespace only', async () => {
+    it('rejects a whitespace-only user id', async () => {
       await expect(getMySubmissions('   ')).rejects.toThrow('用户 ID 为必填参数');
     });
 
-    /**
-     * 测试返回结果按创建时间降序排列
-     * Validates: Requirements 4.3
-     */
-    it('should return results ordered by created_at descending', async () => {
-      const mockOrder = vi.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      const mockEq = vi.fn().mockReturnValue({
-        order: mockOrder,
-      });
-
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: mockEq,
-      });
-
-      mockedSupabase.from = vi.fn().mockReturnValue({
-        select: mockSelect,
-      });
+    it('orders newest first and caps history at 200 rows', async () => {
+      const query = mockSubmissionQuery({ data: [], error: null });
 
       await getMySubmissions('user-123');
 
-      // 验证 order 方法被正确调用
-      expect(mockOrder).toHaveBeenCalled();
-      // 验证 from 方法被调用时使用了正确的表名
+      expect(query.order).toHaveBeenCalledWith('created_at', { ascending: false });
+      expect(query.limit).toHaveBeenCalledWith(200);
       expect(mockedSupabase.from).toHaveBeenCalledWith('lease_transactions');
     });
 
-    /**
-     * 测试用户无提交记录时返回空数组
-     * Validates: Requirements 4.1, 4.4
-     */
-    it('should return empty array when user has no submissions', async () => {
-      const mockOrder = vi.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      const mockEq = vi.fn().mockReturnValue({
-        order: mockOrder,
-      });
-
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: mockEq,
-      });
-
-      mockedSupabase.from = vi.fn().mockReturnValue({
-        select: mockSelect,
-      });
-
-      const result = await getMySubmissions('user-with-no-submissions');
-
-      expect(result).toHaveLength(0);
-    });
-
-    /**
-     * 测试数据库查询失败时的错误处理
-     * Validates: Requirements 4.5
-     */
-    it('should handle database query error', async () => {
-      const mockOrder = vi.fn().mockResolvedValue({
+    it('surfaces database query errors', async () => {
+      mockSubmissionQuery({
         data: null,
         error: { code: 'PGRST301', message: 'Connection timeout' },
       });
 
-      const mockEq = vi.fn().mockReturnValue({
-        order: mockOrder,
-      });
-
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: mockEq,
-      });
-
-      mockedSupabase.from = vi.fn().mockReturnValue({
-        select: mockSelect,
-      });
-
-      await expect(getMySubmissions('user-123')).rejects.toThrow();
+      await expect(getMySubmissions('user-123')).rejects.toThrow('数据库连接超时');
     });
 
-    /**
-     * 测试 userId 会被 trim 处理
-     * Validates: Requirements 4.2
-     */
-    it('should trim userId before query', async () => {
-      const mockEq = vi.fn().mockReturnValue({
-        order: vi.fn().mockResolvedValue({
-          data: [],
-          error: null,
-        }),
-      });
-
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: mockEq,
-      });
-
-      mockedSupabase.from = vi.fn().mockReturnValue({
-        select: mockSelect,
-      });
+    it('trims the user id before querying', async () => {
+      const query = mockSubmissionQuery({ data: [], error: null });
 
       await getMySubmissions('  user-123  ');
 
-      expect(mockEq).toHaveBeenCalledWith('submitter_id', 'user-123');
+      expect(query.eq).toHaveBeenCalledWith('submitter_id', 'user-123');
     });
   });
 
