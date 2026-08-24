@@ -1,6 +1,6 @@
 @import "tailwindcss";
-@plugin "@tailwindcss/typography";
 @import "../styles/tokens.css";
+@plugin "@tailwindcss/typography";
 
 :root {
   --background: var(--cd-color-workspace);
