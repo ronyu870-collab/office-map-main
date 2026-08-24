@@ -150,26 +150,27 @@ export function HomeWorkspace() {
   const userLabel = React.useMemo(() => !ctx ? '' : ctx.role === 'admin' ? `${ctx.displayName} · 管理员` : ctx.displayName, [ctx]);
   if (status === 'loading' || !ctx) return <HomeLoadingShell />;
 
-  const isRestrictedAdmin = ctx.user.email === 'judy.li@colliers.com';
-  const isAdmin = isUserAdmin(ctx.role) && !isRestrictedAdmin;
-  const canSeeAdminWorkspace = isAdmin || isDemoMode(ctx.user.email);
+  const activeSession = ctx;
+  const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';
+  const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;
+  const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);
   const businessWorkspaces = canSeeAdminWorkspace ? [...BUSINESS_WORKSPACES, ADMIN_WORKSPACE] : BUSINESS_WORKSPACES;
 
   async function handleLogout() {
     try {
-      if (ctx.user.email) await logActionImmediate(ctx.user.email, 'LOGOUT', { platform: 'web' });
+      if (activeSession.user.email) await logActionImmediate(activeSession.user.email, 'LOGOUT', { platform: 'web' });
       await signOut(); window.location.href = '/login';
     } catch { window.location.href = '/login'; }
   }
 
   function evaluateWorkspace(event: { preventDefault: () => void }, workspace: WorkspaceModule) {
     const restricted = isModuleRestricted(workspace.module);
-    const admin = isUserAdmin(ctx.role);
-    const canAccess = canAccessModule(workspace.module, ctx.role);
-    if (ctx.user.email) {
+    const admin = isUserAdmin(activeSession.role);
+    const canAccess = canAccessModule(workspace.module, activeSession.role);
+    if (activeSession.user.email) {
       const details: Record<string, unknown> = { module: workspace.module, blocked: !canAccess };
       if (restricted && !admin) details.reason = 'restricted_module';
-      logAction(ctx.user.email, 'ENTER_MODULE', details);
+      logAction(activeSession.user.email, 'ENTER_MODULE', details);
     }
     if (!canAccess) { event.preventDefault(); return; }
     const underDevelopment = UNDER_DEVELOPMENT_MODULES.some(({ module }) => module === workspace.module);
@@ -182,7 +183,7 @@ export function HomeWorkspace() {
 
   return (
     <>
-      <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<HomeHeader displayName={userLabel} role={ctx.role} email={ctx.user.email} onLogout={() => void handleLogout()} />}>
+      <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<HomeHeader displayName={userLabel} role={activeSession.role} email={activeSession.user.email} onLogout={() => void handleLogout()} />}>
         <div className="h-full overflow-y-auto overscroll-contain">
           <div className="mx-auto grid min-h-full w-full max-w-[1480px] grid-cols-1 gap-5 p-4 sm:p-6 lg:p-8 xl:grid-cols-[minmax(0,1fr)_360px]">
             <section className="min-w-0" aria-labelledby="home-heading">
@@ -192,11 +193,11 @@ export function HomeWorkspace() {
                 <div className="flex items-start justify-between gap-5"><div className="min-w-0"><div className="flex items-center gap-2 text-[10px] font-semibold tracking-[0.14em] text-[var(--cd-color-brand)]"><MapIcon size={14} strokeWidth={1.7} aria-hidden="true" />{MAP_WORKSPACE.eyebrow}</div><h2 className="mt-2 text-lg font-semibold text-[var(--cd-color-text-primary)] sm:text-xl">{MAP_WORKSPACE.title}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--cd-color-text-secondary)]">{MAP_WORKSPACE.description}</p><div className="mt-4 flex flex-wrap gap-2" aria-label="地图主要维度">{['Rent','Vacancy','LEED','Supply'].map((label) => <Badge key={label}>{label}</Badge>)}</div></div><div className="flex h-9 shrink-0 items-center gap-2 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3 text-xs font-medium text-white transition-colors group-hover:bg-[var(--cd-color-brand-hover)]">Open<ArrowRight size={14} strokeWidth={1.7} aria-hidden="true" /></div></div>
               </Link>
               <div className="mb-3 mt-6"><h2 className="text-sm font-semibold text-[var(--cd-color-text-primary)]">Business workspaces</h2><p className="mt-0.5 text-xs text-[var(--cd-color-text-muted)]">数据维护、成交填报、研究资料与系统管理</p></div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{businessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={ctx.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />)}</div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{businessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />)}</div>
             </section>
             <aside className="min-w-0 xl:border-l xl:border-[var(--cd-color-border)] xl:pl-5" aria-label="团队协作与系统信息">
               <div className="mb-3"><h2 className="text-sm font-semibold text-[var(--cd-color-text-primary)]">Team activity</h2><p className="mt-0.5 text-xs text-[var(--cd-color-text-muted)]">低优先级协作信息，不阻塞核心工作区</p></div>
-              <div className="min-h-[220px] overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">{showCommunication && ctx.user.email ? <CommunicationBoard userEmail={ctx.user.email} userName={ctx.displayName} /> : <div className="h-[260px] animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}</div>
+              <div className="min-h-[220px] overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">{showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-[260px] animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}</div>
               <div className="mt-4"><div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--cd-color-text-secondary)]"><ShieldCheck size={14} strokeWidth={1.6} aria-hidden="true" />System notice</div><div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">{showCommunication ? <NoticeBanner /> : <div className="h-11 animate-pulse bg-[var(--cd-color-surface-alt)]" />}</div></div>
             </aside>
           </div>
