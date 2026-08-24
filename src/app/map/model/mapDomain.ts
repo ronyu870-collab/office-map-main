@@ -1,11 +1,11 @@
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
-export const MAP_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'] as const;
-export const MAP_SUBMARKETS_SECONDARY = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园'] as const;
-export const MAP_DISTRICTS = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区', '石景山区', '大兴区', '通州区', '昌平区'] as const;
-export const MAP_LEEDS = ['Platinum', 'Gold', 'Silver', 'NULL'] as const;
-export const MAP_SUBWAYS = [
+export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
+export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园'];
+export const MAP_DISTRICTS: string[] = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区', '石景山区', '大兴区', '通州区', '昌平区'];
+export const MAP_LEEDS: string[] = ['Platinum', 'Gold', 'Silver', 'NULL'];
+export const MAP_SUBWAYS: string[] = [
   '地铁1号线',
   '地铁2号线',
   '地铁4号线',
@@ -25,7 +25,7 @@ export const MAP_SUBWAYS = [
   '地铁亦庄线',
   '地铁房山线',
   '地铁大兴线',
-] as const;
+];
 
 export const SUPPLY_CALENDAR_YEARS = ['2026', '2027', '2028'] as const;
 export const SUPPLY_CALENDAR_SPECIAL = ['2029AndAfter', 'noDate'] as const;
