@@ -18,27 +18,27 @@ export function WorkspaceShell({
   className = "",
 }: WorkspaceShellProps) {
   return (
-    <div className={`min-h-dvh bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)] ${className}`}>
+    <div className={`flex min-h-dvh flex-col bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)] ${className}`}>
       {header ? (
-        <div className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <div className="sticky top-0 z-[var(--cd-z-sticky)] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
           {header}
         </div>
       ) : null}
-      <div className="flex min-h-0">
+      <div className="flex min-h-0 flex-1">
         {sidebar ? (
-          <aside className="hidden w-60 shrink-0 border-r border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] lg:block">
+          <aside className="hidden w-60 shrink-0 overflow-hidden border-r border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] lg:block">
             {sidebar}
           </aside>
         ) : null}
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</main>
         {aside ? (
-          <aside className="hidden w-80 shrink-0 border-l border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] xl:block">
+          <aside className="hidden w-80 shrink-0 overflow-hidden border-l border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] xl:block">
             {aside}
           </aside>
         ) : null}
       </div>
       {footer ? (
-        <footer className="border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <footer className="shrink-0 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
           {footer}
         </footer>
       ) : null}
