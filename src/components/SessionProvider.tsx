@@ -96,17 +96,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (forceRefresh) clearSessionCache();
     if (inFlightSessionRef.current) return inFlightSessionRef.current;
 
-    setStatus('loading');
+    // Background token/profile refreshes should not replace an already usable
+    // authenticated workspace with a loading skeleton.
+    setStatus((current) => (current === 'authenticated' ? current : 'loading'));
+
     const request = (async () => {
       try {
         const nextSession = await getSessionFast();
         setSession(nextSession);
         setStatus(nextSession ? 'authenticated' : 'unauthenticated');
+        if (!nextSession) setShowWarning(false);
         return nextSession;
       } catch (error) {
         console.error('解析应用会话失败:', error);
         setSession(null);
         setStatus('unauthenticated');
+        setShowWarning(false);
         return null;
       }
     })();
@@ -141,7 +146,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     sessionManagerRef.current?.stop();
     sessionManagerRef.current = null;
-    setShowWarning(false);
 
     if (pathname === '/login' || status !== 'authenticated' || !session?.session) {
       return;
@@ -155,6 +159,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setSession(null);
         setStatus('unauthenticated');
+        setShowWarning(false);
         router.push('/login');
       }
     };
@@ -185,6 +190,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
         setSession(null);
         setStatus('unauthenticated');
+        setShowWarning(false);
         alert('登录已过期，请重新登录');
         router.push('/login');
       },
@@ -214,6 +220,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         clearSessionCache();
         setSession(null);
         setStatus('unauthenticated');
+        setShowWarning(false);
         if (pathname !== '/login') router.push('/login');
         return;
       }
