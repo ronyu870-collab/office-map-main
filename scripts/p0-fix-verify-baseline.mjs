@@ -39,7 +39,7 @@ update('src/__tests__/page-scroll-layout-bug.test.tsx', (content) => {
   content = replaceOrThrow(content, "type PageType = 'home' | 'bi' | 'settings' | 'oss';", "type PageType = 'home' | 'settings' | 'oss';", 'remove stale BI page type');
   content = replaceRegexOrThrow(
     content,
-    /\n    it\('❌ EXPECTED TO FAIL: BI page \/bi\) should NOT have page-level scrolling',[\s\S]*?\n    it\('❌ EXPECTED TO FAIL: Settings page/,
+    /\n    it\('❌ EXPECTED TO FAIL: BI page \(\/bi\) should NOT have page-level scrolling',[\s\S]*?\n    it\('❌ EXPECTED TO FAIL: Settings page/,
     "\n    it('❌ EXPECTED TO FAIL: Settings page",
     'remove stale BI layout test',
   );
