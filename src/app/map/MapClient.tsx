@@ -12,6 +12,7 @@ import { retryAsync } from '@/src/utils/retryAsync';
 // 管理员编辑楼宇指标数据弹窗
 import { BuildingMetricsEditModal } from '@/src/components/map/BuildingMetricsEditModal';
 import {
+  MAP_DISTRICTS as MOCK_DISTRICTS,
   buildActiveFilterChips,
   buildDistrictLeedStats,
   buildFutureSupplyCalendar,
