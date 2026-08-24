@@ -12,11 +12,28 @@ import { getSession, getSessionFast } from '@/src/services/Auth';
 import type { MapController } from '@/src/services/MapController';
 // 🌟 1. 引入日志工具
 import { logAction } from '@/src/utils/audit';
-import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { createLatestFrameScheduler, type LatestFrameScheduler } from '@/src/utils/frameCoalescer';
 import { retryAsync } from '@/src/utils/retryAsync';
 // 管理员编辑楼宇指标数据弹窗
 import { BuildingMetricsEditModal } from '@/src/components/map/BuildingMetricsEditModal';
+import {
+  MAP_DISTRICTS as MOCK_DISTRICTS,
+  MAP_LEEDS as MOCK_LEEDS,
+  MAP_SUBMARKETS as MOCK_SUBMARKETS,
+  MAP_SUBMARKETS_SECONDARY as MOCK_SUBMARKETS_SECONDARY,
+  MAP_SUBWAYS as MOCK_SUBWAYS,
+  SUPPLY_CALENDAR_CATEGORIES,
+  SUPPLY_CALENDAR_LABELS,
+  buildActiveFilterChips,
+  buildDistrictLeedStats,
+  buildFutureSupplyCalendar,
+  categorizeSupply,
+  computeStatsFromBuildings,
+  isDefaultFilterState,
+  type MapStatsState,
+  type RenderMode,
+} from './model/mapDomain';
+import { MapDataStore } from './model/MapDataStore';
 
 // 🌟 Phase 2: 动态按需加载悬浮楼宇列表组件
 const FloatingBuildingList = dynamic(() => import('./components/FloatingBuildingList'), { 
@@ -27,67 +44,6 @@ const FloatingBuildingList = dynamic(() => import('./components/FloatingBuilding
     </div>
   )
 });
-
-const MOCK_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
-const MOCK_SUBMARKETS_SECONDARY = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园'];
-const MOCK_DISTRICTS = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区', '石景山区', '大兴区', '通州区', '昌平区'];
-const MOCK_LEEDS = ['Platinum', 'Gold', 'Silver', 'NULL'];
-const MOCK_SUBWAYS = [
-  '地铁1号线',      // 注意：JSON中这是支线数据
-  '地铁2号线',
-  '地铁4号线',
-  '地铁5号线',
-  '地铁6号线',
-  '地铁7号线',
-  '地铁8号线',
-  '地铁9号线',
-  '地铁10号线',
-  '地铁13号线',
-  '地铁14号线',
-  '地铁15号线',
-  '地铁16号线',
-  '地铁17号线',
-  '地铁八通线',    // 注意：JSON中这包含1号线主线数据
-  '地铁昌平线',
-  '地铁亦庄线',
-  '地铁房山线',
-  '地铁大兴线',
-];
-
-function hasSameSelections(selected: string[], options: string[]): boolean {
-  return selected.length === options.length && options.every(option => selected.includes(option));
-}
-
-function isDefaultFilterState(state: SidebarFilterState): boolean {
-  return (
-    hasSameSelections(state.districts, MOCK_DISTRICTS) &&
-    hasSameSelections(state.submarkets, [...MOCK_SUBMARKETS, ...MOCK_SUBMARKETS_SECONDARY]) &&
-    hasSameSelections(state.leeds, MOCK_LEEDS) &&
-    hasSameSelections(state.projectTypes, ['甲级写字楼', '乙级写字楼', '产业园区']) &&
-    !state.showBoundaries &&
-    !state.subwayLine &&
-    !state.subwayStation &&
-    state.numericFilters.length === 0 &&
-    !state.showFutureSupply
-  );
-}
-
-// 供应日历配置常量
-const SUPPLY_CALENDAR_YEARS = ['2026', '2027', '2028'] as const;
-const SUPPLY_CALENDAR_SPECIAL = ['2029AndAfter', 'noDate'] as const;
-const SUPPLY_CALENDAR_CATEGORIES = [...SUPPLY_CALENDAR_YEARS, ...SUPPLY_CALENDAR_SPECIAL] as const;
-
-// 供应日历显示标签映射
-const SUPPLY_CALENDAR_LABELS: Record<string, string> = {
-  '2026': '2026年',
-  '2027': '2027年',
-  '2028': '2028年',
-  '2029AndAfter': '2029年及以后',
-  'noDate': '暂无供应时间',
-};
-
-// 渲染模式类型定义
-export type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 
 function MapLegend({ mode }: { mode: RenderMode }) {
   const config = {
@@ -117,60 +73,6 @@ function MapLegend({ mode }: { mode: RenderMode }) {
       </div>
     </div>
   );
-}
-
-type MapStatsState = { totalArea: string; avgRent: string; overallVacancyPct: string; projectCount: string; visibleProjectCount: string; };
-
-type ActiveFilterChip = {
-  id: string;
-  label: string;
-  patch: Partial<SidebarFilterState>;
-};
-
-const NUMERIC_FILTER_LABELS: Record<string, string> = {
-  net_effective_rent: '净有效租金',
-  vacancy_rate: '空置率',
-  vacant_area: '空置面积',
-  total_area: '总面积',
-  management_fee: '物业费',
-  owner: '项目业主',
-  property_management: '物业公司',
-};
-
-const formatSupplyYearLabel = (year: string) => {
-  if (year === '2029AndAfter') return '2029年及以后';
-  if (year === 'noDate') return '暂无时间';
-  return `${year}年`;
-};
-
-const compactListLabel = (items: string[], total: number, emptyLabel: string) => {
-  if (items.length === 0) return emptyLabel;
-  const visible = items.slice(0, 2).join('、');
-  return items.length > 2 || items.length < total ? `${visible} 等${items.length}项` : visible;
-};
-
-function computeStatsFromBuildings(buildingsData: any[]): MapStatsState {
-  const items = Array.isArray(buildingsData) ? buildingsData : [];
-  let projectCount = items.length;
-  let visibleProjectCount = 0;
-  let leedCount = 0;
-  let totalArea = 0; let vacantArea = 0; let rentWeightSum = 0; let rentWeightAreaSum = 0;
-
-  for (const b of items) {
-    if (Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat)) visibleProjectCount++;
-    if (b.leed_certification && b.leed_certification.trim() !== '' && b.leed_certification !== 'NULL') leedCount++;
-    const latest = getLatestMetric(b?.metrics);
-    if (!latest) continue;
-    const area = Number(latest.total_area); const rent = Number(latest.net_effective_rent); const vacArea = Number(latest.vacant_area);
-
-    if (Number.isFinite(area) && area > 0) { totalArea += area; vacantArea += Number.isFinite(vacArea) ? vacArea : 0; }
-    if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) { rentWeightAreaSum += area; rentWeightSum += rent * area; }
-  }
-
-  const avgRent = rentWeightAreaSum > 0 ? (rentWeightSum / rentWeightAreaSum).toFixed(1) : '-';
-  const overallVacancyPct = totalArea > 0 ? ((vacantArea / totalArea) * 100).toFixed(1) : '-';
-
-  return { totalArea: totalArea > 0 ? Math.round(totalArea).toLocaleString('zh-CN') : '-', avgRent, overallVacancyPct, projectCount: projectCount.toString(), visibleProjectCount: visibleProjectCount.toString() };
 }
 
 function MapAuthLoading() { 
@@ -206,6 +108,7 @@ export default function MapWorkbenchPage() {
   const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(null);
   const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(null);
   const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>([]);
+  const mapDataStoreRef = React.useRef(new MapDataStore());
 
   // 管理员编辑楼宇指标数据弹窗状态
   const [editingBuilding, setEditingBuilding] = React.useState<{ id: string; name: string } | null>(null);
@@ -279,78 +182,7 @@ export default function MapWorkbenchPage() {
   const [userHasInteracted, setUserHasInteracted] = React.useState(false);
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
 
-  const activeFilterChips = React.useMemo<ActiveFilterChip[]>(() => {
-    if (!filterState) return [];
-    const chips: ActiveFilterChip[] = [];
-    const allSubmarkets = [...MOCK_SUBMARKETS, ...MOCK_SUBMARKETS_SECONDARY];
-    const allProjectTypes = ['甲级写字楼', '乙级写字楼', '产业园区'];
-
-    if (filterState.projectTypes.length < allProjectTypes.length) {
-      chips.push({
-        id: 'projectTypes',
-        label: `项目类型：${compactListLabel(filterState.projectTypes, allProjectTypes.length, '未选择')}`,
-        patch: { projectTypes: allProjectTypes },
-      });
-    }
-    if (filterState.districts.length < MOCK_DISTRICTS.length) {
-      chips.push({
-        id: 'districts',
-        label: `行政区：${compactListLabel(filterState.districts, MOCK_DISTRICTS.length, '未选择')}`,
-        patch: { districts: MOCK_DISTRICTS },
-      });
-    }
-    if (filterState.submarkets.length < allSubmarkets.length) {
-      chips.push({
-        id: 'submarkets',
-        label: `子市场：${compactListLabel(filterState.submarkets, allSubmarkets.length, '未选择')}`,
-        patch: { submarkets: allSubmarkets },
-      });
-    }
-    if (filterState.leeds.length < MOCK_LEEDS.length) {
-      chips.push({
-        id: 'leeds',
-        label: `LEED：${compactListLabel(filterState.leeds, MOCK_LEEDS.length, '未选择')}`,
-        patch: { leeds: MOCK_LEEDS },
-      });
-    }
-    if (filterState.subwayLine) {
-      const station = filterState.subwayStation?.name ? ` · ${filterState.subwayStation.name}` : '';
-      const distance = filterState.subwayStation && filterState.subwayDistance
-        ? ` · ${filterState.subwayDistance >= 1000 ? `${filterState.subwayDistance / 1000}km` : `${filterState.subwayDistance}m`}`
-        : '';
-      chips.push({
-        id: 'subway',
-        label: `地铁：${filterState.subwayLine}${station}${distance}`,
-        patch: { subwayLine: null, subwayStation: null, subwayDistance: 1000 },
-      });
-    }
-    if (filterState.numericFilters.some(filter => filter.value !== '' && filter.value !== null && filter.value !== undefined)) {
-      filterState.numericFilters
-        .filter(filter => filter.value !== '' && filter.value !== null && filter.value !== undefined)
-        .forEach(filter => {
-          chips.push({
-            id: `numeric-${filter.id}`,
-            label: `${NUMERIC_FILTER_LABELS[filter.field] ?? filter.field} ${filter.operator} ${filter.value}`,
-            patch: { numericFilters: filterState.numericFilters.filter(item => item.id !== filter.id) },
-          });
-        });
-    }
-    if (filterState.showBoundaries) {
-      chips.push({ id: 'boundaries', label: '行政区边界', patch: { showBoundaries: false } });
-    }
-    if (filterState.showFutureSupply) {
-      const grades = filterState.futureSupplyGrades.length === 3 ? '全部类型' : filterState.futureSupplyGrades.join('、');
-      const years = filterState.futureSupplyYears.length === 5
-        ? '全部年份'
-        : filterState.futureSupplyYears.map(formatSupplyYearLabel).join('、') || '未选择';
-      chips.push({
-        id: 'futureSupply',
-        label: `未来供应：${grades} · ${years}`,
-        patch: { showFutureSupply: false },
-      });
-    }
-    return chips;
-  }, [filterState]);
+  const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
   const issueFilterCommand = React.useCallback((type: SidebarFilterCommand['type'], patch?: Partial<SidebarFilterState>) => {
     setFilterCommand(previous => ({ id: (previous?.id ?? 0) + 1, type, patch }));
@@ -397,14 +229,11 @@ export default function MapWorkbenchPage() {
         throw new Error('服务器没有返回楼宇数据');
       }
 
-      // admin/editor 可见所有等级，viewer 只看 A/P。
+      // admin/editor 可见所有等级，viewer 只看 A/P。索引在数据进入工作区时只构建一次。
       const role = await getSessionFast().then(s => s?.role || 'viewer').catch(() => 'viewer');
       if (isCancelled()) return;
-      const canSeeAll = role === 'admin' || role === 'editor';
-      const visible = canSeeAll ? buildings : buildings.filter(building => {
-        const grade = String(building.grade || '').toUpperCase();
-        return grade === 'A' || grade === 'P';
-      });
+      mapDataStoreRef.current.replaceBuildings(buildings);
+      const visible = mapDataStoreRef.current.getRoleVisible(role);
 
       console.log(`[MapClient] 角色=${role}, 总建筑=${buildings.length}, 可见=${visible.length}`);
       setAllBuildings(visible);
@@ -426,105 +255,9 @@ export default function MapWorkbenchPage() {
 
   const [stats, setStats] = React.useState<MapStatsState>({ totalArea: '-', avgRent: '-', overallVacancyPct: '-', projectCount: '-', visibleProjectCount: '-' });
   
-  // 🌟 优化：使用 useMemo 缓存区域 LEED 认证率计算，避免重复计算
-  const districtLeedStats = React.useMemo(() => {
-    const districtMap = new Map<string, { totalCount: number; leedCount: number }>();
-    
-    for (const building of allBuildings) {
-      const district = building.district?.trim?.() ?? '';
-      if (!district) continue;
-      
-      if (!districtMap.has(district)) {
-        districtMap.set(district, { totalCount: 0, leedCount: 0 });
-      }
-      
-      const distData = districtMap.get(district)!;
-      distData.totalCount += 1;
-      
-      // 检查是否有 LEED 认证
-      const leed = (building.leed_certification || '').trim().toUpperCase();
-      if (leed && leed !== 'NULL' && leed !== '') {
-        distData.leedCount += 1;
-      }
-    }
-    
-    return districtMap;
-  }, [allBuildings]);
+  const districtLeedStats = React.useMemo(() => buildDistrictLeedStats(allBuildings), [allBuildings]);
   
-  // 辅助函数：安全解析供应年份
-  const safeParseSupplyYear = React.useCallback((supply: any): number | null => {
-    try {
-      const year = supply.launch_year || supply.launchYear || supply.year;
-      
-      if (year === null || year === undefined) {
-        return null;
-      }
-      
-      const yearNum = typeof year === 'number' ? year : parseInt(String(year), 10);
-      
-      if (isNaN(yearNum) || yearNum < 1900 || yearNum > 2100) {
-        console.warn(`[Supply Calendar] Invalid year value: ${year} for building: ${supply.name}`);
-        return null;
-      }
-      
-      return yearNum;
-    } catch (error) {
-      console.error(`[Supply Calendar] Error parsing year for building: ${supply.name}`, error);
-      return null;
-    }
-  }, []);
-
-  // 辅助函数：分类供应数据
-  const categorizeSupply = React.useCallback((supply: any): '2026' | '2027' | '2028' | '2029AndAfter' | 'noDate' => {
-    const yearNum = safeParseSupplyYear(supply);
-    
-    if (yearNum === null) return 'noDate';
-    if (yearNum === 2026) return '2026';
-    if (yearNum === 2027) return '2027';
-    if (yearNum === 2028) return '2028';
-    if (yearNum >= 2029) return '2029AndAfter';
-    
-    return 'noDate'; // For years before 2026
-  }, [safeParseSupplyYear]);
-
-  // 计算未来新增供应日历数据 (2026-2029, 及以后, 未显示供应时间)
-  const futureSupplyCalendar = React.useMemo(() => {
-    const calendar: Record<string, { total: number; office: number; park: number }> = {
-      '2026': { total: 0, office: 0, park: 0 },
-      '2027': { total: 0, office: 0, park: 0 },
-      '2028': { total: 0, office: 0, park: 0 },
-      '2029AndAfter': { total: 0, office: 0, park: 0 },
-      'noDate': { total: 0, office: 0, park: 0 },
-    };
-
-    for (const supply of futureSupplies) {
-      try {
-        const category = categorizeSupply(supply);
-        
-        calendar[category].total++;
-        
-        const grade = (supply.grade || '').toUpperCase();
-        if (grade.includes('BP')) {
-          calendar[category].park++;
-        } else {
-          calendar[category].office++;
-        }
-      } catch (error) {
-        console.error(`[Supply Calendar] Error categorizing supply: ${supply?.name || 'unknown'}`, error);
-        // 分类失败时，将其归入 noDate 类别
-        calendar['noDate'].total++;
-        const grade = (supply?.grade || '').toUpperCase();
-        if (grade.includes('BP')) {
-          calendar['noDate'].park++;
-        } else {
-          calendar['noDate'].office++;
-        }
-      }
-    }
-
-    console.log('[Supply Calendar] Categorized supplies:', calendar);
-    return calendar;
-  }, [futureSupplies, categorizeSupply]);
+  const futureSupplyCalendar = React.useMemo(() => buildFutureSupplyCalendar(futureSupplies), [futureSupplies]);
   
   // 新增：地图标记渲染模式状态
   const [renderMode, setRenderMode] = React.useState<RenderMode>('default');
@@ -681,99 +414,12 @@ export default function MapWorkbenchPage() {
     }
 
     // ================ 核心过滤引擎 ================
-    // 对比筛选模式：对比组独立于全局筛选，自己控制显示范围
-    const hasCompareGroups = compareGroups.length > 0;
-    // 对比模式下用完整数据（含所有等级），全局模式下用角色过滤后的数据
-    const sourceBuildings = hasCompareGroups ? allBuildingsUnfiltered : allBuildings;
-
-    const filtered = sourceBuildings.filter(b => {
-      if (keyword && !(b.name?.includes(keyword) || b.submarket?.includes(keyword))) return false;
-
-      // 对比筛选模式：只按对比组条件过滤，忽略全局筛选
-      if (hasCompareGroups) {
-        for (const g of compareGroups) {
-          if (g.submarkets.length > 0 && (!b.submarket || !g.submarkets.includes(b.submarket))) continue;
-          if (g.grades.length > 0) {
-            const bGrade = (b.grade || '').toUpperCase();
-            let gradeMatch = false;
-            for (const fg of g.grades) {
-              if (fg === '产业园' && bGrade.includes('BP')) { gradeMatch = true; break; }
-              if (fg === '甲级' && (bGrade.includes('A') || bGrade.includes('P')) && !bGrade.includes('BP')) { gradeMatch = true; break; }
-              if (fg === '乙级' && bGrade.includes('B') && !bGrade.includes('BP')) { gradeMatch = true; break; }
-            }
-            if (!gradeMatch) continue;
-          }
-          if (g.districts.length > 0 && (!b.district || !g.districts.includes(b.district))) continue;
-          return true; // 匹配任一组即显示
-        }
-        return false; // 不匹配任何组则隐藏
-      }
-
-      // 全局筛选模式
-      if (filterState.districts && filterState.districts.length > 0 && !filterState.districts.includes(b.district)) return false;
-      if (filterState.submarkets && filterState.submarkets.length > 0 && b.submarket && !filterState.submarkets.includes(b.submarket)) return false;
-
-      if (filterState.projectTypes) {
-        if (filterState.projectTypes.length === 0) return false;
-
-        const bGrade = (b.grade || '').toUpperCase();
-        let isMatch = false;
-
-        if (filterState.projectTypes.includes('产业园区') && bGrade.includes('BP')) isMatch = true;
-        else if (filterState.projectTypes.includes('甲级写字楼') && (bGrade.includes('A') || bGrade.includes('P')) && !bGrade.includes('BP')) isMatch = true;
-        else if (filterState.projectTypes.includes('乙级写字楼') && bGrade.includes('B') && !bGrade.includes('BP')) isMatch = true;
-
-        if (!isMatch) return false;
-      }
-
-      if (filterState.leeds && filterState.leeds.length > 0) {
-         const bLeed = !b.leed_certification || b.leed_certification === '' ? 'NULL' : b.leed_certification;
-         if (!filterState.leeds.includes(bLeed)) return false;
-      }
-
-      const latest = getLatestMetric(b.metrics);
-
-      if (filterState.numericFilters && filterState.numericFilters.length > 0) {
-        for (const cond of filterState.numericFilters) {
-          if (cond.value === '' || cond.value === null || cond.value === undefined) continue;
-
-          if (cond.field === 'owner' || cond.field === 'property_management') {
-            const target = String(b[cond.field] || '').toLowerCase();
-            const query = String(cond.value).trim().toLowerCase();
-            if (query && !target.includes(query)) return false;
-            continue;
-          }
-
-          if (!latest) return false;
-          if (isNaN(Number(cond.value))) continue;
-
-          let metricVal = Number(latest[cond.field as keyof typeof latest]);
-          const filterVal = Number(cond.value);
-
-          if (!Number.isFinite(metricVal)) return false;
-
-          if (cond.field === 'vacancy_rate') {
-            metricVal = metricVal * 100;
-          }
-
-          switch (cond.operator) {
-            case '>=': if (!(metricVal >= filterVal)) return false; break;
-            case '<=': if (!(metricVal <= filterVal)) return false; break;
-            case '=':  if (!(metricVal === filterVal)) return false; break;
-            case '>':  if (!(metricVal > filterVal)) return false; break;
-            case '<':  if (!(metricVal < filterVal)) return false; break;
-          }
-        }
-      }
-
-      if (filterState.subwayStation && filterState.subwayDistance) {
-         const stationCenter = (filterState.subwayStation as any)?.center;
-         if (stationCenter && Array.isArray(stationCenter)) {
-             const dist = ctrl.calculateDistance([b.location_lng, b.location_lat], stationCenter);
-             if (dist > filterState.subwayDistance) return false;
-         }
-      }
-      return true;
+    const filtered = mapDataStoreRef.current.filter({
+      filterState,
+      compareGroups,
+      keyword,
+      role: userRoleRef.current,
+      calculateDistance: (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
     });
 
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用

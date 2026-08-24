@@ -232,9 +232,10 @@ export class MapDataStore {
     const visibleIds = new Set(this.getRoleVisible(request.role).map(building => building.id));
     candidateIds = intersectIds(candidateIds, visibleIds);
 
+    const roleVisibleBuildings = this.getRoleVisible(request.role);
     const candidates = candidateIds
-      ? Array.from(candidateIds, id => this.indexes.buildingIdIndex.get(id)).filter((building): building is BuildingWithMetrics => Boolean(building))
-      : this.getRoleVisible(request.role);
+      ? roleVisibleBuildings.filter(building => candidateIds?.has(building.id))
+      : roleVisibleBuildings;
 
     return candidates.filter(building => {
       if (keyword && !(building.name?.includes(keyword) || building.submarket?.includes(keyword))) return false;
