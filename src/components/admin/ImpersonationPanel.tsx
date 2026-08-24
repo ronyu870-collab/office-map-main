@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/src/services/supabaseClient';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
+import type { UserRole } from '@/src/types/auth';
 
 interface UserEntry {
   user_id: string;
   email: string;
   chinese_name: string | null;
   full_name: string | null;
-  role: string;
+  role: UserRole;
 }
 
 export function ImpersonationPanel() {
@@ -20,7 +21,6 @@ export function ImpersonationPanel() {
   const { startImpersonation } = useImpersonation();
 
   useEffect(() => {
-    // 获取当前用户 ID（用于排除自己）
     supabase.auth.getUser().then(({ data: { user } }) => {
       setCurrentUserId(user?.id || null);
     });
@@ -30,13 +30,12 @@ export function ImpersonationPanel() {
       .select('user_id, email, chinese_name, full_name, role')
       .order('chinese_name')
       .then(({ data }) => {
-        if (data) setUsers(data);
+        if (data) setUsers(data as UserEntry[]);
         setLoading(false);
       });
   }, []);
 
   const filtered = users.filter((u) => {
-    // 排除当前登录用户（不能模拟自己）
     if (u.user_id === currentUserId) return false;
     const q = search.toLowerCase();
     return (
@@ -118,8 +117,6 @@ export function ImpersonationPanel() {
                           ? 'bg-purple-100 text-purple-700'
                           : u.role === 'editor'
                           ? 'bg-blue-100 text-blue-700'
-                          : u.role === 'executive'
-                          ? 'bg-amber-100 text-amber-700'
                           : 'bg-zinc-100 text-zinc-600'
                       }`}
                     >
