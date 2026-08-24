@@ -7,9 +7,12 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "verify": "npm run check && npm run build"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
