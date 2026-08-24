@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: one-time-safe-dependency-fixes-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   fix:
     if: github.event.pull_request.head.ref == 'security/p0-dependency-audit'
