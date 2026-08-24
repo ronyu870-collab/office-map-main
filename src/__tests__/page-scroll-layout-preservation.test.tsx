@@ -18,14 +18,19 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as fc from 'fast-check';
 
-// Mock Next.js modules
+// Mock Next.js navigation with stable functions that are re-seeded before each test.
+// This prevents mock implementation leakage between preservation tests and covers
+// the current Next.js navigation APIs used by AdminPage and UpdatePage.
+const navigationMocks = vi.hoisted(() => ({
+  useRouter: vi.fn(),
+  useSearchParams: vi.fn(),
+  usePathname: vi.fn(),
+}));
+
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
-  }),
-  usePathname: () => '/',
+  useRouter: navigationMocks.useRouter,
+  useSearchParams: navigationMocks.useSearchParams,
+  usePathname: navigationMocks.usePathname,
 }));
 
 vi.mock('next/link', () => ({
@@ -139,6 +144,17 @@ import UpdatePage from '@/src/app/update/page';
 
 describe('Preservation Property Tests - 现有功能和交互保持不变', () => {
   beforeEach(() => {
+    navigationMocks.useRouter.mockReturnValue({
+      push: vi.fn(),
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      prefetch: vi.fn(),
+    });
+    navigationMocks.useSearchParams.mockReturnValue(new URLSearchParams());
+    navigationMocks.usePathname.mockReturnValue('/');
+
     // Reset viewport
     Object.defineProperty(window, 'innerHeight', {
       writable: true,
