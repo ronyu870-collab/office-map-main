@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
 import { SearchBar } from '@/src/components/SearchBar';
 import { SidebarFilter, type SidebarFilterState, type CompareGroup, type SidebarFilterCommand } from '@/src/components/SidebarFilter';
 import { StatCard } from '@/src/components/StatCard';
-import { getSession, getSessionFast } from '@/src/services/Auth';
+import { getSession } from '@/src/services/Auth';
+import { useAppSession } from '@/src/components/SessionProvider';
 import type { MapController } from '@/src/services/MapController';
 // 🌟 1. 引入日志工具
 import { logAction } from '@/src/utils/audit';
@@ -34,6 +34,7 @@ import {
   type RenderMode,
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
+import { useMapRuntime } from './runtime/useMapRuntime';
 
 // 🌟 Phase 2: 动态按需加载悬浮楼宇列表组件
 const FloatingBuildingList = dynamic(() => import('./components/FloatingBuildingList'), { 
@@ -96,13 +97,14 @@ function MapAuthLoading() {
 }
 
 export default function MapWorkbenchPage() {
-  const router = useRouter();
-  const [allowed, setAllowed] = React.useState(false);
-  const [userRole, setUserRole] = React.useState<string>('viewer');
-  const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+  const { session: appSession, status: appSessionStatus } = useAppSession();
+  const allowed = appSessionStatus === 'authenticated' && Boolean(appSession);
+  const userRole = appSession?.role || 'viewer';
+  const currentUserId = appSession?.user?.id || null;
+  const userRoleRef = React.useRef(userRole);
+  userRoleRef.current = userRole;
 
   const [allBuildings, setAllBuildings] = React.useState<any[]>([]);
-  const [allBuildingsUnfiltered, setAllBuildingsUnfiltered] = React.useState<any[]>([]); // 完整数据（含所有等级）
   const [futureSupplies, setFutureSupplies] = React.useState<any[]>([]);
   const [displayOverrides, setDisplayOverrides] = React.useState<Map<string, Map<string, { display_label: string; display_value: string }>>>(new Map());
   const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(null);
@@ -197,9 +199,7 @@ export default function MapWorkbenchPage() {
   const initialRenderDone = React.useRef(false);
 
   const [mapError, setMapError] = React.useState<string | null>(null);
-  const [mapReady, setMapReady] = React.useState(false);
   const [mapDataLoading, setMapDataLoading] = React.useState(false);
-  const controllerRef = React.useRef<any>(null);
   const filterFrameSchedulerRef = React.useRef<LatestFrameScheduler | null>(null);
 
   const getFilterFrameScheduler = React.useCallback(() => {
@@ -230,14 +230,12 @@ export default function MapWorkbenchPage() {
       }
 
       // admin/editor 可见所有等级，viewer 只看 A/P。索引在数据进入工作区时只构建一次。
-      const role = await getSessionFast().then(s => s?.role || 'viewer').catch(() => 'viewer');
-      if (isCancelled()) return;
+      const role = userRoleRef.current;
       mapDataStoreRef.current.replaceBuildings(buildings);
       const visible = mapDataStoreRef.current.getRoleVisible(role);
 
       console.log(`[MapClient] 角色=${role}, 总建筑=${buildings.length}, 可见=${visible.length}`);
       setAllBuildings(visible);
-      setAllBuildingsUnfiltered(buildings);
       setDisplayOverrides(controller.getDisplayOverridesCache());
     } catch (error) {
       if (isCancelled()) return;
@@ -248,6 +246,27 @@ export default function MapWorkbenchPage() {
       if (!isCancelled()) setMapDataLoading(false);
     }
   }, []);
+
+  const { controllerRef, mapReady } = useMapRuntime({
+    enabled: allowed,
+    containerId: 'map-container',
+    userRole,
+    currentUserId,
+    onEditBuildingMetrics: (buildingId, buildingName) => {
+      setEditingBuilding({ id: buildingId, name: buildingName });
+    },
+    onReady: async (controller, isCancelled) => {
+      await loadMapData(controller, isCancelled);
+      if (isCancelled()) return;
+      try {
+        const supplies = await controller.fetchFutureSupplies();
+        if (!isCancelled()) setFutureSupplies(supplies);
+      } catch {
+        // Future supply is a secondary layer; preserve current fail-open behavior.
+      }
+    },
+    onError: setMapError,
+  });
 
   React.useEffect(() => {
     return () => filterFrameSchedulerRef.current?.cancel();
@@ -277,81 +296,6 @@ export default function MapWorkbenchPage() {
 
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
-
-  // ref 缓存 userRole / currentUserId，避免 effect deps 变化触发 map 重建
-  const userRoleRef = React.useRef(userRole);
-  userRoleRef.current = userRole;
-  const currentUserIdRef = React.useRef(currentUserId);
-  currentUserIdRef.current = currentUserId;
-
-  React.useEffect(() => {
-    // 渐进式渲染：先显示 UI，异步验证
-    setAllowed(true);
-    
-    let cancelled = false;
-    void (async () => {
-      try {
-        const session = await getSessionFast(); // 使用快速获取方法
-        if (cancelled) return;
-        if (!session) { router.replace('/login'); return; }
-        setUserRole(session.role || 'viewer');
-        setCurrentUserId(session.user?.id || null);
-        // 会话验证成功，UI 已经显示
-      } catch { if (!cancelled) router.replace('/login'); }
-    })();
-    return () => { cancelled = true; };
-  }, [router]);
-
-  React.useEffect(() => {
-    if (!allowed) return;
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const mod = await import('@/src/services/MapController');
-        if (cancelled) return;
-        const controller = new mod.MapController();
-        controllerRef.current = controller;
-        setMapError(null); setMapReady(false);
-        await controller.initMap('map-container');
-        if (cancelled) return;
-        setMapReady(true);
-
-        // 设置管理员模式
-        const isAdmin = userRoleRef.current === 'admin';
-        controller.setAdminMode(
-          isAdmin,
-          currentUserIdRef.current || undefined,
-          isAdmin ? (buildingId: string, buildingName: string) => {
-            setEditingBuilding({ id: buildingId, name: buildingName });
-          } : undefined
-        );
-
-        await loadMapData(controller, () => cancelled);
-        try {
-          const supplies = await controller.fetchFutureSupplies();
-          if (!cancelled) setFutureSupplies(supplies);
-        } catch {}
-      } catch (e) {
-        if (!cancelled) { setMapError(e instanceof Error ? e.message : '地图初始化失败'); }
-      }
-    })();
-    return () => { cancelled = true; controllerRef.current?.destroy(); controllerRef.current = null; };
-  }, [allowed, loadMapData]);
-
-  // 当 userRole / currentUserId 变化时更新 admin mode，不重建 map
-  React.useEffect(() => {
-    if (!mapReady || !controllerRef.current) return;
-    const ctrl = controllerRef.current;
-    const isAdmin = userRole === 'admin';
-    ctrl.setAdminMode(
-      isAdmin,
-      currentUserId || undefined,
-      isAdmin ? (buildingId: string, buildingName: string) => {
-        setEditingBuilding({ id: buildingId, name: buildingName });
-      } : undefined
-    );
-  }, [mapReady, userRole, currentUserId]);
 
   // 初始渲染：只执行一次，确保首次加载必定渲染
   React.useEffect(() => {
