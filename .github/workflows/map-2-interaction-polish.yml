@@ -1,0 +1,140 @@
+name: One-time Map 2.0 interaction polish
+
+on:
+  push:
+    branches:
+      - feat/map-2-workbench
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[map-2-interaction-polish]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/map-2-workbench
+          fetch-depth: 0
+      - name: Polish Map 2.0 overlay coordination
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          view_path = Path('src/app/map/components/MapWorkbenchView.tsx')
+          view = view_path.read_text()
+
+          old = '''            <IconButton label="筛选" active={isFilterPanelOpen} onClick={() => onFilterPanelOpenChange(!isFilterPanelOpen)}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+            </IconButton>'''
+          new = '''            <IconButton
+              label="筛选"
+              active={isFilterPanelOpen}
+              onClick={() => {
+                const nextOpen = !isFilterPanelOpen;
+                if (nextOpen && isSupplyOpen) onSupplyOpenChange(false);
+                if (nextOpen && isListVisible) onCloseList();
+                onFilterPanelOpenChange(nextOpen);
+              }}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+            </IconButton>'''
+          if old not in view:
+              raise SystemExit('filter command target not found')
+          view = view.replace(old, new, 1)
+
+          old = '''            <IconButton label="未来供应" active={isSupplyOpen} onClick={() => onSupplyOpenChange(!isSupplyOpen)}>
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+            </IconButton>
+            <button
+              type="button"
+              onClick={onOpenList}'''
+          new = '''            <IconButton
+              label="未来供应"
+              active={isSupplyOpen}
+              onClick={() => {
+                const nextOpen = !isSupplyOpen;
+                if (nextOpen && isFilterPanelOpen) onFilterPanelOpenChange(false);
+                if (nextOpen && isListVisible) onCloseList();
+                onSupplyOpenChange(nextOpen);
+              }}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+            </IconButton>
+            <button
+              type="button"
+              onClick={() => {
+                if (isFilterPanelOpen) onFilterPanelOpenChange(false);
+                if (isSupplyOpen) onSupplyOpenChange(false);
+                onOpenList();
+              }}'''
+          if old not in view:
+              raise SystemExit('supply/list command target not found')
+          view = view.replace(old, new, 1)
+
+          old = '''        {isFilterPanelOpen ? (
+          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[370] flex flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/96 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">'''
+          mobile_modes = '''        <div className="pointer-events-auto absolute bottom-[80px] right-3 z-[265] flex overflow-hidden rounded-xl border border-white/80 bg-white/92 shadow-lg shadow-slate-900/10 backdrop-blur-md sm:hidden" role="group" aria-label="移动端地图显示模式">
+          {MODE_OPTIONS.map(({ mode, label }, index) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={renderMode === mode}
+              onClick={() => onRenderModeChange(mode)}
+              className={`h-9 px-2.5 text-[9px] font-medium transition-colors ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[#003e7e] text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {isFilterPanelOpen ? (
+          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[370] flex flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/96 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">'''
+          if old not in view:
+              raise SystemExit('mobile mode insertion target not found')
+          view = view.replace(old, mobile_modes, 1)
+
+          old = '''          <FloatingBuildingList
+            buildings={combinedBuildingList}'''
+          new = '''          <FloatingBuildingList
+            workbench
+            buildings={combinedBuildingList}'''
+          if old not in view:
+              raise SystemExit('floating list call target not found')
+          view = view.replace(old, new, 1)
+          view_path.write_text(view)
+
+          list_path = Path('src/app/map/components/FloatingBuildingList.tsx')
+          listing = list_path.read_text()
+          listing = listing.replace(
+              '  onBuildingHover?: (buildingId: string | null) => void;\n}',
+              '  onBuildingHover?: (buildingId: string | null) => void;\n  workbench?: boolean;\n}',
+              1,
+          )
+          listing = listing.replace(
+              'export default function FloatingBuildingList({ buildings, displayOverrides, onClose, onBuildingClick, targetBuildingId, onBuildingHover }: FloatingBuildingListProps) {',
+              'export default function FloatingBuildingList({ buildings, displayOverrides, onClose, onBuildingClick, targetBuildingId, onBuildingHover, workbench = false }: FloatingBuildingListProps) {',
+              1,
+          )
+          old = '''      className="absolute right-0 z-[200] w-[340px] max-w-[90vw] rounded-md border border-zinc-200/50 bg-white/90 backdrop-blur-md shadow-xl shadow-black/5 animate-in slide-in-from-bottom-4 fade-in duration-300" 
+      style={{ 
+        top: '12px',
+        bottom: '12px','''
+          new = '''      className={`absolute animate-in fade-in duration-200 ${workbench ? 'right-3 z-[360] w-[360px] max-w-[calc(100vw-24px)] rounded-2xl border border-white/80 bg-white/95 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:right-4' : 'right-0 z-[200] w-[340px] max-w-[90vw] rounded-md border border-zinc-200/50 bg-white/90 shadow-xl shadow-black/5 backdrop-blur-md slide-in-from-bottom-4 duration-300'}`}
+      style={{ 
+        top: workbench ? '64px' : '12px',
+        bottom: workbench ? '16px' : '12px','''
+          if old not in listing:
+              raise SystemExit('floating list shell target not found')
+          listing = listing.replace(old, new, 1)
+          list_path.write_text(listing)
+          PY
+      - name: Commit interaction polish
+        run: |
+          if git diff --quiet -- src/app/map/components/MapWorkbenchView.tsx src/app/map/components/FloatingBuildingList.tsx; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/map/components/MapWorkbenchView.tsx src/app/map/components/FloatingBuildingList.tsx
+          git commit -m "[map-2-interaction-polish] feat: coordinate Map 2.0 overlays"
+          git push origin HEAD:feat/map-2-workbench
