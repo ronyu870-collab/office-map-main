@@ -20,9 +20,9 @@ export function WorkspaceShell({
   return (
     <div className={`flex min-h-dvh flex-col bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)] ${className}`}>
       {header ? (
-        <div className="sticky top-0 z-[var(--cd-z-sticky)] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <header className="sticky top-0 z-[var(--cd-z-sticky)] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
           {header}
-        </div>
+        </header>
       ) : null}
       <div className="flex min-h-0 flex-1">
         {sidebar ? (
