@@ -6,6 +6,11 @@ import { logAction } from '@/src/utils/audit'
 import { getSession } from '@/src/services/Auth'
 import type { TableConfig, DictBundle } from '../types'
 import { parseUploadCellValue } from '../uploadValueParser'
+import {
+  XLSX_SHEET_ROW_LIMIT,
+  validateXlsxRowBudget,
+  validateXlsxUploadFile,
+} from './xlsxSecurity'
 
 
 /**
@@ -71,15 +76,34 @@ export function useXlsxImport(
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    const fileError = validateXlsxUploadFile(file)
     e.target.value = ''
+    if (fileError) {
+      showToast(fileError, false)
+      return
+    }
+
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
-        const workbook = XLSX.read(data, { type: 'array' })
+        const workbook = XLSX.read(data, {
+          type: 'array',
+          cellFormula: false,
+          cellHTML: false,
+          cellStyles: false,
+          bookVBA: false,
+          sheetRows: XLSX_SHEET_ROW_LIMIT,
+        })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
         const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' }) as unknown[][]
-        processWorkbook(rows)
+        const budgetError = validateXlsxRowBudget(rows)
+        if (budgetError) {
+          showToast(budgetError, false)
+          return
+        }
+        void processWorkbook(rows)
       } catch (err: any) {
         showToast(`XLSX 文件解析失败：${err.message}`, false)
       }
