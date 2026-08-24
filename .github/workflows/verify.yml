@@ -9,7 +9,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}
@@ -24,26 +24,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          fetch-depth: 0
-
-      - name: Apply one-time P0 baseline fixes
-        if: ${{ hashFiles('scripts/p0-fix-verify-baseline.mjs') != '' }}
-        run: node scripts/p0-fix-verify-baseline.mjs
-
-      - name: Persist one-time P0 baseline fixes
-        if: ${{ hashFiles('scripts/p0-fix-verify-baseline.mjs') != '' }}
-        run: |
-          if git diff --quiet; then
-            echo "No baseline changes to persist"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src
-            git commit -m "fix: clear historical TypeScript baseline errors"
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
-          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
