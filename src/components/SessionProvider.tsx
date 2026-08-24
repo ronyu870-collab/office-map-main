@@ -1,131 +1,259 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SessionManager } from '@/src/services/SessionManager';
 import { SessionWarningBanner } from './SessionWarningBanner';
 import { supabase } from '@/src/services/supabaseClient';
-import { clearSessionCache, getSessionFast } from '@/src/services/Auth';
+import {
+  clearSessionCache,
+  getSessionFast,
+  type AuthSessionResult,
+} from '@/src/services/Auth';
 import { getTrustedDeviceRemainingMs, isTrustedDevice } from '@/src/services/trustedDevice';
 
+export type AppSessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
+
+export type AppSessionContextValue = {
+  session: AuthSessionResult | null;
+  status: AppSessionStatus;
+  refreshSession: () => Promise<AuthSessionResult | null>;
+};
+
+const AppSessionContext = createContext<AppSessionContextValue | null>(null);
+
+function useStandaloneSession(enabled: boolean): AppSessionContextValue {
+  const [session, setSession] = useState<AuthSessionResult | null>(null);
+  const [status, setStatus] = useState<AppSessionStatus>('loading');
+
+  const refreshSession = useCallback(async () => {
+    if (!enabled) return null;
+    setStatus('loading');
+    try {
+      const nextSession = await getSessionFast();
+      setSession(nextSession);
+      setStatus(nextSession ? 'authenticated' : 'unauthenticated');
+      return nextSession;
+    } catch {
+      setSession(null);
+      setStatus('unauthenticated');
+      return null;
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    void refreshSession();
+  }, [enabled, refreshSession]);
+
+  return useMemo(
+    () => ({ session, status, refreshSession }),
+    [session, status, refreshSession],
+  );
+}
+
 /**
- * 会话管理提供者组件
- * 
- * 负责：
- * 1. 初始化 SessionManager
- * 2. 处理自动退出回调
- * 3. 显示倒计时提醒横幅
+ * Read the application session resolved by the root SessionProvider.
+ *
+ * The standalone branch exists for isolated rendering in tests/component tooling.
+ * In the real app the root provider is always present, so it performs no auth read
+ * and therefore does not recreate the historical page-level session gate.
+ */
+export function useAppSession(): AppSessionContextValue {
+  const context = useContext(AppSessionContext);
+  const standalone = useStandaloneSession(context === null);
+  return context ?? standalone;
+}
+
+/**
+ * Root session owner.
+ *
+ * Responsibilities:
+ * 1. Resolve the authenticated application session once and expose it to all routes.
+ * 2. Preserve session timeout/trusted-device behavior.
+ * 3. React to Supabase auth changes without forcing each page to re-query auth.
+ * 4. Keep password-change redirects and session warning behavior centralized.
  */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [showWarning, setShowWarning] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(120);
-  const [sessionManager, setSessionManager] = useState<SessionManager | null>(null);
+  const [session, setSession] = useState<AuthSessionResult | null>(null);
+  const [status, setStatus] = useState<AppSessionStatus>('loading');
+  const sessionManagerRef = useRef<SessionManager | null>(null);
+  const inFlightSessionRef = useRef<Promise<AuthSessionResult | null> | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
+  const resolveSession = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) clearSessionCache();
+    if (inFlightSessionRef.current) return inFlightSessionRef.current;
+
+    // Background token/profile refreshes should not replace an already usable
+    // authenticated workspace with a loading skeleton.
+    setStatus((current) => (current === 'authenticated' ? current : 'loading'));
+
+    const request = (async () => {
+      try {
+        const nextSession = await getSessionFast();
+        setSession(nextSession);
+        setStatus(nextSession ? 'authenticated' : 'unauthenticated');
+        if (!nextSession) setShowWarning(false);
+        return nextSession;
+      } catch (error) {
+        console.error('解析应用会话失败:', error);
+        setSession(null);
+        setStatus('unauthenticated');
+        setShowWarning(false);
+        return null;
+      }
+    })();
+
+    inFlightSessionRef.current = request;
+    try {
+      return await request;
+    } finally {
+      inFlightSessionRef.current = null;
+    }
+  }, []);
+
+  const refreshSession = useCallback(
+    () => resolveSession(true),
+    [resolveSession],
+  );
+
   useEffect(() => {
-    // 如果在登录页，不启动会话管理器
-    if (pathname === '/login') {
+    void resolveSession();
+  }, [resolveSession]);
+
+  useEffect(() => {
+    if (
+      status === 'authenticated' &&
+      session?.user.app_metadata?.must_change_password &&
+      pathname !== '/settings'
+    ) {
+      router.replace('/settings?required=1');
+    }
+  }, [pathname, router, session, status]);
+
+  useEffect(() => {
+    sessionManagerRef.current?.stop();
+    sessionManagerRef.current = null;
+
+    if (pathname === '/login' || status !== 'authenticated' || !session?.session) {
       return;
     }
 
-    // 检查用户是否已登录（优先用 sessionStorage 缓存，避免每次 Supabase 往返）
-    let manager: SessionManager | null = null;
     let trustedExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const expireTrustedSession = async () => {
       try {
         await supabase.auth.signOut();
       } finally {
+        setSession(null);
+        setStatus('unauthenticated');
+        setShowWarning(false);
         router.push('/login');
       }
     };
 
-    const checkAuth = async () => {
-      const cachedSession = await getSessionFast();
+    if (isTrustedDevice()) {
+      const remaining = getTrustedDeviceRemainingMs();
+      if (remaining !== null) {
+        trustedExpiryTimer = setTimeout(() => {
+          void expireTrustedSession();
+        }, remaining);
+      }
 
-      if (!cachedSession?.session) {
-        // 未登录，不启动会话管理器
-        return;
-      }
-      if (cachedSession.user.app_metadata?.must_change_password && pathname !== '/settings') {
-        router.replace('/settings?required=1');
-        return;
-      }
-      if (isTrustedDevice()) {
-        const remaining = getTrustedDeviceRemainingMs();
-        if (remaining !== null) {
-          trustedExpiryTimer = setTimeout(() => { void expireTrustedSession(); }, remaining);
+      return () => {
+        if (trustedExpiryTimer) clearTimeout(trustedExpiryTimer);
+      };
+    }
+
+    const manager = new SessionManager({
+      timeout: 30 * 60 * 1000,
+      warningTime: 2 * 60 * 1000,
+      throttleInterval: 2000,
+      onLogout: async () => {
+        try {
+          await supabase.auth.signOut();
+        } catch (error) {
+          console.error('自动退出失败:', error);
         }
-        return;
+
+        setSession(null);
+        setStatus('unauthenticated');
+        setShowWarning(false);
+        alert('登录已过期，请重新登录');
+        router.push('/login');
+      },
+      onWarning: (seconds) => {
+        setRemainingSeconds(seconds);
+        setShowWarning(true);
+      },
+    });
+
+    manager.start();
+    sessionManagerRef.current = manager;
+
+    return () => {
+      manager.stop();
+      if (sessionManagerRef.current === manager) {
+        sessionManagerRef.current = null;
       }
-
-      // 创建并启动会话管理器
-      manager = new SessionManager({
-        timeout: 30 * 60 * 1000, // 30 分钟
-        warningTime: 2 * 60 * 1000, // 2 分钟
-        throttleInterval: 2000, // 2 秒
-        onLogout: async () => {
-          // 自动退出回调
-          try {
-            await supabase.auth.signOut();
-          } catch (err) {
-            console.error('自动退出失败:', err);
-          }
-
-          alert('登录已过期，请重新登录');
-          router.push('/login');
-        },
-        onWarning: (seconds) => {
-          // 显示倒计时提醒回调
-          setRemainingSeconds(seconds);
-          setShowWarning(true);
-        },
-      });
-
-      manager.start();
-      setSessionManager(manager);
+      if (trustedExpiryTimer) clearTimeout(trustedExpiryTimer);
     };
+  }, [pathname, router, session, status]);
 
-    checkAuth();
-
-    // 监听 Supabase auth 状态变化，检测 session 过期
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        // Supabase 的真实会话已变化，下一次读取必须重新取得角色和用户资料。
-        clearSessionCache();
-      }
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         clearSessionCache();
-        // session 过期或 refresh token 失败，自动跳转登录页
-        router.push('/login');
+        setSession(null);
+        setStatus('unauthenticated');
+        setShowWarning(false);
+        if (pathname !== '/login') router.push('/login');
+        return;
+      }
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        clearSessionCache();
+        queueMicrotask(() => {
+          void resolveSession();
+        });
       }
     });
 
-    // 清理函数
-    return () => {
-      subscription.unsubscribe();
-      manager?.stop();
-      if (trustedExpiryTimer) clearTimeout(trustedExpiryTimer);
-    };
-  }, [pathname, router]);
+    return () => subscription.unsubscribe();
+  }, [pathname, resolveSession, router]);
 
   const handleContinue = () => {
-    // 点击"继续使用"按钮
     setShowWarning(false);
-    if (sessionManager) {
-      sessionManager.reset();
-    }
+    sessionManagerRef.current?.reset();
   };
 
+  const value = useMemo<AppSessionContextValue>(
+    () => ({ session, status, refreshSession }),
+    [session, status, refreshSession],
+  );
+
   return (
-    <>
+    <AppSessionContext.Provider value={value}>
       <SessionWarningBanner
         visible={showWarning}
         remainingSeconds={remainingSeconds}
         onContinue={handleContinue}
       />
       {children}
-    </>
+    </AppSessionContext.Provider>
   );
 }

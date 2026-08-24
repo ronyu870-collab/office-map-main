@@ -20,6 +20,53 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-24 — Home 2.0 workspace and shared session context
+
+### Area
+Home workspace / authentication session lifecycle / navigation information architecture
+
+### What changed
+
+- Converted the root `SessionProvider` from timeout-only infrastructure into the single application-session owner. It now exposes `useAppSession()` with shared `session`, `status`, and `refreshSession` state while retaining trusted-device expiry, 30-minute inactivity handling, password-change redirects, and Supabase auth-state synchronization.
+- Removed the Home page's independent `getSessionFast()` request and client-side auth gate. The route is now a small server shell that mounts `HomeWorkspace`, which consumes the already-resolved root session.
+- Added a regression test proving that two workspace consumers under one root provider still trigger only one `getSessionFast()` resolution.
+- Rebuilt Home as the first real Colliers Data 2.0 consumer of the design system:
+  - Map Workbench is the dominant primary entry;
+  - Quarterly Update, Lease Submission, Research Library, and Administration are explicit business workspaces;
+  - Administration remains visible only to the same admin/demo audience as before;
+  - lease-submission role restrictions, fail-closed authorization, audit metadata, keyboard activation, impersonation-compatible session resolution, and the existing development-module gate are preserved.
+- Moved Communication Board and Notice into a visually secondary Team Activity rail so collaboration information no longer competes with the core market/data workspaces.
+- Preserved the fixed workbench layout contract (`h-screen` / page overflow hidden) and kept scrolling inside workspace regions, including the Communication Board, to avoid reintroducing the historical page-scroll regression.
+- Refined `WorkspaceShell` so fixed workbench consumers can use a true flex-column shell with a min-height-zero content region and internal overflow management.
+
+### Why
+
+The previous Home page resolved authentication independently even though the root layout already mounted `SessionProvider`. That left route rendering dependent on an additional client effect and duplicated the session ownership model. At the same time, Home still behaved like a feature-card portal rather than an institutional commercial-real-estate data workspace.
+
+This migration makes session ownership explicit at the application shell and gives the product a clearer hierarchy: market intelligence first, business data workflows second, team communication third.
+
+### Impact
+
+- Authenticated route transitions can reuse root session state instead of asking Home to resolve the same session again.
+- Home presents a more stable, dense, institutional workspace without changing broker authorization rules or data contracts.
+- Viewers remain blocked from Lease Submission; editors/admins retain access; special admin/demo visibility behavior is preserved.
+- The existing Communication Board and Notice components remain operational but are no longer part of the critical visual path.
+- No Supabase schema, RLS policy, API contract, or Map runtime behavior changes in this PR.
+
+### Verification
+
+- Added `SessionProvider.shared-session.test.tsx` to lock the one-provider/one-auth-resolution contract across multiple consumers.
+- Existing repository preservation tests continue to define the required fixed Home layout, keyboard interaction, Communication Board availability, and responsive behavior.
+- Final acceptance requires the exact PR head to pass Typecheck, Lint, Test, and Production build through the repository Verify workflow.
+
+### Follow-up
+
+- PR 3: begin the behavior-preserving Map architecture split before changing the Map visual workspace.
+- Migrate additional authenticated routes to `useAppSession()` only when their existing route-specific guards can be removed without weakening authorization.
+- Capture Home before/after timings using the Phase 0 performance-baseline scenarios after the merged version is available in a representative deployment.
+
+---
+
 ## 2026-08-24 — Colliers Data 2.0 UI foundation and performance baseline
 
 ### Area
