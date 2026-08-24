@@ -1,0 +1,57 @@
+:root {
+  --cd-color-workspace: #f5f7fa;
+  --cd-color-surface: #ffffff;
+  --cd-color-surface-alt: #f8fafc;
+  --cd-color-border: #d9e0e8;
+  --cd-color-border-strong: #c3ccd8;
+  --cd-color-text-primary: #172033;
+  --cd-color-text-secondary: #667085;
+  --cd-color-text-muted: #8a94a6;
+  --cd-color-brand: #003e7e;
+  --cd-color-brand-hover: #002f61;
+  --cd-color-brand-soft: #edf4fb;
+  --cd-color-success: #16855b;
+  --cd-color-success-soft: #eef8f3;
+  --cd-color-warning: #c27803;
+  --cd-color-warning-soft: #fff7e8;
+  --cd-color-danger: #c9362b;
+  --cd-color-danger-soft: #fff1f0;
+
+  --cd-space-1: 0.25rem;
+  --cd-space-2: 0.5rem;
+  --cd-space-3: 0.75rem;
+  --cd-space-4: 1rem;
+  --cd-space-5: 1.25rem;
+  --cd-space-6: 1.5rem;
+  --cd-space-8: 2rem;
+  --cd-space-10: 2.5rem;
+  --cd-space-12: 3rem;
+
+  --cd-font-size-xs: 0.75rem;
+  --cd-font-size-sm: 0.8125rem;
+  --cd-font-size-md: 0.875rem;
+  --cd-font-size-lg: 1rem;
+  --cd-font-size-xl: 1.25rem;
+  --cd-font-size-2xl: 1.5rem;
+
+  --cd-line-height-tight: 1.25;
+  --cd-line-height-normal: 1.5;
+  --cd-line-height-relaxed: 1.7;
+
+  --cd-radius-sm: 4px;
+  --cd-radius-md: 6px;
+  --cd-radius-lg: 8px;
+  --cd-radius-xl: 10px;
+
+  --cd-shadow-popover: 0 8px 24px rgb(23 32 51 / 0.12);
+  --cd-shadow-drawer: 0 16px 40px rgb(23 32 51 / 0.16);
+
+  --cd-z-dropdown: 30;
+  --cd-z-sticky: 40;
+  --cd-z-drawer: 50;
+  --cd-z-modal: 60;
+  --cd-z-toast: 70;
+
+  --cd-motion-fast: 120ms;
+  --cd-motion-normal: 180ms;
+}
