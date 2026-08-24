@@ -26,11 +26,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Remove legacy vm2 proxy chain and apply safe audit fixes
+      - name: Remove unused Puppeteer and legacy vm2 proxy chain
         run: |
           npm pkg set 'overrides.ali-oss.urllib=2.41.0'
+          npm uninstall puppeteer-core
           npm install
+
+      - name: Apply non-breaking npm audit fixes
+        shell: bash
+        run: |
+          set +e
           npm audit fix
+          audit_status=$?
+          set -e
+          echo "npm audit fix exited with ${audit_status} after applying available non-breaking fixes"
 
       - name: Show remaining audit baseline
         shell: bash
@@ -44,6 +53,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json
-          git diff --cached --quiet || git commit -m "security: remove vm2 chain and apply safe dependency fixes"
+          git diff --cached --quiet || git commit -m "security: remove unused Puppeteer and critical vm2 chain"
           git pull --rebase origin security/p0-dependency-audit
           git push origin HEAD:security/p0-dependency-audit
