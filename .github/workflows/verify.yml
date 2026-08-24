@@ -30,6 +30,19 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Correct one strict codemod match
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = '.github/scripts/fix-remaining-verify-tests.cjs';
+          let source = fs.readFileSync(path, 'utf8');
+          const needle = "\\n      \\n      const pageContainer = container.firstChild as HTMLElement;\\n      const tableContainer = pageContainer?.querySelector('.overflow-auto');";
+          const replacement = "\\n      \\n      // Observation: Update page uses h-screen + overflow-hidden on container\\n      // Table area has overflow-auto for internal scrolling\\n      const pageContainer = container.firstChild as HTMLElement;\\n      const tableContainer = pageContainer?.querySelector('.overflow-auto');";
+          if (!source.includes(needle)) throw new Error('Strict UpdatePage matcher not found');
+          source = source.replace(needle, replacement);
+          fs.writeFileSync(path, source);
+          NODE
+
       - name: Apply deterministic test updates
         run: node .github/scripts/fix-remaining-verify-tests.cjs
 
