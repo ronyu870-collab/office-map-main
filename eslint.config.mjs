@@ -2,6 +2,14 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+// Flat config resolves plugin-prefixed rules against the plugins declared on
+// the same configuration object. Reuse the plugin objects already provided by
+// eslint-config-next instead of importing transitive packages directly.
+const inheritedPlugins = Object.assign(
+  {},
+  ...[...nextVitals, ...nextTs].map((config) => config.plugins ?? {}),
+);
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -14,6 +22,7 @@ const eslintConfig = defineConfig([
   // all in one pass would turn a CI-baseline repair into a risky product
   // refactor. New syntax/type/build/test failures still block Verify.
   {
+    plugins: inheritedPlugins,
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-empty-object-type": "warn",
@@ -30,6 +39,7 @@ const eslintConfig = defineConfig([
   },
   {
     files: ["**/__tests__/**/*.{ts,tsx}", "**/*.{test,spec}.{ts,tsx}"],
+    plugins: inheritedPlugins,
     rules: {
       // Historical tests use `module` as a plain local fixture name. The
       // Next.js rule protects runtime CommonJS module semantics, which is not
