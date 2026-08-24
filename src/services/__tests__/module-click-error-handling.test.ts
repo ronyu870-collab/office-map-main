@@ -123,29 +123,15 @@ describe('Module Click Handler Error Handling', () => {
       );
     });
 
-    it('should display user-friendly error message when controller is destroyed', () => {
+    it('should remove the global comparison bridge when controller is destroyed', () => {
       const controller = new MapController();
 
-      // Mock map initialization first
-      (controller as any).map = { mock: 'map' };
-      (controller as any).AMap = { mock: 'AMap' };
+      expect(typeof (global.window as any).__colliers_analyzeCompetitors).toBe('function');
 
-      // Destroy the controller
       controller.destroy();
 
-      // Try to use the function
-      (global.window as any).__colliers_analyzeCompetitors('test-id', 116.46, 39.90, 150);
-
-      // Verify error was logged
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '[Action Module] Failed to analyze competitors',
-        expect.any(Error)
-      );
-
-      // Verify user-friendly alert was shown
-      expect(alertSpy).toHaveBeenCalledWith(
-        expect.stringContaining('周边项目对比功能暂时不可用')
-      );
+      expect((global.window as any).__colliers_analyzeCompetitors).toBeUndefined();
+      expect(alertSpy).not.toHaveBeenCalled();
     });
 
     it('should successfully call analyzeCompetitors when all conditions are met', () => {
