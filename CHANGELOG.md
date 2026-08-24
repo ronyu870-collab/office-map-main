@@ -20,6 +20,55 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-24 — P0 dependency security baseline
+
+### Area
+Dependency security / spreadsheet ingestion / supply-chain risk
+
+### What changed
+
+- Replaced the npm-registry `xlsx@0.18.5` package with SheetJS' official `0.20.3` distribution, removing the known Prototype Pollution and ReDoS advisories that affected the old parser on the real admin spreadsheet-upload path.
+- Hardened XLSX ingestion independently of the package upgrade:
+  - only `.xlsx` uploads are accepted;
+  - upload size is capped at 25 MiB;
+  - worksheet processing is capped at 10,000 data rows and 500,000 cells;
+  - parsing is restricted to the data features this workflow actually needs instead of enabling formula, HTML, style, or VBA extraction;
+  - pure tests cover file-type, file-size, row, and cell budgets.
+- Removed `puppeteer-core` from production dependencies after repository-wide usage review found no imports or runtime calls. This also removed the unused `@puppeteer/browsers -> extract-zip` high-severity advisory chain instead of taking an unnecessary Puppeteer major upgrade.
+- Kept `ali-oss@6.23.x` rather than downgrading the SDK. Scoped its legacy HTTP stack with an `ali-oss -> urllib@2.41.0` override and regenerated the lockfile with Node.js 22.
+- Applied only the non-breaking updates available through `npm audit fix`; `npm audit fix --force` was intentionally not used.
+- Removed all temporary dependency-audit and dependency-fix GitHub Actions after the lockfile and advisory graph were captured. The permanent CI surface remains the standard read-only Verify workflow.
+
+### Why
+
+The previous dependency baseline reported 24 vulnerabilities (7 low, 2 moderate, 14 high, 1 critical). Several were not merely scanner noise: the old SheetJS parser handled administrator-selected workbooks directly, while an unused Puppeteer dependency carried a high-risk archive-extraction chain. The critical finding came from the legacy `vm2` sandbox inside an old optional PAC/proxy dependency path rather than from application code.
+
+The goal was to eliminate reachable or unnecessary high-impact risk without converting the security cleanup into an uncontrolled major-version migration. In particular, forcing every transitive dependency to the newest incompatible version only to reach an artificial audit count of zero would create larger regression risk than the remaining non-critical advisories justify.
+
+### Impact
+
+- The admin Excel workflow keeps the same user-facing import/export contract while using a patched SheetJS release and explicit resource budgets.
+- Malformed or oversized workbooks are rejected before unrestricted worksheet processing.
+- The unused Puppeteer runtime and its browser-download/extraction dependency graph are no longer shipped.
+- The previous critical `vm2` advisory is no longer present in the final audit baseline.
+- The dependency tree is smaller and its residual security debt is explicit rather than hidden.
+
+### Verification
+
+- Node.js 22 / npm 10 regenerated `package-lock.json` from the committed dependency declarations.
+- The original audit baseline was 24 vulnerabilities: 7 low, 2 moderate, 14 high, 1 critical.
+- After the targeted changes and non-force audit fixes, `npm audit` reports **11 residual vulnerabilities: 4 low, 1 moderate, 6 high, 0 critical**.
+- The residual report is transitive and is concentrated in the legacy optional proxy/network path around `ali-oss` / `urllib` (`proxy-agent`, `pac-proxy-agent`, `pac-resolver`, `ip`, `@tootallnate/once`) plus current transitive `ip-address` and `qs` advisories. No `vm2`, `xlsx`, `puppeteer-core`, or `extract-zip` advisory remains in the final captured report.
+- Final merge acceptance still requires the exact post-changelog head to pass Typecheck, Lint, Test, and Production build and to receive both Vercel preview checks; those checks are intentionally outside this historical audit snapshot rather than being faked into the record before they run.
+
+### Follow-up
+
+- Revisit the remaining Ali OSS optional proxy-chain advisories when Alibaba publishes a stable SDK/dependency graph that removes the old proxy stack, or when there is a tested compatible override that does not alter OSS request behavior.
+- Continue consuming non-breaking fixes for `ip-address` and `qs` as their parent dependency ranges allow them to resolve cleanly.
+- Do not use `npm audit fix --force` as a substitute for dependency-path review.
+
+---
+
 ## 2026-08-24 — P0 Verify baseline recovery
 
 ### Area
