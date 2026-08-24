@@ -1,19 +1,39 @@
 /**
- * 认证相关类型定义
+ * 认证相关类型与角色契约
  * @module types/auth
  */
 
 import type { Session, User } from '@supabase/supabase-js';
 
 /**
- * 用户角色类型定义
- * 
- * - admin: 管理员，拥有所有权限
- * - executive: 高管/Boss，只读权限，可查看所有数据
- * - editor: 编辑者，可编辑自己的数据
- * - viewer: 查看者，只能查看自己的数据
+ * 应用唯一合法角色集合。
+ *
+ * 数据库 public.user_roles.role 的约束与这里保持一致：
+ * - viewer: 只读用户，数据范围受 RLS 限制
+ * - editor: 业务编辑/填报用户
+ * - admin: 管理员
  */
-export type UserRole = 'admin' | 'executive' | 'editor' | 'viewer';
+export const APP_ROLES = ['viewer', 'editor', 'admin'] as const;
+export type UserRole = (typeof APP_ROLES)[number];
+
+/**
+ * 将外部/缓存中的未知值解析为合法角色。
+ * 权限判断应优先使用本函数，并对 null 采用拒绝访问的安全默认值。
+ */
+export function parseUserRole(value: unknown): UserRole | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return (APP_ROLES as readonly string[]).includes(normalized)
+    ? (normalized as UserRole)
+    : null;
+}
+
+/**
+ * 资料读取失败时降级为最小权限 viewer；不能用于判断“是否已认证”。
+ */
+export function normalizeUserRole(value: unknown): UserRole {
+  return parseUserRole(value) ?? 'viewer';
+}
 
 /**
  * 认证会话结果
