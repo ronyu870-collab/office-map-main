@@ -8,6 +8,7 @@ import { DemoProvider, DemoBanner } from "@/src/components/demo";
 import { ImpersonationProvider } from "@/src/contexts/ImpersonationContext";
 import { ImpersonationBanner } from "@/src/components/ImpersonationBanner";
 import { PageViewTracker } from "@/src/components/PageViewTracker";
+import { PerformanceReporter } from "@/src/components/PerformanceReporter";
 
 export const metadata: Metadata = {
   title: "COLLIERS DATA | 办公楼市场监测",
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className="h-full flex flex-col">
         <RootErrorBoundary>
           <NavigationProgress />
+          <PerformanceReporter />
           <SWRConfig
             value={{
               revalidateOnFocus: false,
