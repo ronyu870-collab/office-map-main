@@ -35,6 +35,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '无效的认证 Token' }, { status: 401 });
     }
 
+    // This endpoint uses the service role and therefore bypasses RLS. Authorization
+    // must be checked explicitly before any team-wide data is queried.
+    const { data: callerProfile, error: roleError } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', caller.id)
+      .maybeSingle();
+
+    if (roleError) {
+      console.error('[team-submissions] 查询调用方角色失败:', roleError);
+      return NextResponse.json({ error: '权限校验失败' }, { status: 500 });
+    }
+    if (callerProfile?.role !== 'admin') {
+      return NextResponse.json({ error: '权限不足，仅管理员可查看团队提交' }, { status: 403 });
+    }
+
     const [transactionsResult, usersResult] = await Promise.all([
       supabaseAdmin
         .from('lease_transactions')

@@ -1,42 +1,27 @@
-/**
- * 访问控制配置模块
- * 
- * 本模块定义了需要管理员权限才能访问的受限模块配置。
- * 用于实现基于角色的访问控制（RBAC）功能。
- */
+import type { UserRole } from '@/src/types/auth';
 
 /**
- * 受限模块类型定义
- * 
- * @property module - 模块标识符，必须与 NAV_MODULES 中的 module 字段匹配
- * @property href - 路由路径，用于导航和权限验证
+ * 受限模块定义。
+ *
+ * 本配置只描述已认证用户之间的角色授权；未认证用户应在页面 guard 中直接拒绝。
  */
 export type RestrictedModule = {
   module: string;
   href: string;
+  allowedRoles: readonly UserRole[];
 };
 
 /**
- * 受限模块配置列表
- * 
- * 用途：
- * - 定义需要管理员权限才能访问的模块
- * - 管理员（admin）可以正常访问这些模块
- * - 非管理员（viewer/editor）无法访问，显示灰色禁用样式
- * 
- * 维护方法：
- * - 添加新的受限模块：在数组中添加 { module, href } 对象
- * - 移除访问限制：从数组中移除对应项即可
- * 
- * 注意事项：
- * - module 字段必须与 NAV_MODULES 中的 module 字段完全匹配
- * - href 字段必须与实际路由路径一致
- * - 修改此配置后，访问控制逻辑会自动应用到相关模块
- * 
- * 当前受限模块：
- * - bi: 商业智能看板 - 包含敏感的市场分析数据
- * - deals: 租赁成交 - 包含商业交易信息
+ * 租赁成交填报属于 broker 工作流，因此 editor 与 admin 可访问。
+ * viewer 仅承担受限只读场景，不应进入成交填报工作区。
+ *
+ * 注意：旧配置使用 `deals` / `/deals`，与实际路由和 NAV_MODULES 不一致，
+ * 导致限制实际上没有应用到 `/lease-submission`。这里以真实产品路由为唯一契约。
  */
-export const RESTRICTED_MODULES: RestrictedModule[] = [
-  { module: 'deals', href: '/deals' },
+export const RESTRICTED_MODULES: readonly RestrictedModule[] = [
+  {
+    module: 'lease-submission',
+    href: '/lease-submission',
+    allowedRoles: ['editor', 'admin'],
+  },
 ];

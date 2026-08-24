@@ -6,7 +6,9 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/brokers
  * 获取业务员列表（使用 service_role key 绕过 RLS）
- * 需要有效的认证 Token
+ * 需要有效的认证 Token。
+ *
+ * 应用角色契约只有 viewer / editor / admin；broker 对应 editor。
  */
 export async function GET(req: NextRequest) {
   try {
@@ -21,7 +23,6 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 验证调用方身份
     const authHeader = req.headers.get('authorization') ?? '';
     const accessToken = authHeader.replace(/^Bearer\s+/i, '').trim();
 
@@ -35,12 +36,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '无效的认证 Token' }, { status: 401 });
     }
 
-    // 同时读取业务资料和 Auth 状态，停用/已删除账号不能再出现在人员选择器中。
     const [{ data, error }, { data: authUsers, error: authUsersError }] = await Promise.all([
       supabaseAdmin
         .from('user_roles')
         .select('user_id, full_name, chinese_name, role, email')
-        .not('role', 'in', '("admin","executive","viewer")')
+        .eq('role', 'editor')
         .not('chinese_name', 'eq', '测试账号')
         .not('email', 'is', null)
         .order('user_id', { ascending: true }),
