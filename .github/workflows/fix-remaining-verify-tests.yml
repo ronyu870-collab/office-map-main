@@ -1,0 +1,37 @@
+name: One-time Verify test codemod
+
+on:
+  push:
+    branches:
+      - refactor/p0-verify-baseline
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/p0-verify-baseline
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply deterministic test updates
+        run: node .github/scripts/fix-remaining-verify-tests.cjs
+
+      - name: Remove one-time tooling
+        run: rm .github/scripts/fix-remaining-verify-tests.cjs .github/workflows/fix-remaining-verify-tests.yml
+
+      - name: Commit updated tests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/__tests__/page-scroll-layout-preservation.test.tsx src/services/__tests__/leaseTransactionSubmitService.test.ts .github/scripts/fix-remaining-verify-tests.cjs .github/workflows/fix-remaining-verify-tests.yml
+          git commit -m "test: align Verify suites with current contracts"
+          git push origin HEAD:refactor/p0-verify-baseline
