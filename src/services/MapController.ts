@@ -4,27 +4,11 @@
 
 "use client";
 
-import * as echarts from "echarts/core";
-import { BarChart, LineChart } from "echarts/charts";
-import {
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-} from "echarts/components";
-import { CanvasRenderer } from "echarts/renderers";
 import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
-echarts.use([
-  BarChart,
-  LineChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  CanvasRenderer,
-]);
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
 import type {
   BeijingMapData,
@@ -185,109 +169,6 @@ function transformBuildingRow(r: Record<string, unknown>): BuildingWithMetrics {
     contact_phone: r.contact_phone ? String(r.contact_phone) : undefined,
     metrics,
   };
-}
-
-/** 初始化趋势图表 — 仅负责渲染，调用前确保容器可见且有尺寸 */
-function initTrendChart(
-  chartDom: HTMLElement,
-  histData: any[],
-): echarts.ECharts | null {
-  if (!chartDom || !histData?.length) return null;
-  // 销毁旧实例
-  const existing = echarts.getInstanceByDom(chartDom);
-  if (existing) existing.dispose();
-  const myChart = echarts.init(chartDom);
-  const xAxisData = histData.map((r: any) =>
-    r.label || (r.quarter ? `${r.year}${r.quarter}` : `${r.year}`),
-  );
-  const rentData = histData.map((r: any) =>
-    Number(Number(r.net_effective_rent).toFixed(1)),
-  );
-  const vacData = histData.map((r: any) =>
-    Number((Number(r.vacancy_rate) * 100).toFixed(1)),
-  );
-  const lastIdx = rentData.length - 1;
-  const calcAxisRange = (data: number[]) => {
-    const minVal = Math.min(...data),
-      maxVal = Math.max(...data);
-    const range = maxVal - minVal || Math.abs(minVal) * 0.2 || 1;
-    return { min: minVal - range * 0.35, max: maxVal + range * 0.15 };
-  };
-  const buildOption = (mode: "rent" | "vac") => {
-    const isRent = mode === "rent";
-    const data = isRent ? rentData : vacData;
-    const range = isRent ? calcAxisRange(rentData) : calcAxisRange(vacData);
-    return {
-      grid: { top: 15, bottom: 25, left: 30, right: 30 },
-      tooltip: {
-        trigger: "axis",
-        valueFormatter: (v: any) => (isRent ? `¥${v}` : `${v}%`),
-      },
-      xAxis: {
-        type: "category",
-        data: xAxisData,
-        axisLabel: { fontSize: 10, color: "#64748b", showMaxLabel: true, showMinLabel: true },
-        axisLine: { show: false },
-        axisTick: { show: false },
-      },
-      yAxis: [
-        {
-          type: "value",
-          show: false,
-          scale: true,
-          min: range.min,
-          max: range.max,
-          splitLine: { show: false },
-        },
-      ],
-      series: [
-        {
-          type: "line",
-          data,
-          smooth: true,
-          symbol: (_: any, p: any) =>
-            p.dataIndex === 0 || p.dataIndex === lastIdx ? "circle" : "none",
-          symbolSize: 6,
-          itemStyle: { color: isRent ? "#003e7e" : "#f59e0b" },
-          lineStyle: { width: 3 },
-          label: {
-            show: true,
-            position: isRent ? "top" : "bottom",
-            offset: [0, isRent ? -4 : 4],
-            color: isRent ? "#003e7e" : "#b45309",
-            fontSize: 10,
-            fontWeight: 800,
-            formatter: (p: any) =>
-              p.dataIndex === 0 || p.dataIndex === lastIdx
-                ? isRent
-                  ? `¥${p.value}`
-                  : `${p.value}%`
-                : "",
-          },
-        },
-      ],
-    };
-  };
-  myChart.setOption(buildOption("rent"));
-  // 绑定按钮事件
-  const btnRent = document.getElementById("chart-btn-rent");
-  const btnVac = document.getElementById("chart-btn-vac");
-  const setActive = (active: "rent" | "vac") => {
-    myChart.setOption(buildOption(active), true);
-    if (btnRent) {
-      btnRent.style.background = active === "rent" ? "#003e7e" : "#fff";
-      btnRent.style.color = active === "rent" ? "#fff" : "#64748b";
-      btnRent.style.borderColor = active === "rent" ? "#003e7e" : "#e2e8f0";
-    }
-    if (btnVac) {
-      btnVac.style.background = active === "vac" ? "#f59e0b" : "#fff";
-      btnVac.style.color = active === "vac" ? "#fff" : "#64748b";
-      btnVac.style.borderColor = active === "vac" ? "#f59e0b" : "#e2e8f0";
-    }
-  };
-  btnRent?.addEventListener("click", () => setActive("rent"));
-  btnVac?.addEventListener("click", () => setActive("vac"));
-  return myChart;
 }
 
 function escapeHtml(input: unknown): string {
@@ -834,12 +715,41 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
               vacancy_rate: r.vacancy_rate,
             }));
             trend.data = chartData;
-            // 等待下一帧确保容器有尺寸后再初始化图表
-            requestAnimationFrame(() => {
-              chartDom.innerHTML = "";
-              const chart = initTrendChart(chartDom, chartData);
-              if (chart) trend.chart = chart;
-            });
+            // ECharts 仅在用户明确打开趋势面板且确有历史数据时加载。
+            // 动态模块加载期间用户可能关闭面板或切换楼宇，因此渲染前后都做竞态保护。
+            void import("./map/trendChartRuntime")
+              .then(({ initTrendChart }) => {
+                if (
+                  trend.buildingId !== buildingId ||
+                  panel.style.display === "none"
+                ) {
+                  return;
+                }
+
+                requestAnimationFrame(() => {
+                  if (
+                    trend.buildingId !== buildingId ||
+                    panel.style.display === "none"
+                  ) {
+                    return;
+                  }
+
+                  chartDom.innerHTML = "";
+                  const chart = initTrendChart(chartDom, chartData);
+                  if (chart) trend.chart = chart;
+                });
+              })
+              .catch((error) => {
+                if (
+                  trend.buildingId !== buildingId ||
+                  panel.style.display === "none"
+                ) {
+                  return;
+                }
+                console.error("[MapController] 趋势图运行时加载失败:", error);
+                chartDom.innerHTML =
+                  '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">趋势图加载失败，请稍后重试</div>';
+              });
           });
       };
     }
