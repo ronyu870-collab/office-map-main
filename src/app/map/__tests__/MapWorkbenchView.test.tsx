@@ -1,10 +1,11 @@
+import type { ComponentProps, ReactNode } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const sidebarProps = vi.hoisted(() => ({ latest: null as Record<string, unknown> | null }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
+  default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
     <a href={href} {...props}>{children}</a>
   ),
 }));
@@ -45,7 +46,9 @@ const emptyCalendar = {
   noDate: { total: 0, office: 0, park: 0 },
 };
 
-function renderWorkbench(overrides: Record<string, unknown> = {}) {
+type WorkbenchProps = ComponentProps<typeof MapWorkbenchView>;
+
+function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
   const callbacks = {
     onFilterPanelOpenChange: vi.fn(),
     onSupplyOpenChange: vi.fn(),
@@ -64,7 +67,7 @@ function renderWorkbench(overrides: Record<string, unknown> = {}) {
     onBuildingHover: vi.fn(),
   };
 
-  const props = {
+  const props: WorkbenchProps = {
     stats: {
       totalArea: '1,000,000',
       avgRent: '188.0',
@@ -76,7 +79,7 @@ function renderWorkbench(overrides: Record<string, unknown> = {}) {
     futureSuppliesCount: 0,
     activeFilterChips: [],
     keyword: '',
-    renderMode: 'default' as const,
+    renderMode: 'default',
     isFilterPanelOpen: false,
     isSupplyOpen: false,
     isListVisible: false,
