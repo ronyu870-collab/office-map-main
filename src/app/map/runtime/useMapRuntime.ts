@@ -65,10 +65,10 @@ export function useMapRuntime({
 
     void (async () => {
       try {
-        const module = await import('@/src/services/MapController');
+        const mapControllerModule = await import('@/src/services/MapController');
         if (cancelled) return;
 
-        const controller = new module.MapController();
+        const controller = new mapControllerModule.MapController();
         ownedController = controller;
         controllerRef.current = controller;
         errorRef.current(null);
