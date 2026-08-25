@@ -441,10 +441,11 @@ export function QuarterlyUpdateWorkspace() {
     if (event.key !== 'Enter' || event.shiftKey || event.currentTarget.tagName === 'TEXTAREA') return;
     const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-quarterly-field]:not([readonly])'));
     const index = cells.indexOf(event.currentTarget);
-    if (index >= 0 && cells[index + 1]) {
+    const nextCell = index >= 0 ? cells[index + 1] : undefined;
+    if (nextCell) {
       event.preventDefault();
-      cells[index + 1].focus();
-      if (cells[index + 1] instanceof HTMLInputElement) cells[index + 1].select();
+      nextCell.focus();
+      if (nextCell instanceof HTMLInputElement) nextCell.select();
     }
   };
 
@@ -669,7 +670,7 @@ export function QuarterlyUpdateWorkspace() {
                   const lastNet = isFuture ? 0 : safeNum(getVal(building, ['上季度净有效租金', '净有效租金']));
                   const lastVacant = isFuture ? 0 : safeNum(getVal(building, ['上季度空置面积', '空置面积']));
                   const rawVacancy = isFuture ? '' : getVal(building, ['上季度空置率', '空置率']);
-                  const lastVacancy = safeNum(rawVacancy);
+                  const lastVacancyPercent = rawVacancy === '' ? null : (String(rawVacancy).includes('%') ? parseFloat(String(rawVacancy)) : (safeNum(rawVacancy) > 1 ? safeNum(rawVacancy) : safeNum(rawVacancy) * 100));
                   const face = parseFloat(String(draft.qFace ?? '')) || 0;
                   const free = parseFloat(String(draft.qFree ?? '')) || 0;
                   const vacant = parseFloat(String(draft.qVacArea ?? '')) || 0;
@@ -689,7 +690,7 @@ export function QuarterlyUpdateWorkspace() {
                       <td className="min-w-40 px-1 py-1"><div className="grid grid-cols-2 gap-1"><RowField value={draft.qOwner ?? defaultOwner} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline /><RowField value={draft.qPropMan ?? defaultPm} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline /></div></td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-zinc-600">{Math.round(totalArea).toLocaleString()}</td>
                       {[lastQuote,lastMgmt,lastFace,lastFree,lastNet,lastVacant].map((value, valueIndex) => <td key={valueIndex} className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{value > 0 ? (valueIndex === 5 ? Math.round(value).toLocaleString() : Number(value).toFixed(valueIndex >= 2 ? 1 : 0)) : '-'}</td>)}
-                      <td className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{rawVacancy !== '' ? `${(lastVacancy * 100).toFixed(1)}%` : '-'}</td>
+                      <td className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{lastVacancyPercent !== null && Number.isFinite(lastVacancyPercent) ? `${lastVacancyPercent.toFixed(1)}%` : '-'}</td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qQuote} onChange={(value) => change('qQuote', value)} field="qQuote" readOnly={readOnly} issue={issueFor('qQuote')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qProp} onChange={(value) => change('qProp', value)} field="qProp" readOnly={readOnly} issue={issueFor('qProp')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qFace} onChange={(value) => change('qFace', value)} field="qFace" readOnly={readOnly} issue={issueFor('qFace')} type="number" step="0.01" onKeyDown={handleGridKeyDown} /></td>

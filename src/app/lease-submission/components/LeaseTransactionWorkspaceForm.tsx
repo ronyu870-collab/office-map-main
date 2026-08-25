@@ -100,6 +100,8 @@ function monthlyRent(value: number | undefined, unit: 'monthly' | 'daily') {
 export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId, userName, mode = 'create', initialData }: LeaseTransactionFormProps) {
   const { buildings, isLoading: buildingsLoading } = useBuildings({ revalidateOnMount: true });
   const [industryMap, setIndustryMap] = React.useState<Record<string, string[]>>({});
+  const [isCustomSubIndustry, setIsCustomSubIndustry] = React.useState(false);
+  const [customSubIndustryText, setCustomSubIndustryText] = React.useState('');
   const [brokers, setBrokers] = React.useState<Array<{ user_id: string; name: string }>>([]);
   const [isOnBehalf, setIsOnBehalf] = React.useState(false);
   const [behalfUserId, setBehalfUserId] = React.useState('');
@@ -119,6 +121,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const [duplicates, setDuplicates] = React.useState<LeaseTransaction[]>([]);
   const [showDuplicate, setShowDuplicate] = React.useState(false);
   const [forceSubmit, setForceSubmit] = React.useState(false);
+  const forceSubmitRef = React.useRef(false);
   const [submitState, setSubmitState] = React.useState<SaveState>('idle');
   const [submitMessage, setSubmitMessage] = React.useState('Required fields are marked with *');
   const [submitError, setSubmitErrorMessage] = React.useState<string | null>(null);
@@ -185,10 +188,15 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     setSubmitState('idle');
     setSubmitMessage(mode === 'edit' ? 'Existing record loaded' : 'Required fields are marked with *');
     setForceSubmit(false);
+    forceSubmitRef.current = false;
     setShowDuplicate(false);
 
     if (mode === 'edit' && initialData) {
       reset(mapLeaseRecordToFormDefaults(initialData));
+      const standardSubIndustries = initialData.industry ? industryMap[initialData.industry] ?? [] : [];
+      const customSubIndustry = Boolean(initialData.sub_industry && standardSubIndustries.length > 0 && !standardSubIndustries.includes(initialData.sub_industry));
+      setIsCustomSubIndustry(customSubIndustry);
+      setCustomSubIndustryText(customSubIndustry ? initialData.sub_industry || '' : '');
       setFaceRentUnit(Number(initialData.face_rent) > 0 && Number(initialData.face_rent) < 30 ? 'daily' : 'monthly');
       setEffectiveRentUnit(Number(initialData.effective_rent) > 0 && Number(initialData.effective_rent) < 30 ? 'daily' : 'monthly');
       setFloorInfoUnknown(initialData.floor_info === '未知');
@@ -219,8 +227,10 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setOldBuildingLocked(false);
       setIsOnBehalf(false);
       setBehalfUserId('');
+      setIsCustomSubIndustry(false);
+      setCustomSubIndustryText('');
     }
-  }, [isOpen, mode, initialData, reset, buildings]);
+  }, [isOpen, mode, initialData, reset, buildings, industryMap]);
 
   React.useEffect(() => {
     if (!selectedYear || availableQuarters.length === 0) return;
@@ -348,7 +358,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       suspected_company_fullname: data.suspected_company_fullname?.trim() || null,
       enterprise_type: data.enterprise_type || null,
       industry: data.industry?.trim() || null,
-      sub_industry: data.sub_industry?.trim() || null,
+      sub_industry: isCustomSubIndustry && customSubIndustryText.trim() ? customSubIndustryText.trim() : (data.sub_industry?.trim() || null),
       demand_type: data.demand_type || null,
       relocation_area_change: isRelocation ? data.relocation_area_change || null : null,
       new_building: data.new_building?.trim() || '',
@@ -386,7 +396,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setSubmitErrorMessage('选择“代他人填报”后，必须选择被代报人。');
       return;
     }
-    if (!forceSubmit && await findDuplicates(data)) return;
+    if (!forceSubmitRef.current && await findDuplicates(data)) return;
 
     setSubmitErrorMessage(null);
     setSubmitState('submitting');
@@ -418,6 +428,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setSubmitState('submitted');
       setSubmitMessage('Submission written to database');
       setForceSubmit(false);
+      forceSubmitRef.current = false;
       onSubmitSuccess();
     } catch (error) {
       console.error('Lease transaction submission failed', error);
@@ -443,6 +454,9 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     setSubmitMessage('Ready for another submission');
     setSubmitErrorMessage(null);
     setForceSubmit(false);
+    forceSubmitRef.current = false;
+    setIsCustomSubIndustry(false);
+    setCustomSubIndustryText('');
     setBuildingLocked(false);
     setOldBuildingLocked(false);
     setManualBuilding(false);
@@ -513,7 +527,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
               <FormField name="suspected_company_fullname" label="疑似企业全称" type="text" placeholder="可选" register={register} error={errors.suspected_company_fullname} />
               <FormField name="enterprise_type" label="企业类型" type="select" options={['央国企','外企','民企','其他']} register={register} control={control} error={errors.enterprise_type} required />
               <FormField name="industry" label="所属行业" type="select" options={industryOptions} register={register} control={control} error={errors.industry} required />
-              <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">所属子行业 *</label><SearchableSelect value={watch('sub_industry') || ''} onChange={(value) => setValue('sub_industry', value, { shouldDirty: true, shouldValidate: true })} options={subIndustryOptions} placeholder={selectedIndustry ? '请选择' : '先选择行业'} disabled={!selectedIndustry} />{errors.sub_industry && <p className="mt-1 text-[10px] text-rose-600">{errors.sub_industry.message}</p>}</div>
+              <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">所属子行业 *</label><SearchableSelect value={isCustomSubIndustry ? '其他' : (watch('sub_industry') || '')} onChange={(value) => { setValue('sub_industry', value, { shouldDirty: true, shouldValidate: true }); setIsCustomSubIndustry(value === '其他'); if (value !== '其他') setCustomSubIndustryText(''); }} options={subIndustryOptions} placeholder={selectedIndustry ? '请选择' : '先选择行业'} disabled={!selectedIndustry} />{isCustomSubIndustry && <input type="text" value={customSubIndustryText} onChange={(event) => setCustomSubIndustryText(event.target.value)} placeholder="填写具体子行业（可留空）" className="mt-1.5 min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs outline-none focus:border-[#003e7e]" />}{errors.sub_industry && <p className="mt-1 text-[10px] text-rose-600">{errors.sub_industry.message}</p>}</div>
               <FormField name="demand_type" label="需求类型" type="select" options={['新租','搬迁','扩租','续租','未知']} register={register} control={control} error={errors.demand_type} required />
               {demandType === '搬迁' && <FormField name="relocation_area_change" label="搬迁面积变化" type="select" options={['缩减面积','扩大面积','面积不变','未知']} register={register} control={control} error={errors.relocation_area_change} required />}
             </div>
@@ -565,7 +579,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         </form>
       </aside>
 
-      {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); setSubmitState('idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
+      {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState('idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
     </>
   );
 }
