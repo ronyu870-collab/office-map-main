@@ -25,7 +25,7 @@ import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
-import type { UserRole } from '@/src/types/auth';
+import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 import { logAction, logActionImmediate } from '@/src/utils/audit';
 import {
@@ -348,8 +348,9 @@ export function HomeWorkspace() {
   if (status === 'loading' || !ctx) return <HomeLoadingShell />;
 
   const activeSession = ctx;
+  const activeRole = parseUserRole(activeSession.role) ?? 'viewer';
   const canSeeAdminWorkspace = canAccessAdminConsole({
-    role: activeSession.role,
+    role: activeRole,
     isDemo: isDemoMode(activeSession.user.email),
     impersonationActive: isImpersonating,
   });
@@ -368,11 +369,11 @@ export function HomeWorkspace() {
     const restricted = isModuleRestricted(workspace.module);
     const canAccess = workspace.module === ADMIN_WORKSPACE.module
       ? canSeeAdminWorkspace
-      : canAccessModule(workspace.module, activeSession.role);
+      : canAccessModule(workspace.module, activeRole);
 
     if (activeSession.user.email) {
       const details: Record<string, unknown> = { module: workspace.module, blocked: !canAccess };
-      if (restricted && activeSession.role !== 'admin') details.reason = 'restricted_module';
+      if (restricted && activeRole !== 'admin') details.reason = 'restricted_module';
       logAction(activeSession.user.email, 'ENTER_MODULE', details);
     }
 
@@ -380,7 +381,7 @@ export function HomeWorkspace() {
   }
 
   const MapIcon = MAP_WORKSPACE.icon;
-  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeSession.role);
+  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeRole);
 
   return (
     <WorkspaceShell
@@ -388,7 +389,7 @@ export function HomeWorkspace() {
       header={(
         <HomeHeader
           displayName={activeSession.displayName}
-          role={activeSession.role}
+          role={activeRole}
           canSeeAdminWorkspace={canSeeAdminWorkspace}
           onLogout={() => void handleLogout()}
           onAdminActivate={(event) => handleWorkspaceActivation(event, ADMIN_WORKSPACE)}
@@ -419,7 +420,7 @@ export function HomeWorkspace() {
               <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
             </div>
             <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-              {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} />)}
+              {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
             </div>
           </section>
 
