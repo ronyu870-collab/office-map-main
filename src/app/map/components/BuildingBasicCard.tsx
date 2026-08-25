@@ -6,10 +6,6 @@ import { attachTitleTooltip } from '@/src/utils/titleTooltip';
 import type { BuildingMetric } from '@/src/types';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
-// 🌟 Phase 3: 楼宇基础信息卡片组件
-// 精准复刻 MapController.buildInfoWindowContent() 上半部分的数据结构
-// 使用 Tailwind CSS 替代内联样式，保持系统设计规范
-
 interface DisplayOverride {
   display_label: string;
   display_value: string;
@@ -33,16 +29,12 @@ interface BuildingBasicCardProps {
   onClick?: () => void;
 }
 
-// 辅助函数：格式化数字
 function formatNumber(input: number): string {
   return !Number.isFinite(input) ? '-' : input.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
 }
 
-// 辅助函数：格式化空置率
 function formatVacancyRate(vacancyRate: number): string {
-  return !Number.isFinite(vacancyRate) 
-    ? '-' 
-    : `${(vacancyRate <= 1 ? vacancyRate * 100 : vacancyRate).toFixed(1)}%`;
+  return !Number.isFinite(vacancyRate) ? '-' : `${(vacancyRate <= 1 ? vacancyRate * 100 : vacancyRate).toFixed(1)}%`;
 }
 
 export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building, displayOverrides, onClick }) => {
@@ -50,23 +42,20 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
   const latestMetric = getLatestMetric(building.metrics ?? []);
   const isFutureSupply = building._dataType === 'future';
 
-  // CL-033: 替换原生 title 为即时 tooltip
   React.useEffect(() => {
     if (cardRef.current) attachTitleTooltip(cardRef.current);
   });
 
-  // 检查显示覆盖规则
   const gradeOverride = displayOverrides?.get(building.id)?.get('grade');
   const submarketOverride = displayOverrides?.get(building.id)?.get('submarket');
-
   const name = building.name || '未命名项目';
   const gradeLabel = gradeOverride?.display_label ?? '楼宇等级';
   const gradeValue = (() => {
     if (gradeOverride?.display_value) return gradeOverride.display_value;
-    const g = (building.grade || '').trim().toUpperCase();
-    if (!g) return '—';
-    if (g === 'BP') return building.grade!;
-    if (g.includes('P')) return building.grade!.replace(/P/gi, 'A');
+    const grade = (building.grade || '').trim().toUpperCase();
+    if (!grade) return '—';
+    if (grade === 'BP') return building.grade!;
+    if (grade.includes('P')) return building.grade!.replace(/P/gi, 'A');
     return building.grade!;
   })();
   const completionYear = building.completion_year ? String(building.completion_year) : '—';
@@ -77,18 +66,17 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
   const propertyMgmt = building.property_management || '暂无';
 
   const currentRent = latestMetric ? Number(latestMetric.net_effective_rent) : 0;
-  const rentText = latestMetric ? `¥${formatNumber(currentRent)}` : '-';
-  const faceRentText = latestMetric && latestMetric.face_rent ? `¥${formatNumber(Number(latestMetric.face_rent))}` : '-';
+  const rentText = latestMetric ? formatNumber(currentRent) : '-';
+  const faceRentText = latestMetric && latestMetric.face_rent ? formatNumber(Number(latestMetric.face_rent)) : '-';
   const vacText = latestMetric ? formatVacancyRate(latestMetric.vacancy_rate) : '-';
-  const mgtFeeText = latestMetric && latestMetric.management_fee ? `¥${formatNumber(latestMetric.management_fee)}` : '-';
+  const mgtFeeText = latestMetric && latestMetric.management_fee ? formatNumber(latestMetric.management_fee) : '-';
   const latestQuarter = latestMetric ? `${latestMetric.record_year}Q${latestMetric.record_quarter}` : '无数据';
-
   const hasLeed = leed && leed !== 'NULL' && leed !== '';
 
-  const ROW = (label: string, value: string, valueColor = 'text-zinc-800', masked = false, titleText?: string) => (
-    <div className="flex items-center justify-between py-1 border-b border-zinc-50 last:border-0">
-      <span className="text-[11px] text-zinc-500 whitespace-nowrap">{label}</span>
-      <span title={titleText || value} className={`text-[11px] font-semibold ${valueColor} text-right truncate ml-2`}>
+  const row = (label: string, value: string, emphasized = false, masked = false, titleText?: string) => (
+    <div className="grid grid-cols-[74px_minmax(0,1fr)] items-baseline gap-2 border-b border-[#edf0f4] py-1.5 last:border-b-0">
+      <span className="text-[9px] text-[#8a94a6]">{label}</span>
+      <span title={titleText || value} className={`truncate text-right text-[10px] font-medium tabular-nums ${emphasized ? 'font-semibold text-[#003e7e]' : 'text-[#172033]'}`}>
         {masked ? <MaskedText>{value}</MaskedText> : value}
       </span>
     </div>
@@ -98,49 +86,58 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
     <div
       ref={cardRef}
       onClick={onClick}
-      className="group relative cursor-pointer rounded-xl border border-transparent bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all duration-150 hover:border-zinc-200 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 active:scale-[0.99]"
+      className="group cursor-pointer overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white transition-colors hover:border-[#aeb9c7] hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
           onClick?.();
         }
       }}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <h3 title={name} className="flex-1 text-base font-bold leading-tight text-zinc-900 group-hover:text-[#003e7e] transition-colors truncate whitespace-nowrap overflow-hidden text-ellipsis">
-          <MaskedText>{name}</MaskedText>
-        </h3>
-        {isFutureSupply && (
-          <span className="shrink-0 inline-block rounded-md bg-emerald-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
-            未来供应
-          </span>
-        )}
+      <div className="border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-2.5">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 title={name} className="truncate text-[12px] font-semibold leading-5 text-[#172033] transition-colors group-hover:text-[#003e7e]">
+              <MaskedText>{name}</MaskedText>
+            </h3>
+            <div className="mt-0.5 truncate text-[9px] text-[#8a94a6]">{[building.district, submarketValue, gradeValue].filter(value => value && value !== '—').join(' · ') || '项目信息待完善'}</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {hasLeed ? <span className="rounded-[3px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[8px] font-semibold text-emerald-700">LEED {leed}</span> : null}
+            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[8px] font-semibold text-[#003e7e]">未来供应</span> : null}
+          </div>
+        </div>
       </div>
 
-      {hasLeed && (
-        <div className="mb-2">
-          <span className="inline-block rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-            LEED {leed}
-          </span>
+      <div className="grid grid-cols-3 border-b border-[#d9e0e8] bg-white">
+        <div className="border-r border-[#edf0f4] px-3 py-2">
+          <div className="text-[8px] text-[#8a94a6]">净有效租金</div>
+          <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#003e7e]">{rentText}<span className="ml-0.5 text-[8px] font-normal text-[#8a94a6]">元/㎡/月</span></div>
         </div>
-      )}
+        <div className="border-r border-[#edf0f4] px-3 py-2">
+          <div className="text-[8px] text-[#8a94a6]">空置率</div>
+          <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#172033]">{vacText}</div>
+        </div>
+        <div className="px-3 py-2">
+          <div className="text-[8px] text-[#8a94a6]">数据期</div>
+          <div className="mt-0.5 text-[11px] font-semibold tabular-nums text-[#172033]">{latestQuarter}</div>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-2 gap-x-4">
+      <div className="grid grid-cols-2 gap-x-4 px-3 py-1.5">
         <div>
-          {ROW(gradeLabel, gradeValue)}
-          {ROW(submarketLabel, submarketValue, 'text-zinc-800', false, submarketOverride ? submarketValue : building.submarket)}
-          {ROW('入市时间', completionYear)}
-          {ROW('项目业主', owner, 'text-zinc-800', true, building.owner)}
-          {ROW('物业公司', propertyMgmt, 'text-zinc-800', true, building.property_management)}
+          {row(gradeLabel, gradeValue)}
+          {row(submarketLabel, submarketValue, false, false, submarketOverride ? submarketValue : building.submarket)}
+          {row('入市时间', completionYear)}
+          {row('项目业主', owner, false, true, building.owner)}
         </div>
         <div>
-          {ROW('空置率', vacText)}
-          {ROW('表面租金', faceRentText)}
-          {ROW('净有效租金', rentText, 'text-[#003e7e]')}
-          {ROW('物业费', mgtFeeText)}
-          {ROW('更新时间', latestQuarter, 'text-[#003e7e]')}
+          {row('表面租金', faceRentText)}
+          {row('物业费', mgtFeeText)}
+          {row('物业公司', propertyMgmt, false, true, building.property_management)}
+          {row('更新时间', latestQuarter, true)}
         </div>
       </div>
     </div>
