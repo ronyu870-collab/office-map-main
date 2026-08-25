@@ -4,7 +4,7 @@ body:has(#map-container) .amap-info-content {
   padding: 10px 12px !important;
   border: 1px solid #d9e0e8 !important;
   border-radius: 8px !important;
-  box-shadow: 0 12px 30px rgba(23, 32, 51, 0.14) !important;
+  box-shadow: 0 4px 14px rgba(23, 32, 51, 0.12) !important;
   color: #172033 !important;
 }
 
@@ -62,4 +62,86 @@ body:has(#map-container) aside input[type="checkbox"] {
 
 body:has(#map-container) aside button {
   border-radius: 4px !important;
+}
+
+
+/* Final Map QA: precise, low-chrome GIS presentation across desktop and mobile. */
+body:has(#map-container) .amap-info-outer,
+body:has(#map-container) .amap-info-content {
+  max-width: calc(100vw - 24px) !important;
+  box-sizing: border-box !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="width:26px"] {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.24) !important;
+  transition: transform 120ms ease, background-color 150ms ease !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:hover {
+  transform: translateY(-1px) scale(1.04) !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="width: 10px"] {
+  border-radius: 3px !important;
+  box-shadow: 0 1px 2px rgba(23, 32, 51, 0.22) !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="width: 10px"]:hover {
+  transform: scale(1.35) !important;
+}
+
+body:has(#map-container) #map-container .amap-marker > div[style*="width:26px;height:26px"]:not([data-building-id]) {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.22) !important;
+}
+
+body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] {
+  width: 76px !important;
+  height: 54px !important;
+  border-radius: 6px !important;
+  border-width: 1px !important;
+  box-shadow: 0 2px 8px rgba(23, 32, 51, 0.16) !important;
+  backdrop-filter: none !important;
+}
+
+body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] * {
+  text-shadow: none !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="flex-direction:column"] > div[style*="width:26px"] {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.22) !important;
+}
+
+body:has(#map-container) #map-container > div:has(.comp-dist-btns) {
+  max-width: calc(100vw - 24px) !important;
+}
+
+body:has(#map-container) #map-container > div:has(.comp-dist-btns) > div {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+body:has(#map-container) main [class*="backdrop-blur"] {
+  backdrop-filter: none !important;
+}
+
+body:has(#map-container) main [class*="rounded-2xl"] {
+  border-radius: 8px !important;
+}
+
+@media (max-width: 640px) {
+  body:has(#map-container) .amap-info-content {
+    padding: 8px 9px !important;
+  }
 }

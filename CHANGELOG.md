@@ -18,6 +18,44 @@ Each entry should include:
 
 Do not use this file for raw commit-by-commit history. Group related implementation work into one clear entry.
 
+
+---
+
+## 2026-08-25 — Map final experience QA and interaction hardening
+
+### Area
+Map 2.0 / final experience QA / responsive overlays / markers / InfoWindow / accessibility
+
+### What changed
+
+- Added a single presentation-level dismissal contract for Filter, Future Supply, and Project List: existing mutual exclusion is retained, while Escape or returning directly to the map canvas closes any open large workspace.
+- Fixed the Future Supply workspace height contract so its content scrolls inside the available panel height on short desktop and mobile viewports rather than being clipped below its header.
+- Tightened the command/KPI/filter/supply surfaces toward the Colliers Data 2.0 border-led 4–8px radius language with less blur and shadow.
+- Reworked full building, dot, future-supply, submarket, and competitor marker chrome through route-scoped presentation rules: lower shadow, less hover scaling, squarer GIS symbols, and a smaller aggregate footprint while preserving all data-driven colors and render-mode semantics.
+- Made building/future InfoWindow content and the competitor toolbar viewport-aware without changing Building Detail, Trend, contact, compare, filtering, or AMap lifecycle behavior.
+- Replaced the list-to-marker bounce with a short subtle emphasis and removed noisy Map/filter development diagnostics while retaining warnings/errors.
+- Added behavior-level regression coverage for Escape and direct map-canvas dismissal rather than locking implementation-specific CSS strings.
+
+### Why
+
+Final QA of the Map 2.0 presentation found release-quality interaction and responsive risks: large workspaces could remain open after users returned to the map, the Future Supply body could exceed the panel height, marker chrome still read like a consumer map, InfoWindow widths assumed desktop space, and the competitor toolbar had a fixed 520px minimum width.
+
+### Impact
+
+- Map remains the dominant work surface across desktop, narrow desktop, and mobile layouts.
+- Dense marker areas retain more base-map context and hover feedback is less distracting.
+- Filter, Future Supply, Project List, InfoWindow, and competitor workflows coordinate more predictably without changing data or authorization semantics.
+- Keyboard users gain a consistent Escape path for all large map workspaces.
+
+### Verification
+
+- The permanent repository Verify workflow must pass Typecheck, Lint, Test, and Production Build on the exact PR head before merge.
+- Browser-level inspection was attempted against the existing Vercel preview; authenticated visual QA is not claimed where the execution environment cannot access the repository's Vercel team/session.
+
+### Follow-up
+
+- Do not reopen MapDataStore, useMapRuntime, MapRouteGate, auth/session, Supabase/RLS, or AMap lifecycle for further visual tuning unless a separate reproducible behavioral bug is found.
+
 ---
 
 ## 2026-08-25 — Map 2.0 project inventory and presentation density

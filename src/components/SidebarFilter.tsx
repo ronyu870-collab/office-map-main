@@ -164,14 +164,6 @@ export function SidebarFilter(props: SidebarFilterProps) {
   const isFirstEmit = React.useRef(true);
   React.useEffect(() => {
     if (isFirstEmit.current) { isFirstEmit.current = false; return; }
-    console.log('[SidebarFilter] emit state', {
-      showFutureSupply: state.showFutureSupply,
-      futureSupplyGrades: state.futureSupplyGrades,
-      projectTypes: state.projectTypes,
-      districts: state.districts?.length,
-      submarkets: state.submarkets?.length,
-      numericFilters: state.numericFilters?.length,
-    });
     onFilterChangeRef.current(state);
   }, [state]);
 
@@ -339,7 +331,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
               <ChevronIcon isOpen={openSections.projectTypes} />
             </div>
             {openSections.projectTypes && (
-              <div className="mt-1 mb-3 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+              <div className="mt-1 mb-3 px-1">
                 
                 {/* 第一部分：现有项目 */}
                 <div className="mb-3">
@@ -453,7 +445,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
               <ChevronIcon isOpen={openSections.districts} />
             </div>
             {openSections.districts && (
-              <div className="mt-1 mb-3 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+              <div className="mt-1 mb-3 px-1">
                 <label className="flex items-center gap-2 mb-3 mt-1 text-[11px] font-bold text-blue-700 bg-blue-50 p-1.5 rounded-md cursor-pointer border border-blue-100">
                   <input type="checkbox" checked={state.showBoundaries} onChange={e => setState(p => ({ ...p, showBoundaries: e.target.checked }))} className="h-4 w-4 rounded border-blue-300 text-blue-700" /> 
                   开启行政区边界线 (地图高亮)
@@ -480,7 +472,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                 <ChevronIcon isOpen={openSections.submarkets} />
               </div>
               {openSections.submarkets && (
-                <div className="mt-1 mb-3 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+                <div className="mt-1 mb-3 px-1">
                   <label className="flex items-center gap-2 mb-2 text-[11px] font-medium text-zinc-600 cursor-pointer">
                     <input type="checkbox" checked={allSubmarketsSelected} ref={el => { if (el) el.indeterminate = partiallySubmarketsSelected; }} onChange={e => toggleAllSubmarkets(e.target.checked)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" /> 全选
                   </label>
@@ -517,7 +509,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                 <ChevronIcon isOpen={openSections.leeds} />
               </div>
               {openSections.leeds && (
-                <div className="mt-1 mb-3 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+                <div className="mt-1 mb-3 px-1">
                   <label className="flex items-center gap-2 mb-2 text-[11px] font-medium text-zinc-600 cursor-pointer">
                     <input type="checkbox" checked={allLeedsSelected} ref={el => { if (el) el.indeterminate = partiallyLeedsSelected; }} onChange={e => toggleAllLeeds(e.target.checked)} className="h-4 w-4 rounded border-zinc-300 text-blue-700 focus:ring-blue-200" /> 全选
                   </label>
@@ -540,7 +532,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
               <ChevronIcon isOpen={openSections.subway} />
             </div>
             {openSections.subway && (
-              <div className="mt-1 mb-3 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+              <div className="mt-1 mb-3 px-1">
                 <div className="mb-2">
                   <select className="w-full text-[11px] p-1.5 border border-zinc-200 rounded-md bg-zinc-50 text-zinc-700 outline-none transition-colors focus:border-primary focus:bg-white" value={state.subwayLine || ''} onChange={e => { const val = e.target.value; setState(p => ({ ...p, subwayLine: val || null, subwayStation: null })); }}>
                     <option value="">-- 先选择地铁线 --</option>
@@ -578,7 +570,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
             </div>
             
             {openSections.numeric && (
-              <div className="mt-1 mb-2 px-1 animate-in slide-in-from-top-1 fade-in duration-200">
+              <div className="mt-1 mb-2 px-1">
                 <div className="flex flex-col gap-2 mb-2">
                   {state.numericFilters && state.numericFilters.map((filter) => {
                     const isText = TEXT_FIELDS.has(filter.field);
@@ -661,7 +653,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
         </div>
 
         {compareSectionOpen && (
-          <div className="mt-2 animate-in slide-in-from-top-1 fade-in duration-200">
+          <div className="mt-2">
             {compareGroups.map(group => (
               <div key={group.id} className="mb-2 rounded-md border border-zinc-100 bg-zinc-50/50">
                 <div

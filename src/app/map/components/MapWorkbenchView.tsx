@@ -173,9 +173,9 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
   ];
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-[260] flex max-w-max items-stretch overflow-x-auto rounded-2xl border border-white/70 bg-white/90 shadow-xl shadow-slate-900/10 backdrop-blur-md sm:right-auto">
+    <div className="absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max">
       {metrics.map((metric, index) => (
-        <div key={metric.label} className={`min-w-[128px] px-4 py-2.5 ${index > 0 ? 'border-l border-slate-200/80' : ''}`}>
+        <div key={metric.label} className={`min-w-[112px] px-3 py-2 sm:min-w-[128px] sm:px-4 sm:py-2.5 ${index > 0 ? 'border-l border-slate-200/80' : ''}`}>
           <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-slate-400">{metric.label}</div>
           <div className="mt-0.5 flex items-baseline gap-1 whitespace-nowrap">
             <span className="text-[15px] font-semibold tabular-nums text-slate-900">{metric.value}</span>
@@ -197,7 +197,7 @@ function SupplyPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute bottom-4 left-3 right-3 top-[72px] z-[380] overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:bottom-auto sm:left-auto sm:right-4 sm:top-[72px] sm:w-[430px]">
+    <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-auto sm:right-4 sm:top-[64px] sm:w-[430px]">
       <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3.5">
         <div>
           <div className="text-sm font-semibold text-slate-900">未来供应</div>
@@ -212,7 +212,7 @@ function SupplyPanel({
           <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
-      <div className="grid max-h-full grid-cols-1 gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto p-3 sm:grid-cols-2">
         {SUPPLY_CALENDAR_CATEGORIES.map(category => {
           const data = calendar[category];
           return (
@@ -272,6 +272,21 @@ export function MapWorkbenchView({
 }: MapWorkbenchViewProps) {
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);
 
+  const closeOpenWorkspaces = React.useCallback(() => {
+    if (isFilterPanelOpen) onFilterPanelOpenChange(false);
+    if (isSupplyOpen) onSupplyOpenChange(false);
+    if (isListVisible) onCloseList();
+  }, [isFilterPanelOpen, isSupplyOpen, isListVisible, onFilterPanelOpenChange, onSupplyOpenChange, onCloseList]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      closeOpenWorkspaces();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeOpenWorkspaces]);
+
   const toggleFilterPanel = () => {
     const nextOpen = !isFilterPanelOpen;
     if (nextOpen && isSupplyOpen) onSupplyOpenChange(false);
@@ -328,7 +343,7 @@ export function MapWorkbenchView({
       </header>
 
       <main className="relative min-h-0 flex-1 overflow-hidden">
-        <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" />
+        <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" onPointerDownCapture={closeOpenWorkspaces} />
 
         <div className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
           <div className="pointer-events-auto flex shrink-0 gap-2">
@@ -367,13 +382,13 @@ export function MapWorkbenchView({
                 <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]">清空</button>
               </div>
             ) : (
-              <div className="rounded-xl border border-slate-200/90 bg-white/95 shadow-lg shadow-slate-900/10 backdrop-blur-xl">
+              <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
                 <SearchBar placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
               </div>
             )}
           </div>
 
-          <div className="pointer-events-auto hidden shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-lg shadow-slate-900/10 backdrop-blur-xl sm:flex" role="group" aria-label="地图显示模式">
+          <div className="pointer-events-auto hidden shrink-0 overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:flex" role="group" aria-label="地图显示模式">
             {MODE_OPTIONS.map(({ mode, label }, index) => (
               <button
                 key={mode}
@@ -404,7 +419,7 @@ export function MapWorkbenchView({
           </div>
         </div>
 
-        <div className="pointer-events-auto absolute bottom-[80px] right-3 z-[265] flex overflow-hidden rounded-xl border border-white/80 bg-white/92 shadow-lg shadow-slate-900/10 backdrop-blur-md sm:hidden" role="group" aria-label="移动端地图显示模式">
+        <div className="pointer-events-auto absolute bottom-[80px] right-3 z-[265] flex overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:hidden" role="group" aria-label="移动端地图显示模式">
           {MODE_OPTIONS.map(({ mode, label }, index) => (
             <button
               key={mode}
@@ -419,7 +434,7 @@ export function MapWorkbenchView({
         </div>
 
         {isFilterPanelOpen ? (
-          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/96 shadow-2xl shadow-slate-900/15 backdrop-blur-xl sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">
+          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">
             <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
               <div>
                 <div className="text-sm font-semibold text-slate-900">市场筛选</div>
