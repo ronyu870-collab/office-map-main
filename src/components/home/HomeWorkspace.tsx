@@ -22,6 +22,7 @@ import { NoticeBanner } from '@/src/components/NoticeBanner';
 import { WorkspaceShell } from '@/src/components/layout';
 import { Badge } from '@/src/components/ui';
 import { useAppSession } from '@/src/components/SessionProvider';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
@@ -119,14 +120,12 @@ function getRoleLabel(role: string, isAdmin: boolean) {
 function HomeHeader({
   displayName,
   role,
-  email,
   canSeeAdminWorkspace,
   onLogout,
   onAdminActivate,
 }: {
   displayName: string;
   role: string;
-  email?: string;
   canSeeAdminWorkspace: boolean;
   onLogout: () => void;
   onAdminActivate: (event: React.MouseEvent<HTMLAnchorElement>) => void;
@@ -134,8 +133,7 @@ function HomeHeader({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const menuTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const isRestrictedAdmin = email === 'judy.li@colliers.com';
-  const isAdmin = isUserAdmin(role) && !isRestrictedAdmin;
+  const isAdmin = isUserAdmin(role);
   const roleLabel = getRoleLabel(role, isAdmin);
   const adminCanAccess = canAccessModule(ADMIN_WORKSPACE.module, role);
   const adminAccessibilityProps = getAccessibilityProps(ADMIN_WORKSPACE.module, ADMIN_WORKSPACE.title, role);
@@ -365,6 +363,7 @@ function HomeLoadingShell() {
 export function HomeWorkspace() {
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
+  const { isImpersonating } = useImpersonation();
   const [showDevModal, setShowDevModal] = React.useState(false);
   const [clickedModule, setClickedModule] = React.useState('');
   const [showCommunication, setShowCommunication] = React.useState(false);
@@ -378,9 +377,8 @@ export function HomeWorkspace() {
   if (status === 'loading' || !ctx) return <HomeLoadingShell />;
 
   const activeSession = ctx;
-  const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';
-  const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;
-  const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);
+  const isAdmin = isUserAdmin(activeSession.role);
+  const canSeeAdminWorkspace = (isAdmin || isDemoMode(activeSession.user.email)) && !isImpersonating;
 
   async function handleLogout() {
     try {
@@ -428,7 +426,6 @@ export function HomeWorkspace() {
           <HomeHeader
             displayName={activeSession.displayName}
             role={activeSession.role}
-            email={activeSession.user.email}
             canSeeAdminWorkspace={canSeeAdminWorkspace}
             onLogout={() => void handleLogout()}
             onAdminActivate={(event) => handleWorkspaceActivation(event, ADMIN_WORKSPACE)}
