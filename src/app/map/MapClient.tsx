@@ -184,8 +184,6 @@ export default function MapWorkbenchPage() {
       const role = userRoleRef.current;
       mapDataStoreRef.current.replaceBuildings(buildings);
       const visible = mapDataStoreRef.current.getRoleVisible(role);
-
-      console.log(`[MapClient] 角色=${role}, 总建筑=${buildings.length}, 可见=${visible.length}`);
       setAllBuildings(visible);
       setDisplayOverrides(controller.getDisplayOverridesCache());
     } catch (error) {
@@ -319,11 +317,6 @@ export default function MapWorkbenchPage() {
 
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
-
-    // 调试日志：过滤结果统计
-    const filteredGradeCount: Record<string, number> = {};
-    for (const b of filtered) { const g = b.grade || '?'; filteredGradeCount[g] = (filteredGradeCount[g] || 0) + 1; }
-    console.log(`[MapClient] 过滤结果: ${filtered.length}/${allBuildings.length}, 等级分布:`, filteredGradeCount);
 
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
@@ -460,7 +453,6 @@ export default function MapWorkbenchPage() {
     }, 600);
 
     getSession().then(s => logAction(s?.user?.email || '未知用户', 'VIEW_BUILDING', { buildingId: building.id, buildingName: building.name })).catch(() => {});
-    console.log('[MapClient] Map navigated to building and opened info window:', building.name);
   }, [mapReady]);
 
   // 🌟 2. 抽离出的地图搜索处理函数及埋点逻辑

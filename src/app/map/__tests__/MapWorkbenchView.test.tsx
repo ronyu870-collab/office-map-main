@@ -150,4 +150,37 @@ describe('MapWorkbenchView', () => {
     expect(screen.getByText(/按预计入市时间查看市场新增供给/)).toBeInTheDocument();
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
   });
+
+  it('dismisses any open map workspace on Escape', () => {
+    const callbacks = renderWorkbench({
+      isFilterPanelOpen: true,
+      isSupplyOpen: true,
+      isListVisible: true,
+      canOpenList: true,
+    });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+  });
+
+  it('dismisses open workspaces when the user returns to the map canvas', () => {
+    const callbacks = renderWorkbench({
+      isFilterPanelOpen: true,
+      isSupplyOpen: true,
+      isListVisible: true,
+      canOpenList: true,
+    });
+
+    const mapCanvas = document.getElementById('map-container');
+    expect(mapCanvas).not.toBeNull();
+    fireEvent.pointerDown(mapCanvas!);
+
+    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+  });
+
 });

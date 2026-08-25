@@ -1154,13 +1154,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     wrapper.innerHTML = `
       <div style="
         display:flex; flex-direction:column; gap:0;
-        background: rgba(255,255,255,0.97); backdrop-filter: blur(12px);
-        border: 1px solid #e2e8f0; border-radius: 10px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        min-width: 520px;
+        background:#ffffff;
+        border:1px solid #d9e0e8; border-radius:6px;
+        box-shadow:0 3px 12px rgba(23,32,51,0.10);
+        font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        width:min(520px, calc(100vw - 24px)); max-width:520px; min-width:0; box-sizing:border-box;
       ">
-        <div style="display:flex; align-items:center; gap:8px; padding:8px 16px;">
+        <div style="display:flex; align-items:center; gap:6px; padding:8px 10px; flex-wrap:wrap; row-gap:6px;">
           <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></span>
           <span style="font-size:13px;font-weight:600;color:#334155;white-space:nowrap;">周边项目对比</span>
           <span style="font-size:11px;color:#94a3b8;">|</span>
@@ -1379,13 +1379,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (!document.getElementById("marker-bounce-style")) {
       const style = document.createElement("style");
       style.id = "marker-bounce-style";
-      style.textContent = `@keyframes markerBounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}50%{transform:translateY(0)}70%{transform:translateY(-5px)}}`;
+      style.textContent = `@keyframes markerBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}`;
       document.head.appendChild(style);
     }
     // 先清除再强制回流，确保重复触发也能播放动画
     el.style.animation = "none";
     el.offsetHeight; // force reflow
-    el.style.animation = "markerBounce 0.6s ease-in-out";
+    el.style.animation = "markerBounce 0.22s ease-out";
   }
 
   public stopBounceMarker(buildingId: string) {
@@ -1978,7 +1978,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const notes = escapeHtml(supply.notes || "无");
 
     return `
-      <div style="width: 300px; font-family: ui-sans-serif, system-ui, -apple-system; background: #ffffff; padding: 4px;">
+      <div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
         <div style="margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 8px;">
            <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">未来供应</span>
            <span style="font-size:16px; font-weight:900; color:#0f172a;">${this._mask(name)}</span>
@@ -2550,7 +2550,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     };
 
     return `
-      <div style="width: 360px; font-family: ui-sans-serif, system-ui, -apple-system; background: #ffffff; padding: 4px;">
+      <div style="width:min(360px, calc(100vw - 72px)); max-width:360px; min-width:260px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
 
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <div title="${escapeHtml(name)}" style="font-size:16px; font-weight:900; color:#0f172a; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${this._mask(name)}</div>
