@@ -1,0 +1,79 @@
+name: Apply Home QA fixes on branch
+
+on:
+  push:
+    branches: [fix/home-visual-rebuild-zh]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: home-product-fix-push
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/home-visual-rebuild-zh
+          fetch-depth: 0
+      - name: Apply browser-observed fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/components/home/HomeWorkspace.tsx')
+          s=p.read_text()
+          if '2xl:max-w-[1360px]' in s and 'h-[104px] animate-pulse' in s:
+              raise SystemExit(0)
+          header='className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8"'
+          if header not in s: raise SystemExit('Header source changed; refusing unsafe edit')
+          s=s.replace(header, 'className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]"', 1)
+          start=s.index('function HomeLoadingShell() {')
+          end=s.index('\n\nexport function HomeWorkspace()', start)
+          new='''function HomeLoadingShell() {
+  return (
+    <WorkspaceShell
+      className="h-screen h-[100dvh] overflow-hidden"
+      header={(
+        <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]">
+          <div className="h-7 w-[220px] max-w-[calc(100%-64px)] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:w-[231px]" />
+          <div className="h-10 w-[52px] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:h-9 sm:w-[88px]" />
+        </div>
+      )}
+    >
+      <div className="h-full overflow-hidden">
+        <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
+          <section className="min-w-0">
+            <div className="h-[104px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+            <div className="mb-2.5 mt-5"><div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /></div>
+            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
+              {[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
+            </div>
+          </section>
+          <aside className="hidden min-w-0 border-l border-[var(--cd-color-border)] pl-6 lg:block xl:pl-7">
+            <div className="mb-2.5 h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
+            <div className="h-[320px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+          </aside>
+        </div>
+      </div>
+    </WorkspaceShell>
+  );
+}'''
+          s=s[:start]+new+s[end:]
+          loaded='className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9"'
+          if loaded not in s: raise SystemExit('Loaded grid source changed; refusing unsafe edit')
+          s=s.replace(loaded, 'className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]"', 1)
+          p.write_text(s)
+          PY
+      - name: Commit and push
+        shell: bash
+        run: |
+          if git diff --quiet -- src/components/home/HomeWorkspace.tsx; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/home/HomeWorkspace.tsx
+          git commit -m "fix: align Home loading shell and wide-screen proportions"
+          git push origin HEAD:fix/home-visual-rebuild-zh
