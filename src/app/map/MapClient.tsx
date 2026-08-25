@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import dynamic from 'next/dynamic';
 import type { SidebarFilterState, CompareGroup, SidebarFilterCommand } from '@/src/components/SidebarFilter';
 import { getSession } from '@/src/services/Auth';
 import { useAppSession } from '@/src/components/SessionProvider';
@@ -9,8 +10,6 @@ import type { MapController } from '@/src/services/MapController';
 import { logAction } from '@/src/utils/audit';
 import { createLatestFrameScheduler, type LatestFrameScheduler } from '@/src/utils/frameCoalescer';
 import { retryAsync } from '@/src/utils/retryAsync';
-// 管理员编辑楼宇指标数据弹窗
-import { BuildingMetricsEditModal } from '@/src/components/map/BuildingMetricsEditModal';
 import {
   MAP_DISTRICTS as MOCK_DISTRICTS,
   buildActiveFilterChips,
@@ -25,6 +24,13 @@ import {
 import { MapDataStore } from './model/MapDataStore';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
+
+// Admin-only editing is never part of the normal Map path. Keep its Supabase,
+// audit and form runtime out of the MapClient chunk until an admin opens it.
+const BuildingMetricsEditModal = dynamic(
+  () => import('@/src/components/map/BuildingMetricsEditModal').then(module => module.BuildingMetricsEditModal),
+  { ssr: false },
+);
 
 function MapAuthLoading() { 
   return ( 

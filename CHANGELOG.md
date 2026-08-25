@@ -21,6 +21,42 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Data 2.0 Performance Hardening
+
+### Area
+Map / route loading / Trend / production bundle / performance regression
+
+### What changed
+
+- Established reproducible 100/300/500-building MapDataStore and marker-construction baselines before changing runtime code.
+- Removed the duplicate first marker build previously triggered once by `MapController.initMap()` and again by the managed `MapClient` lifecycle.
+- Started the lazy Trend ECharts runtime import in parallel with the building-history query after explicit Trend intent, preserving existing stale-render race guards.
+- Moved the admin-only `BuildingMetricsEditModal` behind a client-side dynamic import so normal Map entry no longer eagerly includes that secondary editor surface.
+- Added stable source-contract regression coverage for the single initial marker owner, Trend lazy/parallel loading order, route-shell split, and admin-only chunk split.
+- Recorded measured baselines and explicit `unable to measure` browser rows in `docs/performance-baseline.md`; no wall-clock timing was added as a CI gate.
+
+### Why
+
+Profiling showed that indexed filtering was already negligible at 500 buildings, while Map entry contained duplicate marker work and Trend contained a true serial waterfall. The changes therefore target proven structural waste rather than adding speculative memoization, caches, virtualization, or database changes.
+
+### Impact
+
+- Permissions, role filtering, map/filter results, compare groups, Admin behavior, audit logging, database schema and RLS remain unchanged.
+- MapClient is now the single owner of first role-aware marker rendering.
+- Trend remains lazy relative to Map startup but no longer waits for the history request before beginning its chunk load.
+
+### Verification
+
+- Baseline GitHub Actions: Typecheck, Lint, Test (238 tests), Production Build all passed.
+- Final acceptance requires the clean post-profiling head, with temporary timing/workflow files removed, to pass the same four gates.
+
+### Follow-up
+
+- Capture real authenticated Chrome Performance/React Profiler/network traces when a production-like office-map deployment is available; do not infer AMap overlay or InfoWindow latency from fake objects.
+
+
+---
+
 ## 2026-08-25 — Admin / Research Library 2.0
 
 ### Area

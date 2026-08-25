@@ -1,6 +1,6 @@
 # Colliers Data 2.0 performance baseline
 
-This document defines the measurement contract for the UI 2.0 refactor. It deliberately separates perceived responsiveness from backend latency so later changes can be compared against the same baseline.
+This document defines the measurement contract for Data 2.0 and records the 2026-08-25 Performance Hardening pass. It deliberately separates measured CPU work, structural waterfalls and browser/network latency. Numbers are never invented when an authenticated production-like browser target is unavailable.
 
 ## User-perceived targets
 
@@ -14,75 +14,94 @@ This document defines the measurement contract for the UI 2.0 refactor. It delib
 | INP | < 200 ms |
 | CLS | As close to 0 as practical |
 
-These are product targets, not synthetic-benchmark acceptance hacks. A route can still be considered slow when server data takes longer, but the shell and user feedback must remain immediate.
+These are product targets, not synthetic-benchmark acceptance gates.
 
-## Baseline scenarios
+## Performance Hardening — 2026-08-25
 
-Record each scenario on a representative production-like dataset. Use the same browser, device class, network profile, account/role, and data snapshot when comparing before/after results.
+### Measurement environment and limits
 
-### Home
+The repository did not expose an authenticated office-map Vercel deployment through the connected deployment account, so Chrome Performance/React Profiler/network timings for the real AMap + Supabase runtime could not be captured reliably in this pass. Those rows are explicitly marked `unable to measure` rather than inferred from code.
 
-- Sign-in -> home interactive
-- Home -> Map navigation
+Measurements that were reproducible in GitHub Actions used Node 22 + Vitest on Ubuntu with synthetic datasets of 100, 300 and 500 buildings and 20 quarterly metric rows per building. Timing output was diagnostic only and is not a CI threshold. The temporary timing harness was removed before merge.
 
-### Map
+### Baseline findings
 
-- Map shell first visible
-- Map first interactive
-- First building marker visible
-- Filter -> visible map update
-- Search -> building focus
-- Building click -> detail surface visible
-- Compare -> result rendered
+`MapDataStore` is not a current hotspot. On the 500-building synthetic dataset, mean store filter CPU time was approximately:
 
-### Quarterly Update
+| Operation | Baseline mean |
+| --- | ---: |
+| District | 0.051 ms |
+| Submarket | 0.049 ms |
+| LEED | 0.052 ms |
+| Two numeric predicates | 0.150 ms |
+| `replaceBuildings` index rebuild | 0.225 ms |
 
-- Workspace first interactive
-- First table rows visible
-- Cell edit latency
-- Save latency
+The synthetic 500-building `MapController.renderMarkers` path constructed 1,005 marker objects (full building markers + dot markers + submarket markers) and took about 4.42 ms with fake AMap objects. This proves the allocation count, but not the cost of real AMap overlays. The controller was therefore not rewritten or virtualized without browser evidence.
 
-### Lease Submission
+### Confirmed bottlenecks and changes
 
-- Workspace first interactive
-- Building search response
-- Submit latency
+1. **Duplicate first marker render.** `MapController.initMap()` independently fetched/rendered markers, while `MapClient` then loaded the same cached data, applied role visibility and performed the managed first render. Network request caching prevented a duplicate buildings request, but the complete marker construction path ran twice. `MapClient` is now the single owner of first data/render orchestration; the controller no longer auto-renders during `initMap()`.
+2. **Trend waterfall.** The Trend path previously waited for Supabase history before starting the dynamic ECharts runtime import. The import now starts immediately after explicit Trend intent and runs in parallel with the history query. Existing building-switch and panel-close race guards remain in place. ECharts remains excluded from Map startup because the import is still inside the Trend click path.
+3. **Admin-only dependency in the normal Map client graph.** `BuildingMetricsEditModal` was statically imported by `MapClient` even though only admins opening the editor need it. It is now a client-only dynamic import.
 
-### Admin
+### Before / after
 
-- Database workspace first interactive
-- Tab switch
-- AG Grid first useful render
+| Scenario | Before | After | Improvement |
+| --- | ---: | ---: | ---: |
+| Map entry | Real browser wall-clock: unable to measure; first marker construction path executed **2×** | Real browser wall-clock: unable to measure; first marker construction path executes **1×** | Removed one full duplicate marker build/render after AMap initialization |
+| District filter | ~0.051 ms store CPU at 500 buildings | Same indexed path; no optimization applied | Already far below the 250 ms product budget at the store layer |
+| Submarket filter | ~0.049 ms store CPU at 500 buildings | Same indexed path; no optimization applied | Already far below budget |
+| LEED filter | ~0.052 ms store CPU at 500 buildings | Same indexed path; no optimization applied | Already far below budget |
+| Numeric filter | ~0.150 ms store CPU at 500 buildings | Same indexed path; no optimization applied | Already far below budget |
+| Marker → Detail / InfoWindow | unable to measure with real AMap | unable to measure with real AMap | No speculative InfoWindow/controller rewrite |
+| First Trend open | Real wall-clock unavailable; dependency order was **history query → ECharts import → render** | Real wall-clock unavailable; dependency order is **history query ∥ ECharts import → render** | Removes serial network/chunk waterfall after user intent |
+| Second Trend open | unable to measure | unable to measure | Browser module cache should avoid another chunk transfer, but no unverified ms claim is recorded |
 
-## Browser/runtime metrics
+### Bundle audit contract
 
-Capture:
+Map startup must not statically import ECharts, XLSX, JSZip, OSS SDK, Markdown editor, or admin/data-entry-only UI. The existing Trend regression test verifies that ECharts lives in `trendChartRuntime` rather than `MapController`; the Performance Hardening regression test additionally verifies that `MapClient` stays behind the route shell and that the admin metrics editor stays behind a secondary dynamic import.
 
-- LCP
-- INP
-- CLS
-- long tasks (> 50 ms)
-- transferred JavaScript
-- JavaScript execution time
-- React render count for targeted interactions
-- API request count
-- Supabase request count
+Production build output and emitted chunks are inspected during this work. If a package name cannot be recovered from minified chunk text, source/import-graph regression is treated as the durable assertion; no bundle byte attribution is fabricated.
 
-`PerformanceReporter` publishes Web Vitals and long-task observations as the browser event `colliers:performance`. In development it also writes them to the console. It intentionally performs no network upload; a later observability phase can subscribe to the event and route measurements to an approved backend.
+### Loading sequence
+
+The intended Map sequence remains:
+
+`route shell → MapClient/core controls → AMap runtime → building data → first markers → secondary features`
+
+`MapRouteGate` already provides a stable shell while `MapClient` loads, so no additional core-component splitting was introduced. Secondary surfaces such as the floating list, admin edit modal, map export and Trend runtime remain lazy.
+
+### Explicit non-optimizations
+
+- No new `MapDataStore` cache/index layer: measured filter CPU is already negligible at 500 buildings.
+- No blanket `useMemo` / `useCallback` pass: no React profiler evidence justified it.
+- No marker virtualization or `MapController` rewrite: synthetic allocation count is known, real AMap overlay cost is not.
+- No list virtualization: existing 50-row slice loading + `IntersectionObserver` remains the simpler implementation until real scroll profiling shows a bottleneck.
+- No Supabase schema/RLS/index change: no measured query evidence justified a database migration.
+- No service worker or global cache layer.
+
+## Browser/runtime metrics for future production profiling
+
+For a production-like authenticated target, capture cold and warm runs separately and record:
+
+- navigation start → route shell
+- MapClient mount → MapController import → AMap ready
+- building data loaded → first markers rendered → usable interaction
+- district/submarket/LEED/numeric change → filtering → marker update → UI settled
+- marker click → InfoWindow visible
+- Trend click → runtime import/data available/chart first render, first and second open
+- LCP, INP, CLS and long tasks (> 50 ms)
+- transferred JavaScript and JavaScript execution time
+- React commit/render count for MapWorkbenchView, SidebarFilter, FloatingBuildingList, Building Detail and chips
+- Supabase request count, duplicate requests and waterfalls
+
+`PerformanceReporter` publishes Web Vitals and long-task observations as the browser event `colliers:performance`. In development it also writes them to the console. It intentionally performs no network upload.
 
 ## Measurement discipline
 
 1. Warm and cold navigation must be recorded separately.
-2. Do not compare a local development build with a production deployment.
+2. Do not compare local development with production deployment.
 3. Record at least three runs for noisy interactions and use the median.
 4. Keep UI responsiveness and network completion as separate timestamps.
-5. Any performance refactor that changes business output must be treated as a product change, not accepted as an optimization shortcut.
-
-## Phase 0 completion condition
-
-Phase 0 is considered established when:
-
-- the above scenarios are reproducible;
-- Web Vitals and long tasks are observable in the browser;
-- subsequent PRs record relevant before/after measurements;
-- no user-facing workflow was intentionally changed merely to improve a benchmark.
+5. Timing tests must not become wall-clock CI gates.
+6. Any performance refactor that changes business output is a product change, not an optimization shortcut.
