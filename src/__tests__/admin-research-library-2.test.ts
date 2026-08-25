@@ -16,19 +16,22 @@ const items: ResearchLibraryItem[] = [
 ];
 
 describe('Admin 2.0 authorization policy', () => {
-  it('keeps the existing admin-only console rule', () => {
-    expect(canAccessAdminConsole({ role: 'admin', email: 'admin@colliers.com' })).toBe(true);
-    expect(canAccessAdminConsole({ role: 'editor', email: 'editor@colliers.com' })).toBe(false);
-    expect(canAccessAdminConsole({ role: 'viewer', email: 'viewer@colliers.com' })).toBe(false);
+  it('authorizes the console for canonical admin or explicit demo mode only', () => {
+    expect(canAccessAdminConsole({ role: 'admin' })).toBe(true);
+    expect(canAccessAdminConsole({ role: 'editor' })).toBe(false);
+    expect(canAccessAdminConsole({ role: 'viewer' })).toBe(false);
+    expect(canAccessAdminConsole({ role: null })).toBe(false);
+    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true })).toBe(true);
   });
 
-  it('preserves the explicit restricted-admin exception', () => {
-    expect(canAccessAdminConsole({ role: 'admin', email: 'judy.li@colliers.com' })).toBe(false);
+  it('blocks admin entry while impersonating', () => {
+    expect(canAccessAdminConsole({ role: 'admin', impersonationActive: true })).toBe(false);
+    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true, impersonationActive: true })).toBe(false);
   });
 
-  it('keeps research-library write roles distinct from general browsing', () => {
+  it('keeps research-library write access on the canonical admin role', () => {
     expect(isResearchLibraryManager('admin')).toBe(true);
-    expect(isResearchLibraryManager('super_admin')).toBe(true);
+    expect(isResearchLibraryManager('super_admin')).toBe(false);
     expect(isResearchLibraryManager('editor')).toBe(false);
   });
 });
