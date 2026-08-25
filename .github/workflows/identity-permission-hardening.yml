@@ -1,0 +1,728 @@
+name: Identity Permission Hardening
+
+on:
+  push:
+    branches:
+      - fix/home-visual-rebuild-zh
+    paths:
+      - .github/workflows/identity-permission-hardening.yml
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/home-visual-rebuild-zh
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply identity and permission hardening
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path): return Path(path).read_text()
+          def write(path, text): Path(path).write_text(text)
+          def replace(path, old, new, count=1):
+              text = read(path)
+              if old not in text:
+                  raise SystemExit(f'missing replacement in {path}: {old[:100]!r}')
+              text2 = text.replace(old, new, count)
+              write(path, text2)
+
+          # Canonical module policy: viewer is read-only; Data Entry requires editor/admin;
+          # Admin requires admin and has a separate restricted-admin identity exception.
+          write('src/config/accessControl.ts', '''import type { UserRole } from '@/src/types/auth';
+
+/** 已认证用户之间的模块角色授权。未认证/未知角色一律由 policy helper fail closed。 */
+export type RestrictedModule = {
+  module: string;
+  href: string;
+  allowedRoles: readonly UserRole[];
+};
+
+export const RESTRICTED_MODULES: readonly RestrictedModule[] = [
+  {
+    module: 'update',
+    href: '/update',
+    allowedRoles: ['editor', 'admin'],
+  },
+  {
+    module: 'lease-submission',
+    href: '/lease-submission',
+    allowedRoles: ['editor', 'admin'],
+  },
+  {
+    module: 'admin',
+    href: '/admin',
+    allowedRoles: ['admin'],
+  },
+];
+''')
+
+          write('src/utils/accessControl.ts', '''import { RESTRICTED_MODULES } from '@/src/config/accessControl';
+import { parseUserRole } from '@/src/types/auth';
+
+export const RESTRICTED_ADMIN_EMAILS = new Set(['judy.li@colliers.com']);
+
+export type ModuleAccessReason =
+  | 'invalid_role'
+  | 'role_not_allowed'
+  | 'restricted_admin'
+  | 'impersonation_read_only';
+
+export type ModuleAccessOptions = {
+  email?: string | null;
+  isImpersonating?: boolean;
+};
+
+export type ModuleAccessDecision = {
+  allowed: boolean;
+  reason?: ModuleAccessReason;
+};
+
+export function isModuleRestricted(moduleId: string): boolean {
+  return RESTRICTED_MODULES.some(module => module.module === moduleId);
+}
+
+export function isUserAdmin(role: string | null | undefined): boolean {
+  return parseUserRole(role) === 'admin';
+}
+
+export function isRestrictedAdminEmail(email: string | null | undefined): boolean {
+  const normalized = email?.trim().toLowerCase() ?? '';
+  return Boolean(normalized) && RESTRICTED_ADMIN_EMAILS.has(normalized);
+}
+
+export function isRestrictedAdminIdentity(params: {
+  role: string | null | undefined;
+  email?: string | null;
+}): boolean {
+  return isUserAdmin(params.role) && isRestrictedAdminEmail(params.email);
+}
+
+/** Single source of truth for client module visibility and route decisions. */
+export function getModuleAccessDecision(
+  moduleId: string,
+  userRole: string | null | undefined,
+  options: ModuleAccessOptions = {},
+): ModuleAccessDecision {
+  const role = parseUserRole(userRole);
+  if (!role) return { allowed: false, reason: 'invalid_role' };
+
+  if (moduleId === 'admin') {
+    if (options.isImpersonating) return { allowed: false, reason: 'impersonation_read_only' };
+    if (isRestrictedAdminIdentity({ role, email: options.email })) {
+      return { allowed: false, reason: 'restricted_admin' };
+    }
+  }
+
+  const restriction = RESTRICTED_MODULES.find(module => module.module === moduleId);
+  if (restriction && !restriction.allowedRoles.includes(role)) {
+    return { allowed: false, reason: 'role_not_allowed' };
+  }
+
+  return { allowed: true };
+}
+
+export function canAccessModule(
+  moduleId: string,
+  userRole: string | null | undefined,
+  options: ModuleAccessOptions = {},
+): boolean {
+  return getModuleAccessDecision(moduleId, userRole, options).allowed;
+}
+
+export function getRoleLabel(
+  role: string | null | undefined,
+  email?: string | null,
+): string {
+  const parsed = parseUserRole(role);
+  if (parsed === 'admin') return isRestrictedAdminEmail(email) ? '受限管理员' : '管理员';
+  if (parsed === 'editor') return '编辑用户';
+  if (parsed === 'viewer') return '查看用户';
+  return '未知角色';
+}
+
+export type ModuleStyles = {
+  cardClass: string;
+  iconClass: string;
+  textClass: string;
+  cursorClass: string;
+};
+
+export function getModuleStyles(
+  moduleId: string,
+  userRole: string | null | undefined,
+  options: ModuleAccessOptions = {},
+): ModuleStyles {
+  if (canAccessModule(moduleId, userRole, options)) {
+    return {
+      cardClass: 'group relative flex flex-1 items-center justify-between rounded-xl border border-zinc-200/60 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md',
+      iconClass: 'text-zinc-500 transition group-hover:text-primary',
+      textClass: 'text-[13px] font-semibold tracking-tight text-zinc-900 group-hover:text-primary',
+      cursorClass: 'cursor-pointer',
+    };
+  }
+  return {
+    cardClass: 'relative flex flex-1 items-center justify-between rounded-xl border border-zinc-200/60 bg-zinc-100 px-4 py-3 shadow-sm cursor-not-allowed',
+    iconClass: 'text-zinc-400 opacity-50',
+    textClass: 'text-[13px] font-semibold tracking-tight text-zinc-400',
+    cursorClass: 'cursor-not-allowed',
+  };
+}
+
+export type AccessibilityProps = {
+  'aria-disabled'?: 'true';
+  'aria-label'?: string;
+  role?: string;
+};
+
+export function getAccessibilityProps(
+  moduleId: string,
+  moduleTitle: string,
+  userRole: string | null | undefined,
+  options: ModuleAccessOptions = {},
+): AccessibilityProps {
+  if (!canAccessModule(moduleId, userRole, options)) {
+    return {
+      'aria-disabled': 'true',
+      'aria-label': `${moduleTitle} - 当前角色无权访问`,
+      role: 'link',
+    };
+  }
+  return { role: 'link' };
+}
+''')
+
+          write('src/utils/adminAccess.ts', '''import {
+  RESTRICTED_ADMIN_EMAILS,
+  canAccessModule,
+  isRestrictedAdminEmail,
+  isUserAdmin,
+} from '@/src/utils/accessControl';
+
+export { RESTRICTED_ADMIN_EMAILS, isRestrictedAdminEmail };
+
+export function isAdminRole(role: string | null | undefined): boolean {
+  return isUserAdmin(role);
+}
+
+export function isResearchLibraryManager(role: string | null | undefined): boolean {
+  return isUserAdmin(role);
+}
+
+/** Demo is presentation-only and never grants authorization. */
+export function canAccessAdminConsole(params: {
+  role: string | null | undefined;
+  email?: string | null;
+  isDemo?: boolean;
+  isImpersonating?: boolean;
+}): boolean {
+  return canAccessModule('admin', params.role, {
+    email: params.email,
+    isImpersonating: params.isImpersonating,
+  });
+}
+''')
+
+          # Home: remove Demo elevation/hard-coded identity, use shared decision, expose restricted admin clearly.
+          p = 'src/components/home/HomeWorkspace.tsx'
+          t = read(p)
+          t = t.replace("import { isDemoMode } from '@/src/config/demoMode';\n", "")
+          t = t.replace("import { signOut } from '@/src/services/Auth';", "import { clearImpersonationCache, getSession, signOut } from '@/src/services/Auth';")
+          t = t.replace("import { useAppSession } from '@/src/components/SessionProvider';", "import { useAppSession } from '@/src/components/SessionProvider';\nimport { useImpersonation } from '@/src/contexts/ImpersonationContext';")
+          t = t.replace("  canAccessModule,\n  getAccessibilityProps,\n  isModuleRestricted,\n  isUserAdmin,", "  canAccessModule,\n  getAccessibilityProps,\n  getModuleAccessDecision,\n  getRoleLabel,\n  isUserAdmin,")
+          t = re.sub(r"\nfunction getRoleLabel\(role: string, isAdmin: boolean\) \{.*?\n\}\n", "\n", t, flags=re.S)
+          t = t.replace("  canSeeAdminWorkspace,\n  onLogout,", "  canSeeAdminWorkspace,\n  isImpersonating,\n  isLoggingOut,\n  onLogout,")
+          t = t.replace("  canSeeAdminWorkspace: boolean;\n  onLogout: () => void;", "  canSeeAdminWorkspace: boolean;\n  isImpersonating: boolean;\n  isLoggingOut: boolean;\n  onLogout: () => void;")
+          old = """  const isRestrictedAdmin = email === 'judy.li@colliers.com';
+  const isAdmin = isUserAdmin(role) && !isRestrictedAdmin;
+  const roleLabel = getRoleLabel(role, isAdmin);
+  const adminCanAccess = canAccessModule(ADMIN_WORKSPACE.module, role);
+  const adminAccessibilityProps = getAccessibilityProps(ADMIN_WORKSPACE.module, ADMIN_WORKSPACE.title, role);"""
+          new = """  const roleLabel = getRoleLabel(role, email);
+  const adminDecision = getModuleAccessDecision(ADMIN_WORKSPACE.module, role, { email, isImpersonating });
+  const adminCanAccess = adminDecision.allowed;
+  const adminAccessibilityProps = getAccessibilityProps(ADMIN_WORKSPACE.module, ADMIN_WORKSPACE.title, role, { email, isImpersonating });"""
+          if old not in t: raise SystemExit('Home header policy block not found')
+          t = t.replace(old, new)
+          t = t.replace("                onClick={() => {\n                  setMenuOpen(false);\n                  onLogout();\n                }}", "                disabled={isLoggingOut}\n                aria-busy={isLoggingOut}\n                onClick={() => {\n                  setMenuOpen(false);\n                  onLogout();\n                }}")
+          t = t.replace("                退出登录\n", "                {isLoggingOut ? '正在退出…' : '退出登录'}\n")
+          t = t.replace("  const { session: ctx, status } = useAppSession();", "  const { session: ctx, status } = useAppSession();\n  const { isImpersonating } = useImpersonation();")
+          t = t.replace("  const [showCommunication, setShowCommunication] = React.useState(false);", "  const [showCommunication, setShowCommunication] = React.useState(false);\n  const [isLoggingOut, setIsLoggingOut] = React.useState(false);")
+          old = """  const activeSession = ctx;
+  const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';
+  const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;
+  const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);
+
+  async function handleLogout() {
+    try {
+      if (activeSession.user.email) await logActionImmediate(activeSession.user.email, 'LOGOUT', { platform: 'web' });
+      await signOut();
+      window.location.href = '/login';
+    } catch {
+      window.location.href = '/login';
+    }
+  }"""
+          new = """  const activeSession = ctx;
+  const canSeeAdminWorkspace = isUserAdmin(activeSession.role) && !isImpersonating;
+
+  async function handleLogout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      if (isImpersonating) clearImpersonationCache();
+      const auditSession = isImpersonating ? await getSession().catch(() => null) : activeSession;
+      if (auditSession?.user.email) {
+        await logActionImmediate(auditSession.user.email, 'LOGOUT', { platform: 'web' });
+      }
+      await signOut();
+    } finally {
+      window.location.href = '/login';
+    }
+  }"""
+          if old not in t: raise SystemExit('Home session/logout block not found')
+          t = t.replace(old, new)
+          old = """    const restricted = isModuleRestricted(workspace.module);
+    const admin = isUserAdmin(activeSession.role);
+    const canAccess = canAccessModule(workspace.module, activeSession.role);
+
+    if (activeSession.user.email) {
+      const details: Record<string, unknown> = { module: workspace.module, blocked: !canAccess };
+      if (restricted && !admin) details.reason = 'restricted_module';
+      logAction(activeSession.user.email, 'ENTER_MODULE', details);
+    }
+
+    if (!canAccess) { event.preventDefault(); return; }"""
+          new = """    const admin = isUserAdmin(activeSession.role);
+    const decision = getModuleAccessDecision(workspace.module, activeSession.role, {
+      email: activeSession.user.email,
+      isImpersonating,
+    });
+    const canAccess = decision.allowed;
+
+    if (activeSession.user.email && (workspace.module !== 'admin' || !canAccess)) {
+      const details: Record<string, unknown> = { module: workspace.module, blocked: !canAccess };
+      if (!canAccess && decision.reason) details.reason = decision.reason;
+      logAction(activeSession.user.email, 'ENTER_MODULE', details);
+    }
+
+    if (!canAccess) { event.preventDefault(); return; }"""
+          if old not in t: raise SystemExit('Home evaluate block not found')
+          t = t.replace(old, new)
+          t = t.replace("            canSeeAdminWorkspace={canSeeAdminWorkspace}\n            onLogout", "            canSeeAdminWorkspace={canSeeAdminWorkspace}\n            isImpersonating={isImpersonating}\n            isLoggingOut={isLoggingOut}\n            onLogout")
+          write(p, t)
+
+          # Admin guard: real session only, but shared console policy; Demo no elevation; impersonation cannot enter.
+          p = 'src/app/admin/layout.tsx'
+          t = read(p)
+          t = t.replace("import { getSession, signOut } from '@/src/services/Auth';\nimport { isDemoMode } from '@/src/config/demoMode';\nimport { canAccessAdminConsole } from '@/src/utils/adminAccess';", "import { getSession, signOut } from '@/src/services/Auth';\nimport { logAction, logActionImmediate } from '@/src/utils/audit';\nimport { getModuleAccessDecision } from '@/src/utils/accessControl';")
+          t = t.replace("  const [allowed, setAllowed] = React.useState(false);", "  const [allowed, setAllowed] = React.useState(false);\n  const [currentEmail, setCurrentEmail] = React.useState('');\n  const [isLoggingOut, setIsLoggingOut] = React.useState(false);")
+          old = """        const permitted = Boolean(session) && canAccessAdminConsole({
+          role: session?.role,
+          email: session?.user?.email,
+          isDemo: isDemoMode(session?.user?.email),
+        });
+
+        if (!permitted) {
+          router.replace('/');
+          return;
+        }
+
+        setAllowed(true);
+        setReady(true);"""
+          new = """        const isImpersonating = typeof window !== 'undefined' && Boolean(sessionStorage.getItem('__impersonation_state'));
+        const decision = getModuleAccessDecision('admin', session?.role, {
+          email: session?.user?.email,
+          isImpersonating,
+        });
+
+        if (!session || !decision.allowed) {
+          if (session?.user?.email && !isImpersonating) {
+            logAction(session.user.email, 'ENTER_MODULE', { module: 'admin', blocked: true, reason: decision.reason });
+          }
+          router.replace('/');
+          return;
+        }
+
+        setCurrentEmail(session.user.email ?? '');
+        logAction(session.user.email, 'ENTER_MODULE', { module: 'admin', blocked: false, source: 'route_guard' });
+        setAllowed(true);
+        setReady(true);"""
+          if old not in t: raise SystemExit('Admin guard block not found')
+          t = t.replace(old, new)
+          old = """  async function handleLogout() {
+    try {
+      await signOut();
+    } finally {
+      window.location.href = '/login';
+    }
+  }"""
+          new = """  async function handleLogout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      if (currentEmail) await logActionImmediate(currentEmail, 'LOGOUT', { platform: 'web', source: 'admin' });
+      await signOut();
+    } finally {
+      window.location.href = '/login';
+    }
+  }"""
+          if old not in t: raise SystemExit('Admin logout block not found')
+          t = t.replace(old, new)
+          t = t.replace("<button type=\"button\" onClick={handleLogout} className=", "<button type=\"button\" onClick={handleLogout} disabled={isLoggingOut} aria-busy={isLoggingOut} className=")
+          t = t.replace("              退出\n            </button>", "              {isLoggingOut ? '退出中…' : '退出'}\n            </button>")
+          write(p, t)
+
+          # Lease direct guard uses the same module policy and records blocked reason.
+          p = 'src/app/lease-submission/layout.tsx'
+          t = read(p)
+          t = t.replace("import { canAccessModule } from '@/src/utils/accessControl';", "import { getModuleAccessDecision } from '@/src/utils/accessControl';\nimport { logAction } from '@/src/utils/audit';")
+          old = """        if (!canAccessModule('lease-submission', session.role)) {
+          router.replace('/');
+          return;
+        }
+
+        setAuthorized(true);"""
+          new = """        const decision = getModuleAccessDecision('lease-submission', session.role, { email: session.user.email });
+        if (!decision.allowed) {
+          if (session.user.email) logAction(session.user.email, 'ENTER_MODULE', { module: 'lease-submission', blocked: true, reason: decision.reason, source: 'route_guard' });
+          router.replace('/');
+          return;
+        }
+
+        setAuthorized(true);"""
+          if old not in t: raise SystemExit('Lease guard decision not found')
+          t = t.replace(old, new)
+          write(p, t)
+
+          # Quarterly: use canonical helper before DB work; keep DB role check as defense in depth.
+          p = 'src/app/update/components/QuarterlyUpdateWorkspace.tsx'
+          t = read(p)
+          t = t.replace("import { logAction } from '@/src/utils/audit';", "import { logAction } from '@/src/utils/audit';\nimport { getModuleAccessDecision } from '@/src/utils/accessControl';")
+          old = """        const user = session.user;
+        setCurrentUser(user);"""
+          new = """        const user = session.user;
+        const moduleDecision = getModuleAccessDecision('update', session.role, { email: user.email });
+        if (!moduleDecision.allowed) {
+          if (user.email) logAction(user.email, 'ENTER_MODULE', { module: 'update', blocked: true, reason: moduleDecision.reason, source: 'route_guard' });
+          router.replace('/');
+          return;
+        }
+        setCurrentUser(user);"""
+          if old not in t: raise SystemExit('Quarterly session block not found')
+          t = t.replace(old, new)
+          write(p, t)
+
+          # Demo never elevates Lease team monitoring. Impersonation is read-only on all write controls.
+          p = 'src/app/lease-submission/page.tsx'
+          t = read(p)
+          t = t.replace("import { isDemoMode } from '@/src/config/demoMode';\n", "")
+          t = t.replace("import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';", "import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';\nimport { useImpersonation } from '@/src/contexts/ImpersonationContext';")
+          t = t.replace("  onTransfer: (record: LeaseTransaction) => void;\n}", "  onTransfer: (record: LeaseTransaction) => void;\n  readOnly?: boolean;\n}")
+          t = t.replace("function MySubmissionTable({ items, userName, onEdit, onTransfer }: HistoryProps)", "function MySubmissionTable({ items, userName, onEdit, onTransfer, readOnly = false }: HistoryProps)")
+          old_actions = """<div className=\"inline-flex gap-1\"><button type=\"button\" onClick={() => onEdit(item)} className=\"inline-flex items-center gap-1 rounded-[4px] border border-zinc-200 px-2 py-1 text-[10px] font-semibold text-[#003e7e] hover:bg-[#003e7e]/5\"><Edit2 size={11} /> 编辑</button><button type=\"button\" onClick={() => onTransfer(item)} className=\"inline-flex items-center gap-1 rounded-[4px] border border-zinc-200 px-2 py-1 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50\"><Gift size={11} /> 转交</button></div>"""
+          new_actions = """{readOnly ? <span className=\"text-[10px] text-zinc-400\">只读</span> : <div className=\"inline-flex gap-1\"><button type=\"button\" onClick={() => onEdit(item)} className=\"inline-flex items-center gap-1 rounded-[4px] border border-zinc-200 px-2 py-1 text-[10px] font-semibold text-[#003e7e] hover:bg-[#003e7e]/5\"><Edit2 size={11} /> 编辑</button><button type=\"button\" onClick={() => onTransfer(item)} className=\"inline-flex items-center gap-1 rounded-[4px] border border-zinc-200 px-2 py-1 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-50\"><Gift size={11} /> 转交</button></div>}"""
+          if old_actions not in t: raise SystemExit('Lease table actions not found')
+          t = t.replace(old_actions, new_actions)
+          t = t.replace("  const router = useRouter();", "  const router = useRouter();\n  const { isImpersonating } = useImpersonation();", 1)
+          t = t.replace("    const admin = isUserAdmin(role);", "    const admin = isUserAdmin(role) && !isImpersonating;")
+          t = t.replace("  }, []);", "  }, [isImpersonating]);", 1)
+          t = t.replace("  const openCreate = () => {\n    setEditingRecord", "  const openCreate = () => {\n    if (isImpersonating) return;\n    setEditingRecord")
+          t = t.replace("  const openEdit = (record: LeaseTransaction) => {\n    setEditingRecord", "  const openEdit = (record: LeaseTransaction) => {\n    if (isImpersonating) return;\n    setEditingRecord")
+          t = t.replace("  const openTransfer = async (record: LeaseTransaction) => {\n    setTransferringRecord", "  const openTransfer = async (record: LeaseTransaction) => {\n    if (isImpersonating) return;\n    setTransferringRecord")
+          t = t.replace("  const confirmTransfer = async () => {\n    if (!transferringRecord", "  const confirmTransfer = async () => {\n    if (isImpersonating) return;\n    if (!transferringRecord")
+          t = t.replace("  const admin = isUserAdmin(userRole);", "  const admin = isUserAdmin(userRole) && !isImpersonating;")
+          t = t.replace("{(admin || isDemoMode(userEmail)) && <Link href=\"/lease-submission/monitoring\"", "{admin && <Link href=\"/lease-submission/monitoring\"")
+          t = t.replace("<button type=\"button\" onClick={openCreate} className=\"inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3 text-[11px] font-semibold text-white hover:bg-[#003566]\"><Plus size={13} /> 新增成交</button>", "<button type=\"button\" onClick={openCreate} disabled={isImpersonating} aria-disabled={isImpersonating} title={isImpersonating ? '模拟模式仅供查看，不能写入数据' : undefined} className=\"inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:cursor-not-allowed disabled:opacity-50\"><Plus size={13} /> {isImpersonating ? '模拟模式只读' : '新增成交'}</button>")
+          t = t.replace("<MySubmissionTable items={submissions} userName={userName} onEdit={openEdit} onTransfer={openTransfer} />", "<MySubmissionTable items={submissions} userName={userName} onEdit={openEdit} onTransfer={openTransfer} readOnly={isImpersonating} />")
+          write(p, t)
+
+          # Monitoring: no Demo authorization bypass.
+          p = 'src/app/lease-submission/monitoring/page.tsx'
+          t = read(p)
+          t = t.replace("import { isDemoMode } from '@/src/config/demoMode';\n", "")
+          t = t.replace("        const isDemo = isDemoMode(session.user?.email);\n        if (!isUserAdmin(session.role) && !isDemo) {", "        if (!isUserAdmin(session.role)) {")
+          write(p, t)
+
+          # Research: consume impersonation context rather than another sessionStorage permission rule.
+          p = 'src/components/OSSManager.tsx'
+          t = read(p)
+          if "useImpersonation" not in t:
+              anchor = "import {"
+              # add near Auth import when available
+              if "from '@/src/services/Auth';" in t:
+                  t = t.replace("from '@/src/services/Auth';", "from '@/src/services/Auth';\nimport { useImpersonation } from '@/src/contexts/ImpersonationContext';", 1)
+              else:
+                  t = t.replace("'use client';", "'use client';\n\nimport { useImpersonation } from '@/src/contexts/ImpersonationContext';", 1)
+          # tolerate existing local state pattern
+          t = t.replace("  const [isImpersonating, setIsImpersonating] = React.useState(false);", "  const { isImpersonating } = useImpersonation();")
+          t = re.sub(r"\n  React\.useEffect\(\(\) => \{\n    try \{\n      setIsImpersonating\(Boolean\(sessionStorage\.getItem\('__impersonation_state'\)\)\);\n    \} catch \{\n      setIsImpersonating\(false\);\n    \}\n  \}, \[\]\);", "", t)
+          write(p, t)
+
+          # Map: simulated admin can see target-scope data but cannot enter admin edit mode.
+          p = 'src/app/map/MapClient.tsx'
+          t = read(p)
+          if "useImpersonation" not in t:
+              t = t.replace("import { useAppSession } from '@/src/components/SessionProvider';", "import { useAppSession } from '@/src/components/SessionProvider';\nimport { useImpersonation } from '@/src/contexts/ImpersonationContext';")
+          t = t.replace("  const { session: appSession, status: appSessionStatus } = useAppSession();", "  const { session: appSession, status: appSessionStatus } = useAppSession();\n  const { isImpersonating } = useImpersonation();")
+          t = t.replace("    currentUserId,\n    onEditBuildingMetrics", "    currentUserId,\n    adminEditingEnabled: !isImpersonating,\n    onEditBuildingMetrics")
+          write(p, t)
+
+          p = 'src/app/map/runtime/useMapRuntime.ts'
+          t = read(p)
+          t = t.replace("  currentUserId: string | null;\n  onEditBuildingMetrics", "  currentUserId: string | null;\n  adminEditingEnabled?: boolean;\n  onEditBuildingMetrics")
+          t = t.replace("  currentUserId,\n  onEditBuildingMetrics,", "  currentUserId,\n  adminEditingEnabled = true,\n  onEditBuildingMetrics,")
+          t = t.replace("    const isAdmin = roleRef.current === 'admin';", "    const isAdmin = adminEditingEnabled && roleRef.current === 'admin';")
+          t = t.replace("  }, []);", "  }, [adminEditingEnabled]);", 1)
+          write(p, t)
+
+          # Settings: expose canonical identity/access and make account writes fail closed while impersonating.
+          p = 'src/app/settings/page.tsx'
+          t = read(p)
+          t = t.replace("import { clearSessionCache, getSessionFast } from '@/src/services/Auth';", "import { clearSessionCache, getSessionFast } from '@/src/services/Auth';\nimport { useImpersonation } from '@/src/contexts/ImpersonationContext';\nimport { getModuleAccessDecision, getRoleLabel } from '@/src/utils/accessControl';")
+          t = t.replace("  const router = useRouter();", "  const router = useRouter();\n  const { isImpersonating } = useImpersonation();")
+          t = t.replace("  const [displayName, setDisplayName] = React.useState('');", "  const [displayName, setDisplayName] = React.useState('');\n  const [userRole, setUserRole] = React.useState('');")
+          t = t.replace("        setDisplayName(session.displayName ?? '');", "        setDisplayName(session.displayName ?? '');\n        setUserRole(session.role ?? '');")
+          t = t.replace("    setMessage(null);", "    setMessage(null);\n    if (isImpersonating) { setMessage({ type: 'error', text: '模拟模式仅供查看，不能修改真实账号密码' }); return; }")
+          marker = "  const isLoadingUser = !userEmail;"
+          repl = "  const isLoadingUser = !userEmail;\n  const adminDecision = getModuleAccessDecision('admin', userRole, { email: userEmail, isImpersonating });\n  const roleLabel = getRoleLabel(userRole, userEmail);"
+          t = t.replace(marker, repl)
+          identity_anchor = """            {passwordChangeRequired && (
+              <div className=\"mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-700\">
+                首次登录需先修改临时密码。
+              </div>
+            )}"""
+          identity_new = identity_anchor + """
+            <div className=\"mb-4 grid grid-cols-2 gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-[11px]\">
+              <div><span className=\"text-zinc-400\">当前身份</span><div className=\"mt-0.5 font-medium text-zinc-700\">{roleLabel}{isImpersonating ? ' · 模拟只读' : ''}</div></div>
+              <div><span className=\"text-zinc-400\">系统管理</span><div className=\"mt-0.5 font-medium text-zinc-700\">{adminDecision.allowed ? '可访问' : '无访问权限'}</div></div>
+            </div>
+            {isImpersonating && (
+              <div className=\"mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-700\">当前正在模拟该用户。账号级操作保持禁用，退出模拟后才能修改真实管理员账号。</div>
+            )}"""
+          if identity_anchor not in t: raise SystemExit('Settings identity anchor missing')
+          t = t.replace(identity_anchor, identity_new)
+          t = t.replace("type=\"password\" value={newPassword}", "type=\"password\" value={newPassword} disabled={isImpersonating}")
+          t = t.replace("type=\"password\" value={confirmPassword}", "type=\"password\" value={confirmPassword} disabled={isImpersonating}")
+          t = t.replace("type=\"submit\" disabled={submitting}", "type=\"submit\" disabled={submitting || isImpersonating}")
+          write(p, t)
+
+          # Logout: do not let profile/session_id cleanup failure prevent local sign-out; clear impersonation residue.
+          p = 'src/services/Auth.ts'
+          t = read(p)
+          old = """export async function signOut(): Promise<void> {
+  // 获取当前用户 ID
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // 清除数据库中的 session_id（防止令牌重放攻击）
+  if (user?.id) {
+    await updateSessionId(user.id, null);
+  }
+
+  // 清除客户端缓存
+  clearSessionCache();
+
+  const { error } = await supabase.auth.signOut();
+  if (error) throw new Error(`登出失败：${error.message}`);
+}"""
+          new = """export async function signOut(): Promise<void> {
+  // session_id cleanup is defense in depth. A slow/failed profile request must never
+  // strand the user in an authenticated browser session.
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) await updateSessionId(user.id, null);
+  } catch (error) {
+    console.warn('登出前清理 session_id 失败，继续执行本地登出:', error);
+  }
+
+  clearSessionCache();
+  clearImpersonationCache();
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
+  clearSessionCache();
+  clearImpersonationCache();
+  if (error) throw new Error(`登出失败：${error.message}`);
+}"""
+          if old not in t: raise SystemExit('Auth signOut block missing')
+          t = t.replace(old, new)
+          write(p, t)
+
+          # Make Immediate mean durable enqueue before navigation, while preserving the existing outbox/retry transport.
+          p = 'src/utils/audit.ts'
+          t = read(p)
+          old = """/** 兼容旧接口：关键事件只提前安排发送，仍不阻塞用户操作。 */
+export async function logActionImmediate(
+  userId: string | undefined,
+  actionType: string,
+  details: Record<string, unknown> = {},
+): Promise<void> {
+  logAction(userId, actionType, details);
+  scheduleFlush(0);
+}"""
+          new = """/** 关键生命周期事件先确认写入 IndexedDB，再允许页面导航。网络发送仍由原 outbox/retry 负责。 */
+export async function logActionImmediate(
+  _userId: string | undefined,
+  actionType: string,
+  details: Record<string, unknown> = {},
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    if (sessionStorage.getItem('__impersonation_state')) return;
+  } catch {}
+
+  ensureInit();
+  const queuedEvent: AuditEvent = {
+    event_id: createEventId(),
+    action_type: actionType,
+    details,
+    request_source: 'frontend',
+    page_url: window.location.pathname,
+    module: window.location.pathname.split('/')[1] || 'home',
+    user_agent: typeof navigator === 'undefined' ? undefined : navigator.userAgent.slice(0, 500),
+  };
+  try {
+    await saveEvent(queuedEvent);
+    scheduleFlush(0);
+  } catch {
+    // Audit persistence failure never blocks logout/navigation.
+  }
+}"""
+          if old not in t: raise SystemExit('audit immediate block missing')
+          t = t.replace(old, new)
+          write(p, t)
+
+          # Canonical role contract: old `user` role is invalid in DB. New low-privilege accounts are viewer.
+          p = 'src/app/api/admin/create-user/route.ts'
+          t = read(p)
+          t = t.replace("const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : 'user';", "const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : 'viewer';")
+          t = t.replace("if (!['admin', 'editor', 'user'].includes(normalizedRole))", "if (!['admin', 'editor', 'viewer'].includes(normalizedRole))")
+          write(p, t)
+
+          # Regression tests: permission matrix, Demo non-elevation, restricted-admin, impersonation and logout contracts.
+          write('src/__tests__/identity-permission-hardening.test.ts', '''import { describe, expect, it } from 'vitest';
+import {
+  canAccessModule,
+  getModuleAccessDecision,
+  getRoleLabel,
+} from '@/src/utils/accessControl';
+import { canAccessAdminConsole } from '@/src/utils/adminAccess';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const restrictedAdminEmail = 'judy.li@colliers.com';
+
+function source(file: string) {
+  return fs.readFileSync(path.join(process.cwd(), file), 'utf8');
+}
+
+describe('canonical role/module matrix', () => {
+  it('keeps viewer read-only and editor/admin on data entry', () => {
+    expect(canAccessModule('map', 'viewer')).toBe(true);
+    expect(canAccessModule('oss', 'viewer')).toBe(true);
+    expect(canAccessModule('update', 'viewer')).toBe(false);
+    expect(canAccessModule('lease-submission', 'viewer')).toBe(false);
+    expect(canAccessModule('admin', 'viewer')).toBe(false);
+
+    for (const moduleId of ['map', 'oss', 'update', 'lease-submission']) {
+      expect(canAccessModule(moduleId, 'editor')).toBe(true);
+    }
+    expect(canAccessModule('admin', 'editor')).toBe(false);
+
+    for (const moduleId of ['map', 'oss', 'update', 'lease-submission', 'admin']) {
+      expect(canAccessModule(moduleId, 'admin')).toBe(true);
+    }
+  });
+
+  it('fails unknown roles closed', () => {
+    expect(getModuleAccessDecision('map', 'user')).toEqual({ allowed: false, reason: 'invalid_role' });
+    expect(getModuleAccessDecision('map', 'super_admin')).toEqual({ allowed: false, reason: 'invalid_role' });
+  });
+
+  it('does not let Demo mode elevate authorization', () => {
+    expect(canAccessAdminConsole({ role: 'viewer', email: 'demo@colliers.com', isDemo: true })).toBe(false);
+    expect(canAccessAdminConsole({ role: 'editor', email: 'demo@colliers.com', isDemo: true })).toBe(false);
+  });
+
+  it('keeps restricted-admin identity explicit and blocks the console only', () => {
+    expect(getRoleLabel('admin', restrictedAdminEmail)).toBe('受限管理员');
+    expect(getModuleAccessDecision('admin', 'admin', { email: restrictedAdminEmail })).toEqual({ allowed: false, reason: 'restricted_admin' });
+    expect(canAccessModule('update', 'admin', { email: restrictedAdminEmail })).toBe(true);
+    expect(canAccessModule('lease-submission', 'admin', { email: restrictedAdminEmail })).toBe(true);
+  });
+
+  it('blocks Admin during impersonation even when target role is admin', () => {
+    expect(getModuleAccessDecision('admin', 'admin', { isImpersonating: true })).toEqual({ allowed: false, reason: 'impersonation_read_only' });
+  });
+});
+
+describe('identity hardening source contracts', () => {
+  it('keeps Demo presentation-only and Home/Admin on shared policy', () => {
+    const home = source('src/components/home/HomeWorkspace.tsx');
+    const admin = source('src/app/admin/layout.tsx');
+    expect(home).not.toContain("activeSession.user.email === 'judy.li@colliers.com'");
+    expect(home).not.toContain('isDemoMode(activeSession.user.email)');
+    expect(home).toContain('getModuleAccessDecision');
+    expect(admin).not.toContain('isDemoMode');
+    expect(admin).toContain("getModuleAccessDecision('admin'");
+  });
+
+  it('keeps impersonation read-only on Settings, Research, Lease and Map admin editing', () => {
+    expect(source('src/app/settings/page.tsx')).toContain('模拟模式仅供查看，不能修改真实账号密码');
+    expect(source('src/components/OSSManager.tsx')).toContain('useImpersonation');
+    expect(source('src/app/lease-submission/page.tsx')).toContain("isImpersonating ? '模拟模式只读' : '新增成交'");
+    expect(source('src/app/map/MapClient.tsx')).toContain('adminEditingEnabled: !isImpersonating');
+  });
+
+  it('uses local sign-out and durable logout audit enqueue', () => {
+    const auth = source('src/services/Auth.ts');
+    const audit = source('src/utils/audit.ts');
+    expect(auth).toContain("supabase.auth.signOut({ scope: 'local' })");
+    expect(auth).toContain('clearImpersonationCache();');
+    expect(audit).toContain('await saveEvent(queuedEvent)');
+  });
+
+  it('accepts only canonical roles when Admin creates a user', () => {
+    const route = source('src/app/api/admin/create-user/route.ts');
+    expect(route).toContain("['admin', 'editor', 'viewer']");
+    expect(route).not.toContain("['admin', 'editor', 'user']");
+  });
+});
+''')
+
+          # Changelog entry.
+          p = 'CHANGELOG.md'
+          t = read(p)
+          entry = '''## 2026-08-25 — Identity / Permission / Admin UX Hardening\n\n- **Area:** Home module authorization, Admin console, Demo/restricted-admin identity, impersonation boundaries, logout/audit lifecycle.\n- **Canonical role contract:** `viewer / editor / admin` remains the only accepted application role set. Demo remains a presentation/masking mode and no longer elevates Admin or team-monitor authorization.\n- **Home / direct route consistency:** Quarterly and Lease are explicitly editor/admin modules; Admin is admin-only with the existing restricted-admin exception resolved through one policy helper. Home keeps unavailable business modules visible and clearly marked `无访问权限`; normal viewer/editor accounts do not receive an Admin menu item. Restricted-admin is labelled `受限管理员` and sees a disabled Admin menu item instead of contradictory identity states.\n- **Admin:** `/admin` now uses the same module decision as Home, uses the real Supabase session, rejects Demo elevation and impersonation, records successful/blocked `ENTER_MODULE` decisions, and keeps logout fail-closed.\n- **Impersonation:** Quarterly remains read-only; Lease create/edit/transfer and team-monitor actions are disabled; Research management consumes the shared impersonation context; Map admin editing is disabled; Settings shows the simulated identity but blocks password mutation. Impersonation start/end remains server-audited and ordinary simulated actions remain intentionally excluded from client audit attribution.\n- **Logout:** profile/session-id cleanup failure no longer prevents local Supabase sign-out; logout uses explicit local scope, clears auth + impersonation caches, and `LOGOUT` is durably enqueued in the existing IndexedDB outbox before navigation. No audit transport/retry redesign.\n- **Admin user creation:** legacy `user` role input was removed; low-privilege accounts use canonical `viewer`.\n- **Database note:** repository migrations confirm viewer is the read-only contract and latest RLS already removes viewer read access to lease transactions. This pass did not rewrite existing RLS/migration history; a live policy mutation was intentionally avoided without a reliable schema-query response.\n- **Verification:** `Typecheck → Lint → Test → Production Build` executed in this workflow before committing product changes. Browser logout/network-throttling verification still requires an authenticated reachable Preview; automated contracts cover local sign-out, durable audit enqueue and refresh-safe cache clearing, but are not reported as a real-browser pass.\n\n'''
+          if entry not in t:
+              write(p, entry + t)
+          PY
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm run test
+      - name: Production Build
+        run: npm run build
+      - name: Commit verified hardening
+        shell: bash
+        run: |
+          git config user.name "ronyu870-collab"
+          git config user.email "ronyu870@gmail.com"
+          git add CHANGELOG.md src
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix: harden identity permission boundaries"
+          git push origin HEAD:fix/home-visual-rebuild-zh
