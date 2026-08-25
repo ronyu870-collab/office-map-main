@@ -1,0 +1,57 @@
+name: Apply performance hardening patch
+
+on:
+  push:
+    branches:
+      - perf/data-2-performance-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[perf-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply measured MapController changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/services/MapController.ts')
+          source = path.read_text()
+
+          loading = '''        chartDom.innerHTML =\n          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">加载中...</div>';\n        // 获取数据：最新季度 + 前面年份的Q4，最近6年\n'''
+          loading_replacement = '''        chartDom.innerHTML =\n          '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">加载中...</div>';\n        // 用户已明确打开 Trend：让图表运行时和历史数据请求并行，消除串行 waterfall。\n        // 仍然保持在 Trend 点击之后才加载，因此不会进入 Map 首屏 bundle。\n        const trendRuntimePromise = import("./map/trendChartRuntime");\n        // 获取数据：最新季度 + 前面年份的Q4，最近6年\n'''
+          if loading not in source:
+              raise SystemExit('trend loading anchor not found')
+          source = source.replace(loading, loading_replacement, 1)
+
+          runtime = '''            // ECharts 仅在用户明确打开趋势面板且确有历史数据时加载。\n            // 动态模块加载期间用户可能关闭面板或切换楼宇，因此渲染前后都做竞态保护。\n            void import("./map/trendChartRuntime")\n'''
+          runtime_replacement = '''            // 动态模块加载期间用户可能关闭面板或切换楼宇，因此渲染前后都做竞态保护。\n            void trendRuntimePromise\n'''
+          if runtime not in source:
+              raise SystemExit('trend runtime anchor not found')
+          source = source.replace(runtime, runtime_replacement, 1)
+
+          duplicate = '''\n      this.fetchAndRenderMarkers().catch((e) =>\n        console.error("Marker渲染失败:", e),\n      );\n'''
+          duplicate_replacement = '''\n      // MapClient owns data loading, role filtering and the first marker render.\n      // Do not render here as well: it duplicates the complete marker construction path.\n'''
+          if duplicate not in source:
+              raise SystemExit('initial marker render anchor not found')
+          source = source.replace(duplicate, duplicate_replacement, 1)
+
+          path.write_text(source)
+          PY
+      - name: Commit patch to branch
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/services/MapController.ts
+          git commit -m "perf: remove map entry and trend waterfalls [perf-patch]"
+          git push origin HEAD:perf/data-2-performance-hardening
