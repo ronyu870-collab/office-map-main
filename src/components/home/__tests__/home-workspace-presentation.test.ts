@@ -22,6 +22,9 @@ describe('Home workspace presentation contract', () => {
       'Business workspaces',
       'Team activity',
       'System notice',
+      '按业务进入',
+      '辅助信息',
+      '权限入口',
     ]) {
       expect(home).not.toContain(label);
     }
@@ -31,6 +34,9 @@ describe('Home workspace presentation contract', () => {
     expect(home).toContain("title: '租赁成交填报'");
     expect(home).toContain("title: '研究资料库'");
     expect(home).toContain("title: '系统管理'");
+    expect(home).toContain('>工作台<');
+    expect(home).toContain('>业务工作区<');
+    expect(home).toContain('>团队动态<');
   });
 
   it('preserves Home access, audit and route seams while changing presentation', () => {
@@ -55,13 +61,19 @@ describe('Home workspace presentation contract', () => {
     }
   });
 
-  it('keeps secondary information quieter than the previous Home treatment', () => {
+  it('keeps secondary information quiet and preserves access to the full information stream', () => {
     const communication = read('src/components/CommunicationBoard.tsx');
     const notice = read('src/components/NoticeBanner.tsx');
 
     expect(communication).not.toContain('bg-[#003e7e]');
     expect(communication).not.toContain('animate-ping');
+    expect(communication).not.toContain('实时更新');
+    expect(communication).toContain('messages.slice(-6)');
+    expect(communication).toContain("fullscreen ? messages : messages.slice(-6)");
+
     expect(notice).not.toContain('animate-marquee');
     expect(notice).not.toContain('text-[10px]');
+    expect(notice).not.toContain('slice(0, 3)');
+    expect(notice).toContain('notices.map');
   });
 });

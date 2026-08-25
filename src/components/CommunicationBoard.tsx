@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
@@ -57,44 +57,46 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
+
     const msgContent = inputText.trim();
     setInputText('');
     const { error } = await supabase.from('messages').insert({
-      user_email: userEmail, user_name: userName, content: msgContent,
+      user_email: userEmail,
+      user_name: userName,
+      content: msgContent,
     });
-    if (error) { console.error('发送留言失败:', error); }
-    else { logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) }); }
+
+    if (error) {
+      console.error('发送留言失败:', error);
+    } else {
+      logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) });
+    }
   };
+
+  const visibleMessages = fullscreen ? messages : messages.slice(-6);
 
   const boardContent = (
     <>
-      <div className="flex min-h-11 flex-none shrink-0 items-center justify-between border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <h2 className="truncate text-[13px] font-semibold text-[var(--cd-color-text-primary)]">市场信息交流</h2>
-          <span className="inline-flex items-center gap-1.5 text-xs text-[var(--cd-color-text-muted)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--cd-color-success)]" aria-hidden="true" />
-            实时更新
-          </span>
-        </div>
+      <div className="flex min-h-10 flex-none shrink-0 items-center justify-between border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-2">
+        <h2 className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]">市场交流</h2>
         <button
-          onClick={() => setFullscreen(f => !f)}
-          className="z-10 rounded-[var(--cd-radius-sm)] p-1.5 text-[var(--cd-color-text-muted)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/30"
-          title={fullscreen ? '退出全屏' : '全屏'}
-          aria-label={fullscreen ? '退出全屏' : '全屏'}
+          onClick={() => setFullscreen((value) => !value)}
+          className="inline-flex items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-1.5 py-1 text-xs text-[var(--cd-color-text-muted)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
+          title={fullscreen ? '退出全屏' : '展开全部'}
+          aria-label={fullscreen ? '退出全屏' : '展开全部'}
           type="button"
         >
-          {fullscreen
-            ? <Minimize2 size={14} strokeWidth={1.5} />
-            : <Maximize2 size={14} strokeWidth={1.5} />}
+          {fullscreen ? <Minimize2 size={13} strokeWidth={1.5} /> : <Maximize2 size={13} strokeWidth={1.5} />}
+          <span>{fullscreen ? '收起' : '展开'}</span>
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[var(--cd-color-surface-alt)]/60 p-3.5">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[var(--cd-color-surface)]">
         {loading ? (
-          <div className="text-center text-xs text-[var(--cd-color-text-muted)]">正在加载历史信息…</div>
-        ) : messages.length === 0 ? (
-          <div className="mt-8 text-center text-xs leading-5 text-[var(--cd-color-text-muted)]">暂无团队动态</div>
-        ) : messages.map((msg) => {
+          <div className="px-4 py-8 text-center text-xs text-[var(--cd-color-text-muted)]">正在加载历史信息…</div>
+        ) : visibleMessages.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs leading-5 text-[var(--cd-color-text-muted)]">暂无团队动态</div>
+        ) : visibleMessages.map((msg) => {
           const isMe = msg.user_email === userEmail;
           const msgDate = new Date(msg.created_at);
           const now = new Date();
@@ -102,16 +104,14 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
           const timeStr = isToday
             ? msgDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
             : msgDate.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
           return (
-            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-              <span className="mb-1 px-0.5 text-xs text-[var(--cd-color-text-muted)]"><MaskedText>{msg.user_name}</MaskedText> · {timeStr}</span>
-              <div className={`max-w-[88%] rounded-[var(--cd-radius-md)] border px-3 py-2 text-[13px] leading-5 ${
-                isMe
-                  ? 'border-[color:rgb(0_62_126_/_0.18)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-text-primary)]'
-                  : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)]'
-              }`}>
-                {msg.content}
+            <div key={msg.id} className={`border-b border-[var(--cd-color-border)] px-3.5 py-3 last:border-b-0 ${isMe ? 'bg-[var(--cd-color-brand-soft)]/35' : 'bg-[var(--cd-color-surface)]'}`}>
+              <div className="flex min-w-0 items-baseline justify-between gap-3">
+                <span className="min-w-0 truncate text-xs font-medium text-[var(--cd-color-text-secondary)]"><MaskedText>{msg.user_name}</MaskedText></span>
+                <span className="shrink-0 text-xs tabular-nums text-[var(--cd-color-text-muted)]">{timeStr}</span>
               </div>
+              <p className="mt-1 text-[13px] leading-5 text-[var(--cd-color-text-primary)]">{msg.content}</p>
             </div>
           );
         })}
@@ -123,7 +123,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="分享市场动态或团队信息…"
+          placeholder="分享市场动态…"
           className="min-w-0 flex-1 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-[13px] text-[var(--cd-color-text-primary)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)] focus:bg-[var(--cd-color-surface)] focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/15"
           autoComplete="off"
         />
