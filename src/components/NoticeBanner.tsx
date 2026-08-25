@@ -32,6 +32,7 @@ export function NoticeBanner() {
 
   React.useEffect(() => {
     let active = true;
+    let visibleFrameId: number | null = null;
     const timeoutId = setTimeout(() => {
       if (!active) return;
       setLoadError(true);
@@ -45,7 +46,12 @@ export function NoticeBanner() {
         setLoadError(false);
         setNotices(data);
         setExpanded(false);
-        if (data.length > 0) requestAnimationFrame(() => setVisible(true));
+        if (data.length > 0) {
+          visibleFrameId = requestAnimationFrame(() => {
+            visibleFrameId = null;
+            if (active) setVisible(true);
+          });
+        }
       })
       .catch(() => {
         if (!active) return;
@@ -57,6 +63,7 @@ export function NoticeBanner() {
     return () => {
       active = false;
       clearTimeout(timeoutId);
+      if (visibleFrameId !== null) cancelAnimationFrame(visibleFrameId);
     };
   }, [requestKey]);
 
