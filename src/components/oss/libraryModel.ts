@@ -44,6 +44,12 @@ export function isDuplicateUploadName(items: ResearchLibraryItem[], fileName: st
   return items.some((item) => item.type === 'file' && itemDisplayName(item).trim().toLowerCase() === normalized);
 }
 
+function parsedTimestamp(value?: string): number | null {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 export function filterAndSortLibraryItems(
   items: ResearchLibraryItem[],
   params: { query: string; type: LibraryTypeFilter; sort: LibrarySort },
@@ -57,9 +63,22 @@ export function filterAndSortLibraryItems(
 
   return [...filtered].sort((a, b) => {
     if (params.sort === 'name-asc') return itemDisplayName(a).localeCompare(itemDisplayName(b), 'zh-CN');
-    if (params.sort === 'size-desc') return (b.sizeBytes ?? 0) - (a.sizeBytes ?? 0);
-    const aTime = a.lastModified ? Date.parse(a.lastModified) || 0 : 0;
-    const bTime = b.lastModified ? Date.parse(b.lastModified) || 0 : 0;
+    if (params.sort === 'size-desc') {
+      const aSize = a.sizeBytes;
+      const bSize = b.sizeBytes;
+      if (aSize == null && bSize == null) return itemDisplayName(a).localeCompare(itemDisplayName(b), 'zh-CN');
+      if (aSize == null) return 1;
+      if (bSize == null) return -1;
+      return bSize - aSize;
+    }
+
+    const aTime = parsedTimestamp(a.lastModified);
+    const bTime = parsedTimestamp(b.lastModified);
+    // Metadata-free folders/files stay at the end for either date direction instead
+    // of accidentally outranking dated research documents.
+    if (aTime == null && bTime == null) return itemDisplayName(a).localeCompare(itemDisplayName(b), 'zh-CN');
+    if (aTime == null) return 1;
+    if (bTime == null) return -1;
     return params.sort === 'modified-asc' ? aTime - bTime : bTime - aTime;
   });
 }
