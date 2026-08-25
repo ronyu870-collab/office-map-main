@@ -53,6 +53,14 @@ The prior Home 2.0 combined tiny uppercase labels, mixed Chinese and English, ba
 - GitHub Verify must pass Typecheck, Lint, Test, and Production Build on the exact final head before merge.
 - An authenticated real-browser visual pass at the requested desktop/mobile viewports remains a release requirement; the current execution environment blocks external Chromium navigation and must not be treated as a successful visual QA result.
 
+### Final browser QA acceptance
+
+- Ran the Home against a deterministic production build with real Chromium at 1366×768, 1440×900, 1920×1080, 390×844, 430×932, plus 1024×768 and 1280×720.
+- Exercised loaded/session-transition states, empty/one/many/error notices, empty/populated/error market communication, long names, long announcements/messages/unbroken URLs, viewer-denied workspace access, normal/admin/demo user menus, notice expansion, mobile scrolling, full-screen communication, Escape handling, and 100dvh behavior.
+- Fixed one browser-observed interaction defect: generic module accessibility props were overriding the System Administration entry's `role=menuitem`, causing menu keyboard navigation to skip that entry for admin/demo states. The menu now preserves menuitem semantics while retaining its existing disabled/accessibility metadata.
+- No Home information architecture, database/RLS behavior, Map/Data Entry/Admin business logic, or speculative visual modules were added.
+- Observed proportions were retained: 54px header, current desktop gutters/rail widths, 1240px base container with the existing 1360px 2xl expansion, 104px Map entry, and current mobile single-column rhythm.
+
 ### Follow-up
 
 - Keep future Home changes focused on observed workflow friction; do not reintroduce decorative English labels, badge-driven hierarchy, or marketing-style hero treatment.
