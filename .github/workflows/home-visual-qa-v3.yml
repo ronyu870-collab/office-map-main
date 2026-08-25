@@ -14,7 +14,7 @@ concurrency:
 jobs:
   browser-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,7 +30,7 @@ jobs:
           from pathlib import Path
           data=yaml.safe_load(Path('.github/workflows/home-visual-qa-v2.yml').read_text())
           steps=data['jobs']['browser-qa']['steps']
-          wanted=['Build runtime-only QA harness','Start Next dev server','Write Playwright spec']
+          wanted=['Build runtime-only QA harness','Write Playwright spec']
           for i,name in enumerate(wanted):
               step=next(s for s in steps if s.get('name')==name)
               Path(f'/tmp/qa-step-{i}.sh').write_text('set -euo pipefail\n'+step['run'])
@@ -49,23 +49,33 @@ jobs:
             return <HomeWorkspace/>;
           }
           EOF
-      - name: Start Next dev server
-        run: bash /tmp/qa-step-1.sh
+      - name: Build deterministic QA application
+        run: npm run build
+      - name: Start production QA server
+        shell: bash
+        run: |
+          npm start -- --hostname 127.0.0.1 > /tmp/home-qa-next.log 2>&1 &
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3000/qa-home >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/home-qa-next.log
+          exit 1
       - name: Install Playwright locally
         run: |
           npm install --no-save --ignore-scripts @playwright/test@1.55.0
           npx playwright install --with-deps chromium
       - name: Write Playwright spec
         run: |
-          bash /tmp/qa-step-2.sh
+          bash /tmp/qa-step-1.sh
           python3 - <<'PY'
           from pathlib import Path
           p=Path('tests/home-visual-qa/home.spec.js')
           s=p.read_text()
-          s=s.replace('waitForTimeout(250)', 'waitForTimeout(900)')
-          s=s.replace('waitForTimeout(200)', 'waitForTimeout(900)')
+          s=s.replace('waitForTimeout(250)', 'waitForTimeout(650)')
+          s=s.replace('waitForTimeout(200)', 'waitForTimeout(650)')
           s=s.replace('waitForTimeout(100)', 'waitForTimeout(120)')
-          s=s.replace('waitForTimeout(650)', 'waitForTimeout(950)')
+          s=s.replace('waitForTimeout(650)', 'waitForTimeout(800)')
           p.write_text(s)
           PY
           cat >> tests/home-visual-qa/home.spec.js <<'EOF'
@@ -73,16 +83,18 @@ jobs:
           test('long notice, natural mobile scroll, and final wide-screen width',async({page})=>{
             await page.setViewportSize({width:390,height:844});
             await page.goto(`${base}?role=editor&notice=long&comm=some`);
-            await page.waitForTimeout(900);
+            await page.waitForTimeout(800);
             expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
             const scroller=page.locator('div.h-full.overflow-y-auto.overscroll-contain');
+            await expect(scroller).toBeVisible();
             await scroller.evaluate(el=>{el.scrollTop=el.scrollHeight});
+            await page.waitForTimeout(100);
             await expect(page.getByRole('heading',{name:'团队动态'})).toBeVisible();
             await page.screenshot({path:path.join(out,'mobile-long-notice-scrolled.png')});
 
             await page.setViewportSize({width:1920,height:1080});
             await page.goto(`${base}?role=editor&notice=one&comm=some`);
-            await page.waitForTimeout(900);
+            await page.waitForTimeout(800);
             const m=await measure(page,'1920-final-loaded');
             expect(m.map.width).toBeGreaterThan(900);
             expect(m.scrollWidth).toBeLessThanOrEqual(1920);
