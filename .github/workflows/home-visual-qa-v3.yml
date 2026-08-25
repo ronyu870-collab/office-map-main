@@ -66,28 +66,29 @@ jobs:
           s=s.replace('waitForTimeout(200)', 'waitForTimeout(900)')
           s=s.replace('waitForTimeout(100)', 'waitForTimeout(120)')
           s=s.replace('waitForTimeout(650)', 'waitForTimeout(950)')
-          s += '''\n
-test('long notice, wide screen and mobile scroll',async({page})=>{
-  await page.setViewportSize({width:390,height:844});
-  await page.goto(`${base}?role=editor&notice=long&comm=some`);
-  await page.waitForTimeout(900);
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  const scroller=page.locator('div.h-full.overflow-y-auto.overscroll-contain');
-  await scroller.evaluate(el=>{el.scrollTop=el.scrollHeight});
-  await expect(page.getByRole('heading',{name:'团队动态'})).toBeVisible();
-  await page.screenshot({path:path.join(out,'mobile-long-notice-scrolled.png')});
-
-  await page.setViewportSize({width:1920,height:1080});
-  await page.goto(`${base}?role=editor&notice=one&comm=some`);
-  await page.waitForTimeout(900);
-  const m=await measure(page,'1920-final-loaded');
-  expect(m.map.width).toBeGreaterThan(900);
-  expect(m.scrollWidth).toBeLessThanOrEqual(1920);
-  await page.screenshot({path:path.join(out,'final-1920-loaded.png'),fullPage:true});
-});
-'''
           p.write_text(s)
           PY
+          cat >> tests/home-visual-qa/home.spec.js <<'EOF'
+
+          test('long notice, natural mobile scroll, and final wide-screen width',async({page})=>{
+            await page.setViewportSize({width:390,height:844});
+            await page.goto(`${base}?role=editor&notice=long&comm=some`);
+            await page.waitForTimeout(900);
+            expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+            const scroller=page.locator('div.h-full.overflow-y-auto.overscroll-contain');
+            await scroller.evaluate(el=>{el.scrollTop=el.scrollHeight});
+            await expect(page.getByRole('heading',{name:'团队动态'})).toBeVisible();
+            await page.screenshot({path:path.join(out,'mobile-long-notice-scrolled.png')});
+
+            await page.setViewportSize({width:1920,height:1080});
+            await page.goto(`${base}?role=editor&notice=one&comm=some`);
+            await page.waitForTimeout(900);
+            const m=await measure(page,'1920-final-loaded');
+            expect(m.map.width).toBeGreaterThan(900);
+            expect(m.scrollWidth).toBeLessThanOrEqual(1920);
+            await page.screenshot({path:path.join(out,'final-1920-loaded.png'),fullPage:true});
+          });
+          EOF
       - name: Run browser QA
         run: npx playwright test tests/home-visual-qa/home.spec.js --reporter=line --workers=1
       - name: Save server log
