@@ -12,6 +12,7 @@ type VerifiedUser = {
 
 type DeleteStats = { total: number; success: number; failed: number };
 type MoveStats = { total: number; copied: number; deleted: number; failed: number };
+type OSSListObject = { name: string; size: number; lastModified?: string | Date };
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -31,6 +32,8 @@ function getOSSClient() {
     secure: true,
   });
 }
+
+type OSSClient = ReturnType<typeof getOSSClient>;
 
 async function verifyUser(request: Request): Promise<VerifiedUser | null> {
   try {
@@ -85,21 +88,21 @@ async function requireManager(request: Request) {
   return auth;
 }
 
-async function listAllObjects(client: OSS, prefix: string): Promise<string[]> {
+async function listAllObjects(client: OSSClient, prefix: string): Promise<string[]> {
   const allObjects: string[] = [];
   let marker: string | undefined;
 
   do {
     const result = await client.list({ prefix, marker, 'max-keys': 1000 }, {});
-    const objects = result.objects ?? [];
-    allObjects.push(...objects.map((object) => object.name).filter((name) => name !== prefix));
+    const objects = (result.objects ?? []) as OSSListObject[];
+    allObjects.push(...objects.map((object) => object.name).filter((name: string) => name !== prefix));
     marker = result.nextMarker;
   } while (marker);
 
   return allObjects;
 }
 
-async function batchDeleteObjects(client: OSS, keys: string[]) {
+async function batchDeleteObjects(client: OSSClient, keys: string[]) {
   const batchSize = 100;
   let success = 0;
   let failed = 0;
@@ -117,7 +120,7 @@ async function batchDeleteObjects(client: OSS, keys: string[]) {
   return { success, failed };
 }
 
-async function deleteFolderRecursive(client: OSS, folderKey: string): Promise<{ success: boolean; message: string; stats: DeleteStats }> {
+async function deleteFolderRecursive(client: OSSClient, folderKey: string): Promise<{ success: boolean; message: string; stats: DeleteStats }> {
   if (!folderKey.endsWith('/')) {
     return { success: false, message: '文件夹路径必须以 / 结尾', stats: { total: 0, success: 0, failed: 0 } };
   }
@@ -136,7 +139,7 @@ async function deleteFolderRecursive(client: OSS, folderKey: string): Promise<{ 
     : { success: true, message: objects.length ? `已删除文件夹及 ${objects.length} 个子对象` : '空文件夹已删除', stats };
 }
 
-async function renameFolderRecursive(client: OSS, oldPrefix: string, newPrefix: string): Promise<{ success: boolean; message: string; stats: MoveStats }> {
+async function renameFolderRecursive(client: OSSClient, oldPrefix: string, newPrefix: string): Promise<{ success: boolean; message: string; stats: MoveStats }> {
   if (!oldPrefix.endsWith('/') || !newPrefix.endsWith('/')) {
     return { success: false, message: '文件夹路径必须以 / 结尾', stats: { total: 0, copied: 0, deleted: 0, failed: 0 } };
   }
@@ -233,9 +236,10 @@ export async function GET(request: Request) {
         shortName: folder.replace(prefix, '').replace(/\/$/, ''),
         type: 'folder' as const,
       }));
-      const files = (result.objects ?? [])
-        .filter((object) => object.name !== prefix && !object.name.endsWith('/') && !object.name.endsWith('.keep'))
-        .map((object) => ({
+      const objects = (result.objects ?? []) as OSSListObject[];
+      const files = objects
+        .filter((object: OSSListObject) => object.name !== prefix && !object.name.endsWith('/') && !object.name.endsWith('.keep'))
+        .map((object: OSSListObject) => ({
           name: object.name,
           shortName: object.name.replace(prefix, ''),
           size: `${(object.size / 1024 / 1024).toFixed(2)} MB`,
