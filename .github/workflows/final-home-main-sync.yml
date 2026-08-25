@@ -1,0 +1,62 @@
+name: Final Home Main Sync
+
+on:
+  push:
+    branches:
+      - fix/home-visual-rebuild-zh
+
+permissions:
+  contents: write
+
+concurrency:
+  group: final-home-main-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout final Home branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/home-visual-rebuild-zh
+          fetch-depth: 0
+
+      - name: Merge latest main without overwriting newer Home conflict blocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-commit --no-ff -X ours origin/main
+          git rm .github/workflows/final-home-main-sync.yml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Production Build
+        run: npm run build
+
+      - name: Commit verified merge and push branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git commit -m "merge: sync main into final Home hardening"
+          git push origin HEAD:fix/home-visual-rebuild-zh
