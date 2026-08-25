@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from '@/src/services/Auth';
 import { isDemoMode } from '@/src/config/demoMode';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 
 function AdminGuardLoading() {
@@ -20,6 +21,7 @@ function AdminGuardLoading() {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { isImpersonating } = useImpersonation();
   const [ready, setReady] = React.useState(false);
   const [allowed, setAllowed] = React.useState(false);
 
@@ -35,8 +37,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         const permitted = Boolean(session) && canAccessAdminConsole({
           role: session?.role,
-          email: session?.user?.email,
           isDemo: isDemoMode(session?.user?.email),
+          impersonationActive: isImpersonating,
         });
 
         if (!permitted) {
@@ -54,7 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [isImpersonating, router]);
 
   async function handleLogout() {
     try {
