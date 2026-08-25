@@ -21,6 +21,44 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Data Entry 2.0 for Quarterly Update and Lease Submission
+
+### Area
+Quarterly Update / Lease Submission / shared data-entry primitives / validation / save state / responsive business workflows
+
+### What changed
+
+- Rebuilt Quarterly Update as a dense Data Entry workspace while preserving assignments, Admin preview, impersonation read-only behavior, prior-quarter metrics, future-supply assignments, 30-second cloud drafts, existing calculation formulas, force-submit semantics, submission tables, and audit logging.
+- Added persistent save-state presentation for unsaved, saving, saved, failed/retry, submitting, and submitted states; retained manual save in addition to the existing timed cloud-draft sync.
+- Organized Quarterly fields into project context, previous-quarter reference, and current-quarter entry groups; added Enter/Tab-friendly continuous entry, inline advisory validation, mobile field cards, and stable submission confirmation.
+- Rebuilt Lease Submission as a compact Broker Data Entry workspace with entity-first building selection, recent-building shortcuts, relocation/original-location handling, daily/monthly rent input, existing fuzzy-duplicate confirmation, on-behalf submission, current/previous-quarter selection, record editing, transfer, and Admin team views.
+- Preserved the existing custom sub-industry path when `其他` is selected, including existing custom values during edit.
+- Added a persistent Lease success state showing the written company, building, area, quarter, and record ID, with explicit Continue adding / Return to workspace actions.
+- Added shared `SaveStatus`, `ValidationMessage`, and `DataEntryToolbar` primitives only where both workflows use the same semantics.
+- Added regression coverage for Quarterly completeness/payload calculations, Lease existing-record mapping and period window, persistent error/retry state, and server-side authorization seams.
+
+### Why
+
+Quarterly Update and Lease Submission were functionally mature but still behaved like legacy page/form surfaces. High-frequency Broker, Research, and Admin entry needs dense navigation, visible validation near the affected field, explicit database/save state, and reliable continuation after a successful write.
+
+### Impact
+
+- No DB schema, RLS, Map architecture, MapDataStore, MapController, or Auth architecture changes.
+- Existing permissions, server-side Admin checks, record ownership checks, data fields, validation services, duplicate checking, audit calls, and submission destinations are preserved.
+- Newly surfaced Quarterly anomaly checks are warnings only; no unsupported business rule was introduced as a hard validation block.
+- Desktop remains the primary high-density experience; 390–430px layouts keep major fields and submit actions reachable without forcing the full desktop grid onto mobile.
+
+### Verification
+
+- Final acceptance requires the exact PR head to pass the permanent Verify workflow in order: Typecheck, Lint, Test, and Production Build.
+- Regression coverage includes validation, save/error retry state, existing records, calculation payloads, and authorization boundaries.
+
+### Follow-up
+
+- Continue Data Entry refinement only from observed Broker/Research usage; do not change DB schema or authorization boundaries as a UI follow-up.
+
+---
+
 ## 2026-08-25 — Map final experience QA and interaction hardening
 
 ### Area
