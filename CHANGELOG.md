@@ -21,6 +21,97 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Home implementation cleanup and maintainability hardening
+
+### Area
+HomeWorkspace / HomeHeader / CommunicationBoard / NoticeBanner / admin access / Home tests
+
+### What changed
+
+- Removed the empty Under Development registry, modal, badge path, state, and activation branches from Home; there are currently no Home modules using that mechanism.
+- Removed the account-specific restricted-admin email rule and routed Home/Admin visibility through one `canAccessAdminConsole` decision while preserving explicit demo access and blocking Admin entry during impersonation.
+- Removed the stale `super_admin` Research Library manager branch and made admin helpers consume the canonical `viewer` / `editor` / `admin` role parser.
+- Simplified Home workspace activation into one handler while preserving blocked-entry audit metadata and route behavior.
+- Replaced user-menu requestAnimationFrame focus scheduling with the rendered menu lifecycle; Escape still closes the menu and returns focus to its trigger.
+- Hardened CommunicationBoard async lifecycle: stale message loads are ignored, post-unmount state updates are suppressed, pending animation frames are cancelled, and fullscreen state is synchronously mirrored before History writes so rapid open actions cannot create duplicate entries.
+- Kept the existing single Supabase realtime channel ownership model and `removeChannel` cleanup rather than rewriting subscription architecture.
+- Added cancellation for NoticeBanner's visibility animation frame while retaining its existing timeout and async active guard.
+- Kept Home audit calls on the existing IndexedDB outbox; logout no longer waits on an async compatibility wrapper whose implementation only schedules the outbox flush.
+
+### Why
+
+This pass targeted concrete maintenance risk rather than style preferences: dead feature branches, duplicated authorization policy, a user-specific authorization exception, a non-canonical role, stale async completions, uncancelled animation frames, and brittle tests that asserted source ordering instead of behavior.
+
+### Impact
+
+- No Home information architecture, hierarchy, route names, collaboration visuals, notice expansion model, message history limit, database schema, RLS policy, or audit transport was redesigned.
+- Admin visibility is now consistent between Home and the Admin route guard. Impersonation cannot expose the Admin entry, and no individual email address changes the canonical admin role contract.
+- Research Library write-role detection now matches the application role contract; the previously accepted `super_admin` string was not a canonical application role.
+- Communication failure, retry, realtime, History, focus, and 50-message behavior remain intact with stronger unmount/race safety.
+
+### Verification
+
+- Replaced the source-order user-menu test with DOM behavior coverage for Arrow navigation, Escape focus return, disabled workspace prevention/audit, and impersonation-hidden Admin.
+- Added Communication/Notice DOM behavior coverage for failed-send content retention, one Enter → one audit, same-frame duplicate-submit locking, Escape/Back/Forward fullscreen state, channel cleanup, and notice error → retry recovery.
+- Reduced source-level tests to structural/presentation contracts that are appropriate to static inspection: Chinese product language, route seams, 50-message wording, viewport/safe-area behavior, and no nested notice scroll.
+- Typecheck → Lint → Test → Production Build run sequentially on the final tree before the verification workflow commits this changelog entry.
+
+### Accepted technical debt
+
+- `WorkspaceShell` keeps its shared sticky header and z-index because no Home defect or stacking conflict was reproduced; changing a shared shell for local neatness would increase regression risk.
+- `getAccessibilityProps` still returns link semantics for native workspace links. Home no longer relies on prop-spread ordering for the Admin menu item, so there is no demonstrated accessibility defect requiring a cross-project helper rewrite.
+- `audit.ts` keeps its application-lifetime visibility/online listeners and IndexedDB outbox singleton. They are intentionally initialized once and are not a component-unmount leak.
+- Home retains `h-screen h-[100dvh]` while shared shells use `dvh`; this provides a legacy fallback and no browser-specific failure was demonstrated in this code-review pass.
+- Source-level presentation tests remain for static product invariants; replacing every one with DOM tests would add cost without improving confidence in those non-behavioral contracts.
+
+### Follow-up
+
+- Do not reintroduce Home development-state machinery until a real module needs it; when that happens, add the state model at the owning feature boundary rather than reviving dormant Home branches.
+- Revisit shared access/a11y helpers only when another caller demonstrates a concrete semantic mismatch; keep this pass scoped to proven Home risks.
+
+---
+
+## 2026-08-25 — Home collaboration information-layer final QA
+
+### Area
+Home / Team Activity / System Notices / Market Communication / mobile fullscreen behavior
+
+### What changed
+
+- Kept Home collaboration as a visually secondary, read-only summary: system notices remain capped at three until explicitly expanded, and market communication remains a four-message summary until the user opens the full surface.
+- Preserved the full market-communication boundary at the most recent 50 messages and kept all user-facing copy explicit about that limit rather than implying permanent chat history.
+- Hardened message time formatting so Beijing-time timestamps remain unambiguous across calendar years.
+- Added a synchronous send lock in addition to the rendered sending state so rapid repeated Enter/click submissions cannot race before React commits the disabled state.
+- De-duplicated realtime INSERT payloads by message id while retaining the existing single Supabase channel lifecycle and unmount cleanup.
+- Preserved history-aware fullscreen behavior, focus trapping/return, and the new-message affordance so users reading older messages are not forced back to the bottom by realtime inserts.
+- Added `viewport-fit=cover`, top/bottom safe-area handling, and retained `100dvh` fullscreen sizing for mobile/PWA viewport behavior.
+- Widened and fixed the notice date column so current-year and cross-year Beijing dates remain aligned without adding an internal notice scroller.
+- Added source-contract regression coverage for read-only Home behavior, 50-message limits, subscription lifetime, rapid sending, failure/retry copy, history/focus behavior, realtime reading behavior, cross-year dates, safe areas, and notice expansion/error states.
+
+### Why
+
+The Home information layer is an auxiliary collaboration surface inside a market-data product, not a general-purpose chat product. Final QA therefore focused on correctness under failure, realtime updates, history navigation, mobile viewport changes, and extreme content without increasing its visual weight or adding chat-oriented UI patterns.
+
+### Impact
+
+- No Home information architecture, Map priority, database schema, RLS policy, auth/session boundary, message table shape, or permanent-history/pagination feature was added.
+- Fullscreen toggles do not create additional Supabase subscriptions; the channel remains owned by the mounted CommunicationBoard and is removed on unmount.
+- Sending failures retain the original input and expose retryable feedback; initial load failures remain visibly different from true empty states.
+- Notice expansion continues to use page-level scrolling. Even for 10+ notices, Home does not reintroduce nested scrolling; if notice volume becomes structurally high, grouping/archive design should be handled as a separate product decision.
+
+### Verification
+
+- Added `communication-final-qa.test.ts` source-contract regression coverage alongside the existing Home presentation tests.
+- Typecheck → Lint → Test → Production Build passed sequentially on the final source/changelog tree before this entry was committed.
+- A real authenticated soft-keyboard pass at 390×844 and 430×932 is not claimed in this run because the connected Vercel account does not expose the office-map project. The implementation contract uses `100dvh`, `viewport-fit=cover`, safe-area insets, and a history entry so Android/PWA Back can close the communication surface before leaving Home; native keyboard behavior remains a device-level release check when an authenticated Preview is reachable.
+
+### Follow-up
+
+- Do not add pagination or “load more” solely because the UI currently keeps 50 messages. Add historical retrieval only if a durable collaboration-history requirement emerges.
+- When an authenticated office-map Preview is available, repeat the native soft-keyboard open/close cycle on Android/PWA and an iOS-style viewport without changing the current information hierarchy unless a reproducible defect is observed.
+
+---
+
 ## 2026-08-25 — Cross-page Product Continuity QA
 
 ### Area

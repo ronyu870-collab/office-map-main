@@ -32,7 +32,12 @@ function formatMessageTime(value: string) {
     month: '2-digit',
     day: '2-digit',
   });
+  const yearFormatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: BEIJING_TIME_ZONE,
+    year: 'numeric',
+  });
   const isToday = dayFormatter.format(date) === dayFormatter.format(now);
+  const isCurrentYear = yearFormatter.format(date) === yearFormatter.format(now);
 
   return isToday
     ? date.toLocaleTimeString('zh-CN', {
@@ -43,6 +48,7 @@ function formatMessageTime(value: string) {
       })
     : date.toLocaleString('zh-CN', {
         timeZone: BEIJING_TIME_ZONE,
+        ...(isCurrentYear ? {} : { year: 'numeric' as const }),
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
@@ -69,6 +75,28 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const historyEntryRef = useRef(false);
   const wasFullscreenRef = useRef(false);
   const isNearBottomRef = useRef(true);
+  const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const loadRequestIdRef = useRef(0);
+  const animationFramesRef = useRef<Set<number>>(new Set());
+
+  const scheduleFrame = useCallback((callback: () => void) => {
+    const frameId = requestAnimationFrame(() => {
+      animationFramesRef.current.delete(frameId);
+      if (mountedRef.current) callback();
+    });
+    animationFramesRef.current.add(frameId);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadRequestIdRef.current += 1;
+      animationFramesRef.current.forEach((frameId) => cancelAnimationFrame(frameId));
+      animationFramesRef.current.clear();
+    };
+  }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -77,6 +105,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   }, []);
 
   const loadMessages = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     setLoadError(false);
 
@@ -85,6 +114,8 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
       .select('*')
       .order('created_at', { ascending: false })
       .limit(MAX_MESSAGES);
+
+    if (!mountedRef.current || requestId !== loadRequestIdRef.current) return;
 
     if (error) {
       console.error('加载市场交流失败:', error);
@@ -95,8 +126,8 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
 
     setMessages((data ?? []).reverse());
     setLoading(false);
-    requestAnimationFrame(() => scrollToBottom('auto'));
-  }, [scrollToBottom]);
+    scheduleFrame(() => scrollToBottom('auto'));
+  }, [scheduleFrame, scrollToBottom]);
 
   useEffect(() => {
     void loadMessages();
@@ -104,10 +135,16 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     const channel = supabase
       .channel('public:messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        setLoadError(false);
-        setMessages((prev) => [...prev, payload.new as Message].slice(-MAX_MESSAGES));
+        if (!mountedRef.current) return;
 
-        requestAnimationFrame(() => {
+        setLoadError(false);
+        const incomingMessage = payload.new as Message;
+        setMessages((prev) => {
+          if (prev.some((message) => message.id === incomingMessage.id)) return prev;
+          return [...prev, incomingMessage].slice(-MAX_MESSAGES);
+        });
+
+        scheduleFrame(() => {
           if (!fullscreenRef.current || isNearBottomRef.current) {
             scrollToBottom(fullscreenRef.current ? 'smooth' : 'auto');
           } else {
@@ -120,16 +157,13 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadMessages, scrollToBottom]);
-
-  useEffect(() => {
-    fullscreenRef.current = fullscreen;
-  }, [fullscreen]);
+  }, [loadMessages, scheduleFrame, scrollToBottom]);
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       const shouldBeFullscreen = Boolean(event.state?.[HISTORY_STATE_KEY]);
       historyEntryRef.current = shouldBeFullscreen;
+      fullscreenRef.current = shouldBeFullscreen;
       setFullscreen(shouldBeFullscreen);
     };
 
@@ -140,6 +174,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const openFullscreen = useCallback(() => {
     if (fullscreenRef.current) return;
 
+    fullscreenRef.current = true;
     const currentState = window.history.state && typeof window.history.state === 'object'
       ? window.history.state
       : {};
@@ -149,6 +184,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   }, []);
 
   const closeFullscreen = useCallback(() => {
+    fullscreenRef.current = false;
     setFullscreen(false);
     setHasNewMessages(false);
 
@@ -162,7 +198,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     if (!fullscreen) {
       if (wasFullscreenRef.current) {
         wasFullscreenRef.current = false;
-        requestAnimationFrame(() => toggleButtonRef.current?.focus());
+        scheduleFrame(() => toggleButtonRef.current?.focus());
       }
       return;
     }
@@ -171,7 +207,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     const previousBodyOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    requestAnimationFrame(() => {
+    scheduleFrame(() => {
       scrollToBottom('auto');
       toggleButtonRef.current?.focus();
     });
@@ -209,7 +245,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
       document.body.style.overflow = previousBodyOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeFullscreen, fullscreen, scrollToBottom]);
+  }, [closeFullscreen, fullscreen, scheduleFrame, scrollToBottom]);
 
   const handleViewportScroll = () => {
     const viewport = messagesViewportRef.current;
@@ -224,27 +260,30 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const handleSendMessage = async (event: React.FormEvent) => {
     event.preventDefault();
     const msgContent = inputText.trim();
-    if (!msgContent || sending) return;
+    if (!msgContent || sendingRef.current) return;
 
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
 
-    const { error } = await supabase.from('messages').insert({
-      user_email: userEmail,
-      user_name: userName,
-      content: msgContent,
-    });
+    try {
+      const { error } = await supabase.from('messages').insert({
+        user_email: userEmail,
+        user_name: userName,
+        content: msgContent,
+      });
 
-    if (error) {
+      if (error) throw error;
+
+      if (mountedRef.current) setInputText('');
+      logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) });
+    } catch (error) {
       console.error('发送留言失败:', error);
-      setSendError('发送失败，内容已保留，请重试。');
-      setSending(false);
-      return;
+      if (mountedRef.current) setSendError('发送失败，内容已保留，请重试。');
+    } finally {
+      sendingRef.current = false;
+      if (mountedRef.current) setSending(false);
     }
-
-    setInputText('');
-    setSending(false);
-    logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) });
   };
 
   const visibleMessages = fullscreen ? messages : messages.slice(-4);
@@ -358,7 +397,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         role="dialog"
         aria-modal="true"
         aria-labelledby="communication-dialog-title"
-        className="fixed inset-0 z-[var(--cd-z-modal)] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-surface)]"
+        className="fixed inset-0 z-[var(--cd-z-modal)] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-surface)] pt-[env(safe-area-inset-top)]"
       >
         {boardContent}
       </div>

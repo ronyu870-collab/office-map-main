@@ -20,22 +20,19 @@ import {
 import { CommunicationBoard } from '@/src/components/CommunicationBoard';
 import { NoticeBanner } from '@/src/components/NoticeBanner';
 import { WorkspaceShell } from '@/src/components/layout';
-import { Badge } from '@/src/components/ui';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
+import { parseUserRole, type UserRole } from '@/src/types/auth';
+import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 import { logAction, logActionImmediate } from '@/src/utils/audit';
 import {
   canAccessModule,
   getAccessibilityProps,
   isModuleRestricted,
-  isUserAdmin,
 } from '@/src/utils/accessControl';
-
-type UnderDevelopmentModule = { module: string; href: string };
-const UNDER_DEVELOPMENT_MODULES: UnderDevelopmentModule[] = [];
 
 type WorkspaceModule = {
   href: string;
@@ -43,6 +40,12 @@ type WorkspaceModule = {
   title: string;
   description: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
+};
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  viewer: '查看用户',
+  editor: '编辑用户',
+  admin: '管理员',
 };
 
 const MAP_WORKSPACE: WorkspaceModule = {
@@ -85,38 +88,6 @@ const ADMIN_WORKSPACE: WorkspaceModule = {
   icon: Database,
 };
 
-function UnderDevelopmentModal({ isOpen, onClose, moduleName }: { isOpen: boolean; onClose: () => void; moduleName: string }) {
-  const closeButtonRef = React.useRef<HTMLButtonElement>(null);
-
-  React.useEffect(() => {
-    if (!isOpen) return;
-    const handleEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  React.useEffect(() => { if (isOpen) closeButtonRef.current?.focus(); }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[var(--cd-z-modal)] flex items-center justify-center bg-black/45 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="home-dev-modal-title" className="w-full max-w-md rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-6 shadow-[var(--cd-shadow-overlay)]">
-        <h2 id="home-dev-modal-title" className="text-base font-semibold text-[var(--cd-color-text-primary)]">功能开发中</h2>
-        <p className="mt-2 text-sm leading-6 text-[var(--cd-color-text-secondary)]">{moduleName} 正在开发中。管理员可以继续测试，其他用户暂时不可进入。</p>
-        <button ref={closeButtonRef} type="button" onClick={onClose} className="mt-5 h-9 w-full rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--cd-color-brand-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]">我知道了</button>
-      </div>
-    </div>
-  );
-}
-
-function getRoleLabel(role: string, isAdmin: boolean) {
-  if (isAdmin) return '管理员';
-  if (role === 'editor') return '编辑用户';
-  if (role === 'viewer') return '查看用户';
-  return '内部用户';
-}
-
 function HomeHeader({
   displayName,
   role,
@@ -125,7 +96,7 @@ function HomeHeader({
   onAdminActivate,
 }: {
   displayName: string;
-  role: string;
+  role: UserRole;
   canSeeAdminWorkspace: boolean;
   onLogout: () => void;
   onAdminActivate: (event: React.MouseEvent<HTMLAnchorElement>) => void;
@@ -133,10 +104,18 @@ function HomeHeader({
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const menuTriggerRef = React.useRef<HTMLButtonElement>(null);
-  const isAdmin = isUserAdmin(role);
-  const roleLabel = getRoleLabel(role, isAdmin);
-  const adminCanAccess = canAccessModule(ADMIN_WORKSPACE.module, role);
-  const adminAccessibilityProps = getAccessibilityProps(ADMIN_WORKSPACE.module, ADMIN_WORKSPACE.title, role);
+  const focusFirstOnOpenRef = React.useRef(false);
+  const roleLabel = ROLE_LABELS[role];
+
+  const focusFirstMenuItem = React.useCallback(() => {
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
+  }, []);
+
+  React.useEffect(() => {
+    if (!menuOpen || !focusFirstOnOpenRef.current) return;
+    focusFirstOnOpenRef.current = false;
+    focusFirstMenuItem();
+  }, [focusFirstMenuItem, menuOpen]);
 
   React.useEffect(() => {
     if (!menuOpen) return;
@@ -148,7 +127,7 @@ function HomeHeader({
       if (event.key !== 'Escape') return;
       event.preventDefault();
       setMenuOpen(false);
-      requestAnimationFrame(() => menuTriggerRef.current?.focus());
+      menuTriggerRef.current?.focus();
     };
 
     document.addEventListener('pointerdown', handlePointerDown);
@@ -158,12 +137,6 @@ function HomeHeader({
       document.removeEventListener('keydown', handleEscape);
     };
   }, [menuOpen]);
-
-  const focusFirstMenuItem = () => {
-    requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
-    });
-  };
 
   const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
@@ -218,8 +191,12 @@ function HomeHeader({
           onKeyDown={(event) => {
             if (event.key !== 'ArrowDown') return;
             event.preventDefault();
+            if (menuOpen) {
+              focusFirstMenuItem();
+              return;
+            }
+            focusFirstOnOpenRef.current = true;
             setMenuOpen(true);
-            focusFirstMenuItem();
           }}
           className="inline-flex h-10 max-w-48 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:h-9"
           aria-haspopup="menu"
@@ -259,17 +236,15 @@ function HomeHeader({
               {canSeeAdminWorkspace ? (
                 <Link
                   href={ADMIN_WORKSPACE.href}
-                  {...adminAccessibilityProps}
                   role="menuitem"
                   onClick={(event) => {
                     setMenuOpen(false);
                     onAdminActivate(event);
                   }}
-                  className={`flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20 ${adminCanAccess ? 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)]' : 'cursor-not-allowed text-[var(--cd-color-text-muted)] opacity-60'}`}
+                  className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                 >
                   <Database size={14} strokeWidth={1.55} aria-hidden="true" />
                   <span>系统管理</span>
-                  {!adminCanAccess ? <span className="ml-auto text-[11px]">无权限</span> : null}
                 </Link>
               ) : null}
             </div>
@@ -295,10 +270,9 @@ function HomeHeader({
   );
 }
 
-function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceModule; role: string; onActivate: (event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void }) {
+function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceModule; role: UserRole; onActivate: (event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void }) {
   const Icon = workspace.icon;
   const canAccess = canAccessModule(workspace.module, role);
-  const isUnderDevelopment = UNDER_DEVELOPMENT_MODULES.some(({ module }) => module === workspace.module);
   const accessibilityProps = getAccessibilityProps(workspace.module, workspace.title, role);
 
   return (
@@ -315,7 +289,6 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className="text-[14px] font-medium text-[var(--cd-color-text-primary)] sm:text-[15px]">{workspace.title}</h3>
-          {isUnderDevelopment ? <Badge tone="warning">开发中</Badge> : null}
         </div>
         <p className="mt-0.5 text-[13px] leading-5 text-[var(--cd-color-text-secondary)]">{workspace.description}</p>
       </div>
@@ -364,8 +337,6 @@ export function HomeWorkspace() {
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
   const { isImpersonating } = useImpersonation();
-  const [showDevModal, setShowDevModal] = React.useState(false);
-  const [clickedModule, setClickedModule] = React.useState('');
   const [showCommunication, setShowCommunication] = React.useState(false);
 
   React.useEffect(() => { if (status === 'unauthenticated') router.replace('/login'); }, [router, status]);
@@ -377,12 +348,16 @@ export function HomeWorkspace() {
   if (status === 'loading' || !ctx) return <HomeLoadingShell />;
 
   const activeSession = ctx;
-  const isAdmin = isUserAdmin(activeSession.role);
-  const canSeeAdminWorkspace = (isAdmin || isDemoMode(activeSession.user.email)) && !isImpersonating;
+  const activeRole = parseUserRole(activeSession.role) ?? 'viewer';
+  const canSeeAdminWorkspace = canAccessAdminConsole({
+    role: activeRole,
+    isDemo: isDemoMode(activeSession.user.email),
+    impersonationActive: isImpersonating,
+  });
 
   async function handleLogout() {
     try {
-      if (activeSession.user.email) await logActionImmediate(activeSession.user.email, 'LOGOUT', { platform: 'web' });
+      if (activeSession.user.email) void logActionImmediate(activeSession.user.email, 'LOGOUT', { platform: 'web' });
       await signOut();
       window.location.href = '/login';
     } catch {
@@ -390,90 +365,76 @@ export function HomeWorkspace() {
     }
   }
 
-  function evaluateWorkspace(event: { preventDefault: () => void }, workspace: WorkspaceModule) {
+  function handleWorkspaceActivation(event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) {
     const restricted = isModuleRestricted(workspace.module);
-    const admin = isUserAdmin(activeSession.role);
-    const canAccess = canAccessModule(workspace.module, activeSession.role);
+    const canAccess = workspace.module === ADMIN_WORKSPACE.module
+      ? canSeeAdminWorkspace
+      : canAccessModule(workspace.module, activeRole);
 
     if (activeSession.user.email) {
       const details: Record<string, unknown> = { module: workspace.module, blocked: !canAccess };
-      if (restricted && !admin) details.reason = 'restricted_module';
+      if (restricted && activeRole !== 'admin') details.reason = 'restricted_module';
       logAction(activeSession.user.email, 'ENTER_MODULE', details);
     }
 
-    if (!canAccess) { event.preventDefault(); return; }
-
-    const underDevelopment = UNDER_DEVELOPMENT_MODULES.some(({ module }) => module === workspace.module);
-    if (underDevelopment && !admin) {
-      event.preventDefault();
-      setClickedModule(workspace.title);
-      setShowDevModal(true);
-    }
-  }
-
-  function handleWorkspaceActivation(event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) {
-    evaluateWorkspace(event, workspace);
+    if (!canAccess) event.preventDefault();
   }
 
   const MapIcon = MAP_WORKSPACE.icon;
-  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeSession.role);
+  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeRole);
 
   return (
-    <>
-      <WorkspaceShell
-        className="h-screen h-[100dvh] overflow-hidden"
-        header={(
-          <HomeHeader
-            displayName={activeSession.displayName}
-            role={activeSession.role}
-            canSeeAdminWorkspace={canSeeAdminWorkspace}
-            onLogout={() => void handleLogout()}
-            onAdminActivate={(event) => handleWorkspaceActivation(event, ADMIN_WORKSPACE)}
-          />
-        )}
-      >
-        <div className="h-full overflow-y-auto overscroll-contain">
-          <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
-            <section className="min-w-0" aria-labelledby="home-heading">
-              <Link
-                href={MAP_WORKSPACE.href}
-                onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
-                className="group flex min-h-[104px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
-                {...mapAccessibilityProps}
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
-                  <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
-                  <p className="mt-1 text-[13px] leading-5 text-[var(--cd-color-text-secondary)] sm:text-sm">{MAP_WORKSPACE.description}</p>
-                </div>
-                <div className="hidden shrink-0 items-center gap-1.5 text-[13px] font-medium text-[var(--cd-color-brand)] sm:flex">进入地图<ArrowRight size={15} strokeWidth={1.6} aria-hidden="true" /></div>
-                <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)] sm:hidden" aria-hidden="true" />
-              </Link>
+    <WorkspaceShell
+      className="h-screen h-[100dvh] overflow-hidden"
+      header={(
+        <HomeHeader
+          displayName={activeSession.displayName}
+          role={activeRole}
+          canSeeAdminWorkspace={canSeeAdminWorkspace}
+          onLogout={() => void handleLogout()}
+          onAdminActivate={(event) => handleWorkspaceActivation(event, ADMIN_WORKSPACE)}
+        />
+      )}
+    >
+      <div className="h-full overflow-y-auto overscroll-contain">
+        <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
+          <section className="min-w-0" aria-labelledby="home-heading">
+            <Link
+              href={MAP_WORKSPACE.href}
+              onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
+              className="group flex min-h-[104px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+              {...mapAccessibilityProps}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
+                <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
+                <p className="mt-1 text-[13px] leading-5 text-[var(--cd-color-text-secondary)] sm:text-sm">{MAP_WORKSPACE.description}</p>
+              </div>
+              <div className="hidden shrink-0 items-center gap-1.5 text-[13px] font-medium text-[var(--cd-color-brand)] sm:flex">进入地图<ArrowRight size={15} strokeWidth={1.6} aria-hidden="true" /></div>
+              <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)] sm:hidden" aria-hidden="true" />
+            </Link>
 
-              <div className="mb-2.5 mt-5">
-                <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
-              </div>
-              <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-                {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} />)}
-              </div>
-            </section>
+            <div className="mb-2.5 mt-5">
+              <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
+            </div>
+            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+              {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
+            </div>
+          </section>
 
-            <aside className="min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-7" aria-label="团队动态">
-              <h2 className="mb-2.5 text-[14px] font-semibold text-[var(--cd-color-text-primary)]">团队动态</h2>
-              <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-                {showCommunication ? <NoticeBanner /> : <div className="h-12 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]" />}
-                <div className="h-[240px] sm:h-[250px] lg:h-[270px]">
-                  {showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-full animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}
-                </div>
+          <aside className="min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-7" aria-label="团队动态">
+            <h2 className="mb-2.5 text-[14px] font-semibold text-[var(--cd-color-text-primary)]">团队动态</h2>
+            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+              {showCommunication ? <NoticeBanner /> : <div className="h-12 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]" />}
+              <div className="h-[240px] sm:h-[250px] lg:h-[270px]">
+                {showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-full animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}
               </div>
-            </aside>
-          </div>
+            </div>
+          </aside>
         </div>
-      </WorkspaceShell>
-
-      <UnderDevelopmentModal isOpen={showDevModal} onClose={() => { setShowDevModal(false); setClickedModule(''); }} moduleName={clickedModule} />
-    </>
+      </div>
+    </WorkspaceShell>
   );
 }

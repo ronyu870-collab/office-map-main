@@ -4,8 +4,9 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from '@/src/services/Auth';
-import { canAccessAdminConsole } from '@/src/utils/adminAccess';
+import { isDemoMode } from '@/src/config/demoMode';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
+import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 
 function AdminGuardLoading() {
   return (
@@ -36,6 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         const permitted = Boolean(session) && canAccessAdminConsole({
           role: session?.role,
+          isDemo: isDemoMode(session?.user?.email),
           impersonationActive: isImpersonating,
         });
 

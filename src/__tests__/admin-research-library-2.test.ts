@@ -16,21 +16,22 @@ const items: ResearchLibraryItem[] = [
 ];
 
 describe('Admin 2.0 authorization policy', () => {
-  it('authorizes the console only for the admin role', () => {
+  it('authorizes the console for canonical admin or explicit demo mode only', () => {
     expect(canAccessAdminConsole({ role: 'admin' })).toBe(true);
     expect(canAccessAdminConsole({ role: 'editor' })).toBe(false);
     expect(canAccessAdminConsole({ role: 'viewer' })).toBe(false);
     expect(canAccessAdminConsole({ role: null })).toBe(false);
+    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true })).toBe(true);
   });
 
-  it('blocks the admin console while impersonating', () => {
+  it('blocks admin entry while impersonating', () => {
     expect(canAccessAdminConsole({ role: 'admin', impersonationActive: true })).toBe(false);
-    expect(canAccessAdminConsole({ role: 'admin', impersonationActive: false })).toBe(true);
+    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true, impersonationActive: true })).toBe(false);
   });
 
-  it('keeps research-library write roles distinct from general browsing', () => {
+  it('keeps research-library write access on the canonical admin role', () => {
     expect(isResearchLibraryManager('admin')).toBe(true);
-    expect(isResearchLibraryManager('super_admin')).toBe(true);
+    expect(isResearchLibraryManager('super_admin')).toBe(false);
     expect(isResearchLibraryManager('editor')).toBe(false);
   });
 });

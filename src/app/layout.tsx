@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/src/components/SessionProvider";
 import { SWRConfig } from "swr";
@@ -13,6 +13,12 @@ import { PerformanceReporter } from "@/src/components/PerformanceReporter";
 export const metadata: Metadata = {
   title: "COLLIERS DATA | 办公楼市场监测",
   description: "高力国际内部数据看板",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
