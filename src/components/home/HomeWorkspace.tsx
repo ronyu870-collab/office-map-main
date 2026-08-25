@@ -261,13 +261,13 @@ function HomeHeader({
               {canSeeAdminWorkspace ? (
                 <Link
                   href={ADMIN_WORKSPACE.href}
+                  {...adminAccessibilityProps}
                   role="menuitem"
                   onClick={(event) => {
                     setMenuOpen(false);
                     onAdminActivate(event);
                   }}
                   className={`flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20 ${adminCanAccess ? 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)]' : 'cursor-not-allowed text-[var(--cd-color-text-muted)] opacity-60'}`}
-                  {...adminAccessibilityProps}
                 >
                   <Database size={14} strokeWidth={1.55} aria-hidden="true" />
                   <span>系统管理</span>
