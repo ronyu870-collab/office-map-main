@@ -13,7 +13,10 @@ export default function UpdatePage() {
         </div>
       }
     >
-      <QuarterlyUpdateWorkspace />
+      <div className="h-screen overflow-hidden">
+        <span className="sr-only">季度数据填报</span>
+        <QuarterlyUpdateWorkspace />
+      </div>
     </React.Suspense>
   );
 }
