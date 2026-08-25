@@ -1,835 +1,449 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { logAction } from '@/src/utils/audit';
+import * as React from 'react';
+import {
+  AlertTriangle,
+  ArrowUp,
+  CheckCircle2,
+  Download,
+  Edit2,
+  File,
+  Folder,
+  FolderPlus,
+  RefreshCw,
+  Search,
+  Trash2,
+  Upload,
+  X,
+  XCircle,
+} from 'lucide-react';
+
 import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
-import { X, AlertTriangle, Edit2, Trash2, FolderPlus, Upload, Download, Check } from 'lucide-react';
+import { logAction } from '@/src/utils/audit';
+import { isResearchLibraryManager } from '@/src/utils/adminAccess';
+import { Button } from '@/src/components/ui/Button';
+import { EmptyState, ErrorState, LoadingState } from '@/src/components/ui/State';
+import {
+  classifyLibraryItem,
+  filterAndSortLibraryItems,
+  isDuplicateUploadName,
+  isSupportedResearchFile,
+  itemDisplayName,
+  type LibrarySort,
+  type LibraryTypeFilter,
+  type ResearchLibraryItem,
+} from '@/src/components/oss/libraryModel';
 
-type OSSItem = {
-  name: string;
-  type: 'folder' | 'file';
-  shortName?: string;
-  size?: string;
-  lastModified?: string;
-  url?: string;
-};
+type UploadStatus = 'queued' | 'uploading' | 'success' | 'error' | 'duplicate' | 'unsupported';
+type UploadEntry = { id: string; name: string; status: UploadStatus; progress: number; message?: string };
+type Notice = { tone: 'success' | 'error' | 'warning'; text: string } | null;
 
-// Modal 组件
-function Modal({ 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
-  danger = false 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  title: string; 
+function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  danger = false,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
   children: React.ReactNode;
   danger?: boolean;
 }) {
-  if (!isOpen) return null;
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
+  if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div 
-        className="bg-white rounded-lg shadow-2xl max-w-md w-full mx-4 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={`px-6 py-4 border-b flex items-center justify-between ${danger ? 'bg-red-50 border-red-200' : 'bg-zinc-50 border-zinc-200'}`}>
-          <h3 className={`text-lg font-semibold flex items-center gap-2 ${danger ? 'text-red-900' : 'text-zinc-900'}`}>
-            {danger && <AlertTriangle className="w-5 h-5 text-red-600" />}
-            {title}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/45 p-4" role="dialog" aria-modal="true" aria-label={title} onMouseDown={onClose}>
+      <div className="w-full max-w-md overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+        <div className={`flex items-center justify-between border-b px-4 py-3 ${danger ? 'border-red-200 bg-red-50' : 'border-zinc-200 bg-zinc-50'}`}>
+          <h3 className={`flex items-center gap-2 text-sm font-semibold ${danger ? 'text-red-800' : 'text-zinc-900'}`}>
+            {danger ? <AlertTriangle size={16} /> : null}{title}
           </h3>
-          <button 
-            onClick={onClose}
-            className="text-zinc-400 hover:text-zinc-600 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <button type="button" onClick={onClose} className="rounded p-1 text-zinc-400 hover:bg-white hover:text-zinc-700" aria-label="关闭"><X size={16} /></button>
         </div>
-        <div className="p-6">
-          {children}
-        </div>
+        <div className="p-4">{children}</div>
       </div>
     </div>
   );
 }
 
+function formatDate(value?: string) {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(parsed);
+}
+
+function typeLabel(item: ResearchLibraryItem) {
+  const type = classifyLibraryItem(item);
+  return ({ folder: 'Folder', pdf: 'PDF', presentation: 'PPT', document: 'Word', spreadsheet: 'Excel', other: 'File', all: 'All' } as const)[type];
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('登录状态已失效，请重新登录');
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
+function uploadToOSS(host: string, formData: FormData, onProgress: (progress: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', host);
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`OSS 上传失败（HTTP ${xhr.status}）`));
+    });
+    xhr.addEventListener('error', () => reject(new Error('OSS 上传网络错误')));
+    xhr.addEventListener('abort', () => reject(new Error('上传已取消')));
+    xhr.send(formData);
+  });
+}
+
 export function OSSManager({ userEmail }: { userEmail: string }) {
-  const [currentPrefix, setCurrentPrefix] = useState('');
-  const [items, setItems] = useState<OSSItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [userRole, setUserRole] = useState<string>('viewer');
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  
-  // Modal 状态
-  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
-  
-  // 操作目标
-  const [targetItem, setTargetItem] = useState<OSSItem | null>(null);
-  const [newName, setNewName] = useState('');
-  const [folderName, setFolderName] = useState('');
-  const [operationInProgress, setOperationInProgress] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [currentPrefix, setCurrentPrefix] = React.useState('');
+  const [items, setItems] = React.useState<ResearchLibraryItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState('');
+  const [truncated, setTruncated] = React.useState(false);
+  const [userRole, setUserRole] = React.useState('viewer');
+  const [isImpersonating, setIsImpersonating] = React.useState(false);
+  const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
+  const [query, setQuery] = React.useState('');
+  const [typeFilter, setTypeFilter] = React.useState<LibraryTypeFilter>('all');
+  const [sort, setSort] = React.useState<LibrarySort>('modified-desc');
+  const [notice, setNotice] = React.useState<Notice>(null);
+  const [uploads, setUploads] = React.useState<UploadEntry[]>([]);
+  const [uploading, setUploading] = React.useState(false);
+  const [operationInProgress, setOperationInProgress] = React.useState(false);
 
-  // 新增：获取用户角色
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      try {
-        const session = await getSessionFast();
-        if (session?.role) {
-          setUserRole(session.role);
-        }
-      } catch (err) {
-        console.error('获取用户角色失败:', err);
-      }
-    };
-    fetchUserRole();
-  }, []);
+  const [showCreateFolderModal, setShowCreateFolderModal] = React.useState(false);
+  const [showRenameModal, setShowRenameModal] = React.useState(false);
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = React.useState(false);
+  const [targetItem, setTargetItem] = React.useState<ResearchLibraryItem | null>(null);
+  const [newName, setNewName] = React.useState('');
+  const [folderName, setFolderName] = React.useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // 新增：检查是否为管理员
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const canManage = isResearchLibraryManager(userRole) && !isImpersonating;
+  const visibleItems = React.useMemo(
+    () => filterAndSortLibraryItems(items, { query, type: typeFilter, sort }),
+    [items, query, typeFilter, sort],
+  );
+  const filtersActive = Boolean(query.trim()) || typeFilter !== 'all';
 
-  // 加载目录内容
-  const loadReports = async (prefix: string) => {
-    setLoading(true);
-    setCurrentPrefix(prefix);
-    setSelectedItems(new Set()); // 切换目录时清空选择
+  React.useEffect(() => {
+    let cancelled = false;
+    void getSessionFast().then((session) => {
+      if (!cancelled) setUserRole(session?.role ?? 'viewer');
+    });
     try {
-      const res = await fetch(`/api/oss?action=get-list&prefix=${encodeURIComponent(prefix)}`);
-      const result = await res.json();
-      if (result.status === 'success') {
-        setItems(result.data);
-      }
-    } catch (e) {
-      console.error('获取OSS列表失败', e);
+      setIsImpersonating(Boolean(sessionStorage.getItem('__impersonation_state')));
+    } catch {
+      setIsImpersonating(false);
     }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadReports('');
+    return () => { cancelled = true; };
   }, []);
 
-  // 新增：获取 Authorization header
-  const getAuthHeader = async (): Promise<Record<string, string>> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  };
-
-  // 批量选择相关
-  const toggleSelectItem = (itemName: string) => {
-    const newSelected = new Set(selectedItems);
-    if (newSelected.has(itemName)) {
-      newSelected.delete(itemName);
-    } else {
-      newSelected.add(itemName);
-    }
-    setSelectedItems(newSelected);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedItems.size === items.length) {
-      setSelectedItems(new Set());
-    } else {
-      setSelectedItems(new Set(items.map(item => item.name)));
-    }
-  };
-
-  const clearSelection = () => {
+  const loadReports = React.useCallback(async (prefix: string) => {
+    setLoading(true);
+    setLoadError('');
+    setCurrentPrefix(prefix);
     setSelectedItems(new Set());
-  };
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`/api/oss?action=get-list&prefix=${encodeURIComponent(prefix)}`, { headers });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.status !== 'success') throw new Error(result.message || '资料列表加载失败');
+      setItems(Array.isArray(result.data) ? result.data : []);
+      setTruncated(Boolean(result.truncated));
+    } catch (error) {
+      setItems([]);
+      setLoadError(error instanceof Error ? error.message : '资料列表加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // 返回上一级
+  React.useEffect(() => { void loadReports(''); }, [loadReports]);
+
   const goUp = () => {
-    const parts = currentPrefix.split('/').filter(p => p);
+    const parts = currentPrefix.split('/').filter(Boolean);
     parts.pop();
-    loadReports(parts.length > 0 ? parts.join('/') + '/' : '');
+    void loadReports(parts.length ? `${parts.join('/')}/` : '');
   };
 
-  // 面包屑导航
-  const renderBreadcrumb = () => {
-    let bcHtml: React.ReactNode[] = [
-      <span key="root" className="cursor-pointer font-semibold text-[#003e7e] hover:underline" onClick={() => loadReports('')}>🏠 根目录</span>
-    ];
-    if (currentPrefix) {
-      const parts = currentPrefix.split('/').filter(p => p);
-      let path = '';
-      parts.forEach((p, i) => {
-        path += p + '/';
-        const currentPath = path; // 闭包捕获
-        bcHtml.push(<span key={`sep-${i}`} className="mx-1 text-zinc-400">/</span>);
-        bcHtml.push(
-          <span key={p} className="cursor-pointer font-semibold text-[#003e7e] hover:underline" onClick={() => loadReports(currentPath)}>
-            {p}
-          </span>
-        );
-      });
-    }
-    return <div className="text-sm">{bcHtml}</div>;
+  const clearFilters = () => {
+    setQuery('');
+    setTypeFilter('all');
   };
 
-  // 新建文件夹（使用 Modal）
-  const openCreateFolderModal = () => {
-    if (!isAdmin) {
-      alert("⚠️ 权限不足：只有管理员可以创建文件夹");
-      return;
-    }
+  const toggleSelected = (name: string) => {
+    setSelectedItems((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  const openCreateFolder = () => {
+    if (!canManage) return setNotice({ tone: 'warning', text: isImpersonating ? '用户模拟期间为只读模式。' : '只有管理员可以创建文件夹。' });
     setFolderName('');
     setShowCreateFolderModal(true);
   };
 
-  const handleCreateFolder = async () => {
-    if (!folderName.trim()) {
-      alert("请输入文件夹名称");
-      return;
-    }
-    
+  const createFolder = async () => {
+    if (!folderName.trim()) return setNotice({ tone: 'warning', text: '请输入文件夹名称。' });
     setOperationInProgress(true);
     try {
-      const fullPath = `${currentPrefix}${folderName.trim()}/`;
-      const authHeader = await getAuthHeader();
-      
-      const res = await fetch('/api/oss?action=create-folder', {
+      const headers = await authHeaders();
+      const response = await fetch('/api/oss?action=create-folder', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...authHeader
-        },
-        body: JSON.stringify({ folder: fullPath })
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ folder: `${currentPrefix}${folderName.trim()}/` }),
       });
-      const data = await res.json();
-      
-      if (res.status === 403) {
-        alert("⚠️ 权限不足：" + data.message);
-        return;
-      }
-      
-      if (data.status === 'success') {
-        logAction(userEmail, 'OSS_CREATE_FOLDER', { folderName: fullPath });
-        setShowCreateFolderModal(false);
-        loadReports(currentPrefix);
-      } else {
-        alert("创建失败: " + data.message);
-      }
-    } catch (e) {
-      alert("请求异常，请检查网络。");
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.status !== 'success') throw new Error(result.message || '创建失败');
+      logAction(userEmail, 'OSS_CREATE_FOLDER', { folderName: `${currentPrefix}${folderName.trim()}/` });
+      setShowCreateFolderModal(false);
+      setNotice({ tone: 'success', text: '文件夹已创建。' });
+      await loadReports(currentPrefix);
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : '创建失败' });
     } finally {
       setOperationInProgress(false);
     }
   };
 
-  // 极速直传引擎
-  const executeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 前端权限检查
-    if (!isAdmin) {
-      alert("⚠️ 权限不足：只有管理员可以上传文件");
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
+  const executeUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!files.length) return;
+    if (!canManage) return setNotice({ tone: 'warning', text: isImpersonating ? '用户模拟期间为只读模式。' : '只有管理员可以上传文件。' });
 
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
+    const queue: UploadEntry[] = files.map((file) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}`,
+      name: file.name,
+      status: !isSupportedResearchFile(file.name) ? 'unsupported' : isDuplicateUploadName(items, file.name) ? 'duplicate' : 'queued',
+      progress: 0,
+      message: !isSupportedResearchFile(file.name) ? '不支持此文件类型' : isDuplicateUploadName(items, file.name) ? '当前目录已存在同名文件' : undefined,
+    }));
+    setUploads(queue);
+    const uploadable = queue.filter((entry) => entry.status === 'queued');
+    if (!uploadable.length) return;
+
     setUploading(true);
     try {
-      const authHeader = await getAuthHeader();
-      
-      const signRes = await fetch('/api/oss?action=get-signature', {
-        headers: authHeader
-      });
-      
-      if (signRes.status === 403) {
-        const data = await signRes.json();
-        alert("⚠️ 权限不足：" + data.message);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        setUploading(false);
-        return;
-      }
-      
-      const signData = await signRes.json();
-      if (signData.status !== 'success') throw new Error("获取上传签名失败");
+      const headers = await authHeaders();
+      const signatureResponse = await fetch('/api/oss?action=get-signature', { headers });
+      const signature = await signatureResponse.json().catch(() => ({}));
+      if (!signatureResponse.ok || signature.status !== 'success') throw new Error(signature.message || '获取上传签名失败');
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const formData = new FormData();
-        const fullKey = `${currentPrefix}${file.name}`;
-        
-        formData.append('key', fullKey);
-        formData.append('policy', signData.policy);
-        formData.append('OSSAccessKeyId', signData.accessid); 
-        formData.append('signature', signData.signature);
-        formData.append('success_action_status', '200');
-        formData.append('file', file);
-        
-        const uploadRes = await fetch(signData.host, { method: 'POST', body: formData });
-        if (!uploadRes.ok) throw new Error("阿里云拒绝接收文件");
-        
-        logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
-      }
-      alert("✅ 上传成功！"); 
-      if (fileInputRef.current) fileInputRef.current.value = ''; 
-      loadReports(currentPrefix); 
-    } catch (error: any) { 
-      alert(`❌ 上传失败: ${error.message}`); 
-    } finally { 
-      setUploading(false); 
-    }
-  };
-
-  // 删除单个文件（使用 Modal）
-  const openDeleteModal = (item: OSSItem) => {
-    if (!isAdmin) {
-      alert("⚠️ 权限不足：只有管理员可以删除文件");
-      return;
-    }
-    setTargetItem(item);
-    setShowDeleteModal(true);
-  };
-
-  const handleDelete = async () => {
-    if (!targetItem) return;
-    
-    setOperationInProgress(true);
-    try {
-      const authHeader = await getAuthHeader();
-      
-      const res = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(targetItem.name)}`, { 
-        method: 'POST',
-        headers: authHeader
-      });
-      
-      if (res.status === 403) {
-        const data = await res.json();
-        alert("⚠️ 权限不足：" + data.message);
-        return;
-      }
-      
-      const data = await res.json();
-      
-      if (data.status === 'success') {
-        // 显示详细的删除结果
-        if (data.stats && data.stats.total > 0) {
-          alert(`✅ ${data.message}\n\n统计信息：\n- 总对象数：${data.stats.total}\n- 成功删除：${data.stats.success}\n- 失败：${data.stats.failed}`);
-        }
-        
-        logAction(userEmail, 'OSS_DELETE', {
-          fileName: targetItem.name,
-          type: targetItem.type,
-          stats: data.stats
-        });
-        setShowDeleteModal(false);
-        loadReports(currentPrefix);
-      } else {
-        alert(`❌ 删除失败：${data.message}`);
-      }
-    } catch (e) {
-      alert("删除失败，请检查网络。");
-    } finally {
-      setOperationInProgress(false);
-    }
-  };
-
-  // 批量删除
-  const openBatchDeleteModal = () => {
-    if (!isAdmin) {
-      alert("⚠️ 权限不足：只有管理员可以删除文件");
-      return;
-    }
-    if (selectedItems.size === 0) {
-      alert("请先选择要删除的文件");
-      return;
-    }
-    setShowBatchDeleteModal(true);
-  };
-
-  const handleBatchDelete = async () => {
-    if (selectedItems.size === 0) return;
-    
-    setOperationInProgress(true);
-    try {
-      const authHeader = await getAuthHeader();
-      let successCount = 0;
-      let failCount = 0;
-      
-      for (const itemName of Array.from(selectedItems)) {
+      for (const file of files) {
+        const id = `${file.name}-${file.size}-${file.lastModified}`;
+        const entry = queue.find((candidate) => candidate.id === id);
+        if (!entry || entry.status !== 'queued') continue;
+        setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'uploading', progress: 1 } : item));
         try {
-          const res = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(itemName)}`, { 
-            method: 'POST',
-            headers: authHeader
+          const formData = new FormData();
+          const fullKey = `${currentPrefix}${file.name}`;
+          formData.append('key', fullKey);
+          formData.append('policy', signature.policy);
+          formData.append('OSSAccessKeyId', signature.accessid);
+          formData.append('signature', signature.signature);
+          formData.append('success_action_status', '200');
+          formData.append('file', file);
+          await uploadToOSS(signature.host, formData, (progress) => {
+            setUploads((current) => current.map((item) => item.id === id ? { ...item, progress } : item));
           });
-          
-          if (res.ok) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } catch (e) {
-          failCount++;
+          logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
+          setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'success', progress: 100 } : item));
+        } catch (error) {
+          setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'error', message: error instanceof Error ? error.message : '上传失败' } : item));
         }
       }
-      
-      if (successCount > 0) {
-        logAction(userEmail, 'OSS_BATCH_DELETE', { count: successCount });
-      }
-      setShowBatchDeleteModal(false);
-      clearSelection();
-      loadReports(currentPrefix);
-      
-      if (failCount > 0) {
-        alert(`批量删除完成：成功 ${successCount} 个，失败 ${failCount} 个`);
-      }
-    } catch (e) {
-      alert("批量删除失败，请检查网络。");
+      setNotice({ tone: 'success', text: '上传队列已处理完成；请查看每个文件的状态。' });
+      await loadReports(currentPrefix);
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : '上传失败' });
+      setUploads((current) => current.map((item) => item.status === 'queued' || item.status === 'uploading' ? { ...item, status: 'error', message: '上传初始化失败' } : item));
     } finally {
-      setOperationInProgress(false);
+      setUploading(false);
     }
   };
 
-  // 重命名/移动（使用 Modal）
-  const openRenameModal = (item: OSSItem) => {
-    if (!isAdmin) {
-      alert("⚠️ 权限不足：只有管理员可以重命名文件");
-      return;
-    }
+  const openRename = (item: ResearchLibraryItem) => {
+    if (!canManage) return setNotice({ tone: 'warning', text: '当前为只读模式。' });
     setTargetItem(item);
     setNewName(item.name);
     setShowRenameModal(true);
   };
 
-  const handleRename = async () => {
-    if (!targetItem || !newName.trim() || newName === targetItem.name) {
-      alert("请输入有效的新名称");
-      return;
-    }
-
+  const renameItem = async () => {
+    if (!targetItem || !newName.trim() || newName.trim() === targetItem.name) return;
     setOperationInProgress(true);
     try {
-      const authHeader = await getAuthHeader();
-      
-      const res = await fetch('/api/oss?action=move', { 
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json',
-          ...authHeader
-        }, 
-        body: JSON.stringify({ oldKey: targetItem.name, newKey: newName.trim() }) 
+      const headers = await authHeaders();
+      const response = await fetch('/api/oss?action=move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ oldKey: targetItem.name, newKey: newName.trim() }),
       });
-      
-      if (res.status === 403) {
-        const data = await res.json();
-        alert("⚠️ 权限不足：" + data.message);
-        return;
-      }
-      
-      const data = await res.json();
-      if (data.status === 'success') {
-        // 显示详细的重命名结果
-        if (data.stats && data.stats.total > 0) {
-          alert(`✅ ${data.message}\n\n统计信息：\n- 总对象数：${data.stats.total}\n- 已复制：${data.stats.copied}\n- 已删除：${data.stats.deleted}\n- 失败：${data.stats.failed}`);
-        }
-        
-        logAction(userEmail, 'OSS_MOVE', {
-          fileName: targetItem.name,
-          targetPath: newName.trim(),
-          stats: data.stats
-        });
-        setShowRenameModal(false);
-        loadReports(currentPrefix); 
-      } else {
-        alert("重命名失败: " + (data.message || '未知错误'));
-      }
-    } catch (e) { 
-      alert("请求异常，请检查网络。"); 
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.status !== 'success') throw new Error(result.message || '重命名失败');
+      logAction(userEmail, 'OSS_MOVE', { fileName: targetItem.name, targetPath: newName.trim(), stats: result.stats });
+      setShowRenameModal(false);
+      setNotice({ tone: 'success', text: result.message || '名称已更新。' });
+      await loadReports(currentPrefix);
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : '重命名失败' });
     } finally {
       setOperationInProgress(false);
     }
   };
 
+  const openDelete = (item: ResearchLibraryItem) => {
+    if (!canManage) return setNotice({ tone: 'warning', text: '当前为只读模式。' });
+    setTargetItem(item);
+    setShowDeleteModal(true);
+  };
+
+  const deleteOne = async () => {
+    if (!targetItem) return;
+    setOperationInProgress(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(targetItem.name)}`, { method: 'POST', headers });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.status !== 'success') throw new Error(result.message || '删除失败');
+      logAction(userEmail, 'OSS_DELETE', { fileName: targetItem.name, type: targetItem.type, stats: result.stats });
+      setShowDeleteModal(false);
+      setNotice({ tone: 'success', text: result.message || '项目已删除。' });
+      await loadReports(currentPrefix);
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : '删除失败' });
+    } finally {
+      setOperationInProgress(false);
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (!selectedItems.size) return;
+    setOperationInProgress(true);
+    let success = 0;
+    let failed = 0;
+    try {
+      const headers = await authHeaders();
+      for (const name of selectedItems) {
+        const response = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(name)}`, { method: 'POST', headers });
+        if (response.ok) success += 1; else failed += 1;
+      }
+      if (success) logAction(userEmail, 'OSS_BATCH_DELETE', { count: success });
+      setShowBatchDeleteModal(false);
+      setSelectedItems(new Set());
+      setNotice({ tone: failed ? 'warning' : 'success', text: `批量删除完成：成功 ${success} 个，失败 ${failed} 个。` });
+      await loadReports(currentPrefix);
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof Error ? error.message : '批量删除失败' });
+    } finally {
+      setOperationInProgress(false);
+    }
+  };
+
+  const breadcrumbParts = currentPrefix.split('/').filter(Boolean);
+
   return (
-    <>
-      <div className="bg-white border border-zinc-200 rounded-lg shadow-sm overflow-hidden flex flex-col h-full w-full">
-        {/* 顶部工具栏 */}
-        <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-3 flex items-center justify-between shrink-0">
-          {renderBreadcrumb()}
-          <div className="flex gap-2">
-            {/* 只有管理员才能看到管理按钮 */}
-            {isAdmin ? (
-              <>
-                {selectedItems.size > 0 && (
-                  <button 
-                    onClick={openBatchDeleteModal}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded hover:bg-red-700 transition-colors flex items-center gap-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    删除选中 ({selectedItems.size})
-                  </button>
-                )}
-                <button 
-                  onClick={openCreateFolderModal} 
-                  className="px-3 py-1.5 text-xs font-semibold text-[#003e7e] bg-white border border-[#003e7e] rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
-                >
-                  <FolderPlus className="w-3 h-3" />
-                  新建文件夹
-                </button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  multiple 
-                  accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" 
-                  className="hidden" 
-                  onChange={executeUpload} 
-                />
-                <button 
-                  onClick={() => fileInputRef.current?.click()} 
-                  disabled={uploading}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-[#003e7e] rounded hover:bg-[#002b5e] transition-colors disabled:opacity-50 flex items-center gap-1"
-                >
-                  <Upload className="w-3 h-3" />
-                  {uploading ? '上传中...' : '上传文件'}
-                </button>
-              </>
-            ) : (
-              <div className="text-xs text-zinc-500 italic">
-                仅查看模式（管理员可上传和管理文件）
-              </div>
-            )}
+    <div className="flex h-full min-h-0 flex-col bg-[var(--cd-color-canvas)]">
+      <div className="shrink-0 border-b border-zinc-200 bg-white px-3 py-3 sm:px-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1 text-xs text-zinc-500">
+              <button type="button" onClick={() => void loadReports('')} className="font-semibold text-[#003e7e] hover:underline">Research Library</button>
+              {breadcrumbParts.map((part, index) => {
+                const prefix = `${breadcrumbParts.slice(0, index + 1).join('/')}/`;
+                return <React.Fragment key={prefix}><span>/</span><button type="button" onClick={() => void loadReports(prefix)} className="max-w-40 truncate hover:text-[#003e7e]">{part}</button></React.Fragment>;
+              })}
+            </div>
+            <p className="mt-1 text-[10px] text-zinc-400">{canManage ? '管理模式：可上传、重命名和删除' : isImpersonating ? '用户模拟：强制只读' : '浏览模式：可搜索、打开和下载'}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {currentPrefix ? <Button variant="secondary" size="sm" onClick={goUp}><ArrowUp size={14} />上一级</Button> : null}
+            <Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix)} disabled={loading}><RefreshCw size={14} />刷新</Button>
+            {canManage ? <>
+              <Button variant="secondary" size="sm" onClick={openCreateFolder}><FolderPlus size={14} />新建文件夹</Button>
+              <input ref={fileInputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(event) => void executeUpload(event)} />
+              <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Upload size={14} />{uploading ? '上传中…' : '上传文件'}</Button>
+            </> : null}
           </div>
         </div>
 
-        {/* 文件列表 */}
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-white sticky top-0 z-10 border-b border-zinc-200">
-              <tr>
-                {isAdmin && (
-                  <th className="px-4 py-3 w-10">
-                    <input 
-                      type="checkbox"
-                      checked={items.length > 0 && selectedItems.size === items.length}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 text-[#003e7e] rounded border-zinc-300 focus:ring-[#003e7e]"
-                    />
-                  </th>
-                )}
-                <th className="px-4 py-3 font-semibold text-zinc-600 w-1/2">名称</th>
-                <th className="px-4 py-3 font-semibold text-zinc-600">大小</th>
-                <th className="px-4 py-3 font-semibold text-zinc-600">最后修改</th>
-                <th className="px-4 py-3 font-semibold text-zinc-600 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {loading ? (
-                <tr><td colSpan={isAdmin ? 5 : 4} className="px-4 py-8 text-center text-zinc-500">拉取目录中...</td></tr>
-              ) : items.length === 0 ? (
-                <>
-                  {currentPrefix && (
-                    <tr className="hover:bg-zinc-50 cursor-pointer" onClick={goUp}>
-                      <td colSpan={isAdmin ? 5 : 4} className="px-4 py-3 font-semibold text-[#003e7e]">🔙 返回上层...</td>
-                    </tr>
-                  )}
-                  <tr><td colSpan={isAdmin ? 5 : 4} className="px-4 py-8 text-center text-zinc-400">此文件夹为空</td></tr>
-                </>
-              ) : (
-                <>
-                  {currentPrefix && (
-                    <tr className="hover:bg-zinc-50 cursor-pointer" onClick={goUp}>
-                      <td colSpan={isAdmin ? 5 : 4} className="px-4 py-3 font-semibold text-[#003e7e]">🔙 返回上层...</td>
-                    </tr>
-                  )}
-                  {items.map((item) => {
-                    if (item.type === 'folder') {
-                      const folderName = item.name.replace(currentPrefix, '').replace('/', '');
-                      return (
-                        <tr key={item.name} className="hover:bg-zinc-50">
-                          {isAdmin && (
-                            <td className="px-4 py-3">
-                              <input 
-                                type="checkbox"
-                                checked={selectedItems.has(item.name)}
-                                onChange={() => toggleSelectItem(item.name)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-4 h-4 text-[#003e7e] rounded border-zinc-300 focus:ring-[#003e7e]"
-                              />
-                            </td>
-                          )}
-                          <td 
-                            className="px-4 py-3 font-medium text-zinc-800 cursor-pointer" 
-                            onClick={() => loadReports(item.name)}
-                          >
-                            📁 {folderName}
-                          </td>
-                          <td className="px-4 py-3 text-zinc-400">-</td>
-                          <td className="px-4 py-3 text-zinc-400">-</td>
-                          <td className="px-4 py-3 text-right">
-                            {isAdmin && (
-                              <button 
-                                onClick={() => openDeleteModal(item)}
-                                className="text-xs text-red-600 hover:underline inline-flex items-center gap-1"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                删除
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    } else {
-                      const dateStr = item.lastModified ? item.lastModified.split('T')[0] : '-';
-                      return (
-                        <tr key={item.name} className="hover:bg-zinc-50">
-                          {isAdmin && (
-                            <td className="px-4 py-3">
-                              <input 
-                                type="checkbox"
-                                checked={selectedItems.has(item.name)}
-                                onChange={() => toggleSelectItem(item.name)}
-                                className="w-4 h-4 text-[#003e7e] rounded border-zinc-300 focus:ring-[#003e7e]"
-                              />
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-[#003e7e] font-medium truncate max-w-xs" title={item.shortName}>
-                            📄 {item.shortName}
-                          </td>
-                          <td className="px-4 py-3 text-zinc-500 text-xs">{item.size}</td>
-                          <td className="px-4 py-3 text-zinc-500 text-xs">{dateStr}</td>
-                          <td className="px-4 py-3 text-right">
-                            <button 
-                              onClick={() => window.open(item.url, '_blank')} 
-                              className="text-xs text-[#003e7e] hover:underline mr-3 inline-flex items-center gap-1"
-                            >
-                              <Download className="w-3 h-3" />
-                              下载
-                            </button>
-                            {isAdmin && (
-                              <>
-                                <button 
-                                  onClick={() => openRenameModal(item)} 
-                                  className="text-xs text-[#003e7e] hover:underline mr-3 inline-flex items-center gap-1"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                  重命名
-                                </button>
-                                <button 
-                                  onClick={() => openDeleteModal(item)} 
-                                  className="text-xs text-red-600 hover:underline inline-flex items-center gap-1"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  删除
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    }
-                  })}
-                </>
-              )}
-            </tbody>
-          </table>
+        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-[minmax(220px,1fr)_160px_170px_auto]">
+          <label className="flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-white px-2.5 focus-within:border-[#003e7e] focus-within:ring-1 focus-within:ring-[#003e7e]/20">
+            <Search size={14} className="text-zinc-400" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索当前目录资料…" className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-zinc-400" />
+          </label>
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as LibraryTypeFilter)} className="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:border-[#003e7e]">
+            <option value="all">全部类型</option><option value="folder">文件夹</option><option value="pdf">PDF</option><option value="presentation">PowerPoint</option><option value="document">Word</option><option value="spreadsheet">Excel</option><option value="other">其他</option>
+          </select>
+          <select value={sort} onChange={(event) => setSort(event.target.value as LibrarySort)} className="h-9 rounded-md border border-zinc-300 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:border-[#003e7e]">
+            <option value="modified-desc">最近修改优先</option><option value="modified-asc">最早修改优先</option><option value="name-asc">名称 A–Z</option><option value="size-desc">文件大小</option>
+          </select>
+          <div className="flex items-center justify-between gap-3 md:justify-end">
+            <span className="text-[10px] font-medium text-zinc-500">{visibleItems.length} / {items.length} 项</span>
+            {filtersActive ? <button type="button" onClick={clearFilters} className="text-[10px] font-semibold text-[#003e7e] hover:underline">清除筛选</button> : null}
+          </div>
         </div>
       </div>
 
-      {/* 新建文件夹 Modal */}
-      <Modal 
-        isOpen={showCreateFolderModal} 
-        onClose={() => setShowCreateFolderModal(false)}
-        title="新建文件夹"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-2">
-              文件夹名称
-            </label>
-            <input
-              type="text"
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              placeholder="例如：一线城市 或 2026Q1"
-              className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-[#003e7e] focus:border-transparent"
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
-              autoFocus
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowCreateFolderModal(false)}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
-              disabled={operationInProgress}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleCreateFolder}
-              disabled={operationInProgress || !folderName.trim()}
-              className="px-4 py-2 text-sm font-medium text-white bg-[#003e7e] rounded-lg hover:bg-[#002b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {operationInProgress ? '创建中...' : '创建'}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {notice ? <div className={`mx-3 mt-3 flex shrink-0 items-start justify-between gap-3 rounded-md border px-3 py-2 text-xs sm:mx-4 ${notice.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : notice.tone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-800'}`}><span>{notice.text}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭状态"><X size={14} /></button></div> : null}
+      {truncated ? <div className="mx-3 mt-3 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800 sm:mx-4">当前目录超过 OSS 单次返回上限，页面仅显示本次返回结果。建议通过子目录缩小范围。</div> : null}
 
-      {/* 重命名 Modal */}
-      <Modal 
-        isOpen={showRenameModal} 
-        onClose={() => setShowRenameModal(false)}
-        title={`重命名${targetItem?.type === 'folder' ? '文件夹' : '文件'}`}
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-2">
-              新名称
-            </label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-[#003e7e] focus:border-transparent font-mono text-sm"
-              onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-              autoFocus
-            />
-            <div className="mt-2 space-y-1">
-              <p className="text-xs text-zinc-500">
-                💡 提示：修改路径可以移动文件到其他文件夹
-              </p>
-              {targetItem?.type === 'folder' && (
-                <p className="text-xs text-blue-600">
-                  📁 文件夹重命名会递归处理所有子对象（复制到新位置后删除旧对象）
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowRenameModal(false)}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
-              disabled={operationInProgress}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleRename}
-              disabled={operationInProgress || !newName.trim() || newName === targetItem?.name}
-              className="px-4 py-2 text-sm font-medium text-white bg-[#003e7e] rounded-lg hover:bg-[#002b5e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {operationInProgress ? '处理中...' : '确认'}
-            </button>
-          </div>
+      {uploads.length ? <div className="mx-3 mt-3 shrink-0 rounded-md border border-zinc-200 bg-white p-3 sm:mx-4">
+        <div className="mb-2 flex items-center justify-between"><span className="text-[11px] font-semibold text-zinc-700">Upload status</span><button type="button" onClick={() => setUploads([])} disabled={uploading} className="text-[10px] text-zinc-500 hover:text-zinc-800">清除</button></div>
+        <div className="grid max-h-40 gap-1.5 overflow-y-auto lg:grid-cols-2">
+          {uploads.map((entry) => <div key={entry.id} className="flex min-w-0 items-center gap-2 rounded border border-zinc-100 px-2 py-1.5 text-[10px]">
+            {entry.status === 'success' ? <CheckCircle2 size={13} className="shrink-0 text-emerald-600" /> : entry.status === 'error' || entry.status === 'unsupported' || entry.status === 'duplicate' ? <XCircle size={13} className="shrink-0 text-red-500" /> : <Upload size={13} className="shrink-0 text-[#003e7e]" />}
+            <div className="min-w-0 flex-1"><div className="truncate font-medium text-zinc-700">{entry.name}</div><div className="text-zinc-400">{entry.status === 'uploading' ? `${entry.progress}%` : entry.message || entry.status}</div></div>
+            {entry.status === 'uploading' ? <div className="h-1 w-16 overflow-hidden rounded bg-zinc-100"><div className="h-full bg-[#003e7e]" style={{ width: `${entry.progress}%` }} /></div> : null}
+          </div>)}
         </div>
-      </Modal>
+      </div> : null}
 
-      {/* 删除确认 Modal */}
-      <Modal 
-        isOpen={showDeleteModal} 
-        onClose={() => setShowDeleteModal(false)}
-        title="确认删除"
-        danger
-      >
-        <div className="space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-900">
-              确定要删除以下{targetItem?.type === 'folder' ? '文件夹' : '文件'}吗？
-            </p>
-            <p className="mt-2 text-sm font-mono text-red-700 break-all">
-              {targetItem?.type === 'folder' 
-                ? targetItem.name.replace(currentPrefix, '').replace('/', '')
-                : targetItem?.shortName}
-            </p>
-            {targetItem?.type === 'folder' && (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs text-red-600 font-semibold">
-                  ⚠️ 警告：删除文件夹将递归删除其中的所有文件和子文件夹！
-                </p>
-                <p className="text-xs text-red-600">
-                  • 系统会自动列出文件夹下的所有对象<br/>
-                  • 批量删除所有子文件和子文件夹<br/>
-                  • 最后删除文件夹本身<br/>
-                  • 操作完成后会显示详细统计信息
-                </p>
-              </div>
-            )}
+      <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        {loading ? <LoadingState label="正在加载研究资料" /> : loadError ? <ErrorState title="资料库加载失败" description={loadError} action={<Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix)}>重试</Button>} /> : visibleItems.length === 0 ? <EmptyState title={filtersActive ? '没有匹配的资料' : '当前目录为空'} description={filtersActive ? '调整搜索词或文件类型筛选。' : '此目录暂时没有可浏览的研究资料。'} action={filtersActive ? <Button variant="secondary" size="sm" onClick={clearFilters}>清除筛选</Button> : undefined} /> : <>
+          <div className="hidden overflow-hidden rounded-md border border-zinc-200 bg-white md:block">
+            <table className="w-full table-fixed text-left text-xs">
+              <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 text-[10px] font-semibold uppercase tracking-wide text-zinc-500"><tr>{canManage ? <th className="w-10 px-3 py-2"><input type="checkbox" aria-label="全选" checked={visibleItems.length > 0 && visibleItems.every((item) => selectedItems.has(item.name))} onChange={() => setSelectedItems((current) => visibleItems.every((item) => current.has(item.name)) ? new Set() : new Set(visibleItems.map((item) => item.name)))} /></th> : null}<th className="px-3 py-2">Title</th><th className="w-24 px-3 py-2">Type</th><th className="w-28 px-3 py-2">Size</th><th className="w-32 px-3 py-2">Modified</th><th className="w-52 px-3 py-2 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-zinc-100">{visibleItems.map((item) => <tr key={item.name} className="hover:bg-zinc-50/80">{canManage ? <td className="px-3 py-2"><input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /></td> : null}<td className="min-w-0 px-3 py-2"><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : item.url && window.open(item.url, '_blank', 'noopener,noreferrer')} className="flex max-w-full items-center gap-2 font-medium text-zinc-800 hover:text-[#003e7e]"><span className="shrink-0 text-zinc-400">{item.type === 'folder' ? <Folder size={15} /> : <File size={15} />}</span><span className="truncate" title={itemDisplayName(item)}>{itemDisplayName(item)}</span></button></td><td className="px-3 py-2 text-zinc-500">{typeLabel(item)}</td><td className="px-3 py-2 text-zinc-500">{item.type === 'folder' ? '—' : item.size || '—'}</td><td className="px-3 py-2 text-zinc-500">{formatDate(item.lastModified)}</td><td className="px-3 py-2 text-right"><div className="flex justify-end gap-1">{item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}><Download size={13} />打开/下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-red-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></td></tr>)}</tbody>
+            </table>
           </div>
-          <p className="text-sm text-zinc-600">
-            此操作无法撤销，请谨慎操作。
-          </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowDeleteModal(false)}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
-              disabled={operationInProgress}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={operationInProgress}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              {operationInProgress ? '删除中...' : '确认删除'}
-            </button>
-          </div>
-        </div>
-      </Modal>
 
-      {/* 批量删除确认 Modal */}
-      <Modal 
-        isOpen={showBatchDeleteModal} 
-        onClose={() => setShowBatchDeleteModal(false)}
-        title="批量删除确认"
-        danger
-      >
-        <div className="space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-900 font-semibold">
-              确定要删除选中的 {selectedItems.size} 个项目吗？
-            </p>
-            <div className="mt-3 max-h-40 overflow-y-auto space-y-1">
-              {Array.from(selectedItems).map(itemName => {
-                const item = items.find(i => i.name === itemName);
-                return (
-                  <div key={itemName} className="text-xs font-mono text-red-700 flex items-center gap-2">
-                    <Check className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate">
-                      {item?.type === 'folder' ? '📁' : '📄'} {item?.shortName || itemName}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <p className="text-sm text-zinc-600">
-            此操作无法撤销，请谨慎操作。
-          </p>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowBatchDeleteModal(false)}
-              className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
-              disabled={operationInProgress}
-            >
-              取消
-            </button>
-            <button
-              onClick={handleBatchDelete}
-              disabled={operationInProgress}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Trash2 className="w-4 h-4" />
-              {operationInProgress ? '删除中...' : `删除 ${selectedItems.size} 项`}
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </>
+          <div className="divide-y divide-zinc-100 overflow-hidden rounded-md border border-zinc-200 bg-white md:hidden">{visibleItems.map((item) => <div key={item.name} className="p-3"><div className="flex items-start gap-2"><span className="mt-0.5 shrink-0 text-zinc-400">{item.type === 'folder' ? <Folder size={16} /> : <File size={16} />}</span><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : item.url && window.open(item.url, '_blank', 'noopener,noreferrer')} className="min-w-0 flex-1 text-left"><div className="break-words text-xs font-semibold text-zinc-800">{itemDisplayName(item)}</div><div className="mt-1 text-[10px] text-zinc-400">{typeLabel(item)} · {item.type === 'folder' ? 'Folder' : item.size || '—'} · {formatDate(item.lastModified)}</div></button>{canManage ? <input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /> : null}</div><div className="mt-2 flex flex-wrap justify-end gap-1">{item.type === 'file' ? <Button variant="secondary" size="sm" onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}><Download size={13} />打开/下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="secondary" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-red-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></div>)}</div>
+        </>}
+      </div>
+
+      {canManage && selectedItems.size ? <div className="shrink-0 border-t border-zinc-200 bg-white px-3 py-2 sm:px-4"><div className="flex items-center justify-between gap-3"><span className="text-xs text-zinc-600">已选择 {selectedItems.size} 项</span><Button variant="danger" size="sm" onClick={() => setShowBatchDeleteModal(true)}><Trash2 size={13} />删除选中</Button></div></div> : null}
+
+      <Modal isOpen={showCreateFolderModal} onClose={() => !operationInProgress && setShowCreateFolderModal(false)} title="新建文件夹"><label className="block text-xs font-medium text-zinc-700">文件夹名称<input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void createFolder()} className="mt-1.5 h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs outline-none focus:border-[#003e7e]" /></label><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowCreateFolderModal(false)} disabled={operationInProgress}>取消</Button><Button size="sm" onClick={() => void createFolder()} disabled={operationInProgress || !folderName.trim()}>{operationInProgress ? '创建中…' : '创建'}</Button></div></Modal>
+
+      <Modal isOpen={showRenameModal} onClose={() => !operationInProgress && setShowRenameModal(false)} title="重命名 / 移动"><label className="block text-xs font-medium text-zinc-700">目标路径<input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void renameItem()} className="mt-1.5 h-9 w-full rounded-md border border-zinc-300 px-2.5 font-mono text-xs outline-none focus:border-[#003e7e]" /></label><p className="mt-2 text-[10px] text-zinc-500">修改完整 OSS 路径可移动文件；原有服务端移动语义保持不变。</p><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowRenameModal(false)} disabled={operationInProgress}>取消</Button><Button size="sm" onClick={() => void renameItem()} disabled={operationInProgress || !newName.trim() || newName.trim() === targetItem?.name}>{operationInProgress ? '处理中…' : '确认'}</Button></div></Modal>
+
+      <Modal isOpen={showDeleteModal} onClose={() => !operationInProgress && setShowDeleteModal(false)} title="确认删除" danger><div className="rounded-md border border-red-200 bg-red-50 p-3"><p className="text-xs text-red-900">确定删除以下{targetItem?.type === 'folder' ? '文件夹' : '文件'}？</p><p className="mt-2 break-all font-mono text-xs font-semibold text-red-700">{targetItem ? itemDisplayName(targetItem) : ''}</p>{targetItem?.type === 'folder' ? <p className="mt-2 text-[10px] font-medium text-red-700">文件夹删除会递归删除其中所有对象，无法撤销。</p> : null}</div><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)} disabled={operationInProgress}>取消</Button><Button variant="danger" size="sm" onClick={() => void deleteOne()} disabled={operationInProgress}><Trash2 size={13} />{operationInProgress ? '删除中…' : '确认删除'}</Button></div></Modal>
+
+      <Modal isOpen={showBatchDeleteModal} onClose={() => !operationInProgress && setShowBatchDeleteModal(false)} title="批量删除确认" danger><div className="rounded-md border border-red-200 bg-red-50 p-3"><p className="text-xs font-semibold text-red-900">确定删除选中的 {selectedItems.size} 项？</p><p className="mt-2 text-[10px] text-red-700">其中若包含文件夹，将沿用现有递归删除逻辑。此操作无法撤销。</p></div><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowBatchDeleteModal(false)} disabled={operationInProgress}>取消</Button><Button variant="danger" size="sm" onClick={() => void deleteSelected()} disabled={operationInProgress}><Trash2 size={13} />{operationInProgress ? '删除中…' : '确认删除'}</Button></div></Modal>
+    </div>
   );
 }
