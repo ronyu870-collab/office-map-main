@@ -114,6 +114,29 @@ describe('Home collaboration behavior', () => {
     expect(input).toHaveValue('');
   });
 
+  it('blocks same-frame duplicate form submission until the first send resolves', async () => {
+    let resolveInsert: ((value: { error: null }) => void) | null = null;
+    state.insert.mockImplementation(() => new Promise<{ error: null }>((resolve) => {
+      resolveInsert = resolve;
+    }));
+    const user = userEvent.setup();
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+
+    await screen.findByText('暂无市场交流');
+    await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
+    const input = screen.getByPlaceholderText('分享市场动态…');
+    await user.type(input, '快速发送');
+    const form = input.closest('form');
+    expect(form).not.toBeNull();
+
+    fireEvent.submit(form!);
+    fireEvent.submit(form!);
+    expect(state.insert).toHaveBeenCalledTimes(1);
+
+    resolveInsert?.({ error: null });
+    await waitFor(() => expect(state.logAction).toHaveBeenCalledTimes(1));
+  });
+
   it('closes fullscreen with Escape or Back state and restores it with Forward state', async () => {
     const historyBack = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     const user = userEvent.setup();
