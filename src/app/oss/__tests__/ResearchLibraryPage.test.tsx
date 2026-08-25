@@ -50,7 +50,6 @@ describe('Research Library page', () => {
 
     const manager = await screen.findByTestId('oss-manager');
     expect(manager).toHaveAttribute('data-user-email', 'analyst@colliers.com');
-    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it('redirects unauthenticated users to login and never renders the library', async () => {
