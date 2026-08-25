@@ -73,7 +73,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     }
   };
 
-  const visibleMessages = fullscreen ? messages : messages.slice(-6);
+  const visibleMessages = fullscreen ? messages : messages.slice(-4);
 
   const boardContent = (
     <>
@@ -82,12 +82,12 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         <button
           onClick={() => setFullscreen((value) => !value)}
           className="inline-flex items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-1.5 py-1 text-xs text-[var(--cd-color-text-muted)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
-          title={fullscreen ? '退出全屏' : '展开全部'}
-          aria-label={fullscreen ? '退出全屏' : '展开全部'}
+          title={fullscreen ? '退出全屏' : '查看全部市场交流'}
+          aria-label={fullscreen ? '退出全屏' : '查看全部市场交流'}
           type="button"
         >
           {fullscreen ? <Minimize2 size={13} strokeWidth={1.5} /> : <Maximize2 size={13} strokeWidth={1.5} />}
-          <span>{fullscreen ? '收起' : '展开'}</span>
+          <span>{fullscreen ? '退出' : '查看全部'}</span>
         </button>
       </div>
 
@@ -106,7 +106,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
             : msgDate.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
           return (
-            <div key={msg.id} className={`border-b border-[var(--cd-color-border)] px-3.5 py-3 last:border-b-0 ${isMe ? 'bg-[var(--cd-color-brand-soft)]/35' : 'bg-[var(--cd-color-surface)]'}`}>
+            <div key={msg.id} className={`border-b border-[var(--cd-color-border)] px-3.5 py-3 last:border-b-0 ${fullscreen && isMe ? 'bg-[var(--cd-color-brand-soft)]/35' : 'bg-[var(--cd-color-surface)]'}`}>
               <div className="flex min-w-0 items-baseline justify-between gap-3">
                 <span className="min-w-0 truncate text-xs font-medium text-[var(--cd-color-text-secondary)]"><MaskedText>{msg.user_name}</MaskedText></span>
                 <span className="shrink-0 text-xs tabular-nums text-[var(--cd-color-text-muted)]">{timeStr}</span>
@@ -118,23 +118,25 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={handleSendMessage} className="flex flex-none shrink-0 gap-2 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-3">
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="分享市场动态…"
-          className="min-w-0 flex-1 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-[13px] text-[var(--cd-color-text-primary)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)] focus:bg-[var(--cd-color-surface)] focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/15"
-          autoComplete="off"
-        />
-        <button
-          type="submit"
-          disabled={!inputText.trim()}
-          className="shrink-0 touch-manipulation rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 py-2 text-[13px] font-medium text-white transition-[background-color,opacity] hover:bg-[var(--cd-color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/30 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          发送
-        </button>
-      </form>
+      {fullscreen ? (
+        <form onSubmit={handleSendMessage} className="flex flex-none shrink-0 gap-2 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-3">
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="分享市场动态…"
+            className="min-w-0 flex-1 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-[13px] text-[var(--cd-color-text-primary)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)] focus:bg-[var(--cd-color-surface)] focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/15"
+            autoComplete="off"
+          />
+          <button
+            type="submit"
+            disabled={!inputText.trim()}
+            className="shrink-0 touch-manipulation rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 py-2 text-[13px] font-medium text-white transition-[background-color,opacity] hover:bg-[var(--cd-color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/30 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            发送
+          </button>
+        </form>
+      ) : null}
     </>
   );
 

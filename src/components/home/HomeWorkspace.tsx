@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
+  ChevronDown,
   ClipboardList,
   CloudUpload,
   Database,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Map,
   Settings,
+  UserRound,
 } from 'lucide-react';
 
 import { CommunicationBoard } from '@/src/components/CommunicationBoard';
@@ -46,7 +48,7 @@ const MAP_WORKSPACE: WorkspaceModule = {
   href: '/map',
   module: 'map',
   title: '北京办公楼市场地图',
-  description: '查询楼宇、子市场与租金、空置率、绿色认证、供应等核心市场数据。',
+  description: '查询楼宇、租金、空置率、供应及子市场数据。',
   icon: Map,
 };
 
@@ -55,21 +57,21 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     href: '/update',
     module: 'update',
     title: '季度数据填报',
-    description: '更新楼宇租金、空置率与季度市场数据。',
+    description: '维护楼宇租金、空置率及季度数据。',
     icon: ClipboardList,
   },
   {
     href: '/lease-submission',
     module: 'lease-submission',
     title: '租赁成交填报',
-    description: '录入市场成交信息并执行重复与质量检查。',
+    description: '录入成交信息并完成数据检查。',
     icon: Handshake,
   },
   {
     href: '/oss',
     module: 'oss',
     title: '研究资料库',
-    description: '集中查找市场报告、研究文件与团队资料。',
+    description: '查找市场报告、研究文件及团队资料。',
     icon: CloudUpload,
   },
 ];
@@ -115,10 +117,46 @@ function getRoleLabel(role: string, isAdmin: boolean) {
   return '内部用户';
 }
 
-function HomeHeader({ displayName, role, email, onLogout }: { displayName: string; role: string; email?: string; onLogout: () => void }) {
+function HomeHeader({
+  displayName,
+  role,
+  email,
+  canSeeAdminWorkspace,
+  onLogout,
+  onAdminActivate,
+}: {
+  displayName: string;
+  role: string;
+  email?: string;
+  canSeeAdminWorkspace: boolean;
+  onLogout: () => void;
+  onAdminActivate: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const isRestrictedAdmin = email === 'judy.li@colliers.com';
   const isAdmin = isUserAdmin(role) && !isRestrictedAdmin;
   const roleLabel = getRoleLabel(role, isAdmin);
+  const adminCanAccess = canAccessModule(ADMIN_WORKSPACE.module, role);
+  const adminAccessibilityProps = getAccessibilityProps(ADMIN_WORKSPACE.module, ADMIN_WORKSPACE.title, role);
+
+  React.useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
@@ -130,20 +168,72 @@ function HomeHeader({ displayName, role, email, onLogout }: { displayName: strin
         <div className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)] sm:text-sm">北京办公楼市场数据平台</div>
       </div>
 
-      <nav className="flex shrink-0 items-center gap-0.5" aria-label="用户导航">
-        <div className="mr-2 hidden min-w-0 items-center gap-2 lg:flex">
-          <span className="max-w-48 truncate text-[13px] text-[var(--cd-color-text-secondary)]" title={displayName}>{displayName}</span>
-          <span className="shrink-0 text-xs text-[var(--cd-color-text-muted)]">{roleLabel}</span>
-        </div>
-        <Link href="/settings" className="inline-flex h-8 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]">
-          <Settings size={14} strokeWidth={1.6} aria-hidden="true" />
-          <span className="hidden md:inline">设置</span>
-        </Link>
-        <button type="button" onClick={onLogout} className="inline-flex h-8 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]">
-          <LogOut size={14} strokeWidth={1.6} aria-hidden="true" />
-          <span className="hidden md:inline">退出</span>
+      <div ref={menuRef} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((value) => !value)}
+          className="inline-flex h-8 max-w-48 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="用户菜单"
+        >
+          <UserRound size={15} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
+          <span className="hidden max-w-36 truncate sm:inline" title={displayName}>{displayName}</span>
+          <ChevronDown size={14} strokeWidth={1.55} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
         </button>
-      </nav>
+
+        {menuOpen ? (
+          <div role="menu" className="absolute right-0 top-full z-[var(--cd-z-dropdown)] mt-2 w-52 overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]">
+            <div className="border-b border-[var(--cd-color-border)] px-3.5 py-3">
+              <div className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]" title={displayName}>{displayName}</div>
+              <div className="mt-0.5 text-xs text-[var(--cd-color-text-muted)]">{roleLabel}</div>
+            </div>
+
+            <div className="p-1.5">
+              <Link
+                href="/settings"
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+                className="flex h-9 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+              >
+                <Settings size={14} strokeWidth={1.55} aria-hidden="true" />
+                设置
+              </Link>
+
+              {canSeeAdminWorkspace ? (
+                <Link
+                  href={ADMIN_WORKSPACE.href}
+                  role="menuitem"
+                  onClick={(event) => {
+                    setMenuOpen(false);
+                    onAdminActivate(event);
+                  }}
+                  className={`flex h-9 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20 ${adminCanAccess ? 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)]' : 'cursor-not-allowed text-[var(--cd-color-text-muted)] opacity-60'}`}
+                  {...adminAccessibilityProps}
+                >
+                  <Database size={14} strokeWidth={1.55} aria-hidden="true" />
+                  系统管理
+                </Link>
+              ) : null}
+            </div>
+
+            <div className="border-t border-[var(--cd-color-border)] p-1.5">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout();
+                }}
+                className="flex h-9 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+              >
+                <LogOut size={14} strokeWidth={1.55} aria-hidden="true" />
+                退出登录
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -179,17 +269,17 @@ function WorkspaceCard({ workspace, role, onActivate, onKeyDown }: { workspace: 
 
 function HomeLoadingShell() {
   return (
-    <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8"><div className="h-5 w-44 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /><div className="h-6 w-24 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /></div>}>
+    <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8"><div className="h-5 w-44 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /><div className="h-6 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /></div>}>
       <div className="h-full overflow-hidden p-4 sm:p-6 lg:p-8">
-        <div className="mx-auto grid h-full max-w-[1240px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="mx-auto grid h-full max-w-[1240px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-5">
-            <div className="h-10 w-56 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
             <div className="h-28 animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+            <div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
             <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
-              {[0, 1, 2, 3].map((item) => <div key={item} className="h-20 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
+              {[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
             </div>
           </div>
-          <div className="hidden animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)] lg:block" />
+          <div className="hidden h-80 animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)] lg:block" />
         </div>
       </div>
     </WorkspaceShell>
@@ -254,55 +344,55 @@ export function HomeWorkspace() {
 
   return (
     <>
-      <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<HomeHeader displayName={activeSession.displayName} role={activeSession.role} email={activeSession.user.email} onLogout={() => void handleLogout()} />}>
+      <WorkspaceShell
+        className="h-screen h-[100dvh] overflow-hidden"
+        header={(
+          <HomeHeader
+            displayName={activeSession.displayName}
+            role={activeSession.role}
+            email={activeSession.user.email}
+            canSeeAdminWorkspace={canSeeAdminWorkspace}
+            onLogout={() => void handleLogout()}
+            onAdminActivate={(event) => handleWorkspaceActivation(event, ADMIN_WORKSPACE)}
+          />
+        )}
+      >
         <div className="h-full overflow-y-auto overscroll-contain">
-          <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-5 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_300px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-10">
+          <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9">
             <section className="min-w-0" aria-labelledby="home-heading">
-              <div className="mb-4">
-                <h1 id="home-heading" className="text-xl font-semibold leading-tight text-[var(--cd-color-text-primary)]">工作台</h1>
-                <p className="mt-1.5 text-[13px] leading-5 text-[var(--cd-color-text-secondary)] sm:text-sm">市场地图、数据填报与研究资料。</p>
-              </div>
-
               <Link
                 href={MAP_WORKSPACE.href}
                 onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
                 onKeyDown={(event) => handleWorkspaceKeyDown(event, MAP_WORKSPACE)}
-                className="group flex min-h-[108px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+                className="group flex min-h-[104px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
                   <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h2>
-                  <p className="mt-1 max-w-3xl text-[13px] leading-5 text-[var(--cd-color-text-secondary)] sm:text-sm">{MAP_WORKSPACE.description}</p>
+                  <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
+                  <p className="mt-1 text-[13px] leading-5 text-[var(--cd-color-text-secondary)] sm:text-sm">{MAP_WORKSPACE.description}</p>
                 </div>
-                <div className="hidden shrink-0 items-center gap-1.5 text-[13px] font-medium text-[var(--cd-color-brand)] sm:flex">进入<ArrowRight size={15} strokeWidth={1.6} aria-hidden="true" /></div>
+                <div className="hidden shrink-0 items-center gap-1.5 text-[13px] font-medium text-[var(--cd-color-brand)] sm:flex">进入地图<ArrowRight size={15} strokeWidth={1.6} aria-hidden="true" /></div>
                 <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)] sm:hidden" aria-hidden="true" />
               </Link>
 
-              <div className="mb-2.5 mt-6">
-                <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">业务工作区</h2>
+              <div className="mb-2.5 mt-5">
+                <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
               </div>
               <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
                 {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />)}
-                {canSeeAdminWorkspace ? <div className="hidden lg:block"><WorkspaceCard workspace={ADMIN_WORKSPACE} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} /></div> : null}
               </div>
             </section>
 
-            <aside className="min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-8" aria-label="团队动态">
+            <aside className="min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-7" aria-label="团队动态">
               <h2 className="mb-2.5 text-[14px] font-semibold text-[var(--cd-color-text-primary)]">团队动态</h2>
               <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
                 {showCommunication ? <NoticeBanner /> : <div className="h-12 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]" />}
-                <div className="h-[270px] sm:h-[300px] lg:h-[390px]">
+                <div className="h-[240px] sm:h-[250px] lg:h-[270px]">
                   {showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-full animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}
                 </div>
               </div>
-
-              {canSeeAdminWorkspace ? (
-                <div className="mt-6 overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] lg:hidden">
-                  <WorkspaceCard workspace={ADMIN_WORKSPACE} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />
-                </div>
-              ) : null}
             </aside>
           </div>
         </div>
