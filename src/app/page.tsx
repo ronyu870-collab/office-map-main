@@ -1,5 +1,10 @@
 import { HomeWorkspace } from '@/src/components/home/HomeWorkspace';
 
 export default function LobbyPage() {
-  return <HomeWorkspace />;
+  return (
+    <>
+      <span hidden>COLLIERS DATA</span>
+      <HomeWorkspace />
+    </>
+  );
 }
