@@ -1,0 +1,115 @@
+name: Communication Final QA
+
+on:
+  push:
+    branches: [fix/home-visual-rebuild-zh]
+    paths: [.github/workflows/communication-final-qa.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: communication-final-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck, lint, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/home-visual-rebuild-zh
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Prepare final changelog tree
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('CHANGELOG.md')
+          text = path.read_text()
+          title = '## 2026-08-25 — Home collaboration information-layer final QA'
+          if title not in text:
+              entry = '''## 2026-08-25 — Home collaboration information-layer final QA
+
+### Area
+Home / Team Activity / System Notices / Market Communication / mobile fullscreen behavior
+
+### What changed
+
+- Kept Home collaboration as a visually secondary, read-only summary: system notices remain capped at three until explicitly expanded, and market communication remains a four-message summary until the user opens the full surface.
+- Preserved the full market-communication boundary at the most recent 50 messages and kept all user-facing copy explicit about that limit rather than implying permanent chat history.
+- Hardened message time formatting so Beijing-time timestamps remain unambiguous across calendar years.
+- Added a synchronous send lock in addition to the rendered sending state so rapid repeated Enter/click submissions cannot race before React commits the disabled state.
+- De-duplicated realtime INSERT payloads by message id while retaining the existing single Supabase channel lifecycle and unmount cleanup.
+- Preserved history-aware fullscreen behavior, focus trapping/return, and the new-message affordance so users reading older messages are not forced back to the bottom by realtime inserts.
+- Added `viewport-fit=cover`, top/bottom safe-area handling, and retained `100dvh` fullscreen sizing for mobile/PWA viewport behavior.
+- Widened and fixed the notice date column so current-year and cross-year Beijing dates remain aligned without adding an internal notice scroller.
+- Added source-contract regression coverage for read-only Home behavior, 50-message limits, subscription lifetime, rapid sending, failure/retry copy, history/focus behavior, realtime reading behavior, cross-year dates, safe areas, and notice expansion/error states.
+
+### Why
+
+The Home information layer is an auxiliary collaboration surface inside a market-data product, not a general-purpose chat product. Final QA therefore focused on correctness under failure, realtime updates, history navigation, mobile viewport changes, and extreme content without increasing its visual weight or adding chat-oriented UI patterns.
+
+### Impact
+
+- No Home information architecture, Map priority, database schema, RLS policy, auth/session boundary, message table shape, or permanent-history/pagination feature was added.
+- Fullscreen toggles do not create additional Supabase subscriptions; the channel remains owned by the mounted CommunicationBoard and is removed on unmount.
+- Sending failures retain the original input and expose retryable feedback; initial load failures remain visibly different from true empty states.
+- Notice expansion continues to use page-level scrolling. Even for 10+ notices, Home does not reintroduce nested scrolling; if notice volume becomes structurally high, grouping/archive design should be handled as a separate product decision.
+
+### Verification
+
+- Added `communication-final-qa.test.ts` source-contract regression coverage alongside the existing Home presentation tests.
+- Typecheck → Lint → Test → Production Build passed sequentially on the final source/changelog tree before this entry was committed.
+- A real authenticated soft-keyboard pass at 390×844 and 430×932 is not claimed in this run because the connected Vercel account does not expose the office-map project. The implementation contract uses `100dvh`, `viewport-fit=cover`, safe-area insets, and a history entry so Android/PWA Back can close the communication surface before leaving Home; native keyboard behavior remains a device-level release check when an authenticated Preview is reachable.
+
+### Follow-up
+
+- Do not add pagination or “load more” solely because the UI currently keeps 50 messages. Add historical retrieval only if a durable collaboration-history requirement emerges.
+- When an authenticated office-map Preview is available, repeat the native soft-keyboard open/close cycle on Android/PWA and an iOS-style viewport without changing the current information hierarchy unless a reproducible defect is observed.
+
+---
+
+'''
+              marker = '---\n\n'
+              index = text.find(marker)
+              if index == -1:
+                  raise SystemExit('CHANGELOG entry marker not found')
+              insert_at = index + len(marker)
+              text = text[:insert_at] + entry + text[insert_at:]
+              path.write_text(text)
+          PY
+          rm .github/workflows/communication-final-qa.yml
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+      - name: Production Build
+        run: npm run build
+
+      - name: Commit verified final tree
+        shell: bash
+        run: |
+          git config user.name "ronyu870-collab"
+          git config user.email "ronyu870@gmail.com"
+          git add CHANGELOG.md .github/workflows/communication-final-qa.yml
+          git commit -m "chore: record Home collaboration final QA"
+          git push origin HEAD:fix/home-visual-rebuild-zh
