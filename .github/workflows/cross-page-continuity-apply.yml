@@ -38,9 +38,13 @@ jobs:
       - name: Apply continuity patch
         run: node scripts/apply-cross-page-continuity.mjs
 
-      - name: Remove temporary patch runner and workflow
+      - name: Align intentional presentation test contracts
+        run: node scripts/update-continuity-test-contracts.mjs
+
+      - name: Remove temporary patch runners and workflow
         run: |
           rm scripts/apply-cross-page-continuity.mjs
+          rm scripts/update-continuity-test-contracts.mjs
           rm .github/workflows/cross-page-continuity-apply.yml
 
       - name: Install dependencies
