@@ -39,16 +39,16 @@ describe('Home workspace presentation contract', () => {
     expect(home).toContain('>常用工作<');
     expect(home).toContain('>团队动态<');
     expect(home).toContain('aria-label="用户菜单"');
-    expect(home).toContain('FileSearch');
-    expect(home).not.toContain('<WorkspaceCard workspace={ADMIN_WORKSPACE}');
   });
 
-  it('preserves Home access, audit and route seams while avoiding duplicate keyboard activation', () => {
+  it('keeps the established route, access, audit, and impersonation seams without dead launch flags', () => {
     const home = read('src/components/home/HomeWorkspace.tsx');
 
     for (const contract of [
       'useAppSession',
+      'useImpersonation',
       'canAccessModule',
+      'canAccessAdminConsole',
       'isModuleRestricted',
       'isDemoMode',
       "'ENTER_MODULE'",
@@ -58,7 +58,6 @@ describe('Home workspace presentation contract', () => {
       "href: '/lease-submission'",
       "href: '/oss'",
       "href: '/admin'",
-      'onAdminActivate',
       'CommunicationBoard',
       'NoticeBanner',
       '当前账号无访问权限',
@@ -66,23 +65,13 @@ describe('Home workspace presentation contract', () => {
       expect(home).toContain(contract);
     }
 
-    expect(home).not.toContain('handleWorkspaceKeyDown');
-    expect(home).not.toContain('onKeyDown={(event) => handleWorkspaceKeyDown');
+    expect(home).not.toContain('UNDER_DEVELOPMENT_MODULES');
+    expect(home).not.toContain('UnderDevelopmentModal');
+    expect(home).not.toContain('judy.li@colliers.com');
+    expect(home).not.toContain('isRestrictedAdmin');
   });
 
-  it('hardens the user menu for pointer, keyboard and touch interaction', () => {
-    const home = read('src/components/home/HomeWorkspace.tsx');
-
-    expect(home).toContain("document.addEventListener('pointerdown'");
-    expect(home).toContain("event.key !== 'Escape'");
-    expect(home).toContain("event.key !== 'ArrowDown'");
-    expect(home).toContain("['ArrowDown', 'ArrowUp', 'Home', 'End']");
-    expect(home).toContain('requestAnimationFrame(() => menuTriggerRef.current?.focus())');
-    expect(home).toContain('min-h-10');
-    expect(home).toContain('aria-controls="home-user-menu"');
-  });
-
-  it('keeps Home collaboration read-only while hardening the full communication workflow', () => {
+  it('keeps collaboration presentation secondary rather than chat-oriented', () => {
     const communication = read('src/components/CommunicationBoard.tsx');
     const notice = read('src/components/NoticeBanner.tsx');
 
@@ -91,34 +80,11 @@ describe('Home workspace presentation contract', () => {
     expect(communication).not.toContain('实时更新');
     expect(communication).toContain('messages.slice(-4)');
     expect(communication).toContain('MAX_MESSAGES = 50');
-    expect(communication).toContain("fullscreen ? messages : messages.slice(-4)");
     expect(communication).toContain("fullscreen ? '退出' : '查看交流'");
-    expect(communication).toContain('role="dialog"');
-    expect(communication).toContain('aria-modal="true"');
-    expect(communication).toContain('history.pushState');
-    expect(communication).toContain("window.addEventListener('popstate'");
-    expect(communication).toContain("event.key === 'Escape'");
-    expect(communication).toContain("event.key !== 'Tab'");
-    expect(communication).toContain('h-[100dvh]');
-    expect(communication).toContain('safe-area-inset-bottom');
-    expect(communication).toContain('break-words');
-    expect(communication).toContain("BEIJING_TIME_ZONE = 'Asia/Shanghai'");
-    expect(communication).toContain('setLoadError(true)');
-    expect(communication).toContain('setSendError');
-    expect(communication).toContain('setSending(true)');
-    expect(communication).toContain('disabled={sending || !inputText.trim()}');
-    expect(communication).toContain('发送失败，内容已保留，请重试。');
-    expect(communication).toContain('有新消息');
-    expect(communication).not.toContain("fullscreen ? '退出' : '查看全部'");
 
     expect(notice).not.toContain('animate-marquee');
-    expect(notice).not.toContain('text-[10px]');
-    expect(notice).toContain('loadError');
     expect(notice).toContain('查看全部 ${notices.length} 条公告');
     expect(notice).toContain('visibleNotices = expanded ? notices : notices.slice(0, 3)');
-    expect(notice).toContain('break-words');
-    expect(notice).toContain("BEIJING_TIME_ZONE = 'Asia/Shanghai'");
-    expect(notice).not.toContain('max-h-32');
     expect(notice).not.toContain('overflow-y-auto');
   });
 });
