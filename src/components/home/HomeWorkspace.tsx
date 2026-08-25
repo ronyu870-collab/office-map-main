@@ -197,7 +197,7 @@ function HomeHeader({
   };
 
   return (
-    <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+    <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]">
       <div className="flex min-w-0 items-center gap-3">
         <div className="relative h-7 w-[52px] shrink-0 overflow-hidden rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-brand)]">
           <Image src={COLLIERS_LOGO_DATA_URI} alt="Colliers 高力国际" width={592} height={337} priority className="absolute left-1/2 top-1/2 h-[31px] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
@@ -332,17 +332,30 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
 
 function HomeLoadingShell() {
   return (
-    <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8"><div className="h-5 w-44 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /><div className="h-8 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /></div>}>
-      <div className="h-full overflow-hidden p-4 sm:p-6 lg:p-8">
-        <div className="mx-auto grid h-full max-w-[1240px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="space-y-5">
-            <div className="h-28 animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
-            <div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
+    <WorkspaceShell
+      className="h-screen h-[100dvh] overflow-hidden"
+      header={(
+        <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]">
+          <div className="h-7 w-[220px] max-w-[calc(100%-64px)] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:w-[231px]" />
+          <div className="h-10 w-[52px] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:h-9 sm:w-[88px]" />
+        </div>
+      )}
+    >
+      <div className="h-full overflow-hidden">
+        <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
+          <section className="min-w-0">
+            <div className="h-[104px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+            <div className="mb-2.5 mt-5">
+              <div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
+            </div>
             <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
               {[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
             </div>
-          </div>
-          <div className="hidden h-80 animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)] lg:block" />
+          </section>
+          <aside className="hidden min-w-0 border-l border-[var(--cd-color-border)] pl-6 lg:block xl:pl-7">
+            <div className="mb-2.5 h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
+            <div className="h-[320px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+          </aside>
         </div>
       </div>
     </WorkspaceShell>
@@ -423,7 +436,7 @@ export function HomeWorkspace() {
         )}
       >
         <div className="h-full overflow-y-auto overscroll-contain">
-          <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9">
+          <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
             <section className="min-w-0" aria-labelledby="home-heading">
               <Link
                 href={MAP_WORKSPACE.href}
