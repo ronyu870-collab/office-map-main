@@ -21,6 +21,45 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Home visual hierarchy rebuild
+
+### Area
+Home / information architecture / Chinese product language / responsive workspace entry
+
+### What changed
+
+- Rebuilt Home as a restrained internal data-workspace entry instead of continuing the previous enterprise-marketing treatment.
+- Removed visible English eyebrows, English module titles, marketing labels, Map metric badges, oversized CTA treatment, redundant brand copy, and unnecessary badge-driven hierarchy from Home.
+- Standardized visible Home product language to Chinese while retaining the Colliers brand logo.
+- Reduced the content width and right-rail weight, kept Map clearly first without a giant hero, and replaced the secondary card wall with one consistent divider-based workspace list.
+- Simplified Communication Board and Notice presentation so collaboration information remains functional but visually secondary to Map and data-entry work.
+- Aligned the Home loading shell with the loaded layout and moved mobile Admin below Notice / Communication while keeping the existing permission decision unchanged.
+- Added presentation-contract regression coverage for Chinese labels and the existing session, authorization, audit, route, Communication, and Notice seams.
+
+### Why
+
+The prior Home 2.0 combined tiny uppercase labels, mixed Chinese and English, badges, nested cards, a visually heavy Map hero, and a high-contrast collaboration rail. Those rules fragmented the typography and spatial hierarchy and made the page feel assembled from generic enterprise UI motifs rather than designed as one stable internal data workspace.
+
+### Impact
+
+- Map remains the primary Home entry; Quarterly Update, Lease Submission, Research Library, and Administration retain their existing routes and access rules.
+- Shared Session Context, authentication boundaries, role restrictions, demo mode, restricted-admin handling, ENTER_MODULE / LOGOUT audit events, development-module behavior, settings, logout, Communication Board, and Notice behavior remain intact.
+- Mobile ordering now prioritizes Map, data entry, Research, then Notice / Communication, with Admin last when available.
+- No database, RLS, Map runtime, Data Entry, Admin, or Research Library internal-page behavior changed.
+
+### Verification
+
+- Added source-level presentation regression tests that avoid pixel-value assertions.
+- GitHub Verify must pass Typecheck, Lint, Test, and Production Build on the exact final head before merge.
+- An authenticated real-browser visual pass at the requested desktop/mobile viewports remains a release requirement; the current execution environment blocks external Chromium navigation and must not be treated as a successful visual QA result.
+
+### Follow-up
+
+- Keep future Home changes focused on observed workflow friction; do not reintroduce decorative English labels, badge-driven hierarchy, or marketing-style hero treatment.
+
+
+---
+
 ## 2026-08-25 — Data 2.0 Performance Hardening
 
 ### Area
