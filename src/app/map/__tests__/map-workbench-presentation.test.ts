@@ -13,6 +13,8 @@ describe('Map 2.0 presentation seam', () => {
     const page = read('src/app/map/page.tsx');
     expect(page).toContain("import './map-workbench.css';");
     expect(page).toContain('<MapRouteGate />');
+    expect(page).not.toContain('MapController');
+    expect(page).not.toContain('MapDataStore');
   });
 
   it('styles AMap detail, marker, and embedded-filter surfaces through stable selectors', () => {
@@ -20,7 +22,5 @@ describe('Map 2.0 presentation seam', () => {
     expect(css).toContain('.amap-info-content');
     expect(css).toContain('[data-building-id]');
     expect(css).toContain('body:has(#map-container) aside');
-    expect(css).not.toContain('MapController');
-    expect(css).not.toContain('MapDataStore');
   });
 });
