@@ -40,7 +40,7 @@ function MapAuthLoading() {
           <div className="flex items-center gap-6 xl:gap-8 min-w-0">
             <div className="shrink-0">
               <h1 className="text-sm font-semibold tracking-wide text-blue-950 sm:text-base">COLLIERS DATA</h1>
-              <p className="text-[11px] text-zinc-500 sm:text-xs">办公楼市场监测 · 核心地图工作台</p>
+              <p className="text-[11px] text-zinc-500 sm:text-xs">北京办公楼市场地图</p>
             </div>
           </div>
         </div>

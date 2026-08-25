@@ -138,7 +138,7 @@ export function QuarterlyUpdateWorkspace() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [completionNotice, setCompletionNotice] = React.useState<CompletionNotice | null>(null);
   const [saveState, setSaveState] = React.useState<SaveState>('idle');
-  const [saveMessage, setSaveMessage] = React.useState('Cloud draft enabled');
+  const [saveMessage, setSaveMessage] = React.useState('云端草稿已启用');
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
 
   const now = React.useMemo(() => new Date(), []);
@@ -352,7 +352,7 @@ export function QuarterlyUpdateWorkspace() {
       }
       setLastSavedAt(data?.updated_at ? new Date(data.updated_at) : null);
       setSaveState('saved');
-      setSaveMessage('Cloud draft loaded');
+      setSaveMessage('已加载云端草稿');
     } catch (error) {
       console.warn('[QuarterlyUpdate] draft read failed; continuing with empty draft', error);
       setDraftData({});
@@ -379,12 +379,12 @@ export function QuarterlyUpdateWorkspace() {
       if (error) throw error;
       setLastSavedAt(timestamp);
       setSaveState('saved');
-      setSaveMessage('Changes are in the database draft');
+      setSaveMessage('更改已同步至云端草稿');
       return true;
     } catch (error: any) {
       console.error('[QuarterlyUpdate] draft sync failed', error);
       setSaveState('error');
-      setSaveMessage(error?.message || 'Cloud draft save failed; local edits are still on this page');
+      setSaveMessage(error?.message || '云端草稿保存失败；当前页面仍保留本地修改');
       return false;
     }
   }, [draftUserName, isPreview, isImpersonating]);
@@ -468,7 +468,7 @@ export function QuarterlyUpdateWorkspace() {
     setSubmitError(null);
     setCompletionNotice(null);
     setSaveState('submitting');
-    setSaveMessage('Writing submitted rows');
+    setSaveMessage('正在写入提交数据');
 
     const regularRows: any[] = [];
     const futureRows: any[] = [];
@@ -516,12 +516,12 @@ export function QuarterlyUpdateWorkspace() {
       setCompletionNotice({ total, regular: regularRows.length, future: futureRows.length });
       setSaveState('submitted');
       setLastSavedAt(new Date());
-      setSaveMessage('Submission written; cloud draft retained');
+      setSaveMessage('提交成功；云端草稿已保留');
     } catch (error: any) {
       console.error('[QuarterlyUpdate] submit failed', error);
       setSubmitError(error?.message ? `提交失败：${error.message}` : '提交失败，请重试。');
       setSaveState('error');
-      setSaveMessage('Submission failed; draft remains available for retry');
+      setSaveMessage('提交失败；草稿仍可用于重试');
     } finally {
       setSubmitting(false);
     }
@@ -572,7 +572,7 @@ export function QuarterlyUpdateWorkspace() {
   if (assignedBuildingIds.length === 0 && futureSupplyAssignments.length === 0) {
     return (
       <div className="flex min-h-screen flex-col bg-[#f3f5f7]">
-        <header className="border-b border-zinc-200 bg-white px-4 py-3"><strong className="text-sm tracking-[0.12em] text-[#003e7e]">QUARTERLY UPDATE</strong></header>
+        <header className="border-b border-zinc-200 bg-white px-4 py-3"><strong className="text-sm tracking-[0.12em] text-[#003e7e]">季度数据填报</strong></header>
         <div className="flex flex-1 items-center justify-center p-4"><div className="max-w-sm text-center text-sm text-zinc-500">目前没有分配给您的填报任务，请联系管理员。</div></div>
       </div>
     );
@@ -584,21 +584,21 @@ export function QuarterlyUpdateWorkspace() {
         <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:px-5">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#003e7e]">QUARTERLY UPDATE</h1>
+              <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#003e7e]">季度数据填报</h1>
               <span className="rounded-[4px] border border-[#003e7e]/20 bg-[#003e7e]/5 px-1.5 py-0.5 text-[11px] font-semibold text-[#003e7e]">{submitYear} Q{submitQuarter}</span>
-              {readOnly && <span className="rounded-[4px] border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">READ ONLY</span>}
+              {readOnly && <span className="rounded-[4px] border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">只读</span>}
             </div>
-            <p className="mt-0.5 text-[11px] text-zinc-500">{isPreview ? `Admin preview · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</p>
+            <p className="mt-0.5 text-[11px] text-zinc-500">{isPreview ? `管理员预览 · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</p>
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <div className="hidden items-center divide-x divide-zinc-200 rounded-md border border-zinc-200 bg-zinc-50 lg:flex">
-              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">Projects</span><strong className="ml-2 text-xs tabular-nums">{filteredBuildings.length}</strong></div>
-              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">Complete</span><strong className="ml-2 text-xs tabular-nums text-emerald-700">{completedCount}</strong></div>
-              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">Review</span><strong className="ml-2 text-xs tabular-nums text-amber-700">{exceptionCount}</strong></div>
+              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">项目</span><strong className="ml-2 text-xs tabular-nums">{filteredBuildings.length}</strong></div>
+              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">完整</span><strong className="ml-2 text-xs tabular-nums text-emerald-700">{completedCount}</strong></div>
+              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">待检查</span><strong className="ml-2 text-xs tabular-nums text-amber-700">{exceptionCount}</strong></div>
             </div>
             <SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { void manualSave(); }} />
-            <Link href="/" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50"><ArrowLeft size={13} /> Workspace</Link>
+            <Link href="/" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50"><ArrowLeft size={13} /> 主页</Link>
           </div>
         </div>
         {isPreview && <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">管理员预览模式：正在查看 {previewUserName} 的分配与草稿，不允许写入。</div>}
@@ -632,7 +632,7 @@ export function QuarterlyUpdateWorkspace() {
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   <ValidationMessage severity="error">{submitError}</ValidationMessage>
-                  <button onClick={() => { void executeSubmit(); }} className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">Retry submit</button>
+                  <button onClick={() => { void executeSubmit(); }} className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">重试提交</button>
                 </div>
               )}
             </div>
@@ -730,8 +730,8 @@ export function QuarterlyUpdateWorkspace() {
           </div>
 
           <DataEntryToolbar leading={<div className="flex items-center gap-2 text-[10px] text-zinc-500"><Database size={12} /><span>30 秒自动同步云草稿；提交成功后保留草稿作为下一轮编辑基础。</span></div>}>
-            {!readOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> Save draft</button>}
-            {!readOnly && <button type="button" onClick={() => { void submitData(); }} disabled={submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? 'Submitting…' : 'Submit current group'}</button>}
+            {!readOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> 保存草稿</button>}
+            {!readOnly && <button type="button" onClick={() => { void submitData(); }} disabled={submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? '提交中…' : '提交当前分类'}</button>}
             {readOnly && <span className="text-[11px] font-medium text-zinc-400">{isImpersonating ? '模拟模式不可写入' : '预览模式不可写入'}</span>}
           </DataEntryToolbar>
         </div>

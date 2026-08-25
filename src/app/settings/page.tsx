@@ -80,7 +80,7 @@ export default function SettingsPage() {
     <div className="flex h-screen flex-col overflow-hidden bg-zinc-50 text-zinc-900">
       <header className="shrink-0 border-b border-zinc-200/80 bg-[#003e7e]">
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <span className="text-sm font-semibold tracking-tight text-white">个人设置</span>
+          <span className="text-sm font-semibold tracking-tight text-white">设置</span>
           {!passwordChangeRequired && (
             <Link href="/" className="flex items-center gap-1.5 text-[12px] text-white/70 transition hover:text-white">
               <ArrowLeft size={14} strokeWidth={1.5} />

@@ -236,7 +236,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<AdminPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('数据库管理')).toBeInTheDocument();
+        expect(screen.queryAllByText('数据库管理').length).toBeGreaterThan(0);
       }, { timeout: 3000 });
       
       const pageContainer = container.firstChild as HTMLElement;
@@ -262,7 +262,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<UpdatePage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('季度数据填报')).toBeInTheDocument();
+        expect(screen.queryAllByText('季度数据填报').length).toBeGreaterThan(0);
         expect(container.querySelector('.overflow-auto')).toBeTruthy();
       }, { timeout: 3000 });
       

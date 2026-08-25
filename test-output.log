@@ -1,0 +1,608 @@
+
+> office-map-main@0.1.0 test
+> vitest --run
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.6 [39m[90m/home/runner/work/office-map-main/office-map-main[39m
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Home to sub-pages navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: / → /map
+   Total Time: 380ms
+   - Middleware: 49ms
+   - Session Validation: 22ms
+   - Data Loading: 240ms
+   - Rendering: 69ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Home to sub-pages navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: / → /bi
+   Total Time: 382ms
+   - Middleware: 53ms
+   - Session Validation: 16ms
+   - Data Loading: 247ms
+   - Rendering: 65ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Home to sub-pages navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: / → /update
+   Total Time: 374ms
+   - Middleware: 49ms
+   - Session Validation: 10ms
+   - Data Loading: 273ms
+   - Rendering: 41ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Home to sub-pages navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: / → /oss
+   Total Time: 246ms
+   - Middleware: 79ms
+   - Session Validation: 22ms
+   - Data Loading: 108ms
+   - Rendering: 36ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Home to sub-pages navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: / → /settings
+   Total Time: 363ms
+   - Middleware: 76ms
+   - Session Validation: 24ms
+   - Data Loading: 217ms
+   - Rendering: 45ms
+
+📈 Summary:
+   Total navigations: 5
+   Slow (> 1s): 0
+   Very slow (> 2s): 0
+   Average time: 349ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Sub-page to sub-page navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: /map → /bi
+   Total Time: 251ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Sub-page to sub-page navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: /bi → /update
+   Total Time: 289ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Sub-page to sub-page navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: /update → /oss
+   Total Time: 226ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Sub-page to sub-page navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: /oss → /settings
+   Total Time: 408ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Sub-page to sub-page navigation should complete in < 1 second
+[22m[39m
+📊 Navigation: /settings → /map
+   Total Time: 278ms
+
+📈 Summary:
+   Total navigations: 5
+   Slow (> 1s): 0
+   Average time: 290ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mProperty 1: Bug Condition - Navigation Performance[2m > [22m[2m✅ SHOULD NOW PASS: Loading indicator should show for navigations > 300ms
+[22m[39m
+📊 Navigation: / → /map
+   Total Time: 332ms
+   Shows Loading Indicator: true
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mRoot Cause Analysis[2m > [22m[2m📊 Measure middleware execution time
+[22m[39m
+📊 Middleware Performance (OPTIMIZED):
+   Average: 54ms
+   Max: 74ms
+   Target: < 100ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mRoot Cause Analysis[2m > [22m[2m📊 Measure session validation time
+[22m[39m
+📊 Session Validation Performance (OPTIMIZED):
+   Average: 17ms
+   Target: < 50ms (with cache)
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Exploration - Page Navigation Performance[2m > [22m[2mRoot Cause Analysis[2m > [22m[2m📊 Measure first contentful paint time
+[22m[39m
+📊 First Contentful Paint (OPTIMIZED):
+   Average: 121ms
+   Target: < 500ms
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mBug Condition Documentation[2m > [22m[2m📝 Document verification results
+[22m[39m
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    BUG FIX VERIFICATION RESULTS                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+🎯 GOAL: Verify page navigation performance bug is FIXED
+
+✅ OPTIMIZATIONS IMPLEMENTED:
+   1. ✅ Middleware optimization (pass user info via headers)
+   2. ✅ Session cache optimization (increased TTL, prewarming)
+   3. ✅ Progressive rendering (show skeleton first, async data load)
+   4. ✅ SWR configuration optimization (reduced revalidation)
+   5. ✅ Global loading indicator (for navigations > 300ms)
+
+📊 EXPECTED PERFORMANCE (AFTER FIX):
+   - Navigation time: < 1 second (target: < 500ms) ✅
+   - Middleware execution: 30-80ms (target: < 100ms) ✅
+   - Session validation: 10-30ms (target: < 50ms) ✅
+   - First contentful paint: 100-200ms (target: < 500ms) ✅
+   - Data loading: 100-300ms (async, non-blocking) ✅
+
+🔍 VERIFICATION APPROACH:
+   This test simulates the OPTIMIZED behavior after fixes:
+   - Middleware uses cached data and passes info via headers
+   - Session validation reads from headers (fast!)
+   - Progressive rendering: UI shows first, data loads async
+   - No blocking data loads
+
+✅ EXPECTED OUTCOME:
+   All tests in this file should NOW PASS
+   This confirms the bug is fixed and performance targets are met
+
+🎉 SUCCESS CRITERIA:
+   ✅ All navigation paths complete in < 1 second
+   ✅ Preferred target < 500ms achieved
+   ✅ Loading indicator shows appropriately (> 300ms)
+   ✅ No regressions in security or functionality
+    
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.1: Unauthenticated Redirect[2m > [22m[2m✅ EXPECTED TO PASS: Unauthenticated users should be redirected to /login
+[22m[39m
+📊 Unauthenticated Access Test:
+   /: ✅ BLOCKED → /login
+   /map: ✅ BLOCKED → /login
+   /bi: ✅ BLOCKED → /login
+   /update: ✅ BLOCKED → /login
+   /oss: ✅ BLOCKED → /login
+   /settings: ✅ BLOCKED → /login
+   /admin: ✅ BLOCKED → /login
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.2: Session ID Validation (Single Device Login)[2m > [22m[2m✅ EXPECTED TO PASS: Mismatched session_id should block access
+[22m[39m
+📊 Session ID Validation Test:
+   JWT session_id: session-abc
+   DB session_id: session-xyz
+   Access: ✅ BLOCKED
+   Error: 该账号已在其他设备登录
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.2: Session ID Validation (Single Device Login)[2m > [22m[2m✅ EXPECTED TO PASS: Matching session_id should allow access
+[22m[39m
+📊 Valid Session Test:
+   Session ID matches: ✅
+   Access: ✅ ALLOWED
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.3: Permission Checks (Admin-Only Pages)[2m > [22m[2m✅ EXPECTED TO PASS: Non-admin users cannot access /admin
+[22m[39m
+📊 Admin Permission Test:
+   Role: viewer → ✅ BLOCKED
+   Role: editor → ✅ BLOCKED
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.3: Permission Checks (Admin-Only Pages)[2m > [22m[2m✅ EXPECTED TO PASS: Admin users can access /admin
+[22m[39m
+📊 Admin Access Test:
+   Role: admin → ✅ ALLOWED
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.4: Audit Logging[2m > [22m[2m✅ EXPECTED TO PASS: User actions should be logged
+[22m[39m
+📊 Audit Logging Test:
+   SUBMIT_QUARTERLY_DATA by user@example.com: ✅ LOGGED
+   DELETE_USER by admin@example.com: ✅ LOGGED
+   VIEW_REPORT by viewer@example.com: ✅ LOGGED
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.5: Error Handling and User Feedback[2m > [22m[2m✅ EXPECTED TO PASS: Network errors should be retryable
+[22m[39m
+📊 Network Error Handling:
+   Error: Network request failed
+   User Message: 网络连接失败，请检查网络后重试
+   Retryable: ✅ YES
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.5: Error Handling and User Feedback[2m > [22m[2m✅ EXPECTED TO PASS: Auth errors should redirect to login
+[22m[39m
+📊 Auth Error Handling:
+   Error: Unauthorized access
+   User Message: 登录已过期，请重新登录
+   Redirect: /login
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.6: Business Functionality (Form Submission)[2m > [22m[2m✅ EXPECTED TO PASS: Valid form submission should succeed
+[22m[39m
+📊 Form Submission Test:
+   Success: ✅ YES
+   Error: N/A
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Property Tests - Security and Functionality[2m > [22m[2mProperty 2.6: Business Functionality (Form Submission)[2m > [22m[2m✅ EXPECTED TO PASS: Unauthenticated form submission should fail
+[22m[39m
+📊 Unauthenticated Form Submission:
+   Success: ✅ NO
+   Error: UNAUTHENTICATED
+
+[90mstdout[2m | src/__tests__/page-navigation-performance.test.tsx[2m > [22m[2mPreservation Tests Summary[2m > [22m[2m📝 Document preservation test results
+[22m[39m
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    PRESERVATION PROPERTY TEST RESULTS                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+🎯 GOAL: Validate security and functionality remain intact on UNFIXED code
+
+✅ EXPECTED OUTCOME: All preservation tests should PASS
+
+📋 TESTED BEHAVIORS:
+   1. ✅ Unauthenticated Redirect - Users without auth redirected to /login
+   2. ✅ Session ID Validation - Single device login enforcement works
+   3. ✅ Permission Checks - Admin-only pages properly restricted
+   4. ✅ Audit Logging - All user actions are logged correctly
+   5. ✅ Error Handling - Friendly error messages and retry logic
+   6. ✅ Business Functionality - Forms and data operations work correctly
+
+🔒 SECURITY GUARANTEES:
+   - Authentication required for all protected pages
+   - Session ID mismatch blocks access (single device login)
+   - Role-based access control enforced
+   - All actions audited for compliance
+
+🚀 AFTER OPTIMIZATION:
+   These tests should continue to PASS, confirming no regressions
+   in security or functionality after performance improvements.
+    
+
+ [32m✓[39m src/__tests__/page-navigation-performance.test.tsx [2m([22m[2m26 tests[22m[2m)[22m[33m 14885[2mms[22m[39m
+       [33m[2m✓[22m[39m ✅ SHOULD NOW PASS: Home to sub-pages navigation should complete in < 1 second [33m 1752[2mms[22m[39m
+       [33m[2m✓[22m[39m ✅ SHOULD NOW PASS: Sub-page to sub-page navigation should complete in < 1 second [33m 1453[2mms[22m[39m
+       [33m[2m✓[22m[39m ✅ SHOULD NOW PASS: Loading indicator should show for navigations > 300ms [33m 334[2mms[22m[39m
+       [33m[2m✓[22m[39m ✅ SHOULD NOW PASS: Property - All page navigations should complete in < 1 second [33m 6588[2mms[22m[39m
+       [33m[2m✓[22m[39m ✅ SHOULD NOW PASS: Property - Preferred performance target < 500ms [33m 3366[2mms[22m[39m
+       [33m[2m✓[22m[39m 📊 Measure middleware execution time [33m 540[2mms[22m[39m
+       [33m[2m✓[22m[39m 📊 Measure first contentful paint time [33m 605[2mms[22m[39m
+[90mstderr[2m | src/services/__tests__/leaseTransactionSubmitService.test.ts[2m > [22m[2mleaseTransactionSubmitService[2m > [22m[2mduplicate checks[2m > [22m[2mkeeps deprecated checkDuplicate fail-open because it has no area input
+[22m[39m⚠️ checkDuplicate 已废弃，请使用 checkFuzzyDuplicate
+❌ [检测] 参数错误: 成交面积无效 [33m0[39m
+
+[90mstderr[2m | src/services/__tests__/leaseTransactionSubmitService.test.ts[2m > [22m[2mleaseTransactionSubmitService[2m > [22m[2mduplicate checks[2m > [22m[2mreturns no duplicate for invalid fuzzy-check input without querying
+[22m[39m❌ [检测] 参数错误: 成交面积无效 [33m0[39m
+
+[90mstdout[2m | src/services/__tests__/leaseTransactionSubmitService.test.ts[2m > [22m[2mleaseTransactionSubmitService[2m > [22m[2mduplicate checks[2m > [22m[2mreturns matching fuzzy duplicates from the current fluent query path
+[22m[39m🔍 [检测] 开始检测重复记录（使用简单查询）
+   - 企业: 测试公司
+   - 楼宇: 测试楼宇
+   - 面积: [33m500[39m
+   - 季度: 2024Q1
+   - 排除ID: 无
+
+[90mstdout[2m | src/services/__tests__/leaseTransactionSubmitService.test.ts[2m > [22m[2mleaseTransactionSubmitService[2m > [22m[2mduplicate checks[2m > [22m[2mreturns matching fuzzy duplicates from the current fluent query path
+[22m[39m✅ [检测] 查询返回: 1 条
+🔍 [撞车匹配]
+   - 楼宇: 测试楼宇
+   - 季度: 2024Q1
+   - 面积匹配:
+     • 用户输入: [33m500[39m ㎡
+     • 历史记录: [33m500[39m ㎡
+     • 输入在历史范围内 [ 250 - 750 ]: ✅ 是
+     • 历史在输入范围内 [ 250 - 750 ]: ✅ 是
+   - 企业名称匹配:
+     • 用户输入: 测试公司
+     • 历史记录: 测试公司
+     • 包含匹配: ✅ 是
+     • 相似度: 100.0% ✅ 达到阈值
+     • 匹配策略: 包含匹配
+🔍 [检测] 双向过滤后: [33m1[39m 条
+🔍 [检测] 最终结果: 发现 1 条相似记录
+
+[90mstdout[2m | src/services/__tests__/leaseTransactionSubmitService.test.ts[2m > [22m[2mleaseTransactionSubmitService[2m > [22m[2mduplicate checks[2m > [22m[2mfails open when the fuzzy duplicate query reports an error
+[22m[39m🔍 [检测] 开始检测重复记录（使用简单查询）
+   - 企业: 测试公司
+   - 楼宇: 测试楼宇
+   - 面积: [33m500[39m
+   - 季度: 2024Q1
+   - 排除ID: 无
+
+[90mstderr[2m | src/services/__tests__/leaseTransactionSubmitService.test.ts[2m > [22m[2mleaseTransactionSubmitService[2m > [22m[2mduplicate checks[2m > [22m[2mfails open when the fuzzy duplicate query reports an error
+[22m[39m❌ [检测] 查询失败: { code: [32m'PGRST301'[39m, message: [32m'Connection timeout'[39m }
+⚠️ [检测] 检测失败，但不阻止提交
+
+ [32m✓[39m src/services/__tests__/leaseTransactionSubmitService.test.ts [2m([22m[2m36 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.1: Admin Page Scrolling Behavior - 管理员页面保持页面级滚动[2m > [22m[2m✅ SHOULD PASS: Admin page allows page-level scrolling
+[22m[39m
+📊 Admin Page Preservation Check:
+   Page container exists: true
+   Content area with overflow-y-auto: true
+   ✅ Admin page maintains its scrolling behavior
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.2: Table Internal Scrolling - 表格内部滚动保持不变[2m > [22m[2m✅ SHOULD PASS: Update page table scrolls internally
+[22m[39m
+📊 Update Page Table Scrolling Check:
+   Page container: h-screen overflow-hidden
+   Table container with overflow-auto: true
+   ✅ Table internal scrolling is preserved
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.4: Communication Board Scrolling - 沟通看板内部滚动保持不变[2m > [22m[2m✅ SHOULD PASS: Home page communication board scrolls internally
+[22m[39m
+📊 Communication Board Scrolling Check:
+   Communication board exists: true
+   Communication board has internal scrolling: true
+   ✅ Communication board internal scrolling is preserved
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.5: Keyboard Navigation - 键盘导航保持不变[2m > [22m[2m✅ SHOULD PASS: Tab navigation works correctly
+[22m[39m
+📊 Keyboard Navigation Check:
+   Interactive elements found: 5
+   Initial focus: BODY
+   After Tab: BUTTON
+   Focus changed: true
+   ✅ Keyboard navigation is preserved
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.6: Click Interactions - 点击交互保持不变[2m > [22m[2m✅ SHOULD PASS: Links are clickable
+[22m[39m
+📊 Click Interactions Check:
+   Links found: 4
+   Buttons found: 1
+   ✅ All interactive elements are present and clickable
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.7: Responsive Layout - 响应式布局保持不变[2m > [22m[2m✅ SHOULD PASS: Layout adapts to mobile viewport
+[22m[39m
+📊 Mobile Responsive Layout Check:
+   Viewport: 375x667 (mobile)
+   Page container exists: true
+   ✅ Layout adapts to mobile viewport
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.7: Responsive Layout - 响应式布局保持不变[2m > [22m[2m✅ SHOULD PASS: Layout adapts to tablet viewport
+[22m[39m
+📊 Tablet Responsive Layout Check:
+   Viewport: 768x1024 (tablet)
+   Page container exists: true
+   ✅ Layout adapts to tablet viewport
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty 2.7: Responsive Layout - 响应式布局保持不变[2m > [22m[2m✅ SHOULD PASS: Layout adapts to desktop viewport
+[22m[39m
+📊 Desktop Responsive Layout Check:
+   Viewport: 1920x1080 (desktop)
+   Page container exists: true
+   ✅ Layout adapts to desktop viewport
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty-Based Testing: Preservation Across Viewport Sizes[2m > [22m[2m✅ SHOULD PASS: Property - Layout remains functional across all viewport sizes
+[22m[39m
+📊 Property-Based Viewport Testing:
+   ✅ Layout remains functional across 10 random viewport sizes
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty-Based Testing: Preservation Across User Interactions[2m > [22m[2m✅ SHOULD PASS: Property - All links remain navigable
+[22m[39m
+📊 Property-Based Link Navigation Testing:
+   Total links: 4
+   All links have href: true
+   ✅ All links remain navigable
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Property Tests - 现有功能和交互保持不变[2m > [22m[2mProperty-Based Testing: Preservation Across User Interactions[2m > [22m[2m✅ SHOULD PASS: Property - All buttons remain interactive
+[22m[39m
+📊 Property-Based Button Interaction Testing:
+   Total buttons: 1
+   All buttons enabled: true
+   ✅ All buttons remain interactive
+
+[90mstdout[2m | src/__tests__/page-scroll-layout-preservation.test.tsx[2m > [22m[2mPreservation Test Summary[2m > [22m[2m📝 Document preservation test results
+[22m[39m
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    PRESERVATION TEST SUMMARY                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+🎯 TEST PURPOSE: Preservation Property Testing (Task 2)
+
+✅ EXPECTED OUTCOME: Tests PASS on unfixed code
+   This confirms baseline behavior to preserve during fix
+
+📊 TEST COVERAGE:
+   ✅ Admin page scrolling behavior (3.1)
+   ✅ Table internal scrolling (3.2)
+   ✅ Chart area scrolling (3.3)
+   ✅ Communication board scrolling (3.4)
+   ✅ Responsive layout (3.5, 3.6)
+   ✅ Keyboard navigation (3.7)
+   ✅ Click interactions (3.8)
+
+🔍 OBSERVATION-FIRST METHODOLOGY:
+   1. Observe behavior on UNFIXED code
+   2. Write tests capturing observed patterns
+   3. Run tests on UNFIXED code (should PASS)
+   4. After fix, re-run tests (should still PASS)
+
+📋 PRESERVATION GUARANTEES:
+   ✅ Admin page maintains page-level scrolling
+   ✅ Tables/charts maintain internal scrolling
+   ✅ Keyboard navigation (Tab, Escape) works
+   ✅ Click interactions (links, buttons) work
+   ✅ Responsive layout works on all screen sizes
+   ✅ Modal dialogs open/close correctly
+
+🎯 PROPERTY-BASED TESTING:
+   ✅ 10 random viewport sizes tested
+   ✅ All links remain navigable
+   ✅ All buttons remain interactive
+
+📋 NEXT STEPS:
+   1. ✅ Task 1 Complete: Bug condition test written
+   2. ✅ Task 2 Complete: Preservation tests written and PASSING
+   3. ⏭️  Task 3: Implement fix
+   4. ⏭️  Task 3.4: Re-run preservation tests (should still PASS)
+    
+
+ [32m✓[39m src/__tests__/page-scroll-layout-preservation.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 720[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/module-click-error-handling.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 194[2mms[22m[39m
+ [32m✓[39m src/app/map/__tests__/MapWorkbenchView.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 368[2mms[22m[39m
+ [32m✓[39m src/app/map/__tests__/MapDataStore.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/components/home/__tests__/home-workspace-presentation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/utils/__tests__/dataCleaners.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/utils/__tests__/performanceMonitor.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 114[2mms[22m[39m
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该成功加载楼宇数据
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mtrue[39m
+   - error: null
+🚨 [useBuildings] SWR fetcher 开始执行
+   - 调用 getBuildings，参数: { ownerUser: [90mundefined[39m, requirePosition: [90mundefined[39m }
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该成功加载楼宇数据
+[22m[39m🚨 [useBuildings] SWR fetcher 执行完成
+   - 返回数据: 2 条记录
+   - 第一条记录: 1 Building A
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该成功加载楼宇数据
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: 2 条
+   - isLoading: [33mfalse[39m
+   - error: null
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该处理加载错误
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mtrue[39m
+   - error: null
+🚨 [useBuildings] SWR fetcher 开始执行
+   - 调用 getBuildings，参数: { ownerUser: [90mundefined[39m, requirePosition: [90mundefined[39m }
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该处理加载错误
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mfalse[39m
+   - error: Network error
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该支持按用户筛选
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'John'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mtrue[39m
+   - error: null
+🚨 [useBuildings] SWR fetcher 开始执行
+   - 调用 getBuildings，参数: { ownerUser: [32m'John'[39m, requirePosition: [90mundefined[39m }
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该支持按用户筛选
+[22m[39m🚨 [useBuildings] SWR fetcher 执行完成
+   - 返回数据: 1 条记录
+   - 第一条记录: 1 Building A
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该支持按用户筛选
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'John'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: 1 条
+   - isLoading: [33mfalse[39m
+   - error: null
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该支持 requirePosition 参数
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mtrue[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mtrue[39m
+   - error: null
+🚨 [useBuildings] SWR fetcher 开始执行
+   - 调用 getBuildings，参数: { ownerUser: [90mundefined[39m, requirePosition: [33mtrue[39m }
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该支持 requirePosition 参数
+[22m[39m🚨 [useBuildings] SWR fetcher 执行完成
+   - 返回数据: 1 条记录
+   - 第一条记录: 1 Building A
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该支持 requirePosition 参数
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mtrue[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: 1 条
+   - isLoading: [33mfalse[39m
+   - error: null
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该提供 mutate 函数用于手动刷新
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mtrue[39m
+   - error: null
+🚨 [useBuildings] SWR fetcher 开始执行
+   - 调用 getBuildings，参数: { ownerUser: [90mundefined[39m, requirePosition: [90mundefined[39m }
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该提供 mutate 函数用于手动刷新
+[22m[39m🚨 [useBuildings] SWR fetcher 执行完成
+   - 返回数据: 1 条记录
+   - 第一条记录: 1 Building A
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m应该提供 mutate 函数用于手动刷新
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mtrue[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: 1 条
+   - isLoading: [33mfalse[39m
+   - error: null
+
+[90mstdout[2m | src/hooks/__tests__/useBuildings.test.tsx[2m > [22m[2museBuildings Hook[2m > [22m[2m默认情况下不应在挂载时重新验证（性能优化）
+[22m[39m🚨 [useBuildings] Hook 初始化
+   - cacheKey: [ [32m'buildings'[39m, [32m'all'[39m, [33mfalse[39m ]
+   - revalidateOnMount: [33mfalse[39m
+🚨 [useBuildings] Hook 返回状态
+   - data: undefined
+   - isLoading: [33mfalse[39m
+   - error: null
+
+ [32m✓[39m src/hooks/__tests__/useBuildings.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 308[2mms[22m[39m
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+Not implemented: navigation to another Document
+ [32m✓[39m src/components/__tests__/NavigationProgress.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 76[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/Auth.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/app/map/__tests__/useMapRuntime.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 189[2mms[22m[39m
+ [32m✓[39m src/__tests__/cross-page-product-continuity.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/components/__tests__/ErrorBoundary.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 228[2mms[22m[39m
+ [32m✓[39m src/app/__tests__/keyboard-navigation.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/app/map/__tests__/supply-calendar.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/__tests__/admin-research-library-2.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/app/oss/__tests__/ResearchLibraryPage.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 317[2mms[22m[39m
+ [32m✓[39m src/components/__tests__/SessionProvider.shared-session.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 49[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/map-performance-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/app/lease-submission/leaseEntryModel.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/app/__tests__/module-styles-verification.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/app/update/quarterlyDataEntry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/app/__tests__/handleModuleClick.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/app/map/__tests__/MapRouteGate.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m src/utils/__tests__/frameCoalescer.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/components/admin/grid/__tests__/xlsxSecurity.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/components/admin/__tests__/UploadGuideModal.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 100[2mms[22m[39m
+ [32m✓[39m src/components/admin/__tests__/uploadValueParser.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/utils/__tests__/retryAsync.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/cbexCrawler.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/services/__tests__/map-trend-chart-lazy-loading.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/app/lease-submission/dataEntrySecurityRegression.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/app/map/__tests__/map-workbench-presentation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/utils/__tests__/leaseSubmitterPrivacy.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/components/data-entry/SaveStatus.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 201[2mms[22m[39m
+ [32m✓[39m src/components/home/__tests__/home-user-menu-semantics.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/utils/__tests__/passwordPolicy.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m39 passed[39m[22m[90m (39)[39m
+[2m      Tests [22m [1m[32m250 passed[39m[22m[90m (250)[39m
+[2m   Start at [22m 12:43:59
+[2m   Duration [22m 62.95s[2m (transform 1.39s, setup 3.90s, import 3.44s, tests 18.19s, environment 31.01s)[22m
+

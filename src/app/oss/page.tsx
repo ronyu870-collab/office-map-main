@@ -36,7 +36,7 @@ export default function OSSPage() {
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
       <div className="shrink-0 bg-white px-3 pt-4 sm:px-5">
         <PageHeader
-          eyebrow="Research Library"
+          eyebrow="资料检索"
           title="研究资料库"
           description="搜索、定位、打开和下载内部研究资料。管理权限用户可维护目录与文件。"
           meta={userEmail ? `当前用户：${userEmail}` : '正在读取用户身份…'}
