@@ -115,10 +115,11 @@ describe('Home collaboration behavior', () => {
   });
 
   it('blocks same-frame duplicate form submission until the first send resolves', async () => {
-    let resolveInsert: ((value: { error: null }) => void) | null = null;
-    state.insert.mockImplementation(() => new Promise<{ error: null }>((resolve) => {
+    let resolveInsert!: (value: { error: null }) => void;
+    const pendingInsert = new Promise<{ error: null }>((resolve) => {
       resolveInsert = resolve;
-    }));
+    });
+    state.insert.mockReturnValue(pendingInsert);
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
 
@@ -133,7 +134,7 @@ describe('Home collaboration behavior', () => {
     fireEvent.submit(form!);
     expect(state.insert).toHaveBeenCalledTimes(1);
 
-    resolveInsert?.({ error: null });
+    resolveInsert({ error: null });
     await waitFor(() => expect(state.logAction).toHaveBeenCalledTimes(1));
   });
 
