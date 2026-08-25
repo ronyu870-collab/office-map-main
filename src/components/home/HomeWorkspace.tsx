@@ -191,7 +191,6 @@ export function HomeWorkspace() {
   const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';
   const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;
   const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);
-  const businessWorkspaces = canSeeAdminWorkspace ? [...BUSINESS_WORKSPACES, ADMIN_WORKSPACE] : BUSINESS_WORKSPACES;
 
   async function handleLogout() {
     try {
@@ -250,13 +249,22 @@ export function HomeWorkspace() {
                 <h2 className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">工作区</h2>
                 <span className="text-xs text-[var(--cd-color-text-muted)]">按业务进入</span>
               </div>
-              <div>{businessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />)}</div>
+              <div>
+                {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />)}
+                {canSeeAdminWorkspace ? <div className="hidden lg:block"><WorkspaceCard workspace={ADMIN_WORKSPACE} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} /></div> : null}
+              </div>
             </section>
 
             <aside className="min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-8" aria-label="通知与动态">
               <div className="mb-3 flex items-baseline justify-between gap-3"><h2 className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">通知与动态</h2><span className="text-xs text-[var(--cd-color-text-muted)]">辅助信息</span></div>
               <div className="min-h-[240px] overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">{showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-[260px] animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}</div>
               <div className="mt-4">{showCommunication ? <NoticeBanner /> : <div className="h-10 animate-pulse rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)]" />}</div>
+              {canSeeAdminWorkspace ? (
+                <div className="mt-6 lg:hidden">
+                  <div className="mb-1 flex items-baseline justify-between gap-3"><h2 className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">管理</h2><span className="text-xs text-[var(--cd-color-text-muted)]">权限入口</span></div>
+                  <WorkspaceCard workspace={ADMIN_WORKSPACE} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />
+                </div>
+              ) : null}
             </aside>
           </div>
         </div>
