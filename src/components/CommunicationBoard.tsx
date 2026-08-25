@@ -37,7 +37,6 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         .order('created_at', { ascending: false }).limit(50);
 
       if (data) setMessages(data.reverse());
-      
       setLoading(false);
       setTimeout(scrollToBottom, 100);
     };
@@ -69,21 +68,17 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
 
   const boardContent = (
     <>
-      {/* 头部 - 三段式布局：上 (固定不压缩) */}
-      <div className="flex min-h-12 flex-none shrink-0 items-center justify-between border-b border-[#002f61] bg-[#003e7e] px-4 py-3 text-white">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold tracking-tight">市场信息交流</h2>
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-white/70">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            </span>
+      <div className="flex min-h-11 flex-none shrink-0 items-center justify-between border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h2 className="truncate text-[13px] font-semibold text-[var(--cd-color-text-primary)]">市场信息交流</h2>
+          <span className="inline-flex items-center gap-1.5 text-xs text-[var(--cd-color-text-muted)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--cd-color-success)]" aria-hidden="true" />
             实时更新
-          </div>
+          </span>
         </div>
         <button
           onClick={() => setFullscreen(f => !f)}
-          className="z-10 rounded-sm p-1.5 text-white/70 transition-[background-color,color] hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          className="z-10 rounded-[var(--cd-radius-sm)] p-1.5 text-[var(--cd-color-text-muted)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/30"
           title={fullscreen ? '退出全屏' : '全屏'}
           aria-label={fullscreen ? '退出全屏' : '全屏'}
           type="button"
@@ -94,12 +89,11 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         </button>
       </div>
 
-      {/* 消息区 - 三段式布局：中 (可滚动，关键是 min-h-0！) */}
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-zinc-50/50 p-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-[var(--cd-color-surface-alt)]/60 p-3.5">
         {loading ? (
-          <div className="text-center text-xs text-zinc-400">拉取历史记录中…</div>
+          <div className="text-center text-xs text-[var(--cd-color-text-muted)]">正在加载历史信息…</div>
         ) : messages.length === 0 ? (
-          <div className="mt-10 text-center text-xs text-zinc-400">本周暂无动态，快来发第一条吧！</div>
+          <div className="mt-8 text-center text-xs leading-5 text-[var(--cd-color-text-muted)]">暂无团队动态</div>
         ) : messages.map((msg) => {
           const isMe = msg.user_email === userEmail;
           const msgDate = new Date(msg.created_at);
@@ -110,11 +104,11 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
             : msgDate.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
           return (
             <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-              <span className="mb-1 pl-1 text-[10px] text-zinc-400"><MaskedText>{msg.user_name}</MaskedText> • {timeStr}</span>
-              <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm shadow-sm ${
+              <span className="mb-1 px-0.5 text-xs text-[var(--cd-color-text-muted)]"><MaskedText>{msg.user_name}</MaskedText> · {timeStr}</span>
+              <div className={`max-w-[88%] rounded-[var(--cd-radius-md)] border px-3 py-2 text-[13px] leading-5 ${
                 isMe
-                  ? 'rounded-tr-none border border-blue-200 bg-blue-100 text-blue-900'
-                  : 'rounded-tl-none border border-zinc-200 bg-white text-zinc-800'
+                  ? 'border-[color:rgb(0_62_126_/_0.18)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-text-primary)]'
+                  : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)]'
               }`}>
                 {msg.content}
               </div>
@@ -124,20 +118,19 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 输入区 - 三段式布局：下 (固定不压缩) */}
-      <form onSubmit={handleSendMessage} className="flex flex-none shrink-0 gap-2 border-t border-zinc-200 bg-white p-3">
+      <form onSubmit={handleSendMessage} className="flex flex-none shrink-0 gap-2 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-3">
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder="分享市场动态、成交快讯或寻求协助…"
-          className="min-w-0 flex-1 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none transition-[background-color,border-color,box-shadow] focus:border-primary focus:bg-white focus-visible:ring-2 focus-visible:ring-primary/20"
+          placeholder="分享市场动态或团队信息…"
+          className="min-w-0 flex-1 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-[13px] text-[var(--cd-color-text-primary)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)] focus:bg-[var(--cd-color-surface)] focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/15"
           autoComplete="off"
         />
         <button
           type="submit"
           disabled={!inputText.trim()}
-          className="shrink-0 touch-manipulation rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-[background-color,opacity,box-shadow] hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 touch-manipulation rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 py-2 text-[13px] font-medium text-white transition-[background-color,opacity] hover:bg-[var(--cd-color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/30 disabled:cursor-not-allowed disabled:opacity-45"
         >
           发送
         </button>
@@ -147,14 +140,14 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
 
   if (fullscreen) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col h-full overflow-hidden bg-white">
+      <div className="fixed inset-0 z-50 flex h-full flex-col overflow-hidden bg-[var(--cd-color-surface)]">
         {boardContent}
       </div>
     );
   }
 
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200/70 bg-white shadow-sm">
+    <section className="flex h-full flex-col overflow-hidden bg-[var(--cd-color-surface)]">
       {boardContent}
     </section>
   );
