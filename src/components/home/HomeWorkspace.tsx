@@ -8,8 +8,8 @@ import {
   ArrowRight,
   ChevronDown,
   ClipboardList,
-  CloudUpload,
   Database,
+  FileSearch,
   Handshake,
   LogOut,
   Map,
@@ -72,7 +72,7 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     module: 'oss',
     title: '研究资料库',
     description: '查找市场报告、研究文件及团队资料。',
-    icon: CloudUpload,
+    icon: FileSearch,
   },
 ];
 
@@ -113,7 +113,6 @@ function getRoleLabel(role: string, isAdmin: boolean) {
   if (isAdmin) return '管理员';
   if (role === 'editor') return '编辑用户';
   if (role === 'viewer') return '查看用户';
-  if (role === 'super_admin') return '超级管理员';
   return '内部用户';
 }
 
@@ -134,6 +133,7 @@ function HomeHeader({
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const menuTriggerRef = React.useRef<HTMLButtonElement>(null);
   const isRestrictedAdmin = email === 'judy.li@colliers.com';
   const isAdmin = isUserAdmin(role) && !isRestrictedAdmin;
   const roleLabel = getRoleLabel(role, isAdmin);
@@ -143,20 +143,58 @@ function HomeHeader({
   React.useEffect(() => {
     if (!menuOpen) return;
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: PointerEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false);
     };
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setMenuOpen(false);
+      requestAnimationFrame(() => menuTriggerRef.current?.focus());
     };
 
-    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('keydown', handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleEscape);
     };
   }, [menuOpen]);
+
+  const focusFirstMenuItem = () => {
+    requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
+    });
+  };
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      if (event.key === 'Tab') setMenuOpen(false);
+      return;
+    }
+
+    const items = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'),
+    );
+    if (items.length === 0) return;
+
+    event.preventDefault();
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === 'Home') {
+      items[0].focus();
+      return;
+    }
+    if (event.key === 'End') {
+      items[items.length - 1].focus();
+      return;
+    }
+
+    const offset = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = currentIndex < 0
+      ? (offset > 0 ? 0 : items.length - 1)
+      : (currentIndex + offset + items.length) % items.length;
+    items[nextIndex].focus();
+  };
 
   return (
     <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
@@ -168,22 +206,42 @@ function HomeHeader({
         <div className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)] sm:text-sm">北京办公楼市场数据平台</div>
       </div>
 
-      <div ref={menuRef} className="relative shrink-0">
+      <div
+        ref={menuRef}
+        className="relative shrink-0"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMenuOpen(false);
+        }}
+      >
         <button
+          ref={menuTriggerRef}
           type="button"
           onClick={() => setMenuOpen((value) => !value)}
-          className="inline-flex h-8 max-w-48 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowDown') return;
+            event.preventDefault();
+            setMenuOpen(true);
+            focusFirstMenuItem();
+          }}
+          className="inline-flex h-10 max-w-48 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:h-9"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          aria-controls="home-user-menu"
           aria-label="用户菜单"
         >
-          <UserRound size={15} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
+          <UserRound size={16} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
           <span className="hidden max-w-36 truncate sm:inline" title={displayName}>{displayName}</span>
           <ChevronDown size={14} strokeWidth={1.55} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
         </button>
 
         {menuOpen ? (
-          <div role="menu" className="absolute right-0 top-full z-[var(--cd-z-dropdown)] mt-2 w-52 overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]">
+          <div
+            id="home-user-menu"
+            role="menu"
+            aria-label="账户操作"
+            onKeyDown={handleMenuKeyDown}
+            className="absolute right-0 top-full z-[var(--cd-z-dropdown)] mt-2 w-52 overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]"
+          >
             <div className="border-b border-[var(--cd-color-border)] px-3.5 py-3">
               <div className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]" title={displayName}>{displayName}</div>
               <div className="mt-0.5 text-xs text-[var(--cd-color-text-muted)]">{roleLabel}</div>
@@ -194,7 +252,7 @@ function HomeHeader({
                 href="/settings"
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
-                className="flex h-9 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+                className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
               >
                 <Settings size={14} strokeWidth={1.55} aria-hidden="true" />
                 设置
@@ -208,11 +266,12 @@ function HomeHeader({
                     setMenuOpen(false);
                     onAdminActivate(event);
                   }}
-                  className={`flex h-9 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20 ${adminCanAccess ? 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)]' : 'cursor-not-allowed text-[var(--cd-color-text-muted)] opacity-60'}`}
+                  className={`flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20 ${adminCanAccess ? 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)]' : 'cursor-not-allowed text-[var(--cd-color-text-muted)] opacity-60'}`}
                   {...adminAccessibilityProps}
                 >
                   <Database size={14} strokeWidth={1.55} aria-hidden="true" />
-                  系统管理
+                  <span>系统管理</span>
+                  {!adminCanAccess ? <span className="ml-auto text-[11px]">无权限</span> : null}
                 </Link>
               ) : null}
             </div>
@@ -225,7 +284,7 @@ function HomeHeader({
                   setMenuOpen(false);
                   onLogout();
                 }}
-                className="flex h-9 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+                className="flex min-h-10 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
               >
                 <LogOut size={14} strokeWidth={1.55} aria-hidden="true" />
                 退出登录
@@ -238,7 +297,7 @@ function HomeHeader({
   );
 }
 
-function WorkspaceCard({ workspace, role, onActivate, onKeyDown }: { workspace: WorkspaceModule; role: string; onActivate: (event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void; onKeyDown: (event: React.KeyboardEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void }) {
+function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceModule; role: string; onActivate: (event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void }) {
   const Icon = workspace.icon;
   const canAccess = canAccessModule(workspace.module, role);
   const isUnderDevelopment = UNDER_DEVELOPMENT_MODULES.some(({ module }) => module === workspace.module);
@@ -248,8 +307,8 @@ function WorkspaceCard({ workspace, role, onActivate, onKeyDown }: { workspace: 
     <Link
       href={workspace.href}
       onClick={(event) => onActivate(event, workspace)}
-      onKeyDown={(event) => onKeyDown(event, workspace)}
       className={`group flex min-h-[80px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3.5 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}`}
+      title={canAccess ? undefined : '当前账号无访问权限'}
       {...accessibilityProps}
     >
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] transition-colors group-hover:text-[var(--cd-color-brand)]">
@@ -262,14 +321,18 @@ function WorkspaceCard({ workspace, role, onActivate, onKeyDown }: { workspace: 
         </div>
         <p className="mt-0.5 text-[13px] leading-5 text-[var(--cd-color-text-secondary)]">{workspace.description}</p>
       </div>
-      <ArrowRight size={15} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" aria-hidden="true" />
+      {canAccess ? (
+        <ArrowRight size={15} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" aria-hidden="true" />
+      ) : (
+        <span className="shrink-0 text-xs text-[var(--cd-color-text-muted)]">无访问权限</span>
+      )}
     </Link>
   );
 }
 
 function HomeLoadingShell() {
   return (
-    <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8"><div className="h-5 w-44 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /><div className="h-6 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /></div>}>
+    <WorkspaceShell className="h-screen h-[100dvh] overflow-hidden" header={<div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8"><div className="h-5 w-44 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /><div className="h-8 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" /></div>}>
       <div className="h-full overflow-hidden p-4 sm:p-6 lg:p-8">
         <div className="mx-auto grid h-full max-w-[1240px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_300px]">
           <div className="space-y-5">
@@ -337,10 +400,12 @@ export function HomeWorkspace() {
     }
   }
 
-  function handleWorkspaceActivation(event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) { evaluateWorkspace(event, workspace); }
-  function handleWorkspaceKeyDown(event: React.KeyboardEvent<HTMLAnchorElement>, workspace: WorkspaceModule) { if (event.key === 'Enter') evaluateWorkspace(event, workspace); }
+  function handleWorkspaceActivation(event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) {
+    evaluateWorkspace(event, workspace);
+  }
 
   const MapIcon = MAP_WORKSPACE.icon;
+  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeSession.role);
 
   return (
     <>
@@ -363,8 +428,8 @@ export function HomeWorkspace() {
               <Link
                 href={MAP_WORKSPACE.href}
                 onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
-                onKeyDown={(event) => handleWorkspaceKeyDown(event, MAP_WORKSPACE)}
                 className="group flex min-h-[104px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+                {...mapAccessibilityProps}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
                   <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
@@ -381,7 +446,7 @@ export function HomeWorkspace() {
                 <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
               </div>
               <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-                {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} onKeyDown={handleWorkspaceKeyDown} />)}
+                {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeSession.role} onActivate={handleWorkspaceActivation} />)}
               </div>
             </section>
 
