@@ -1,18 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Menu } from "lucide-react";
 
 import { AdminSidebar, ADMIN_SECTION_META, type AdminSection } from "@/src/components/admin/AdminSidebar";
 import { PageErrorBoundary } from "@/src/components/ErrorBoundary/PageErrorBoundary";
+import { getSession } from "@/src/services/Auth";
 
 function AdminSectionLoading() {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center" role="status" aria-label="正在加载管理栏目">
-      <div className="h-7 w-7 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-    </div>
-  );
+  return <div className="flex min-h-0 flex-1 items-center justify-center" role="status" aria-label="正在加载管理栏目"><div className="h-7 w-7 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" /></div>;
 }
 
 const DatabaseManager = dynamic(() => import("@/src/components/admin/DatabaseManager").then(module => module.DatabaseManager), { loading: AdminSectionLoading });
@@ -31,47 +28,38 @@ const DataDebugPanel = dynamic(() => import("@/src/components/admin/DataDebugPan
 function AdminPageContent() {
   const [activeSection, setActiveSection] = useState<AdminSection>('database');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
   const meta = ADMIN_SECTION_META[activeSection];
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSession().then((session) => {
+      if (!cancelled) setAdminEmail(session?.user?.email ?? '');
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
-      <AdminSidebar
-        active={activeSection}
-        onChange={setActiveSection}
-        mobileOpen={mobileNavOpen}
-        onMobileClose={() => setMobileNavOpen(false)}
-      />
-
+      <AdminSidebar active={activeSection} onChange={setActiveSection} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--cd-color-canvas)]">
         <div className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-3 py-2 sm:px-4">
-          <button
-            type="button"
-            onClick={() => setMobileNavOpen(true)}
-            className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 lg:hidden"
-            aria-label="打开管理导航"
-          >
-            <Menu size={16} />
-          </button>
+          <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 lg:hidden" aria-label="打开管理导航"><Menu size={16} /></button>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#003e7e]">{meta.group}</span>
-              <span className="text-zinc-300">/</span>
-              <h1 className="truncate text-[13px] font-semibold text-zinc-900">{meta.title}</h1>
-            </div>
+            <div className="flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#003e7e]">{meta.group}</span><span className="text-zinc-300">/</span><h1 className="truncate text-[13px] font-semibold text-zinc-900">{meta.title}</h1></div>
             <p className="mt-0.5 hidden truncate text-[10px] text-zinc-500 sm:block">{meta.description}</p>
           </div>
         </div>
-
         <div className="min-h-0 flex-1 overflow-hidden">
           {activeSection === 'database' && <DatabaseManager />}
           {activeSection === 'users' && <UserManager />}
           {activeSection === 'submissions' && <SubmissionManager />}
           {activeSection === 'schema' && <div className="h-full min-h-0 w-full overflow-hidden"><SchemaMap /></div>}
-          {activeSection === 'oss' && <div className="h-full min-h-0 w-full overflow-hidden"><OSSManager userEmail="admin-console" /></div>}
-          {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager adminEmail="" /></div>}
-          {activeSection === 'memo' && <div className="h-full min-h-0 w-full overflow-hidden"><MemoManager adminEmail="admin-console" /></div>}
-          {activeSection === 'issues' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><IssueManager adminEmail="" /></div>}
-          {activeSection === 'changelog' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><ChangelogManager adminEmail="" /></div>}
+          {activeSection === 'oss' && <div className="h-full min-h-0 w-full overflow-hidden"><OSSManager userEmail={adminEmail || 'unknown'} /></div>}
+          {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager adminEmail={adminEmail} /></div>}
+          {activeSection === 'memo' && <div className="h-full min-h-0 w-full overflow-hidden"><MemoManager adminEmail={adminEmail || 'unknown'} /></div>}
+          {activeSection === 'issues' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><IssueManager adminEmail={adminEmail} /></div>}
+          {activeSection === 'changelog' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><ChangelogManager adminEmail={adminEmail} /></div>}
           {activeSection === 'logs' && <AuditLogPage />}
           {activeSection === 'impersonate' && <ImpersonationPanel />}
           {activeSection === 'debug' && <DataDebugPanel />}
@@ -82,9 +70,5 @@ function AdminPageContent() {
 }
 
 export default function AdminPage() {
-  return (
-    <PageErrorBoundary pageName="系统管理后台">
-      <AdminPageContent />
-    </PageErrorBoundary>
-  );
+  return <PageErrorBoundary pageName="系统管理后台"><AdminPageContent /></PageErrorBoundary>;
 }
