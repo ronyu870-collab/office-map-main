@@ -123,14 +123,13 @@ describe('MapWorkbenchView', () => {
   });
 
   it('keeps filter, supply and list workspaces mutually exclusive through callbacks', () => {
-    const filterCallbacks = renderWorkbench({ isSupplyOpen: true, isListVisible: true });
-    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
-    expect(filterCallbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
-    expect(filterCallbacks.onCloseList).toHaveBeenCalledTimes(1);
-    expect(filterCallbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(true);
+    const callbacks = renderWorkbench({ isSupplyOpen: true, isListVisible: true });
 
-    const { unmount } = render(<div />);
-    unmount();
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
+
+    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(true);
   });
 
   it('embeds the existing SidebarFilter when the overlay workspace is open', () => {
