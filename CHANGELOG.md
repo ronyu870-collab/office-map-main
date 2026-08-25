@@ -21,6 +21,48 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Admin / Research Library 2.0
+
+### Area
+Administration / Research Library / OSS / authorization / responsive internal data workspaces
+
+### What changed
+
+- Reorganized every existing Admin tool into stable Users & Access, Data Management, Audit & Activity, System / Operations, and Development / Maintenance groups without adding speculative modules.
+- Added explicit current-module context plus responsive Admin drawer navigation, while retaining database management, users, submissions, schema, OSS, notices, memos, issues, changelog, audit logs, impersonation, data diagnostics, and display-overrides maintenance.
+- Hardened `/admin` authorization so the management console resolves the real Supabase session and no longer treats impersonation state as an authorization shortcut.
+- Rebuilt Research Library around current-directory search, file-type filtering, sorting, result counts, dense desktop rows, compact mobile rows, and consistent loading/error/empty/no-result/retry states.
+- Added explicit per-file upload queue state with real upload progress, success/failure status, duplicate-name detection, unsupported-file handling, and visible completion state.
+- Preserved existing folder navigation, open/download, upload, create-folder, file rename/move, recursive folder deletion, batch deletion, and audit logging behavior.
+- Forced Research Library management controls into read-only mode during user impersonation.
+- Required authenticated bearer-token access for OSS directory listing because list results contain one-hour signed download URLs; write actions remain server-validated for admin/super_admin only.
+- Removed OSS environment/object debug logging and added behavior-focused regression tests for Admin access policy, Library filtering/sorting, and upload preflight rules.
+
+### Why
+
+Administration had accumulated real operational tools without a stable information architecture, while Research Library still behaved primarily as a raw OSS manager. High-frequency internal administration needs dense navigation and clear destructive-action hierarchy; research users need to locate and judge documents before opening them rather than browse giant file cards.
+
+The audit also found two authorization weaknesses worth correcting in the same scope: Admin UI could be admitted by client impersonation state, and OSS directory listing returned signed download URLs without authenticating the caller.
+
+### Impact
+
+- Administration and Research Library now share the Colliers Data 2.0 page, button, state, spacing, typography, and table language while retaining different business purposes.
+- No Admin module, database schema, RLS policy, data field, or existing destructive confirmation semantics were removed.
+- Normal Research Library browsing remains available to authenticated users; management remains restricted to admin/super_admin and is disabled during impersonation.
+- Desktop layouts remain table-first; 390–430px Research Library layouts preserve search, browsing, open/download, and management actions without forcing the desktop table horizontally off-screen.
+
+### Verification
+
+- Added regression coverage for the existing Admin role boundary and restricted-admin exception, Research Library manager roles, current-directory search/filter/sort behavior, duplicate detection, and unsupported upload formats.
+- Final acceptance requires the exact post-changelog PR head to pass the permanent Verify workflow in order: Typecheck, Lint, Test, and Production Build.
+
+### Follow-up
+
+- Continue Admin table-level refinements only where observed operational workflows justify them; do not add speculative backend modules for visual completeness.
+- If Research Library volume grows beyond the current OSS listing limit, introduce server-side indexed search as a separate data/backend change rather than silently expanding this UI refactor.
+
+---
+
 ## 2026-08-25 — Data Entry 2.0 for Quarterly Update and Lease Submission
 
 ### Area
