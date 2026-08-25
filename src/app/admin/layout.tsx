@@ -3,15 +3,16 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getSession, getSessionFast, signOut } from '@/src/services/Auth';
+import { getSession, signOut } from '@/src/services/Auth';
 import { isDemoMode } from '@/src/config/demoMode';
+import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 
 function AdminGuardLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="flex flex-col items-center">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-        <p className="mt-4 text-xs tracking-wide text-zinc-500">正在校验管理员权限…</p>
+    <div className="flex min-h-screen items-center justify-center bg-[var(--cd-color-canvas)]">
+      <div className="w-full max-w-sm px-6 text-center" role="status" aria-live="polite">
+        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
+        <p className="mt-3 text-xs font-medium text-[var(--cd-color-text-muted)]">正在校验管理权限…</p>
       </div>
     </div>
   );
@@ -19,7 +20,6 @@ function AdminGuardLoading() {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-
   const [ready, setReady] = React.useState(false);
   const [allowed, setAllowed] = React.useState(false);
 
@@ -28,21 +28,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     void (async () => {
       try {
-        // 模拟模式下允许访问管理后台
-        const impState = typeof window !== 'undefined' ? sessionStorage.getItem('__impersonation_state') : null;
-        if (impState) {
-          if (!cancelled) {
-            setAllowed(true);
-            setReady(true);
-          }
-          return;
-        }
-
-        const session = await getSessionFast(); // 使用快速获取方法
+        // Admin 必须始终基于真实 Supabase 会话判断。getSessionFast 会在模拟模式下
+        // 返回合成用户身份，不能用于管理后台授权。
+        const session = await getSession();
         if (cancelled) return;
 
-        const isDemo = isDemoMode(session?.user?.email);
-        if (!session || (session.role !== 'admin' && !isDemo)) {
+        const permitted = Boolean(session) && canAccessAdminConsole({
+          role: session?.role,
+          email: session?.user?.email,
+          isDemo: isDemoMode(session?.user?.email),
+        });
+
+        if (!permitted) {
           router.replace('/');
           return;
         }
@@ -67,41 +64,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }
 
-  if (!ready || !allowed) {
-    return <AdminGuardLoading />;
-  }
+  if (!ready || !allowed) return <AdminGuardLoading />;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-50 text-zinc-900">
-      <header className="shrink-0 border-b border-zinc-200/80 bg-[#003e7e]">
-        <div className="mx-auto flex h-14 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-tight text-white">管理后台</span>
-            <span className="rounded border border-white/20 px-1.5 py-0.5 text-[10px] font-medium text-white/60">Admin Console</span>
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
+      <header className="z-40 shrink-0 border-b border-[#163a5f] bg-[#003e7e] text-white">
+        <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
+          <div className="min-w-0">
+            <div className="flex items-baseline gap-2">
+              <span className="truncate text-sm font-semibold tracking-tight">Administration</span>
+              <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-white/55 sm:inline">Data Administration</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-[12px]">
-            <Link href="/admin" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-white/70 transition hover:bg-white/10 hover:text-white">
-              总览
+          <div className="flex shrink-0 items-center gap-1 text-xs">
+            <Link href="/" className="rounded-md px-2.5 py-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
+              返回工作区
             </Link>
-            <Link href="/admin/display-overrides" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-white/70 transition hover:bg-white/10 hover:text-white">
-              显示覆盖
-            </Link>
-            <Link href="/" className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-white/70 transition hover:bg-white/10 hover:text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-              返回首页
-            </Link>
-            <button type="button" onClick={handleLogout} className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-white/70 transition hover:bg-white/10 hover:text-white">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              退出登录
+            <button type="button" onClick={handleLogout} className="rounded-md px-2.5 py-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
+              退出
             </button>
           </div>
         </div>
       </header>
-
-      {/* 内容区：全宽 */}
-      <div className="flex w-full h-full flex-1 overflow-hidden">
-        {children}
-      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>
     </div>
   );
 }

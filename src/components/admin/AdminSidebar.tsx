@@ -1,80 +1,192 @@
-'use client'
+'use client';
 
-import * as React from 'react'
+import * as React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  Activity,
+  Bell,
+  BookOpen,
+  Bug,
+  ChevronRight,
+  Database,
+  FileClock,
+  FileText,
+  GitBranch,
+  MessageSquareWarning,
+  MonitorCog,
+  StickyNote,
+  UserRoundCog,
+  Users,
+  X,
+} from 'lucide-react';
 
 export type AdminSection =
-  | 'database' | 'users' | 'submissions' | 'schema'
-  | 'oss' | 'notice' | 'memo' | 'issues' | 'changelog' | 'logs' | 'debug' | 'impersonate'
+  | 'database'
+  | 'users'
+  | 'submissions'
+  | 'schema'
+  | 'oss'
+  | 'notice'
+  | 'memo'
+  | 'issues'
+  | 'changelog'
+  | 'logs'
+  | 'debug'
+  | 'impersonate';
 
-interface NavItem {
-  key: AdminSection
-  label: string
-  icon: React.ReactNode
-}
+type NavItem = {
+  key: AdminSection;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+};
 
-const CORE_ITEMS: NavItem[] = [
-  { key: 'database',    label: '数据库管理', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg> },
-  { key: 'users',       label: '用户管理',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
-  { key: 'submissions', label: '填报管理',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> },
-  { key: 'schema',      label: '数据关联',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> },
-]
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
 
-const SYSTEM_ITEMS: NavItem[] = [
-  { key: 'oss',       label: '云端资料库', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg> },
-  { key: 'notice',    label: '系统公告',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> },
-  { key: 'memo',      label: '备忘录',     icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
-  { key: 'issues',    label: '需求反馈',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
-  { key: 'changelog', label: '更新日志',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
-  { key: 'logs',      label: '审计日志',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> },
-  { key: 'impersonate', label: '用户模拟', icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> },
-  { key: 'debug',     label: '数据调试',   icon: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h1v3a5 5 0 0 0 10 0v-3h1a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><path d="M10 17h4"/><path d="M10 13h4"/></svg> },
-]
+export const ADMIN_SECTION_META: Record<AdminSection, { title: string; description: string; group: string }> = {
+  users: { title: 'Users & Access', description: '用户资料、角色、账号状态与任务归属。', group: 'Users & Access' },
+  impersonate: { title: 'User Impersonation', description: '以只读方式模拟现有用户的真实业务视角。', group: 'Users & Access' },
+  database: { title: 'Database Management', description: '维护系统现有核心业务表与记录。', group: 'Data Management' },
+  submissions: { title: 'Submission Management', description: '查看和管理现有季度填报记录。', group: 'Data Management' },
+  schema: { title: 'Data Relationships', description: '查看现有数据表之间的关联结构。', group: 'Data Management' },
+  oss: { title: 'Research Library Management', description: '管理云端研究资料、目录和文件。', group: 'Data Management' },
+  logs: { title: 'Audit & Activity', description: '审阅系统已记录的操作和审计事件。', group: 'Audit & Activity' },
+  notice: { title: 'System Notices', description: '维护系统公告和运营通知。', group: 'System / Operations' },
+  memo: { title: 'Memos', description: '维护后台现有备忘录内容。', group: 'System / Operations' },
+  issues: { title: 'Requests & Issues', description: '处理用户提交的需求与问题反馈。', group: 'System / Operations' },
+  changelog: { title: 'Change Log', description: '维护面向系统用户的更新记录。', group: 'System / Operations' },
+  debug: { title: 'Data Diagnostics', description: '开发与维护期间使用的数据诊断工具。', group: 'Development / Maintenance' },
+};
+
+const GROUPS: NavGroup[] = [
+  {
+    label: 'Users & Access',
+    items: [
+      { key: 'users', label: '用户与权限', description: '账号、角色、状态', icon: <Users size={15} /> },
+      { key: 'impersonate', label: '用户模拟', description: '只读业务视角', icon: <UserRoundCog size={15} /> },
+    ],
+  },
+  {
+    label: 'Data Management',
+    items: [
+      { key: 'database', label: '数据库管理', description: '业务表与记录', icon: <Database size={15} /> },
+      { key: 'submissions', label: '填报管理', description: '季度填报记录', icon: <FileText size={15} /> },
+      { key: 'schema', label: '数据关联', description: '表关系结构', icon: <GitBranch size={15} /> },
+      { key: 'oss', label: '资料库管理', description: 'OSS 文件管理', icon: <BookOpen size={15} /> },
+    ],
+  },
+  {
+    label: 'Audit & Activity',
+    items: [
+      { key: 'logs', label: '审计日志', description: '操作与活动记录', icon: <Activity size={15} /> },
+    ],
+  },
+  {
+    label: 'System / Operations',
+    items: [
+      { key: 'notice', label: '系统公告', description: '运营通知', icon: <Bell size={15} /> },
+      { key: 'memo', label: '备忘录', description: '内部备忘', icon: <StickyNote size={15} /> },
+      { key: 'issues', label: '需求反馈', description: '问题与需求', icon: <MessageSquareWarning size={15} /> },
+      { key: 'changelog', label: '更新日志', description: '发布记录', icon: <FileClock size={15} /> },
+    ],
+  },
+  {
+    label: 'Development / Maintenance',
+    items: [
+      { key: 'debug', label: '数据调试', description: '诊断与维护', icon: <Bug size={15} /> },
+    ],
+  },
+];
 
 interface AdminSidebarProps {
-  active: AdminSection
-  onChange: (section: AdminSection) => void
+  active: AdminSection;
+  onChange: (section: AdminSection) => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export function AdminSidebar({ active, onChange }: AdminSidebarProps) {
-  return (
-    <aside className="w-[200px] shrink-0 border-r border-zinc-200/80 bg-white overflow-y-auto">
-      <nav className="py-4 px-3 flex flex-col gap-5">
-        {/* 核心管理 */}
-        <div>
-          <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">核心管理</p>
-          <div className="flex flex-col gap-0.5">
-            {CORE_ITEMS.map(item => (
-              <button key={item.key} onClick={() => onChange(item.key)}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 text-left ${
-                  active === item.key
-                    ? 'bg-[#003e7e] text-white shadow-sm'
-                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                }`}>
-                <span className={active === item.key ? 'text-white/80' : 'text-zinc-400'}>{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
+function SidebarContents({ active, onChange, onMobileClose }: AdminSidebarProps) {
+  const pathname = usePathname();
 
-        {/* 系统工具 */}
-        <div>
-          <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">系统工具</p>
-          <div className="flex flex-col gap-0.5">
-            {SYSTEM_ITEMS.map(item => (
-              <button key={item.key} onClick={() => onChange(item.key)}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 text-left ${
-                  active === item.key
-                    ? 'bg-[#003e7e] text-white shadow-sm'
-                    : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                }`}>
-                <span className={active === item.key ? 'text-white/80' : 'text-zinc-400'}>{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
+  const select = (section: AdminSection) => {
+    onChange(section);
+    onMobileClose?.();
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-white">
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-zinc-200 px-3 lg:hidden">
+        <span className="text-xs font-semibold uppercase tracking-[0.1em] text-zinc-500">Administration</span>
+        <button type="button" onClick={onMobileClose} className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100" aria-label="关闭管理导航">
+          <X size={16} />
+        </button>
+      </div>
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3" aria-label="管理后台导航">
+        {GROUPS.map((group) => (
+          <section key={group.label} className="mb-4 last:mb-0">
+            <h2 className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{group.label}</h2>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const selected = pathname === '/admin' && active === item.key;
+                return (
+                  <button
+                    type="button"
+                    key={item.key}
+                    onClick={() => select(item.key)}
+                    aria-current={selected ? 'page' : undefined}
+                    className={`group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition ${selected ? 'bg-[#003e7e] text-white' : 'text-zinc-700 hover:bg-zinc-100'}`}
+                  >
+                    <span className={selected ? 'text-white/80' : 'text-zinc-400 group-hover:text-zinc-600'}>{item.icon}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium">{item.label}</span>
+                      <span className={`block truncate text-[9px] ${selected ? 'text-white/55' : 'text-zinc-400'}`}>{item.description}</span>
+                    </span>
+                    {selected ? <ChevronRight size={13} className="text-white/60" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+
+        <section className="border-t border-zinc-200 pt-3">
+          <h2 className="mb-1 px-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-400">Development / Maintenance</h2>
+          <Link
+            href="/admin/display-overrides"
+            onClick={onMobileClose}
+            aria-current={pathname === '/admin/display-overrides' ? 'page' : undefined}
+            className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition ${pathname === '/admin/display-overrides' ? 'bg-[#003e7e] text-white' : 'text-zinc-700 hover:bg-zinc-100'}`}
+          >
+            <MonitorCog size={15} className={pathname === '/admin/display-overrides' ? 'text-white/80' : 'text-zinc-400'} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[12px] font-medium">显示覆盖规则</span>
+              <span className={`block truncate text-[9px] ${pathname === '/admin/display-overrides' ? 'text-white/55' : 'text-zinc-400'}`}>楼宇显示维护</span>
+            </span>
+          </Link>
+        </section>
       </nav>
-    </aside>
-  )
+    </div>
+  );
+}
+
+export function AdminSidebar(props: AdminSidebarProps) {
+  return (
+    <>
+      <aside className="hidden w-[222px] shrink-0 border-r border-zinc-200 lg:block">
+        <SidebarContents {...props} />
+      </aside>
+      {props.mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button type="button" className="absolute inset-0 bg-zinc-950/35" onClick={props.onMobileClose} aria-label="关闭管理导航遮罩" />
+          <aside className="absolute inset-y-0 left-0 w-[280px] max-w-[84vw] border-r border-zinc-200 shadow-2xl">
+            <SidebarContents {...props} />
+          </aside>
+        </div>
+      ) : null}
+    </>
+  );
 }
