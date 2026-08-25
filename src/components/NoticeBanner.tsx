@@ -100,8 +100,8 @@ export function NoticeBanner() {
       <div className="mb-2 text-[13px] font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
       <div className="space-y-2">
         {visibleNotices.map((notice) => (
-          <div key={notice.id} className="grid grid-cols-[52px_minmax(0,1fr)] gap-2.5 text-[13px] leading-5">
-            <time className="text-xs tabular-nums text-[var(--cd-color-text-muted)]">{formatNoticeDate(notice.updated_at)}</time>
+          <div key={notice.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5 text-[13px] leading-5">
+            <time className="whitespace-nowrap text-xs tabular-nums text-[var(--cd-color-text-muted)]">{formatNoticeDate(notice.updated_at)}</time>
             <p className="break-words text-[var(--cd-color-text-secondary)] [overflow-wrap:anywhere]">{notice.content}</p>
           </div>
         ))}
