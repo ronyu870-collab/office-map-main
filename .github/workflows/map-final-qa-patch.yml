@@ -1,0 +1,325 @@
+name: Temporary Map final QA patch
+
+on:
+  push:
+    branches:
+      - qa/map-final-experience
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/map-final-experience
+          fetch-depth: 0
+
+      - name: Apply final Map experience patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if old not in text:
+                  raise SystemExit(f"missing expected text for {label}")
+              return text.replace(old, new, 1)
+
+          # Presentation shell: overlay coordination + institutional visual density.
+          p = Path('src/app/map/components/MapWorkbenchView.tsx')
+          text = p.read_text()
+          anchor = "  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);\n"
+          insert = """  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);\n\n  const closeOpenWorkspaces = React.useCallback(() => {\n    if (isFilterPanelOpen) onFilterPanelOpenChange(false);\n    if (isSupplyOpen) onSupplyOpenChange(false);\n    if (isListVisible) onCloseList();\n  }, [isFilterPanelOpen, isSupplyOpen, isListVisible, onFilterPanelOpenChange, onSupplyOpenChange, onCloseList]);\n\n  React.useEffect(() => {\n    const handleKeyDown = (event: KeyboardEvent) => {\n      if (event.key !== 'Escape') return;\n      closeOpenWorkspaces();\n    };\n    window.addEventListener('keydown', handleKeyDown);\n    return () => window.removeEventListener('keydown', handleKeyDown);\n  }, [closeOpenWorkspaces]);\n"""
+          text = replace_once(text, anchor, insert, 'workspace close coordination')
+          text = replace_once(
+              text,
+              '        <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" />',
+              '        <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" onPointerDownCapture={closeOpenWorkspaces} />',
+              'map pointer coordination',
+          )
+          text = text.replace('bg-[#e8edf3]', 'bg-[#f5f7fa]')
+          text = text.replace('bg-[#f8fafc]/95', 'bg-[#f8fafc]')
+          text = text.replace('bg-white/96', 'bg-white').replace('bg-white/95', 'bg-white').replace('bg-white/92', 'bg-white').replace('bg-white/90', 'bg-white').replace('bg-white/88', 'bg-white')
+          text = text.replace('backdrop-blur-xl', '').replace('backdrop-blur-md', '').replace('backdrop-blur-[2px]', '').replace('backdrop-blur-[1px]', '').replace('backdrop-blur', '')
+          text = text.replace('rounded-2xl', 'rounded-[8px]').replace('rounded-xl', 'rounded-[6px]')
+          text = text.replace('border-white/80', 'border-[#d9e0e8]').replace('border-white/70', 'border-[#d9e0e8]')
+          text = text.replace('border-slate-200/90', 'border-[#d9e0e8]').replace('border-slate-200/80', 'border-[#d9e0e8]')
+          text = text.replace('shadow-2xl shadow-slate-900/15', 'shadow-[0_4px_14px_rgba(23,32,51,0.10)]')
+          text = text.replace('shadow-xl shadow-slate-900/10', 'shadow-[0_3px_12px_rgba(23,32,51,0.10)]')
+          text = text.replace('shadow-lg shadow-slate-900/10', 'shadow-[0_2px_8px_rgba(23,32,51,0.10)]')
+          text = text.replace('shadow-md shadow-[#003e7e]/15', 'shadow-[0_1px_2px_rgba(23,32,51,0.14)]')
+          text = text.replace('transition-all', 'transition-colors')
+          text = replace_once(
+              text,
+              'absolute bottom-4 left-4 right-4 z-[260] flex max-w-max items-stretch overflow-x-auto',
+              'absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max',
+              'mobile metric strip bounds',
+          )
+          text = text.replace('min-w-[128px] px-4 py-2.5', 'min-w-[112px] px-3 py-2 sm:min-w-[128px] sm:px-4 sm:py-2.5')
+          p.write_text(text)
+
+          # Marker and InfoWindow presentation only. Data and map lifecycle semantics stay untouched.
+          p = Path('src/services/MapController.ts')
+          text = p.read_text()
+          text = replace_once(
+              text,
+              '<div style="\n          width:26px;height:26px;border-radius:50%;\n          background:${style.bgColor};border:2px ${borderStyle} ${style.borderColor};',
+              '<div data-map-marker="future" style="\n          width:26px;height:26px;border-radius:50%;\n          background:${style.bgColor};border:2px ${borderStyle} ${style.borderColor};',
+              'future marker selector',
+          )
+          text = replace_once(
+              text,
+              '<div data-building-id="${building.id}" style="\n          width:26px;height:26px;border-radius:50%;',
+              '<div data-building-id="${building.id}" data-map-marker="building" style="\n          width:26px;height:26px;border-radius:50%;',
+              'building marker selector',
+          )
+          text = replace_once(
+              text,
+              '<div data-building-id="${building.id}" style="\n          display:flex;flex-direction:column;align-items:center;gap:2px;',
+              '<div data-building-id="${building.id}" data-map-marker="competitor" style="\n          display:flex;flex-direction:column;align-items:center;gap:2px;',
+              'competitor marker selector',
+          )
+          text = replace_once(
+              text,
+              '<div style="\n          width: 82px; height: 82px; border-radius: 50%;',
+              '<div data-map-marker="submarket" style="\n          width: 82px; height: 82px; border-radius: 50%;',
+              'submarket marker selector',
+          )
+          # Keep AMap anchor geometry aligned with the CSS-sized markers.
+          text = text.replace('offset: new AMap.Pixel(-13, -13),', 'offset: new AMap.Pixel(-12, -12),', 2)
+          text = replace_once(text, 'offset: new AMap.Pixel(-41, -41),', 'offset: new AMap.Pixel(-38, -27),', 'submarket offset')
+          # Replace playful bounce with a subtle terminal-style emphasis.
+          text = replace_once(
+              text,
+              'style.textContent = `@keyframes markerBounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}50%{transform:translateY(0)}70%{transform:translateY(-5px)}}`;',
+              'style.textContent = `@keyframes markerBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}`;',
+              'marker hover motion',
+          )
+          text = replace_once(text, 'el.style.animation = "markerBounce 0.6s ease-in-out";', 'el.style.animation = "markerBounce 0.22s ease-out";', 'marker hover duration')
+          # Responsive building/future InfoWindow roots.
+          text = replace_once(
+              text,
+              '<div style="width: 360px; font-family: ui-sans-serif, system-ui, -apple-system; background: #ffffff; padding: 4px;">',
+              '<div style="width:min(360px, calc(100vw - 72px)); max-width:360px; min-width:260px; box-sizing:border-box; font-family: ui-sans-serif, system-ui, -apple-system; background:#ffffff; padding:4px;">',
+              'building info width',
+          )
+          text = replace_once(
+              text,
+              '<div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-bottom:10px;">',
+              '<div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 12px; margin-bottom:8px;">',
+              'building info grid',
+          )
+          text = replace_once(
+              text,
+              '<div style="width: 300px; font-family: ui-sans-serif, system-ui, -apple-system; background: #ffffff; padding: 4px;">',
+              '<div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family: ui-sans-serif, system-ui, -apple-system; background:#ffffff; padding:4px;">',
+              'future info width',
+          )
+          # Competitor toolbar must fit narrow desktop/mobile without changing comparison semantics.
+          text = replace_once(
+              text,
+              'background: rgba(255,255,255,0.97); backdrop-filter: blur(12px);\n        border: 1px solid #e2e8f0; border-radius: 10px;\n        box-shadow: 0 4px 24px rgba(0,0,0,0.12);\n        font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;\n        min-width: 520px;',
+              'background:#ffffff;\n        border:1px solid #d9e0e8; border-radius:6px;\n        box-shadow:0 3px 12px rgba(23,32,51,0.10);\n        font-family:-apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;\n        width:min(520px, calc(100vw - 24px)); max-width:520px; min-width:0; box-sizing:border-box;',
+              'competitor responsive shell',
+          )
+          text = replace_once(
+              text,
+              '<div style="display:flex; align-items:center; gap:8px; padding:8px 16px;">',
+              '<div style="display:flex; align-items:center; gap:6px; padding:8px 10px; flex-wrap:wrap; row-gap:6px;">',
+              'competitor responsive toolbar',
+          )
+          # Remove high-volume development diagnostics; retain operational warning/error reporting.
+          text = re.sub(r'\n\s*console\.log\(`\[MapController\] Supabase 返回 \$\{rows\.length\} 条 buildings 记录`\);', '', text)
+          text = re.sub(r'\n\s*let skippedNoCoords = 0;', '', text)
+          text = re.sub(r'\n\s*if \(building\.location_lng === null \|\| building\.location_lat === null\) \{\n\s*skippedNoCoords\+\+;\n\s*\}', '', text)
+          text = re.sub(r'\n\s*console\.log\(\n\s*`\[MapController\] 数据加载: \$\{this\._allBuildingsCache\.length\} 条建筑, 其中 \$\{skippedNoCoords\} 条无坐标`,\n\s*\);', '', text)
+          text = re.sub(r'\n\s*console\.log\(\n\s*`\[MapController\] Zoom level changed: \$\{zoom\.toFixed\(1\)\}, mode: \$\{targetMode\}`,\n\s*\);', '', text)
+          p.write_text(text)
+
+          # Map-route CSS owns the visual overrides; no behavior is encoded here.
+          p = Path('src/app/map/map-workbench.css')
+          css = p.read_text()
+          css = css.replace('box-shadow: 0 12px 30px rgba(23, 32, 51, 0.14) !important;', 'box-shadow: 0 4px 14px rgba(23, 32, 51, 0.12) !important;')
+          css += r'''
+
+/* Final QA: keep AMap chrome and markers precise across desktop and narrow viewports. */
+body:has(#map-container) .amap-info-outer,
+body:has(#map-container) .amap-info-content {
+  max-width: calc(100vw - 32px) !important;
+  box-sizing: border-box !important;
+}
+
+body:has(#map-container) #map-container [data-map-marker="building"],
+body:has(#map-container) #map-container [data-map-marker="future"] {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.24) !important;
+  transition: transform 120ms ease, background-color 150ms ease !important;
+}
+
+body:has(#map-container) #map-container [data-map-marker="building"]:hover,
+body:has(#map-container) #map-container [data-map-marker="future"]:hover {
+  transform: translateY(-1px) scale(1.04) !important;
+}
+
+body:has(#map-container) #map-container [data-map-marker="submarket"] {
+  width: 76px !important;
+  height: 54px !important;
+  border-radius: 6px !important;
+  border-width: 1px !important;
+  box-shadow: 0 2px 8px rgba(23, 32, 51, 0.16) !important;
+  backdrop-filter: none !important;
+}
+
+body:has(#map-container) #map-container [data-map-marker="submarket"] * {
+  text-shadow: none !important;
+}
+
+body:has(#map-container) #map-container [data-map-marker="competitor"] > div:first-child {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.22) !important;
+}
+
+@media (max-width: 640px) {
+  body:has(#map-container) .amap-info-content {
+    padding: 8px 9px !important;
+  }
+}
+'''
+          p.write_text(css)
+
+          # Remove filter debug diagnostics and unnecessary accordion motion without touching state semantics.
+          p = Path('src/components/SidebarFilter.tsx')
+          text = p.read_text()
+          text = re.sub(
+              r'\n\s*console\.log\(\'\[SidebarFilter\] emit state\', \{.*?\n\s*\}\);',
+              '',
+              text,
+              flags=re.S,
+          )
+          text = text.replace(' animate-in slide-in-from-top-1 fade-in duration-200', '')
+          p.write_text(text)
+
+          # Remove MapClient debug-only logs/counters; keep errors/warnings used for diagnosis.
+          p = Path('src/app/map/MapClient.tsx')
+          text = p.read_text()
+          text = re.sub(r'\n\s*console\.log\(`\[MapClient\] 角色=\$\{role\}, 总建筑=\$\{buildings\.length\}, 可见=\$\{visible\.length\}`\);', '', text)
+          text = re.sub(
+              r'\n\s*// 调试日志：过滤结果统计\n\s*const filteredGradeCount: Record<string, number> = \{\};\n\s*for \(const b of filtered\) \{ const g = b\.grade \|\| \'\?\'; filteredGradeCount\[g\] = \(filteredGradeCount\[g\] \|\| 0\) \+ 1; \}\n\s*console\.log\(`\[MapClient\] 过滤结果: \$\{filtered\.length\}/\$\{allBuildings\.length\}, 等级分布:`, filteredGradeCount\);',
+              '',
+              text,
+          )
+          text = re.sub(r'\n\s*console\.log\(\'\[MapClient\] Map navigated to building and opened info window:\', building\.name\);', '', text)
+          p.write_text(text)
+
+          # Behavior-level regressions: ESC and direct map interaction dismiss presentation workspaces.
+          p = Path('src/app/map/__tests__/MapWorkbenchView.test.tsx')
+          text = p.read_text()
+          insert = r'''
+
+  it('dismisses any open map workspace on Escape', () => {
+    const callbacks = renderWorkbench({
+      isFilterPanelOpen: true,
+      isSupplyOpen: true,
+      isListVisible: true,
+      canOpenList: true,
+    });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+  });
+
+  it('dismisses open workspaces when the user returns to the map canvas', () => {
+    const callbacks = renderWorkbench({
+      isFilterPanelOpen: true,
+      isSupplyOpen: true,
+      isListVisible: true,
+      canOpenList: true,
+    });
+
+    const mapCanvas = document.getElementById('map-container');
+    expect(mapCanvas).not.toBeNull();
+    fireEvent.pointerDown(mapCanvas!);
+
+    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+  });
+'''
+          idx = text.rfind('\n});')
+          if idx < 0:
+              raise SystemExit('test suite closing brace not found')
+          text = text[:idx] + insert + text[idx:]
+          p.write_text(text)
+
+          # Durable engineering record.
+          p = Path('CHANGELOG.md')
+          text = p.read_text()
+          marker = '\n---\n\n## 2026-08-25 — Map 2.0 project inventory and presentation density'
+          entry = r'''
+---
+
+## 2026-08-25 — Map final experience QA and interaction hardening
+
+### Area
+Map 2.0 / final experience QA / responsive overlays / markers / InfoWindow / accessibility
+
+### What changed
+
+- Added a single presentation-level dismissal contract for Filter, Future Supply, and Project List: opening another workspace remains mutually exclusive, while Escape or returning directly to the map canvas closes any open large workspace.
+- Tightened the workbench shell, command surfaces, KPI strip, filter/supply overlays, and loading/error surfaces to the Colliers Data 2.0 border-led 4–8px radius language with materially less blur and shadow.
+- Reworked full building and future-supply markers from high-shadow circular badges into compact square GIS symbols while preserving every data-driven color and render-mode semantic.
+- Reduced the initial submarket aggregate bubbles from large circular glass-like markers to compact low-shadow rectangular GIS summaries; the default map zoom therefore opens with materially less map obstruction.
+- Made building and future-supply InfoWindow content viewport-aware, retained dense two-column metric hierarchy, and reduced AMap chrome shadow without changing building-detail, Trend, contact, or competitor actions.
+- Made the competitor toolbar width-safe and wrapping below 520px so compare mode no longer assumes a desktop-width map canvas.
+- Replaced the list-to-marker bounce with a short, subtle emphasis and removed high-volume map/filter development diagnostics while retaining operational warnings and errors.
+- Added behavior-level regression coverage for Escape and map-canvas dismissal instead of locking CSS implementation strings.
+
+### Why
+
+The Map 2.0 visual migration was functionally complete, but final QA found several release-quality interaction and responsive risks: large overlays could remain open while the user returned to the map, the initial zoom displayed oversized aggregate bubbles, markers still used consumer-map glow/scale treatment, InfoWindow width assumed desktop space, and the competitor toolbar had a fixed 520px minimum width.
+
+### Impact
+
+- The map remains the dominant work surface at desktop, narrow desktop, and mobile widths.
+- Dense marker areas and the default market overview retain more visible base-map context.
+- Filter, Future Supply, Project List, marker detail, and competitor workflows coordinate more predictably without changing filter, compare-group, Building Detail, Trend, auth, data-store, AMap lifecycle, Supabase, or RLS semantics.
+- Keyboard users gain a consistent Escape path for all large map workspaces.
+
+### Verification
+
+- Permanent repository Verify must pass Typecheck, Lint, Test, and Production Build before merge.
+- Browser QA was attempted against the existing Vercel preview; authenticated `/map` inspection is tracked separately if the execution environment cannot access the repository's Vercel team/session.
+
+### Follow-up
+
+- No architecture follow-up is introduced by this pass. Any remaining visual tuning should be based on authenticated browser evidence rather than reopening Map runtime/data layers.
+'''
+          if marker not in text:
+              raise SystemExit('CHANGELOG insertion marker missing')
+          text = text.replace(marker, '\n' + entry + '\n---\n\n## 2026-08-25 — Map 2.0 project inventory and presentation density', 1)
+          p.write_text(text)
+          PY
+
+      - name: Remove temporary patch workflow and commit product changes
+        shell: bash
+        run: |
+          rm -f .github/workflows/map-final-qa-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: harden final Map workbench experience"
+          git push origin HEAD:qa/map-final-experience
