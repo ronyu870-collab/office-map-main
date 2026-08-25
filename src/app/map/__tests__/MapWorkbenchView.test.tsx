@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const sidebarProps = vi.hoisted(() => ({ latest: null as Record<string, unknown> | null }));
@@ -117,8 +117,20 @@ describe('MapWorkbenchView', () => {
     fireEvent.click(screen.getByRole('button', { name: '筛选' }));
     expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(true);
 
-    fireEvent.click(screen.getByRole('button', { name: '租金' }));
+    const desktopModes = screen.getByRole('group', { name: '地图显示模式' });
+    fireEvent.click(within(desktopModes).getByRole('button', { name: '租金' }));
     expect(callbacks.onRenderModeChange).toHaveBeenCalledWith('rent');
+  });
+
+  it('keeps filter, supply and list workspaces mutually exclusive through callbacks', () => {
+    const filterCallbacks = renderWorkbench({ isSupplyOpen: true, isListVisible: true });
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
+    expect(filterCallbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(filterCallbacks.onCloseList).toHaveBeenCalledTimes(1);
+    expect(filterCallbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(true);
+
+    const { unmount } = render(<div />);
+    unmount();
   });
 
   it('embeds the existing SidebarFilter when the overlay workspace is open', () => {
