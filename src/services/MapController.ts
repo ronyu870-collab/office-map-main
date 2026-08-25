@@ -672,6 +672,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         // 显示加载状态
         chartDom.innerHTML =
           '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">加载中...</div>';
+        // 用户已明确打开 Trend：让图表运行时和历史数据请求并行，消除串行 waterfall。
+        // 仍然保持在 Trend 点击之后才加载，因此不会进入 Map 首屏 bundle。
+        const trendRuntimePromise = import("./map/trendChartRuntime");
         // 获取数据：最新季度 + 前面年份的Q4，最近6年
         supabase
           .from("building_metrics")
@@ -715,9 +718,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
               vacancy_rate: r.vacancy_rate,
             }));
             trend.data = chartData;
-            // ECharts 仅在用户明确打开趋势面板且确有历史数据时加载。
             // 动态模块加载期间用户可能关闭面板或切换楼宇，因此渲染前后都做竞态保护。
-            void import("./map/trendChartRuntime")
+            void trendRuntimePromise
               .then(({ initTrendChart }) => {
                 if (
                   trend.buildingId !== buildingId ||
@@ -830,9 +832,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         console.warn("本地地图数据加载失败:", e),
       );
 
-      this.fetchAndRenderMarkers().catch((e) =>
-        console.error("Marker渲染失败:", e),
-      );
+      // MapClient owns data loading, role filtering and the first marker render.
+      // Do not render here as well: it duplicates the complete marker construction path.
     } catch (err) {
       console.error("高德地图初始化失败:", err);
     }
