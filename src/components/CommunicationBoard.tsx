@@ -32,7 +32,12 @@ function formatMessageTime(value: string) {
     month: '2-digit',
     day: '2-digit',
   });
+  const yearFormatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: BEIJING_TIME_ZONE,
+    year: 'numeric',
+  });
   const isToday = dayFormatter.format(date) === dayFormatter.format(now);
+  const isCurrentYear = yearFormatter.format(date) === yearFormatter.format(now);
 
   return isToday
     ? date.toLocaleTimeString('zh-CN', {
@@ -43,6 +48,7 @@ function formatMessageTime(value: string) {
       })
     : date.toLocaleString('zh-CN', {
         timeZone: BEIJING_TIME_ZONE,
+        ...(isCurrentYear ? {} : { year: 'numeric' as const }),
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
@@ -69,6 +75,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const historyEntryRef = useRef(false);
   const wasFullscreenRef = useRef(false);
   const isNearBottomRef = useRef(true);
+  const sendingRef = useRef(false);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
@@ -105,7 +112,11 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
       .channel('public:messages')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         setLoadError(false);
-        setMessages((prev) => [...prev, payload.new as Message].slice(-MAX_MESSAGES));
+        const incomingMessage = payload.new as Message;
+        setMessages((prev) => {
+          if (prev.some((message) => message.id === incomingMessage.id)) return prev;
+          return [...prev, incomingMessage].slice(-MAX_MESSAGES);
+        });
 
         requestAnimationFrame(() => {
           if (!fullscreenRef.current || isNearBottomRef.current) {
@@ -224,27 +235,30 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const handleSendMessage = async (event: React.FormEvent) => {
     event.preventDefault();
     const msgContent = inputText.trim();
-    if (!msgContent || sending) return;
+    if (!msgContent || sendingRef.current) return;
 
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
 
-    const { error } = await supabase.from('messages').insert({
-      user_email: userEmail,
-      user_name: userName,
-      content: msgContent,
-    });
+    try {
+      const { error } = await supabase.from('messages').insert({
+        user_email: userEmail,
+        user_name: userName,
+        content: msgContent,
+      });
 
-    if (error) {
+      if (error) throw error;
+
+      setInputText('');
+      logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) });
+    } catch (error) {
       console.error('发送留言失败:', error);
       setSendError('发送失败，内容已保留，请重试。');
+    } finally {
+      sendingRef.current = false;
       setSending(false);
-      return;
     }
-
-    setInputText('');
-    setSending(false);
-    logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) });
   };
 
   const visibleMessages = fullscreen ? messages : messages.slice(-4);
@@ -358,7 +372,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         role="dialog"
         aria-modal="true"
         aria-labelledby="communication-dialog-title"
-        className="fixed inset-0 z-[var(--cd-z-modal)] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-surface)]"
+        className="fixed inset-0 z-[var(--cd-z-modal)] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-surface)] pt-[env(safe-area-inset-top)]"
       >
         {boardContent}
       </div>
