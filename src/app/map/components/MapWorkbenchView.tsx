@@ -315,9 +315,9 @@ export function MapWorkbenchView({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-[13px] font-semibold tracking-[0.08em] text-slate-900">COLLIERS DATA</h1>
-              <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-medium text-slate-400 sm:inline-flex">MAP 2.0</span>
+              <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-medium text-slate-400 sm:inline-flex">市场地图</span>
             </div>
-            <div className="truncate text-[10px] text-slate-400">北京办公楼市场 · 地图工作台</div>
+            <div className="truncate text-[10px] text-slate-400">北京办公楼市场地图</div>
           </div>
         </div>
 

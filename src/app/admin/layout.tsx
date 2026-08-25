@@ -72,8 +72,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
           <div className="min-w-0">
             <div className="flex items-baseline gap-2">
-              <span className="truncate text-sm font-semibold tracking-tight">Administration</span>
-              <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-white/55 sm:inline">Data Administration</span>
+              <span className="truncate text-sm font-semibold tracking-tight">系统管理</span>
+              <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-white/55 sm:inline">数据管理后台</span>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1 text-xs">

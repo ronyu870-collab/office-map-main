@@ -107,7 +107,7 @@ describe('MapWorkbenchView', () => {
     renderWorkbench();
 
     expect(document.getElementById('map-container')).toBeInTheDocument();
-    expect(screen.getByText('MAP 2.0')).toBeInTheDocument();
+    expect(screen.getByText('市场地图')).toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter')).not.toBeInTheDocument();
   });
 

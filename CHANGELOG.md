@@ -21,6 +21,41 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Cross-page Product Continuity QA
+
+### Area
+Home → Map / Quarterly Update / Lease Submission / Research Library / Settings / Admin
+
+### What changed
+
+- Kept the Home information architecture unchanged and treated its Chinese workspace names as the product-language contract for destination pages.
+- Aligned Map route loading and first-screen identity to “北京办公楼市场地图” while preserving the full-canvas GIS workbench.
+- Replaced legacy visible English workspace/status language in Quarterly and Lease Data Entry with Chinese equivalents without changing their dense data-entry topology or business logic.
+- Reframed the /oss surface visibly as “研究资料库 / 资料检索”; storage implementation terminology remains internal, and upload/management actions remain permission-gated.
+- Aligned Settings and Admin top-level identity to “设置” and “系统管理”, and translated visible Admin navigation groups/section names without changing routes, permissions or backend section keys.
+- Added source-contract regression coverage for canonical destination names, legacy-label removal, Map loading-shell continuity and return-to-Home seams.
+
+### Why
+
+Home had reached a coherent Chinese product language, but several destination pages still presented old English product identities and status vocabulary. That created the impression of navigating between separate systems even though routes, permissions and business workflows were shared.
+
+### Impact
+
+- Home structure and module priority are unchanged.
+- Map remains a GIS workspace; Data Entry remains dense; Research remains retrieval-first; Admin remains a compact backend.
+- Global Arial + Chinese fallback typography, Colliers brand blue, existing border/radius tokens, permissions, session boundaries, audit behavior and data flows are preserved.
+- All audited destination shells retain explicit return-to-Home links; Browser Back behavior remains native route history rather than being replaced with custom navigation.
+
+### Verification
+
+- Added cross-page-product-continuity.test.ts source-level regression coverage.
+- Typecheck → Lint → Test → Production Build are run in sequence on the exact patched working tree before the branch commit is created.
+- A current authenticated deployment-level click/Back visual pass is still blocked if Vercel Preview cannot be created or accessed; this must be reported separately rather than inferred from source tests.
+
+### Follow-up
+
+- When a reachable authenticated Preview is available, repeat the critical click/Back paths at desktop and 390–430px mobile widths, focusing on first-paint/header continuity and overlay behavior.
+
 ## 2026-08-25 — Home visual hierarchy rebuild
 
 ### Area
