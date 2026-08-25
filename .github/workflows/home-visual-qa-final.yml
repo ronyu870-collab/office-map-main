@@ -1,8 +1,6 @@
 name: Home Visual QA Final
 
 on:
-  push:
-    branches: [fix/home-visual-rebuild-zh]
   pull_request:
     branches: [main]
 
@@ -10,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: home-visual-qa-final-${{ github.ref }}
+  group: home-visual-qa-final-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
