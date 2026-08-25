@@ -1,0 +1,43 @@
+name: One-time Map 2.0 second-slice changelog
+
+on:
+  push:
+    branches:
+      - feat/map-2-workbench
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[map-2-slice2-changelog]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/map-2-workbench
+          fetch-depth: 0
+      - name: Prepend changelog entry
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('CHANGELOG.md')
+          text = path.read_text()
+          marker = '---\n\n'
+          entry = '''## 2026-08-25 — Map 2.0 project inventory and presentation density\n\n### Area\nMap 2.0 / project inventory / building detail / InfoWindow / filters / marker presentation\n\n### What changed\n\n- Reworked the floating project list into a dense market-inventory panel with compact rows as the default view and a retained detail-card mode.\n- Restyled building detail cards around net effective rent, vacancy, data quarter, and compact property attributes instead of large floating cards.\n- Added map-route-scoped presentation overrides for AMap InfoWindow chrome, building-marker shadow/saturation, and embedded SidebarFilter density.\n- Kept the existing marker data-driven colors, list slicing and IntersectionObserver loading, search/filter callbacks, building hover/click behavior, InfoWindow action handlers, and trend/competitor/contact flows unchanged.\n\n### Why\n\nThe first Map 2.0 slice established the full-canvas workbench but several nested surfaces still used the previous large-card, high-radius visual language. This pass aligns the high-frequency inventory/detail surfaces with the professional, dense, institutional GIS-workbench direction without reopening map behavior or data semantics.\n\n### Impact\n\n- More projects and metrics fit in the visible map workspace with less visual obstruction.\n- Building comparison is faster because rent, vacancy, area, data quarter, submarket, and grade are exposed in a consistent tabular hierarchy.\n- InfoWindow, filter, and marker presentation now visually align with the Map 2.0 shell while their existing runtime contracts remain intact.\n- No authentication, Supabase/RLS, MapDataStore filtering, useMapRuntime lifecycle, or MapController behavioral changes are included.\n\n### Verification\n\n- The pre-slice interaction-fix head `0592c2033905922f7aef747602e8016e7184df0d` passed Typecheck, Lint, Test, and Production build in Verify #94.\n- The final second-slice head must pass the same four gates before this draft PR is considered ready for further visual work.\n\n### Follow-up\n\n- Perform browser-level visual inspection when an accessible preview is available, with emphasis on 360–430px widths, InfoWindow clipping, filter-scroll density, and marker readability at each zoom tier.\n- Continue visual refinement through presentation seams; do not use this slice to change filtering semantics or AMap lifecycle ownership.\n\n---\n\n'''
+          if '## 2026-08-25 — Map 2.0 project inventory and presentation density' in text:
+              raise SystemExit(0)
+          pos = text.find(marker)
+          if pos < 0:
+              raise SystemExit('changelog separator not found')
+          pos += len(marker)
+          path.write_text(text[:pos] + entry + text[pos:])
+          PY
+      - name: Commit changelog
+        run: |
+          if git diff --quiet -- CHANGELOG.md; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "[map-2-slice2-changelog] docs: record Map 2.0 presentation density"
+          git push origin HEAD:feat/map-2-workbench
