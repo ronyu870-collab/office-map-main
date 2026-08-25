@@ -64,7 +64,6 @@ jobs:
 
           home = root / 'src/components/home/HomeWorkspace.tsx'
           text = home.read_text(encoding='utf-8')
-          text = text.replace("import { isDemoMode } from '@/src/config/demoMode';\n", '')
           session_anchor = "import { useAppSession } from '@/src/components/SessionProvider';\n"
           if "useImpersonation" not in text:
               text = text.replace(session_anchor, session_anchor + "import { useImpersonation } from '@/src/contexts/ImpersonationContext';\n")
@@ -83,7 +82,7 @@ jobs:
           )
           text = text.replace(
               "  const activeSession = ctx;\n  const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';\n  const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;\n  const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);",
-              "  const activeSession = ctx;\n  const isAdmin = isUserAdmin(activeSession.role);\n  const canSeeAdminWorkspace = isAdmin && !isImpersonating;",
+              "  const activeSession = ctx;\n  const isAdmin = isUserAdmin(activeSession.role);\n  const canSeeAdminWorkspace = (isAdmin || isDemoMode(activeSession.user.email)) && !isImpersonating;",
           )
           text = text.replace("            email={activeSession.user.email}\n", '')
           home.write_text(text, encoding='utf-8')
