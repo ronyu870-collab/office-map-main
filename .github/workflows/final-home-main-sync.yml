@@ -30,6 +30,21 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git merge --no-commit --no-ff -X ours origin/main
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/app/admin/layout.tsx')
+          lines = path.read_text().splitlines()
+          target = "import { useImpersonation } from '@/src/contexts/ImpersonationContext';"
+          seen = False
+          cleaned = []
+          for line in lines:
+              if line == target:
+                  if seen:
+                      continue
+                  seen = True
+              cleaned.append(line)
+          path.write_text('\n'.join(cleaned) + '\n')
+          PY
           git rm .github/workflows/final-home-main-sync.yml
 
       - name: Set up Node.js
