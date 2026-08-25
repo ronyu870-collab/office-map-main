@@ -1,0 +1,59 @@
+name: Home Visual QA v3
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: home-visual-qa-v3-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Extract QA harness scripts
+        run: |
+          python3 -m pip install --quiet pyyaml
+          python3 - <<'PY'
+          import yaml
+          from pathlib import Path
+          data=yaml.safe_load(Path('.github/workflows/home-visual-qa-v2.yml').read_text())
+          steps=data['jobs']['browser-qa']['steps']
+          wanted=['Build runtime-only QA harness','Start Next dev server','Write Playwright spec']
+          for i,name in enumerate(wanted):
+              step=next(s for s in steps if s.get('name')==name)
+              Path(f'/tmp/qa-step-{i}.sh').write_text('set -euo pipefail\n'+step['run'])
+          PY
+      - name: Build runtime-only QA harness
+        run: bash /tmp/qa-step-0.sh
+      - name: Start Next dev server
+        run: bash /tmp/qa-step-1.sh
+      - name: Install Playwright locally
+        run: |
+          npm install --no-save --ignore-scripts @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Write Playwright spec
+        run: bash /tmp/qa-step-2.sh
+      - name: Run browser QA
+        run: npx playwright test tests/home-visual-qa/home.spec.js --reporter=line --workers=1
+      - name: Save server log
+        if: always()
+        run: cp /tmp/home-qa-next.log home-visual-qa-artifacts/next.log || true
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-visual-qa-v3
+          path: home-visual-qa-artifacts
+          if-no-files-found: warn
