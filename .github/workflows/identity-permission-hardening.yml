@@ -23,6 +23,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: python3 scripts/identity_permission_hardening.py
+      - run: python3 scripts/identity_route_patch.py
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
