@@ -28,36 +28,36 @@ jobs:
           root = Path('.')
 
           admin_access = root / 'src/utils/adminAccess.ts'
-          admin_access.write_text("""export function isAdminRole(role: string | null | undefined): boolean {
-            return role?.trim().toLowerCase() === 'admin';
-          }
-
-          export function isResearchLibraryManager(role: string | null | undefined): boolean {
-            const normalized = role?.trim().toLowerCase();
-            return normalized === 'admin' || normalized === 'super_admin';
-          }
-
-          export function canAccessAdminConsole(params: {
-            role: string | null | undefined;
-            impersonationActive?: boolean;
-          }): boolean {
-            return !params.impersonationActive && isAdminRole(params.role);
-          }
-          """, encoding='utf-8')
+          admin_access.write_text(
+              "export function isAdminRole(role: string | null | undefined): boolean {\n"
+              "  return role?.trim().toLowerCase() === 'admin';\n"
+              "}\n\n"
+              "export function isResearchLibraryManager(role: string | null | undefined): boolean {\n"
+              "  const normalized = role?.trim().toLowerCase();\n"
+              "  return normalized === 'admin' || normalized === 'super_admin';\n"
+              "}\n\n"
+              "export function canAccessAdminConsole(params: {\n"
+              "  role: string | null | undefined;\n"
+              "  impersonationActive?: boolean;\n"
+              "}): boolean {\n"
+              "  return !params.impersonationActive && isAdminRole(params.role);\n"
+              "}\n",
+              encoding='utf-8',
+          )
 
           admin_layout = root / 'src/app/admin/layout.tsx'
           text = admin_layout.read_text(encoding='utf-8')
           text = text.replace("import { isDemoMode } from '@/src/config/demoMode';\n", '')
           anchor = "import { canAccessAdminConsole } from '@/src/utils/adminAccess';\n"
           if "useImpersonation" not in text:
-            text = text.replace(anchor, anchor + "import { useImpersonation } from '@/src/contexts/ImpersonationContext';\n")
+              text = text.replace(anchor, anchor + "import { useImpersonation } from '@/src/contexts/ImpersonationContext';\n")
           text = text.replace(
-            "  const router = useRouter();\n  const [ready, setReady] = React.useState(false);",
-            "  const router = useRouter();\n  const { isImpersonating } = useImpersonation();\n  const [ready, setReady] = React.useState(false);",
+              "  const router = useRouter();\n  const [ready, setReady] = React.useState(false);",
+              "  const router = useRouter();\n  const { isImpersonating } = useImpersonation();\n  const [ready, setReady] = React.useState(false);",
           )
           text = text.replace(
-            "        const permitted = Boolean(session) && canAccessAdminConsole({\n          role: session?.role,\n          email: session?.user?.email,\n          isDemo: isDemoMode(session?.user?.email),\n        });",
-            "        const permitted = Boolean(session) && canAccessAdminConsole({\n          role: session?.role,\n          impersonationActive: isImpersonating,\n        });",
+              "        const permitted = Boolean(session) && canAccessAdminConsole({\n          role: session?.role,\n          email: session?.user?.email,\n          isDemo: isDemoMode(session?.user?.email),\n        });",
+              "        const permitted = Boolean(session) && canAccessAdminConsole({\n          role: session?.role,\n          impersonationActive: isImpersonating,\n        });",
           )
           text = text.replace("  }, [router]);", "  }, [isImpersonating, router]);")
           admin_layout.write_text(text, encoding='utf-8')
@@ -67,20 +67,23 @@ jobs:
           text = text.replace("import { isDemoMode } from '@/src/config/demoMode';\n", '')
           session_anchor = "import { useAppSession } from '@/src/components/SessionProvider';\n"
           if "useImpersonation" not in text:
-            text = text.replace(session_anchor, session_anchor + "import { useImpersonation } from '@/src/contexts/ImpersonationContext';\n")
+              text = text.replace(session_anchor, session_anchor + "import { useImpersonation } from '@/src/contexts/ImpersonationContext';\n")
           text = text.replace(
-            "  displayName,\n  role,\n  email,\n  canSeeAdminWorkspace,",
-            "  displayName,\n  role,\n  canSeeAdminWorkspace,",
+              "  displayName,\n  role,\n  email,\n  canSeeAdminWorkspace,",
+              "  displayName,\n  role,\n  canSeeAdminWorkspace,",
           )
           text = text.replace("  email?: string;\n", '')
-          text = text.replace("  const isRestrictedAdmin = email === 'judy.li@colliers.com';\n  const isAdmin = isUserAdmin(role) && !isRestrictedAdmin;", "  const isAdmin = isUserAdmin(role);")
           text = text.replace(
-            "  const { session: ctx, status } = useAppSession();\n  const [showDevModal, setShowDevModal] = React.useState(false);",
-            "  const { session: ctx, status } = useAppSession();\n  const { isImpersonating } = useImpersonation();\n  const [showDevModal, setShowDevModal] = React.useState(false);",
+              "  const isRestrictedAdmin = email === 'judy.li@colliers.com';\n  const isAdmin = isUserAdmin(role) && !isRestrictedAdmin;",
+              "  const isAdmin = isUserAdmin(role);",
           )
           text = text.replace(
-            "  const activeSession = ctx;\n  const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';\n  const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;\n  const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);",
-            "  const activeSession = ctx;\n  const isAdmin = isUserAdmin(activeSession.role);\n  const canSeeAdminWorkspace = isAdmin && !isImpersonating;",
+              "  const { session: ctx, status } = useAppSession();\n  const [showDevModal, setShowDevModal] = React.useState(false);",
+              "  const { session: ctx, status } = useAppSession();\n  const { isImpersonating } = useImpersonation();\n  const [showDevModal, setShowDevModal] = React.useState(false);",
+          )
+          text = text.replace(
+              "  const activeSession = ctx;\n  const isRestrictedAdmin = activeSession.user.email === 'judy.li@colliers.com';\n  const isAdmin = isUserAdmin(activeSession.role) && !isRestrictedAdmin;\n  const canSeeAdminWorkspace = isAdmin || isDemoMode(activeSession.user.email);",
+              "  const activeSession = ctx;\n  const isAdmin = isUserAdmin(activeSession.role);\n  const canSeeAdminWorkspace = isAdmin && !isImpersonating;",
           )
           text = text.replace("            email={activeSession.user.email}\n", '')
           home.write_text(text, encoding='utf-8')
@@ -89,91 +92,51 @@ jobs:
           text = auth_test.read_text(encoding='utf-8')
           start = text.index("describe('Admin 2.0 authorization policy'")
           end = text.index("describe('Research Library 2.0 list behavior'")
-          replacement = """describe('Admin 2.0 authorization policy', () => {
-            it('authorizes the console only for the admin role', () => {
-              expect(canAccessAdminConsole({ role: 'admin' })).toBe(true);
-              expect(canAccessAdminConsole({ role: 'editor' })).toBe(false);
-              expect(canAccessAdminConsole({ role: 'viewer' })).toBe(false);
-              expect(canAccessAdminConsole({ role: null })).toBe(false);
-            });
-
-            it('blocks the admin console while impersonating', () => {
-              expect(canAccessAdminConsole({ role: 'admin', impersonationActive: true })).toBe(false);
-              expect(canAccessAdminConsole({ role: 'admin', impersonationActive: false })).toBe(true);
-            });
-
-            it('keeps research-library write roles distinct from general browsing', () => {
-              expect(isResearchLibraryManager('admin')).toBe(true);
-              expect(isResearchLibraryManager('super_admin')).toBe(true);
-              expect(isResearchLibraryManager('editor')).toBe(false);
-            });
-          });
-
-          """
+          replacement = "\n".join([
+              "describe('Admin 2.0 authorization policy', () => {",
+              "  it('authorizes the console only for the admin role', () => {",
+              "    expect(canAccessAdminConsole({ role: 'admin' })).toBe(true);",
+              "    expect(canAccessAdminConsole({ role: 'editor' })).toBe(false);",
+              "    expect(canAccessAdminConsole({ role: 'viewer' })).toBe(false);",
+              "    expect(canAccessAdminConsole({ role: null })).toBe(false);",
+              "  });",
+              "",
+              "  it('blocks the admin console while impersonating', () => {",
+              "    expect(canAccessAdminConsole({ role: 'admin', impersonationActive: true })).toBe(false);",
+              "    expect(canAccessAdminConsole({ role: 'admin', impersonationActive: false })).toBe(true);",
+              "  });",
+              "",
+              "  it('keeps research-library write roles distinct from general browsing', () => {",
+              "    expect(isResearchLibraryManager('admin')).toBe(true);",
+              "    expect(isResearchLibraryManager('super_admin')).toBe(true);",
+              "    expect(isResearchLibraryManager('editor')).toBe(false);",
+              "  });",
+              "});",
+              "",
+              "",
+          ])
           auth_test.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
 
-          changelog = root / 'CHANGELOG.md'
-          text = changelog.read_text(encoding='utf-8')
-          heading = '## 2026-08-25 — Admin identity policy simplification'
-          if heading not in text:
-            marker = '\n---\n\n## 2026-08-25 — Cross-page Product Continuity QA'
-            entry = """
----
-
-## 2026-08-25 — Admin identity policy simplification
-
-### Area
-Authentication / authorization / Home / Admin
-
-### What changed
-
-- Removed the restricted-admin identity concept and the account-specific Admin exception.
-- Admin-console authorization now depends only on the authenticated database role: `admin` is allowed; `editor`, `viewer`, unknown and unauthenticated identities are denied.
-- Demo mode no longer elevates Admin access. Users with the same database role receive the same Admin authorization result.
-- Impersonation remains fail-closed for Admin: while an administrator is impersonating another user, the Home Admin entry is hidden and `/admin` is denied until impersonation ends.
-- Removed the corresponding Home role-label downgrade so administrator presentation is role-based rather than account-based.
-
-### Why
-
-Authorization should be a stable role contract, not an exception list tied to individual accounts. Removing the special identity makes permission behavior predictable and keeps Home and the Admin route aligned.
-
-### Impact
-
-- No individual email address has a special Admin restriction or bypass.
-- Existing `viewer` / `editor` / `admin` role semantics remain the source of truth.
-- Research-library management policy and non-Admin product workflows are unchanged by this cleanup.
-
-### Verification
-
-- Authorization regression tests cover admin/editor/viewer/unknown roles and impersonation fail-closed behavior.
-- The integration pipeline runs Typecheck → Lint → Test → Production Build before committing the final patch.
-
-"""
-            if marker not in text:
-              raise SystemExit('CHANGELOG insertion marker missing')
-            text = text.replace(marker, entry + '## 2026-08-25 — Cross-page Product Continuity QA', 1)
-            changelog.write_text(text, encoding='utf-8')
-
           forbidden = [
-            'judy.li@colliers.com',
-            'RESTRICTED_ADMIN_EMAILS',
-            'isRestrictedAdmin',
-            'restricted_admin',
-            '受限管理员',
+              'judy.li@colliers.com',
+              'RESTRICTED_ADMIN_EMAILS',
+              'isRestrictedAdmin',
+              'restricted_admin',
+              '受限管理员',
           ]
           hits = []
           for path in (root / 'src').rglob('*'):
-            if not path.is_file():
-              continue
-            try:
-              source = path.read_text(encoding='utf-8')
-            except UnicodeDecodeError:
-              continue
-            for token in forbidden:
-              if token in source:
-                hits.append(f'{path}: {token}')
+              if not path.is_file():
+                  continue
+              try:
+                  source = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              for token in forbidden:
+                  if token in source:
+                      hits.append(f'{path}: {token}')
           if hits:
-            raise SystemExit('Forbidden restricted-admin remnants:\n' + '\n'.join(hits))
+              raise SystemExit('Forbidden restricted-admin remnants:\n' + '\n'.join(hits))
 
           workflow = root / '.github/workflows/finalize-main-integration.yml'
           workflow.unlink()
