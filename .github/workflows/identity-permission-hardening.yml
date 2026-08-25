@@ -25,6 +25,7 @@ jobs:
       - run: python3 scripts/prepare_identity_patch.py
       - run: python3 scripts/identity_permission_hardening.py
       - run: python3 scripts/identity_route_patch.py
+      - run: python3 scripts/identity_compile_fix.py
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
