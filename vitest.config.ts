@@ -6,6 +6,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    // Existing property suites allow individual fast-check assertions up to 10s.
+    // Keep the Vitest case budget above that inner timeout so CI does not abort
+    // a valid property run at the framework's 5s default boundary.
+    testTimeout: 15000,
   },
   resolve: {
     alias: {

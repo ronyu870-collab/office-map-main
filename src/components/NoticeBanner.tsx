@@ -4,104 +4,119 @@ import * as React from 'react';
 import { getAllActiveNotices } from '@/src/services/apiClient';
 import type { NoticeRow } from '@/src/services/apiClient';
 
+const BEIJING_TIME_ZONE = 'Asia/Shanghai';
+
+function formatNoticeDate(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  const yearFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: BEIJING_TIME_ZONE,
+    year: 'numeric',
+  });
+  const includeYear = yearFormatter.format(date) !== yearFormatter.format(now);
+
+  return date.toLocaleDateString('zh-CN', {
+    timeZone: BEIJING_TIME_ZONE,
+    ...(includeYear ? { year: 'numeric' as const } : {}),
+    month: 'numeric',
+    day: 'numeric',
+  });
+}
+
 export function NoticeBanner() {
-  const [notices, setNotices] = React.useState<NoticeRow[] | null>(null); // null = loading
+  const [notices, setNotices] = React.useState<NoticeRow[] | null>(null);
+  const [loadError, setLoadError] = React.useState(false);
   const [visible, setVisible] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
+  const [requestKey, setRequestKey] = React.useState(0);
 
   React.useEffect(() => {
+    let active = true;
     const timeoutId = setTimeout(() => {
-      setNotices([]); // timeout → treat as empty
+      if (!active) return;
+      setLoadError(true);
+      setNotices([]);
     }, 3000);
 
     getAllActiveNotices()
       .then((data) => {
+        if (!active) return;
         clearTimeout(timeoutId);
+        setLoadError(false);
         setNotices(data);
+        setExpanded(false);
         if (data.length > 0) requestAnimationFrame(() => setVisible(true));
       })
       .catch(() => {
+        if (!active) return;
         clearTimeout(timeoutId);
+        setLoadError(true);
         setNotices([]);
       });
 
-    return () => clearTimeout(timeoutId);
-  }, []);
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+    };
+  }, [requestKey]);
 
-  // Loading skeleton
+  const retry = () => {
+    setVisible(false);
+    setLoadError(false);
+    setNotices(null);
+    setRequestKey((value) => value + 1);
+  };
+
   if (notices === null) {
+    return <div className="h-12 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />;
+  }
+
+  if (loadError) {
     return (
-      <div className="flex items-center rounded-md border border-blue-100/60 bg-blue-50/50 overflow-hidden h-[38px]">
-        <div className="flex shrink-0 items-center gap-1.5 border-r border-blue-100/60 bg-blue-100/60 px-3 self-stretch">
-          <div className="h-3 w-14 rounded bg-blue-200/70 animate-pulse" />
+      <section className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-3" aria-label="系统公告加载失败">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[13px] font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
+            <p className="mt-1 text-xs text-[var(--cd-color-text-muted)]">公告暂时无法加载</p>
+          </div>
+          <button
+            type="button"
+            onClick={retry}
+            className="min-h-9 rounded-[var(--cd-radius-sm)] px-2.5 text-xs font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
+          >
+            重试
+          </button>
         </div>
-        <div className="flex-1 px-4">
-          <div className="h-3 w-48 rounded bg-blue-100 animate-pulse" />
-        </div>
-      </div>
+      </section>
     );
   }
 
   if (notices.length === 0) return null;
 
-  // Build the inner content: notices joined by separators
-  const inner = (
-    <span className="flex items-center gap-8 px-8">
-      {notices.map((n, i) => (
-        <React.Fragment key={n.id}>
-          {i > 0 && (
-            <span className="text-blue-300 select-none" aria-hidden>·</span>
-          )}
-          <span className="inline-flex items-baseline gap-2">
-            <span className="text-[10px] font-medium text-blue-400 tabular-nums shrink-0">
-              {new Date(n.updated_at).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-            </span>
-            <span className="text-[13px] text-blue-900/75">{n.content}</span>
-          </span>
-        </React.Fragment>
-      ))}
-    </span>
-  );
+  const visibleNotices = expanded ? notices : notices.slice(0, 3);
 
   return (
-    <div
-      className={`notice-banner transition-[opacity,transform] duration-500 ease-out ${visible ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'}`}
-      aria-live="polite"
-    >
-      <div className="flex items-center rounded-md border border-blue-100/60 bg-blue-50/50 overflow-hidden">
-        {/* 左侧标签 */}
-        <div className="flex shrink-0 items-center gap-1.5 border-r border-blue-100/60 bg-blue-100/60 px-3 py-2.5 self-stretch">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3.5 w-3.5 shrink-0 text-blue-600"
-            aria-hidden
-          >
-            <path d="M22 8.5c0-2.5-2-4.5-4.5-4.5S13 6 13 8.5v7c0 2.5 2 4.5 4.5 4.5S22 18 22 15.5v-7Z" />
-            <path d="M13 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h10" />
-            <path d="M7 15v4" />
-          </svg>
-          <span className="text-[11px] font-semibold tracking-wide text-blue-600 whitespace-nowrap">
-            系统公告
-          </span>
-        </div>
-
-        {/* 跑马灯区域 */}
-        <div className="marquee-wrapper flex overflow-hidden whitespace-nowrap w-full relative">
-          {/* 原版 */}
-          <div className="animate-marquee min-w-full flex-shrink-0 flex items-center py-2.5">
-            {inner}
+    <section className={`border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-3 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`} aria-live="polite" aria-label="系统公告">
+      <div className="mb-2 text-[13px] font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
+      <div className="space-y-2">
+        {visibleNotices.map((notice) => (
+          <div key={notice.id} className="grid grid-cols-[52px_minmax(0,1fr)] gap-2.5 text-[13px] leading-5">
+            <time className="text-xs tabular-nums text-[var(--cd-color-text-muted)]">{formatNoticeDate(notice.updated_at)}</time>
+            <p className="break-words text-[var(--cd-color-text-secondary)] [overflow-wrap:anywhere]">{notice.content}</p>
           </div>
-          {/* 克隆版，紧跟其后实现无缝循环 */}
-          <div className="animate-marquee min-w-full flex-shrink-0 flex items-center py-2.5" aria-hidden>
-            {inner}
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
+
+      {notices.length > 3 ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-2.5 min-h-8 rounded-[var(--cd-radius-sm)] px-1.5 text-xs font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
+          aria-expanded={expanded}
+        >
+          {expanded ? '收起公告' : `查看全部 ${notices.length} 条公告`}
+        </button>
+      ) : null}
+    </section>
   );
 }
