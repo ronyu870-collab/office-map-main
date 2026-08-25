@@ -1,0 +1,65 @@
+/* Map 2.0 presentation layer only. Keep behavioral map/runtime concerns in MapClient/MapController. */
+
+body:has(#map-container) .amap-info-content {
+  padding: 10px 12px !important;
+  border: 1px solid #d9e0e8 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 30px rgba(23, 32, 51, 0.14) !important;
+  color: #172033 !important;
+}
+
+body:has(#map-container) .amap-info-content > div > div {
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif !important;
+  background: #ffffff !important;
+}
+
+body:has(#map-container) .amap-info-content button {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  font-family: inherit !important;
+}
+
+body:has(#map-container) .amap-info-content #chart-btn-rent,
+body:has(#map-container) .amap-info-content button:hover {
+  box-shadow: none !important;
+}
+
+/* Full building and dot markers keep their data-driven colors; this only reduces visual chrome. */
+body:has(#map-container) #map-container [data-building-id] {
+  filter: saturate(0.92);
+}
+
+body:has(#map-container) #map-container .amap-marker [data-building-id] {
+  box-shadow: 0 2px 7px rgba(23, 32, 51, 0.18) !important;
+}
+
+/* Map-only density pass for the existing SidebarFilter. No state or selector semantics change. */
+body:has(#map-container) aside > div > div {
+  border-color: #d9e0e8 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+body:has(#map-container) aside section {
+  margin-bottom: 0 !important;
+}
+
+body:has(#map-container) aside section > div:first-child {
+  min-height: 30px;
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+  border-radius: 4px !important;
+}
+
+body:has(#map-container) aside label {
+  line-height: 1.25;
+}
+
+body:has(#map-container) aside input[type="checkbox"] {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+body:has(#map-container) aside button {
+  border-radius: 4px !important;
+}
