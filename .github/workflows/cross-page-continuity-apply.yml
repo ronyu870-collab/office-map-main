@@ -25,6 +25,16 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Normalize temporary changelog text
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          target = Path('scripts/apply-cross-page-continuity.mjs')
+          text = target.read_text()
+          text = text.replace('\\\\`cross-page-product-continuity.test.ts\\\\`', 'cross-page-product-continuity.test.ts')
+          target.write_text(text)
+          PY
+
       - name: Apply continuity patch
         run: node scripts/apply-cross-page-continuity.mjs
 
