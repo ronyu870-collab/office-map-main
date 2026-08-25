@@ -20,6 +20,41 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-25 — Map 2.0 project inventory and presentation density
+
+### Area
+Map 2.0 / project inventory / building detail / InfoWindow / filters / marker presentation
+
+### What changed
+
+- Reworked the floating project list into a dense market-inventory panel with compact rows as the default view and a retained detail-card mode.
+- Restyled building detail cards around net effective rent, vacancy, data quarter, and compact property attributes instead of large floating cards.
+- Added map-route-scoped presentation overrides for AMap InfoWindow chrome, building-marker shadow/saturation, and embedded SidebarFilter density.
+- Kept the existing marker data-driven colors, list slicing and IntersectionObserver loading, search/filter callbacks, building hover/click behavior, InfoWindow action handlers, and trend/competitor/contact flows unchanged.
+
+### Why
+
+The first Map 2.0 slice established the full-canvas workbench but several nested surfaces still used the previous large-card, high-radius visual language. This pass aligns the high-frequency inventory/detail surfaces with the professional, dense, institutional GIS-workbench direction without reopening map behavior or data semantics.
+
+### Impact
+
+- More projects and metrics fit in the visible map workspace with less visual obstruction.
+- Building comparison is faster because rent, vacancy, area, data quarter, submarket, and grade are exposed in a consistent tabular hierarchy.
+- InfoWindow, filter, and marker presentation now visually align with the Map 2.0 shell while their existing runtime contracts remain intact.
+- No authentication, Supabase/RLS, MapDataStore filtering, useMapRuntime lifecycle, or MapController behavioral changes are included.
+
+### Verification
+
+- The pre-slice interaction-fix head `0592c2033905922f7aef747602e8016e7184df0d` passed Typecheck, Lint, Test, and Production build in Verify #94.
+- The final second-slice head must pass the same four gates before this draft PR is considered ready for further visual work.
+
+### Follow-up
+
+- Perform browser-level visual inspection when an accessible preview is available, with emphasis on 360–430px widths, InfoWindow clipping, filter-scroll density, and marker readability at each zoom tier.
+- Continue visual refinement through presentation seams; do not use this slice to change filtering semantics or AMap lifecycle ownership.
+
+---
+
 ## 2026-08-24 — Map architecture split and lazy trend-chart runtime
 
 ### Area
