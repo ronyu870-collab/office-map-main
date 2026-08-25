@@ -6,8 +6,11 @@ describe('quarterly data entry model', () => {
   it('preserves the legacy five-field completeness contract', () => {
     expect(isQuarterlyRowComplete({ qQuote: '100', qProp: '30', qFace: '90', qFree: '3', qVacArea: '500' })).toBe(true);
     expect(isQuarterlyRowComplete({ qQuote: '100', qProp: '30', qFace: '90', qFree: '3', qVacArea: '' })).toBe(false);
-    // Existing flow used truthiness, so zero remains incomplete rather than silently changing business behavior.
-    expect(isQuarterlyRowComplete({ qQuote: '100', qProp: '30', qFace: '90', qFree: '0', qVacArea: '500' })).toBe(false);
+    // The legacy page stores HTML input values as strings and checks them with
+    // truthiness (`d.qQuote && ... && d.qVacArea`). Therefore the string "0"
+    // is considered filled, while an actual numeric 0 remains falsy.
+    expect(isQuarterlyRowComplete({ qQuote: '100', qProp: '30', qFace: '90', qFree: '0', qVacArea: '500' })).toBe(true);
+    expect(isQuarterlyRowComplete({ qQuote: '100', qProp: '30', qFace: '90', qFree: 0, qVacArea: '500' })).toBe(false);
   });
 
   it('presents impossible-looking values as warnings instead of inventing a new hard block', () => {
