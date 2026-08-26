@@ -142,9 +142,6 @@ async function repairAndVerifyMapVisuals(
   await nextPaint();
   if (isCancelled()) return;
 
-  // AMap's default resize monitoring is disabled. React route/layout transitions
-  // can therefore leave the renderer with stale dimensions even though the host
-  // div is now full size. Always synchronize once after the workbench is painted.
   try {
     map.resize?.();
   } catch (error) {
@@ -159,9 +156,6 @@ async function repairAndVerifyMapVisuals(
 
   console.warn('[MapRuntime] AMap visual layer unhealthy; attempting recovery', snapshot);
 
-  // Do not rely solely on AMap's implicit default layer. If the renderer exists
-  // but no usable layer DOM was produced, rebuild the official standard layer
-  // explicitly and fall back from the custom visual style to the standard style.
   const amapGlobal = (window as typeof window & {
     AMap?: { createDefaultLayer?: (options?: Record<string, unknown>) => unknown };
   }).AMap;
@@ -226,7 +220,7 @@ async function waitForInitialMapTiles(
       settle(() => resolve());
     };
 
-    map.on('complete', handleComplete);
+    map.on?.('complete', handleComplete);
     timer = setTimeout(() => {
       if (isCancelled()) {
         settle(() => resolve());
@@ -303,10 +297,6 @@ export function useMapRuntime({
         await repairAndVerifyMapVisuals(controller, containerId, () => cancelled);
         if (cancelled) return;
 
-        // Install the interaction adapter before MapClient performs its first
-        // marker render. This keeps the existing controller behavior intact but
-        // makes zoom-layer switching persistent/lightweight and gives InfoWindow
-        // a real safe area around the workbench chrome.
         hardeningCleanup = installMapInteractionHardening(controller, containerId);
 
         applyAdminMode(controller);
