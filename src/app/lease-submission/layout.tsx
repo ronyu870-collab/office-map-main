@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { canAccessModule } from '@/src/utils/accessControl';
+import './lease-submission.css';
 
 function LeaseSubmissionGuardLoading() {
   return (
-    <div className="flex h-screen h-[100dvh] items-center justify-center bg-gray-50">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
+    <div className="lease-submission-shell flex h-screen h-[100dvh] items-center justify-center bg-[#f3f5f7]">
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-[#003e7e]" />
     </div>
   );
 }
@@ -48,5 +49,5 @@ export default function LeaseSubmissionLayout({ children }: { children: React.Re
   }, [router]);
 
   if (!authorized) return <LeaseSubmissionGuardLoading />;
-  return children;
+  return <div className="lease-submission-shell">{children}</div>;
 }
