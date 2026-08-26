@@ -118,40 +118,43 @@ function MapLegend({ mode }: { mode: RenderMode }) {
     default: {
       title: '项目类型',
       items: [
-        { label: '存量写字楼', className: 'bg-[#003e7e]' },
-        { label: '产业园区', className: 'bg-slate-500' },
+        { label: '甲级写字楼', className: 'bg-[#003e7e]' },
+        { label: '乙级 / 产业园', className: 'bg-[#64748b]' },
         { label: '未来供应', className: 'border border-slate-500 bg-white' },
       ],
     },
     rent: {
-      title: '净有效租金',
+      title: '净有效租金（元/㎡/月）',
       items: [
-        { label: '低', className: 'bg-blue-100' },
-        { label: '中', className: 'bg-blue-400' },
-        { label: '高', className: 'bg-blue-700' },
+        { label: '<100', className: 'bg-[#4e8a72]' },
+        { label: '100–199', className: 'bg-[#b68a36]' },
+        { label: '200–299', className: 'bg-[#c26b3d]' },
+        { label: '≥300', className: 'bg-[#b45353]' },
       ],
     },
     vacancy: {
       title: '空置率',
       items: [
-        { label: '低', className: 'bg-amber-100' },
-        { label: '中', className: 'bg-amber-400' },
-        { label: '高', className: 'bg-amber-700' },
+        { label: '<10%', className: 'bg-[#4e8a72]' },
+        { label: '10–19%', className: 'bg-[#b68a36]' },
+        { label: '20–29%', className: 'bg-[#c26b3d]' },
+        { label: '≥30%', className: 'bg-[#b45353]' },
       ],
     },
     leed: {
       title: 'LEED 认证',
       items: [
-        { label: '未认证', className: 'bg-slate-300' },
-        { label: 'Silver / Gold', className: 'bg-blue-400' },
-        { label: 'Platinum', className: 'bg-blue-700' },
+        { label: '未认证', className: 'border border-[#cbd5e1] bg-[#f8fafc]' },
+        { label: '白银', className: 'border border-[#94a3b8] bg-[#f1f5f9]' },
+        { label: '黄金', className: 'border border-[#d6a82a] bg-[#fef3c7]' },
+        { label: '铂金', className: 'border border-[#38bdf8] bg-[#e0f2fe]' },
       ],
     },
   }[mode];
 
   return (
     <div className="pointer-events-none absolute bottom-[76px] left-4 z-[250] hidden rounded-xl border border-white/70 bg-white/88 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-md sm:block">
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{config.title}</div>
+      <div className="mb-2 text-[10px] font-semibold tracking-[0.08em] text-slate-400">{config.title}</div>
       <div className="flex items-center gap-3">
         {config.items.map(item => (
           <div key={item.label} className="flex items-center gap-1.5 text-[10px] text-slate-500">
