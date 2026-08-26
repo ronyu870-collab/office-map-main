@@ -23,7 +23,7 @@ export default function SettingsPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const session = await getSessionFast(); // 使用快速获取方法
+        const session = await getSessionFast();
         if (cancelled) return;
         if (!session) { router.replace('/login'); return; }
         setUserEmail(session.user.email ?? '');
@@ -91,7 +91,6 @@ export default function SettingsPage() {
       </header>
       <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 py-10 sm:px-6">
         {isLoadingUser ? (
-          // ✅ 性能优化：使用骨架屏替代全屏加载器
           <div className="rounded-xl border border-zinc-200/60 bg-white p-7 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <div className="h-9 w-9 animate-pulse rounded-lg bg-zinc-200" />
@@ -158,9 +157,6 @@ export default function SettingsPage() {
                 {submitting ? '保存中…' : '确认修改'}
               </button>
             </form>
-            <p className="mt-5 text-center text-[11px] text-zinc-400">
-              Supabase Auth 强哈希加密 · 管理员亦无法查看明文密码
-            </p>
           </div>
         )}
       </main>
