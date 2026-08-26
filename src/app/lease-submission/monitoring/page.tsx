@@ -17,10 +17,6 @@ import { isDemoMode } from '@/src/config/demoMode';
  *
  * 权限：仅限 admin
  * 数据范围：2026-04-23 至今（由 getAllSubmissions 保证）
- *
- * 页面结构：
- * - 面包屑导航
- * - 统计概览区：TeamSubmissionMonitor（含本周统计 + 全量明细下钻）
  */
 export default function TeamMonitoringPage() {
   const router = useRouter();
@@ -28,7 +24,6 @@ export default function TeamMonitoringPage() {
   const [userRole, setUserRole] = React.useState<string>('');
   const [userName, setUserName] = React.useState<string>('');
 
-  // 鉴权检查
   React.useEffect(() => {
     setReady(true);
 
@@ -47,7 +42,6 @@ export default function TeamMonitoringPage() {
         setUserRole(role);
         setUserName(session.displayName ?? '');
 
-        // 权限校验：admin、demo 可以访问
         const isDemo = isDemoMode(session.user?.email);
         if (!isUserAdmin(role) && !isDemo) {
           router.replace('/');
@@ -62,74 +56,57 @@ export default function TeamMonitoringPage() {
     return () => { cancelled = true; };
   }, [router]);
 
-  // 加载中（鉴权未完成）
   if (!ready || !userRole) {
     return (
-      <div className="flex h-screen flex-col overflow-hidden bg-gray-50 text-zinc-900">
+      <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#f3f5f7] text-zinc-900">
         <div className="flex flex-1 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
+          <div className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-[#003e7e]" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-zinc-900">
-      {/* ── Header ── */}
-      <header className="border-b border-gray-200/60 bg-white">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <Users size={20} className="text-[#003e7e]" />
-            <h1 className="text-xl font-medium text-gray-900">团队提交监控</h1>
-            <span className="rounded border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-500">
-              Team Monitoring
-            </span>
+    <div className="min-h-screen bg-[#f3f5f7] text-zinc-900">
+      <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex min-h-14 max-w-[1500px] flex-wrap items-center gap-3 px-3 py-2 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-[#003e7e]/8 text-[#003e7e]">
+              <Users size={16} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-[13px] font-semibold tracking-[0.06em] text-zinc-900">租赁成交填报 · 团队监控</h1>
+              <p className="mt-0.5 truncate text-[10px] text-zinc-400">查看团队填报进度与成交明细</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/lease-submission"
-              className="flex items-center gap-1.5 text-sm text-gray-500 transition hover:text-gray-700"
-            >
-              <ArrowLeft size={16} />
-              返回填报页
+          <div className="ml-auto flex items-center gap-2">
+            <Link href="/lease-submission" className="inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-[10px] font-semibold text-zinc-600 transition hover:bg-zinc-50">
+              <ArrowLeft size={12} /> 返回填报页
             </Link>
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 text-sm text-gray-500 transition hover:text-gray-700"
-            >
-              <Home size={16} />
-              主页
+            <Link href="/" className="hidden h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-[10px] font-semibold text-zinc-600 transition hover:bg-zinc-50 sm:inline-flex">
+              <Home size={12} /> 主页
             </Link>
           </div>
         </div>
       </header>
 
-      {/* ── Main ── */}
-      <main className="mx-auto w-full max-w-7xl px-6 py-8">
-        {/* 面包屑导航 */}
-        <nav className="mb-6 flex items-center gap-2 text-sm text-gray-500">
-          <Link href="/" className="transition hover:text-gray-700">
-            首页
-          </Link>
-          <ChevronRight size={14} />
-          <Link href="/lease-submission" className="transition hover:text-gray-700">
-            租赁成交填报
-          </Link>
-          <ChevronRight size={14} />
-          <span className="font-medium text-gray-900">团队监控</span>
+      <main className="mx-auto w-full max-w-[1500px] px-3 py-4 sm:px-5 sm:py-5">
+        <nav className="mb-4 flex items-center gap-1.5 text-[10px] text-zinc-400" aria-label="当前位置">
+          <Link href="/" className="transition hover:text-zinc-700">首页</Link>
+          <ChevronRight size={11} />
+          <Link href="/lease-submission" className="transition hover:text-zinc-700">租赁成交填报</Link>
+          <ChevronRight size={11} />
+          <span className="font-medium text-zinc-600">团队监控</span>
         </nav>
 
-        {/* 欢迎语 */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-medium text-gray-900">
-            欢迎，<MaskedText>{userName || '管理者'}</MaskedText>
-          </h2>
-          <p className="mt-2 text-sm text-gray-500">
-            实时监控团队填报进度 · 点击姓名可过滤查看该员工的成交明细
-          </p>
+        <div className="mb-4 flex flex-col gap-1 border-b border-zinc-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-zinc-900">团队成交填报进度</h2>
+            <p className="mt-1 text-[11px] text-zinc-500">当前用户：<MaskedText>{userName || '管理者'}</MaskedText> · 点击成员姓名可下钻查看成交明细</p>
+          </div>
+          <p className="text-[10px] text-zinc-400">统计范围自 2026 年 5 月 4 日起</p>
         </div>
 
-        {/* 统计概览 + 明细下钻（全部由 TeamSubmissionMonitor 承载） */}
         <ComponentErrorBoundary componentName="团队提交监控">
           <TeamSubmissionMonitor userRole={userRole} />
         </ComponentErrorBoundary>

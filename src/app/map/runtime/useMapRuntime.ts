@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import type { MapController } from '@/src/services/MapController';
+import { installMapInteractionHardening } from './mapInteractionHardening';
 
 type MapRuntimeOptions = {
   enabled: boolean;
@@ -141,9 +142,6 @@ async function repairAndVerifyMapVisuals(
   await nextPaint();
   if (isCancelled()) return;
 
-  // AMap's default resize monitoring is disabled. React route/layout transitions
-  // can therefore leave the renderer with stale dimensions even though the host
-  // div is now full size. Always synchronize once after the workbench is painted.
   try {
     map.resize?.();
   } catch (error) {
@@ -158,9 +156,6 @@ async function repairAndVerifyMapVisuals(
 
   console.warn('[MapRuntime] AMap visual layer unhealthy; attempting recovery', snapshot);
 
-  // Do not rely solely on AMap's implicit default layer. If the renderer exists
-  // but no usable layer DOM was produced, rebuild the official standard layer
-  // explicitly and fall back from the custom visual style to the standard style.
   const amapGlobal = (window as typeof window & {
     AMap?: { createDefaultLayer?: (options?: Record<string, unknown>) => unknown };
   }).AMap;
@@ -225,7 +220,7 @@ async function waitForInitialMapTiles(
       settle(() => resolve());
     };
 
-    map.on('complete', handleComplete);
+    map.on?.('complete', handleComplete);
     timer = setTimeout(() => {
       if (isCancelled()) {
         settle(() => resolve());
@@ -279,6 +274,7 @@ export function useMapRuntime({
 
     let cancelled = false;
     let ownedController: MapController | null = null;
+    let hardeningCleanup: (() => void) | null = null;
 
     void (async () => {
       try {
@@ -301,6 +297,8 @@ export function useMapRuntime({
         await repairAndVerifyMapVisuals(controller, containerId, () => cancelled);
         if (cancelled) return;
 
+        hardeningCleanup = installMapInteractionHardening(controller, containerId);
+
         applyAdminMode(controller);
         setMapReady(true);
         await readyRef.current(controller, () => cancelled);
@@ -316,6 +314,8 @@ export function useMapRuntime({
     return () => {
       cancelled = true;
       setMapReady(false);
+      hardeningCleanup?.();
+      hardeningCleanup = null;
       if (controllerRef.current === ownedController) controllerRef.current = null;
       ownedController?.destroy();
     };
