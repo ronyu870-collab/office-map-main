@@ -164,6 +164,13 @@ function installMarkerLayerHardening(controller: ControllerInternals, container:
   let lastDistrictStatsRef: unknown = null;
   let lastGroupsRef: unknown = null;
 
+  const resetRenderCache = () => {
+    lastBuildingsRef = null;
+    lastMode = null;
+    lastDistrictStatsRef = null;
+    lastGroupsRef = null;
+  };
+
   const getMarkers = (mode: MarkerMode): MarkerLike[] => {
     if (mode === 'submarket') return controller.submarketMarkers ?? [];
     if (mode === 'dot') return controller.dotMarkers ?? [];
@@ -237,6 +244,7 @@ function installMarkerLayerHardening(controller: ControllerInternals, container:
     originalClearMarkers();
     mountedModes.clear();
     activeMode = null;
+    resetRenderCache();
     container.classList.remove('map-marker-switching');
   }) as ControllerInternals['clearMarkers'];
 
@@ -257,11 +265,13 @@ function installMarkerLayerHardening(controller: ControllerInternals, container:
       return;
     }
 
+    originalRenderMarkers(...args);
+    // renderMarkers internally calls clearMarkers(), so cache the successful
+    // inputs only after the rebuild has completed. External clears then reset it.
     lastBuildingsRef = buildingsRef;
     lastMode = renderMode;
     lastDistrictStatsRef = districtStatsRef;
     lastGroupsRef = groupsRef;
-    originalRenderMarkers(...args);
   }) as ControllerInternals['renderMarkers'];
 
   const onZoomStart = () => container.classList.add('map-is-zooming');
