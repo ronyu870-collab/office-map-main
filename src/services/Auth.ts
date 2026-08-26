@@ -98,8 +98,8 @@ async function fetchUserProfile(
     .maybeSingle();
 
   if (error) {
-    return { 
-      role: DEFAULT_APP_ROLE, 
+    return {
+      role: DEFAULT_APP_ROLE,
       displayName: emailFallback.split('@')[0],
       sessionId: '',
       phone: undefined,
@@ -117,7 +117,6 @@ async function fetchUserProfile(
     role,
     displayName,
     sessionId,
-    // undefined 表示资料查询失败或没有用户资料，避免误写手机号。
     phone: data ? (data.phone ?? null) : undefined,
   };
 }
@@ -125,59 +124,48 @@ async function fetchUserProfile(
 export async function signInWithPassword(params: {
   email: string;
   password: string;
-  phone?: string;
+  phone: string;
 }): Promise<AuthSessionResult> {
   const email = params.email?.trim();
   const password = params.password ?? '';
+  const phone = params.phone?.trim();
   if (!email) throw new TypeError('signInWithPassword: email 不能为空');
   if (!password) throw new TypeError('signInWithPassword: password 不能为空');
+  if (!phone || !/^\d{11}$/.test(phone)) throw new TypeError('signInWithPassword: 手机号必须为 11 位数字');
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(`登录失败：${error.message}`);
   if (!data.session || !data.user) throw new Error('登录失败：未返回有效的 session/user');
 
-  // 生成新的 session_id
-  const sessionId = generateSessionId();
   const userId = data.user.id;
   const userEmail = data.user.email ?? '';
+  const profile = await fetchUserProfile(userId, userEmail);
 
-  // 会话安全同步和用户资料读取并行执行，但必须在进入系统前完成。
-  // 手机号不是认证条件，不能让它成为登录关键路径的一部分。
-  const sessionIdUpdate = updateSessionId(userId, sessionId);          // DB: 记录新 session_id
-  const metadataUpdate = supabase.auth.updateUser({
-    data: { session_id: sessionId },
-  });                                                                  // Auth: JWT 携带 session_id
-  const profileRequest = fetchUserProfile(userId, userEmail);          // DB: 获取角色/姓名
+  // 邮箱和密码由 Supabase Auth 校验；手机号作为本系统的第三项登录凭据，必须与用户档案严格一致。
+  // 资料查询失败或手机号不匹配时立即销毁刚建立的本地会话，绝不通过登录流程反向覆盖手机号。
+  if (profile.phone === undefined || profile.phone !== phone) {
+    await supabase.auth.signOut({ scope: 'local' });
+    clearSessionCache();
+    throw new Error('登录失败：邮箱、手机号或密码不匹配');
+  }
 
-  const [sessionIdSettled, metadataSettled, profileSettled] = await Promise.allSettled([
-    sessionIdUpdate,
-    metadataUpdate,
-    profileRequest,
-  ]);
-
-  const profile = profileSettled.status === 'fulfilled'
-    ? profileSettled.value
-    : { role: DEFAULT_APP_ROLE, displayName: userEmail.split('@')[0], sessionId: '', phone: undefined };
+  const sessionId = generateSessionId();
   const { role, displayName } = profile;
 
-  // 非关键操作失败仅日志记录，不阻断登录
+  // 第三凭据验证通过后，再建立单设备会话状态。
+  const sessionIdUpdate = updateSessionId(userId, sessionId);
+  const metadataUpdate = supabase.auth.updateUser({
+    data: { session_id: sessionId },
+  });
+
+  const [sessionIdSettled, metadataSettled] = await Promise.allSettled([
+    sessionIdUpdate,
+    metadataUpdate,
+  ]);
+
+  // 非关键操作失败仅日志记录，不阻断已完成三项凭据校验的登录。
   if (sessionIdSettled.status === 'rejected') console.error('更新 session_id 失败:', sessionIdSettled.reason);
   if (metadataSettled.status === 'rejected') console.error('更新 user metadata 失败:', metadataSettled.reason);
-  // 登录时仅在手机号确实变化且资料读取成功后同步，且不阻塞登录跳转。
-  const submittedPhone = params.phone?.trim();
-  if (submittedPhone && profile.phone !== undefined && profile.phone !== submittedPhone) {
-    void (async () => {
-      try {
-        const { error: phoneError } = await supabase
-          .from('user_roles')
-          .update({ phone: submittedPhone })
-          .eq('user_id', userId);
-        if (phoneError) console.error('同步手机号失败:', phoneError.message);
-      } catch (phoneError: unknown) {
-        console.error('同步手机号失败:', phoneError);
-      }
-    })();
-  }
 
   const result = { user: data.user, session: data.session, role, displayName, sessionId };
 
@@ -190,7 +178,7 @@ export async function signInWithPassword(params: {
 export async function signOut(): Promise<void> {
   // 获取当前用户 ID
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   // 清除数据库中的 session_id（防止令牌重放攻击）
   if (user?.id) {
     await updateSessionId(user.id, null);
@@ -217,7 +205,7 @@ export async function getSession(): Promise<AuthSessionResult | null> {
 
 /**
  * 从中间件注入的 HTTP Headers 读取用户信息
- * 
+ *
  * 优化策略：
  * 1. 优先从 Headers 读取用户信息（中间件已完成验证）
  * 2. 避免重复的数据库查询
@@ -327,7 +315,7 @@ export async function getSessionFast(): Promise<AuthSessionResult | null> {
 
 /**
  * 缓存预热：将会话信息写入缓存
- * 
+ *
  * 使用场景：
  * 1. 登录成功后立即写入缓存
  * 2. 数据库查询后更新缓存
@@ -349,11 +337,11 @@ export function prewarmSessionCache(session: AuthSessionResult): void {
 
 /**
  * 清除会话缓存
- * 
+ *
  * 使用场景：
  * 1. 登出时清除缓存
  * 2. 角色变更时清除缓存
- * 
+ *
  * 优化：不在其他场景清除缓存（如普通页面切换）
  */
 export function clearSessionCache(): void {
