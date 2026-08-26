@@ -27,7 +27,7 @@ vi.mock('@/src/services/Auth', () => ({
 
 vi.mock('@/src/components/OSSManager', () => ({
   OSSManager: ({ userEmail }: { userEmail: string }) => (
-    <div data-testid="oss-manager" data-user-email={userEmail}>Research Library Manager</div>
+    <div data-testid="oss-manager" data-user-email={userEmail}>资料库管理器</div>
   ),
 }));
 
@@ -50,6 +50,7 @@ describe('Research Library page', () => {
 
     const manager = await screen.findByTestId('oss-manager');
     expect(manager).toHaveAttribute('data-user-email', 'analyst@colliers.com');
+    expect(screen.getByRole('heading', { name: '研究资料库' })).toBeInTheDocument();
   });
 
   it('redirects unauthenticated users to login and never renders the library', async () => {
@@ -80,6 +81,6 @@ describe('Research Library page', () => {
     render(<OSSPage />);
 
     await screen.findByTestId('oss-manager');
-    expect(screen.getByRole('link', { name: /返回工作区/ })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: '主页' })).toHaveAttribute('href', '/');
   });
 });
