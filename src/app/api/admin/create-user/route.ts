@@ -61,6 +61,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '邮箱不能为空' }, { status: 400 });
     }
 
+    const normalizedPhone = optionalText(phone);
+    if (!normalizedPhone || !/^\d{11}$/.test(normalizedPhone)) {
+      return NextResponse.json({ error: '手机号必须为 11 位数字' }, { status: 400 });
+    }
+
     const databaseRole = toDatabaseRole(role);
     if (!databaseRole) {
       return NextResponse.json({ error: '无效的用户角色' }, { status: 400 });
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest) {
         chinese_name: optionalText(chinese_name),
         full_name: optionalText(full_name),
         email: normalizedEmail,
-        phone: optionalText(phone),
+        phone: normalizedPhone,
         gender: optionalText(gender),
         title: optionalText(title),
         internal_number: optionalText(internal_number),
