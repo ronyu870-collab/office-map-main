@@ -6,6 +6,7 @@ import { Building2, FileText, Maximize2, Minimize2, ChevronDown, ChevronRight, E
 import type { LeaseTransaction } from '@/src/types/lease-transaction';
 import { MaskedCell } from '@/src/components/demo';
 import { useResponsiveColumns, calculateColumnWidths, type ColumnDef } from '@/src/hooks/useResponsiveColumns';
+import { AdminLeaseExportButton } from './AdminLeaseExportButton';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -456,6 +457,7 @@ export function SubmissionDetailTable({
                 {editMode ? '完成管理' : '管理记录'}
               </button>
             )}
+            {canManageTeamRecords && <AdminLeaseExportButton />}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
               aria-label={isFullscreen ? '退出全屏显示' : '全屏显示团队成交汇总'}
