@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { supabase } from '@/src/services/supabaseClient'
 
-type UserRole = 'admin' | 'editor' | 'user'
+type UserRole = 'admin' | 'editor' | 'viewer'
 
 type UserRow = {
   user_id: string
@@ -45,8 +45,14 @@ type OneTimeCredential = {
   password: string
 }
 
+type CreateUserResult = {
+  success: boolean
+  message: string
+  userId: string
+}
+
 const EMPTY_FORM: UserForm = {
-  role: 'user',
+  role: 'viewer',
   chinese_name: '',
   full_name: '',
   email: '',
@@ -59,7 +65,7 @@ const EMPTY_FORM: UserForm = {
 const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
   editor: '编辑者',
-  user: '普通用户',
+  viewer: '普通用户',
 }
 
 function displayName(row: UserRow) {
@@ -68,7 +74,7 @@ function displayName(row: UserRow) {
 
 function toForm(row: UserRow): UserForm {
   return {
-    role: ['admin', 'editor', 'user'].includes(row.role ?? '') ? row.role as UserRole : 'user',
+    role: ['admin', 'editor', 'viewer'].includes(row.role ?? '') ? row.role as UserRole : 'viewer',
     chinese_name: row.chinese_name ?? '',
     full_name: row.full_name ?? '',
     email: row.email ?? '',
@@ -130,7 +136,7 @@ async function authFetch(path: string, options: RequestInit = {}) {
   return data
 }
 
-async function createUser(form: UserForm, password: string) {
+async function createUser(form: UserForm, password: string): Promise<CreateUserResult> {
   return authFetch('/api/admin/create-user', {
     method: 'POST',
     body: JSON.stringify({ ...form, password }),
@@ -188,7 +194,7 @@ function RoleField({
         onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as UserRole }))}
         className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
       >
-        <option value="user">普通用户</option>
+        <option value="viewer">普通用户</option>
         <option value="editor">编辑者</option>
         <option value="admin">管理员</option>
       </select>
@@ -281,12 +287,20 @@ export function UserManager() {
     event.preventDefault()
     setBusy('create')
     try {
-      await createUser(createForm, createPassword)
+      const result = await createUser(createForm, createPassword)
+      const credential = { email: createForm.email.trim(), password: createPassword }
       setShowCreate(false)
-      setOneTimeCredential({ email: createForm.email.trim(), password: createPassword })
+      setOneTimeCredential(credential)
       setCreateForm(EMPTY_FORM)
       setCreatePassword('')
-      await fetchUsers()
+
+      const refreshedUsers = await fetchUsers()
+      const createdUser = refreshedUsers.find((row) => row.user_id === result.userId)
+      if (!createdUser) {
+        showNotice('用户已创建，但列表刷新失败，请点击刷新后核对', false)
+      } else {
+        showNotice('用户创建成功', true)
+      }
     } catch (createError) {
       showNotice(createError instanceof Error ? createError.message : '创建失败', false)
     } finally {
@@ -298,7 +312,7 @@ export function UserManager() {
     event.preventDefault()
     if (!selected) return
     const { role: requestedRole, ...profileFields } = editForm
-    const currentRole = selected.role ?? 'user'
+    const currentRole = selected.role ?? 'viewer'
     if (requestedRole !== currentRole) {
       const currentRoleLabel = ROLE_LABELS[currentRole] ?? currentRole
       const requestedRoleLabel = ROLE_LABELS[requestedRole] ?? requestedRole
@@ -308,17 +322,14 @@ export function UserManager() {
     try {
       await authFetch('/api/admin/users', {
         method: 'PATCH',
-        // 以打开弹窗时看到的角色作为版本标识，避免旧页面覆盖其他管理员的新修改。
         body: JSON.stringify({
           action: 'update_profile',
           userId: selected.user_id,
           expectedRole: selected.role,
           ...profileFields,
-          // 角色值单独传递，确保它与按钮/确认框中展示的 requestedRole 完全一致。
           role: requestedRole,
         }),
       })
-      // 以重新读取到的数据库数据为准，不依赖接口响应格式，避免出现“实际已保存却误报失败”。
       const refreshedUsers = await fetchUsers()
       const savedUser = refreshedUsers.find((row) => row.user_id === selected.user_id)
       if (!savedUser) {
@@ -461,7 +472,7 @@ export function UserManager() {
       </div>
 
       {notice && (
-        <div role="status" className={`rounded-lg border px-4 py-3 text-sm ${notice.success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        <div role="status" aria-live="polite" className={`fixed right-4 top-4 z-[80] max-w-[min(420px,calc(100vw-2rem))] rounded-lg border px-4 py-3 text-sm shadow-lg ${notice.success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
           {notice.text}
         </div>
       )}
