@@ -1,8 +1,9 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const controllerMocks = vi.hoisted(() => ({
   initMap: vi.fn(),
+  getMapInstance: vi.fn(),
   setAdminMode: vi.fn(),
   destroy: vi.fn(),
 }));
@@ -10,6 +11,7 @@ const controllerMocks = vi.hoisted(() => ({
 vi.mock('@/src/services/MapController', () => ({
   MapController: class {
     initMap = controllerMocks.initMap;
+    getMapInstance = controllerMocks.getMapInstance;
     setAdminMode = controllerMocks.setAdminMode;
     destroy = controllerMocks.destroy;
   },
@@ -17,10 +19,48 @@ vi.mock('@/src/services/MapController', () => ({
 
 import { useMapRuntime } from '@/src/app/map/runtime/useMapRuntime';
 
+function createReadyMapInstance() {
+  return {
+    on: vi.fn((eventName: string, handler: () => void) => {
+      if (eventName === 'complete') queueMicrotask(handler);
+    }),
+    off: vi.fn(),
+    resize: vi.fn(),
+    getLayers: vi.fn(() => [{}]),
+    setLayers: vi.fn(),
+    setMapStyle: vi.fn(),
+  };
+}
+
+function installHealthyMapDom() {
+  document.body.innerHTML = `
+    <div id="map-container">
+      <div class="amap-maps"><div class="amap-layer"></div></div>
+    </div>
+  `;
+
+  const container = document.getElementById('map-container') as HTMLElement;
+  const amapRoot = container.querySelector('.amap-maps') as HTMLElement;
+  container.getBoundingClientRect = () => ({
+    x: 0, y: 0, left: 0, top: 0, right: 1280, bottom: 720,
+    width: 1280, height: 720, toJSON() {},
+  } as DOMRect);
+  amapRoot.getBoundingClientRect = () => ({
+    x: 0, y: 0, left: 0, top: 0, right: 1280, bottom: 720,
+    width: 1280, height: 720, toJSON() {},
+  } as DOMRect);
+}
+
 describe('useMapRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    installHealthyMapDom();
     controllerMocks.initMap.mockResolvedValue(undefined);
+    controllerMocks.getMapInstance.mockReturnValue(createReadyMapInstance());
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
   });
 
   it('does not initialize the imperative map runtime while disabled', () => {
@@ -51,7 +91,7 @@ describe('useMapRuntime', () => {
       onError,
     }));
 
-    await waitFor(() => expect(result.current.mapReady).toBe(true));
+    await waitFor(() => expect(result.current.mapReady).toBe(true), { timeout: 2000 });
 
     expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);
     expect(controllerMocks.initMap).toHaveBeenCalledWith('map-container');
@@ -76,7 +116,7 @@ describe('useMapRuntime', () => {
       { initialProps: { role: 'editor' } },
     );
 
-    await waitFor(() => expect(controllerMocks.initMap).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(controllerMocks.setAdminMode).toHaveBeenCalledWith(false, 'admin-1', undefined), { timeout: 2000 });
     rerender({ role: 'admin' });
 
     await waitFor(() => {
