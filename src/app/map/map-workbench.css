@@ -100,7 +100,6 @@ body:has(#map-container) aside button {
   border-radius: 4px !important;
 }
 
-
 /* Final Map QA: precise, low-chrome GIS presentation across desktop and mobile. */
 body:has(#map-container) .amap-info-outer,
 body:has(#map-container) .amap-info-content {
@@ -176,8 +175,111 @@ body:has(#map-container) main [class*="rounded-2xl"] {
   border-radius: 8px !important;
 }
 
+/*
+ * Marker hierarchy 2.1
+ * Keep the data-driven colors, but make each zoom level visually distinct and
+ * cheaper to paint. The old submarket bubbles behaved like 82px circular cards;
+ * the compact labels below preserve the two metrics while exposing much more map.
+ */
+body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] {
+  width: 70px !important;
+  height: 46px !important;
+  padding: 4px 6px !important;
+  box-sizing: border-box !important;
+  border-radius: 7px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 4px rgba(23, 32, 51, 0.18) !important;
+  backdrop-filter: none !important;
+  overflow: hidden !important;
+  contain: layout paint style;
+  transition: transform 80ms ease-out !important;
+}
+
+body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] > div:first-child {
+  margin-bottom: 2px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.01em !important;
+  text-shadow: none !important;
+}
+
+body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] > div:not(:first-child) {
+  margin-top: 0 !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  line-height: 1.1 !important;
+  color: rgba(255, 255, 255, 0.86) !important;
+  text-shadow: none !important;
+}
+
+body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"]:hover {
+  transform: translateY(-1px) scale(1.025) !important;
+  box-shadow: 0 3px 8px rgba(23, 32, 51, 0.20) !important;
+}
+
+/* Mid-zoom dots: smaller, cleaner and significantly cheaper than shadowed 10px DOM dots. */
+body:has(#map-container) #map-container [data-building-id][style*="width: 10px"] {
+  width: 7px !important;
+  height: 7px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.78) !important;
+  opacity: 0.9 !important;
+  contain: layout paint style;
+  transition: transform 70ms ease-out, opacity 70ms ease-out !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="width: 10px"]:hover {
+  transform: scale(1.45) !important;
+  opacity: 1 !important;
+}
+
+/* Detail markers should read as precise data points rather than mini cards. */
+body:has(#map-container) #map-container [data-building-id][style*="width:26px"] {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 5px !important;
+  border-width: 1px !important;
+  box-shadow: 0 1px 2px rgba(23, 32, 51, 0.22) !important;
+  font-size: 9px !important;
+  contain: layout paint style;
+  transition: transform 70ms ease-out !important;
+}
+
+body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:hover {
+  transform: translateY(-1px) scale(1.08) !important;
+}
+
+/*
+ * Interaction paint budget.
+ * While AMap is zooming/panning or the runtime is switching marker tiers, remove
+ * expensive per-marker effects. They return immediately after the interaction.
+ */
+#map-container.map-is-zooming .amap-marker > *,
+#map-container.map-is-moving .amap-marker > *,
+#map-container.map-marker-switching .amap-marker > * {
+  transition: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+#map-container.map-marker-switching .amap-marker {
+  pointer-events: none !important;
+}
+
+/* InfoWindow remains visually stable while the map performs a safe-area pan. */
+#map-container.map-info-avoiding .amap-info-content {
+  box-shadow: 0 3px 10px rgba(23, 32, 51, 0.13) !important;
+}
+
 @media (max-width: 640px) {
   body:has(#map-container) .amap-info-content {
     padding: 8px 9px !important;
+  }
+
+  body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] {
+    width: 64px !important;
+    height: 44px !important;
   }
 }
