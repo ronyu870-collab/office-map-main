@@ -216,11 +216,17 @@ describe('native high-volume map renderer', () => {
     expect(harness.markerInstances).toHaveLength(3);
     expect(harness.massMarksInstances).toHaveLength(1);
     expect(harness.massMarksInstances[0].data).toHaveLength(4);
-    expect(harness.massMarksInstances[0].options.zooms).toEqual([11.3, 12.99]);
-    expect(harness.labelsLayerInstances).toHaveLength(1);
-    expect(harness.labelsLayerInstances[0].options.collision).toBe(true);
-    expect(harness.labelMarkerInstances).toHaveLength(4);
-    expect(harness.labelMarkerInstances.every(marker => marker.options.zooms[0] === 13)).toBe(true);
+    expect(harness.massMarksInstances[0].options.zooms).toEqual([11.05, 13.35]);
+    expect(harness.labelsLayerInstances).toHaveLength(2);
+    expect(harness.labelsLayerInstances.every(layer => layer.options.collision === true)).toBe(true);
+
+    const detailMarkers = harness.labelMarkerInstances.filter(marker => marker.options.icon);
+    const nameMarkers = harness.labelMarkerInstances.filter(marker => marker.options.text);
+    expect(detailMarkers).toHaveLength(4);
+    expect(nameMarkers).toHaveLength(4);
+    expect(detailMarkers.every(marker => marker.options.zooms[0] === 12.72)).toBe(true);
+    expect(detailMarkers.every(marker => marker.options.icon.size[0] === 34 && marker.options.icon.size[1] === 34)).toBe(true);
+    expect(nameMarkers.every(marker => marker.options.zooms[0] === 14.05)).toBe(true);
 
     cleanup();
   });
@@ -241,17 +247,17 @@ describe('native high-volume map renderer', () => {
     controller.renderMarkers([a, b], 'default', new Map(), undefined);
     await flushFrames();
     expect(harness.massMarksInstances).toHaveLength(1);
-    expect(harness.labelsLayerInstances).toHaveLength(1);
+    expect(harness.labelsLayerInstances).toHaveLength(2);
 
     controller.renderMarkers([a, b], 'default', new Map(), undefined);
     await flushFrames();
     expect(harness.massMarksInstances).toHaveLength(1);
-    expect(harness.labelsLayerInstances).toHaveLength(1);
+    expect(harness.labelsLayerInstances).toHaveLength(2);
 
     controller.renderMarkers([a, b], 'rent', new Map(), undefined);
     await flushFrames();
     expect(harness.massMarksInstances).toHaveLength(2);
-    expect(harness.labelsLayerInstances).toHaveLength(2);
+    expect(harness.labelsLayerInstances).toHaveLength(4);
 
     cleanup();
   });
@@ -270,7 +276,7 @@ describe('native high-volume map renderer', () => {
     await flushFrames();
 
     harness.markerInstances[0].handlers.emit('click');
-    expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.2, [116.46, 39.91], false, 260);
+    expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.46, 39.91], false, 320);
 
     cleanup();
   });
