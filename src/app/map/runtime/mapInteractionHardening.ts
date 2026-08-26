@@ -18,7 +18,7 @@ type MapLike = {
 
 type MarkerMode = 'submarket' | 'dot' | 'building';
 
-type ControllerInternals = MapController & {
+type ControllerInternals = {
   map?: MapLike | null;
   markers?: MarkerLike[];
   dotMarkers?: MarkerLike[];
@@ -84,12 +84,12 @@ function getSafeVerticalBand(container: HTMLElement, infoRect: DOMRect) {
 }
 
 function installInfoWindowAvoidance(map: MapLike, container: HTMLElement): () => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
+  let timer: number | null = null;
   let raf: number | null = null;
   let adjusting = false;
 
   const clearSchedule = () => {
-    if (timer) clearTimeout(timer);
+    if (timer !== null) window.clearTimeout(timer);
     if (raf !== null) cancelAnimationFrame(raf);
     timer = null;
     raf = null;
