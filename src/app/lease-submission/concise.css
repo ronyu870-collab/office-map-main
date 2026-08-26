@@ -1,0 +1,4 @@
+/* Product names and section headings are self-explanatory; keep the form dense. */
+aside[aria-labelledby="lease-entry-title"] section > div.mb-3 > span.ml-auto {
+  display: none !important;
+}
