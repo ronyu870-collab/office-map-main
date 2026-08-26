@@ -29,13 +29,19 @@ type MassMarksLike = {
   clear?: () => void;
   on?: (eventName: string, handler: EventHandler) => void;
   off?: (eventName: string, handler: EventHandler) => void;
+  setOpacity?: (opacity: number) => void;
 };
 
 export type MapLike = {
   add?: (overlays: unknown[] | unknown) => void;
   remove?: (overlays: unknown[] | unknown) => void;
   getZoom?: () => number;
-  setZoomAndCenter?: (zoom: number, center: [number, number], immediately?: boolean, duration?: number) => void;
+  setZoomAndCenter?: (
+    zoom: number,
+    center: [number, number],
+    immediately?: boolean,
+    duration?: number,
+  ) => void;
   on?: (eventName: string, handler: EventHandler) => void;
   off?: (eventName: string, handler: EventHandler) => void;
 };
@@ -46,7 +52,10 @@ type AMapToolkit = {
   Size?: new (width: number, height: number) => unknown;
   LabelsLayer?: new (options: Record<string, unknown>) => LabelsLayerLike;
   LabelMarker?: new (options: Record<string, unknown>) => LabelMarkerLike;
-  MassMarks?: new (data: Array<Record<string, unknown>>, options: Record<string, unknown>) => MassMarksLike;
+  MassMarks?: new (
+    data: Array<Record<string, unknown>>,
+    options: Record<string, unknown>,
+  ) => MassMarksLike;
 };
 
 export type ControllerInternals = {
@@ -110,7 +119,7 @@ const PALETTE = {
   medium: '#967a43',
   high: '#a56142',
   extreme: '#97515a',
-} as const;
+};
 
 function escapeHtml(input: unknown): string {
   return String(input ?? '')
@@ -135,14 +144,19 @@ function smoothStep(start: number, end: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-function latestMetric(building: any, cache: WeakMap<object, any | null>): any | null {
+function latestMetric(
+  building: any,
+  cache: WeakMap<object, any | null>,
+): any | null {
   if (!building || typeof building !== 'object') return null;
   if (cache.has(building)) return cache.get(building) ?? null;
 
   let latest: any | null = null;
   let order = Number.NEGATIVE_INFINITY;
   for (const metric of Array.isArray(building.metrics) ? building.metrics : []) {
-    const nextOrder = (Number(metric?.record_year) || 0) * 10 + (Number(metric?.record_quarter) || 0);
+    const nextOrder =
+      (Number(metric?.record_year) || 0) * 10 +
+      (Number(metric?.record_quarter) || 0);
     if (nextOrder > order) {
       latest = metric;
       order = nextOrder;
@@ -157,8 +171,15 @@ function matchesGroupGrades(grade: string, groupGrades: string[]): boolean {
   const normalized = (grade || '').toUpperCase();
   return groupGrades.some(filterGrade => {
     if (filterGrade === '产业园') return normalized.includes('BP');
-    if (filterGrade === '甲级') return (normalized.includes('A') || normalized.includes('P')) && !normalized.includes('BP');
-    if (filterGrade === '乙级') return normalized.includes('B') && !normalized.includes('BP');
+    if (filterGrade === '甲级') {
+      return (
+        (normalized.includes('A') || normalized.includes('P')) &&
+        !normalized.includes('BP')
+      );
+    }
+    if (filterGrade === '乙级') {
+      return normalized.includes('B') && !normalized.includes('BP');
+    }
     return false;
   });
 }
@@ -167,9 +188,20 @@ function comparisonColor(building: any, groups?: any[]): string | undefined {
   if (!Array.isArray(groups)) return undefined;
   for (let index = groups.length - 1; index >= 0; index -= 1) {
     const group = groups[index];
-    if (group?.submarkets?.length > 0 && building.submarket && !group.submarkets.includes(building.submarket)) continue;
-    if (group?.grades?.length > 0 && !matchesGroupGrades(building.grade, group.grades)) continue;
-    if (group?.districts?.length > 0 && building.district && !group.districts.includes(building.district)) continue;
+    if (
+      group?.submarkets?.length > 0 &&
+      building.submarket &&
+      !group.submarkets.includes(building.submarket)
+    ) continue;
+    if (
+      group?.grades?.length > 0 &&
+      !matchesGroupGrades(building.grade, group.grades)
+    ) continue;
+    if (
+      group?.districts?.length > 0 &&
+      building.district &&
+      !group.districts.includes(building.district)
+    ) continue;
     if (typeof group?.color === 'string' && group.color) return group.color;
   }
   return undefined;
@@ -191,8 +223,13 @@ function vacancyColor(value: number, hasValue = true): string {
   return PALETTE.low;
 }
 
-function buildingVisual(building: any, mode: RenderMode, metric: any | null, groups?: any[]): BuildingVisual {
-  let background = PALETTE.gradeA;
+function buildingVisual(
+  building: any,
+  mode: RenderMode,
+  metric: any | null,
+  groups?: any[],
+): BuildingVisual {
+  let background: string = PALETTE.gradeA;
   let border = '#ffffff';
   let textColor = '#ffffff';
   let text = 'A';
@@ -262,7 +299,12 @@ function buildingVisual(building: any, mode: RenderMode, metric: any | null, gro
   return { background, border, textColor, text, fontSize };
 }
 
-function submarketAccent(mode: RenderMode, rent: number, vacancy: number, leed: number): string {
+function submarketAccent(
+  mode: RenderMode,
+  rent: number,
+  vacancy: number,
+  leed: number,
+): string {
   if (mode === 'default') return PALETTE.brand;
   if (mode === 'rent') return scaleColor(rent, rent > 0);
   if (mode === 'vacancy') return vacancyColor(vacancy, Number.isFinite(vacancy));
@@ -280,9 +322,9 @@ function svgDataUri(svg: string): string {
 function dotImage(background: string, border: string): string {
   return svgDataUri(
     `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12">` +
-      `<circle cx="6" cy="6" r="5.25" fill="#ffffff" fill-opacity="0.92"/>` +
+      '<circle cx="6" cy="6" r="5.25" fill="#ffffff" fill-opacity="0.92"/>' +
       `<circle cx="6" cy="6" r="4.15" fill="${background}" stroke="${border}" stroke-width="0.7"/>` +
-    `</svg>`,
+      '</svg>',
   );
 }
 
@@ -290,12 +332,12 @@ function detailBubbleImage(visual: BuildingVisual): string {
   const safeText = escapeHtml(visual.text);
   return svgDataUri(
     `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">` +
-      `<circle cx="17" cy="17" r="16" fill="#ffffff" fill-opacity="0.96"/>` +
+      '<circle cx="17" cy="17" r="16" fill="#ffffff" fill-opacity="0.96"/>' +
       `<circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/>` +
       `<text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" ` +
-        `font-family="Arial, PingFang SC, Microsoft YaHei, sans-serif" font-size="${visual.fontSize}" ` +
-        `font-weight="800" fill="${visual.textColor}">${safeText}</text>` +
-    `</svg>`,
+      `font-family="Arial, PingFang SC, Microsoft YaHei, sans-serif" font-size="${visual.fontSize}" ` +
+      `font-weight="800" fill="${visual.textColor}">${safeText}</text>` +
+      '</svg>',
   );
 }
 
@@ -334,17 +376,23 @@ function renderSignature(
     }
     feed(`${building?.id ?? ''}:${token}|`);
   }
-
   if (Array.isArray(groups)) {
     for (const group of groups) {
-      feed(`${group?.id ?? ''}:${group?.color ?? ''}:${(group?.submarkets ?? []).join(',')}:${(group?.grades ?? []).join(',')}:${(group?.districts ?? []).join(',')}|`);
+      feed(
+        `${group?.id ?? ''}:${group?.color ?? ''}:` +
+        `${(group?.submarkets ?? []).join(',')}:` +
+        `${(group?.grades ?? []).join(',')}:` +
+        `${(group?.districts ?? []).join(',')}|`,
+      );
     }
   }
-
   return `${buildings.length}:${hash >>> 0}`;
 }
 
-export function installFallbackMarkerHardening(controller: ControllerInternals, container: HTMLElement): () => void {
+export function installFallbackMarkerHardening(
+  controller: ControllerInternals,
+  container: HTMLElement,
+): () => void {
   const map = controller.map;
   if (!map || typeof map.getZoom !== 'function') return () => {};
 
@@ -364,18 +412,24 @@ export function installFallbackMarkerHardening(controller: ControllerInternals, 
     const building = controller.markers ?? [];
     const dots = controller.dotMarkers ?? [];
     const submarkets = controller.submarketMarkers ?? [];
-    if (building.length > 0 && dots.length === 0 && submarkets.length === 0) return 'building';
+    if (building.length > 0 && dots.length === 0 && submarkets.length === 0) {
+      return 'building';
+    }
     return stableMode(map.getZoom?.() ?? 14, active);
   };
 
   const visibility = (mode: MarkerMode, visible: boolean) => {
-    for (const marker of markersFor(mode)) visible ? marker.show?.() : marker.hide?.();
+    for (const marker of markersFor(mode)) {
+      if (visible) marker.show?.();
+      else marker.hide?.();
+    }
   };
 
   const apply = () => {
     frame = null;
     const next = choose();
     if (next === active && mounted.has(next)) return;
+
     container.classList.add('map-marker-switching');
     if (active && active !== next) visibility(active, false);
     if (!mounted.has(next)) {
@@ -385,6 +439,7 @@ export function installFallbackMarkerHardening(controller: ControllerInternals, 
     }
     visibility(next, true);
     if (next !== 'building') controller.infoWindow?.close?.();
+
     controller.currentRenderMode = next;
     active = next;
     container.dataset.markerTier = next;
@@ -405,7 +460,10 @@ export function installFallbackMarkerHardening(controller: ControllerInternals, 
   };
 }
 
-export function installNativeMarkerRenderer(controller: ControllerInternals, container: HTMLElement): (() => void) | null {
+export function installNativeMarkerRenderer(
+  controller: ControllerInternals,
+  container: HTMLElement,
+): (() => void) | null {
   const map = controller.map;
   const AMap = controller.AMap;
   const Marker = AMap?.Marker;
@@ -414,7 +472,9 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
   const LabelsLayer = AMap?.LabelsLayer;
   const LabelMarker = AMap?.LabelMarker;
   const MassMarks = AMap?.MassMarks;
-  if (!map || !Marker || !Pixel || !Size || !LabelsLayer || !LabelMarker || !MassMarks) return null;
+  if (!map || !Marker || !Pixel || !Size || !LabelsLayer || !LabelMarker || !MassMarks) {
+    return null;
+  }
 
   const originalRender = controller.renderMarkers.bind(controller);
   const originalClear = controller.clearMarkers.bind(controller);
@@ -443,16 +503,25 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
   let lastGroups: any[] | undefined;
   let futureSignature = '';
   let frame: number | null = null;
-  let pending: { buildings: any[]; mode: RenderMode; groups?: any[]; signature: string } | null = null;
+  let pending: {
+    buildings: any[];
+    mode: RenderMode;
+    groups?: any[];
+    signature: string;
+  } | null = null;
   let activeTier: MarkerMode | null = null;
 
   const applyLayerOpacity = () => {
     const zoom = map.getZoom?.() ?? 14;
     const submarketOpacity = 1 - smoothStep(11.08, 11.5, zoom);
+    const dotIn = smoothStep(11.08, 11.34, zoom);
+    const dotOut = 1 - smoothStep(12.84, 13.2, zoom);
+    const dotOpacity = clamp(dotIn * dotOut, 0.16, 0.9);
     const detailOpacity = smoothStep(MARKER_ZOOM.detailMin, 13.16, zoom);
     const nameOpacity = smoothStep(MARKER_ZOOM.nameMin, 14.42, zoom);
 
     for (const marker of submarketMarkers) marker.setOpacity?.(submarketOpacity);
+    massMarks?.setOpacity?.(dotOpacity);
     detailLayer?.setOpacity?.(detailOpacity);
     nameLayer?.setOpacity?.(nameOpacity);
   };
@@ -509,7 +578,10 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
       }
 
       item.count += 1;
-      if (isFiniteCoordinate(building?.location_lng) && isFiniteCoordinate(building?.location_lat)) {
+      if (
+        isFiniteCoordinate(building?.location_lng) &&
+        isFiniteCoordinate(building?.location_lat)
+      ) {
         item.lngSum += building.location_lng;
         item.latSum += building.location_lat;
         item.coordCount += 1;
@@ -523,47 +595,64 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
         item.totalArea += area;
         if (Number.isFinite(vacantArea)) item.vacantArea += vacantArea;
       }
-      if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) {
+      if (
+        Number.isFinite(area) &&
+        area > 0 &&
+        Number.isFinite(rent) &&
+        rent > 0
+      ) {
         item.rentWeightAreaSum += area;
         item.rentWeightSum += rent * area;
       }
       const leed = String(building?.leed_certification ?? '').trim().toUpperCase();
-      if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') item.leedCount += 1;
+      if (leed && leed !== 'NULL' && leed !== '无' && leed !== '-') {
+        item.leedCount += 1;
+      }
     }
 
     const result: MarkerLike[] = [];
     for (const item of aggregateMap.values()) {
       if (item.coordCount === 0) continue;
 
-      const center: [number, number] = [item.lngSum / item.coordCount, item.latSum / item.coordCount];
-      const rent = item.rentWeightAreaSum > 0 ? item.rentWeightSum / item.rentWeightAreaSum : 0;
-      const vacancy = item.totalArea > 0 ? (item.vacantArea / item.totalArea) * 100 : 0;
+      const center: [number, number] = [
+        item.lngSum / item.coordCount,
+        item.latSum / item.coordCount,
+      ];
+      const rent =
+        item.rentWeightAreaSum > 0
+          ? item.rentWeightSum / item.rentWeightAreaSum
+          : 0;
+      const vacancy =
+        item.totalArea > 0
+          ? (item.vacantArea / item.totalArea) * 100
+          : Number.NaN;
       const leed = item.count > 0 ? (item.leedCount / item.count) * 100 : 0;
       const accent = submarketAccent(mode, rent, vacancy, leed);
       const size = 78 + Math.min(10, Math.round(Math.sqrt(item.count) * 1.35));
 
       let primary = `¥${rent > 0 ? rent.toFixed(0) : '–'}`;
-      let secondary = `${vacancy.toFixed(1)}%`;
-      let label = '';
+      let secondary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
+      let separator = '<span class="map-submarket-bubble__sep">·</span>';
       if (mode === 'rent') {
         primary = `¥${rent > 0 ? rent.toFixed(1) : '–'}`;
         secondary = '平均租金';
+        separator = '';
       } else if (mode === 'vacancy') {
-        primary = `${vacancy.toFixed(1)}%`;
+        primary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
         secondary = '空置率';
+        separator = '';
       } else if (mode === 'leed') {
         primary = `${leed.toFixed(0)}%`;
         secondary = 'LEED';
-      } else {
-        label = '<span class="map-submarket-bubble__sep">·</span>';
+        separator = '';
       }
 
       const content = `
-        <div class="map-submarket-bubble" data-render-mode="${mode}" title="${escapeHtml(item.name)}"
-          style="--sm-accent:${accent};--sm-size:${size}px">
+        <div class="map-submarket-bubble" data-render-mode="${mode}"
+          title="${escapeHtml(item.name)}" style="--sm-accent:${accent};--sm-size:${size}px">
           <div class="map-submarket-bubble__name">${escapeHtml(item.name)}</div>
           <div class="map-submarket-bubble__metrics">
-            <span class="map-submarket-bubble__primary">${primary}</span>${label}
+            <span class="map-submarket-bubble__primary">${primary}</span>${separator}
             <span class="map-submarket-bubble__secondary">${secondary}</span>
           </div>
         </div>`;
@@ -576,7 +665,9 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
         zIndex: 92,
         topWhenClick: true,
       });
-      marker.on?.('click', () => map.setZoomAndCenter?.(12.15, center, false, 320));
+      marker.on?.('click', () => {
+        map.setZoomAndCenter?.(12.15, center, false, 320);
+      });
       result.push(marker);
     }
 
@@ -584,10 +675,17 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
   };
 
   const openAfterZoom = (building: any) => {
-    if (!building || !isFiniteCoordinate(building.location_lng) || !isFiniteCoordinate(building.location_lat)) return;
-    const center: [number, number] = [building.location_lng, building.location_lat];
-    const currentZoom = map.getZoom?.() ?? 14;
-    if (currentZoom >= 13.55) {
+    if (
+      !building ||
+      !isFiniteCoordinate(building.location_lng) ||
+      !isFiniteCoordinate(building.location_lat)
+    ) return;
+
+    const center: [number, number] = [
+      building.location_lng,
+      building.location_lat,
+    ];
+    if ((map.getZoom?.() ?? 14) >= 13.55) {
       controller.openBuildingInfoWindow?.(building.id);
       return;
     }
@@ -600,7 +698,9 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
       map.off?.('zoomend', finish);
       if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
       if ((map.getZoom?.() ?? 0) >= 13.25) {
-        requestAnimationFrame(() => controller.openBuildingInfoWindow?.(building.id));
+        requestAnimationFrame(() => {
+          controller.openBuildingInfoWindow?.(building.id);
+        });
       }
     };
 
@@ -609,22 +709,41 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     fallbackTimer = window.setTimeout(finish, 700);
   };
 
-  const buildMassMarks = (buildings: any[], mode: RenderMode, groups?: any[]): MassMarksLike | null => {
+  const buildMassMarks = (
+    buildings: any[],
+    mode: RenderMode,
+    groups?: any[],
+  ): MassMarksLike | null => {
     const styles: Array<Record<string, unknown>> = [];
     const styleIndices = new Map<string, number>();
     const data: Array<Record<string, unknown>> = [];
 
     for (const building of buildings) {
-      if (!isFiniteCoordinate(building?.location_lng) || !isFiniteCoordinate(building?.location_lat)) continue;
-      const visual = buildingVisual(building, mode, latestMetric(building, metricCache), groups);
+      if (
+        !isFiniteCoordinate(building?.location_lng) ||
+        !isFiniteCoordinate(building?.location_lat)
+      ) continue;
+
+      const visual = buildingVisual(
+        building,
+        mode,
+        latestMetric(building, metricCache),
+        groups,
+      );
       const key = `${visual.background}|${visual.border}`;
       let style = styleIndices.get(key);
       if (style === undefined) {
         style = styles.length;
         styleIndices.set(key, style);
-        const image = dotImageCache.get(key) ?? dotImage(visual.background, visual.border);
+        const image =
+          dotImageCache.get(key) ?? dotImage(visual.background, visual.border);
         dotImageCache.set(key, image);
-        styles.push({ url: image, size: new Size(12, 12), anchor: new Pixel(6, 6), zIndex: style + 1 });
+        styles.push({
+          url: image,
+          size: new Size(12, 12),
+          anchor: new Pixel(6, 6),
+          zIndex: style + 1,
+        });
       }
       data.push({
         lnglat: [building.location_lng, building.location_lat],
@@ -661,11 +780,13 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
   };
 
   const bindLabelEvents = (label: LabelMarkerLike, building: any) => {
-    label.on?.('mouseover', event => controller.showHoverTooltip?.(
-      building,
-      event?.originEvent?.clientX ?? event?.pixel?.getX?.() ?? 0,
-      event?.originEvent?.clientY ?? event?.pixel?.getY?.() ?? 0,
-    ));
+    label.on?.('mouseover', event => {
+      controller.showHoverTooltip?.(
+        building,
+        event?.originEvent?.clientX ?? event?.pixel?.getX?.() ?? 0,
+        event?.originEvent?.clientY ?? event?.pixel?.getY?.() ?? 0,
+      );
+    });
     label.on?.('mouseout', () => controller.hideHoverTooltip?.());
     label.on?.('click', () => controller.openBuildingInfoWindow?.(building.id));
   };
@@ -698,15 +819,32 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     const nameItems: LabelMarkerLike[] = [];
 
     for (const building of buildings) {
-      if (!isFiniteCoordinate(building?.location_lng) || !isFiniteCoordinate(building?.location_lat)) continue;
+      if (
+        !isFiniteCoordinate(building?.location_lng) ||
+        !isFiniteCoordinate(building?.location_lat)
+      ) continue;
+
       const metric = latestMetric(building, metricCache);
       const visual = buildingVisual(building, mode, metric, groups);
       const area = Number(metric?.total_area);
       const grade = String(building?.grade ?? '').toUpperCase();
-      const gradeRank = grade.includes('A') || grade.includes('P') ? 2000 : grade.includes('BP') ? 1200 : 700;
-      const rank = gradeRank + (Number.isFinite(area) ? Math.min(999, Math.round(area / 1000)) : 0);
-      const imageKey = `${visual.background}|${visual.border}|${visual.textColor}|${visual.text}|${visual.fontSize}`;
-      const image = detailImageCache.get(imageKey) ?? detailBubbleImage(visual);
+      const gradeRank =
+        grade.includes('A') || grade.includes('P')
+          ? 2000
+          : grade.includes('BP')
+            ? 1200
+            : 700;
+      const rank =
+        gradeRank +
+        (Number.isFinite(area)
+          ? Math.min(999, Math.round(area / 1000))
+          : 0);
+
+      const imageKey =
+        `${visual.background}|${visual.border}|${visual.textColor}|` +
+        `${visual.text}|${visual.fontSize}`;
+      const image =
+        detailImageCache.get(imageKey) ?? detailBubbleImage(visual);
       detailImageCache.set(imageKey, image);
 
       const iconLabel = new LabelMarker({
@@ -731,33 +869,32 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
       baseRanks.set(String(building.id), rank);
 
       const buildingName = String(building?.name ?? '').trim();
-      if (buildingName) {
-        const nameLabel = new LabelMarker({
-          name: `${String(building.id ?? '')}:name`,
-          position: [building.location_lng, building.location_lat],
-          zooms: [MARKER_ZOOM.nameMin, 20],
-          opacity: 1,
-          rank: Math.max(1, rank - 1),
-          zIndex: rank,
-          extData: { id: building.id },
-          text: {
-            content: buildingName,
-            direction: 'right',
-            offset: [18, 0],
-            style: {
-              fontSize: 11,
-              fontWeight: '600',
-              fillColor: '#26394d',
-              strokeColor: '#ffffff',
-              strokeWidth: 3,
-              padding: '1, 2',
-              fold: true,
-            },
+      if (!buildingName) continue;
+      const nameLabel = new LabelMarker({
+        name: `${String(building.id ?? '')}:name`,
+        position: [building.location_lng, building.location_lat],
+        zooms: [MARKER_ZOOM.nameMin, 20],
+        opacity: 1,
+        rank: Math.max(1, rank - 1),
+        zIndex: rank,
+        extData: { id: building.id },
+        text: {
+          content: buildingName,
+          direction: 'right',
+          offset: [18, 0],
+          style: {
+            fontSize: 11,
+            fontWeight: '600',
+            fillColor: '#26394d',
+            strokeColor: '#ffffff',
+            strokeWidth: 3,
+            padding: '1, 2',
+            fold: true,
           },
-        });
-        bindLabelEvents(nameLabel, building);
-        nameItems.push(nameLabel);
-      }
+        },
+      });
+      bindLabelEvents(nameLabel, building);
+      nameItems.push(nameLabel);
     }
 
     detail.add?.(detailItems);
@@ -767,14 +904,21 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     return { detail, names };
   };
 
-  const commit = (buildings: any[], mode: RenderMode, groups: any[] | undefined, signature: string) => {
+  const commit = (
+    buildings: any[],
+    mode: RenderMode,
+    groups: any[] | undefined,
+    signature: string,
+  ) => {
     clearNativeLayers();
     originalClear();
     metricCache = new WeakMap<object, any | null>();
 
     submarketMarkers = buildSubmarkets(buildings, mode);
     controller.submarketMarkers = submarketMarkers;
-    if (submarketMarkers.length > 0) map.add?.(submarketMarkers as unknown[]);
+    if (submarketMarkers.length > 0) {
+      map.add?.(submarketMarkers as unknown[]);
+    }
     massMarks = buildMassMarks(buildings, mode, groups);
     const layers = buildLabels(buildings, mode, groups);
     detailLayer = layers.detail;
@@ -794,10 +938,22 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     container.classList.remove('map-marker-rendering');
   };
 
-  controller.renderMarkers = ((input: any[], mode: RenderMode = 'default', _districtStats?: unknown, groups?: any[]) => {
+  controller.renderMarkers = ((
+    input: any[],
+    mode: RenderMode = 'default',
+    _districtStats?: unknown,
+    groups?: any[],
+  ) => {
     const buildings = Array.isArray(input) ? input : [];
-    const signature = renderSignature(buildings, mode, groups, objectTokens, () => tokenCounter++);
+    const signature = renderSignature(
+      buildings,
+      mode,
+      groups,
+      objectTokens,
+      () => tokenCounter++,
+    );
     if (signature === lastSignature || signature === pending?.signature) return;
+
     pending = { buildings, mode, groups, signature };
     container.classList.add('map-marker-rendering');
     if (frame !== null) cancelAnimationFrame(frame);
@@ -805,7 +961,9 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
       frame = null;
       const next = pending;
       pending = null;
-      if (next) commit(next.buildings, next.mode, next.groups, next.signature);
+      if (next) {
+        commit(next.buildings, next.mode, next.groups, next.signature);
+      }
     });
   }) as ControllerInternals['renderMarkers'];
 
@@ -826,7 +984,9 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
   controller.updateVisibilityByZoom = (() => {
     const zoom = map.getZoom?.() ?? 14;
     const next = stableMode(zoom, activeTier);
-    if (next !== 'building' && zoom < MARKER_ZOOM.detailMin) controller.infoWindow?.close?.();
+    if (next !== 'building' && zoom < MARKER_ZOOM.detailMin) {
+      controller.infoWindow?.close?.();
+    }
     activeTier = next;
     controller.currentRenderMode = next;
     container.dataset.markerTier = next;
@@ -852,17 +1012,28 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
   if (originalRefresh) {
     controller.refreshBuildingData = (async (buildingId: string) => {
       await originalRefresh(buildingId);
-      const fresh = new Map((controller._allBuildingsCache ?? []).map(building => [String(building?.id), building]));
-      const next = lastBuildings.map(building => fresh.get(String(building?.id)) ?? building);
+      const fresh = new Map(
+        (controller._allBuildingsCache ?? []).map(building => [
+          String(building?.id),
+          building,
+        ]),
+      );
+      const next = lastBuildings.map(
+        building => fresh.get(String(building?.id)) ?? building,
+      );
       lastSignature = '';
       controller.renderMarkers(next, lastMode, undefined, lastGroups);
     }) as ControllerInternals['refreshBuildingData'];
   }
 
   if (originalFutureRender) {
-    controller.renderFutureMarkers = ((input: any[], mode: RenderMode = 'default') => {
+    controller.renderFutureMarkers = ((
+      input: any[],
+      mode: RenderMode = 'default',
+    ) => {
       const supplies = Array.isArray(input) ? input : [];
-      const signature = `${mode}:${supplies.map(supply => String(supply?.id ?? '')).join('|')}`;
+      const signature =
+        `${mode}:` + supplies.map(supply => String(supply?.id ?? '')).join('|');
       if (signature === futureSignature) return;
       futureSignature = signature;
       originalFutureRender(supplies, mode);
@@ -883,7 +1054,9 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     requestAnimationFrame(() => container.classList.remove('map-is-zooming'));
   };
   const onMoveStart = () => container.classList.add('map-is-moving');
-  const onMoveEnd = () => requestAnimationFrame(() => container.classList.remove('map-is-moving'));
+  const onMoveEnd = () => {
+    requestAnimationFrame(() => container.classList.remove('map-is-moving'));
+  };
 
   map.on?.('zoomstart', onZoomStart);
   map.on?.('zoomchange', onZoomChange);
@@ -899,6 +1072,7 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     map.off?.('zoomend', onZoomEnd);
     map.off?.('movestart', onMoveStart);
     map.off?.('moveend', onMoveEnd);
+
     controller.renderMarkers = originalRender as ControllerInternals['renderMarkers'];
     controller.clearMarkers = originalClear as ControllerInternals['clearMarkers'];
     if (originalUpdate) controller.updateVisibilityByZoom = originalUpdate;
@@ -907,7 +1081,12 @@ export function installNativeMarkerRenderer(controller: ControllerInternals, con
     if (originalRefresh) controller.refreshBuildingData = originalRefresh;
     if (originalFutureRender) controller.renderFutureMarkers = originalFutureRender;
     if (originalFutureClear) controller.clearFutureMarkers = originalFutureClear;
-    container.classList.remove('map-is-zooming', 'map-is-moving', 'map-marker-rendering');
+
+    container.classList.remove(
+      'map-is-zooming',
+      'map-is-moving',
+      'map-marker-rendering',
+    );
     delete container.dataset.markerTier;
   };
 }
