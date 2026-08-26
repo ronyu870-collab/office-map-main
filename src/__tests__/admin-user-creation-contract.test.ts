@@ -31,7 +31,8 @@ describe('admin user creation contract', () => {
 
     expect(manager).toContain('<Field label="手机号 *" field="phone" form={createForm} setForm={setCreateForm} required type="tel" />')
     expect(manager).toContain('<Field label="手机号 *" field="phone" form={editForm} setForm={setEditForm} required type="tel" />')
-    expect(manager).toContain("pattern={isPhone ? '\\\\d{11}' : undefined}")
+    expect(manager).toContain("const isPhone = field === 'phone'")
+    expect(manager).toContain('maxLength={isPhone ? 11 : undefined}')
     expect(createRoute).toContain("!/^\\d{11}$/.test(normalizedPhone)")
     expect(usersRoute).toContain("!/^\\d{11}$/.test(profileUpdate.phone)")
   })
