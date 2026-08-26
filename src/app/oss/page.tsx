@@ -33,16 +33,10 @@ export default function OSSPage() {
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#eef2f6] text-slate-900">
       <header className="shrink-0 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[58px] w-full max-w-[1600px] items-center justify-between gap-3 px-3 py-2 sm:px-5">
+        <div className="mx-auto flex min-h-[54px] w-full max-w-[1600px] items-center justify-between gap-3 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#003e7e] text-white shadow-sm"><Library size={15} /></div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-[13px] font-semibold text-slate-900">研究资料库</h1>
-                <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-medium text-slate-400 sm:inline-flex">内部资料</span>
-              </div>
-              <p className="mt-0.5 truncate text-[10px] text-slate-400">搜索、定位、打开和维护内部研究资料</p>
-            </div>
+            <h1 className="truncate text-[13px] font-semibold text-slate-900">研究资料库</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {userEmail ? <span className="hidden max-w-64 truncate text-[10px] text-slate-400 lg:inline">当前用户：{userEmail}</span> : null}
