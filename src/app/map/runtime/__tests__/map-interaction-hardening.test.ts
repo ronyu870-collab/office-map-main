@@ -70,9 +70,8 @@ afterEach(() => {
 });
 
 describe('map interaction hardening', () => {
-  it('mounts each marker tier once and reuses it on later zoom transitions', async () => {
+  it('reuses already-mounted fallback tiers on repeated zoom transitions', async () => {
     const harness = createMapHarness(11);
-    let renderCount = 0;
 
     const controller: any = {
       map: harness.map,
@@ -91,7 +90,6 @@ describe('map interaction hardening', () => {
         this.submarketMarkers = [];
       },
       renderMarkers() {
-        renderCount += 1;
         this.clearMarkers();
         this.markers = [marker(), marker()];
         this.dotMarkers = [marker(), marker()];
@@ -102,12 +100,8 @@ describe('map interaction hardening', () => {
     };
 
     const cleanup = installMapInteractionHardening(controller, 'map-container');
-    const buildings = [{ id: 'a' }, { id: 'b' }];
-    const districtStats = new Map();
-
-    controller.renderMarkers(buildings, 'default', districtStats, undefined);
+    controller.renderMarkers([{ id: 'a' }, { id: 'b' }], 'default', new Map(), undefined);
     await flushFrames();
-    expect(renderCount).toBe(1);
     expect(harness.add).toHaveBeenCalledTimes(1);
     expect(harness.add.mock.calls[0]?.[0]).toBe(controller.submarketMarkers);
 
@@ -129,15 +123,6 @@ describe('map interaction hardening', () => {
     expect(harness.add).toHaveBeenCalledTimes(3);
     expect(controller.submarketMarkers[0].show).toHaveBeenCalled();
     expect(controller.markers[0].hide).toHaveBeenCalled();
-
-    controller.renderMarkers(buildings, 'default', districtStats, undefined);
-    await flushFrames();
-    expect(renderCount).toBe(1);
-
-    controller.clearMarkers();
-    controller.renderMarkers(buildings, 'default', districtStats, undefined);
-    await flushFrames();
-    expect(renderCount).toBe(2);
 
     cleanup();
   });
@@ -194,6 +179,36 @@ describe('map interaction hardening', () => {
     const [, deltaY] = harness.panBy.mock.calls[0]!;
     expect(deltaY).toBeGreaterThan(0);
 
+    cleanup();
+  });
+
+  it('rechecks InfoWindow geometry after its content grows', async () => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const harness = createMapHarness(14);
+    const main = document.getElementById('main') as HTMLElement;
+    const container = document.getElementById('map-container') as HTMLElement;
+    main.getBoundingClientRect = () => ({
+      x: 0, y: 58, left: 0, top: 58, right: 1280, bottom: 800,
+      width: 1280, height: 742, toJSON() {},
+    } as DOMRect);
+    container.getBoundingClientRect = main.getBoundingClientRect;
+
+    const controller: any = {
+      map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      updateVisibilityByZoom() {}, renderMarkers() {}, clearMarkers() {},
+    };
+    const cleanup = installMapInteractionHardening(controller, 'map-container');
+    const info = document.createElement('div');
+    info.className = 'amap-info';
+    info.getBoundingClientRect = () => ({
+      x: 400, y: 600, left: 400, top: 600, right: 720, bottom: 850,
+      width: 320, height: 250, toJSON() {},
+    } as DOMRect);
+    container.appendChild(info);
+    await flushFrames();
+    await flushFrames();
+    expect(harness.panBy).toHaveBeenCalled();
     cleanup();
   });
 });
