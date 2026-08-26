@@ -83,6 +83,7 @@ describe('map interaction hardening', () => {
       submarketMarkers: [],
       currentRenderMode: null,
       infoWindow: { close: vi.fn() },
+      _zoomListenerBound: false,
       updateVisibilityByZoom() {},
       clearMarkers() {
         harness.remove(this.markers);
@@ -97,6 +98,10 @@ describe('map interaction hardening', () => {
         this.markers = [marker(), marker()];
         this.dotMarkers = [marker(), marker()];
         this.submarketMarkers = [marker()];
+        if (!this._zoomListenerBound) {
+          this.map.on('zoomend', this.updateVisibilityByZoom.bind(this));
+          this._zoomListenerBound = true;
+        }
         this.currentRenderMode = null;
         this.updateVisibilityByZoom();
       },
