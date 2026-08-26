@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import type { MapController } from '@/src/services/MapController';
+import { installMapInteractionHardening } from './mapInteractionHardening';
 
 type MapRuntimeOptions = {
   enabled: boolean;
@@ -279,6 +280,7 @@ export function useMapRuntime({
 
     let cancelled = false;
     let ownedController: MapController | null = null;
+    let hardeningCleanup: (() => void) | null = null;
 
     void (async () => {
       try {
@@ -301,6 +303,12 @@ export function useMapRuntime({
         await repairAndVerifyMapVisuals(controller, containerId, () => cancelled);
         if (cancelled) return;
 
+        // Install the interaction adapter before MapClient performs its first
+        // marker render. This keeps the existing controller behavior intact but
+        // makes zoom-layer switching persistent/lightweight and gives InfoWindow
+        // a real safe area around the workbench chrome.
+        hardeningCleanup = installMapInteractionHardening(controller, containerId);
+
         applyAdminMode(controller);
         setMapReady(true);
         await readyRef.current(controller, () => cancelled);
@@ -316,6 +324,8 @@ export function useMapRuntime({
     return () => {
       cancelled = true;
       setMapReady(false);
+      hardeningCleanup?.();
+      hardeningCleanup = null;
       if (controllerRef.current === ownedController) controllerRef.current = null;
       ownedController?.destroy();
     };
