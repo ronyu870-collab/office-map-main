@@ -4,12 +4,23 @@ import { createClient, type SupabaseClient, type User } from '@supabase/supabase
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const ALLOWED_ROLES = new Set(['admin', 'editor', 'user'])
+const ADMIN_FORM_ROLES = new Set(['admin', 'editor', 'user'])
 const PROFILE_FIELDS = ['chinese_name', 'full_name', 'phone', 'gender', 'title', 'internal_number'] as const
 
 type AdminContext = {
   client: SupabaseClient
   caller: User
+}
+
+function toDatabaseRole(value: unknown) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!ADMIN_FORM_ROLES.has(normalized)) return null
+  return normalized === 'user' ? 'viewer' : normalized
+}
+
+function toAdminRole(value: unknown) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return normalized === 'viewer' ? 'user' : normalized
 }
 
 function createAdminClient() {
@@ -134,6 +145,8 @@ export async function GET(request: NextRequest) {
       const disabled = Boolean(bannedUntil && new Date(bannedUntil).getTime() > Date.now())
       return {
         ...profile,
+        // Admin UI historically calls viewer "user". Keep that presentation alias at the API boundary.
+        role: toAdminRole(profile.role),
         email: authUser?.email ?? profile.email,
         disabled,
         banned_until: bannedUntil,
@@ -161,10 +174,12 @@ export async function PATCH(request: NextRequest) {
     if (!userId) return NextResponse.json({ error: '缺少目标用户' }, { status: 400 })
 
     if (action === 'update_profile') {
-      const role = String(body.role ?? '').trim().toLowerCase()
-      const expectedRole = String(body.expectedRole ?? '').trim().toLowerCase()
+      const requestedRole = String(body.role ?? '').trim().toLowerCase()
+      const expectedRequestedRole = String(body.expectedRole ?? '').trim().toLowerCase()
+      const role = toDatabaseRole(requestedRole)
+      const expectedRole = toDatabaseRole(expectedRequestedRole)
       const email = normalizeText(body.email, 320)
-      if (!ALLOWED_ROLES.has(role)) return NextResponse.json({ error: '无效的用户角色' }, { status: 400 })
+      if (!role) return NextResponse.json({ error: '无效的用户角色' }, { status: 400 })
       if (!expectedRole) return NextResponse.json({ error: '页面数据已过期，请刷新用户列表后再保存' }, { status: 409 })
       if (!email || !email.includes('@')) return NextResponse.json({ error: '邮箱格式不正确' }, { status: 400 })
       if (userId === caller.id && role !== 'admin') {
@@ -194,7 +209,6 @@ export async function PATCH(request: NextRequest) {
         if (authUpdateError) return NextResponse.json({ error: `邮箱修改失败：${authUpdateError.message}` }, { status: 400 })
       }
 
-      // 将打开弹窗时的角色写入更新条件：即使两个请求并发到达，也只允许第一个完成写入。
       const { data: savedProfile, error: profileError } = await client
         .from('user_roles')
         .update(profileUpdate)
@@ -218,12 +232,16 @@ export async function PATCH(request: NextRequest) {
       const changedFields = Object.keys(profileUpdate).filter((key) => oldProfile[key as keyof typeof oldProfile] !== profileUpdate[key])
       await audit(client, caller, 'UPDATE_USER_PROFILE', userId, {
         changed_fields: changedFields,
-        requested_role: role,
-        expected_role: expectedRole,
+        requested_role: requestedRole,
+        expected_role: expectedRequestedRole,
         role_before: currentRole,
         role_after: savedProfile.role,
       })
-      return NextResponse.json({ success: true, message: '用户资料和角色已更新', user: savedProfile })
+      return NextResponse.json({
+        success: true,
+        message: '用户资料和角色已更新',
+        user: { ...savedProfile, role: toAdminRole(savedProfile.role) },
+      })
     }
 
     if (action === 'set_status') {
