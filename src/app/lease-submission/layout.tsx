@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 
+import './concise.css';
 import { getSessionFast } from '@/src/services/Auth';
 import { canAccessModule } from '@/src/utils/accessControl';
 
