@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 
+import './concise.css';
 import { QuarterlyUpdateWorkspace } from './components/QuarterlyUpdateWorkspace';
 
 export default function UpdatePage() {
@@ -13,7 +14,7 @@ export default function UpdatePage() {
         </div>
       }
     >
-      <div className="h-screen overflow-hidden">
+      <div className="quarterly-concise h-screen overflow-hidden">
         <span className="sr-only">季度数据填报</span>
         <QuarterlyUpdateWorkspace />
       </div>

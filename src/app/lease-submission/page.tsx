@@ -52,9 +52,8 @@ function MySubmissionTable({ items, userName, onEdit, onTransfer }: HistoryProps
         )}
       </div>
       {items.length === 0 ? (
-        <div className="px-4 py-14 text-center">
+        <div className="px-4 py-12 text-center">
           <div className="text-xs font-medium text-slate-500">暂无提交记录</div>
-          <div className="mt-1 text-[10px] text-slate-400">新增成交后，记录会在这里显示。</div>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -229,15 +228,12 @@ export default function LeaseSubmissionPage() {
   return (
     <div className="min-h-screen bg-[#eef2f6] text-slate-900">
       <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[58px] max-w-[1500px] flex-wrap items-center gap-3 px-3 py-2 sm:px-5">
+        <div className="mx-auto flex min-h-[54px] max-w-[1500px] flex-wrap items-center gap-3 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#003e7e] text-[10px] font-bold text-white shadow-sm">录</div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="truncate text-[13px] font-semibold text-slate-900">租赁成交填报</h1>
-                <span className={`rounded-full border px-2 py-0.5 text-[9px] font-medium ${complete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>{complete ? '本周已完成' : '本周进行中'}</span>
-              </div>
-              <p className="mt-0.5 truncate text-[10px] text-slate-400">{userName || '用户'} · 成交数据录入与历史记录</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="truncate text-[13px] font-semibold text-slate-900">租赁成交填报</h1>
+              <span className={`rounded-full border px-2 py-0.5 text-[9px] font-medium ${complete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>{complete ? '本周已完成' : '本周进行中'}</span>
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -258,17 +254,14 @@ export default function LeaseSubmissionPage() {
           <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
             <div className="text-[10px] font-medium text-slate-400">我的记录</div>
             <strong className="mt-1 block text-xl tabular-nums text-slate-900">{submissions.length}</strong>
-            <div className="mt-1 text-[9px] text-slate-400">当前账号累计可见记录</div>
           </div>
           <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
             <div className="text-[10px] font-medium text-slate-400">工作区状态</div>
             <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{loading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : <CheckCircle2 size={13} className="text-emerald-600" />}{loading ? '正在刷新数据' : '数据已就绪'}</div>
-            <div className="mt-1 text-[9px] text-slate-400">提交后会自动刷新列表</div>
           </div>
           <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
             <div className="text-[10px] font-medium text-slate-400">最近写入</div>
             <strong className="mt-1.5 block text-xs font-semibold text-slate-700">{lastSubmissionAt ? lastSubmissionAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '本次会话暂无'}</strong>
-            <div className="mt-1 text-[9px] text-slate-400">仅显示当前会话写入时间</div>
           </div>
         </section>
 

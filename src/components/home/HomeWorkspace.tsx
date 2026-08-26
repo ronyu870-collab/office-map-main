@@ -38,7 +38,6 @@ type WorkspaceModule = {
   href: string;
   module: string;
   title: string;
-  description: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -52,7 +51,6 @@ const MAP_WORKSPACE: WorkspaceModule = {
   href: '/map',
   module: 'map',
   title: '北京办公楼市场地图',
-  description: '查询楼宇、租金、空置率、供应及子市场数据。',
   icon: Map,
 };
 
@@ -61,21 +59,18 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     href: '/update',
     module: 'update',
     title: '季度数据填报',
-    description: '维护楼宇租金、空置率及季度数据。',
     icon: ClipboardList,
   },
   {
     href: '/lease-submission',
     module: 'lease-submission',
     title: '租赁成交填报',
-    description: '录入成交信息并完成数据检查。',
     icon: Handshake,
   },
   {
     href: '/oss',
     module: 'oss',
     title: '研究资料库',
-    description: '查找市场报告、研究文件及团队资料。',
     icon: FileSearch,
   },
 ];
@@ -84,7 +79,6 @@ const ADMIN_WORKSPACE: WorkspaceModule = {
   href: '/admin',
   module: 'admin',
   title: '系统管理',
-  description: '管理数据库、用户、审计记录与系统配置。',
   icon: Database,
 };
 
@@ -279,7 +273,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
     <Link
       href={workspace.href}
       onClick={(event) => onActivate(event, workspace)}
-      className={`group flex min-h-[80px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3.5 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}`}
+      className={`group flex min-h-[64px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}`}
       title={canAccess ? undefined : '当前账号无访问权限'}
       {...accessibilityProps}
     >
@@ -287,10 +281,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
         <Icon size={17} strokeWidth={1.55} aria-hidden="true" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-medium text-[var(--cd-color-text-primary)] sm:text-[15px]">{workspace.title}</h3>
-        </div>
-        <p className="mt-0.5 text-[13px] leading-5 text-[var(--cd-color-text-secondary)]">{workspace.description}</p>
+        <h3 className="text-[14px] font-medium text-[var(--cd-color-text-primary)] sm:text-[15px]">{workspace.title}</h3>
       </div>
       {canAccess ? (
         <ArrowRight size={15} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" aria-hidden="true" />
@@ -315,12 +306,12 @@ function HomeLoadingShell() {
       <div className="h-full overflow-hidden">
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
           <section className="min-w-0">
-            <div className="h-[104px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+            <div className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
             <div className="mb-2.5 mt-5">
               <div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
             </div>
             <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
-              {[0, 1, 2].map((item) => <div key={item} className="h-20 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
+              {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
             </div>
           </section>
           <aside className="hidden min-w-0 border-l border-[var(--cd-color-border)] pl-6 lg:block xl:pl-7">
@@ -402,7 +393,7 @@ export function HomeWorkspace() {
             <Link
               href={MAP_WORKSPACE.href}
               onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
-              className="group flex min-h-[104px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+              className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
               {...mapAccessibilityProps}
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
@@ -410,10 +401,8 @@ export function HomeWorkspace() {
               </div>
               <div className="min-w-0 flex-1">
                 <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
-                <p className="mt-1 text-[13px] leading-5 text-[var(--cd-color-text-secondary)] sm:text-sm">{MAP_WORKSPACE.description}</p>
               </div>
-              <div className="hidden shrink-0 items-center gap-1.5 text-[13px] font-medium text-[var(--cd-color-brand)] sm:flex">进入地图<ArrowRight size={15} strokeWidth={1.6} aria-hidden="true" /></div>
-              <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)] sm:hidden" aria-hidden="true" />
+              <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
             </Link>
 
             <div className="mb-2.5 mt-5">

@@ -43,11 +43,12 @@ function AdminPageContent() {
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       <AdminSidebar active={activeSection} onChange={setActiveSection} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--cd-color-canvas)]">
-        <div className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-3 py-2 sm:px-4">
+        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-3 sm:px-4">
           <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 lg:hidden" aria-label="打开管理导航"><Menu size={16} /></button>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#003e7e]">{meta.group}</span><span className="text-zinc-300">/</span><h1 className="truncate text-[13px] font-semibold text-zinc-900">{meta.title}</h1></div>
-            <p className="mt-0.5 hidden truncate text-[10px] text-zinc-500 sm:block">{meta.description}</p>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#003e7e]">{meta.group}</span>
+            <span className="text-zinc-300">/</span>
+            <h1 className="truncate text-[13px] font-semibold text-zinc-900">{meta.title}</h1>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
