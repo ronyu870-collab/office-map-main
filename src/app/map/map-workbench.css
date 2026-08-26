@@ -1,5 +1,41 @@
 /* Map 2.0 presentation layer only. Keep behavioral map/runtime concerns in MapClient/MapController. */
 
+/*
+ * P0 map sizing contract.
+ *
+ * The workbench header is 58px tall. The map host previously relied only on
+ * flex-1 to inherit the remaining viewport height; in production that chain
+ * could collapse and leave #map-container at 1280x0 even though AMap had
+ * already created its canvas, overlays and base layers. Give the map stage an
+ * explicit viewport-derived height so AMap can never initialize into a zero-
+ * height host. Keep the vh fallback for older browsers and prefer dvh where
+ * supported (mobile browser chrome aware).
+ */
+main:has(> #map-container) {
+  position: relative;
+  flex: 0 0 auto !important;
+  width: 100%;
+  height: calc(100vh - 58px) !important;
+  min-height: calc(100vh - 58px) !important;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  main:has(> #map-container) {
+    height: calc(100dvh - 58px) !important;
+    min-height: calc(100dvh - 58px) !important;
+  }
+}
+
+#map-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+}
+
 body:has(#map-container) .amap-info-content {
   padding: 10px 12px !important;
   border: 1px solid #d9e0e8 !important;
