@@ -14,10 +14,10 @@ describe('map marker visual continuity', () => {
     expect(css).toContain('border-radius: 50%');
     expect(css).toContain('--sm-size: 82px');
 
-    expect(renderer).toContain('width="12" height="12"');
+    expect(renderer).toContain('function dotImage');
     expect(renderer).toContain('size: new Size(12, 12)');
+    expect(renderer).toContain('anchor: new Pixel(6, 6)');
     expect(renderer).toContain('function detailBubbleImage');
-    expect(renderer).toContain('width="34" height="34"');
     expect(renderer).toContain("type: 'image'");
     expect(renderer).toContain('size: [34, 34]');
 
@@ -54,6 +54,7 @@ describe('map marker visual continuity', () => {
     expect(renderer).toContain('const openAfterZoom = (building: any) =>');
     expect(renderer).toContain("map.on?.('zoomend', finish)");
     expect(renderer).toContain("map.off?.('zoomend', finish)");
-    expect(renderer).toContain('fallbackTimer = window.setTimeout(finish, 700)');
+    expect(renderer).toContain('window.setTimeout(finish, 700)');
+    expect(renderer).toContain('window.clearTimeout(fallbackTimer)');
   });
 });
