@@ -51,6 +51,9 @@ describe('Concise product copy', () => {
     const settings = source('src/app/settings/page.tsx');
     const leasePage = source('src/app/lease-submission/page.tsx');
     const teamMonitor = source('src/app/lease-submission/components/TeamSubmissionMonitor.tsx');
+    const leaseConcise = source('src/app/lease-submission/concise.css');
+    const quarterlyPage = source('src/app/update/page.tsx');
+    const quarterlyConcise = source('src/app/update/concise.css');
 
     expect(research).not.toContain('搜索、定位、打开和维护内部研究资料');
     expect(research).not.toContain('>内部资料<');
@@ -66,6 +69,11 @@ describe('Concise product copy', () => {
       expect(leasePage).not.toContain(copy);
     }
     expect(teamMonitor).not.toContain('点击姓名可查看成交明细');
+
+    expect(leaseConcise).toContain('aside[aria-labelledby="lease-entry-title"]');
+    expect(leaseConcise).toContain('display: none !important');
+    expect(quarterlyPage).toContain('quarterly-concise');
+    expect(quarterlyConcise).toContain('display: none !important');
   });
 
   it('preserves operational guidance that protects user input', () => {
