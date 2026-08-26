@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
+import { APP_ROLES } from '@/src/types/auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const ALLOWED_ROLES = new Set(['admin', 'editor', 'user'])
+const ALLOWED_ROLES = new Set<string>(APP_ROLES)
 const PROFILE_FIELDS = ['chinese_name', 'full_name', 'phone', 'gender', 'title', 'internal_number'] as const
 
 type AdminContext = {
@@ -194,7 +195,6 @@ export async function PATCH(request: NextRequest) {
         if (authUpdateError) return NextResponse.json({ error: `邮箱修改失败：${authUpdateError.message}` }, { status: 400 })
       }
 
-      // 将打开弹窗时的角色写入更新条件：即使两个请求并发到达，也只允许第一个完成写入。
       const { data: savedProfile, error: profileError } = await client
         .from('user_roles')
         .update(profileUpdate)
