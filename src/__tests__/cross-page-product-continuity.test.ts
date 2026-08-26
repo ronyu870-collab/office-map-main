@@ -42,11 +42,11 @@ describe('Cross-page product continuity', () => {
     expect(page).toContain('href="/"');
   });
 
-  it('presents Research as a library rather than an OSS console', () => {
+  it('presents Research as a concise library rather than an OSS console', () => {
     const page = source('src/app/oss/page.tsx');
     const manager = source('src/components/OSSManager.tsx');
     expect(page).toContain('研究资料库');
-    expect(page).toContain('搜索、定位、打开和维护内部研究资料');
+    expect(page).not.toContain('搜索、定位、打开和维护内部研究资料');
     expect(manager).toContain('研究资料库');
     expect(manager).not.toContain('>Research Library</button>');
     expect(manager).not.toContain('>Upload status</span>');
