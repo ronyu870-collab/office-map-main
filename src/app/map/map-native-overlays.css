@@ -1,0 +1,140 @@
+/* Native map overlay system.
+ *
+ * The low-zoom submarket layer is intentionally the only DOM-heavy marker tier.
+ * Mid/high zoom tiers are rendered by AMap MassMarks / LabelsLayer, so this file
+ * focuses on the small amount of HTML that remains and on overlay coordination.
+ */
+
+body:has(#map-container) .map-submarket-card {
+  --sm-accent: #003e7e;
+  display: grid;
+  min-width: 68px;
+  max-width: 96px;
+  min-height: 42px;
+  box-sizing: border-box;
+  grid-template-rows: auto auto;
+  gap: 3px;
+  padding: 5px 7px 5px;
+  overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid rgba(203, 213, 225, 0.94);
+  border-top: 2px solid var(--sm-accent);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #172033;
+  box-shadow: 0 1px 4px rgba(23, 32, 51, 0.14);
+  contain: layout paint style;
+  transform: translateZ(0);
+  transition:
+    transform 90ms ease-out,
+    border-color 90ms ease-out,
+    box-shadow 90ms ease-out;
+}
+
+body:has(#map-container) .map-submarket-card:hover {
+  transform: translateY(-1px) translateZ(0);
+  border-color: color-mix(in srgb, var(--sm-accent) 32%, #cbd5e1);
+  box-shadow: 0 3px 9px rgba(23, 32, 51, 0.16);
+}
+
+body:has(#map-container) .map-submarket-card__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: #172033;
+}
+
+body:has(#map-container) .map-submarket-card__metrics {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: #7b8797;
+  font-variant-numeric: tabular-nums;
+}
+
+body:has(#map-container) .map-submarket-card__primary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sm-accent);
+  font-weight: 700;
+}
+
+body:has(#map-container) .map-submarket-card__sep {
+  color: #c0c8d2;
+}
+
+/* Keep all AMap overlay surfaces aligned to the same low-chrome enterprise UI. */
+body:has(#map-container) .amap-info {
+  z-index: 430 !important;
+}
+
+body:has(#map-container) .amap-info-content {
+  border: 1px solid #d9e0e8 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  box-shadow: 0 5px 18px rgba(23, 32, 51, 0.13) !important;
+}
+
+body:has(#map-container) .amap-info-sharp {
+  filter: drop-shadow(0 1px 1px rgba(23, 32, 51, 0.08));
+}
+
+/* During continuous map motion, prioritize the basemap frame budget over chrome. */
+#map-container.map-is-zooming .map-submarket-card,
+#map-container.map-is-moving .map-submarket-card,
+#map-container.map-marker-rendering .map-submarket-card {
+  transition: none !important;
+  box-shadow: none !important;
+}
+
+#map-container.map-is-zooming .amap-info-content,
+#map-container.map-is-moving .amap-info-content,
+#map-container.map-info-avoiding .amap-info-content {
+  transition: none !important;
+}
+
+/* Suppress hover work during the gesture itself; interactions resume on settle. */
+#map-container.map-is-zooming .map-submarket-card,
+#map-container.map-is-moving .map-submarket-card {
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  body:has(#map-container) .map-submarket-card {
+    min-width: 62px;
+    max-width: 82px;
+    min-height: 39px;
+    padding: 4px 6px;
+  }
+
+  body:has(#map-container) .map-submarket-card__name {
+    font-size: 10px;
+  }
+
+  body:has(#map-container) .map-submarket-card__metrics {
+    font-size: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body:has(#map-container) .map-submarket-card,
+  body:has(#map-container) .amap-info-content {
+    transition: none !important;
+  }
+}
