@@ -234,10 +234,7 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <Users className="text-[#003e7e]" size={17} />
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">团队周度提交情况</h3>
-                <p className="mt-0.5 text-[10px] text-slate-400">每人每周目标 2 条，点击姓名可查看成交明细</p>
-              </div>
+              <h3 className="text-sm font-semibold text-slate-900">团队周度提交情况</h3>
             </div>
             <div className="flex items-center gap-4 text-[11px]">
               <div className="flex items-center gap-1.5">
