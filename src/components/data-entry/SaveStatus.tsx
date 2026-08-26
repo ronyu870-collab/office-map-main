@@ -14,13 +14,13 @@ interface SaveStatusProps {
 }
 
 const stateMeta: Record<SaveState, { label: string; tone: string }> = {
-  idle: { label: 'Ready', tone: 'text-zinc-500' },
-  unsaved: { label: 'Unsaved changes', tone: 'text-amber-700' },
-  saving: { label: 'Saving…', tone: 'text-[#003e7e]' },
-  saved: { label: 'Saved', tone: 'text-emerald-700' },
-  error: { label: 'Save failed', tone: 'text-rose-700' },
-  submitting: { label: 'Submitting…', tone: 'text-[#003e7e]' },
-  submitted: { label: 'Submitted', tone: 'text-emerald-700' },
+  idle: { label: '就绪', tone: 'text-zinc-500' },
+  unsaved: { label: '有未保存修改', tone: 'text-amber-700' },
+  saving: { label: '正在保存…', tone: 'text-[#003e7e]' },
+  saved: { label: '已保存', tone: 'text-emerald-700' },
+  error: { label: '保存失败', tone: 'text-rose-700' },
+  submitting: { label: '正在提交…', tone: 'text-[#003e7e]' },
+  submitted: { label: '已提交', tone: 'text-emerald-700' },
 };
 
 function formatSavedAt(value: Date | string | null | undefined) {
@@ -60,7 +60,7 @@ export function SaveStatus({ state, message, savedAt, onRetry, className = '' }:
           onClick={onRetry}
           className="ml-1 font-semibold text-rose-700 underline underline-offset-2 hover:text-rose-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
         >
-          Retry
+          重试
         </button>
       )}
     </div>
