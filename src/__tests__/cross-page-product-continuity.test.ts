@@ -24,7 +24,7 @@ describe('Cross-page product continuity', () => {
     expect(view).toContain('href="/"');
   });
 
-  it('uses Chinese product and status language in Quarterly Update', () => {
+  it('uses the canonical product and workflow language in Quarterly Update', () => {
     const page = source('src/app/update/components/QuarterlyUpdateWorkspace.tsx');
     expect(page).toContain('季度数据填报');
     for (const oldLabel of ['QUARTERLY UPDATE', 'Cloud draft enabled', 'Save draft', 'Submit current group', 'Retry submit']) {
@@ -33,7 +33,7 @@ describe('Cross-page product continuity', () => {
     expect(page).toContain('href="/"');
   });
 
-  it('uses Chinese product and workflow language in Lease Submission', () => {
+  it('uses the canonical product and workflow language in Lease Submission', () => {
     const page = source('src/app/lease-submission/page.tsx');
     expect(page).toContain('租赁成交填报');
     for (const oldLabel of ['LEASE SUBMISSION', 'Data Entry Workspace', 'Weekly target', 'My submissions', 'New transaction', 'Transfer record']) {
@@ -45,8 +45,8 @@ describe('Cross-page product continuity', () => {
   it('presents Research as a library rather than an OSS console', () => {
     const page = source('src/app/oss/page.tsx');
     const manager = source('src/components/OSSManager.tsx');
-    expect(page).toContain('title="研究资料库"');
-    expect(page).toContain('eyebrow="资料检索"');
+    expect(page).toContain('研究资料库');
+    expect(page).toContain('搜索、定位、打开和维护内部研究资料');
     expect(manager).toContain('研究资料库');
     expect(manager).not.toContain('>Research Library</button>');
     expect(manager).not.toContain('>Upload status</span>');
