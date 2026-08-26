@@ -149,18 +149,19 @@ function building(id: string, submarket: string, lng: number, lat: number, rent:
   };
 }
 
-function flushFrames() {
-  return new Promise<void>(resolve => window.setTimeout(resolve, 0));
+async function flushFrames(count = 3) {
+  for (let index = 0; index < count; index += 1) {
+    await new Promise<void>(resolve => window.setTimeout(resolve, 4));
+  }
 }
 
 beforeEach(() => {
-  let frame = 0;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-    callback(0);
-    frame += 1;
-    return frame;
+    return window.setTimeout(() => callback(performance.now()), 1) as unknown as number;
   });
-  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    window.clearTimeout(id);
+  });
   document.body.innerHTML = `
     <div id="shell">
       <header></header>
@@ -212,7 +213,6 @@ describe('native high-volume map renderer', () => {
     await flushFrames();
 
     expect(originalRender).not.toHaveBeenCalled();
-    // 3 submarkets => only 3 ordinary DOM markers, not 4 buildings x multiple tiers.
     expect(harness.markerInstances).toHaveLength(3);
     expect(harness.massMarksInstances).toHaveLength(1);
     expect(harness.massMarksInstances[0].data).toHaveLength(4);
