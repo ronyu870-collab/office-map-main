@@ -39,6 +39,12 @@ describe('Home workspace presentation contract', () => {
     expect(home).toContain('>常用工作<');
     expect(home).toContain('>团队动态<');
     expect(home).toContain('aria-label="用户菜单"');
+
+    // Product names are sufficient navigation labels. Do not restore one-line
+    // explanations that merely repeat what each workspace already says it is.
+    expect(home).not.toContain('description: string');
+    expect(home).not.toContain('MAP_WORKSPACE.description');
+    expect(home).not.toContain('workspace.description');
   });
 
   it('keeps the established route, access, audit, and impersonation seams without dead launch flags', () => {
