@@ -19,6 +19,22 @@ export type MapRuntimeHandle = {
   mapReady: boolean;
 };
 
+function assertMapInstanceCreated(controller: MapController) {
+  const getMapInstance = (controller as MapController & { getMapInstance?: () => unknown }).getMapInstance;
+  if (typeof getMapInstance !== 'function') return;
+  if (getMapInstance.call(controller)) return;
+
+  const missingConfig: string[] = [];
+  if (!process.env.NEXT_PUBLIC_AMAP_KEY?.trim()) missingConfig.push('NEXT_PUBLIC_AMAP_KEY');
+  if (!process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE?.trim()) missingConfig.push('NEXT_PUBLIC_AMAP_SECURITY_CODE');
+
+  const hint = missingConfig.length > 0
+    ? `Vercel Production 环境缺少 ${missingConfig.join('、')}`
+    : '请检查高德 Key、Security Code 以及 Web 端域名白名单';
+
+  throw new Error(`高德地图初始化失败：未创建地图实例。${hint}`);
+}
+
 export function useMapRuntime({
   enabled,
   containerId,
@@ -76,6 +92,12 @@ export function useMapRuntime({
 
         await controller.initMap(containerId);
         if (cancelled) return;
+
+        // MapController historically swallowed AMap loader errors. Verify that a
+        // real map instance exists before exposing the runtime as ready so a bad
+        // key/security-code/domain configuration becomes an actionable UI error
+        // instead of a silent blank map.
+        assertMapInstanceCreated(controller);
 
         applyAdminMode(controller);
         setMapReady(true);
