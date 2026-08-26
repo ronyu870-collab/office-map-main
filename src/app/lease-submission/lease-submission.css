@@ -1,0 +1,80 @@
+.lease-submission-shell {
+  min-height: 100dvh;
+  background: #f3f5f7;
+  color: #18181b;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.lease-submission-shell ::selection {
+  background: rgba(0, 62, 126, 0.14);
+}
+
+.lease-submission-shell :where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid rgba(0, 62, 126, 0.28);
+  outline-offset: 2px;
+}
+
+.lease-submission-shell :where(input:not([type='checkbox']):not([type='radio']), textarea, select) {
+  border-radius: 6px;
+}
+
+.lease-submission-shell :where(table) {
+  font-variant-numeric: tabular-nums;
+}
+
+.lease-submission-shell :where(th) {
+  letter-spacing: 0.02em;
+}
+
+.lease-submission-shell .rounded-2xl {
+  border-radius: 8px;
+}
+
+.lease-submission-shell :where(.shadow-2xl) {
+  box-shadow: 0 18px 48px rgba(23, 32, 51, 0.16);
+}
+
+.lease-submission-shell :where(.shadow-xl) {
+  box-shadow: 0 14px 36px rgba(23, 32, 51, 0.14);
+}
+
+.lease-submission-shell :where(.shadow-lg) {
+  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.12);
+}
+
+.lease-submission-shell :where(.shadow-sm) {
+  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.07);
+}
+
+.lease-submission-shell * {
+  scrollbar-width: thin;
+  scrollbar-color: #c7ced8 transparent;
+}
+
+.lease-submission-shell *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.lease-submission-shell *::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #c7ced8;
+  background-clip: padding-box;
+}
+
+.lease-submission-shell *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lease-submission-shell *,
+  .lease-submission-shell *::before,
+  .lease-submission-shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
