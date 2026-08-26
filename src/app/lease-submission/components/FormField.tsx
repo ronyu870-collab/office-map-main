@@ -20,12 +20,12 @@ interface FormFieldProps {
 }
 
 export function FormField({ name, label, type, placeholder, options, register, control, error, required = false, disabled = false }: FormFieldProps) {
-  const inputClass = `min-h-9 w-full rounded-md border px-2.5 py-2 text-xs outline-none transition-[border-color,box-shadow,background-color] focus:border-[#003e7e] focus:ring-1 focus:ring-[#003e7e]/20 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400 ${error ? 'border-rose-400 bg-rose-50/40 text-rose-900 placeholder:text-rose-300' : 'border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400'}`;
+  const inputClass = `min-h-9 w-full rounded-md border px-2.5 py-2 text-xs outline-none transition-[border-color,box-shadow,background-color] focus:border-[#003e7e] focus:ring-1 focus:ring-[#003e7e]/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 ${error ? 'border-rose-400 bg-rose-50/40 text-rose-900 placeholder:text-rose-300' : 'border-slate-300 bg-white text-slate-900 hover:border-slate-400'}`;
   const registered = type === 'number' ? register(name, { valueAsNumber: true }) : register(name);
 
   return (
     <div>
-      <label htmlFor={name} className={`mb-1 block text-[11px] font-medium ${error ? 'text-rose-700' : 'text-zinc-600'}`}>
+      <label htmlFor={name} className={`mb-1 block text-[11px] font-medium ${error ? 'text-rose-700' : 'text-slate-600'}`}>
         {label}{required && <span className="ml-0.5 text-rose-600">*</span>}
       </label>
       {type === 'select' && control && (
