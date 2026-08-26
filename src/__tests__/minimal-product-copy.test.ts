@@ -46,16 +46,32 @@ describe('Concise product copy', () => {
     }
   });
 
-  it('removes decorative explanations while preserving operational guidance', () => {
+  it('removes decorative explanations from secondary workspaces', () => {
     const research = source('src/app/oss/page.tsx');
     const settings = source('src/app/settings/page.tsx');
-    const lease = source('src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx');
+    const leasePage = source('src/app/lease-submission/page.tsx');
+    const teamMonitor = source('src/app/lease-submission/components/TeamSubmissionMonitor.tsx');
 
     expect(research).not.toContain('搜索、定位、打开和维护内部研究资料');
     expect(research).not.toContain('>内部资料<');
     expect(settings).not.toContain('Supabase Auth 强哈希加密');
 
-    // Prevent the simplification pass from deleting text that protects user input.
+    for (const copy of [
+      '成交数据录入与历史记录',
+      '新增成交后，记录会在这里显示。',
+      '当前账号累计可见记录',
+      '提交后会自动刷新列表',
+      '仅显示当前会话写入时间',
+    ]) {
+      expect(leasePage).not.toContain(copy);
+    }
+    expect(teamMonitor).not.toContain('点击姓名可查看成交明细');
+  });
+
+  it('preserves operational guidance that protects user input', () => {
+    const settings = source('src/app/settings/page.tsx');
+    const lease = source('src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx');
+
     expect(settings).toContain('密码长度不能少于 10 位');
     expect(settings).toContain('首次登录需先修改临时密码');
     expect(lease).toContain('带 * 的字段为必填项');
