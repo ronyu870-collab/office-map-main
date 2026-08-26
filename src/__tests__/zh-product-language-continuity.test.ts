@@ -8,9 +8,10 @@ function source(path: string) {
 describe('Product language continuity', () => {
   it('keeps the broker lease form free from the legacy English workspace shown in production', () => {
     const page = source('src/app/lease-submission/page.tsx');
+    const wrapper = source('src/app/lease-submission/components/LeaseTransactionForm.tsx');
     const form = source('src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx');
     const saveStatus = source('src/components/data-entry/SaveStatus.tsx');
-    const combined = `${page}\n${form}\n${saveStatus}`;
+    const combined = `${page}\n${wrapper}\n${form}\n${saveStatus}`;
 
     const legacyVisibleCopy = [
       'LEASE SUBMISSION',
@@ -58,6 +59,19 @@ describe('Product language continuity', () => {
     }
 
     expect(saveStatus).toContain("idle: { label: '就绪'");
+  });
+
+  it('keeps the current broker form wired to the verified submit path', () => {
+    const page = source('src/app/lease-submission/page.tsx');
+    const wrapper = source('src/app/lease-submission/components/LeaseTransactionForm.tsx');
+    const form = source('src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx');
+
+    expect(page).toContain("import { LeaseTransactionForm } from './components/LeaseTransactionForm'");
+    expect(wrapper).toContain("export { LeaseTransactionForm } from './LeaseTransactionWorkspaceForm';");
+    expect(form).toContain('onSubmit={handleSubmit(submitValidated, invalidSubmit)}');
+    expect(form).toContain('transaction_quarter: data.transaction_quarter');
+    expect(form).toContain('await submitTransaction(payload)');
+    expect(form).toContain('await updateTransaction(initialData.id, payload, userId)');
   });
 
   it('preserves Q1-Q4 as the professional quarter notation', () => {
