@@ -43,16 +43,19 @@ function marker() {
   return { show: vi.fn(), hide: vi.fn() };
 }
 
-function flushFrames() {
-  return new Promise<void>(resolve => window.setTimeout(resolve, 0));
+async function flushFrames(count = 3) {
+  for (let index = 0; index < count; index += 1) {
+    await new Promise<void>(resolve => window.setTimeout(resolve, 4));
+  }
 }
 
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-    callback(0);
-    return 1;
+    return window.setTimeout(() => callback(performance.now()), 1) as unknown as number;
   });
-  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+    window.clearTimeout(id);
+  });
   document.body.innerHTML = `
     <div id="shell">
       <header id="header"></header>
@@ -172,8 +175,7 @@ describe('map interaction hardening', () => {
     } as DOMRect);
     container.appendChild(info);
 
-    await flushFrames();
-    await flushFrames();
+    await flushFrames(5);
 
     expect(harness.panBy).toHaveBeenCalled();
     const [, deltaY] = harness.panBy.mock.calls[0]!;
@@ -206,8 +208,7 @@ describe('map interaction hardening', () => {
       width: 320, height: 250, toJSON() {},
     } as DOMRect);
     container.appendChild(info);
-    await flushFrames();
-    await flushFrames();
+    await flushFrames(5);
     expect(harness.panBy).toHaveBeenCalled();
     cleanup();
   });
