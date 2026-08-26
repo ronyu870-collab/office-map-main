@@ -19,20 +19,71 @@ export type MapRuntimeHandle = {
   mapReady: boolean;
 };
 
-function assertMapInstanceCreated(controller: MapController) {
-  const getMapInstance = (controller as MapController & { getMapInstance?: () => unknown }).getMapInstance;
-  if (typeof getMapInstance !== 'function') return;
-  if (getMapInstance.call(controller)) return;
+type AMapInstanceLike = {
+  on?: (eventName: string, handler: () => void) => void;
+  off?: (eventName: string, handler: () => void) => void;
+};
 
+function getControllerMap(controller: MapController): AMapInstanceLike | null {
+  const getMapInstance = (controller as MapController & { getMapInstance?: () => unknown }).getMapInstance;
+  if (typeof getMapInstance !== 'function') return null;
+  return (getMapInstance.call(controller) as AMapInstanceLike | null) ?? null;
+}
+
+function buildAmapConfigHint(): string {
   const missingConfig: string[] = [];
   if (!process.env.NEXT_PUBLIC_AMAP_KEY?.trim()) missingConfig.push('NEXT_PUBLIC_AMAP_KEY');
   if (!process.env.NEXT_PUBLIC_AMAP_SECURITY_CODE?.trim()) missingConfig.push('NEXT_PUBLIC_AMAP_SECURITY_CODE');
 
-  const hint = missingConfig.length > 0
-    ? `Vercel Production 环境缺少 ${missingConfig.join('、')}`
-    : '请检查高德 Key、Security Code 以及 Web 端域名白名单';
+  if (missingConfig.length > 0) {
+    return `Vercel Production 环境缺少 ${missingConfig.join('、')}`;
+  }
 
-  throw new Error(`高德地图初始化失败：未创建地图实例。${hint}`);
+  return '请检查：① Key 是否为 Web 端（JS API）；② NEXT_PUBLIC_AMAP_KEY 与 NEXT_PUBLIC_AMAP_SECURITY_CODE 是否来自同一个 Key；③ 高德控制台域名白名单是否包含当前生产域名';
+}
+
+function assertMapInstanceCreated(controller: MapController) {
+  if (getControllerMap(controller)) return;
+  throw new Error(`高德地图初始化失败：未创建地图实例。${buildAmapConfigHint()}`);
+}
+
+async function waitForInitialMapTiles(
+  controller: MapController,
+  isCancelled: () => boolean,
+  timeoutMs = 15000,
+): Promise<void> {
+  const map = getControllerMap(controller);
+  if (!map?.on) return;
+
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      map.off?.('complete', handleComplete);
+    };
+
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+
+    const handleComplete = () => {
+      settle(() => resolve());
+    };
+
+    map.on('complete', handleComplete);
+    timer = setTimeout(() => {
+      if (isCancelled()) {
+        settle(() => resolve());
+        return;
+      }
+      settle(() => reject(new Error(`高德地图图块加载超时。${buildAmapConfigHint()}`)));
+    }, timeoutMs);
+  });
 }
 
 export function useMapRuntime({
@@ -93,11 +144,14 @@ export function useMapRuntime({
         await controller.initMap(containerId);
         if (cancelled) return;
 
-        // MapController historically swallowed AMap loader errors. Verify that a
-        // real map instance exists before exposing the runtime as ready so a bad
-        // key/security-code/domain configuration becomes an actionable UI error
-        // instead of a silent blank map.
+        // AMap can create a Map object even when tile authentication later fails.
+        // Require both an instance and the official `complete` event (initial map
+        // resources loaded) before exposing the runtime as ready. This prevents
+        // the UI/data layer from masking an invalid key/security-code/domain as
+        // a seemingly successful but completely blank map.
         assertMapInstanceCreated(controller);
+        await waitForInitialMapTiles(controller, () => cancelled);
+        if (cancelled) return;
 
         applyAdminMode(controller);
         setMapReady(true);
