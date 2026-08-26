@@ -42,6 +42,7 @@ type TransferPreview = {
 
 type OneTimeCredential = {
   email: string
+  phone: string
   password: string
 }
 
@@ -159,12 +160,16 @@ function Field({
   required?: boolean
   type?: string
 }) {
+  const isPhone = field === 'phone'
   return (
     <label className="block text-sm font-medium text-slate-700">
       {label}
       <input
         required={required}
         type={type}
+        inputMode={isPhone ? 'numeric' : undefined}
+        pattern={isPhone ? '\\d{11}' : undefined}
+        maxLength={isPhone ? 11 : undefined}
         value={form[field]}
         onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
         className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -279,11 +284,16 @@ export function UserManager() {
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault()
+    const phone = createForm.phone.trim()
+    if (!/^\d{11}$/.test(phone)) {
+      showNotice('请输入有效的 11 位手机号', false)
+      return
+    }
     setBusy('create')
     try {
-      await createUser(createForm, createPassword)
+      await createUser({ ...createForm, phone }, createPassword)
       setShowCreate(false)
-      setOneTimeCredential({ email: createForm.email.trim(), password: createPassword })
+      setOneTimeCredential({ email: createForm.email.trim(), phone, password: createPassword })
       setCreateForm(EMPTY_FORM)
       setCreatePassword('')
       await fetchUsers()
@@ -297,6 +307,11 @@ export function UserManager() {
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!selected) return
+    const phone = editForm.phone.trim()
+    if (!/^\d{11}$/.test(phone)) {
+      showNotice('请输入有效的 11 位手机号', false)
+      return
+    }
     const { role: requestedRole, ...profileFields } = editForm
     const currentRole = selected.role ?? 'user'
     if (requestedRole !== currentRole) {
@@ -308,17 +323,15 @@ export function UserManager() {
     try {
       await authFetch('/api/admin/users', {
         method: 'PATCH',
-        // 以打开弹窗时看到的角色作为版本标识，避免旧页面覆盖其他管理员的新修改。
         body: JSON.stringify({
           action: 'update_profile',
           userId: selected.user_id,
           expectedRole: selected.role,
           ...profileFields,
-          // 角色值单独传递，确保它与按钮/确认框中展示的 requestedRole 完全一致。
+          phone,
           role: requestedRole,
         }),
       })
-      // 以重新读取到的数据库数据为准，不依赖接口响应格式，避免出现“实际已保存却误报失败”。
       const refreshedUsers = await fetchUsers()
       const savedUser = refreshedUsers.find((row) => row.user_id === selected.user_id)
       if (!savedUser) {
@@ -372,6 +385,7 @@ export function UserManager() {
       await resetUserPassword(selected.user_id, temporaryPassword)
       setOneTimeCredential({
         email: selected.email ?? '',
+        phone: selected.phone ?? '',
         password: temporaryPassword,
       })
     } catch (resetError) {
@@ -536,7 +550,7 @@ export function UserManager() {
               <Field label="中文名" field="chinese_name" form={createForm} setForm={setCreateForm} />
               <Field label="英文名" field="full_name" form={createForm} setForm={setCreateForm} />
               <Field label="邮箱 *" field="email" form={createForm} setForm={setCreateForm} required type="email" />
-              <Field label="电话" field="phone" form={createForm} setForm={setCreateForm} />
+              <Field label="手机号 *" field="phone" form={createForm} setForm={setCreateForm} required type="tel" />
               <Field label="性别" field="gender" form={createForm} setForm={setCreateForm} />
               <Field label="职位" field="title" form={createForm} setForm={setCreateForm} />
               <Field label="分机号" field="internal_number" form={createForm} setForm={setCreateForm} />
@@ -590,7 +604,7 @@ export function UserManager() {
                 <Field label="中文名" field="chinese_name" form={editForm} setForm={setEditForm} />
                 <Field label="英文名" field="full_name" form={editForm} setForm={setEditForm} />
                 <Field label="邮箱 *" field="email" form={editForm} setForm={setEditForm} required type="email" />
-                <Field label="电话" field="phone" form={editForm} setForm={setEditForm} />
+                <Field label="手机号 *" field="phone" form={editForm} setForm={setEditForm} required type="tel" />
                 <Field label="性别" field="gender" form={editForm} setForm={setEditForm} />
                 <Field label="职位" field="title" form={editForm} setForm={setEditForm} />
                 <Field label="分机号" field="internal_number" form={editForm} setForm={setEditForm} />
@@ -685,6 +699,10 @@ export function UserManager() {
                 <div className="mt-1 break-all text-sm text-slate-800">{oneTimeCredential.email || '—'}</div>
               </div>
               <div>
+                <div className="text-xs text-slate-400">手机号</div>
+                <div className="mt-1 text-sm text-slate-800">{oneTimeCredential.phone || '—'}</div>
+              </div>
+              <div>
                 <div className="text-xs text-slate-400">临时密码</div>
                 <div className="mt-1 break-all font-mono text-base font-semibold text-slate-900">{oneTimeCredential.password}</div>
               </div>
@@ -692,7 +710,7 @@ export function UserManager() {
             <div className="mt-5 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => void navigator.clipboard.writeText(`邮箱：${oneTimeCredential.email}\n临时密码：${oneTimeCredential.password}`)}
+                onClick={() => void navigator.clipboard.writeText(`邮箱：${oneTimeCredential.email}\n手机号：${oneTimeCredential.phone}\n临时密码：${oneTimeCredential.password}`)}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
               >
                 复制登录信息
