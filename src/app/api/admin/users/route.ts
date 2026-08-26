@@ -145,7 +145,6 @@ export async function GET(request: NextRequest) {
       const disabled = Boolean(bannedUntil && new Date(bannedUntil).getTime() > Date.now())
       return {
         ...profile,
-        // Admin UI historically calls viewer "user". Keep that presentation alias at the API boundary.
         role: toAdminRole(profile.role),
         email: authUser?.email ?? profile.email,
         disabled,
@@ -199,6 +198,9 @@ export async function PATCH(request: NextRequest) {
 
       const profileUpdate: Record<string, string | null> = { role, email }
       for (const field of PROFILE_FIELDS) profileUpdate[field] = normalizeText(body[field], field === 'phone' ? 50 : 200)
+      if (!profileUpdate.phone || !/^\d{11}$/.test(profileUpdate.phone)) {
+        return NextResponse.json({ error: '手机号必须为 11 位数字' }, { status: 400 })
+      }
 
       const { data: authProfile, error: authProfileError } = await client.auth.admin.getUserById(userId)
       if (authProfileError || !authProfile.user) return NextResponse.json({ error: '找不到对应的登录账号' }, { status: 404 })
