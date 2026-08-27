@@ -41,7 +41,6 @@ export async function GET(req: NextRequest) {
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
-      global: { fetch: timedFetch },
     });
     const accessToken = (req.headers.get('authorization') ?? '')
       .replace(/^Bearer\s+/i, '')
@@ -72,9 +71,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '权限不足，只有编辑者和管理员可查看团队提交' }, { status: 403 });
     }
 
+    // Keep Supabase's standard Auth transport for getUser(token). A forced fetch
+    // signal on that client can interfere with the caller-token validation path.
+    // Only the team-wide service-role reads need the bounded transport below.
+    const timedSupabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: timedFetch },
+    });
+
     const activeUserIdsPromise = (async () => {
       try {
-        const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const { data, error } = await timedSupabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
         if (error) {
           console.warn('[team-submissions] 查询账号状态失败，将隐藏提交人身份:', { message: error.message });
           return null;
@@ -91,7 +98,7 @@ export async function GET(req: NextRequest) {
     })();
 
     const [transactionsResult, activeUserIds] = await Promise.all([
-      supabaseAdmin
+      timedSupabaseAdmin
         .from('lease_transactions')
         .select('*')
         .gte('created_at', '2026-04-23T00:00:00Z')
