@@ -67,8 +67,33 @@ export async function GET(req: NextRequest) {
       console.error('[team-submissions] 查询调用方角色失败:', roleError);
       return NextResponse.json({ error: '权限校验失败' }, { status: 500 });
     }
-    if (!canViewLeaseTeamSubmissions(callerProfile?.role)) {
-      return NextResponse.json({ error: '权限不足，只有编辑者和管理员可查看团队提交' }, { status: 403 });
+
+    const callerRole = String(callerProfile?.role ?? '').trim().toLowerCase();
+    const { data: accessSetting, error: settingError } = await supabaseAdmin
+      .from('system_settings')
+      .select('boolean_value')
+      .eq('key', 'editor_can_view_lease_team_submissions')
+      .maybeSingle();
+    if (settingError) {
+      console.error('[team-submissions] 查询团队成交开关失败:', settingError);
+      return NextResponse.json({ error: '权限设置读取失败' }, { status: 500 });
+    }
+
+    const canAccessTeamSubmissions = callerRole === 'admin'
+      || (callerRole === 'editor' && accessSetting?.boolean_value === true);
+
+    if (req.nextUrl.searchParams.get('access') === '1') {
+      return NextResponse.json(
+        { canViewTeamSubmissions: canAccessTeamSubmissions },
+        { headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+
+    if (!canViewLeaseTeamSubmissions(callerProfile?.role) || !canAccessTeamSubmissions) {
+      return NextResponse.json(
+        { error: '团队成交汇总当前未向编辑用户开放', code: 'LEASE_TEAM_ACCESS_DISABLED' },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } },
+      );
     }
 
     // Keep Supabase's standard Auth transport for getUser(token). A forced fetch
