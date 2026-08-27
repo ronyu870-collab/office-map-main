@@ -21,6 +21,39 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-27 — Lease team visibility and loading resilience
+
+### Area
+Lease Submission / team-submissions API / authorization
+
+### What changed
+
+- Restored the team transaction summary for both `editor` and `admin` roles. Editors can view the complete summary but cannot manage team records; management actions remain admin-only.
+- Kept the server-side role check as the authorization boundary for the service-role API route, so viewers and unknown roles remain denied.
+- Bounded Supabase calls in the team API to 10 seconds and capped the function at 30 seconds. The client also cancels an unresponsive team request after 12 seconds, allowing the page to settle with an actionable error instead of loading indefinitely.
+- Made the supplementary active-account lookup fail closed for identity display: if it is unavailable, transaction data still loads while submitter identities are masked.
+- Added structured timing logs for successful and failed team API requests, without logging access tokens or user data.
+
+### Why
+
+The UI had incorrectly limited the team table to administrators, while the team API was observed timing out at Vercel's 300-second runtime limit. One optional account-status query could block the entire data response.
+
+### Impact
+
+- Editors can now inspect the team-wide transaction table in read-only mode.
+- Admins regain a bounded team-data load path and retain team record management.
+- A transient Supabase/Auth failure now produces a retryable error or masked names rather than a permanently loading page.
+
+### Verification
+
+- Added role-access and timeout regression contracts; full project verification and production deployment confirmation are recorded with the delivery commit.
+- Browser testing was intentionally not run, per delivery instruction.
+
+### Follow-up
+
+- Apply the repository's pending database RLS migration in a separately controlled database change; it is not required for this API-enforced UI fix.
+
+
 ## 2026-08-27 — Global UI detail hardening and product visual consistency
 
 ### Area

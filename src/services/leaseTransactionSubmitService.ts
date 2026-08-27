@@ -600,7 +600,7 @@ export async function getMySubmissions(
 }
 
 /**
- * 获取所有用户的提交历史（仅限 Admin 和 Executive）
+ * 获取团队的提交历史（仅限 Editor 和 Admin）
  * @param userRole 用户角色
  * @returns 所有提交记录列表（仅包含 2026-04-23 之后的数据），按创建时间倒序排列
  * @throws Error 当权限不足或数据库查询失败时
@@ -624,9 +624,22 @@ export async function getAllSubmissions(
       throw new Error("未登录，无法获取团队提交记录");
     }
 
-    const response = await fetch("/api/lease-submission/team-submissions", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12_000);
+    let response: Response;
+    try {
+      response = await fetch("/api/lease-submission/team-submissions", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error("团队成交数据请求超时，请稍后重试");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(body.error || "查询所有提交记录失败");

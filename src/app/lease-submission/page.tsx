@@ -8,7 +8,7 @@ import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-re
 import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
 import { logAction } from '@/src/utils/audit';
-import { isUserAdmin } from '@/src/utils/accessControl';
+import { canViewLeaseTeamSubmissions, isUserAdmin } from '@/src/utils/accessControl';
 import { isDemoMode } from '@/src/config/demoMode';
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
@@ -113,24 +113,27 @@ export default function LeaseSubmissionPage() {
     setProgressError(null);
     setSubmissionsError(null);
     setTeamError(null);
-    const admin = isUserAdmin(role);
+    const canViewTeamSubmissions = canViewLeaseTeamSubmissions(role);
     const requests: Promise<unknown>[] = [
       retryAsync(() => getWeeklyProgress(uid), { attempts: 3, baseDelayMs: 250 }),
       retryAsync(() => getMySubmissions(uid), { attempts: 3, baseDelayMs: 250 }),
     ];
-    if (admin) requests.push(retryAsync(() => getAllSubmissions(role), { attempts: 3, baseDelayMs: 250 }));
-    const results = await Promise.allSettled(requests);
-    const progressResult = results[0];
-    const submissionsResult = results[1];
-    if (progressResult.status === 'fulfilled') setProgress(progressResult.value as WeeklyProgress); else setProgressError(errorMessage(progressResult.reason));
-    if (submissionsResult.status === 'fulfilled') setSubmissions(submissionsResult.value as LeaseTransaction[]); else setSubmissionsError(errorMessage(submissionsResult.reason));
-    if (admin) {
-      const teamResult = results[2];
-      if (teamResult?.status === 'fulfilled') setTeamSubmissions(teamResult.value as LeaseTransaction[]); else if (teamResult?.status === 'rejected') setTeamError(errorMessage(teamResult.reason));
-    } else {
-      setTeamSubmissions([]);
+    if (canViewTeamSubmissions) requests.push(retryAsync(() => getAllSubmissions(role), { attempts: 1 }));
+    try {
+      const results = await Promise.allSettled(requests);
+      const progressResult = results[0];
+      const submissionsResult = results[1];
+      if (progressResult.status === 'fulfilled') setProgress(progressResult.value as WeeklyProgress); else setProgressError(errorMessage(progressResult.reason));
+      if (submissionsResult.status === 'fulfilled') setSubmissions(submissionsResult.value as LeaseTransaction[]); else setSubmissionsError(errorMessage(submissionsResult.reason));
+      if (canViewTeamSubmissions) {
+        const teamResult = results[2];
+        if (teamResult?.status === 'fulfilled') setTeamSubmissions(teamResult.value as LeaseTransaction[]); else if (teamResult?.status === 'rejected') setTeamError(errorMessage(teamResult.reason));
+      } else {
+        setTeamSubmissions([]);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   React.useEffect(() => {
@@ -220,6 +223,7 @@ export default function LeaseSubmissionPage() {
   const submitted = progress?.submittedCount ?? 0;
   const complete = submitted >= target;
   const admin = isUserAdmin(userRole);
+  const canViewTeamSubmissions = canViewLeaseTeamSubmissions(userRole);
 
   return (
     <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
@@ -261,7 +265,7 @@ export default function LeaseSubmissionPage() {
 
         <MySubmissionTable items={submissions} userName={userName} onEdit={openEdit} onTransfer={openTransfer} />
 
-        {admin && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void refreshData(); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500"><RotateCcw size={13} /></button></div> : loading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
+        {canViewTeamSubmissions && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void refreshData(); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500"><RotateCcw size={13} /></button></div> : loading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
       </main>
 
       <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} />
