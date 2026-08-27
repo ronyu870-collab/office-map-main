@@ -608,6 +608,22 @@ export async function getMySubmissions(
  * const submissions = await getAllSubmissions('executive');
  * console.log(`系统共有 ${submissions.length} 条提交记录`);
  */
+export async function getLeaseTeamAccess(): Promise<boolean> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error('未登录，无法读取团队成交权限');
+
+  const response = await fetch('/api/lease-submission/team-submissions?access=1', {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || '读取团队成交权限失败');
+  return body.canViewTeamSubmissions === true;
+}
+
 export async function getAllSubmissions(
   userRole: string,
 ): Promise<LeaseTransaction[]> {
