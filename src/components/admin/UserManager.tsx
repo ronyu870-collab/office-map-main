@@ -6,6 +6,7 @@ import { Plus, Search } from 'lucide-react'
 import { Badge, Button, Dialog, EmptyState, ErrorState, Input, LoadingState } from '@/src/components/ui'
 import { supabase } from '@/src/services/supabaseClient'
 import { getUserRoleLabel } from '@/src/types/auth'
+import { LeaseTeamAccessControl } from '@/src/components/admin/LeaseTeamAccessControl'
 
 type UserRole = 'admin' | 'editor' | 'user'
 
@@ -469,6 +470,8 @@ export function UserManager() {
           <Button type="button" onClick={openCreate}><Plus size={15} />新增用户</Button>
         </div>
       </div>
+
+      <LeaseTeamAccessControl />
 
       {notice && (
         <div role="status" className={`rounded-[var(--cd-radius-md)] border px-3 py-2.5 text-[var(--cd-font-size-sm)] ${notice.success ? 'border-[color:rgb(22_133_91_/_0.15)] bg-[var(--cd-color-success-soft)] text-[var(--cd-color-success)]' : 'border-[color:rgb(201_54_43_/_0.15)] bg-[var(--cd-color-danger-soft)] text-[var(--cd-color-danger)]'}`}>
