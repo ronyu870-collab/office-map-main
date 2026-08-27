@@ -1,4 +1,6 @@
 import type { EditorMode } from '@/src/types/admin-memo';
+import { Check, ClipboardPaste, Eye, Loader2, Pencil, Save } from 'lucide-react';
+import { Button } from '@/src/components/ui';
 
 interface ToolbarProps {
   mode: EditorMode;
@@ -28,28 +30,28 @@ export function Toolbar({
   taskStats,
 }: ToolbarProps) {
   return (
-    <div className="shrink-0 border-b border-zinc-100 bg-white px-6 py-4">
+    <div className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-4 py-3 sm:px-6">
       {/* 主行：标题 + 操作按钮 */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <h2 className="text-base font-semibold tracking-tight text-zinc-900">
+            <h2 className="text-[var(--cd-font-size-lg)] font-semibold text-[var(--cd-color-text-primary)]">
               管理员备忘录
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="mt-0.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
               支持 Markdown 格式，自动保存
             </p>
           </div>
 
           {/* 待办事项统计 */}
           {taskStats && taskStats.total > 0 && (
-            <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-xs">
-              <span className="font-medium text-blue-700">
+            <div className="flex items-center gap-2 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] px-3 py-1.5 text-[var(--cd-font-size-sm)]">
+              <span className="font-medium text-[var(--cd-color-brand)]">
                 待办: {taskStats.completed}/{taskStats.total}
               </span>
-              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-blue-200">
+              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--cd-color-border)]">
                 <div
-                  className="h-full bg-blue-600 transition-all duration-300"
+                  className="h-full bg-[var(--cd-color-brand)] transition-all duration-300"
                   style={{
                     width: `${Math.round((taskStats.completed / taskStats.total) * 100)}%`,
                   }}
@@ -61,42 +63,39 @@ export function Toolbar({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* 模式切换按钮 */}
-          <div className="flex rounded-lg border border-zinc-200 bg-zinc-50 p-1">
+          <div className="flex rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] p-0.5">
             <button
               onClick={() => onModeChange('edit')}
               aria-pressed={mode === 'edit'}
-              className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-3 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
                 mode === 'edit'
-                  ? 'bg-white text-zinc-900 shadow-sm'
-                  : 'text-zinc-500 hover:text-zinc-900'
+                  ? 'bg-[var(--cd-color-surface)] text-[var(--cd-color-brand)] shadow-[var(--cd-shadow-sm)]'
+                  : 'text-[var(--cd-color-text-secondary)] hover:text-[var(--cd-color-text-primary)]'
               }`}
             >
-              ✏️ 编辑
+              <Pencil size={14} aria-hidden="true" />编辑
             </button>
             <button
               onClick={() => onModeChange('preview')}
               aria-pressed={mode === 'preview'}
-              className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-3 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
                 mode === 'preview'
-                  ? 'bg-white text-zinc-900 shadow-sm'
-                  : 'text-zinc-500 hover:text-zinc-900'
+                  ? 'bg-[var(--cd-color-surface)] text-[var(--cd-color-brand)] shadow-[var(--cd-shadow-sm)]'
+                  : 'text-[var(--cd-color-text-secondary)] hover:text-[var(--cd-color-text-primary)]'
               }`}
             >
-              👁 预览
+              <Eye size={14} aria-hidden="true" />预览
             </button>
           </div>
 
           {/* 插入模板按钮 */}
-          <button
-            onClick={onInsertTemplate}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50"
-          >
-            📋 插入模板
-          </button>
+          <Button variant="secondary" size="sm" onClick={onInsertTemplate}>
+            <ClipboardPaste size={14} aria-hidden="true" />插入模板
+          </Button>
 
           {/* 最后修改信息（中等屏幕以上显示） */}
           {lastModified && (
-            <div className="hidden text-right text-xs text-zinc-400 sm:block">
+            <div className="hidden text-right text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-muted)] sm:block">
               <div>最后修改于</div>
               <div className="mt-0.5">
                 {new Date(lastModified.time).toLocaleString('zh-CN', {
@@ -107,25 +106,22 @@ export function Toolbar({
                   minute: '2-digit',
                 })}
               </div>
-              <div className="mt-0.5 truncate max-w-[120px]">BY {lastModified.by}</div>
+              <div className="mt-0.5 max-w-[160px] truncate">修改人：{lastModified.by}</div>
             </div>
           )}
 
           {/* 保存按钮 */}
-          <button
-            onClick={onSave}
-            disabled={saving}
-            className="rounded-lg bg-[#003e7e] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#002a5c] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? '保存中...' : '保存'}
-          </button>
+          <Button onClick={onSave} disabled={saving} size="sm">
+            {saving ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
+            {saving ? '保存中…' : '保存'}
+          </Button>
         </div>
       </div>
 
       {/* 成功提示 */}
       {showSuccess && (
-        <div className="mt-3 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-700">
-          ✓ 保存成功
+        <div className="mt-3 flex items-center gap-2 rounded-[var(--cd-radius-md)] border border-[color-mix(in_srgb,var(--cd-color-success)_24%,transparent)] bg-[var(--cd-color-success-soft)] px-3 py-2 text-[var(--cd-font-size-sm)] text-[var(--cd-color-success)]" role="status">
+          <Check size={14} aria-hidden="true" />保存成功
         </div>
       )}
     </div>

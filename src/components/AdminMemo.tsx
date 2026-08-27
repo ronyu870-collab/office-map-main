@@ -14,6 +14,7 @@ import { MarkdownEditor } from './admin-memo/MarkdownEditor';
 import { MarkdownPreview } from './admin-memo/MarkdownPreview';
 import { ConflictDialog } from './admin-memo/ConflictDialog';
 import { StatusIndicator } from './admin-memo/StatusIndicator';
+import { Button, ErrorState, LoadingState } from '@/src/components/ui';
 
 import { useAutoSave } from '@/src/hooks/useAutoSave';
 import { useConflictDetection } from '@/src/hooks/useConflictDetection';
@@ -307,14 +308,7 @@ export function AdminMemo({ adminEmail }: AdminMemoProps) {
 
   // 加载状态
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-          <span className="text-sm text-zinc-500">加载中...</span>
-        </div>
-      </div>
-    );
+    return <LoadingState rows={0} label="正在加载管理员备忘录" className="py-20" />;
   }
 
   // 加载错误状态
@@ -326,27 +320,11 @@ export function AdminMemo({ adminEmail }: AdminMemoProps) {
       loadError.includes('forbidden');
 
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-            <span className="text-2xl">{isPermissionError ? '🔒' : '⚠️'}</span>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-zinc-900">
-              {isPermissionError ? '权限不足' : '加载失败'}
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              {isPermissionError ? '请检查登录状态后重试' : loadError}
-            </p>
-          </div>
-          <button
-            onClick={loadMemo}
-            className="rounded-lg bg-[#003e7e] px-4 py-2 text-sm font-medium text-white hover:bg-[#002a5c]"
-          >
-            重试
-          </button>
-        </div>
-      </div>
+      <ErrorState
+        title={isPermissionError ? '权限不足' : '管理员备忘录加载失败'}
+        description={isPermissionError ? '请检查登录状态后重试。' : loadError}
+        action={<Button onClick={loadMemo}>重试</Button>}
+      />
     );
   }
 
@@ -368,7 +346,7 @@ export function AdminMemo({ adminEmail }: AdminMemoProps) {
 
       {/* 离线/错误状态栏 */}
       {(isOffline || autoSaveError) && (
-        <div className="shrink-0 border-b border-zinc-100 bg-white px-6 py-2">
+        <div className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-6 py-2">
           <StatusIndicator
             isSaving={isAutoSaving}
             lastSaved={lastSaved}
@@ -379,7 +357,7 @@ export function AdminMemo({ adminEmail }: AdminMemoProps) {
       )}
 
       {/* 编辑/预览区域 */}
-      <div className="flex-1 overflow-hidden bg-zinc-50 p-6">
+      <div className="flex-1 overflow-hidden bg-[var(--cd-color-surface-alt)] p-6">
         {mode === 'edit' ? (
           <MarkdownEditor
             value={content}

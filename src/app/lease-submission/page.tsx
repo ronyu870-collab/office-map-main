@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw, X } from 'lucide-react';
+import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
@@ -16,6 +16,7 @@ import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage
 import { LeaseTransactionForm } from './components/LeaseTransactionForm';
 import { SubmissionDetailTable } from './components/SubmissionDetailTable';
 import type { LeaseTransaction, WeeklyProgress } from '@/src/types/lease-transaction';
+import { AppHeader, Badge, Button, Dialog, LoadingState } from '@/src/components/ui';
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
@@ -211,12 +212,7 @@ export default function LeaseSubmissionPage() {
 
   if (!ready) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#eef2f6] p-4">
-        <div className="rounded-lg border border-[#d9e0e8] bg-white px-5 py-4 text-center shadow-[0_2px_8px_rgba(23,32,51,0.06)]">
-          <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-[#003e7e]" />
-          <div className="mt-2 text-[11px] font-medium text-slate-500">正在进入租赁成交填报…</div>
-        </div>
-      </div>
+      <div className="flex h-screen items-center justify-center bg-[var(--cd-color-workspace)] p-4"><LoadingState label="正在进入租赁成交填报" rows={0} /></div>
     );
   }
 
@@ -226,40 +222,36 @@ export default function LeaseSubmissionPage() {
   const admin = isUserAdmin(userRole);
 
   return (
-    <div className="min-h-screen bg-[#eef2f6] text-slate-900">
-      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-[#f8fafc]/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[54px] max-w-[1500px] flex-wrap items-center gap-3 px-3 py-2 sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#003e7e] text-[10px] font-bold text-white shadow-sm">录</div>
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-[13px] font-semibold text-slate-900">租赁成交填报</h1>
-              <span className={`rounded-full border px-2 py-0.5 text-[9px] font-medium ${complete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>{complete ? '本周已完成' : '本周进行中'}</span>
-            </div>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            {(admin || isDemoMode(userEmail)) && <Link href="/lease-submission/monitoring" className="hidden h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-medium text-slate-600 transition hover:border-[#003e7e]/25 hover:text-[#003e7e] sm:inline-flex">团队监控</Link>}
-            <Link href="/" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[10px] font-medium text-slate-600 transition hover:border-[#003e7e]/25 hover:text-[#003e7e]"><ArrowLeft size={12} /> 主页</Link>
-            <button type="button" onClick={openCreate} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white transition hover:bg-[#003566]"><Plus size={13} /> 新增成交</button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
+      <header className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <AppHeader
+          title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{complete ? '本周已完成' : '本周进行中'}</Badge></span>}
+          homeHref="/"
+          actions={(
+            <>
+              {(admin || isDemoMode(userEmail)) && <Link href="/lease-submission/monitoring" className="hidden h-8 items-center rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] sm:inline-flex">团队监控</Link>}
+              <Button type="button" size="sm" onClick={openCreate}><Plus size={13} />新增成交</Button>
+            </>
+          )}
+        />
       </header>
 
       <main className="mx-auto max-w-[1500px] space-y-3 p-3 sm:p-5">
-        <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4" aria-label="租赁成交填报状态">
-          <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
+        <section className="flex flex-wrap items-stretch overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]" aria-label="租赁成交填报状态">
+          <div className="min-w-[150px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">本周目标</div>
             <div className="mt-1 flex items-baseline gap-1"><strong className={`text-xl tabular-nums ${complete ? 'text-emerald-700' : 'text-[#003e7e]'}`}>{submitted}</strong><span className="text-xs text-slate-400">/ {target} 条</span></div>
-            <div className="mt-1 text-[9px] text-slate-400">{complete ? '本周目标已完成' : `还需 ${Math.max(0, target - submitted)} 条`}</div>
+            <div className="mt-1 text-[10px] text-slate-400">{complete ? '本周目标已完成' : `还需 ${Math.max(0, target - submitted)} 条`}</div>
           </div>
-          <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
+          <div className="min-w-[150px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">我的记录</div>
             <strong className="mt-1 block text-xl tabular-nums text-slate-900">{submissions.length}</strong>
           </div>
-          <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
+          <div className="min-w-[170px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">工作区状态</div>
             <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{loading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : <CheckCircle2 size={13} className="text-emerald-600" />}{loading ? '正在刷新数据' : '数据已就绪'}</div>
           </div>
-          <div className="rounded-lg border border-[#d9e0e8] bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
+          <div className="min-w-[150px] flex-1 px-3.5 py-3">
             <div className="text-[10px] font-medium text-slate-400">最近写入</div>
             <strong className="mt-1.5 block text-xs font-semibold text-slate-700">{lastSubmissionAt ? lastSubmissionAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '本次会话暂无'}</strong>
           </div>
@@ -275,24 +267,25 @@ export default function LeaseSubmissionPage() {
       <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} />
 
       {transferringRecord && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/40 p-3" onClick={() => setTransferringRecord(null)}>
-          <div className="w-full max-w-md overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="transfer-title" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <div>
-                <h2 id="transfer-title" className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Gift size={15} className="text-emerald-600" /> 转交成交记录</h2>
-                <p className="mt-0.5 text-[10px] text-slate-400">记录归属将转移给所选团队成员</p>
-              </div>
-              <button type="button" onClick={() => setTransferringRecord(null)} className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100"><X size={16} /></button>
-            </div>
-            <div className="p-4">
+        <Dialog
+          open
+          onOpenChange={(open) => { if (!open && !transferring) setTransferringRecord(null) }}
+          title={<span className="flex items-center gap-2"><Gift size={15} className="text-[var(--cd-color-success)]" />转交成交记录</span>}
+          description="记录归属将转移给所选团队成员。"
+          size="sm"
+          dismissible={!transferring}
+          footer={(
+            <>
+              <Button variant="secondary" onClick={() => setTransferringRecord(null)} disabled={transferring}>取消</Button>
+              <Button onClick={() => { void confirmTransfer(); }} disabled={!selectedBrokerId || transferring}>{transferring && <RotateCcw size={12} className="animate-spin" />}{transferring ? '转交中…' : '确认转交'}</Button>
+            </>
+          )}
+        >
               <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] text-slate-600"><div className="font-semibold text-slate-900">{transferringRecord.company || '-'}</div><div className="mt-1 flex items-center gap-1"><Building2 size={11} /> {transferringRecord.new_building || '-'} · {transferringRecord.area_sqm?.toLocaleString('zh-CN') || '-'} ㎡</div></div>
               {transferError && <div className="mb-3"><ValidationMessage severity="error">{transferError}</ValidationMessage></div>}
               <label htmlFor="transfer-target" className="mb-1 block text-[11px] font-medium text-slate-600">选择接收人</label>
               <select id="transfer-target" value={selectedBrokerId} onChange={(event) => setSelectedBrokerId(event.target.value)} className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[#003e7e]"><option value="">请选择…</option>{brokers.map((broker) => <option key={broker.user_id} value={broker.user_id}>{broker.name}</option>)}</select>
-              <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setTransferringRecord(null)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">取消</button><button type="button" onClick={() => { void confirmTransfer(); }} disabled={!selectedBrokerId || transferring} className="inline-flex items-center gap-1.5 rounded-md bg-[#003e7e] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{transferring && <RotateCcw size={12} className="animate-spin" />}{transferring ? '转交中…' : '确认转交'}</button></div>
-            </div>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

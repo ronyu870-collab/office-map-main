@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Menu } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
 import { AdminSidebar, ADMIN_SECTION_META, type AdminSection } from "@/src/components/admin/AdminSidebar";
 import { PageErrorBoundary } from "@/src/components/ErrorBoundary/PageErrorBoundary";
 import { getSession } from "@/src/services/Auth";
+import { IconButton, LoadingState } from "@/src/components/ui";
 
 function AdminSectionLoading() {
-  return <div className="flex min-h-0 flex-1 items-center justify-center" role="status" aria-label="正在加载管理栏目"><div className="h-7 w-7 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" /></div>;
+  return <div className="flex min-h-0 flex-1 items-center justify-center px-6"><LoadingState label="正在加载管理栏目" rows={0} /></div>;
 }
 
 const DatabaseManager = dynamic(() => import("@/src/components/admin/DatabaseManager").then(module => module.DatabaseManager), { loading: AdminSectionLoading });
@@ -26,10 +28,13 @@ const ImpersonationPanel = dynamic(() => import("@/src/components/admin/Imperson
 const DataDebugPanel = dynamic(() => import("@/src/components/admin/DataDebugPanel").then(module => module.DataDebugPanel), { loading: AdminSectionLoading });
 
 function AdminPageContent() {
-  const [activeSection, setActiveSection] = useState<AdminSection>('database');
+  const searchParams = useSearchParams();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
-  const meta = ADMIN_SECTION_META[activeSection];
+  const requestedSection = searchParams.get('section');
+  const activeSection: AdminSection = requestedSection && requestedSection in ADMIN_SECTION_META && requestedSection !== 'display-overrides'
+    ? requestedSection as AdminSection
+    : 'database';
 
   useEffect(() => {
     let cancelled = false;
@@ -41,15 +46,10 @@ function AdminPageContent() {
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
-      <AdminSidebar active={activeSection} onChange={setActiveSection} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
+      <AdminSidebar active={activeSection} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--cd-color-canvas)]">
-        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-3 sm:px-4">
-          <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-md border border-zinc-200 p-1.5 text-zinc-600 hover:bg-zinc-50 lg:hidden" aria-label="打开管理导航"><Menu size={16} /></button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#003e7e]">{meta.group}</span>
-            <span className="text-zinc-300">/</span>
-            <h1 className="truncate text-[13px] font-semibold text-zinc-900">{meta.title}</h1>
-          </div>
+        <div className="flex h-10 shrink-0 items-center border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 lg:hidden">
+          <IconButton label="打开管理导航" variant="ghost" size="sm" onClick={() => setMobileNavOpen(true)}><Menu size={16} /></IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
           {activeSection === 'database' && <DatabaseManager />}
@@ -71,5 +71,5 @@ function AdminPageContent() {
 }
 
 export default function AdminPage() {
-  return <PageErrorBoundary pageName="系统管理后台"><AdminPageContent /></PageErrorBoundary>;
+  return <PageErrorBoundary pageName="系统管理后台"><Suspense fallback={<AdminSectionLoading />}><AdminPageContent /></Suspense></PageErrorBoundary>;
 }

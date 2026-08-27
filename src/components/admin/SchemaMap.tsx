@@ -495,7 +495,7 @@ const GROUPS: GroupDoc[] = [
         ],
         fields: [
           { name: 'user_id', label: '用户ID', type: 'UUID', desc: '关联auth.users.id(主键)', who: '系统自动' },
-          { name: 'role', label: '角色', type: '文本', desc: 'admin=管理员/user=普通用户', who: '管理员' },
+          { name: 'role', label: '角色', type: '文本', desc: 'admin=管理员 / editor=编辑用户 / user=查看用户', who: '管理员' },
           { name: 'created_at', label: '创建时间', type: '时间戳', desc: '创建时间', who: '系统自动' },
           { name: 'phone', label: '手机号', type: '文本', desc: '手机号', who: '管理员' },
           { name: 'seq_no', label: '序号', type: '整数', desc: '排序序号', who: '管理员' },

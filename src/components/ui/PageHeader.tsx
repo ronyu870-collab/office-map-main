@@ -18,14 +18,14 @@ export function PageHeader({
   className = "",
 }: PageHeaderProps) {
   return (
-    <header className={`flex min-w-0 flex-col gap-3 border-b border-[var(--cd-color-border)] pb-4 sm:flex-row sm:items-end sm:justify-between ${className}`}>
+    <header className={`flex min-w-0 flex-col gap-3 border-b border-[var(--cd-color-border)] pb-3 sm:flex-row sm:items-end sm:justify-between ${className}`}>
       <div className="min-w-0">
         {eyebrow ? (
-          <div className="mb-1 text-[var(--cd-font-size-xs)] font-semibold uppercase tracking-[0.08em] text-[var(--cd-color-brand)]">
+          <div className="mb-1 text-[var(--cd-font-size-xs)] font-medium text-[var(--cd-color-brand)]">
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="truncate text-[var(--cd-font-size-2xl)] font-semibold leading-[var(--cd-line-height-tight)] text-[var(--cd-color-text-primary)]">
+        <h1 className="truncate text-[var(--cd-font-size-xl)] font-semibold leading-[var(--cd-line-height-tight)] text-[var(--cd-color-text-primary)]">
           {title}
         </h1>
         {description ? (

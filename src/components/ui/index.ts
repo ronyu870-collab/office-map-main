@@ -1,5 +1,8 @@
+export { AppHeader } from "./AppHeader";
 export { Badge } from "./Badge";
 export { Button } from "./Button";
+export { Dialog } from "./Dialog";
+export { IconButton } from "./IconButton";
 export { Input } from "./Input";
 export { PageHeader } from "./PageHeader";
 export { Panel } from "./Panel";

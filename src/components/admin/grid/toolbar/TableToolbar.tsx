@@ -1,6 +1,7 @@
 'use client'
 import React from 'react'
 import type { TableConfig } from '../../types'
+import { Badge, Button, Input } from '@/src/components/ui'
 
 interface TableToolbarProps {
   config: TableConfig
@@ -42,24 +43,24 @@ export function TableToolbar({
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <input
+        <Input
           type="text"
-          placeholder="搜索..."
+          placeholder="搜索"
           value={search}
           onChange={e => onSearchChange(e.target.value)}
-          className="w-56 pl-9 pr-3 py-2 text-sm border border-zinc-200 rounded-lg outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all"
+          className="w-56 pl-9"
         />
       </div>
 
       {/* 记录计数 */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-zinc-100 rounded-lg">
+      <Badge className="gap-1.5">
         <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <span className="text-xs font-medium text-zinc-600">
           {filteredRows === totalRows ? `${totalRows} 条` : `${filteredRows} / ${totalRows} 条`}
         </span>
-      </div>
+      </Badge>
 
       {/* 显示未启用楼宇 */}
       {config.showInactiveFilter && (
@@ -92,13 +93,13 @@ export function TableToolbar({
 
       {/* 视图模式切换 */}
       {config.viewMode?.enabled && (
-        <div className="flex items-center gap-1 bg-zinc-100 rounded-lg p-0.5">
+        <div className="flex items-center gap-1 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] p-0.5">
           {config.viewMode.views.map(v => (
             <button
               key={v.key}
               className={`px-3 py-1.5 text-xs rounded-md transition-all ${
                 viewMode === v.key
-                  ? 'bg-white text-[#003e7e] shadow-sm font-medium'
+                  ? 'border border-[var(--cd-color-border)] bg-white text-[var(--cd-color-brand)] font-medium'
                   : 'text-zinc-500 hover:text-zinc-700'
               }`}
               onClick={() => onViewModeChange(v.key)}
@@ -215,15 +216,15 @@ export function TableToolbar({
         <div className="w-px h-6 bg-zinc-200 mx-1" />
 
         {!config.hideAdd && (
-          <button
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-[#003e7e] text-white hover:bg-[#002d5e] transition-all active:scale-[0.97]"
+          <Button
+            size="sm"
             onClick={onAdd}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             新增
-          </button>
+          </Button>
         )}
       </div>
     </div>

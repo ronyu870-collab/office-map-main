@@ -17,6 +17,7 @@ import { useBuildings } from '@/src/hooks/useBuildings';
 import { logAction } from '@/src/utils/audit';
 import { supabase } from '@/src/services/supabaseClient';
 import type { DuplicateCheckResult, LeaseTransaction } from '@/src/types/lease-transaction';
+import { Button, Dialog } from '@/src/components/ui';
 
 interface LeaseTransactionFormProps {
   isOpen: boolean;
@@ -31,17 +32,15 @@ interface LeaseTransactionFormProps {
 interface SectionProps {
   index: string;
   title: string;
-  description?: string;
   children: React.ReactNode;
 }
 
-function Section({ index, title, description, children }: SectionProps) {
+function Section({ index, title, children }: SectionProps) {
   return (
-    <section className="border-b border-slate-200/80 bg-white px-4 py-4 sm:px-5">
+    <section className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-4 py-4 sm:px-5">
       <div className="mb-3 flex items-baseline gap-2">
-        <span className="text-[10px] font-bold tabular-nums text-[#003e7e]">{index}</span>
-        <h3 className="text-xs font-semibold text-slate-800">{title}</h3>
-        {description && <span className="ml-auto hidden text-[10px] text-slate-400 sm:inline">{description}</span>}
+        <span className="text-[var(--cd-font-size-xs)] font-semibold tabular-nums text-[var(--cd-color-brand)]">{index}</span>
+        <h3 className="text-[var(--cd-font-size-sm)] font-semibold text-[var(--cd-color-text-primary)]">{title}</h3>
       </div>
       {children}
     </section>
@@ -55,31 +54,22 @@ interface DuplicateDialogProps {
 }
 
 function DuplicateDialog({ duplicates, onCancel, onConfirm }: DuplicateDialogProps) {
-  React.useEffect(() => {
-    const handler = (event: KeyboardEvent) => { if (event.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onCancel]);
-
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/45 p-3" onClick={onCancel}>
-      <div className="w-full max-w-2xl overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="duplicate-title" onClick={(event) => event.stopPropagation()}>
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h3 id="duplicate-title" className="flex items-center gap-2 text-sm font-semibold text-slate-900"><AlertTriangle size={16} className="text-amber-600" /> 发现疑似重复记录</h3>
-          <p className="mt-1 text-[11px] text-slate-500">沿用现有规则：不同顾问可以提交相似记录，只要确认并非同一笔交易即可继续。</p>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(open) => { if (!open) onCancel(); }}
+      title={<span className="flex items-center gap-2"><AlertTriangle size={16} className="text-amber-600" />发现疑似重复记录</span>}
+      description="沿用现有规则：不同顾问可以提交相似记录，只要确认并非同一笔交易即可继续。"
+      size="lg"
+      footer={<><Button variant="secondary" onClick={onCancel}>返回检查</Button><Button onClick={onConfirm}>确认不是同一笔并提交</Button></>}
+    >
         <div className="max-h-[45vh] overflow-auto">
           <table className="w-full min-w-[620px] text-[11px]">
-            <thead className="sticky top-0 bg-slate-50 text-slate-500"><tr>{['提交人','企业','楼宇','面积','季度','提交时间'].map((label) => <th key={label} className="border-b border-slate-200 px-3 py-2 text-left font-semibold">{label}</th>)}</tr></thead>
-            <tbody>{duplicates.map((item, index) => <tr key={item.id ?? index} className="border-b border-slate-100"><td className="px-3 py-2 font-medium text-[#003e7e]">{item.submitter_name || '-'}</td><td className="px-3 py-2">{item.company || '-'}</td><td className="px-3 py-2">{item.new_building || '-'}</td><td className="px-3 py-2 tabular-nums">{item.area_sqm?.toLocaleString('zh-CN') || '-'}</td><td className="px-3 py-2">{item.transaction_quarter || '-'}</td><td className="px-3 py-2 text-slate-400">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td></tr>)}</tbody>
+            <thead className="sticky top-0 bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)]"><tr>{['提交人','企业','楼宇','面积','季度','提交时间'].map((label) => <th key={label} className="border-b border-[var(--cd-color-border)] px-3 py-2 text-left font-semibold">{label}</th>)}</tr></thead>
+            <tbody>{duplicates.map((item, index) => <tr key={item.id ?? index} className="border-b border-[var(--cd-color-border)]"><td className="px-3 py-2 font-medium text-[var(--cd-color-brand)]">{item.submitter_name || '-'}</td><td className="px-3 py-2">{item.company || '-'}</td><td className="px-3 py-2">{item.new_building || '-'}</td><td className="px-3 py-2 tabular-nums">{item.area_sqm?.toLocaleString('zh-CN') || '-'}</td><td className="px-3 py-2">{item.transaction_quarter || '-'}</td><td className="px-3 py-2 text-[var(--cd-color-text-muted)]">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td></tr>)}</tbody>
           </table>
         </div>
-        <DataEntryToolbar>
-          <button type="button" onClick={onCancel} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">返回检查</button>
-          <button type="button" onClick={onConfirm} className="rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white">确认不是同一笔并提交</button>
-        </DataEntryToolbar>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -156,6 +146,20 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const subIndustryOptions = selectedIndustry ? industryMap[selectedIndustry] ?? [] : [];
   const errorCount = Object.keys(errors).length;
   const dirtyCount = Object.keys(dirtyFields).length;
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !showDuplicate && !isSubmitting) onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isSubmitting, onClose, showDuplicate]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -475,7 +479,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         <aside className="fixed inset-y-0 right-0 z-[95] flex w-full max-w-xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" aria-label="租赁成交填报结果">
           <div className="flex items-center justify-between border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
             <div><div className="text-[10px] font-medium text-[#003e7e]">租赁成交填报</div><h2 className="mt-0.5 text-sm font-semibold text-slate-900">提交成功</h2></div>
-            <button type="button" onClick={onClose} className="rounded-md p-2 text-slate-400 transition hover:bg-slate-100" aria-label="返回工作区"><X size={17} /></button>
+            <button type="button" onClick={onClose} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)]" aria-label="返回记录列表"><X size={17} /></button>
           </div>
           <div className="flex flex-1 items-center justify-center p-4">
             <div className="w-full max-w-md rounded-lg border border-emerald-200 bg-white p-5 shadow-[0_2px_8px_rgba(23,32,51,0.05)]">
@@ -487,10 +491,10 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
                 <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">成交季度</dt><dd className="text-slate-800">{submittedRecord.transaction_year} {submittedRecord.transaction_quarter}</dd></div>
                 <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">记录编号</dt><dd className="truncate font-mono text-[10px] text-slate-500" title={submittedRecord.id}>{submittedRecord.id || '系统生成'}</dd></div>
               </dl>
-              <p className="mt-3 text-[11px] leading-5 text-slate-500">该记录已完成数据库写入。返回工作区后，提交历史会刷新；新增模式可直接继续录入下一条。</p>
+              <p className="mt-3 text-[var(--cd-font-size-sm)] leading-5 text-[var(--cd-color-text-secondary)]">该记录已完成数据库写入。返回记录列表后，提交历史会刷新；新增模式可直接继续录入下一条。</p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                {mode === 'create' && <button type="button" onClick={continueAdding} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-[#003e7e] bg-white px-3 py-2 text-xs font-semibold text-[#003e7e]">继续新增 <ChevronRight size={13} /></button>}
-                <button type="button" onClick={onClose} className="rounded-md bg-[#003e7e] px-3 py-2 text-xs font-semibold text-white">返回工作区</button>
+                {mode === 'create' && <Button variant="secondary" size="sm" onClick={continueAdding}>继续新增 <ChevronRight size={13} /></Button>}
+                <Button size="sm" onClick={onClose}>返回记录列表</Button>
               </div>
             </div>
           </div>
@@ -506,7 +510,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         <div className="shrink-0 border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0"><div className="text-[10px] font-medium text-[#003e7e]">租赁成交填报</div><h2 id="lease-entry-title" className="mt-0.5 truncate text-sm font-semibold text-slate-900">{mode === 'edit' ? '编辑成交记录' : '新增成交记录'}</h2></div>
-            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} /><button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-md p-2 text-slate-400 transition hover:bg-slate-100 disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
+            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} /><button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400"><span>{errorCount ? `${errorCount} 个字段待检查` : '校验就绪'}</span><span>·</span><span>已修改 {dirtyCount} 项</span><span>·</span><span>* 为必填</span></div>
         </div>
@@ -521,7 +525,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
             </div>
           )}
 
-          <Section index="01" title="企业与需求" description="企业信息与需求分类">
+          <Section index="01" title="企业与需求">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="sm:col-span-2"><FormField name="company" label="企业名称" type="text" placeholder="请输入企业名称" register={register} error={errors.company} required /></div>
               <FormField name="suspected_company_fullname" label="疑似企业全称" type="text" placeholder="可选" register={register} error={errors.suspected_company_fullname} />
@@ -534,7 +538,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
             {demandType === '新租' && <div className="mt-3"><ValidationMessage severity="info">现有业务定义：新租指企业此前办公项目未出现在高力监控的甲乙级写字楼和产业园项目中。</ValidationMessage></div>}
           </Section>
 
-          <Section index="02" title="成交楼宇" description="优先选择标准楼宇，自动带出市场属性">
+          <Section index="02" title="成交楼宇">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="sm:col-span-2 lg:col-span-1"><label className="mb-1 block text-[11px] font-medium text-zinc-600">交易楼宇 *</label>{buildingsLoading ? <div className="min-h-9 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-xs text-zinc-400">正在加载楼宇列表…</div> : manualBuilding ? <input {...register('new_building')} id="new_building" className="min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs outline-none focus:border-[#003e7e]" placeholder="手动输入楼宇名称" /> : <SearchableSelect value={selectedBuilding || ''} onChange={(value) => selectBuilding(value)} options={allBuildingNames} locked={buildingLocked} onClear={() => clearBuilding()} placeholder="搜索楼宇名称…" />}{!manualBuilding ? <button type="button" onClick={() => enableManual()} className="mt-1 text-[10px] font-medium text-[#003e7e]">未匹配到？手动录入</button> : <button type="button" onClick={() => clearBuilding()} className="mt-1 text-[10px] font-medium text-[#003e7e]">返回实体选择</button>}{errors.new_building && <p className="mt-1 text-[10px] text-rose-600">{errors.new_building.message}</p>}</div>
               {recentBuildings.length > 0 && !manualBuilding && !buildingLocked && <div className="sm:col-span-2 lg:col-span-2"><span className="mb-1 block text-[10px] font-medium text-zinc-400">最近使用</span><div className="flex flex-wrap gap-1">{recentBuildings.map((name) => <button key={name} type="button" onClick={() => selectBuilding(name)} className="max-w-52 truncate rounded-[4px] border border-zinc-200 bg-zinc-50 px-2 py-1 text-[10px] text-zinc-600 hover:border-[#003e7e]/30 hover:text-[#003e7e]">{name}</button>)}</div></div>}
@@ -546,14 +550,14 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
             </div>
           </Section>
 
-          {demandType === '搬迁' && <Section index="03" title="搬迁原址" description="仅搬迁需求需要填写"><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {demandType === '搬迁' && <Section index="03" title="搬迁原址"><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址楼宇 *</label>{oldAddressUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : manualOldBuilding ? <input {...register('old_address')} id="old_address" className="min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs" placeholder="手动输入原址楼宇" /> : <SearchableSelect value={selectedOldBuilding || ''} onChange={(value) => selectBuilding(value, true)} options={allBuildingNames} locked={oldBuildingLocked} onClear={() => clearBuilding(true)} placeholder="搜索原址楼宇…" />}<div className="mt-1 flex items-center justify-between gap-2"><button type="button" disabled={oldAddressUnknown} onClick={() => manualOldBuilding ? clearBuilding(true) : enableManual(true)} className="text-[10px] font-medium text-[#003e7e] disabled:text-zinc-300">{manualOldBuilding ? '返回实体选择' : '手动录入'}</button><label className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldAddressUnknown} onChange={(event) => { const checked = event.target.checked; setOldAddressUnknown(checked); setValue('old_address', checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); if (checked && !getValues('old_district')) { setOldDistrictUnknown(true); setValue('old_district', '未知', { shouldDirty: true }); } }} />未知</label></div>{errors.old_address && <p className="mt-1 text-[10px] text-rose-600">{errors.old_address.message}</p>}</div>
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址子市场 *</label>{oldSubmarketUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : oldBuildingLocked ? <input {...register('old_sub_market')} id="old_sub_market" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : <SearchableSelect value={watch('old_sub_market') || ''} onChange={(value) => setValue('old_sub_market', value, { shouldDirty: true, shouldValidate: true })} options={submarkets} placeholder="请选择" />}<label className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldSubmarketUnknown} onChange={(event) => { setOldSubmarketUnknown(event.target.checked); setValue('old_sub_market', event.target.checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); }} />未知</label>{errors.old_sub_market && <p className="mt-1 text-[10px] text-rose-600">{errors.old_sub_market.message}</p>}</div>
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址区域 *</label><div className="flex gap-1.5"><input {...register('old_district')} id="old_district" disabled={oldDistrictUnknown} readOnly={oldBuildingLocked} className="min-h-9 min-w-0 flex-1 rounded-md border border-zinc-300 px-2.5 text-xs disabled:bg-zinc-100" placeholder="如：朝阳区" /><label className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldDistrictUnknown} onChange={(event) => { setOldDistrictUnknown(event.target.checked); setValue('old_district', event.target.checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); }} />未知</label></div>{errors.old_district && <p className="mt-1 text-[10px] text-rose-600">{errors.old_district.message}</p>}</div>
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址等级 *</label>{oldGradeUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : oldBuildingLocked ? <input {...register('old_building_grade')} id="old_building_grade" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : <SearchableSelect value={watch('old_building_grade') || ''} onChange={(value) => setValue('old_building_grade', value as LeaseTransactionFormData['old_building_grade'], { shouldDirty: true, shouldValidate: true })} options={['甲级','乙级','产业园','其他']} placeholder="请选择" />}<label className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldGradeUnknown} onChange={(event) => { setOldGradeUnknown(event.target.checked); setValue('old_building_grade', event.target.checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); }} />未知</label>{errors.old_building_grade && <p className="mt-1 text-[10px] text-rose-600">{errors.old_building_grade.message}</p>}</div>
           </div></Section>}
 
-          <Section index={demandType === '搬迁' ? '04' : '03'} title="租赁商务条件" description="租金统一按元/㎡/月存储">
+          <Section index={demandType === '搬迁' ? '04' : '03'} title="租赁商务条件">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <FormField name="area_sqm" label="租赁面积 (㎡)" type="number" placeholder="如：500" register={register} error={errors.area_sqm} required />
               <div><div className="flex items-end gap-1.5"><div className="min-w-0 flex-1"><FormField name="face_rent" label={`表面租金 (元/㎡/${faceRentUnit === 'daily' ? '天' : '月'})`} type="number" placeholder={faceRentUnit === 'daily' ? '如：5' : '如：150'} register={register} error={errors.face_rent} required /></div><button type="button" onClick={() => setFaceRentUnit((unit) => unit === 'daily' ? 'monthly' : 'daily')} className="mb-[1px] min-h-9 rounded-md border border-zinc-200 bg-zinc-50 px-2 text-[10px] font-semibold text-zinc-600">{faceRentUnit === 'daily' ? '日' : '月'} ⇄</button></div><label className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" {...register('is_face_rent_estimated')} />预估值</label></div>
@@ -564,7 +568,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
             </div>
           </Section>
 
-          <Section index={demandType === '搬迁' ? '05' : '04'} title="成交时间与备注" description="可选择当前季度及上一季度">
+          <Section index={demandType === '搬迁' ? '05' : '04'} title="成交时间与备注">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">成交年份 *</label><SearchableSelect value={String(selectedYear || '')} onChange={(value) => setValue('transaction_year', Number(value), { shouldDirty: true, shouldValidate: true })} options={availableYears.map((year) => ({ value: String(year), label: String(year) }))} placeholder="年份" />{errors.transaction_year && <p className="mt-1 text-[10px] text-rose-600">{errors.transaction_year.message}</p>}</div>
               <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">成交季度 *</label><SearchableSelect value={watch('transaction_quarter') || ''} onChange={(value) => setValue('transaction_quarter', value, { shouldDirty: true, shouldValidate: true })} options={availableQuarters} placeholder="季度" disabled={!selectedYear} />{errors.transaction_quarter && <p className="mt-1 text-[10px] text-rose-600">{errors.transaction_quarter.message}</p>}</div>
@@ -573,8 +577,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
           </Section>
 
           <DataEntryToolbar className="sticky bottom-0 z-30" leading={<div className="text-[10px] text-zinc-500">{errorCount ? <span className="font-semibold text-rose-700">{errorCount} 个字段需要检查</span> : '校验提示会显示在对应字段附近'}</div>}>
-            <button type="button" onClick={onClose} disabled={isSubmitting || submitState === 'saving'} className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 disabled:opacity-50">取消</button>
-            <button type="submit" disabled={isSubmitting || submitState === 'saving' || submitState === 'submitting'} className="inline-flex items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50">{(isSubmitting || submitState === 'saving' || submitState === 'submitting') && <Loader2 size={13} className="animate-spin" />}{submitState === 'saving' ? '检查中…' : submitState === 'submitting' ? '提交中…' : mode === 'edit' ? '更新记录' : '提交记录'}</button>
+            <Button variant="secondary" size="sm" onClick={onClose} disabled={isSubmitting || submitState === 'saving'}>取消</Button>
+            <Button type="submit" size="sm" disabled={isSubmitting || submitState === 'saving' || submitState === 'submitting'}>{(isSubmitting || submitState === 'saving' || submitState === 'submitting') && <Loader2 size={13} className="animate-spin" />}{submitState === 'saving' ? '检查中…' : submitState === 'submitting' ? '提交中…' : mode === 'edit' ? '更新记录' : '提交记录'}</Button>
           </DataEntryToolbar>
         </form>
       </aside>

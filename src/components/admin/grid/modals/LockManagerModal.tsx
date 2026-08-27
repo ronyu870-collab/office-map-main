@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
+import { Button, Dialog, Input } from '@/src/components/ui'
 
 interface LockManagerModalProps {
   onClose: () => void
@@ -64,14 +65,8 @@ export function LockManagerModal({ onClose, onSuccess }: LockManagerModalProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="w-96 rounded-xl bg-white shadow-2xl border border-zinc-200" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-          <h3 className="text-sm font-bold text-zinc-900">季度数据锁定管理</h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 text-lg leading-none">&times;</button>
-        </div>
-
-        <div className="px-5 py-4 space-y-4">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title="季度数据锁定管理" size="sm">
+        <div className="space-y-4">
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="block text-xs text-zinc-500 mb-1">年份</label>
@@ -100,46 +95,47 @@ export function LockManagerModal({ onClose, onSuccess }: LockManagerModalProps) 
           </div>
 
           <div className="flex gap-2">
-            <button
+            <Button
+              variant="danger"
               onClick={handleLock}
               disabled={loading}
-              className="flex-1 rounded bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              className="flex-1"
             >
               {loading ? '处理中...' : `锁定 ${year}Q${quarter}`}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setUnlockConfirm(true)}
               disabled={loading}
-              className="flex-1 rounded border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="flex-1"
             >
               解锁 {year}Q{quarter}
-            </button>
+            </Button>
           </div>
 
           {unlockConfirm && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
               <p className="text-xs text-amber-800 font-medium">确认解锁？解锁后该季度数据可被修改。</p>
-              <input
+              <Input
                 type="text"
                 placeholder="请填写解锁原因（必填）"
                 value={unlockReason}
                 onChange={e => setUnlockReason(e.target.value)}
-                className="w-full rounded border border-amber-300 px-2 py-1.5 text-sm"
+                invalid={!unlockReason.trim()}
               />
               <div className="flex gap-2">
-                <button
+                <Button
                   onClick={handleUnlock}
                   disabled={loading || !unlockReason.trim()}
-                  className="rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
                 >
                   确认解锁
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => { setUnlockConfirm(false); setUnlockReason('') }}
-                  className="rounded border border-zinc-300 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50"
                 >
                   取消
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -150,7 +146,6 @@ export function LockManagerModal({ onClose, onSuccess }: LockManagerModalProps) 
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

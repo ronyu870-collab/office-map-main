@@ -2,11 +2,11 @@
 
 /* 网格容器 */
 .grid-panel-container {
-  border-radius: 0.75rem;
+  border-radius: var(--cd-radius-lg);
   overflow: hidden;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  border: 1px solid rgb(229 231 235);
-  background: white;
+  box-shadow: none;
+  border: 1px solid var(--cd-color-border);
+  background: var(--cd-color-surface);
 }
 
 /* 列分隔线 */
@@ -45,7 +45,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 8px;
+  min-height: var(--cd-control-height-sm);
+  padding: 0 8px;
   border-radius: 5px;
   font-size: 12px;
   font-weight: 500;
@@ -53,7 +54,7 @@
   background: white;
   color: rgb(75 85 99);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: color var(--cd-motion-fast), background-color var(--cd-motion-fast), border-color var(--cd-motion-fast);
   white-space: nowrap;
   gap: 3px;
   line-height: 1.2;
@@ -63,9 +64,7 @@
   border-color: rgb(209 213 219);
   color: rgb(55 65 81);
 }
-.grid-action-btn:active {
-  transform: scale(0.97);
-}
+.grid-action-btn:active { background: var(--cd-color-surface-alt); }
 .grid-action-btn-primary {
   border-color: #003e7e;
   color: #003e7e;

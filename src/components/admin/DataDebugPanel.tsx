@@ -43,15 +43,15 @@ function BreakdownCard({ title, formula, numerator, denominator, result, exclude
   const excludedContribs = contributions.filter(c => title.includes('租金') ? c.excludedFromRent : c.excludedFromVacancy);
 
   return (
-    <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 bg-gradient-to-r from-zinc-50 to-white border-b border-zinc-100">
+    <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+      <div className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-5 py-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-zinc-800">{title}</h3>
-          <span className="text-lg font-bold text-blue-700">{isPercentage ? formatPct(result) : valueFormatter(result)}</span>
+          <span className="text-lg font-bold text-[var(--cd-color-brand)]">{isPercentage ? formatPct(result) : valueFormatter(result)}</span>
         </div>
         <p className="text-[11px] text-zinc-500 mt-1 font-mono">{formula}</p>
       </div>
-      <div className="px-5 py-3 bg-blue-50/30 border-b border-zinc-100 flex items-center gap-6 text-xs">
+      <div className="flex items-center gap-6 border-b border-[var(--cd-color-border)] px-5 py-3 text-xs">
         <div><span className="text-zinc-500">分子 Σ：</span><span className="font-semibold text-zinc-800">{numerator.toFixed(1)}</span></div>
         <div><span className="text-zinc-500">分母 Σ：</span><span className="font-semibold text-zinc-800">{denominator.toFixed(1)}</span></div>
         <div><span className="text-zinc-500">参与楼宇：</span><span className="font-semibold text-zinc-800">{includedContribs.length}</span></div>
@@ -59,7 +59,7 @@ function BreakdownCard({ title, formula, numerator, denominator, result, exclude
       </div>
       <div className="px-5 py-3">
         <button onClick={() => setExpanded(!expanded)}
-          className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors">
+          className="text-xs font-medium text-[var(--cd-color-brand)] hover:underline">
           {expanded ? '收起贡献明细 ▲' : '展开贡献明细 ▼'}
         </button>
       </div>
@@ -84,7 +84,7 @@ function BreakdownCard({ title, formula, numerator, denominator, result, exclude
                     <td className="px-3 py-1.5 text-zinc-600">{c.submarket}</td>
                     <td className="px-3 py-1.5 text-right text-zinc-700 tabular-nums">{c.totalArea?.toFixed(0) ?? '-'}</td>
                     <td className="px-3 py-1.5 text-right text-zinc-700 tabular-nums">{c.netEffectiveRent?.toFixed(1) ?? '-'}</td>
-                    <td className="px-3 py-1.5 text-right text-blue-700 font-semibold tabular-nums">{c.rentContribution?.toFixed(1) ?? '-'}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold tabular-nums text-[var(--cd-color-brand)]">{c.rentContribution?.toFixed(1) ?? '-'}</td>
                     <td className="px-3 py-1.5 text-zinc-500">{c.metricYear ?? '-'}Q{c.metricQuarter ?? '-'}</td>
                   </tr>
                 ))}
@@ -212,11 +212,11 @@ export function DataDebugPanel() {
         ) : (
           <div className="max-w-[1200px] mx-auto space-y-5">
             {/* Summary Cards */}
-            <div className="grid grid-cols-4 gap-4">
-              <SummaryCard label="加权平均租金" value={formatNum(stats.weightedRent.result, 1)} unit="元/㎡/月" color="blue" />
-              <SummaryCard label="空置率" value={formatPct(stats.vacancyRate.result)} unit="" color="amber" />
-              <SummaryCard label="项目数量" value={String(stats.projectCount)} unit="栋" color="green" />
-              <SummaryCard label="LEED认证" value={String(stats.leedCount)} unit="栋" color="emerald" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <SummaryCard label="加权平均租金" value={formatNum(stats.weightedRent.result, 1)} unit="元/㎡/月" />
+              <SummaryCard label="空置率" value={formatPct(stats.vacancyRate.result)} unit="" />
+              <SummaryCard label="项目数量" value={String(stats.projectCount)} unit="栋" />
+              <SummaryCard label="LEED认证" value={String(stats.leedCount)} unit="栋" />
             </div>
 
             {/* Weighted Rent Breakdown */}
@@ -245,8 +245,8 @@ export function DataDebugPanel() {
             />
 
             {/* Submarket Breakdown */}
-            <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 bg-gradient-to-r from-zinc-50 to-white border-b border-zinc-100">
+            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+              <div className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-5 py-4">
                 <h3 className="text-sm font-bold text-zinc-800">子市场汇总</h3>
               </div>
               <div className="max-h-[400px] overflow-auto">
@@ -266,8 +266,8 @@ export function DataDebugPanel() {
                       <tr key={s.submarket} className="hover:bg-zinc-50">
                         <td className="px-4 py-2 text-zinc-800 font-medium">{s.submarket}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-zinc-700">{s.buildingCount}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-blue-700 font-semibold">{formatNum(s.avgRent, 1)}</td>
-                        <td className="px-4 py-2 text-right tabular-nums text-amber-700 font-semibold">{formatPct(s.vacancyRate)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-[var(--cd-color-brand)]">{formatNum(s.avgRent, 1)}</td>
+                        <td className="px-4 py-2 text-right tabular-nums font-semibold text-zinc-700">{formatPct(s.vacancyRate)}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-zinc-600">{s.totalArea.toFixed(0)}</td>
                         <td className="px-4 py-2 text-right tabular-nums text-zinc-600">{s.vacantArea.toFixed(0)}</td>
                       </tr>
@@ -279,8 +279,8 @@ export function DataDebugPanel() {
 
             {/* LEED Buildings */}
             {stats.leedBuildings.length > 0 && (
-              <div className="bg-white rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
-                <div className="px-5 py-4 bg-gradient-to-r from-zinc-50 to-white border-b border-zinc-100">
+              <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+                <div className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-5 py-4">
                   <h3 className="text-sm font-bold text-zinc-800">LEED认证楼宇（{stats.leedBuildings.length}）</h3>
                 </div>
                 <div className="max-h-[300px] overflow-auto">
@@ -298,7 +298,7 @@ export function DataDebugPanel() {
                         <tr key={b.id} className="hover:bg-zinc-50">
                           <td className="px-4 py-2 text-zinc-800 font-medium">{b.name}</td>
                           <td className="px-4 py-2 text-zinc-600">{b.submarket}</td>
-                          <td className="px-4 py-2 text-emerald-700 font-semibold">{b.leedCertification}</td>
+                          <td className="px-4 py-2 font-semibold text-zinc-700">{b.leedCertification}</td>
                           <td className="px-4 py-2 text-right tabular-nums text-zinc-700">{b.netEffectiveRent?.toFixed(1) ?? '-'}</td>
                         </tr>
                       ))}
@@ -314,19 +314,12 @@ export function DataDebugPanel() {
   );
 }
 
-function SummaryCard({ label, value, unit, color }: { label: string; value: string; unit: string; color: string }) {
-  const colorMap: Record<string, { bg: string; text: string; value: string }> = {
-    blue: { bg: 'bg-blue-50', text: 'text-blue-600', value: 'text-blue-800' },
-    amber: { bg: 'bg-amber-50', text: 'text-amber-600', value: 'text-amber-800' },
-    green: { bg: 'bg-green-50', text: 'text-green-600', value: 'text-green-800' },
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', value: 'text-emerald-800' },
-  };
-  const c = colorMap[color] || colorMap.blue;
+function SummaryCard({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
-    <div className={`${c.bg} rounded-xl p-4 border border-${color}-100`}>
-      <p className={`text-[11px] font-medium ${c.text} mb-1`}>{label}</p>
+    <div className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
+      <p className="mb-1 text-xs font-medium text-[var(--cd-color-text-secondary)]">{label}</p>
       <div className="flex items-baseline gap-1">
-        <span className={`text-2xl font-bold ${c.value}`}>{value}</span>
+        <span className="text-2xl font-bold text-[var(--cd-color-brand)]">{value}</span>
         {unit && <span className="text-xs text-zinc-500">{unit}</span>}
       </div>
     </div>

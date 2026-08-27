@@ -11,7 +11,7 @@ import { PageViewTracker } from "@/src/components/PageViewTracker";
 import { PerformanceReporter } from "@/src/components/PerformanceReporter";
 
 export const metadata: Metadata = {
-  title: "COLLIERS DATA | 办公楼市场监测",
+  title: "北京办公楼市场数据平台",
   description: "高力国际内部数据看板",
 };
 

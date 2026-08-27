@@ -416,7 +416,7 @@ export function SubmissionDetailTable({
 
   const outerClass = isFullscreen
     ? 'fixed inset-0 z-50 bg-zinc-50 flex flex-col min-w-0'
-    : 'rounded-2xl border border-zinc-200/60 bg-white shadow-sm flex flex-col min-w-0 max-h-[75vh]';
+    : 'rounded-lg border border-zinc-200 bg-white flex flex-col min-w-0 max-h-[75vh]';
 
   return (
     <div className={outerClass}>

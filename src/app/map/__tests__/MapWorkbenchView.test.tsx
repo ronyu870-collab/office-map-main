@@ -107,7 +107,7 @@ describe('MapWorkbenchView', () => {
     renderWorkbench();
 
     expect(document.getElementById('map-container')).toBeInTheDocument();
-    expect(screen.getByText('市场地图')).toBeInTheDocument();
+    expect(screen.getByText('北京办公楼市场地图')).toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-filter')).not.toBeInTheDocument();
   });
 
@@ -147,7 +147,7 @@ describe('MapWorkbenchView', () => {
   it('keeps supply and project-list surfaces in the visual layer', () => {
     renderWorkbench({ isSupplyOpen: true, isListVisible: true, canOpenList: true });
 
-    expect(screen.getByText(/按预计入市时间查看市场新增供给/)).toBeInTheDocument();
+    expect(screen.getByText('共 0 个项目')).toBeInTheDocument();
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
   });
 

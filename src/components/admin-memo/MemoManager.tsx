@@ -6,6 +6,7 @@ import { useMemos } from '@/src/hooks/useMemos';
 import { MemoList } from './MemoList';
 import { MemoEditor } from './MemoEditor';
 import { ToastContainer, showToast } from './Toast';
+import { Button, EmptyState } from '@/src/components/ui';
 
 interface MemoManagerProps {
   adminEmail: string;
@@ -55,7 +56,7 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
 
   return (
     <div className="flex h-full flex-col p-4">
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         {/* 左侧列表 */}
         <MemoList
           memos={memos}
@@ -84,17 +85,17 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
               onDeleted={() => { setSelectedId(null); refresh(); }}
             />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center text-zinc-400">
-              <FileText className="mb-3 h-12 w-12 text-zinc-200" />
-              <p className="text-sm">选择一条备忘录或创建新备忘录</p>
-              <button
-                onClick={handleCreate}
-                disabled={creating}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50"
-              >
-                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                新建备忘录
-              </button>
+            <div className="flex flex-1 items-center justify-center p-6">
+              <EmptyState
+                title="选择一条备忘录"
+                description="从左侧列表打开现有内容，或创建一条新备忘录。"
+                action={
+                  <Button onClick={handleCreate} disabled={creating} size="sm">
+                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                    新建备忘录
+                  </Button>
+                }
+              />
             </div>
           )}
         </div>

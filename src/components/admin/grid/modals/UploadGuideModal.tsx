@@ -1,6 +1,7 @@
 'use client'
 import React from 'react'
 import type { TableConfig } from '../../types'
+import { Button, Dialog } from '@/src/components/ui'
 
 interface UploadGuideModalProps {
   config: TableConfig
@@ -11,15 +12,8 @@ export function UploadGuideModal({ config, onClose }: UploadGuideModalProps) {
   const writableCols = config.cols.filter(c => !c.readOnly && !c.hidden)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="max-w-2xl w-full mx-4 bg-white rounded-lg shadow-xl flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
-          <h3 className="text-base font-semibold text-zinc-900">数据上传说明 — {config.label}</h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto p-6 space-y-5 text-sm">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title={`数据上传说明 — ${config.label}`} size="lg" footer={<Button variant="secondary" onClick={onClose}>关闭</Button>}>
+        <div className="space-y-5 text-sm">
           {/* 三条核心规则 */}
           <div>
             <p className="font-semibold text-zinc-800 mb-3">只需记住三条规则</p>
@@ -144,10 +138,6 @@ export function UploadGuideModal({ config, onClose }: UploadGuideModalProps) {
             </div>
           </div>
         </div>
-        <div className="px-6 py-4 border-t border-zinc-200 flex justify-end">
-          <button onClick={onClose} className="rounded bg-zinc-600 px-4 py-2 text-xs text-white hover:bg-zinc-700">关闭</button>
-        </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

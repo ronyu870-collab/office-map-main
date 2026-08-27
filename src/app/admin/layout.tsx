@@ -1,20 +1,17 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from '@/src/services/Auth';
 import { isDemoMode } from '@/src/config/demoMode';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
+import { AppHeader, Button, LoadingState } from '@/src/components/ui';
 
 function AdminGuardLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--cd-color-canvas)]">
-      <div className="w-full max-w-sm px-6 text-center" role="status" aria-live="polite">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
-        <p className="mt-3 text-xs font-medium text-[var(--cd-color-text-muted)]">正在校验管理权限…</p>
-      </div>
+    <div className="flex min-h-screen items-center justify-center bg-[var(--cd-color-canvas)] px-6">
+      <LoadingState label="正在校验管理权限…" rows={0} className="w-full max-w-sm" />
     </div>
   );
 }
@@ -70,23 +67,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
-      <header className="z-40 shrink-0 border-b border-[#163a5f] bg-[#003e7e] text-white">
-        <div className="flex h-12 items-center justify-between gap-3 px-3 sm:px-5">
-          <div className="min-w-0">
-            <div className="flex items-baseline gap-2">
-              <span className="truncate text-sm font-semibold tracking-tight">系统管理</span>
-              <span className="hidden text-[10px] font-medium uppercase tracking-[0.12em] text-white/55 sm:inline">数据管理后台</span>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1 text-xs">
-            <Link href="/" className="rounded-md px-2.5 py-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
-              返回工作区
-            </Link>
-            <button type="button" onClick={handleLogout} className="rounded-md px-2.5 py-1.5 text-white/75 transition hover:bg-white/10 hover:text-white">
-              退出
-            </button>
-          </div>
-        </div>
+      <header className="z-[var(--cd-z-sticky)] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <AppHeader
+          title="系统管理"
+          homeHref="/"
+          actions={<Button variant="ghost" size="sm" onClick={handleLogout}>退出登录</Button>}
+        />
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>
     </div>

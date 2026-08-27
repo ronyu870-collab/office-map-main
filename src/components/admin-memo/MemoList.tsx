@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Plus, Pin, Trash2, Search, Loader2, X } from 'lucide-react';
+import { Plus, Pin, Trash2, Search, Loader2 } from 'lucide-react';
 import { TagFilter } from './TagFilter';
 import type { MemoListItem } from '@/src/types/memo';
+import { Button, Dialog, IconButton } from '@/src/components/ui';
 
 interface MemoListProps {
   memos: MemoListItem[];
@@ -65,29 +66,25 @@ export function MemoList({
 
   return (
     <>
-      <div className="flex w-64 shrink-0 flex-col border-r border-zinc-100 bg-zinc-50/30">
+      <div className="flex w-64 shrink-0 flex-col border-r border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]">
         {/* 头部 */}
-        <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-3">
-          <h2 className="text-sm font-semibold text-zinc-700">备忘录</h2>
-          <button
-            onClick={onCreate}
-            disabled={creating}
-            className="inline-flex items-center gap-1 rounded-md bg-zinc-900 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50"
-          >
+        <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-3 py-3">
+          <h2 className="text-[var(--cd-font-size-md)] font-semibold text-[var(--cd-color-text-primary)]">备忘录</h2>
+          <Button onClick={onCreate} disabled={creating} size="sm">
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
             新建
-          </button>
+          </Button>
         </div>
 
         {/* 搜索 */}
         <div className="px-3 pt-2">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cd-color-text-muted)]" aria-hidden="true" />
             <input
               value={searchInput}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="搜索标题..."
-              className="w-full rounded-md border border-zinc-200 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              className="h-[var(--cd-control-height-sm)] w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] pl-8 pr-3 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-primary)] outline-none transition focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]"
             />
           </div>
         </div>
@@ -99,10 +96,10 @@ export function MemoList({
         <div className="flex-1 overflow-auto px-2 py-1">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-5 w-5 animate-spin text-zinc-400" />
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--cd-color-brand)]" />
             </div>
           ) : memos.length === 0 ? (
-            <div className="py-12 text-center text-xs text-zinc-400">
+            <div className="py-12 text-center text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-muted)]">
               {searchInput || selectedTag ? '没有匹配的备忘录' : '暂无备忘录'}
             </div>
           ) : (
@@ -111,57 +108,61 @@ export function MemoList({
                 <div
                   key={memo.id}
                   onClick={() => onSelect(memo.id)}
-                  className={`group cursor-pointer rounded-lg px-3 py-2.5 transition-colors ${
+                  className={`group cursor-pointer rounded-[var(--cd-radius-md)] border px-3 py-2.5 transition-colors ${
                     selectedId === memo.id
-                      ? 'bg-white shadow-sm ring-1 ring-zinc-200'
-                      : 'hover:bg-white/80'
+                      ? 'border-[var(--cd-color-border-strong)] bg-[var(--cd-color-brand-soft)]'
+                      : 'border-transparent hover:bg-[var(--cd-color-surface)]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         {memo.is_pinned && <Pin className="h-3 w-3 shrink-0 text-amber-500" />}
-                        <span className="truncate text-sm font-medium text-zinc-800">
+                        <span className="truncate text-[var(--cd-font-size-md)] font-medium text-[var(--cd-color-text-primary)]">
                           {memo.title || '无标题'}
                         </span>
                       </div>
                       {memo.content_preview && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-zinc-400">
+                        <p className="mt-0.5 line-clamp-2 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
                           {memo.content_preview}
                         </p>
                       )}
                       <div className="mt-1.5 flex items-center gap-1.5">
                         {memo.tags.slice(0, 2).map((t) => (
-                          <span key={t} className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-600">
+                          <span key={t} className="rounded-full bg-[var(--cd-color-brand-soft)] px-1.5 py-0.5 text-[var(--cd-font-size-xs)] text-[var(--cd-color-brand)]">
                             {t}
                           </span>
                         ))}
                         {memo.tags.length > 2 && (
-                          <span className="text-[10px] text-zinc-400">+{memo.tags.length - 2}</span>
+                          <span className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-muted)]">+{memo.tags.length - 2}</span>
                         )}
-                        <span className="ml-auto text-[10px] text-zinc-400">
+                        <span className="ml-auto text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-muted)]">
                           {formatTime(memo.updated_at)}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        label={memo.is_pinned ? '取消置顶' : '置顶'}
                         onClick={(e) => handlePin(memo.id, memo.is_pinned, e)}
-                        className={`rounded p-1 transition-colors ${
-                          memo.is_pinned ? 'text-amber-500 hover:text-amber-600' : 'text-zinc-300 hover:text-zinc-500'
+                        className={`!h-7 !w-7 ${
+                          memo.is_pinned ? 'text-[var(--cd-color-warning)]' : 'text-[var(--cd-color-text-muted)]'
                         }`}
-                        title={memo.is_pinned ? '取消置顶' : '置顶'}
                       >
                         <Pin className="h-3.5 w-3.5" />
-                      </button>
-                      <button
+                      </IconButton>
+                      <IconButton
+                        variant="ghost"
+                        size="sm"
+                        label="删除"
                         onClick={(e) => handleDeleteClick(memo, e)}
-                        className="rounded p-1 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-400"
-                        title="删除"
+                        className="!h-7 !w-7 text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-danger-soft)] hover:text-[var(--cd-color-danger)]"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </IconButton>
                     </div>
                   </div>
                 </div>
@@ -172,38 +173,16 @@ export function MemoList({
       </div>
 
       {/* 删除确认对话框 */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-80 rounded-lg bg-white p-5 shadow-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-zinc-800">确认删除</h3>
-              <button onClick={() => setDeleteTarget(null)} className="rounded p-0.5 text-zinc-400 hover:text-zinc-600">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="mb-1 text-sm text-zinc-600">
-              确定要删除这条备忘录吗？
-            </p>
-            <p className="mb-4 text-xs text-zinc-400">
-              &ldquo;{deleteTarget.title || '无标题'}&rdquo; 及其所有版本历史将被永久删除，此操作不可撤销。
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setDeleteTarget(null)}
-                className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-700"
-              >
-                删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="确认删除"
+        description="确定要删除这条备忘录吗？"
+        size="sm"
+        footer={<><Button variant="secondary" onClick={() => setDeleteTarget(null)}>取消</Button><Button variant="danger" onClick={confirmDelete}>删除</Button></>}
+      >
+        <p className="text-[var(--cd-font-size-md)] text-[var(--cd-color-text-secondary)]">“{deleteTarget?.title || '无标题'}”及其所有版本历史将被永久删除，此操作不可撤销。</p>
+      </Dialog>
     </>
   );
 }

@@ -23,6 +23,8 @@ import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
 import { isResearchLibraryManager } from '@/src/utils/adminAccess';
 import { Button } from '@/src/components/ui/Button';
+import { Dialog } from '@/src/components/ui/Dialog';
+import { Input } from '@/src/components/ui/Input';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/ui/State';
 import {
   classifyLibraryItem,
@@ -61,28 +63,15 @@ function Modal({
   children: React.ReactNode;
   danger?: boolean;
 }) {
-  React.useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true" aria-label={title} onMouseDown={onClose}>
-      <div className="w-full max-w-md overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <div className={`flex items-center justify-between border-b px-4 py-3 ${danger ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-[#f8fafc]'}`}>
-          <h3 className={`flex items-center gap-2 text-sm font-semibold ${danger ? 'text-rose-800' : 'text-slate-900'}`}>
-            {danger ? <AlertTriangle size={16} /> : null}{title}
-          </h3>
-          <button type="button" onClick={onClose} className="rounded-md p-1.5 text-slate-400 transition hover:bg-white hover:text-slate-700" aria-label="关闭"><X size={16} /></button>
-        </div>
-        <div className="p-4">{children}</div>
-      </div>
-    </div>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      title={<span className={danger ? 'flex items-center gap-2 text-rose-700' : undefined}>{danger ? <AlertTriangle aria-hidden="true" size={16} /> : null}{title}</span>}
+      size="sm"
+    >
+      {children}
+    </Dialog>
   );
 }
 
@@ -378,16 +367,15 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
     <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="shrink-0 border-b border-slate-200/90 bg-[#f8fafc] px-3 py-3 sm:px-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
+          <nav aria-label="资料库路径" className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-              <button type="button" onClick={() => void loadReports('')} className="font-semibold text-[#003e7e] transition hover:underline">研究资料库</button>
+              <button type="button" onClick={() => void loadReports('')} className="font-semibold text-[var(--cd-color-brand)] transition hover:underline">全部资料</button>
               {breadcrumbParts.map((part, index) => {
                 const prefix = `${breadcrumbParts.slice(0, index + 1).join('/')}/`;
-                return <React.Fragment key={prefix}><span className="text-slate-300">/</span><button type="button" onClick={() => void loadReports(prefix)} className="max-w-40 truncate transition hover:text-[#003e7e]">{part}</button></React.Fragment>;
+                return <React.Fragment key={prefix}><span className="text-slate-300">/</span><button type="button" onClick={() => void loadReports(prefix)} className="max-w-40 truncate transition hover:text-[var(--cd-color-brand)]">{part}</button></React.Fragment>;
               })}
             </div>
-            <p className="mt-1 text-[10px] text-slate-400">{canManage ? '管理模式：可上传、重命名和删除' : isImpersonating ? '用户模拟期间强制只读' : '浏览模式：可搜索、打开和下载'}</p>
-          </div>
+          </nav>
           <div className="flex flex-wrap items-center gap-2">
             {currentPrefix ? <Button variant="secondary" size="sm" onClick={goUp}><ArrowUp size={14} />上一级</Button> : null}
             <Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix)} disabled={loading}><RefreshCw size={14} />刷新</Button>
@@ -400,19 +388,20 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-[minmax(220px,1fr)_160px_170px_auto]">
-          <label className="flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 transition focus-within:border-[#003e7e] focus-within:ring-1 focus-within:ring-[#003e7e]/15">
-            <Search size={14} className="text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索当前目录资料…" className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400" />
+          <label className="relative block">
+            <span className="sr-only">搜索当前目录资料</span>
+            <Search aria-hidden="true" size={14} className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2 text-slate-400" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索当前目录资料…" className="pl-8" />
           </label>
-          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as LibraryTypeFilter)} className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700 outline-none transition focus:border-[#003e7e]">
+          <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as LibraryTypeFilter)} className="h-[var(--cd-control-height-md)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 text-xs text-[var(--cd-color-text-primary)] outline-none transition focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]">
             <option value="all">全部类型</option><option value="folder">文件夹</option><option value="pdf">PDF 文档</option><option value="presentation">演示文稿</option><option value="document">文字文档</option><option value="spreadsheet">电子表格</option><option value="other">其他文件</option>
           </select>
-          <select value={sort} onChange={(event) => setSort(event.target.value as LibrarySort)} className="h-9 rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-700 outline-none transition focus:border-[#003e7e]">
+          <select value={sort} onChange={(event) => setSort(event.target.value as LibrarySort)} className="h-[var(--cd-control-height-md)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 text-xs text-[var(--cd-color-text-primary)] outline-none transition focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]">
             <option value="modified-desc">最近修改优先</option><option value="modified-asc">最早修改优先</option><option value="name-asc">按名称升序</option><option value="size-desc">按文件大小</option>
           </select>
           <div className="flex items-center justify-between gap-3 md:justify-end">
             <span className="text-[10px] font-medium tabular-nums text-slate-500">当前显示 {visibleItems.length} / {items.length} 项</span>
-            {filtersActive ? <button type="button" onClick={clearFilters} className="text-[10px] font-semibold text-[#003e7e] hover:underline">清除筛选</button> : null}
+            {filtersActive ? <button type="button" onClick={clearFilters} className="text-[10px] font-semibold text-[var(--cd-color-brand)] hover:underline">清除筛选</button> : null}
           </div>
         </div>
       </div>
@@ -424,9 +413,9 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
         <div className="mb-2 flex items-center justify-between"><span className="text-[11px] font-semibold text-slate-700">上传状态</span><button type="button" onClick={() => setUploads([])} disabled={uploading} className="text-[10px] text-slate-500 transition hover:text-slate-800">清除</button></div>
         <div className="grid max-h-40 gap-1.5 overflow-y-auto lg:grid-cols-2">
           {uploads.map((entry) => <div key={entry.id} className="flex min-w-0 items-center gap-2 rounded-md border border-slate-100 bg-slate-50/50 px-2 py-1.5 text-[10px]">
-            {entry.status === 'success' ? <CheckCircle2 size={13} className="shrink-0 text-emerald-600" /> : entry.status === 'error' || entry.status === 'unsupported' || entry.status === 'duplicate' ? <XCircle size={13} className="shrink-0 text-rose-500" /> : <Upload size={13} className="shrink-0 text-[#003e7e]" />}
+            {entry.status === 'success' ? <CheckCircle2 size={13} className="shrink-0 text-emerald-600" /> : entry.status === 'error' || entry.status === 'unsupported' || entry.status === 'duplicate' ? <XCircle size={13} className="shrink-0 text-rose-500" /> : <Upload size={13} className="shrink-0 text-[var(--cd-color-brand)]" />}
             <div className="min-w-0 flex-1"><div className="truncate font-medium text-slate-700">{entry.name}</div><div className="text-slate-400">{entry.status === 'uploading' ? `${entry.progress}% · 正在上传` : entry.message || UPLOAD_STATUS_LABELS[entry.status]}</div></div>
-            {entry.status === 'uploading' ? <div className="h-1 w-16 overflow-hidden rounded bg-slate-100"><div className="h-full bg-[#003e7e]" style={{ width: `${entry.progress}%` }} /></div> : null}
+            {entry.status === 'uploading' ? <div className="h-1 w-16 overflow-hidden rounded bg-slate-100"><div className="h-full bg-[var(--cd-color-brand)]" style={{ width: `${entry.progress}%` }} /></div> : null}
           </div>)}
         </div>
       </div> : null}
@@ -436,7 +425,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white md:block">
             <table className="w-full table-fixed text-left text-xs">
               <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-[10px] font-semibold text-slate-500"><tr>{canManage ? <th className="w-10 px-3 py-2.5"><input type="checkbox" aria-label="全选" checked={visibleItems.length > 0 && visibleItems.every((item) => selectedItems.has(item.name))} onChange={() => setSelectedItems((current) => visibleItems.every((item) => current.has(item.name)) ? new Set() : new Set(visibleItems.map((item) => item.name)))} /></th> : null}<th className="px-3 py-2.5">名称</th><th className="w-28 px-3 py-2.5">类型</th><th className="w-28 px-3 py-2.5">大小</th><th className="w-32 px-3 py-2.5">修改时间</th><th className="w-52 px-3 py-2.5 text-right">操作</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">{visibleItems.map((item) => <tr key={item.name} className="transition-colors hover:bg-slate-50/80">{canManage ? <td className="px-3 py-2.5"><input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /></td> : null}<td className="min-w-0 px-3 py-2.5"><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : item.url && window.open(item.url, '_blank', 'noopener,noreferrer')} className="flex max-w-full items-center gap-2 font-medium text-slate-800 transition hover:text-[#003e7e]"><span className="shrink-0 text-slate-400">{item.type === 'folder' ? <Folder size={15} /> : <File size={15} />}</span><span className="truncate" title={itemDisplayName(item)}>{itemDisplayName(item)}</span></button></td><td className="px-3 py-2.5 text-slate-500">{typeLabel(item)}</td><td className="px-3 py-2.5 tabular-nums text-slate-500">{item.type === 'folder' ? '—' : item.size || '—'}</td><td className="px-3 py-2.5 text-slate-500">{formatDate(item.lastModified)}</td><td className="px-3 py-2.5 text-right"><div className="flex justify-end gap-1">{item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}><Download size={13} />打开或下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></td></tr>)}</tbody>
+              <tbody className="divide-y divide-slate-100">{visibleItems.map((item) => <tr key={item.name} className="transition-colors hover:bg-slate-50/80">{canManage ? <td className="px-3 py-2.5"><input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /></td> : null}<td className="min-w-0 px-3 py-2.5"><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : item.url && window.open(item.url, '_blank', 'noopener,noreferrer')} className="flex max-w-full items-center gap-2 font-medium text-slate-800 transition hover:text-[var(--cd-color-brand)]"><span className="shrink-0 text-slate-400">{item.type === 'folder' ? <Folder size={15} /> : <File size={15} />}</span><span className="truncate" title={itemDisplayName(item)}>{itemDisplayName(item)}</span></button></td><td className="px-3 py-2.5 text-slate-500">{typeLabel(item)}</td><td className="px-3 py-2.5 tabular-nums text-slate-500">{item.type === 'folder' ? '—' : item.size || '—'}</td><td className="px-3 py-2.5 text-slate-500">{formatDate(item.lastModified)}</td><td className="px-3 py-2.5 text-right"><div className="flex justify-end gap-1">{item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => item.url && window.open(item.url, '_blank', 'noopener,noreferrer')}><Download size={13} />打开或下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></td></tr>)}</tbody>
             </table>
           </div>
 
@@ -446,9 +435,9 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
 
       {canManage && selectedItems.size ? <div className="shrink-0 border-t border-slate-200 bg-[#f8fafc] px-3 py-2 sm:px-4"><div className="flex items-center justify-between gap-3"><span className="text-xs text-slate-600">已选择 {selectedItems.size} 项</span><Button variant="danger" size="sm" onClick={() => setShowBatchDeleteModal(true)}><Trash2 size={13} />删除选中</Button></div></div> : null}
 
-      <Modal isOpen={showCreateFolderModal} onClose={() => !operationInProgress && setShowCreateFolderModal(false)} title="新建文件夹"><label className="block text-xs font-medium text-slate-700">文件夹名称<input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void createFolder()} className="mt-1.5 h-9 w-full rounded-md border border-slate-300 px-2.5 text-xs outline-none transition focus:border-[#003e7e]" /></label><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowCreateFolderModal(false)} disabled={operationInProgress}>取消</Button><Button size="sm" onClick={() => void createFolder()} disabled={operationInProgress || !folderName.trim()}>{operationInProgress ? '创建中…' : '创建'}</Button></div></Modal>
+      <Modal isOpen={showCreateFolderModal} onClose={() => !operationInProgress && setShowCreateFolderModal(false)} title="新建文件夹"><label className="block text-xs font-medium text-slate-700">文件夹名称<Input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void createFolder()} className="mt-1.5" /></label><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowCreateFolderModal(false)} disabled={operationInProgress}>取消</Button><Button size="sm" onClick={() => void createFolder()} disabled={operationInProgress || !folderName.trim()}>{operationInProgress ? '创建中…' : '创建'}</Button></div></Modal>
 
-      <Modal isOpen={showRenameModal} onClose={() => !operationInProgress && setShowRenameModal(false)} title="重命名或移动"><label className="block text-xs font-medium text-slate-700">目标路径<input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void renameItem()} className="mt-1.5 h-9 w-full rounded-md border border-slate-300 px-2.5 font-mono text-xs outline-none transition focus:border-[#003e7e]" /></label><p className="mt-2 text-[10px] text-slate-500">修改完整云端存储路径可移动文件；服务端移动逻辑保持不变。</p><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowRenameModal(false)} disabled={operationInProgress}>取消</Button><Button size="sm" onClick={() => void renameItem()} disabled={operationInProgress || !newName.trim() || newName.trim() === targetItem?.name}>{operationInProgress ? '处理中…' : '确认'}</Button></div></Modal>
+      <Modal isOpen={showRenameModal} onClose={() => !operationInProgress && setShowRenameModal(false)} title="重命名或移动"><label className="block text-xs font-medium text-slate-700">目标路径<Input autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && void renameItem()} className="mt-1.5 font-mono" /></label><p className="mt-2 text-[10px] text-slate-500">修改完整云端存储路径可移动文件；服务端移动逻辑保持不变。</p><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowRenameModal(false)} disabled={operationInProgress}>取消</Button><Button size="sm" onClick={() => void renameItem()} disabled={operationInProgress || !newName.trim() || newName.trim() === targetItem?.name}>{operationInProgress ? '处理中…' : '确认'}</Button></div></Modal>
 
       <Modal isOpen={showDeleteModal} onClose={() => !operationInProgress && setShowDeleteModal(false)} title="确认删除" danger><div className="rounded-md border border-rose-200 bg-rose-50 p-3"><p className="text-xs text-rose-900">确定删除以下{targetItem?.type === 'folder' ? '文件夹' : '文件'}？</p><p className="mt-2 break-all font-mono text-xs font-semibold text-rose-700">{targetItem ? itemDisplayName(targetItem) : ''}</p>{targetItem?.type === 'folder' ? <p className="mt-2 text-[10px] font-medium text-rose-700">文件夹删除会递归删除其中所有对象，无法撤销。</p> : null}</div><div className="mt-4 flex justify-end gap-2"><Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)} disabled={operationInProgress}>取消</Button><Button variant="danger" size="sm" onClick={() => void deleteOne()} disabled={operationInProgress}><Trash2 size={13} />{operationInProgress ? '删除中…' : '确认删除'}</Button></div></Modal>
 

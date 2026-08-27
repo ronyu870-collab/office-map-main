@@ -7,6 +7,8 @@ import { logAction } from "@/src/utils/audit";
 import { getSession } from "@/src/services/Auth";
 import { MaskedCell } from "@/src/components/demo";
 import * as XLSX from "xlsx";
+import { ImportErrorsModal } from "@/src/components/admin/grid/modals/ImportErrorsModal";
+import { Button, Dialog, EmptyState, LoadingState } from "@/src/components/ui";
 
 // ─── 可搜索下拉组件（Portal渲染，避免被父容器遮挡）────────────────────────
 function SearchableSelect({
@@ -1553,26 +1555,7 @@ function TablePanel({
 
       {/* 导入错误提示 */}
       {importErrors.length > 0 && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="max-w-2xl max-h-[80vh] overflow-auto rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="mb-3 text-base font-semibold text-red-600">
-              数据校验失败，请修正后重新上传
-            </h3>
-            <ul className="space-y-1 text-xs text-zinc-700">
-              {importErrors.map((err, i) => (
-                <li key={i} className="border-l-2 border-red-400 pl-2">
-                  {err}
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => setImportErrors([])}
-              className="mt-4 rounded bg-zinc-600 px-4 py-2 text-xs text-white hover:bg-zinc-700"
-            >
-              关闭
-            </button>
-          </div>
-        </div>
+        <ImportErrorsModal errors={importErrors} onClose={() => setImportErrors([])} />
       )}
 
       {/* 工具栏 */}
@@ -2207,56 +2190,18 @@ function TablePanel({
       )}
 
       {/* 🔥 新增：历史记录弹窗 */}
-      {historyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="max-w-6xl max-h-[90vh] w-full mx-4 bg-white rounded-lg shadow-xl flex flex-col">
-            {/* 弹窗标题 */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
-              <div>
-                <h3 className="text-base font-semibold text-zinc-900">
-                  提交历史记录
-                </h3>
-                {selectedRowForHistory && (
-                  <p className="text-xs text-zinc-500 mt-1">
-                    项目：
-                    {buildingDict[selectedRowForHistory.building_id] ||
-                      selectedRowForHistory.building_id}{" "}
-                    | 时间：{selectedRowForHistory.record_year} Q
-                    {selectedRowForHistory.record_quarter}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={closeHistoryModal}
-                className="text-zinc-400 hover:text-zinc-600 transition"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
-            </div>
-
-            {/* 弹窗内容 */}
-            <div className="flex-1 overflow-auto p-6">
+      <Dialog
+        open={historyModalOpen}
+        onOpenChange={(open) => { if (!open) closeHistoryModal(); }}
+        title="提交历史记录"
+        description={selectedRowForHistory ? `项目：${buildingDict[selectedRowForHistory.building_id] || selectedRowForHistory.building_id} · 时间：${selectedRowForHistory.record_year} Q${selectedRowForHistory.record_quarter}` : undefined}
+        size="xl"
+        footer={<Button variant="secondary" onClick={closeHistoryModal}>关闭</Button>}
+      >
               {historyLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-                </div>
+                <LoadingState label="正在加载提交历史" />
               ) : historyData.length === 0 ? (
-                <div className="text-center py-12 text-zinc-400">
-                  <p>暂无历史记录</p>
-                </div>
+                <EmptyState title="暂无历史记录" />
               ) : (
                 <div className="space-y-4">
                   {historyData.map((record, index) => (
@@ -2378,20 +2323,7 @@ function TablePanel({
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* 弹窗底部 */}
-            <div className="px-6 py-4 border-t border-zinc-200 flex justify-end">
-              <button
-                onClick={closeHistoryModal}
-                className="rounded bg-zinc-600 px-4 py-2 text-xs text-white hover:bg-zinc-700"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Dialog>
     </div>
   );
 }

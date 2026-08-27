@@ -286,7 +286,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       render(<LobbyPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('COLLIERS DATA')).toBeInTheDocument();
+        expect(screen.queryByText('北京办公楼市场数据平台')).toBeInTheDocument();
       }, { timeout: 3000 });
       
       // 会话解析后立即挂载，不依赖固定延迟。
@@ -308,7 +308,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('COLLIERS DATA')).toBeInTheDocument();
+        expect(screen.queryByText('北京办公楼市场数据平台')).toBeInTheDocument();
       }, { timeout: 3000 });
       
       // Get all interactive elements
@@ -336,7 +336,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('COLLIERS DATA')).toBeInTheDocument();
+        expect(screen.queryByText('北京办公楼市场数据平台')).toBeInTheDocument();
       }, { timeout: 3000 });
       
       // Find a "开发中" module link (non-admin user)
@@ -378,7 +378,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('COLLIERS DATA')).toBeInTheDocument();
+        expect(screen.queryByText('北京办公楼市场数据平台')).toBeInTheDocument();
       }, { timeout: 3000 });
       
       const links = container.querySelectorAll('a');
@@ -398,7 +398,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        expect(screen.queryByText('COLLIERS DATA')).toBeInTheDocument();
+        expect(screen.queryByText('北京办公楼市场数据平台')).toBeInTheDocument();
       }, { timeout: 3000 });
       
       const logoutButton = Array.from(container.querySelectorAll('button')).find(
@@ -440,7 +440,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        const element = screen.queryByText('COLLIERS DATA');
+        const element = screen.queryByText('北京办公楼市场数据平台');
         return element !== null;
       }, { timeout: 3000 });
       
@@ -470,7 +470,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        const element = screen.queryByText('COLLIERS DATA');
+        const element = screen.queryByText('北京办公楼市场数据平台');
         return element !== null;
       }, { timeout: 3000 });
       
@@ -500,7 +500,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container } = render(<LobbyPage />);
       
       await waitFor(() => {
-        const element = screen.queryByText('COLLIERS DATA');
+        const element = screen.queryByText('北京办公楼市场数据平台');
         return element !== null;
       }, { timeout: 3000 });
       
@@ -538,7 +538,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
             const { container, unmount } = render(<LobbyPage />);
             
             await waitFor(() => {
-              const element = screen.queryByText('COLLIERS DATA');
+              const element = screen.queryByText('北京办公楼市场数据平台');
               return element !== null;
             }, { timeout: 3000 });
             
@@ -567,7 +567,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container, unmount } = render(<LobbyPage />);
       
       await waitFor(() => {
-        const element = screen.queryByText('COLLIERS DATA');
+        const element = screen.queryByText('北京办公楼市场数据平台');
         return element !== null;
       }, { timeout: 3000 });
       
@@ -591,7 +591,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const { container, unmount } = render(<LobbyPage />);
       
       await waitFor(() => {
-        const element = screen.queryByText('COLLIERS DATA');
+        const element = screen.queryByText('北京办公楼市场数据平台');
         return element !== null;
       }, { timeout: 3000 });
       

@@ -68,7 +68,7 @@ export function MarkdownPreview({
                         onTaskToggle(lineIdx, e.target.checked);
                       }
                     }}
-                    className="mr-2 h-4 w-4 cursor-pointer rounded border-zinc-300 accent-[#003e7e]"
+                    className="mr-2 h-4 w-4 cursor-pointer rounded border-[var(--cd-color-border-strong)] accent-[var(--cd-color-brand)]"
                     {...props}
                   />
                 );
@@ -82,7 +82,7 @@ export function MarkdownPreview({
                 return (
                   <Link
                     href={href}
-                    className="inline-flex items-center gap-1 font-medium text-[#003e7e] underline-offset-2 hover:underline"
+                    className="inline-flex items-center gap-1 font-medium text-[var(--cd-color-brand)] underline-offset-2 hover:underline"
                   >
                     <span>🔗</span>
                     {children}
@@ -94,7 +94,7 @@ export function MarkdownPreview({
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#003e7e] underline-offset-2 hover:underline"
+                  className="text-[var(--cd-color-brand)] underline-offset-2 hover:underline"
                   {...props}
                 >
                   {children}
@@ -105,7 +105,7 @@ export function MarkdownPreview({
             // 自定义标题样式（区分不同模板区块）
             h2: ({ children, ...props }) => (
               <h2
-                className="mt-6 flex items-center gap-2 border-b border-zinc-200 pb-2 text-base font-semibold text-zinc-900 first:mt-0"
+                className="mt-6 flex items-center gap-2 border-b border-[var(--cd-color-border)] pb-2 text-[var(--cd-font-size-lg)] font-semibold text-[var(--cd-color-text-primary)] first:mt-0"
                 {...props}
               >
                 {children}
@@ -115,7 +115,7 @@ export function MarkdownPreview({
             // 自定义代码块
             pre: ({ children, ...props }) => (
               <pre
-                className="overflow-x-auto rounded-lg bg-zinc-900 p-4 text-sm text-zinc-100"
+                className="overflow-x-auto rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-text-primary)] p-4 text-[var(--cd-font-size-md)] text-[var(--cd-color-surface)]"
                 {...props}
               >
                 {children}

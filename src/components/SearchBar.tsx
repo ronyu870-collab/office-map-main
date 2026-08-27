@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import { Button, Input } from '@/src/components/ui';
+
 export interface SearchBarProps {
   /** 输入框占位符 */
   placeholder?: string;
@@ -99,7 +101,7 @@ export function SearchBar({
           </svg>
         </span>
 
-        <input
+        <Input
           value={currentValue}
           onChange={e => {
             const v = e.target.value;
@@ -114,21 +116,20 @@ export function SearchBar({
             }
           }}
           placeholder={placeholder}
-          className="w-full rounded-md border border-zinc-200 bg-zinc-50 py-2 pl-10 pr-3 text-sm text-zinc-900 outline-none transition-colors duration-200 focus:border-primary focus:bg-white"
+          className="pl-10"
           type="search"
           inputMode="search"
           autoComplete="off"
         />
       </div>
 
-      <button
+      <Button
         type="button"
         onClick={() => flush(currentValue.trim())}
-        className="shrink-0 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 focus:outline-none"
+        variant="secondary"
       >
         搜索
-      </button>
+      </Button>
     </div>
   );
 }
-

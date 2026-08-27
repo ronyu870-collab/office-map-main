@@ -14,6 +14,7 @@ import {
   type AdminIssueComment,
 } from '@/src/services/adminApi';
 import { logAction } from '@/src/utils/audit';
+import { Button, Dialog, Input } from '@/src/components/ui';
 
 // ─── 常量 ──────────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ const PRIORITY_CONFIG = {
 } as const;
 
 const CATEGORY_CONFIG = {
-  bug:     { label: 'Bug' },
+  bug:     { label: '缺陷' },
   feature: { label: '需求' },
   data:    { label: '数据' },
   other:   { label: '其他' },
@@ -453,20 +454,6 @@ function IssueFormModal({
     if (open) { setForm(initialData ?? EMPTY_FORM); setDirty(false); }
   }, [open, initialData]);
 
-  React.useEffect(() => {
-    if (!open) return;
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (dirty && !confirm('有未保存的内容，确定关闭？')) return;
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [open, dirty, onClose]);
-
-  if (!open) return null;
-
   const handleChange = (patch: Partial<IssueFormData>) => {
     setForm(prev => ({ ...prev, ...patch }));
     setDirty(true);
@@ -486,21 +473,25 @@ function IssueFormModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && (!dirty || confirm('有未保存的内容，确定关闭？'))) onClose(); }}>
-      <div className="mx-4 w-full max-w-lg rounded-xl bg-white shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
-          <h3 className="text-base font-semibold text-zinc-900">{initialData ? '编辑问题' : '新建问题'}</h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
+  const requestClose = () => {
+    if (dirty && !confirm('有未保存的内容，确定关闭？')) return;
+    onClose();
+  };
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-auto px-6 py-4 space-y-4">
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => { if (!nextOpen) requestClose(); }}
+      title={initialData ? '编辑问题' : '新建问题'}
+      size="md"
+      dismissible={!submitting}
+      footer={<><Button variant="secondary" onClick={requestClose} disabled={submitting}>取消</Button><Button onClick={() => { void handleSubmit(); }} disabled={submitting || !form.title.trim()}>{submitting ? '提交中…' : '提交'}</Button></>}
+    >
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* 标题 */}
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">问题标题 *</label>
-            <input type="text" value={form.title} onChange={(e) => handleChange({ title: e.target.value })} placeholder="简要描述问题" className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#003e7e] focus:border-[#003e7e]" required />
+            <Input type="text" value={form.title} onChange={(e) => handleChange({ title: e.target.value })} placeholder="简要描述问题" required />
           </div>
 
           {/* 分类 + 模块 */}
@@ -571,15 +562,7 @@ function IssueFormModal({
             <ImageUploadArea images={form.images} onChange={(urls) => handleChange({ images: urls })} />
           </div>
         </form>
-
-        <div className="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
-          <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">取消</button>
-          <button type="button" onClick={() => handleSubmit()} disabled={submitting || !form.title.trim()} className="rounded-lg bg-[#003e7e] px-4 py-2 text-sm font-medium text-white hover:bg-[#002a5c] disabled:opacity-50">
-            {submitting ? '提交中...' : '提交'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -604,13 +587,6 @@ function IssueDetailModal({
   const [statusNote, setStatusNote] = React.useState('');
   const [showStatusMenu, setShowStatusMenu] = React.useState(false);
 
-  React.useEffect(() => {
-    if (!issue) return;
-    const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [issue, onClose]);
-
   if (!issue) return null;
 
   const status = STATUS_CONFIG[issue.status];
@@ -630,24 +606,22 @@ function IssueDetailModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-        <div className="mx-4 w-full max-w-xl rounded-xl bg-white shadow-2xl max-h-[90vh] flex flex-col">
-          {/* 头部 */}
-          <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
-            <div className="flex items-center gap-2 flex-wrap">
+      <Dialog
+        open
+        onOpenChange={(open) => { if (!open) onClose(); }}
+        title={issue.title}
+        description={(
+          <span className="flex flex-wrap items-center gap-2">
               <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${status.color}`}>{status.label}</span>
               <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${PRIORITY_CONFIG[issue.priority].color}`}>{PRIORITY_CONFIG[issue.priority].label}</span>
               <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-600">{cat.label}</span>
               <span className="rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-600">{modLabel}</span>
-            </div>
-            <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 shrink-0">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-
-          {/* 内容 */}
-          <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
-            <h3 className="text-lg font-semibold text-zinc-900">{issue.title}</h3>
+          </span>
+        )}
+        size="md"
+        footer={<div className="flex w-full items-center justify-between"><Button variant="danger" onClick={() => { if (confirm('确定删除此问题？')) { onDelete(issue.id); onClose(); } }}>删除</Button><Button variant="secondary" onClick={onClose}>关闭</Button></div>}
+      >
+          <div className="space-y-4">
 
             <div className="flex items-center gap-4 text-xs text-zinc-500">
               <span>提交人：{issue.created_by}</span>
@@ -702,19 +676,7 @@ function IssueDetailModal({
             {/* 评论区 */}
             <CommentSection issueId={issue.id} adminEmail={adminEmail} />
           </div>
-
-          {/* 底部 */}
-          <div className="flex items-center justify-between border-t border-zinc-100 px-6 py-4">
-            <button
-              onClick={() => { if (confirm('确定删除此问题？')) { onDelete(issue.id); onClose(); } }}
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-            >
-              删除
-            </button>
-            <button onClick={onClose} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">关闭</button>
-          </div>
-        </div>
-      </div>
+      </Dialog>
 
       {/* 图片灯箱 */}
       {imgPreviewIdx !== null && issue.images.length > 0 && (
@@ -883,14 +845,14 @@ export function IssueManager({ adminEmail }: IssueManagerProps) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-200">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500">标题</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 w-16">分类</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 w-20">状态</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 w-20">优先级</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 w-20">模块</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500 w-28">提交人</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 w-16">截图</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-500 w-36">时间</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">标题</th>
+                <th className="w-16 px-4 py-3 text-center text-xs font-semibold text-zinc-500">分类</th>
+                <th className="w-20 px-4 py-3 text-center text-xs font-semibold text-zinc-500">状态</th>
+                <th className="w-20 px-4 py-3 text-center text-xs font-semibold text-zinc-500">优先级</th>
+                <th className="w-20 px-4 py-3 text-center text-xs font-semibold text-zinc-500">模块</th>
+                <th className="w-28 px-4 py-3 text-left text-xs font-semibold text-zinc-500">提交人</th>
+                <th className="w-16 px-4 py-3 text-center text-xs font-semibold text-zinc-500">截图</th>
+                <th className="w-36 px-4 py-3 text-left text-xs font-semibold text-zinc-500">时间</th>
               </tr>
             </thead>
             <tbody>

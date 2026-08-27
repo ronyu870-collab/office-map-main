@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Database, RotateCcw, Save } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, RotateCcw, Save } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
@@ -15,6 +15,7 @@ import { retryAsync } from '@/src/utils/retryAsync';
 import { DataEntryToolbar } from '@/src/components/data-entry/DataEntryToolbar';
 import { SaveStatus, type SaveState } from '@/src/components/data-entry/SaveStatus';
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
+import { AppHeader, Badge, Button, Dialog, EmptyState, ErrorState, LoadingState } from '@/src/components/ui';
 import {
   buildQuarterlySubmissionPayload,
   getQuarterlyRowIssues,
@@ -29,10 +30,23 @@ const SUBMARKET_ORDER: Record<string, string[]> = {
 };
 
 const TAB_LABELS: Record<string, string> = {
-  GradeA: 'Grade A',
-  GradeB: 'Grade B',
-  BP: 'Business Park',
+  GradeA: '甲级',
+  GradeB: '乙级',
+  BP: '产业园',
 };
+
+function QuarterlyStateShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-col bg-[var(--cd-color-canvas)]">
+      <header className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <AppHeader title="季度数据填报" homeHref="/" />
+      </header>
+      <main className="flex flex-1 items-center justify-center p-4">
+        <div className="w-full max-w-xl">{children}</div>
+      </main>
+    </div>
+  );
+}
 
 function getVal(item: Record<string, unknown> | null | undefined, keys: string[]) {
   if (!item) return '';
@@ -327,7 +341,7 @@ export function QuarterlyUpdateWorkspace() {
   const fetchDraftFromServer = React.useCallback(async (userName: string, tab: string) => {
     try {
       setSaveState('saving');
-      setSaveMessage('Loading cloud draft');
+      setSaveMessage('正在加载云端草稿');
       const { data, error } = await supabase
         .from('update_drafts')
         .select('draft_data,updated_at')
@@ -339,7 +353,7 @@ export function QuarterlyUpdateWorkspace() {
         setDraftData({});
         setFutureSupplyDrafts({});
         setSaveState('idle');
-        setSaveMessage('No cloud draft loaded');
+        setSaveMessage('暂无云端草稿');
         return;
       }
       if (data?.draft_data) {
@@ -358,7 +372,7 @@ export function QuarterlyUpdateWorkspace() {
       setDraftData({});
       setFutureSupplyDrafts({});
       setSaveState('idle');
-      setSaveMessage('Draft unavailable; edits remain local until saved');
+      setSaveMessage('云端草稿暂不可用，当前修改保留在本地');
     }
   }, []);
 
@@ -369,7 +383,7 @@ export function QuarterlyUpdateWorkspace() {
   const syncDraftToServer = React.useCallback(async (draft: Record<string, any>, tab: string) => {
     if (!draftUserName || isPreview || isImpersonating) return false;
     setSaveState('saving');
-    setSaveMessage('Syncing cloud draft');
+    setSaveMessage('正在同步云端草稿');
     try {
       const timestamp = new Date();
       const { error } = await supabase.from('update_drafts').upsert(
@@ -418,7 +432,7 @@ export function QuarterlyUpdateWorkspace() {
     if (isPreview || isImpersonating) return;
     setCompletionNotice(null);
     setSaveState('unsaved');
-    setSaveMessage('Changes have not reached the cloud draft yet');
+    setSaveMessage('当前修改尚未同步到云端草稿');
   };
 
   const updateRegularField = (buildingId: string, field: string, value: string) => {
@@ -539,68 +553,59 @@ export function QuarterlyUpdateWorkspace() {
   if (buildingsError) {
     const info = handleDataFetchError(buildingsError);
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f5f7] p-4">
-        <div className="w-full max-w-md rounded-lg border border-rose-200 bg-white p-5">
-          <ValidationMessage severity="error">{info.message}</ValidationMessage>
-          <div className="mt-4 flex gap-2">
-            {info.retryable && <button onClick={() => mutate()} className="rounded-md bg-[#003e7e] px-4 py-2 text-sm font-semibold text-white">{info.userAction}</button>}
-            <Link href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm text-zinc-600">返回主页</Link>
-          </div>
-        </div>
-      </div>
+      <QuarterlyStateShell>
+        <ErrorState
+          title="楼宇数据加载失败"
+          description={info.message}
+          action={(
+            <div className="flex flex-wrap justify-center gap-2">
+              {info.retryable ? <Button onClick={() => mutate()}>{info.userAction}</Button> : null}
+              <Link href="/" className="inline-flex h-[var(--cd-control-height-md)] items-center rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 text-[var(--cd-font-size-md)] font-medium text-[var(--cd-color-text-primary)] transition-colors hover:bg-[var(--cd-color-surface-alt)]">主页</Link>
+            </div>
+          )}
+        />
+      </QuarterlyStateShell>
     );
   }
 
   if (assignmentsError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3f5f7] p-4">
-        <div className="w-full max-w-md rounded-lg border border-rose-200 bg-white p-5">
-          <ValidationMessage severity="error">{assignmentsError}</ValidationMessage>
-          <div className="mt-4 flex gap-2">
-            <button onClick={() => { setAssignedBuildingIds(null); setAssignmentsRetryKey((value) => value + 1); }} className="rounded-md bg-[#003e7e] px-4 py-2 text-sm font-semibold text-white">重新加载</button>
-            <Link href="/" className="rounded-md border border-zinc-200 px-4 py-2 text-sm text-zinc-600">返回主页</Link>
-          </div>
-        </div>
-      </div>
+      <QuarterlyStateShell>
+        <ErrorState
+          title="填报任务加载失败"
+          description={assignmentsError}
+          action={(
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={() => { setAssignedBuildingIds(null); setAssignmentsRetryKey((value) => value + 1); }}>重新加载</Button>
+              <Link href="/" className="inline-flex h-[var(--cd-control-height-md)] items-center rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 text-[var(--cd-font-size-md)] font-medium text-[var(--cd-color-text-primary)] transition-colors hover:bg-[var(--cd-color-surface-alt)]">主页</Link>
+            </div>
+          )}
+        />
+      </QuarterlyStateShell>
     );
   }
 
   if (!ready || protectedBuildings === undefined || assignedBuildingIds === null) {
-    return <div className="flex h-screen items-center justify-center bg-[#f3f5f7]"><div className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-[#003e7e]" /></div>;
+    return <QuarterlyStateShell><LoadingState rows={0} label="正在加载季度填报任务" /></QuarterlyStateShell>;
   }
 
   if (assignedBuildingIds.length === 0 && futureSupplyAssignments.length === 0) {
     return (
-      <div className="flex min-h-screen flex-col bg-[#f3f5f7]">
-        <header className="border-b border-zinc-200 bg-white px-4 py-3"><strong className="text-sm tracking-[0.12em] text-[#003e7e]">季度数据填报</strong></header>
-        <div className="flex flex-1 items-center justify-center p-4"><div className="max-w-sm text-center text-sm text-zinc-500">目前没有分配给您的填报任务，请联系管理员。</div></div>
-      </div>
+      <QuarterlyStateShell>
+        <EmptyState title="暂无填报任务" description="目前没有分配给您的填报任务，请联系管理员。" />
+      </QuarterlyStateShell>
     );
   }
 
   return (
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[#f3f5f7] text-zinc-900">
       <header className="shrink-0 border-b border-zinc-200 bg-white">
-        <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:px-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-[13px] font-bold tracking-[0.14em] text-[#003e7e]">季度数据填报</h1>
-              <span className="rounded-[4px] border border-[#003e7e]/20 bg-[#003e7e]/5 px-1.5 py-0.5 text-[11px] font-semibold text-[#003e7e]">{submitYear} Q{submitQuarter}</span>
-              {readOnly && <span className="rounded-[4px] border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">只读</span>}
-            </div>
-            <p className="mt-0.5 text-[11px] text-zinc-500">{isPreview ? `管理员预览 · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</p>
-          </div>
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="hidden items-center divide-x divide-zinc-200 rounded-md border border-zinc-200 bg-zinc-50 lg:flex">
-              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">项目</span><strong className="ml-2 text-xs tabular-nums">{filteredBuildings.length}</strong></div>
-              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">完整</span><strong className="ml-2 text-xs tabular-nums text-emerald-700">{completedCount}</strong></div>
-              <div className="px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-zinc-400">待检查</span><strong className="ml-2 text-xs tabular-nums text-amber-700">{exceptionCount}</strong></div>
-            </div>
-            <SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { void manualSave(); }} />
-            <Link href="/" className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2.5 text-[11px] font-medium text-zinc-600 hover:bg-zinc-50"><ArrowLeft size={13} /> 主页</Link>
-          </div>
-        </div>
+        <AppHeader
+          title={<span className="flex items-center gap-2">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{readOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
+          status={<span className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">{isPreview ? `管理员预览 · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</span>}
+          homeHref="/"
+          actions={<SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { void manualSave(); }} />}
+        />
         {isPreview && <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">管理员预览模式：正在查看 {previewUserName} 的分配与草稿，不允许写入。</div>}
       </header>
 
@@ -615,7 +620,11 @@ export function QuarterlyUpdateWorkspace() {
             {TAB_LABELS[tab]}
           </button>
         ))}
-        <span className="ml-auto hidden text-[10px] text-zinc-400 sm:inline">Tab moves across fields · Enter advances to next numeric field</span>
+        <div className="ml-auto hidden items-center divide-x divide-zinc-200 text-[10px] text-zinc-500 md:flex">
+          <span className="px-2">项目 <strong className="tabular-nums text-zinc-800">{filteredBuildings.length}</strong></span>
+          <span className="px-2">完整 <strong className="tabular-nums text-emerald-700">{completedCount}</strong></span>
+          <span className="pl-2">待检查 <strong className="tabular-nums text-amber-700">{exceptionCount}</strong></span>
+        </div>
       </div>
 
       <main className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
@@ -625,7 +634,7 @@ export function QuarterlyUpdateWorkspace() {
               {completionNotice ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                   <CheckCircle2 size={15} />
-                  <strong>Submission succeeded</strong>
+                  <strong>提交成功</strong>
                   <span>已写入 {completionNotice.total} 条（普通楼宇 {completionNotice.regular} / 未来供应 {completionNotice.future}）。云草稿已保留。</span>
                   <button onClick={() => setCompletionNotice(null)} className="ml-auto font-semibold underline underline-offset-2">继续录入</button>
                 </div>
@@ -641,13 +650,13 @@ export function QuarterlyUpdateWorkspace() {
           <div className="hidden min-h-0 flex-1 overflow-auto md:block">
             <table className="w-full min-w-[1760px] border-collapse text-[11px]">
               <thead className="sticky top-0 z-20 bg-white">
-                <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-[0.08em] text-zinc-500">
-                  <th colSpan={5} className="border-r border-zinc-200 bg-zinc-50 px-2 py-1.5 text-left">Project context</th>
-                  <th colSpan={7} className="border-r border-zinc-200 bg-slate-50 px-2 py-1.5 text-left text-slate-600">Previous quarter reference</th>
-                  <th colSpan={10} className="bg-[#fffaf0] px-2 py-1.5 text-left text-amber-800">Current quarter entry</th>
+                <tr className="border-b border-zinc-200 text-[10px] text-zinc-500">
+                  <th colSpan={5} className="border-r border-zinc-200 bg-zinc-50 px-2 py-1.5 text-left">项目概况</th>
+                  <th colSpan={7} className="border-r border-zinc-200 bg-slate-50 px-2 py-1.5 text-left text-slate-600">上季度参考</th>
+                  <th colSpan={10} className="bg-[#fffaf0] px-2 py-1.5 text-left text-amber-800">本季度填报</th>
                 </tr>
                 <tr className="border-b border-zinc-200 bg-white text-zinc-600">
-                  {['#','Project','Submarket','Owner / PM','Total area','Ask','Mgmt','Face','Free','NER','Vacant','Vacancy','Ask','Mgmt','Face','Free','NER','Rent Δ','Vacant','Area Δ','Vacancy','Notes'].map((label, index) => (
+                  {['序号','项目','子市场','业主 / 物业','总面积','报价','物业费','表面租金','免租期','净有效租金','空置面积','空置率','报价','物业费','表面租金','免租期','净有效租金','租金变化','空置面积','面积变化','空置率','备注'].map((label, index) => (
                     <th key={`${label}-${index}`} className={`whitespace-nowrap border-r border-zinc-100 px-2 py-2 font-semibold ${index === 1 ? 'sticky left-0 z-30 bg-white text-left' : index >= 12 ? 'bg-[#fffdf7]' : 'text-right'}`}>{label}</th>
                   ))}
                 </tr>
@@ -685,7 +694,7 @@ export function QuarterlyUpdateWorkspace() {
                   return (
                     <tr key={`${isFuture ? 'future' : 'building'}-${building.id}`} className={`border-b border-zinc-100 hover:bg-zinc-50/70 ${isFuture ? 'bg-amber-50/40' : ''}`}>
                       <td className="px-2 py-1.5 text-center text-zinc-400">{index + 1}</td>
-                      <td className={`sticky left-0 z-10 min-w-44 border-r border-zinc-200 px-2 py-1.5 font-semibold ${isFuture ? 'bg-amber-50 text-amber-800' : 'bg-white text-[#003e7e]'}`}><div className="truncate" title={String(name)}>{String(name)}</div>{issues.length > 0 && <span className="mt-0.5 inline-flex items-center gap-1 text-[9px] font-medium text-amber-700"><AlertTriangle size={9} /> review</span>}</td>
+                      <td className={`sticky left-0 z-10 min-w-44 border-r border-zinc-200 px-2 py-1.5 font-semibold ${isFuture ? 'bg-amber-50 text-amber-800' : 'bg-white text-[#003e7e]'}`}><div className="truncate" title={String(name)}>{String(name)}</div>{issues.length > 0 && <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-700"><AlertTriangle size={10} /> 待检查</span>}</td>
                       <td className="px-2 py-1.5 text-zinc-600">{String(submarket)}</td>
                       <td className="min-w-40 px-1 py-1"><div className="grid grid-cols-2 gap-1"><RowField value={draft.qOwner ?? defaultOwner} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline /><RowField value={draft.qPropMan ?? defaultPm} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline /></div></td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-zinc-600">{Math.round(totalArea).toLocaleString()}</td>
@@ -737,22 +746,23 @@ export function QuarterlyUpdateWorkspace() {
         </div>
       </main>
 
-      {showIncompleteDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/35 p-4" onClick={() => setShowIncompleteDialog(false)}>
-          <div className="w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="quarterly-incomplete-title" onClick={(event) => event.stopPropagation()}>
-            <h2 id="quarterly-incomplete-title" className="text-sm font-semibold text-zinc-900">存在未填完的项目</h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">沿用现有业务规则：报价、物业费、表面租金、免租期、空置面积被视为必填；业主、物业和备注可留空。你仍可强行提交已填写的数据。</p>
-            <div className="mt-3 max-h-44 overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50 p-2 text-[11px] text-zinc-600">
-              {incompleteBuildings.slice(0, 8).map((building: any, index: number) => <div key={building.id} className="py-1">{index + 1}. {String(getVal(building, ['写字楼名称', 'name']) || building.name || '-')}</div>)}
-              {incompleteBuildings.length > 8 && <div className="py-1 text-zinc-400">另有 {incompleteBuildings.length - 8} 个项目…</div>}
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setShowIncompleteDialog(false)} className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50">去补充</button>
-              <button type="button" onClick={() => { void executeSubmit(); }} className="rounded-md bg-[#003e7e] px-3 py-2 text-xs font-semibold text-white hover:bg-[#003566]">强行提交已填数据</button>
-            </div>
-          </div>
+      <Dialog
+        open={showIncompleteDialog}
+        onOpenChange={setShowIncompleteDialog}
+        title="存在未填完的项目"
+        description="沿用现有业务规则：报价、物业费、表面租金、免租期、空置面积为必填；业主、物业和备注可留空。你仍可强行提交已填写的数据。"
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setShowIncompleteDialog(false)}>去补充</Button>
+            <Button onClick={() => { void executeSubmit(); }}>强行提交已填数据</Button>
+          </>
+        )}
+      >
+        <div className="max-h-44 overflow-y-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] p-2 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
+          {incompleteBuildings.slice(0, 8).map((building: any, index: number) => <div key={building.id} className="py-1">{index + 1}. {String(getVal(building, ['写字楼名称', 'name']) || building.name || '-')}</div>)}
+          {incompleteBuildings.length > 8 && <div className="py-1 text-[var(--cd-color-text-muted)]">另有 {incompleteBuildings.length - 8} 个项目…</div>}
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

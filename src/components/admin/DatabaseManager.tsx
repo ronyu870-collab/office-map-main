@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { Download, Maximize2, Minimize2 } from "lucide-react";
+
+import { IconButton } from "@/src/components/ui";
 import { supabase } from "@/src/services/supabaseClient";
 import { GridPanel } from "./grid/GridPanel";
 import { CORE_TABLE_CONFIGS, ALL_CORE_TABLE_NAMES } from "./tableConfigs";
@@ -52,7 +55,7 @@ function TableSkeleton() {
       </div>
       {/* 表格骨架 */}
       <div className="flex-1 px-4 pb-4">
-        <div className="h-full bg-zinc-100 rounded-xl border border-zinc-200 overflow-hidden">
+        <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]">
           {/* 表头 */}
           <div className="h-11 bg-zinc-50 border-b border-zinc-200 flex items-center px-4 gap-4">
             {[1, 2, 3, 4, 5, 6].map(i => (
@@ -184,8 +187,8 @@ export function DatabaseManager() {
         <div className="flex items-center gap-1">
           {(() => {
             const PALETTE = [
-              { active: "bg-amber-600 text-white shadow-sm", inactive: "text-amber-700 hover:bg-amber-50" },
-              { active: "bg-emerald-600 text-white shadow-sm", inactive: "text-emerald-700 hover:bg-emerald-50" },
+              { active: "bg-[var(--cd-color-brand)] text-white", inactive: "text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]" },
+              { active: "bg-[var(--cd-color-brand)] text-white", inactive: "text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]" },
             ];
             const leftGroups = tabGroups.slice(0, 2);
             return leftGroups.map((group, gi) => {
@@ -203,7 +206,7 @@ export function DatabaseManager() {
                         <button
                           key={cfg.table}
                           onClick={() => handleTabChange(idx)}
-                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all shrink-0 ${
+                          className={`h-8 shrink-0 rounded-[var(--cd-radius-md)] px-3 text-xs font-medium transition-colors ${
                             isActive ? color.active : color.inactive
                           }`}
                         >
@@ -225,9 +228,9 @@ export function DatabaseManager() {
         <div className="flex items-center gap-1">
           {(() => {
             const PALETTE = [
-              { active: "bg-sky-600 text-white shadow-sm", inactive: "text-sky-700 hover:bg-sky-50" },
-              { active: "bg-violet-600 text-white shadow-sm", inactive: "text-violet-700 hover:bg-violet-50" },
-              { active: "bg-rose-600 text-white shadow-sm", inactive: "text-rose-600 hover:bg-rose-50" },
+              { active: "bg-[var(--cd-color-brand)] text-white", inactive: "text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]" },
+              { active: "bg-[var(--cd-color-brand)] text-white", inactive: "text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]" },
+              { active: "bg-[var(--cd-color-brand)] text-white", inactive: "text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]" },
             ];
             const rightGroups = tabGroups.slice(2);
             return rightGroups.map((group, gi) => {
@@ -245,7 +248,7 @@ export function DatabaseManager() {
                         <button
                           key={cfg.table}
                           onClick={() => handleTabChange(idx)}
-                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all shrink-0 ${
+                          className={`h-8 shrink-0 rounded-[var(--cd-radius-md)] px-3 text-xs font-medium transition-colors ${
                             isActive ? color.active : color.inactive
                           }`}
                         >
@@ -271,7 +274,7 @@ export function DatabaseManager() {
                   }
                   setAutoTableOpen((v) => !v);
                 }}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                className={`h-8 rounded-[var(--cd-radius-md)] border px-3 text-xs font-medium transition-colors ${
                   selectedAutoTable
                     ? "bg-[#003e7e] text-white border-[#003e7e]"
                     : "border-zinc-300 text-zinc-600 hover:bg-zinc-100"
@@ -295,7 +298,7 @@ export function DatabaseManager() {
                 <div
                   ref={autoTableDropdownRef}
                   style={{ position: "fixed", top: autoTablePos.top, left: autoTablePos.left, zIndex: 99999 }}
-                  className="w-64 max-h-72 overflow-auto rounded-lg border border-zinc-200 bg-white shadow-lg"
+                  className="max-h-72 w-64 overflow-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]"
                 >
                   {autoTables.map((t) => (
                     <button
@@ -306,7 +309,7 @@ export function DatabaseManager() {
                       }}
                       className={`w-full text-left px-3 py-2 text-xs hover:bg-zinc-50 transition ${
                         selectedAutoTable === t.table
-                          ? "bg-blue-50 text-[#003e7e] font-semibold"
+                          ? "bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)] font-medium"
                           : "text-zinc-700"
                       }`}
                     >
@@ -323,32 +326,29 @@ export function DatabaseManager() {
           )}
 
           {/* 全屏切换 */}
-          <button
+          <IconButton
             onClick={() => setIsFullscreen((v) => !v)}
-            className="ml-1 px-2 py-1 text-[10px] text-zinc-400 hover:text-zinc-600 transition"
-            title={isFullscreen ? "退出全屏" : "全屏"}
+            className="ml-1"
+            variant="ghost"
+            size="sm"
+            label={isFullscreen ? "退出全屏" : "全屏"}
           >
             {isFullscreen ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-              </svg>
+              <Minimize2 size={14} />
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-              </svg>
+              <Maximize2 size={14} />
             )}
-          </button>
+          </IconButton>
 
           {/* 数据备份 */}
-          <button
+          <IconButton
             onClick={() => setBackupOpen(true)}
-            className="px-2 py-1 text-[10px] text-zinc-400 hover:text-zinc-600 transition"
-            title="数据备份"
+            variant="ghost"
+            size="sm"
+            label="数据备份"
           >
-            <svg className="inline-block w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-          </button>
+            <Download size={14} />
+          </IconButton>
         </div>
       </div>
 

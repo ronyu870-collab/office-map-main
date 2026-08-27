@@ -268,7 +268,7 @@ export function SubmissionDetailModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="flex w-full max-w-[95vw] xl:max-w-[1400px] flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl"
+        className="flex w-full max-w-[95vw] flex-col rounded-lg border border-zinc-200 bg-white shadow-[var(--cd-shadow-overlay)] xl:max-w-[1400px]"
         style={{ maxHeight: '90vh' }}
         role="dialog"
         aria-modal="true"

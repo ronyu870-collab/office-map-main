@@ -28,8 +28,8 @@ export function StatusIndicator({
 
   if (isOffline) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-amber-600">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+      <div className="flex items-center gap-1.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-warning)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--cd-color-warning)]" />
         <span>离线模式，无法保存</span>
       </div>
     );
@@ -45,8 +45,8 @@ export function StatusIndicator({
       error.message.includes('forbidden');
 
     return (
-      <div className="flex items-center gap-1.5 text-xs text-red-600">
-        <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+      <div className="flex items-center gap-1.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-danger)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--cd-color-danger)]" />
         <span>
           {isPermissionError
             ? '权限不足，请检查登录状态'
@@ -58,17 +58,17 @@ export function StatusIndicator({
 
   if (isSaving) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400" />
-        <span>保存中...</span>
+      <div className="flex items-center gap-1.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--cd-color-text-muted)]" />
+        <span>保存中…</span>
       </div>
     );
   }
 
   if (showSaved && lastSaved) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-green-600">
-        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+      <div className="flex items-center gap-1.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-success)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--cd-color-success)]" />
         <span>已自动保存</span>
       </div>
     );
@@ -76,8 +76,8 @@ export function StatusIndicator({
 
   if (lastSaved) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-zinc-300" />
+      <div className="flex items-center gap-1.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-muted)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--cd-color-border-strong)]" />
         <span>
           {lastSaved.toLocaleTimeString('zh-CN', {
             hour: '2-digit',

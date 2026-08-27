@@ -25,7 +25,7 @@ import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
-import { parseUserRole, type UserRole } from '@/src/types/auth';
+import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 import { logAction, logActionImmediate } from '@/src/utils/audit';
 import {
@@ -39,12 +39,6 @@ type WorkspaceModule = {
   module: string;
   title: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-};
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  viewer: '查看用户',
-  editor: '编辑用户',
-  admin: '管理员',
 };
 
 const MAP_WORKSPACE: WorkspaceModule = {
@@ -99,7 +93,7 @@ function HomeHeader({
   const menuRef = React.useRef<HTMLDivElement>(null);
   const menuTriggerRef = React.useRef<HTMLButtonElement>(null);
   const focusFirstOnOpenRef = React.useRef(false);
-  const roleLabel = ROLE_LABELS[role];
+  const roleLabel = getUserRoleLabel(role);
 
   const focusFirstMenuItem = React.useCallback(() => {
     menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();

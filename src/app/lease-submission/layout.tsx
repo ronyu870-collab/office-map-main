@@ -3,15 +3,13 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 
-import './concise.css';
 import { getSessionFast } from '@/src/services/Auth';
 import { canAccessModule } from '@/src/utils/accessControl';
+import { LoadingState } from '@/src/components/ui';
 
 function LeaseSubmissionGuardLoading() {
   return (
-    <div className="flex h-screen h-[100dvh] items-center justify-center bg-gray-50">
-      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-    </div>
+    <div className="flex h-screen h-[100dvh] items-center justify-center bg-[var(--cd-color-workspace)] px-6"><LoadingState label="正在校验租赁成交填报权限" rows={0} /></div>
   );
 }
 

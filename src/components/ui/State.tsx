@@ -1,11 +1,32 @@
 import type { ReactNode } from "react";
 
-export function LoadingState({ label = "正在加载" }: { label?: string }) {
+export function LoadingState({
+  label = "正在加载",
+  rows = 4,
+  className = "",
+}: {
+  label?: string;
+  rows?: number;
+  className?: string;
+}) {
+  if (rows === 0) {
+    return (
+      <div
+        className={`flex items-center justify-center gap-2 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)] ${className}`}
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" aria-hidden="true" />
+        <span>{label}</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-3" aria-live="polite" aria-busy="true">
+    <div className={`space-y-3 ${className}`} aria-live="polite" aria-busy="true">
       <div className="h-8 w-44 animate-pulse rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)]" />
       <div className="space-y-2">
-        {Array.from({ length: 4 }).map((_, index) => (
+        {Array.from({ length: rows }).map((_, index) => (
           <div
             key={index}
             className="h-10 animate-pulse rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]"

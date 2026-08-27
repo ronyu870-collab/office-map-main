@@ -1,6 +1,10 @@
 'use client';
 
 import * as React from 'react';
+import { Menu, Plus } from 'lucide-react';
+
+import { AdminSidebar } from '@/src/components/admin/AdminSidebar';
+import { Badge, Button, Dialog, EmptyState, IconButton, Input, LoadingState, PageHeader } from '@/src/components/ui';
 import { supabase } from '@/src/services/supabaseClient';
 
 interface DisplayOverride {
@@ -24,6 +28,7 @@ export default function DisplayOverridesPage() {
   const [buildings, setBuildings] = React.useState<Building[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showModal, setShowModal] = React.useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [editingOverride, setEditingOverride] = React.useState<DisplayOverride | null>(null);
 
   // 表单状态
@@ -177,65 +182,47 @@ export default function DisplayOverridesPage() {
   });
 
   return (
-    <div className="flex-1 overflow-auto p-6">
-      <div className="mx-auto max-w-6xl">
-        {/* 页面标题 */}
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900">显示覆盖规则</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              配置特殊楼宇的弹窗显示规则，例如将"子市场：其他"替换为"行政区：朝阳区-双井"
-            </p>
-          </div>
-          <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 rounded-lg bg-[#003e7e] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#002d5e] focus:outline-none focus:ring-2 focus:ring-[#003e7e] focus:ring-offset-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            新增规则
-          </button>
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
+      <AdminSidebar active="display-overrides" mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--cd-color-canvas)]">
+        <div className="flex h-10 shrink-0 items-center border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 lg:hidden">
+          <IconButton label="打开管理导航" variant="ghost" size="sm" onClick={() => setMobileNavOpen(true)}><Menu size={16} /></IconButton>
         </div>
+        <div className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+          <div className="mx-auto max-w-6xl">
+            <PageHeader
+              title="显示覆盖规则"
+              description="配置楼宇弹窗中的字段显示。"
+              actions={<Button onClick={handleAdd}><Plus size={15} />新增规则</Button>}
+              className="mb-4"
+            />
 
         {/* 搜索栏 */}
         <div className="mb-4">
-          <input
+          <Input
             type="text"
-            placeholder="搜索楼宇名称、字段、标签或值..."
+            placeholder="搜索楼宇名称、字段、标签或值"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 px-4 py-2.5 text-sm focus:border-[#003e7e] focus:outline-none focus:ring-1 focus:ring-[#003e7e]"
           />
         </div>
 
         {/* 表格 */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-          </div>
+          <LoadingState label="正在加载显示覆盖规则" />
         ) : filteredOverrides.length === 0 ? (
-          <div className="rounded-lg border border-zinc-200 bg-white py-20 text-center">
-            <p className="text-sm text-zinc-500">暂无覆盖规则</p>
-            <button
-              onClick={handleAdd}
-              className="mt-4 text-sm font-semibold text-[#003e7e] hover:underline"
-            >
-              添加第一条规则
-            </button>
-          </div>
+          <EmptyState title="暂无覆盖规则" action={<Button variant="secondary" onClick={handleAdd}>添加第一条规则</Button>} />
         ) : (
-          <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 bg-zinc-50">
+          <div className="overflow-x-auto rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+            <table className="w-full min-w-[760px] text-left text-[var(--cd-font-size-sm)]">
+              <thead className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]">
                 <tr>
-                  <th className="px-4 py-3 font-semibold text-zinc-700">楼宇名称</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-700">覆盖字段</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-700">显示标签</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-700">显示值</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-700">创建时间</th>
-                  <th className="px-4 py-3 font-semibold text-zinc-700 text-right">操作</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--cd-color-text-secondary)]">楼宇名称</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--cd-color-text-secondary)]">覆盖字段</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--cd-color-text-secondary)]">显示标签</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--cd-color-text-secondary)]">显示值</th>
+                  <th className="px-4 py-2.5 font-medium text-[var(--cd-color-text-secondary)]">创建时间</th>
+                  <th className="px-4 py-2.5 text-right font-medium text-[var(--cd-color-text-secondary)]">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -243,9 +230,9 @@ export default function DisplayOverridesPage() {
                   <tr key={override.id} className="hover:bg-zinc-50">
                     <td className="px-4 py-3 font-medium text-zinc-900">{override.building_name}</td>
                     <td className="px-4 py-3 text-zinc-600">
-                      <span className="inline-block rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium">
+                      <Badge>
                         {override.field_name === 'submarket' ? '子市场' : '楼宇等级'}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-4 py-3 text-zinc-600">{override.display_label}</td>
                     <td className="px-4 py-3 font-semibold text-[#003e7e]">{override.display_value}</td>
@@ -253,18 +240,8 @@ export default function DisplayOverridesPage() {
                       {new Date(override.created_at).toLocaleDateString('zh-CN')}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleEdit(override)}
-                        className="mr-2 text-xs font-semibold text-[#003e7e] hover:underline"
-                      >
-                        编辑
-                      </button>
-                      <button
-                        onClick={() => handleDelete(override.id)}
-                        className="text-xs font-semibold text-red-600 hover:underline"
-                      >
-                        删除
-                      </button>
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(override)} className="mr-1">编辑</Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(override.id)} className="text-[var(--cd-color-danger)]">删除</Button>
                     </td>
                   </tr>
                 ))}
@@ -272,17 +249,23 @@ export default function DisplayOverridesPage() {
             </table>
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      </main>
 
       {/* 模态框 */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-lg font-bold text-zinc-900">
-              {editingOverride ? '编辑覆盖规则' : '新增覆盖规则'}
-            </h2>
-
-            <div className="space-y-4">
+      <Dialog
+        open={showModal}
+        onOpenChange={setShowModal}
+        title={editingOverride ? '编辑覆盖规则' : '新增覆盖规则'}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>取消</Button>
+            <Button onClick={() => void handleSave()}>{editingOverride ? '保存' : '新增'}</Button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
               {/* 楼宇选择 */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
@@ -292,7 +275,7 @@ export default function DisplayOverridesPage() {
                   value={selectedBuildingId}
                   onChange={(e) => setSelectedBuildingId(e.target.value)}
                   disabled={!!editingOverride}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-[#003e7e] focus:outline-none focus:ring-1 focus:ring-[#003e7e] disabled:bg-zinc-100"
+                  className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[var(--cd-font-size-md)] text-[var(--cd-color-text-primary)] outline-none focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)] disabled:bg-[var(--cd-color-surface-alt)]"
                 >
                   <option value="">请选择楼宇</option>
                   {buildings.map((b) => (
@@ -315,7 +298,7 @@ export default function DisplayOverridesPage() {
                     }
                   }}
                   disabled={!!editingOverride}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-[#003e7e] focus:outline-none focus:ring-1 focus:ring-[#003e7e] disabled:bg-zinc-100"
+                  className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[var(--cd-font-size-md)] text-[var(--cd-color-text-primary)] outline-none focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)] disabled:bg-[var(--cd-color-surface-alt)]"
                 >
                   <option value="submarket">子市场</option>
                   <option value="grade">楼宇等级</option>
@@ -327,12 +310,11 @@ export default function DisplayOverridesPage() {
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
                   显示标签 <span className="text-red-500">*</span>
                 </label>
-                <input
+                <Input
                   type="text"
                   value={displayLabel}
                   onChange={(e) => setDisplayLabel(e.target.value)}
                   placeholder="例如：行政区、市场分类"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-[#003e7e] focus:outline-none focus:ring-1 focus:ring-[#003e7e]"
                 />
               </div>
 
@@ -341,34 +323,15 @@ export default function DisplayOverridesPage() {
                 <label className="mb-1 block text-sm font-medium text-zinc-700">
                   显示值 <span className="text-red-500">*</span>
                 </label>
-                <input
+                <Input
                   type="text"
                   value={displayValue}
                   onChange={(e) => setDisplayValue(e.target.value)}
                   placeholder="例如：朝阳区-双井、产业园"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:border-[#003e7e] focus:outline-none focus:ring-1 focus:ring-[#003e7e]"
                 />
               </div>
-            </div>
-
-            {/* 操作按钮 */}
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                className="rounded-lg bg-[#003e7e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#002d5e]"
-              >
-                {editingOverride ? '保存' : '新增'}
-              </button>
-            </div>
-          </div>
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

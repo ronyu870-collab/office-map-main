@@ -100,7 +100,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             </p>
             <button
               onClick={this.handleReset}
-              className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="flex h-[var(--cd-control-height-md)] items-center gap-2 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 text-[var(--cd-font-size-md)] font-medium text-white transition-colors hover:bg-[var(--cd-color-brand-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]"
             >
               <svg
                 width="16"

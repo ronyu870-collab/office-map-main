@@ -21,6 +21,44 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-08-27 — Global UI detail hardening and product visual consistency
+
+### Area
+Shared UI foundation / Home / Login / Map / Quarterly Update / Lease Submission / Research Library / Settings / Admin
+
+### What changed
+
+- Extended the existing visual tokens and shared UI layer with a canonical 54px application header, consistent control sizing, restrained surface/focus colors, `AppHeader`, `IconButton`, and an accessible shared `Dialog`.
+- Removed redundant visible product identities, decorative English labels, fake app icons, repeated Admin headings/breadcrumbs, oversized metadata badges, and card/shadow treatments without business meaning.
+- Standardized visible role names to 管理员 / 编辑用户 / 查看用户 while preserving backend role identifiers and authorization behavior.
+- Reworked Admin navigation into concise 用户 / 数据 / 审计 / 系统 / 开发 groups, removed duplicate group-item naming, and calmed User, Database, Submission, diagnostics, modal, table, and toolbar presentation.
+- Aligned Map loading and loaded identity to 北京办公楼市场地图; retained the existing map data, marker, LabelsLayer, MassMarks, InfoWindow, and rendering-performance architecture.
+- Translated ordinary Quarterly workspace structure and field labels to Chinese, migrated its page loading/empty/error states and incomplete-submission confirmation to shared primitives, and retained Q1–Q4 plus data-level identifiers; all submission, validation, and calculation behavior is preserved.
+- Aligned Lease, Research, Settings, and Login shells and controls with the same product language while preserving their workflow, upload/storage, authentication, warning, and validation semantics.
+- Deleted the legacy Quarterly and Lease `concise.css` files and removed their imports instead of rendering helper copy and hiding it with brittle selectors.
+- Added and strengthened cross-page, Chinese-language, minimal-copy, Admin navigation/role, scroll-layout, and Map identity contracts without locking tests to arbitrary Tailwind snapshots.
+
+### Why
+
+The application had coherent individual workspaces but inconsistent identity, typography, spacing, color, modal, and state conventions across routes. This pass removes decorative hierarchy and restores a calm, dense, data-first product language without redesigning business workflows.
+
+### Impact
+
+- No Supabase schema, API contract, permissions, authentication, impersonation, audit behavior, Map data/runtime architecture, Quarterly data logic, Lease data logic, OSS semantics, or save/submit/validation behavior changed.
+- Ordinary visible UI is Chinese-first. Q1–Q4, LEED, PDF, Excel, URLs, developer-only API/schema identifiers, and user-supplied English names remain where they convey real domain or data meaning.
+- The implementation was prepared on `fix/global-ui-detail-hardening-zh` and delivered to `main` only after the final verification gates passed.
+
+### Verification
+
+- `npm run verify` passed on the final tree: TypeScript, ESLint with 0 errors / 657 existing warnings, 48 test files / 290 tests, and the Next.js production build.
+- Login was inspected at 1440×900, 1366×768, 1280×800, 390×844, and 430×932 with no page overflow or runtime overlay; protected routes were confirmed to redirect to Login when unauthenticated.
+- Authenticated multi-route browser QA was explicitly cancelled before delivery and is not claimed.
+
+### Follow-up
+
+- If a later visual acceptance pass is requested, cover authenticated routes, modal/ESC/Back behavior, long content, focus, overflow, and 125% zoom; this is not part of the current delivery.
+
+
 ## 2026-08-25 — Home implementation cleanup and maintainability hardening
 
 ### Area

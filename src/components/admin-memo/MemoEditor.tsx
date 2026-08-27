@@ -11,6 +11,7 @@ import { VersionHistory } from './VersionHistory';
 import { ImageUploadButton } from './ImageUploadButton';
 import { showToast } from './Toast';
 import type { Memo, MemoVersion } from '@/src/types/memo';
+import { Button, EmptyState, LoadingState } from '@/src/components/ui';
 
 type EditorMode = 'edit' | 'preview' | 'history';
 
@@ -119,19 +120,11 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
-      </div>
-    );
+    return <LoadingState rows={0} label="正在加载备忘录" className="h-full" />;
   }
 
   if (!memo) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center text-zinc-400">
-        <p className="text-sm">备忘录不存在或加载失败</p>
-      </div>
-    );
+    return <EmptyState title="无法打开备忘录" description="该备忘录不存在，或当前内容加载失败。" />;
   }
 
   const displayContent = viewingVersion ? viewingVersion.content : content;
@@ -142,12 +135,12 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
   return (
     <div className="flex h-full flex-col">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-2">
+      <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-4 py-2">
         <div className="flex items-center gap-1">
           <button
             onClick={() => { setMode('edit'); setViewingVersion(null); }}
-            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              mode === 'edit' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'
+            className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1 rounded-[var(--cd-radius-md)] px-2.5 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
+              mode === 'edit' ? 'bg-[var(--cd-color-brand)] text-white' : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
             }`}
           >
             <Edit3 className="h-3.5 w-3.5" />
@@ -155,8 +148,8 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
           </button>
           <button
             onClick={() => { setMode('preview'); setViewingVersion(null); }}
-            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              mode === 'preview' && !isViewingOld ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'
+            className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1 rounded-[var(--cd-radius-md)] px-2.5 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
+              mode === 'preview' && !isViewingOld ? 'bg-[var(--cd-color-brand)] text-white' : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
             }`}
           >
             <Eye className="h-3.5 w-3.5" />
@@ -164,8 +157,8 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
           </button>
           <button
             onClick={() => { setMode('history'); setViewingVersion(null); }}
-            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              mode === 'history' ? 'bg-zinc-900 text-white' : 'text-zinc-500 hover:bg-zinc-100'
+            className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1 rounded-[var(--cd-radius-md)] px-2.5 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
+              mode === 'history' ? 'bg-[var(--cd-color-brand)] text-white' : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
             }`}
           >
             <History className="h-3.5 w-3.5" />
@@ -177,18 +170,18 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
           {mode === 'edit' && !isViewingOld && (
             <>
               <ImageUploadButton onInsert={handleImageInsert} />
-              <div className="h-4 w-px bg-zinc-200" />
+              <div className="h-4 w-px bg-[var(--cd-color-border)]" />
               {/* 保存状态点 */}
-              <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400">
+              <span className="inline-flex items-center gap-1.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-muted)]">
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${
                     saveStatus === 'saving' || isSaving
-                      ? 'bg-amber-400'
+                      ? 'bg-[var(--cd-color-warning)]'
                       : saveStatus === 'saved'
-                        ? 'bg-emerald-400'
+                        ? 'bg-[var(--cd-color-success)]'
                         : saveStatus === 'error'
-                          ? 'bg-red-400'
-                          : 'bg-zinc-300'
+                          ? 'bg-[var(--cd-color-danger)]'
+                          : 'bg-[var(--cd-color-border-strong)]'
                   }`}
                 />
                 {saveStatus === 'saving' || isSaving
@@ -199,14 +192,10 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
                       ? lastSaved.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
                       : ''}
               </span>
-              <button
-                onClick={handleManualSave}
-                disabled={saveStatus === 'saving'}
-                className="inline-flex items-center gap-1 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50"
-              >
+              <Button onClick={handleManualSave} disabled={saveStatus === 'saving'} size="sm">
                 <Save className="h-3.5 w-3.5" />
                 保存版本
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -214,11 +203,11 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
 
       {/* 版本查看提示 */}
       {isViewingOld && (
-        <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+        <div className="flex items-center justify-between border-b border-[var(--cd-color-warning)] bg-[var(--cd-color-warning-soft)] px-4 py-2 text-[var(--cd-font-size-sm)] text-[var(--cd-color-warning)]">
           <span>正在查看版本 v{viewingVersion.version}（{new Date(viewingVersion.snapshot_at).toLocaleString('zh-CN')}）</span>
           <button
             onClick={() => { setViewingVersion(null); setMode('preview'); }}
-            className="rounded bg-amber-100 px-2 py-0.5 font-medium hover:bg-amber-200"
+            className="rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-warning)] bg-[var(--cd-color-surface)] px-2 py-1 font-medium transition hover:bg-[var(--cd-color-warning-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-warning)]"
           >
             返回当前版本
           </button>
@@ -236,13 +225,13 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
           />
         ) : mode === 'edit' && !isViewingOld ? (
           <div className="flex h-full flex-col">
-            <div className="space-y-2 border-b border-zinc-100 px-4 py-3">
+            <div className="space-y-2 border-b border-[var(--cd-color-border)] px-4 py-3">
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="输入标题..."
                 maxLength={100}
-                className="w-full bg-transparent text-lg font-medium text-zinc-800 outline-none placeholder:text-zinc-300"
+                className="w-full bg-transparent text-[var(--cd-font-size-lg)] font-semibold text-[var(--cd-color-text-primary)] outline-none placeholder:text-[var(--cd-color-text-muted)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)]"
               />
               <TagInput tags={tags} onChange={setTags} suggestions={allTags} />
             </div>
@@ -254,12 +243,12 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
           /* 预览模式（含版本查看） */
           <div className="px-6 py-5">
             {displayTitle && (
-              <h1 className="mb-2 text-xl font-semibold text-zinc-900">{displayTitle}</h1>
+              <h1 className="mb-2 text-[var(--cd-font-size-xl)] font-semibold text-[var(--cd-color-text-primary)]">{displayTitle}</h1>
             )}
             {displayTags.length > 0 && (
               <div className="mb-4 flex flex-wrap gap-1.5">
                 {displayTags.map((t) => (
-                  <span key={t} className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-600">
+                  <span key={t} className="rounded-full bg-[var(--cd-color-brand-soft)] px-2.5 py-0.5 text-[var(--cd-font-size-xs)] font-medium text-[var(--cd-color-brand)]">
                     {t}
                   </span>
                 ))}
@@ -269,7 +258,7 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
               <MarkdownPreview content={displayContent} />
             </div>
             {!displayContent && (
-              <div className="py-12 text-center text-sm text-zinc-400">
+              <div className="py-12 text-center text-[var(--cd-font-size-md)] text-[var(--cd-color-text-muted)]">
                 内容为空，点击&ldquo;编辑&rdquo;开始编写
               </div>
             )}

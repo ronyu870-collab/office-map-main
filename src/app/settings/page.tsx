@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 
 import { clearSessionCache, getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
+import { AppHeader, Button, Input, LoadingState, Panel } from '@/src/components/ui';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -77,43 +77,24 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-zinc-50 text-zinc-900">
-      <header className="shrink-0 border-b border-zinc-200/80 bg-[#003e7e]">
-        <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <span className="text-sm font-semibold tracking-tight text-white">设置</span>
-          {!passwordChangeRequired && (
-            <Link href="/" className="flex items-center gap-1.5 text-[12px] text-white/70 transition hover:text-white">
-              <ArrowLeft size={14} strokeWidth={1.5} />
-              返回主页
-            </Link>
-          )}
+    <div className="flex h-dvh flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
+      <header className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <div className="mx-auto w-full max-w-3xl">
+          <AppHeader title="设置" homeHref={passwordChangeRequired ? undefined : '/'} />
         </div>
       </header>
-      <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 py-10 sm:px-6">
+      <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         {isLoadingUser ? (
-          <div className="rounded-xl border border-zinc-200/60 bg-white p-7 shadow-sm">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="h-9 w-9 animate-pulse rounded-lg bg-zinc-200" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-32 animate-pulse rounded bg-zinc-200" />
-                <div className="h-3 w-48 animate-pulse rounded bg-zinc-200" />
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="h-10 animate-pulse rounded-lg bg-zinc-200" />
-              <div className="h-10 animate-pulse rounded-lg bg-zinc-200" />
-              <div className="h-10 animate-pulse rounded-lg bg-zinc-200" />
-            </div>
-          </div>
+          <Panel><LoadingState label="正在加载账户设置" /></Panel>
         ) : (
-          <div className="rounded-xl border border-zinc-200/60 bg-white p-7 shadow-sm">
+          <Panel className="p-6">
             <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200/60 bg-zinc-50">
-                <Lock size={16} strokeWidth={1.5} className="text-zinc-500" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]">
+                <Lock size={16} strokeWidth={1.5} className="text-[var(--cd-color-text-secondary)]" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold tracking-tight text-zinc-900">修改登录密码</h2>
-                <p className="text-[12px] text-zinc-400">{displayName || userEmail}</p>
+                <h2 className="text-sm font-semibold text-[var(--cd-color-text-primary)]">修改登录密码</h2>
+                <p className="text-xs text-[var(--cd-color-text-muted)]">{displayName || userEmail}</p>
               </div>
             </div>
             {passwordChangeRequired && (
@@ -123,20 +104,18 @@ export default function SettingsPage() {
             )}
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-zinc-600">新密码</label>
-                <input
+                <label htmlFor="new-password" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">新密码</label>
+                <Input id="new-password"
                   type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="至少 10 位，包含字母和数字"
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#003e7e] focus:bg-white focus:ring-2 focus:ring-[#003e7e]/10"
                   required
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-zinc-600">确认新密码</label>
-                <input
+                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">确认新密码</label>
+                <Input id="confirm-password"
                   type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="请再次输入新密码"
-                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#003e7e] focus:bg-white focus:ring-2 focus:ring-[#003e7e]/10"
                   required
                 />
               </div>
@@ -150,14 +129,14 @@ export default function SettingsPage() {
                   <span>{message.text}</span>
                 </div>
               )}
-              <button
+              <Button
                 type="submit" disabled={submitting}
-                className="w-full rounded-lg bg-[#003e7e] py-2.5 text-sm font-semibold text-white transition hover:bg-[#002b5e] disabled:opacity-60"
+                className="w-full"
               >
                 {submitting ? '保存中…' : '确认修改'}
-              </button>
+              </Button>
             </form>
-          </div>
+          </Panel>
         )}
       </main>
     </div>

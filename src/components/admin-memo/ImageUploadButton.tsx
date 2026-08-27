@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Image, Loader2 } from 'lucide-react';
 import { uploadMemoImage } from '@/src/services/memoApi';
+import { Button } from '@/src/components/ui';
 
 interface ImageUploadButtonProps {
   onInsert: (markdownImage: string) => void;
@@ -30,11 +31,11 @@ export function ImageUploadButton({ onInsert }: ImageUploadButtonProps) {
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
-        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50"
         title="插入图片"
       >
         {uploading ? (
@@ -48,7 +49,7 @@ export function ImageUploadButton({ onInsert }: ImageUploadButtonProps) {
             图片
           </>
         )}
-      </button>
+      </Button>
       <input
         ref={fileRef}
         type="file"

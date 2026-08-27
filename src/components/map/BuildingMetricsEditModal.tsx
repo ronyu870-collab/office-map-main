@@ -6,6 +6,7 @@ import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
 import { getSession } from '@/src/services/Auth';
 import { AuditService } from '@/src/services/auditService';
+import { Button, Dialog, LoadingState } from '@/src/components/ui';
 
 // ─── 类型定义 ─────────────────────────────────────────────────────────────────
 
@@ -108,39 +109,18 @@ function ConfirmDialog({
   onCancel,
   isLoading = false,
 }: ConfirmDialogProps) {
-  if (!isOpen) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50"
-      onClick={(e) => e.stopPropagation()}
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => { if (!open && !isLoading) onCancel(); }}
+      title={title}
+      description={message}
+      size="sm"
+      dismissible={!isLoading}
+      footer={<><Button variant="secondary" onClick={onCancel} disabled={isLoading}>{cancelLabel}</Button><Button onClick={onConfirm} disabled={isLoading}>{isLoading ? '处理中…' : confirmLabel}</Button></>}
     >
-      <div className="mx-4 w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-        <h3 className="text-lg font-semibold text-zinc-900">{title}</h3>
-        <p className="mt-3 text-sm text-zinc-600 leading-relaxed">{message}</p>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50"
-          >
-            {cancelLabel}
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-[#003e7e] rounded-lg hover:bg-[#002d5e] transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {isLoading && (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            )}
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+      <span className="sr-only">请确认本次操作</span>
+    </Dialog>
   );
 }
 
@@ -528,12 +508,12 @@ export function BuildingMetricsEditModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col">
+      <div className="mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--cd-color-border)] bg-white shadow-[var(--cd-shadow-overlay)]">
         {/* 头部 */}
         <div className="shrink-0 px-6 py-4 border-b border-zinc-200 bg-zinc-50">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-zinc-900">编辑指标数据</h2>
+              <h2 className="text-base font-semibold text-zinc-900">编辑指标数据</h2>
               <p className="mt-1 text-sm text-zinc-500">{buildingName}</p>
             </div>
             <button
@@ -591,12 +571,7 @@ export function BuildingMetricsEditModal({
 
           {/* 加载状态 */}
           {isLoadingData && (
-            <div className="flex items-center justify-center py-12">
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-                <p className="text-sm text-zinc-500">加载数据中...</p>
-              </div>
-            </div>
+            <LoadingState label="正在加载指标数据" />
           )}
 
           {/* 表单 */}
@@ -747,17 +722,16 @@ export function BuildingMetricsEditModal({
             {isDirty && '• 已修改未保存'}
           </div>
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="secondary"
               onClick={handleClose}
               disabled={saving}
-              className="px-4 py-2.5 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50"
             >
               取消
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveClick}
               disabled={saving || isFormDisabled || !isDirty}
-              className="px-4 py-2.5 text-sm font-medium text-white bg-[#003e7e] rounded-lg hover:bg-[#002d5e] transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {saving ? (
                 <>
@@ -767,7 +741,7 @@ export function BuildingMetricsEditModal({
               ) : (
                 '保存'
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

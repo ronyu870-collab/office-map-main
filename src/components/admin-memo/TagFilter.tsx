@@ -13,10 +13,10 @@ export function TagFilter({ tags, selected, onChange }: TagFilterProps) {
     <div className="flex flex-wrap gap-1.5 px-3 py-2">
       <button
         onClick={() => onChange(null)}
-        className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+        className={`rounded-full border px-2.5 py-0.5 text-[var(--cd-font-size-xs)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
           selected === null
-            ? 'bg-zinc-900 text-white'
-            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+            ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white'
+            : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
         }`}
       >
         全部
@@ -25,10 +25,10 @@ export function TagFilter({ tags, selected, onChange }: TagFilterProps) {
         <button
           key={tag}
           onClick={() => onChange(tag === selected ? null : tag)}
-          className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+          className={`rounded-full border px-2.5 py-0.5 text-[var(--cd-font-size-xs)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
             selected === tag
-              ? 'bg-blue-600 text-white'
-              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+              ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white'
+              : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-brand-soft)] hover:text-[var(--cd-color-brand)]'
           }`}
         >
           {tag}

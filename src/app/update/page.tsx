@@ -2,20 +2,17 @@
 
 import * as React from 'react';
 
-import './concise.css';
 import { QuarterlyUpdateWorkspace } from './components/QuarterlyUpdateWorkspace';
+import { LoadingState } from '@/src/components/ui';
 
 export default function UpdatePage() {
   return (
     <React.Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center bg-[#f3f5f7]">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-[#003e7e]" />
-        </div>
+        <div className="flex h-screen items-center justify-center bg-[var(--cd-color-workspace)] px-6"><LoadingState label="正在加载季度数据填报" rows={0} /></div>
       }
     >
-      <div className="quarterly-concise h-screen overflow-hidden">
-        <span className="sr-only">季度数据填报</span>
+      <div className="h-screen overflow-hidden">
         <QuarterlyUpdateWorkspace />
       </div>
     </React.Suspense>

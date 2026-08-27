@@ -89,13 +89,13 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-[11px] font-semibold text-[#172033]">{building.name || '未命名项目'}</span>
-            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[8px] font-semibold text-emerald-700">未来</span> : null}
+            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">未来</span> : null}
           </div>
-          <div className="mt-0.5 truncate text-[9px] text-[#8a94a6]">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}</div>
+          <div className="mt-0.5 truncate text-[10px] text-[#8a94a6]">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}</div>
         </div>
-        <div className="text-right"><div className="text-[8px] text-[#8a94a6]">净租金</div><div className="mt-0.5 text-[10px] font-semibold tabular-nums text-[#003e7e]">{rent}</div></div>
-        <div className="text-right"><div className="text-[8px] text-[#8a94a6]">空置率</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{vacancy}</div></div>
-        <div className="text-right"><div className="text-[8px] text-[#8a94a6]">面积㎡</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{area}</div></div>
+        <div className="text-right"><div className="text-[10px] text-[#8a94a6]">净租金</div><div className="mt-0.5 text-[10px] font-semibold tabular-nums text-[#003e7e]">{rent}</div></div>
+        <div className="text-right"><div className="text-[10px] text-[#8a94a6]">空置率</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{vacancy}</div></div>
+        <div className="text-right"><div className="text-[10px] text-[#8a94a6]">面积㎡</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{area}</div></div>
       </div>
     );
   };
@@ -106,9 +106,9 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-[12px] font-semibold text-[#172033]">项目列表</h2>
-            <span className="rounded-[3px] border border-[#d9e0e8] bg-white px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-[#667085]">{buildings.length}</span>
+            <span className="rounded-[3px] border border-[#d9e0e8] bg-white px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[#667085]">{buildings.length}</span>
           </div>
-          <p className="mt-0.5 truncate text-[9px] text-[#8a94a6]">
+          <p className="mt-0.5 truncate text-[10px] text-[#8a94a6]">
             {existingCount > 0 && futureCount > 0 ? `现有 ${existingCount} · 未来供应 ${futureCount}` : futureCount > 0 ? `未来供应 ${futureCount}` : `现有项目 ${existingCount}`}
           </p>
         </div>
@@ -118,15 +118,15 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
       </div>
 
       <div className="flex shrink-0 items-center justify-between border-b border-[#e7ebf0] px-3 py-1.5">
-        <span className="text-[8px] font-semibold uppercase tracking-[0.08em] text-[#8a94a6]">Market Inventory</span>
+        <span className="text-[10px] font-medium text-[#8a94a6]">市场项目</span>
         <div className="flex overflow-hidden rounded-[4px] border border-[#d9e0e8] bg-white" role="group" aria-label="项目列表查看方式">
-          <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => setViewMode('compact')} className={`px-2 py-1 text-[9px] font-medium ${viewMode === 'compact' ? 'bg-[#003e7e] text-white' : 'text-[#667085] hover:bg-[#f8fafc]'}`}>列表</button>
-          <button type="button" aria-pressed={viewMode === 'cards'} onClick={() => setViewMode('cards')} className={`border-l border-[#d9e0e8] px-2 py-1 text-[9px] font-medium ${viewMode === 'cards' ? 'bg-[#003e7e] text-white' : 'text-[#667085] hover:bg-[#f8fafc]'}`}>详情</button>
+          <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => setViewMode('compact')} className={`px-2 py-1 text-[10px] font-medium ${viewMode === 'compact' ? 'bg-[#003e7e] text-white' : 'text-[#667085] hover:bg-[#f8fafc]'}`}>列表</button>
+          <button type="button" aria-pressed={viewMode === 'cards'} onClick={() => setViewMode('cards')} className={`border-l border-[#d9e0e8] px-2 py-1 text-[10px] font-medium ${viewMode === 'cards' ? 'bg-[#003e7e] text-white' : 'text-[#667085] hover:bg-[#f8fafc]'}`}>详情</button>
         </div>
       </div>
 
       {viewMode === 'compact' && buildings.length > 0 ? (
-        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_64px_54px_72px] gap-2 border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-1.5 text-[8px] font-semibold text-[#8a94a6]">
+        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_64px_54px_72px] gap-2 border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-1.5 text-[10px] font-medium text-[#8a94a6]">
           <span>项目</span><span className="text-right">元/㎡/月</span><span className="text-right">%</span><span className="text-right">总面积</span>
         </div>
       ) : null}
@@ -150,9 +150,9 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         )}
 
         {hasMore ? (
-          <div ref={loadMoreTriggerRef} className="flex items-center justify-center border-t border-[#e7ebf0] py-3 text-[9px] text-[#8a94a6]">继续加载…</div>
+          <div ref={loadMoreTriggerRef} className="flex items-center justify-center border-t border-[#e7ebf0] py-3 text-[10px] text-[#8a94a6]">继续加载…</div>
         ) : buildings.length > INITIAL_LOAD_COUNT ? (
-          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[9px] text-[#8a94a6]">已加载全部 {buildings.length} 个项目</div>
+          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[10px] text-[#8a94a6]">已加载全部 {buildings.length} 个项目</div>
         ) : null}
       </div>
     </section>

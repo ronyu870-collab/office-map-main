@@ -7,26 +7,26 @@ interface SystemTaskListProps {
 
 const priorityConfig = {
   high: {
-    bg: 'bg-red-50',
-    border: 'border-red-200',
-    text: 'text-red-800',
-    badge: 'bg-red-100 text-red-700',
+    bg: 'bg-[var(--cd-color-danger-soft)]',
+    border: 'border-[var(--cd-color-danger)]',
+    text: 'text-[var(--cd-color-danger)]',
+    badge: 'bg-[var(--cd-color-surface)] text-[var(--cd-color-danger)]',
     icon: '🔴',
     label: '紧急',
   },
   medium: {
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    text: 'text-amber-800',
-    badge: 'bg-amber-100 text-amber-700',
+    bg: 'bg-[var(--cd-color-warning-soft)]',
+    border: 'border-[var(--cd-color-warning)]',
+    text: 'text-[var(--cd-color-warning)]',
+    badge: 'bg-[var(--cd-color-surface)] text-[var(--cd-color-warning)]',
     icon: '🟡',
     label: '注意',
   },
   low: {
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    text: 'text-blue-800',
-    badge: 'bg-blue-100 text-blue-700',
+    bg: 'bg-[var(--cd-color-brand-soft)]',
+    border: 'border-[var(--cd-color-brand)]',
+    text: 'text-[var(--cd-color-brand)]',
+    badge: 'bg-[var(--cd-color-surface)] text-[var(--cd-color-brand)]',
     icon: '🔵',
     label: '提示',
   },
@@ -37,7 +37,7 @@ export function SystemTaskList({ tasks }: SystemTaskListProps) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+      <div className="flex items-center gap-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">
         <span>⚡</span>
         <span>系统提示</span>
       </div>
@@ -45,7 +45,7 @@ export function SystemTaskList({ tasks }: SystemTaskListProps) {
         const config = priorityConfig[task.priority];
         const content = (
           <div
-            className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${config.bg} ${config.border}`}
+            className={`flex items-start gap-3 rounded-[var(--cd-radius-lg)] border px-4 py-3 ${config.bg} ${config.border}`}
           >
             <span className="mt-0.5 text-base">{config.icon}</span>
             <div className="flex-1 min-w-0">

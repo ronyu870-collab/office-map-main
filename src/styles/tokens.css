@@ -1,5 +1,6 @@
 :root {
   --cd-color-workspace: #f5f7fa;
+  --cd-color-canvas: var(--cd-color-workspace);
   --cd-color-surface: #ffffff;
   --cd-color-surface-alt: #f8fafc;
   --cd-color-border: #d9e0e8;
@@ -16,6 +17,8 @@
   --cd-color-warning-soft: #fff7e8;
   --cd-color-danger: #c9362b;
   --cd-color-danger-soft: #fff1f0;
+  --cd-color-overlay: rgb(15 23 42 / 0.42);
+  --cd-color-focus: rgb(0 62 126 / 0.16);
 
   --cd-space-1: 0.25rem;
   --cd-space-2: 0.5rem;
@@ -42,6 +45,10 @@
   --cd-radius-md: 6px;
   --cd-radius-lg: 8px;
   --cd-radius-xl: 10px;
+
+  --cd-header-height: 54px;
+  --cd-control-height-sm: 32px;
+  --cd-control-height-md: 36px;
 
   --cd-shadow-sm: 0 1px 2px rgb(23 32 51 / 0.05);
   --cd-shadow-panel: 0 4px 12px rgb(23 32 51 / 0.07);

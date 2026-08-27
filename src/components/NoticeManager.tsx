@@ -6,6 +6,7 @@ import { getAllActiveNotices } from '@/src/services/apiClient';
 import { publishNotice, deactivateNotice } from '@/src/services/adminApi';
 import type { NoticeRow } from '@/src/services/apiClient';
 import { MaskedText } from '@/src/components/demo';
+import { Button } from '@/src/components/ui';
 
 const MAX_NOTICES = 3;
 
@@ -105,9 +106,9 @@ export function NoticeManager({ adminEmail }: Props) {
         <>
           {/* ── 已生效的公告（只读，可删除） ── */}
           {notices.map((notice, i) => (
-            <div key={notice.id} className="rounded-lg border border-blue-100 bg-blue-50/40 p-4">
+            <div key={notice.id} className="rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">
+                <span className="text-xs font-semibold text-[var(--cd-color-brand)]">
                   公告 {i + 1} · 生效中
                 </span>
                 <button
@@ -130,7 +131,7 @@ export function NoticeManager({ adminEmail }: Props) {
             const slotIdx = i; // draft 索引复用 0~2，但只用前 emptySlots 个
             return (
               <div key={`empty-${i}`} className="rounded-lg border border-dashed border-zinc-300 bg-white p-4">
-                <p className="mb-2 text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
+                <p className="mb-2 text-xs font-semibold text-zinc-500">
                   空槽 · 可新增公告
                 </p>
                 <textarea
@@ -138,16 +139,16 @@ export function NoticeManager({ adminEmail }: Props) {
                   onChange={e => setDraft(slotIdx, e.target.value)}
                   rows={3}
                   placeholder="输入公告内容后点击发布，例如：本周五下午3点系统将进行例行维护，请提前保存数据。"
-                  className="w-full resize-none rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-800 outline-none transition focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10"
+                  className="w-full resize-none rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2 text-sm text-[var(--cd-color-text-primary)] outline-none transition-colors focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]"
                 />
                 <div className="mt-2 flex items-center gap-2">
-                  <button
+                  <Button
+                    size="sm"
                     onClick={() => handlePublish(slotIdx)}
                     disabled={saving === slotIdx || !drafts[slotIdx].trim()}
-                    className="rounded-md bg-[#003e7e] px-4 py-1.5 text-xs font-medium text-white hover:bg-[#002b5e] disabled:opacity-40 transition-colors"
                   >
                     {saving === slotIdx ? '发布中...' : '发布公告'}
-                  </button>
+                  </Button>
                   <span className="ml-auto text-[11px] text-zinc-400">{drafts[slotIdx].length} 字</span>
                 </div>
               </div>

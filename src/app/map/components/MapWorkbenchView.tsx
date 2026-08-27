@@ -1,10 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 
 import { SearchBar } from '@/src/components/SearchBar';
+import { AppHeader, Button } from '@/src/components/ui';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -29,8 +29,8 @@ import {
 const FloatingBuildingList = dynamic(() => import('./FloatingBuildingList'), {
   ssr: false,
   loading: () => (
-    <div className="absolute bottom-5 right-5 z-[360] flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200/80 bg-white/90 shadow-lg backdrop-blur">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
+    <div className="absolute bottom-5 right-5 z-[360] flex h-9 w-9 items-center justify-center rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-sm)]">
+      <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
     </div>
   ),
 });
@@ -102,10 +102,10 @@ function IconButton({
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/25 ${
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] border text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
         active
-          ? 'border-[#003e7e] bg-[#003e7e] text-white shadow-md shadow-[#003e7e]/15'
-          : 'border-slate-200/90 bg-white/95 text-slate-600 shadow-sm hover:border-[#003e7e]/30 hover:text-[#003e7e]'
+          ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white'
+          : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] text-[var(--cd-color-text-secondary)] hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)]'
       }`}
     >
       {children}
@@ -153,8 +153,8 @@ function MapLegend({ mode }: { mode: RenderMode }) {
   }[mode];
 
   return (
-    <div className="pointer-events-none absolute bottom-[76px] left-4 z-[250] hidden rounded-xl border border-white/70 bg-white/88 px-3 py-2.5 shadow-lg shadow-slate-900/10 backdrop-blur-md sm:block">
-      <div className="mb-2 text-[10px] font-semibold tracking-[0.08em] text-slate-400">{config.title}</div>
+    <div className="pointer-events-none absolute bottom-[76px] left-4 z-[250] hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 shadow-[var(--cd-shadow-sm)] sm:block">
+      <div className="mb-2 text-[10px] font-medium text-[var(--cd-color-text-muted)]">{config.title}</div>
       <div className="flex items-center gap-3">
         {config.items.map(item => (
           <div key={item.label} className="flex items-center gap-1.5 text-[10px] text-slate-500">
@@ -179,10 +179,10 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
     <div className="absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max">
       {metrics.map((metric, index) => (
         <div key={metric.label} className={`min-w-[112px] px-3 py-2 sm:min-w-[128px] sm:px-4 sm:py-2.5 ${index > 0 ? 'border-l border-slate-200/80' : ''}`}>
-          <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-slate-400">{metric.label}</div>
+          <div className="text-[10px] font-medium text-slate-400">{metric.label}</div>
           <div className="mt-0.5 flex items-baseline gap-1 whitespace-nowrap">
             <span className="text-[15px] font-semibold tabular-nums text-slate-900">{metric.value}</span>
-            <span className="text-[9px] text-slate-400">{metric.unit}</span>
+            <span className="text-[10px] text-slate-400">{metric.unit}</span>
           </div>
         </div>
       ))}
@@ -204,7 +204,7 @@ function SupplyPanel({
       <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3.5">
         <div>
           <div className="text-sm font-semibold text-slate-900">未来供应</div>
-          <div className="mt-0.5 text-[10px] text-slate-400">按预计入市时间查看市场新增供给 · 共 {total} 个项目</div>
+          <div className="mt-0.5 text-[10px] text-slate-400">共 {total} 个项目</div>
         </div>
         <button
           type="button"
@@ -219,7 +219,7 @@ function SupplyPanel({
         {SUPPLY_CALENDAR_CATEGORIES.map(category => {
           const data = calendar[category];
           return (
-            <div key={category} className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3">
+            <div key={category} className="rounded-[var(--cd-radius-md)] border border-slate-200/80 bg-slate-50/80 p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[11px] font-medium text-slate-500">{SUPPLY_CALENDAR_LABELS[category]}</div>
                 <div className="text-lg font-semibold tabular-nums text-[#003e7e]">{data.total}</div>
@@ -311,38 +311,23 @@ export function MapWorkbenchView({
   };
 
   return (
-    <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#e8edf3] text-slate-900">
-      <header className="relative z-[500] flex h-[58px] shrink-0 items-center justify-between border-b border-slate-200/90 bg-[#f8fafc]/95 px-3 shadow-sm backdrop-blur-xl sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#003e7e] text-[10px] font-bold tracking-wide text-white shadow-sm">CD</div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-[13px] font-semibold tracking-[0.08em] text-slate-900">COLLIERS DATA</h1>
-              <span className="hidden rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-medium text-slate-400 sm:inline-flex">市场地图</span>
-            </div>
-            <div className="truncate text-[10px] text-slate-400">北京办公楼市场地图</div>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {process.env.NODE_ENV === 'development' ? (
-            <button
-              type="button"
+    <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
+      <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+        <AppHeader
+          title="北京办公楼市场地图"
+          homeHref="/"
+          actions={process.env.NODE_ENV === 'development' ? (
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => { void onExportMapData(); }}
               disabled={isExporting || !mapReady}
-              className="hidden items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-medium text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 md:flex"
+              className="hidden md:inline-flex"
             >
               {isExporting ? '导出中…' : '导出地图数据'}
-            </button>
+            </Button>
           ) : null}
-          <Link
-            href="/"
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:text-[#003e7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
-            <span className="hidden sm:inline">主页</span>
-          </Link>
-        </div>
+        />
       </header>
 
       <main className="relative min-h-0 flex-1 overflow-hidden">
@@ -357,13 +342,13 @@ export function MapWorkbenchView({
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
             {hasActiveFilters ? (
-              <div className="flex min-h-10 items-center gap-2 overflow-x-auto rounded-xl border border-slate-200/90 bg-white/95 px-2.5 py-1.5 shadow-lg shadow-slate-900/10 backdrop-blur-xl" aria-label="已生效筛选条件">
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">筛选</span>
+              <div className="flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" aria-label="已生效筛选条件">
+                <span className="shrink-0 text-[10px] font-medium text-slate-400">筛选</span>
                 {keyword ? (
                   <button
                     type="button"
                     onClick={() => { void onSearch(''); }}
-                    className="group flex max-w-[220px] shrink-0 items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] text-[#003e7e] transition hover:border-blue-200 hover:bg-white"
+                    className="group flex max-w-[220px] shrink-0 items-center gap-1 rounded-[var(--cd-radius-sm)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] px-2 py-1 text-[10px] text-[var(--cd-color-brand)] transition-colors hover:border-[var(--cd-color-brand)]"
                     title={`清除搜索：${keyword}`}
                   >
                     <span className="truncate">搜索：{keyword}</span>
@@ -375,7 +360,7 @@ export function MapWorkbenchView({
                     key={chip.id}
                     type="button"
                     onClick={() => onRemoveFilterChip(chip.patch)}
-                    className="group flex max-w-[230px] shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] text-slate-600 transition hover:border-[#003e7e]/30 hover:bg-white hover:text-[#003e7e]"
+                    className="group flex max-w-[230px] shrink-0 items-center gap-1 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-1 text-[10px] text-[var(--cd-color-text-secondary)] transition-colors hover:border-[var(--cd-color-border-strong)] hover:bg-white hover:text-[var(--cd-color-brand)]"
                     title={`移除条件：${chip.label}`}
                   >
                     <span className="truncate">{chip.label}</span>
@@ -398,7 +383,7 @@ export function MapWorkbenchView({
                 type="button"
                 aria-pressed={renderMode === mode}
                 onClick={() => onRenderModeChange(mode)}
-                className={`h-10 px-3 text-[10px] font-medium transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/25 ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[#003e7e] text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
+                className={`h-9 px-3 text-[10px] font-medium transition-colors focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[var(--cd-color-brand)] text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}
               >
                 {label}
               </button>
@@ -413,7 +398,7 @@ export function MapWorkbenchView({
               type="button"
               onClick={openBuildingList}
               disabled={!canOpenList}
-              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white/95 px-3 text-[10px] font-medium text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-xl transition hover:border-[#003e7e]/30 hover:text-[#003e7e] disabled:cursor-not-allowed disabled:opacity-45"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[10px] font-medium text-[var(--cd-color-text-secondary)] shadow-[var(--cd-shadow-sm)] transition-colors hover:border-[var(--cd-color-border-strong)] hover:text-[var(--cd-color-brand)] disabled:cursor-not-allowed disabled:opacity-45"
               title={!canOpenList ? '完成筛选或搜索后查看项目列表' : '查看项目列表'}
             >
               <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
@@ -429,7 +414,7 @@ export function MapWorkbenchView({
               type="button"
               aria-pressed={renderMode === mode}
               onClick={() => onRenderModeChange(mode)}
-              className={`h-9 px-2.5 text-[9px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/25 ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[#003e7e] text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`h-9 px-2.5 text-[10px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] ${index > 0 ? 'border-l border-slate-200/80' : ''} ${renderMode === mode ? 'bg-[var(--cd-color-brand)] text-white' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               {label}
             </button>
@@ -439,10 +424,7 @@ export function MapWorkbenchView({
         {isFilterPanelOpen ? (
           <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">
             <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">市场筛选</div>
-                <div className="text-[10px] text-slate-400">筛选结果直接同步到当前地图视野</div>
-              </div>
+              <div className="text-sm font-semibold text-slate-900">市场筛选</div>
               <button
                 type="button"
                 onClick={() => onFilterPanelOpenChange(false)}
@@ -480,29 +462,29 @@ export function MapWorkbenchView({
         ) : null}
 
         {mapError ? (
-          <div className="absolute inset-0 z-[240] flex items-center justify-center bg-slate-50/70 p-4 backdrop-blur-[2px]">
-            <div className="w-full max-w-[460px] rounded-2xl border border-rose-200 bg-white p-5 shadow-xl">
-              <div className="text-sm font-semibold text-rose-700">地图加载失败</div>
-              <div className="mt-2 break-all text-xs leading-relaxed text-rose-600">{mapError}</div>
-              <button type="button" onClick={onRetryMap} className="mt-4 rounded-lg bg-rose-700 px-3 py-2 text-xs font-medium text-white transition hover:bg-rose-800">重新加载</button>
+          <div className="absolute inset-0 z-[240] flex items-center justify-center bg-slate-50/80 p-4">
+            <div className="w-full max-w-[460px] rounded-[var(--cd-radius-lg)] border border-[color:rgb(201_54_43_/_0.15)] bg-[var(--cd-color-surface)] p-5 shadow-[var(--cd-shadow-panel)]">
+              <div className="text-sm font-semibold text-[var(--cd-color-danger)]">地图加载失败</div>
+              <div className="mt-2 break-all text-xs leading-relaxed text-[var(--cd-color-text-secondary)]">{mapError}</div>
+              <Button type="button" variant="danger" size="sm" onClick={onRetryMap} className="mt-4">重新加载</Button>
             </div>
           </div>
         ) : null}
 
         {!mapReady && !mapError ? (
           <div className="absolute inset-0 z-[230] flex items-center justify-center bg-[#eef3f7]">
-            <div className="rounded-2xl border border-white/80 bg-white/90 px-5 py-4 text-center shadow-lg backdrop-blur">
-              <div className="mx-auto h-7 w-7 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-              <div className="mt-2 text-[11px] font-medium text-slate-500">正在启动地图工作台…</div>
+            <div className="flex items-center gap-2 text-[11px] font-medium text-slate-500">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
+              正在启动地图工作台…
             </div>
           </div>
         ) : null}
 
         {mapReady && mapDataLoading && !hasBuildings && !mapError ? (
-          <div className="absolute inset-0 z-[225] flex items-center justify-center bg-white/55 backdrop-blur-[1px]">
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-lg">
-              <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-              <div className="mt-2 text-[10px] text-slate-500">正在读取楼宇数据…</div>
+          <div className="absolute inset-0 z-[225] flex items-center justify-center bg-white/70">
+            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--cd-color-brand)] border-t-transparent" />
+              正在读取楼宇数据…
             </div>
           </div>
         ) : null}

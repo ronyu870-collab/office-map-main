@@ -15,13 +15,17 @@ describe('Cross-page product continuity', () => {
 
   it('keeps the Map GIS shell branded and aligned to the Home product name', () => {
     const gate = source('src/app/map/MapRouteGate.tsx');
+    const loadingShell = source('src/app/map/components/MapLoadingShell.tsx');
+    const appHeader = source('src/components/ui/AppHeader.tsx');
     const view = source('src/app/map/components/MapWorkbenchView.tsx');
-    expect(gate).toContain('h-[58px]');
-    expect(gate).toContain('北京办公楼市场地图');
+    expect(gate).toContain('<MapLoadingShell />');
+    expect(appHeader).toContain('var(--cd-header-height)');
+    expect(loadingShell).toContain('北京办公楼市场地图');
     expect(view).toContain('北京办公楼市场地图');
+    expect(view).not.toContain('COLLIERS DATA');
     expect(view).not.toContain('MAP 2.0');
     expect(view).not.toContain('MAP WORKBENCH');
-    expect(view).toContain('href="/"');
+    expect(view).toContain('homeHref="/"');
   });
 
   it('uses the canonical product and workflow language in Quarterly Update', () => {
@@ -30,7 +34,7 @@ describe('Cross-page product continuity', () => {
     for (const oldLabel of ['QUARTERLY UPDATE', 'Cloud draft enabled', 'Save draft', 'Submit current group', 'Retry submit']) {
       expect(page).not.toContain(oldLabel);
     }
-    expect(page).toContain('href="/"');
+    expect(page).toContain('homeHref="/"');
   });
 
   it('uses the canonical product and workflow language in Lease Submission', () => {
@@ -39,7 +43,7 @@ describe('Cross-page product continuity', () => {
     for (const oldLabel of ['LEASE SUBMISSION', 'Data Entry Workspace', 'Weekly target', 'My submissions', 'New transaction', 'Transfer record']) {
       expect(page).not.toContain(oldLabel);
     }
-    expect(page).toContain('href="/"');
+    expect(page).toContain('homeHref="/"');
   });
 
   it('presents Research as a concise library rather than an OSS console', () => {
@@ -47,23 +51,55 @@ describe('Cross-page product continuity', () => {
     const manager = source('src/components/OSSManager.tsx');
     expect(page).toContain('研究资料库');
     expect(page).not.toContain('搜索、定位、打开和维护内部研究资料');
-    expect(manager).toContain('研究资料库');
+    expect(manager).toContain('全部资料');
     expect(manager).not.toContain('>Research Library</button>');
     expect(manager).not.toContain('>Upload status</span>');
     expect(manager).toContain('canManage ?');
-    expect(page).toContain('href="/"');
+    expect(page).toContain('homeHref="/"');
   });
 
   it('aligns Settings and Admin identities with the Home user menu', () => {
     const settings = source('src/app/settings/page.tsx');
     const adminLayout = source('src/app/admin/layout.tsx');
     const adminSidebar = source('src/components/admin/AdminSidebar.tsx');
-    expect(settings).toContain('>设置</span>');
-    expect(adminLayout).toContain('>系统管理</span>');
+    expect(settings).toContain('title="设置"');
+    expect(adminLayout).toContain('title="系统管理"');
     expect(adminLayout).not.toContain('>Administration</span>');
     expect(adminSidebar).not.toContain("label: 'Data Management'");
     expect(adminSidebar).not.toContain('>Administration</span>');
-    expect(settings).toContain('href="/"');
-    expect(adminLayout).toContain('href="/"');
+    expect(settings).toContain("homeHref={passwordChangeRequired ? undefined : '/'}");
+    expect(adminLayout).toContain('homeHref="/"');
+  });
+
+  it('keeps Admin navigation concise and non-repetitive', () => {
+    const page = source('src/app/admin/page.tsx');
+    const layout = source('src/app/admin/layout.tsx');
+    const sidebar = source('src/components/admin/AdminSidebar.tsx');
+
+    expect(layout).not.toContain('数据管理后台');
+    expect(page).not.toContain('meta.group');
+    expect(page).not.toContain('activeMeta');
+    expect(sidebar).toContain("label: '用户'");
+    expect(sidebar).toContain("label: '用户管理'");
+    expect(sidebar).toContain("label: '开发'");
+    expect(sidebar.match(/label: '开发'/g)).toHaveLength(1);
+    expect(sidebar).not.toContain("label: '开发与维护'");
+    expect(sidebar).not.toContain("label: '用户与权限'");
+  });
+
+  it('uses one visible role vocabulary across Home and User Manager', () => {
+    const roles = source('src/types/auth.ts');
+    const home = source('src/components/home/HomeWorkspace.tsx');
+    const users = source('src/components/admin/UserManager.tsx');
+    const combined = `${roles}\n${home}\n${users}`;
+
+    expect(roles).toContain("viewer: '查看用户'");
+    expect(roles).toContain("user: '查看用户'");
+    expect(roles).toContain("editor: '编辑用户'");
+    expect(roles).toContain("admin: '管理员'");
+    expect(home).toContain('getUserRoleLabel(role)');
+    expect(users).toContain('getUserRoleLabel(row.role)');
+    expect(combined).not.toContain('普通用户');
+    expect(combined).not.toContain('编辑者');
   });
 });

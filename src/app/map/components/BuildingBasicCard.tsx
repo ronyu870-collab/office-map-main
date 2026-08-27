@@ -75,7 +75,7 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
 
   const row = (label: string, value: string, emphasized = false, masked = false, titleText?: string) => (
     <div className="grid grid-cols-[74px_minmax(0,1fr)] items-baseline gap-2 border-b border-[#edf0f4] py-1.5 last:border-b-0">
-      <span className="text-[9px] text-[#8a94a6]">{label}</span>
+      <span className="text-[10px] text-[#8a94a6]">{label}</span>
       <span title={titleText || value} className={`truncate text-right text-[10px] font-medium tabular-nums ${emphasized ? 'font-semibold text-[#003e7e]' : 'text-[#172033]'}`}>
         {masked ? <MaskedText>{value}</MaskedText> : value}
       </span>
@@ -102,26 +102,26 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
             <h3 title={name} className="truncate text-[12px] font-semibold leading-5 text-[#172033] transition-colors group-hover:text-[#003e7e]">
               <MaskedText>{name}</MaskedText>
             </h3>
-            <div className="mt-0.5 truncate text-[9px] text-[#8a94a6]">{[building.district, submarketValue, gradeValue].filter(value => value && value !== '—').join(' · ') || '项目信息待完善'}</div>
+            <div className="mt-0.5 truncate text-[10px] text-[#8a94a6]">{[building.district, submarketValue, gradeValue].filter(value => value && value !== '—').join(' · ') || '项目信息待完善'}</div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            {hasLeed ? <span className="rounded-[3px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[8px] font-semibold text-emerald-700">LEED {leed}</span> : null}
-            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[8px] font-semibold text-[#003e7e]">未来供应</span> : null}
+            {hasLeed ? <span className="rounded-[3px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">LEED {leed}</span> : null}
+            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[10px] font-medium text-[#003e7e]">未来供应</span> : null}
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-3 border-b border-[#d9e0e8] bg-white">
         <div className="border-r border-[#edf0f4] px-3 py-2">
-          <div className="text-[8px] text-[#8a94a6]">净有效租金</div>
-          <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#003e7e]">{rentText}<span className="ml-0.5 text-[8px] font-normal text-[#8a94a6]">元/㎡/月</span></div>
+          <div className="text-[10px] text-[#8a94a6]">净有效租金</div>
+          <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#003e7e]">{rentText}<span className="ml-0.5 text-[10px] font-normal text-[#8a94a6]">元/㎡/月</span></div>
         </div>
         <div className="border-r border-[#edf0f4] px-3 py-2">
-          <div className="text-[8px] text-[#8a94a6]">空置率</div>
+          <div className="text-[10px] text-[#8a94a6]">空置率</div>
           <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#172033]">{vacText}</div>
         </div>
         <div className="px-3 py-2">
-          <div className="text-[8px] text-[#8a94a6]">数据期</div>
+          <div className="text-[10px] text-[#8a94a6]">数据期</div>
           <div className="mt-0.5 text-[11px] font-semibold tabular-nums text-[#172033]">{latestQuarter}</div>
         </div>
       </div>

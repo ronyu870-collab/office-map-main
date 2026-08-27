@@ -24,6 +24,7 @@ import {
 import { MapDataStore } from './model/MapDataStore';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
+import { MapLoadingShell } from './components/MapLoadingShell';
 
 // Admin-only editing is never part of the normal Map path. Keep its Supabase,
 // audit and form runtime out of the MapClient chunk until an admin opens it.
@@ -31,26 +32,6 @@ const BuildingMetricsEditModal = dynamic(
   () => import('@/src/components/map/BuildingMetricsEditModal').then(module => module.BuildingMetricsEditModal),
   { ssr: false },
 );
-
-function MapAuthLoading() { 
-  return ( 
-    <div className="h-screen h-[100dvh] overflow-hidden bg-gray-50 text-zinc-900 flex flex-col">
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/75 shrink-0">
-        <div className="relative mx-auto flex max-w-[1600px] items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-6 xl:gap-8 min-w-0">
-            <div className="shrink-0">
-              <h1 className="text-sm font-semibold tracking-wide text-blue-950 sm:text-base">COLLIERS DATA</h1>
-              <p className="text-[11px] text-zinc-500 sm:text-xs">北京办公楼市场地图</p>
-            </div>
-          </div>
-        </div>
-      </header>
-      <div className="flex flex-1 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
-      </div>
-    </div>
-  ); 
-}
 
 export default function MapWorkbenchPage() {
   const { session: appSession, status: appSessionStatus } = useAppSession();
@@ -501,7 +482,7 @@ export default function MapWorkbenchPage() {
     }
   };
 
-  if (!allowed) return <MapAuthLoading />;
+  if (!allowed) return <MapLoadingShell />;
 
   return (
     <>

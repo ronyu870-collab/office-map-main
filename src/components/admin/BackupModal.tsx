@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
+import { Button, Dialog, Input } from '@/src/components/ui'
 
 const BACKUP_TABLES = [
   { table: 'buildings', label: '楼宇基础信息' },
@@ -120,14 +121,8 @@ export function BackupModal({ onClose }: BackupModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="w-96 rounded-xl bg-white shadow-2xl border border-zinc-200" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-          <h3 className="text-sm font-bold text-zinc-900">数据备份</h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 text-lg leading-none">&times;</button>
-        </div>
-
-        <div className="px-5 py-4 space-y-4">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose() }} title="数据备份" size="sm">
+        <div className="space-y-4">
           {phase === 'password' && (
             <>
               <p className="text-xs text-zinc-600">
@@ -135,23 +130,22 @@ export function BackupModal({ onClose }: BackupModalProps) {
               </p>
               <div>
                 <label className="block text-xs text-zinc-500 mb-1">请输入管理员密码确认</label>
-                <input
+                <Input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && verifyPassword()}
-                  className="w-full rounded border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-[#003e7e]"
                   placeholder="输入密码"
                   autoFocus
                 />
               </div>
-              <button
+              <Button
                 onClick={verifyPassword}
                 disabled={!password.trim()}
-                className="w-full rounded bg-[#003e7e] px-3 py-2 text-sm font-medium text-white hover:bg-[#002d5e] disabled:opacity-40"
+                className="w-full"
               >
                 开始备份
-              </button>
+              </Button>
             </>
           )}
 
@@ -178,12 +172,12 @@ export function BackupModal({ onClose }: BackupModalProps) {
               <div className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 备份完成，ZIP 文件已下载。
               </div>
-              <button
+              <Button
+                variant="secondary"
                 onClick={onClose}
-                className="rounded bg-zinc-100 px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-200"
               >
                 关闭
-              </button>
+              </Button>
             </div>
           )}
 
@@ -192,16 +186,15 @@ export function BackupModal({ onClose }: BackupModalProps) {
               <div className="text-sm text-red-700 bg-red-50 rounded-lg px-3 py-2">
                 备份失败：{errorMsg}
               </div>
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => { setPhase('password'); setErrorMsg('') }}
-                className="rounded bg-zinc-100 px-4 py-2 text-xs text-zinc-700 hover:bg-zinc-200"
               >
                 重试
-              </button>
+              </Button>
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

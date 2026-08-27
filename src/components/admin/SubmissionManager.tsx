@@ -10,6 +10,9 @@ import { MaskedText } from "@/src/components/demo";
 import { SubmissionGrid, ProgressRenderer, DateRenderer } from "./SubmissionGrid";
 import type { TableConfig, DictBundle } from "./types";
 import type { ColDef as AgColDef } from 'ag-grid-community';
+import { Button } from '@/src/components/ui';
+
+const compactSelectClassName = 'h-[var(--cd-control-height-sm)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-xs outline-none transition-colors focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]';
 
 // 子市场排序配置（与 BuildingSortManager 保持一致，键名用数据库 grade 值）
 const SUBMARKET_ORDER: Record<string, string[]> = {
@@ -21,7 +24,7 @@ const SUBMARKET_ORDER: Record<string, string[]> = {
 
 // 等级分组顺序：P(超甲) → A(甲级) → B(乙级) → BP(产业园)
 const GRADE_GROUP_ORDER = ['P', 'A', 'B', 'BP'];
-const GRADE_LABELS: Record<string, string> = { P: '超甲级(Premium)', A: '甲级', B: '乙级', BP: '产业园' };
+const GRADE_LABELS: Record<string, string> = { P: '超甲级', A: '甲级', B: '乙级', BP: '产业园' };
 // dicts.building_grades 存原始 grade code（A/B/P/BP），resolveGradeCode 兼容旧的中文标签
 const GRADE_LABEL_TO_CODE: Record<string, string> = { '甲级': 'A', '乙级': 'B', '产业园': 'BP', '超甲级': 'P', '超甲级(Premium)': 'P' };
 function resolveGradeCode(raw: string): string {
@@ -490,14 +493,14 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-auto">
       {/* 当前填报季度设置 */}
-      <div className="shrink-0 flex items-center gap-3 mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-        <span className="text-xs font-semibold text-blue-700">
+      <div className="mb-4 flex shrink-0 items-center gap-3 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-3">
+        <span className="text-xs font-semibold text-[var(--cd-color-brand)]">
           当前填报季度
         </span>
         <select
           value={cfgYear}
           onChange={(e) => setCfgYear(Number(e.target.value))}
-          className="text-xs border border-blue-300 rounded px-2 py-1.5 bg-white outline-none focus:border-blue-500"
+          className={compactSelectClassName}
         >
           {[dq.year - 1, dq.year, dq.year + 1].map((y) => (
             <option key={y} value={y}>
@@ -508,7 +511,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         <select
           value={cfgQuarter}
           onChange={(e) => setCfgQuarter(Number(e.target.value))}
-          className="text-xs border border-blue-300 rounded px-2 py-1.5 bg-white outline-none focus:border-blue-500"
+          className={compactSelectClassName}
         >
           {[1, 2, 3, 4].map((q) => (
             <option key={q} value={q}>
@@ -516,14 +519,10 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
             </option>
           ))}
         </select>
-        <button
-          onClick={handleSaveConfig}
-          disabled={saving}
-          className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button size="sm" onClick={handleSaveConfig} disabled={saving}>
           {saving ? "保存中..." : "保存"}
-        </button>
-        <span className="text-[11px] text-blue-500 ml-2">
+        </Button>
+        <span className="ml-2 text-xs text-[var(--cd-color-text-secondary)]">
           填报页面将显示此季度
         </span>
       </div>
@@ -534,7 +533,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         <select
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
-          className="text-xs border border-zinc-300 rounded-lg px-3 py-2 bg-white outline-none focus:border-[#003e7e]"
+          className={compactSelectClassName}
         >
           {years.map((y) => (
             <option key={y} value={y}>
@@ -545,7 +544,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         <select
           value={quarter}
           onChange={(e) => setQuarter(Number(e.target.value))}
-          className="text-xs border border-zinc-300 rounded-lg px-3 py-2 bg-white outline-none focus:border-[#003e7e]"
+          className={compactSelectClassName}
         >
           {[1, 2, 3, 4].map((q) => (
             <option key={q} value={q}>
@@ -587,9 +586,9 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
               </p>
               <p className="text-2xl font-bold text-amber-700">{pending}</p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <p className="text-xs text-blue-600 mb-1">完成率</p>
-              <p className="text-2xl font-bold text-blue-700">
+            <div className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
+              <p className="mb-1 text-xs text-[var(--cd-color-text-secondary)]">完成率</p>
+              <p className="text-2xl font-bold text-[var(--cd-color-brand)]">
                 {completionRate}%
               </p>
             </div>
@@ -597,41 +596,41 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
 
           {/* 未来供应项目迷你看板 */}
           {futureTotal > 0 && (
-            <div className="shrink-0 mb-4 p-3 rounded-lg bg-purple-50/60 border border-purple-100">
-              <span className="text-[11px] font-medium text-purple-600">
+            <div className="mb-4 shrink-0 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] p-3">
+              <span className="text-xs font-medium text-[var(--cd-color-text-secondary)]">
                 未来供应项目
               </span>
-              <div className="flex gap-4 mt-1.5 text-xs text-purple-500">
+              <div className="mt-1.5 flex gap-4 text-xs text-[var(--cd-color-text-secondary)]">
                 <span>
                   共{" "}
-                  <b className="text-purple-700">{futureTotal}</b> 个
+                  <b className="text-[var(--cd-color-text-primary)]">{futureTotal}</b> 个
                 </span>
                 <span>
                   已分配{" "}
-                  <b className="text-purple-700">{futureAssigned}</b>
+                  <b className="text-[var(--cd-color-text-primary)]">{futureAssigned}</b>
                 </span>
                 <span>
                   {year}Q{quarter} 已填报{" "}
-                  <b className="text-purple-700">{futureSubmitted}</b>
+                  <b className="text-[var(--cd-color-text-primary)]">{futureSubmitted}</b>
                 </span>
               </div>
             </div>
           )}
 
           {/* 用户明细表（可展开查看上传记录） */}
-          <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-zinc-200 shadow-sm">
+          <div className="min-h-0 flex-1 overflow-auto rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
             <table className="w-full text-sm text-left">
               <thead>
                 <tr className="border-b-2 border-zinc-200">
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider w-8 bg-zinc-50"></th>
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider bg-zinc-50">用户</th>
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider bg-zinc-50">分配楼宇</th>
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider bg-zinc-50">
+                  <th className="w-8 bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500"></th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">用户</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">分配楼宇</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">
                     {year}Q{quarter} 已提交
                   </th>
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider bg-zinc-50">完成率</th>
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider bg-zinc-50">最近提交</th>
-                  <th className="px-4 py-3 font-semibold text-xs text-zinc-500 uppercase tracking-wider bg-zinc-50">操作</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">完成率</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">最近提交</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">操作</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -741,7 +740,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                                           ses,
                                         )
                                       }
-                                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-200 bg-white text-xs hover:bg-zinc-50 hover:border-[#003e7e] hover:shadow-sm transition-all"
+                                      className="inline-flex items-center gap-2 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2 text-xs transition-colors hover:border-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)]"
                                     >
                                       <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-[#003e7e] text-white text-[10px] font-bold">
                                         {ses.session_index}
@@ -935,7 +934,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="text-xs border border-zinc-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all"
+            className={compactSelectClassName}
           >
             {years.map((y) => (
               <option key={y} value={y}>
@@ -946,7 +945,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="text-xs border border-zinc-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all"
+            className={compactSelectClassName}
           >
             {[1, 2, 3, 4].map((q) => (
               <option key={q} value={q}>
@@ -961,7 +960,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
           <select
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            className="text-xs border border-zinc-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10 transition-all min-w-[120px]"
+            className={`${compactSelectClassName} min-w-[120px]`}
           >
             <option value="all">全部用户</option>
             {userOptions.map((u) => (
@@ -976,10 +975,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
           {rows.length} 条记录
         </span>
 
-        <button
-          onClick={handleExport}
-          className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 flex items-center gap-1"
-        >
+        <Button size="sm" variant="secondary" onClick={handleExport}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="12"
@@ -994,7 +990,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
           导出 Excel
-        </button>
+        </Button>
 
         <button
           onClick={() => void fetchLog()}
@@ -1005,7 +1001,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
       </div>
 
       {/* 数据表 - AG Grid */}
-      <div className="flex-1 min-h-0 rounded-xl border border-zinc-200 shadow-sm overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
         <SubmissionGrid
           columns={dataColumns}
           data={rows}
@@ -1238,7 +1234,7 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
                       </td>
                       <td className="px-4 py-2 font-medium">{r.user_name}</td>
                       <td className="px-4 py-2">
-                        <span className="px-2 py-0.5 text-xs rounded bg-blue-50 text-blue-700 font-medium">
+                        <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-0.5 text-xs font-medium text-[var(--cd-color-text-secondary)]">
                           {r.tab}
                         </span>
                       </td>
@@ -1629,14 +1625,14 @@ export function SubmissionManager() {
     <div className="flex flex-col h-full min-h-0 overflow-hidden w-full bg-zinc-50">
       {/* Tab 栏 */}
       <div className="shrink-0 border-b border-zinc-200 bg-white px-4 py-2">
-        <div className="flex items-center gap-1 bg-zinc-100 rounded-lg p-0.5 w-fit">
+        <div className="flex w-fit items-center gap-1 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] p-0.5">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setSubTab(t.key)}
-              className={`px-4 py-2 text-xs font-medium rounded-md transition-all ${
+              className={`rounded-[var(--cd-radius-md)] px-4 py-2 text-xs font-medium transition-colors ${
                 subTab === t.key
-                  ? "bg-white text-[#003e7e] shadow-sm"
+                  ? "bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]"
                   : "text-zinc-500 hover:text-zinc-700"
               }`}
             >
@@ -1649,7 +1645,7 @@ export function SubmissionManager() {
       {/* 内容区 */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden w-full">
         {subTab === "assign" && (
-          <div className="h-full rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+          <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
             <GenericTablePanel
               key={refreshKey}
               config={assignmentConfig}
@@ -1659,35 +1655,35 @@ export function SubmissionManager() {
         )}
         {subTab === "future-supply" && (
           <div className="flex flex-col gap-4 h-full min-h-0 overflow-auto">
-            <div className="shrink-0 rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+            <div className="shrink-0 overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
               <GenericTablePanel
                 key={refreshKey}
                 config={futureSupplyAssignmentConfig}
                 dicts={dicts}
               />
             </div>
-            <div className="min-h-[400px] rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+            <div className="min-h-[400px] overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
               <FutureSupplySubmissionsSection dicts={dicts} />
             </div>
           </div>
         )}
         {subTab === "progress" && (
-          <div className="h-full rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden p-4">
+          <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
             <SubmissionProgressSection dicts={dicts} />
           </div>
         )}
         {subTab === "data" && (
-          <div className="h-full rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden p-4">
+          <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
             <SubmissionDataSection dicts={dicts} />
           </div>
         )}
         {subTab === "drafts" && (
-          <div className="h-full rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden p-4">
+          <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
             <DraftSection dicts={dicts} />
           </div>
         )}
         {subTab === "sort" && (
-          <div className="h-full rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+          <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
             <BuildingSortManager />
           </div>
         )}

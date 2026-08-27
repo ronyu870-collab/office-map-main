@@ -260,7 +260,7 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
                   weeks.map((week) => (
                     <th key={week.weekNumber} className="px-2 py-2 text-center text-[10px] font-semibold text-slate-500" title={week.label}>
                       <div>第 {week.weekNumber} 周</div>
-                      <div className="mt-0.5 text-[9px] font-normal text-slate-400">{week.label}</div>
+                      <div className="mt-0.5 text-[10px] font-normal text-slate-400">{week.label}</div>
                     </th>
                   ))
                 )}

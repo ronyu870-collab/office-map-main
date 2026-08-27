@@ -3,7 +3,7 @@
 /*
  * P0 map sizing contract.
  *
- * The workbench header is 58px tall. The map host previously relied only on
+ * The workbench header uses the shared compact application header height. The map host previously relied only on
  * flex-1 to inherit the remaining viewport height; in production that chain
  * could collapse and leave #map-container at 1280x0 even though AMap had
  * already created its canvas, overlays and base layers. Give the map stage an
@@ -15,15 +15,15 @@ main:has(> #map-container) {
   position: relative;
   flex: 0 0 auto !important;
   width: 100%;
-  height: calc(100vh - 58px) !important;
-  min-height: calc(100vh - 58px) !important;
+  height: calc(100vh - var(--cd-header-height)) !important;
+  min-height: calc(100vh - var(--cd-header-height)) !important;
   overflow: hidden;
 }
 
 @supports (height: 100dvh) {
   main:has(> #map-container) {
-    height: calc(100dvh - 58px) !important;
-    min-height: calc(100dvh - 58px) !important;
+    height: calc(100dvh - var(--cd-header-height)) !important;
+    min-height: calc(100dvh - var(--cd-header-height)) !important;
   }
 }
 
