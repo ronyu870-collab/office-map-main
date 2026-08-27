@@ -24,6 +24,7 @@ using (key = 'editor_can_view_lease_team_submissions');
 -- Administrators can always read the whole table. Editors can read it only while
 -- the global team-summary switch is open; every authenticated user keeps access
 -- to their own submissions.
+drop policy if exists "authenticated users read lease transactions" on public.lease_transactions;
 drop policy if exists "editors and admins read lease transactions" on public.lease_transactions;
 drop policy if exists "role scoped read lease transactions" on public.lease_transactions;
 create policy "role scoped read lease transactions"

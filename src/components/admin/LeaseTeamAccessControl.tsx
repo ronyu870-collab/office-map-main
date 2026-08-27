@@ -80,16 +80,29 @@ export function LeaseTeamAccessControl() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-slate-900">租赁成交数据权限</h2>
-            {loading ? <Badge tone="neutral">读取中</Badge> : <Badge tone={enabled ? 'success' : 'neutral'}>{enabled ? '编辑者可见' : '编辑者已隐藏'}</Badge>}
+            {loading ? (
+              <Badge tone="neutral">读取中</Badge>
+            ) : error ? (
+              <Badge tone="neutral">状态读取失败</Badge>
+            ) : (
+              <Badge tone={enabled ? 'success' : 'neutral'}>{enabled ? '编辑者可见' : '编辑者已隐藏'}</Badge>
+            )}
           </div>
           <p className="mt-1 text-sm text-slate-500">
             控制全部编辑用户是否可查看“团队成交汇总”。管理员始终保留完整查看、管理和导出权限。
           </p>
           {error && <p role="alert" className="mt-2 text-sm text-[var(--cd-color-danger)]">{error}</p>}
         </div>
-        <Button type="button" variant={enabled ? 'danger' : 'secondary'} onClick={() => void toggle()} disabled={loading || saving}>
-          {saving ? '保存中…' : enabled ? '关闭编辑者查看权限' : '向编辑者开放'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {error && (
+            <Button type="button" variant="secondary" onClick={() => void load()} disabled={loading || saving}>
+              重新读取
+            </Button>
+          )}
+          <Button type="button" variant={enabled ? 'danger' : 'secondary'} onClick={() => void toggle()} disabled={loading || saving || !access}>
+            {saving ? '保存中…' : enabled ? '关闭编辑者查看权限' : '向编辑者开放'}
+          </Button>
+        </div>
       </div>
     </section>
   )
