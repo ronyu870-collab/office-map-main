@@ -231,7 +231,6 @@ export default function LeaseSubmissionPage() {
   const submitted = progress?.submittedCount ?? 0;
   const complete = submitted >= target;
   const admin = isUserAdmin(userRole);
-  const canViewTeamSubmissions = canViewLeaseTeamSubmissions(userRole);
 
   return (
     <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
