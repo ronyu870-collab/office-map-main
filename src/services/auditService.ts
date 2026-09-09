@@ -1,5 +1,5 @@
 /** 统一审计日志采集层。实际发送由 utils/audit 的异步持久化队列完成。 */
-import { logAuditEvent } from '../utils/audit';
+import { ensureAuditSessionContext, logAuditEvent } from '../utils/audit';
 
 export const ACTION_TYPES = {
   LOGIN: 'LOGIN', LOGOUT: 'LOGOUT', LOGIN_FAILED: 'LOGIN_FAILED', CHANGE_PASSWORD: 'CHANGE_PASSWORD', DELETE_USER: 'DELETE_USER',
@@ -20,7 +20,10 @@ const ACTION_LEVELS: Record<string, 'P0' | 'P1' | 'P2' | 'P3'> = {
 
 let currentUserId: string | null = null;
 
-export function setCurrentUser(userId: string, _email?: string) { currentUserId = userId; }
+export function setCurrentUser(userId: string, _email?: string) {
+  currentUserId = userId;
+  void ensureAuditSessionContext(userId).catch(() => { /* audit context is best-effort */ });
+}
 export function clearCurrentUser() { currentUserId = null; }
 
 function getContext() {
@@ -62,9 +65,7 @@ export function audit(
 }
 
 /** 为兼容旧调用保留参数；当前阶段不再采样，保证行为记录完整。 */
-export function auditSampled(actionType: ActionType, details: Record<string, unknown> = {}, _sampleRate = 1) {
-  audit(actionType, details);
-}
+export function auditSampled(actionType: ActionType, details: Record<string, unknown> = {}, _sampleRate = 1) { audit(actionType, details); }
 
 export const auditLogin = (userId: string, email: string) => audit(ACTION_TYPES.LOGIN, { email }, { userId });
 export const auditLogout = () => audit(ACTION_TYPES.LOGOUT, {}, { immediate: true });
