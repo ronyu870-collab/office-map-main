@@ -143,6 +143,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Preserve one lightweight row per verified Auth session. This is deliberately
+    // best-effort: a snapshot failure must never delay or fail the user's business
+    // action or the primary audit write. Auth IP/UA are also maintained directly by
+    // a database trigger on auth.sessions; this path adds the application-observed
+    // network/device context as a fallback after logout removes the live session.
+    if (authSessionId) {
+      const snapshot: Record<string, unknown> = {
+        auth_session_id: authSessionId,
+        user_id: user.id,
+        last_seen_at: new Date().toISOString(),
+      };
+      if (requestContext.ipAddress) snapshot.application_ip_address = requestContext.ipAddress;
+      if (requestContext.userAgent) snapshot.application_user_agent = requestContext.userAgent;
+      if (requestContext.country) snapshot.ip_country = requestContext.country;
+      if (requestContext.region) snapshot.ip_region = requestContext.region;
+      if (requestContext.city) snapshot.ip_city = requestContext.city;
+      if (requestContext.browserName) snapshot.browser_name = requestContext.browserName;
+      if (requestContext.browserVersion) snapshot.browser_version = requestContext.browserVersion;
+      if (requestContext.osName) snapshot.os_name = requestContext.osName;
+      if (requestContext.osVersion) snapshot.os_version = requestContext.osVersion;
+      if (requestContext.deviceType) snapshot.device_type = requestContext.deviceType;
+      const clientDeviceId = events.find(event => event.client_device_id)?.client_device_id;
+      if (clientDeviceId) snapshot.client_device_id = clientDeviceId;
+
+      const { error: snapshotError } = await supabaseAdmin
+        .from('auth_session_audit_context')
+        .upsert(snapshot, { onConflict: 'auth_session_id' });
+      if (snapshotError) {
+        console.warn('[audit-events] 会话审计快照更新失败', snapshotError.code, snapshotError.message);
+      }
+    }
+
     if (!events.length && !discardedEventIds.length) {
       return NextResponse.json({ error: '没有可写入的日志' }, { status: 400 });
     }
