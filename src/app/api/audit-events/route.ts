@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getAuditRequestContext } from '@/src/utils/server/auditRequestContext';
 import { sanitizeAuditPayload, sanitizeAuditText } from '@/src/utils/auditSanitizer';
 import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
+import { isAuditOriginCurrent } from '@/src/utils/auditOrigin';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,14 +36,6 @@ function occurredAt(value: unknown): string {
     if (Number.isFinite(time)) return new Date(time).toISOString();
   }
   return new Date().toISOString();
-}
-
-function hasStaleOrigin(event: ClientEvent, userId: string, authSessionId: string | null): boolean {
-  const originUserId = text(event.origin_user_id, 100);
-  const originSessionId = text(event.origin_auth_session_id, 100);
-  if (originUserId && originUserId !== userId) return true;
-  if (originSessionId && (!authSessionId || originSessionId !== authSessionId)) return true;
-  return false;
 }
 
 function normalizeEvent(
@@ -128,12 +121,16 @@ export async function POST(request: NextRequest) {
     const discardedEventIds: string[] = [];
     const events = candidates.flatMap(event => {
       const eventId = text(event.event_id, 100);
-      if (hasStaleOrigin(event, user.id, authSessionId)) {
+      if (!isAuditOriginCurrent(event, user.id, authSessionId)) {
         if (eventId) discardedEventIds.push(eventId);
         return [];
       }
       const normalized = normalizeEvent(event, user.id, authSessionId, requestContext);
-      return normalized ? [normalized] : [];
+      if (!normalized) {
+        if (eventId) discardedEventIds.push(eventId);
+        return [];
+      }
+      return [normalized];
     });
 
     if (events.length) {

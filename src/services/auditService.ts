@@ -1,5 +1,5 @@
 /** 统一审计日志采集层。实际发送由 utils/audit 的异步持久化队列完成。 */
-import { ensureAuditSessionContext, logAuditEvent } from '../utils/audit';
+import { clearAuditSessionContext, ensureAuditSessionContext, logAuditEvent } from '../utils/audit';
 
 export const ACTION_TYPES = {
   LOGIN: 'LOGIN', LOGOUT: 'LOGOUT', LOGIN_FAILED: 'LOGIN_FAILED', CHANGE_PASSWORD: 'CHANGE_PASSWORD', DELETE_USER: 'DELETE_USER',
@@ -21,10 +21,16 @@ const ACTION_LEVELS: Record<string, 'P0' | 'P1' | 'P2' | 'P3'> = {
 let currentUserId: string | null = null;
 
 export function setCurrentUser(userId: string, _email?: string) {
+  // Account switches must invalidate the old in-memory audit origin synchronously.
+  // The async refresh below then binds future events to the new Auth session.
+  if (currentUserId !== userId) clearAuditSessionContext();
   currentUserId = userId;
   void ensureAuditSessionContext(userId).catch(() => { /* audit context is best-effort */ });
 }
-export function clearCurrentUser() { currentUserId = null; }
+export function clearCurrentUser() {
+  currentUserId = null;
+  clearAuditSessionContext();
+}
 
 function getContext() {
   if (typeof window === 'undefined') return {};
