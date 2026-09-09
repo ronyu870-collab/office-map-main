@@ -12,12 +12,17 @@ import { supabase } from '../services/supabaseClient';
 import { getOrCreateDeviceId } from '../services/deviceIdentity';
 import { getSessionIdFromAccessToken } from './authSession';
 import { AUDIT_ORIGIN_SCHEMA_VERSION, isAuditOriginCurrent } from './auditOrigin';
+import { auditPolicyGate, isNoisyAuditAction } from './auditPolicy';
+import { subscribeSupabaseMutations, type SupabaseMutationNotice } from './auditMutationBridge';
 
 const DB_NAME = 'colliers-audit-outbox-v1';
 const STORE_NAME = 'events';
 const BATCH_SIZE = 20;
 const FLUSH_DELAY_MS = 3000;
 const MAX_BACKOFF_MS = 60_000;
+const MAX_OUTBOX_EVENTS = 1500;
+const AUTO_MUTATION_DEDUPE_MS = 500;
+const AUTO_MUTATION_BUDGET_PER_MINUTE = 300;
 const AUTHORITY_OWNED_AUTH_ACTIONS = new Set(['LOGIN', 'LOGIN_FAILED', 'LOGOUT']);
 
 export interface AuditEvent {
@@ -54,6 +59,9 @@ let isFlushing = false;
 let failureCount = 0;
 let initialized = false;
 let currentAuditContext: AuditSessionContext | null = null;
+const recentAutomaticMutations = new Map<string, number>();
+let automaticMutationWindowStartedAt = 0;
+let automaticMutationCount = 0;
 
 function createEventId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
@@ -123,6 +131,16 @@ async function saveEvent(event: AuditEvent): Promise<void> {
   });
 }
 
+async function getOutboxCount(): Promise<number> {
+  const db = await getDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const request = tx.objectStore(STORE_NAME).count();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 async function getBatch(): Promise<AuditEvent[]> {
   const db = await getDatabase();
   return new Promise((resolve, reject) => {
@@ -173,6 +191,11 @@ async function enqueueAuditEvent(
   event: Omit<AuditEvent, 'event_id' | 'occurred_at' | 'client_device_id' | 'origin_schema_version' | 'origin_user_id' | 'origin_auth_session_id'>,
   occurredAt: string,
 ): Promise<void> {
+  if (isNoisyAuditAction(event.action_type)) {
+    const outboxCount = await getOutboxCount().catch(() => 0);
+    if (outboxCount >= MAX_OUTBOX_EVENTS) return;
+  }
+
   let context = currentAuditContext;
   if (!context) {
     await refreshAuditSessionContext().catch(() => {});
@@ -200,6 +223,13 @@ export function logAuditEvent(
   if (typeof window === 'undefined') return;
   try { if (sessionStorage.getItem('__impersonation_state')) return; } catch { /* continue */ }
 
+  const actionType = event.action_type.trim().toUpperCase();
+  if (isAuthorityOwnedAuthAction(actionType)) {
+    if (actionType === 'LOGIN') void refreshAuditSessionContext().catch(() => {});
+    return;
+  }
+  if (!auditPolicyGate.shouldRecord(actionType, event.details || {})) return;
+
   ensureInit();
   const occurredAt = event.occurred_at || new Date().toISOString();
   const { occurred_at: _occurredAt, ...payload } = event;
@@ -220,8 +250,6 @@ export async function flushAuditLogs(): Promise<void> {
     if (!authSessionId) { queueFlushAfterFailure(); return; }
     setAuditSessionContext({ userId: session.user.id, authSessionId });
 
-    // Drop legacy or cross-session events locally before they ever reach the API.
-    // The server repeats this check as the authoritative boundary.
     const currentEvents = events.filter(event => isAuditOriginCurrent(event, session.user.id, authSessionId));
     const staleIds = events
       .filter(event => !isAuditOriginCurrent(event, session.user.id, authSessionId))
@@ -259,14 +287,59 @@ export async function flushAuditLogs(): Promise<void> {
   }
 }
 
+function handleAutomaticMutation(notice: SupabaseMutationNotice): void {
+  if (typeof window === 'undefined') return;
+  try { if (sessionStorage.getItem('__impersonation_state')) return; } catch { /* continue */ }
+
+  const page = window.location.pathname;
+  const key = `${notice.kind}:${notice.target}:${notice.operation}:${page}`;
+  const now = Date.now();
+  const last = recentAutomaticMutations.get(key);
+  if (last !== undefined && now - last < AUTO_MUTATION_DEDUPE_MS) return;
+
+  if (automaticMutationWindowStartedAt === 0 || now - automaticMutationWindowStartedAt >= 60_000) {
+    automaticMutationWindowStartedAt = now;
+    automaticMutationCount = 0;
+  }
+  if (automaticMutationCount >= AUTO_MUTATION_BUDGET_PER_MINUTE) return;
+
+  recentAutomaticMutations.set(key, now);
+  automaticMutationCount += 1;
+  if (recentAutomaticMutations.size > 200) {
+    for (const [recentKey, timestamp] of recentAutomaticMutations) {
+      if (now - timestamp > 60_000) recentAutomaticMutations.delete(recentKey);
+    }
+  }
+
+  const actionType = notice.operation === 'INSERT'
+    ? 'DB_INSERT'
+    : notice.operation === 'DELETE'
+      ? 'DB_DELETE'
+      : 'DB_UPDATE';
+  const displayTarget = notice.kind === 'rpc' ? `RPC/${notice.target}` : notice.target;
+  logAuditEvent({
+    action_type: actionType,
+    details: {
+      table: displayTarget,
+      operation: notice.operation,
+      http_status: notice.status,
+      coverage: 'automatic_fallback',
+    },
+    request_source: 'frontend',
+    module: page.split('/')[1] || 'home',
+    page_url: page,
+    target_table: notice.kind === 'table' ? notice.target : undefined,
+    target_name: notice.kind === 'rpc' ? notice.target : undefined,
+    occurred_at: notice.occurredAt,
+  });
+}
+
+if (typeof window !== 'undefined') subscribeSupabaseMutations(handleAutomaticMutation);
+
 /** 兼容已有调用；身份由服务端 JWT 决定，userId 不再直接写入数据库。 */
 export function logAction(_userId: string | undefined, actionType: string, details: Record<string, unknown> = {}): void {
-  // Authentication lifecycle is authoritative in Supabase Auth Audit Logs.
-  // Keep old call sites harmless so duplicate LOGIN/LOGOUT rows cannot return.
   if (isAuthorityOwnedAuthAction(actionType)) {
-    if (actionType.trim().toUpperCase() === 'LOGIN') {
-      void refreshAuditSessionContext().catch(() => {});
-    }
+    if (actionType.trim().toUpperCase() === 'LOGIN') void refreshAuditSessionContext().catch(() => {});
     return;
   }
 
@@ -283,7 +356,5 @@ export function logAction(_userId: string | undefined, actionType: string, detai
 /** 兼容旧接口：关键事件只提前安排发送，仍不阻塞用户操作。 */
 export async function logActionImmediate(userId: string | undefined, actionType: string, details: Record<string, unknown> = {}): Promise<void> {
   logAction(userId, actionType, details);
-  // Even when the auth action itself is Supabase-owned, use this lifecycle hint
-  // to opportunistically drain valid business audit events before navigation.
   scheduleFlush(0);
 }

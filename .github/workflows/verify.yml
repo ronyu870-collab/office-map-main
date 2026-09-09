@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -33,6 +35,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit coverage contract
+        run: npm run audit:coverage
+        env:
+          AUDIT_COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
 
       - name: Typecheck
         run: npm run typecheck

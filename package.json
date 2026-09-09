@@ -11,7 +11,8 @@
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "check": "npm run typecheck && npm run lint && npm run test",
+    "audit:coverage": "node scripts/check-audit-coverage.mjs",
+    "check": "npm run audit:coverage && npm run typecheck && npm run lint && npm run test",
     "verify": "npm run check && npm run build"
   },
   "dependencies": {
