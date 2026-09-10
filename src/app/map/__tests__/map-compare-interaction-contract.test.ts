@@ -16,12 +16,15 @@ describe('map comparison interaction contracts', () => {
     expect(guard).toContain('退出周边对比');
   });
 
-  it('keeps building comparison navigation targeted and guarded', () => {
+  it('routes building comparison through a decorated event contract', () => {
     const bridge = read('src/app/map/MapBuildingCompareBridge.tsx');
 
     expect(bridge).toContain("router.prefetch('/compare')");
-    expect(bridge).toContain("new URLSearchParams({ buildingId })");
-    expect(bridge).toContain("params.set('name', buildingName)");
+    expect(bridge).toContain("const REQUEST_EVENT = 'map-building-compare-request'");
+    expect(bridge).toContain("button.dataset.mapAction = BUILDING_COMPARE_ID");
+    expect(bridge).toContain("new CustomEvent<CompareRequestDetail>(REQUEST_EVENT");
+    expect(bridge).toContain("new URLSearchParams({ buildingId: detail.buildingId })");
+    expect(bridge).toContain("params.set('name', detail.buildingName)");
     expect(bridge).toContain('navigatingRef.current');
     expect(bridge).toContain('router.push(`/compare?${params.toString()}`)');
   });
