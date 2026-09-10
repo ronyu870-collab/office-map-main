@@ -2,8 +2,8 @@
 
 import dynamic from 'next/dynamic';
 
-const CompareClient = dynamic(() => import('./CompareClient'), { ssr: false });
+const BuildingCompareWorkspace = dynamic(() => import('./BuildingCompareWorkspace'), { ssr: false });
 
 export default function ComparePage() {
-  return <CompareClient />;
+  return <BuildingCompareWorkspace />;
 }
