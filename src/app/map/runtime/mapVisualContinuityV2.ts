@@ -153,7 +153,11 @@ function removeSet(map: any, set: LayerSet | null): void {
 
 function signature(buildings: any[], mode: RenderMode, groups?: any[]): string {
   let value = `${mode}|${buildings.length}|`;
-  for (const b of buildings) value += `${b?.id ?? ''}:${b?.updated_at ?? ''}|`;
+  for (const b of buildings) {
+    const metric = latestMetric(b);
+    value += `${b?.id ?? ''}:${b?.grade ?? ''}:${b?.submarket ?? ''}:${b?.leed_certification ?? ''}:` +
+      `${metric?.record_year ?? ''}:${metric?.record_quarter ?? ''}:${metric?.net_effective_rent ?? ''}:${metric?.vacancy_rate ?? ''}|`;
+  }
   if (groups) for (const g of groups) value += `${g?.id ?? ''}:${g?.color ?? ''}:${(g?.submarkets ?? []).join(',')}:${(g?.grades ?? []).join(',')}:${(g?.districts ?? []).join(',')}|`;
   return value;
 }
@@ -190,6 +194,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
   let selectedId: string | null = null;
+  let suppressMapClearUntil = 0;
   let navigationToken = 0;
   let futureSignature = '';
 
@@ -208,6 +213,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     selectedMarker = new Marker({ position: [building.location_lng, building.location_lat], content: el, anchor: 'center', zIndex: 999999, bubble: true });
     map.add?.(selectedMarker);
     selectedId = String(building.id ?? '');
+    suppressMapClearUntil = performance.now() + 180;
     container.dataset.selectedBuilding = selectedId;
   };
 
@@ -263,7 +269,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       const rent = agg.rentArea > 0 ? agg.rentSum / agg.rentArea : 0;
       const vacancy = agg.area > 0 ? (agg.vacant / agg.area) * 100 : Number.NaN;
       const leedPct = agg.count > 0 ? (agg.leed / agg.count) * 100 : 0;
-      let accent = PALETTE.brand;
+      let accent: string = PALETTE.brand;
       if (mode === 'rent') accent = rent <= 0 ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'leed') accent = leedPct >= 60 ? '#3f715f' : leedPct >= 40 ? '#537f6c' : leedPct >= 20 ? '#6f927f' : leedPct > 0 ? '#88a493' : PALETTE.neutral;
@@ -272,10 +278,11 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       if (mode === 'rent') { primary = `¥${rent > 0 ? rent.toFixed(1) : '–'}`; secondary = '平均租金'; }
       else if (mode === 'vacancy') { primary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–'; secondary = '空置率'; }
       else if (mode === 'leed') { primary = `${leedPct.toFixed(0)}%`; secondary = 'LEED'; }
+      const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
       const el = document.createElement('div');
       el.className = 'map-submarket-bubble'; el.dataset.renderMode = mode; el.title = agg.name;
       el.style.setProperty('--sm-accent', accent); el.style.setProperty('--sm-size', `${size}px`);
-      el.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(agg.name)}</div><div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span><span class="map-submarket-bubble__sep">·</span><span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+      el.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(agg.name)}</div><div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
       const marker = new Marker({ position: center, content: el, anchor: 'center', zooms: [3, 20], zIndex: 92, topWhenClick: true, opacity: 0 });
       marker.on?.('click', () => { el.classList.add('is-expanding'); map.setZoomAndCenter?.(12.15, center, false, 340); window.setTimeout(() => el.classList.remove('is-expanding'), 420); });
       submarkets.push(marker);
@@ -372,7 +379,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   const onZoomEnd = () => { apply(); requestAnimationFrame(() => container.classList.remove('map-is-zooming')); };
   const onMoveStart = () => container.classList.add('map-is-moving');
   const onMoveEnd = () => requestAnimationFrame(() => container.classList.remove('map-is-moving'));
-  const onMapClick = () => { if (selectedId) clearSelection(); };
+  const onMapClick = () => { if (selectedId && performance.now() > suppressMapClearUntil) clearSelection(); };
   map.on?.('zoomstart', onZoomStart); map.on?.('zoomchange', onZoomChange); map.on?.('zoomend', onZoomEnd); map.on?.('movestart', onMoveStart); map.on?.('moveend', onMoveEnd); map.on?.('click', onMapClick);
 
   return () => {
