@@ -60,9 +60,9 @@ function MySubmissionTable({ items, userName, onEdit, onTransfer }: HistoryProps
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-[11px]">
+          <table className="w-full min-w-[900px] text-[11px]">
             <thead className="bg-slate-50/90 text-[10px] text-slate-500">
-              <tr>{['公司','楼宇','面积 (㎡)','净有效租金','季度','提交日期','操作'].map((label, index) => <th key={label} className={`border-b border-slate-200 px-3 py-2.5 font-semibold ${index >= 2 && index <= 3 ? 'text-right' : index >= 4 ? 'text-center' : 'text-left'}`}>{label}</th>)}</tr>
+              <tr>{['公司','楼宇','面积 (㎡)','净有效租金','成交年份','成交季度','提交日期','操作'].map((label, index) => <th key={label} className={`border-b border-slate-200 px-3 py-2.5 font-semibold ${index >= 2 && index <= 3 ? 'text-right' : index >= 4 ? 'text-center' : 'text-left'}`}>{label}</th>)}</tr>
             </thead>
             <tbody>{current.map((item, index) => (
               <tr key={item.id ?? index} className="border-b border-slate-100 last:border-0 transition-colors hover:bg-slate-50/70">
@@ -70,7 +70,8 @@ function MySubmissionTable({ items, userName, onEdit, onTransfer }: HistoryProps
                 <td className="max-w-48 truncate px-3 py-2.5 text-slate-600"><MaskedCell masked>{item.new_building || '-'}</MaskedCell></td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{item.area_sqm?.toLocaleString('zh-CN') ?? '-'}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums font-medium text-[#003e7e]">{item.effective_rent?.toLocaleString('zh-CN') ?? '-'}</td>
-                <td className="px-3 py-2.5 text-center text-slate-600">{item.transaction_year ? `${item.transaction_year} ` : ''}{item.transaction_quarter || '-'}</td>
+                <td className="px-3 py-2.5 text-center tabular-nums text-slate-600">{item.transaction_year || '-'}</td>
+                <td className="px-3 py-2.5 text-center text-slate-600">{item.transaction_quarter || '-'}</td>
                 <td className="px-3 py-2.5 text-center text-slate-400">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td>
                 <td className="px-3 py-2.5 text-center">
                   <div className="inline-flex gap-1.5">
