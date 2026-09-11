@@ -13,9 +13,9 @@ const MapClient = dynamic(() => import('./MapClient').then(module => module.defa
 });
 
 export function MapRouteGate({
-  initialIntelligenceHandoff,
+  initialIntelligenceHandoff = null,
 }: {
-  initialIntelligenceHandoff: IntelligenceMapRouteState | null;
+  initialIntelligenceHandoff?: IntelligenceMapRouteState | null;
 }) {
   const router = useRouter();
   const { status } = useAppSession();
