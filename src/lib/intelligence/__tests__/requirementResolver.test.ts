@@ -55,4 +55,20 @@ describe('requirementResolver', () => {
     expect(capabilities.find(item => item.key === 'rent')?.status).toBe('partial');
     expect(capabilities.find(item => item.key === 'rent')?.dataBasis).toContain('2026 Q2');
   });
+
+  it('only marks net-effective rent as directly executable in the current map', () => {
+    const asking = resolveRequirementCapabilities({
+      ...base,
+      rent: { minDailyRmbSqm: null, maxDailyRmbSqm: 7, basis: 'asking' },
+    }, { latestMetricPeriod: '2026 Q3' });
+    const netEffective = resolveRequirementCapabilities({
+      ...base,
+      rent: { minDailyRmbSqm: null, maxDailyRmbSqm: 7, basis: 'net_effective' },
+    }, { latestMetricPeriod: '2026 Q3' });
+
+    expect(asking.find(item => item.key === 'rent')?.status).toBe('partial');
+    expect(asking.find(item => item.key === 'rent')?.explanation).toContain('报价租金');
+    expect(netEffective.find(item => item.key === 'rent')?.status).toBe('supported');
+    expect(netEffective.find(item => item.key === 'rent')?.dataBasis).toContain('net_effective_rent');
+  });
 });

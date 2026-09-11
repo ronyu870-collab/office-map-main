@@ -106,15 +106,20 @@ export function resolveRequirementCapabilities(
       : parsed.rent.basis === 'net_effective'
         ? '净有效租金'
         : '租金口径待确认';
+    const isNetEffective = parsed.rent.basis === 'net_effective';
+    const explanation = isNetEffective
+      ? '可换算为现有季度净有效租金（月度口径）进入地图筛选；不会把模型生成值当作市场数据。'
+      : parsed.rent.basis === 'asking'
+        ? '当前地图可筛选的是净有效租金，不能用报价租金直接替代，需确认口径后再筛选。'
+        : '系统已有季度净有效租金指标，但客户没有说明报价/净有效口径，建议确认后再筛选。';
+
     capabilities.push({
       key: 'rent',
       label: '预算',
       value: `${numberRange(parsed.rent.minDailyRmbSqm, parsed.rent.maxDailyRmbSqm, '元/㎡/天')} · ${basisLabel}`,
-      status: parsed.rent.basis === 'unspecified' ? 'partial' : 'supported',
-      explanation: parsed.rent.basis === 'unspecified'
-        ? '系统已有季度租金指标，但客户没有说明报价/净有效口径，建议确认后再筛选。'
-        : '可基于现有季度租金指标筛选；不会把模型生成值当作市场数据。',
-      dataBasis: context.latestMetricPeriod ? `building_metrics · ${context.latestMetricPeriod}` : 'building_metrics',
+      status: isNetEffective ? 'supported' : 'partial',
+      explanation,
+      dataBasis: context.latestMetricPeriod ? `building_metrics.net_effective_rent · ${context.latestMetricPeriod}` : 'building_metrics.net_effective_rent',
     });
   }
 
@@ -135,7 +140,7 @@ export function resolveRequirementCapabilities(
       label: '项目等级',
       value: parsed.grades.join(' / '),
       status: 'supported',
-      explanation: '已匹配系统现有项目等级，可进入地图筛选。',
+      explanation: '已匹配系统现有项目等级，可映射到地图现有甲级/乙级/产业园区筛选。',
       dataBasis: 'buildings.grade',
     });
   }

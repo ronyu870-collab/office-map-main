@@ -25,6 +25,7 @@ import { MapDataStore } from './model/MapDataStore';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
 import { MapLoadingShell } from './components/MapLoadingShell';
+import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
 
 // Admin-only editing is never part of the normal Map path. Keep its Supabase,
 // audit and form runtime out of the MapClient chunk until an admin opens it.
@@ -33,7 +34,7 @@ const BuildingMetricsEditModal = dynamic(
   { ssr: false },
 );
 
-export default function MapWorkbenchPage() {
+export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initialIntelligenceHandoff: IntelligenceMapRouteState | null }) {
   const { session: appSession, status: appSessionStatus } = useAppSession();
   const allowed = appSessionStatus === 'authenticated' && Boolean(appSession);
   const userRole = appSession?.role || 'viewer';
@@ -44,8 +45,10 @@ export default function MapWorkbenchPage() {
   const [allBuildings, setAllBuildings] = React.useState<any[]>([]);
   const [futureSupplies, setFutureSupplies] = React.useState<any[]>([]);
   const [displayOverrides, setDisplayOverrides] = React.useState<Map<string, Map<string, { display_label: string; display_value: string }>>>(new Map());
-  const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(null);
-  const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(null);
+  const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(() => initialIntelligenceHandoff?.filterState ?? null);
+  const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(() => initialIntelligenceHandoff
+    ? { id: 1, type: 'patch', patch: initialIntelligenceHandoff.filterState }
+    : null);
   const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>([]);
   const mapDataStoreRef = React.useRef(new MapDataStore());
 
@@ -118,7 +121,7 @@ export default function MapWorkbenchPage() {
 
   // 🌟 Phase 1: 悬浮列表可见性控制
   const [isListVisible, setIsListVisible] = React.useState(false);
-  const [userHasInteracted, setUserHasInteracted] = React.useState(false);
+  const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
 
@@ -135,6 +138,19 @@ export default function MapWorkbenchPage() {
   const [currentSubwayStations, setCurrentSubwayStations] = React.useState<any[]>([]);
   const lastFetchedLine = React.useRef<string | null>(null);
   const initialRenderDone = React.useRef(false);
+  const intelligenceAutoFitDoneRef = React.useRef(false);
+  const intelligenceAuditDoneRef = React.useRef(false);
+  const [intelligenceCandidatesResolved, setIntelligenceCandidatesResolved] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!initialIntelligenceHandoff || intelligenceAuditDoneRef.current) return;
+    intelligenceAuditDoneRef.current = true;
+    logAction(undefined, 'MAP_FILTER', {
+      source: 'intelligence',
+      applied_capabilities: initialIntelligenceHandoff.appliedCapabilities,
+      filter: JSON.stringify(initialIntelligenceHandoff.filterState),
+    });
+  }, [initialIntelligenceHandoff]);
 
   const [mapError, setMapError] = React.useState<string | null>(null);
   const [mapDataLoading, setMapDataLoading] = React.useState(false);
@@ -238,6 +254,7 @@ export default function MapWorkbenchPage() {
     if (!mapReady || !controllerRef.current || allBuildings.length === 0) return;
     if (initialRenderDone.current) return;
     initialRenderDone.current = true;
+    if (initialIntelligenceHandoff) return;
     const ctrl = controllerRef.current;
     ctrl.clearCompetitorElements();
     ctrl.clearDistrictBoundaries();
@@ -304,12 +321,20 @@ export default function MapWorkbenchPage() {
 
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
+    if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
+      setIntelligenceCandidatesResolved(true);
+    }
 
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
       ctrl.renderMarkers(filtered, renderMode, districtLeedStats, compareGroups.length > 0 ? compareGroups : undefined);
     }
     setStats(computeStatsFromBuildings(filtered));
+
+    if (initialIntelligenceHandoff && !intelligenceAutoFitDoneRef.current && filtered.length > 0) {
+      intelligenceAutoFitDoneRef.current = true;
+      ctrl.fitToBuildings(filtered);
+    }
 
     // ================= 🌟 未来新增供应分支逻辑 (修复后) =================
     if (filterState.showFutureSupply) {
@@ -507,6 +532,10 @@ export default function MapWorkbenchPage() {
         combinedBuildingList={combinedBuildingList}
         displayOverrides={displayOverrides}
         targetBuildingId={targetBuildingId}
+        intelligenceContext={initialIntelligenceHandoff ? {
+          candidateCount: intelligenceCandidatesResolved ? filteredBuildings.length : null,
+          appliedCapabilities: initialIntelligenceHandoff.appliedCapabilities,
+        } : null}
         onFilterPanelOpenChange={setIsFilterPanelOpen}
         onSupplyOpenChange={setIsSupplyOpen}
         onFilterChange={handleFilterChange}

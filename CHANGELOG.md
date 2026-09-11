@@ -21,6 +21,47 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-09-11 — Intelligence → Map controlled handoff
+
+### Area
+Intelligence / Map / filter adapter / client requirement workflow
+
+### What changed
+
+- Added a deterministic Intelligence-to-Map adapter that converts only supported AI-extracted conditions into the existing `SidebarFilterState`; no second filtering engine was introduced.
+- Added explicit daily-to-monthly conversion for net-effective rent (`365 / 12`) because customer requirements use RMB/㎡/day while the existing Map metric is RMB/㎡/month.
+- Tightened rent capability semantics so asking rent and unspecified rent remain confirmation-only; only net-effective rent can be applied automatically.
+- Mapped validated building grades into the Map's existing 甲级写字楼 / 乙级写字楼 / 产业园区 categories using the same grade semantics as `MapDataStore`.
+- Refused mixed district/submarket OR expressions that the current Map cannot represent without changing meaning, rather than silently converting them into an AND filter.
+- Passed the handoff through the Next.js map route boundary, seeded the existing filter state and filter command, and retained the existing authentication gate before `MapClient` mounts.
+- Added an Intelligence context strip on Map with live candidate count, removable existing filter chips, and a return path to Intelligence.
+- Added a one-time initial `fitToBuildings` for Intelligence entry only; normal Map filtering continues to preserve the user's current viewport.
+- Logged the derived Map filter as the existing `MAP_FILTER` audit action with `source=intelligence`; raw customer requirement text is not included.
+
+### Why
+
+The AI parser is useful only when its confirmed output can enter the real broker workflow. The handoff must preserve semantic correctness, units, existing map behavior, and data trust boundaries rather than letting model output bypass established filter semantics.
+
+### Impact
+
+- Brokers can now go from natural-language client need → reviewed structured conditions → real candidate projects in the existing Map.
+- Unsupported area, move-in timing, generic metro preference, ambiguous rent basis, and other partial conditions remain visible in Intelligence but are not applied to Map.
+- Existing Map entry, manual filtering, project list, comparison mode, data loading, permissions, Supabase schema/RLS, and non-Intelligence users are unchanged.
+- The URL contains only validated derived filter values and capability keys, not the raw client requirement.
+
+### Verification
+
+- Added unit coverage for rent conversion, grade mapping, unsupported-condition exclusion, mixed-location semantic protection, and malformed URL rejection.
+- Added integration source contracts for the Intelligence button, async map `searchParams` boundary, authenticated route gate, existing filter-state seeding, one-time auto-fit, and candidate-context UI.
+- Final delivery requires the repository Verify workflow (audit coverage, TypeScript, lint, tests, production build) and Vercel deployment checks to pass on the exact merge head.
+
+### Follow-up
+
+- The next product increment should let a broker select candidates from the filtered Map and add them to a customer proposal draft; do not start proposal generation before that selection state is explicit.
+
+
+---
+
 ## 2026-09-11 — Intelligence preview and DeepSeek requirement parsing
 
 ### Area
