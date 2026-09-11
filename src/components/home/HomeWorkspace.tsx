@@ -416,7 +416,7 @@ export function HomeWorkspace() {
                 {showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-full animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}
               </div>
             </div>
-            {activeRole !== 'admin' && activeSession.user.email ? (
+            {activeSession.user.email ? (
               <FeedbackPanel
                 userId={activeSession.user.id}
                 userEmail={activeSession.user.email}
