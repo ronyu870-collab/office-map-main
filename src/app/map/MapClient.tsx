@@ -140,6 +140,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const initialRenderDone = React.useRef(false);
   const intelligenceAutoFitDoneRef = React.useRef(false);
   const intelligenceAuditDoneRef = React.useRef(false);
+  const [intelligenceCandidatesResolved, setIntelligenceCandidatesResolved] = React.useState(false);
 
   React.useEffect(() => {
     if (!initialIntelligenceHandoff || intelligenceAuditDoneRef.current) return;
@@ -253,6 +254,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     if (!mapReady || !controllerRef.current || allBuildings.length === 0) return;
     if (initialRenderDone.current) return;
     initialRenderDone.current = true;
+    if (initialIntelligenceHandoff) return;
     const ctrl = controllerRef.current;
     ctrl.clearCompetitorElements();
     ctrl.clearDistrictBoundaries();
@@ -319,6 +321,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
+    if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
+      setIntelligenceCandidatesResolved(true);
+    }
 
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
@@ -528,7 +533,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         displayOverrides={displayOverrides}
         targetBuildingId={targetBuildingId}
         intelligenceContext={initialIntelligenceHandoff ? {
-          candidateCount: allBuildings.length > 0 ? filteredBuildings.length : null,
+          candidateCount: intelligenceCandidatesResolved ? filteredBuildings.length : null,
           appliedCapabilities: initialIntelligenceHandoff.appliedCapabilities,
         } : null}
         onFilterPanelOpenChange={setIsFilterPanelOpen}
