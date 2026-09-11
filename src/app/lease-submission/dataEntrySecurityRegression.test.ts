@@ -21,6 +21,14 @@ describe('lease data entry authorization seams', () => {
     expect(source).toContain('maxDuration = 30');
   });
 
+  it('loads team submissions without a separate access probe', () => {
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
+    expect(source).not.toContain('getLeaseTeamAccess');
+    expect(source).toContain('canViewLeaseTeamSubmissions(role)');
+    expect(source).toContain('getAllSubmissions(role)');
+    expect(source).toContain("TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向编辑用户开放'");
+  });
+
   it('bounds the browser request for team submissions', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/services/leaseTransactionSubmitService.ts'), 'utf8');
     expect(source).toContain('new AbortController()');
