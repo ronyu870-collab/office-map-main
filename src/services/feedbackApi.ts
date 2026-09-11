@@ -68,7 +68,9 @@ export async function getMyFeedback(userEmail: string): Promise<FeedbackIssue[]>
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(`获取反馈失败：${error.message}`);
-  return (data ?? []) as FeedbackIssue[];
+  // ISSUE_SELECT is composed dynamically, so supabase-js cannot infer the row shape.
+  // Keep the runtime selection contract explicit and isolate the assertion here.
+  return (data ?? []) as unknown as FeedbackIssue[];
 }
 
 export async function createFeedback(input: CreateFeedbackInput): Promise<FeedbackIssue> {
@@ -90,7 +92,8 @@ export async function createFeedback(input: CreateFeedbackInput): Promise<Feedba
     .single();
 
   if (error) throw new Error(`提交反馈失败：${error.message}`);
-  return data as FeedbackIssue;
+  // See getMyFeedback: the dynamic select string prevents static row inference.
+  return data as unknown as FeedbackIssue;
 }
 
 export async function getFeedbackComments(issueId: string): Promise<FeedbackComment[]> {
