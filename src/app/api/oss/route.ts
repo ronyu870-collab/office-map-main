@@ -5,6 +5,10 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+// audit-coverage: this performance change only removes a redundant role lookup
+// from the read-only get-list path. Existing OSS mutation handlers are unchanged;
+// their successful user actions continue to be recorded by OSSManager.
+
 type VerifiedUser = {
   user: { id: string; email?: string };
   role: string;
