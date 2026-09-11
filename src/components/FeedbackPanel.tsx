@@ -5,6 +5,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ImagePlus,
+  MessageSquareMore,
   MessageSquareWarning,
   RefreshCw,
   Send,
@@ -390,16 +391,13 @@ export function FeedbackPanel({ userId, userEmail, userName }: FeedbackPanelProp
           setTab('submit');
           setOpen(true);
         }}
-        className="group mt-3 flex min-h-[64px] w-full items-center gap-3 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-3 text-left transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+        className="group mt-3 flex min-h-[52px] w-full items-center gap-2.5 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-2.5 text-left transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
         aria-haspopup="dialog"
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
-          <MessageSquareWarning size={16} strokeWidth={1.55} aria-hidden="true" />
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] transition-colors group-hover:text-[var(--cd-color-brand)]">
+          <MessageSquareMore size={15} strokeWidth={1.55} aria-hidden="true" />
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium text-[var(--cd-color-text-primary)]">问题与建议</span>
-          <span className="mt-0.5 block truncate text-[11px] text-[var(--cd-color-text-muted)]">反馈 Bug、数据问题或功能需求</span>
-        </span>
+        <span className="min-w-0 flex-1 text-[13px] font-medium text-[var(--cd-color-text-primary)]">问题与建议</span>
         <ArrowRight size={14} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" aria-hidden="true" />
       </button>
 
