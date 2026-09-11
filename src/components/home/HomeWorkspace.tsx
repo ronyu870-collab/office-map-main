@@ -14,6 +14,7 @@ import {
   LogOut,
   Map,
   Settings,
+  Sparkles,
   UserRound,
 } from 'lucide-react';
 
@@ -24,6 +25,7 @@ import { WorkspaceShell } from '@/src/components/layout';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
+import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
@@ -47,6 +49,13 @@ const MAP_WORKSPACE: WorkspaceModule = {
   module: 'map',
   title: '北京办公楼市场地图',
   icon: Map,
+};
+
+const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
+  href: '/intelligence',
+  module: 'intelligence',
+  title: '业务智能 Intelligence',
+  icon: Sparkles,
 };
 
 const BUSINESS_WORKSPACES: WorkspaceModule[] = [
@@ -301,7 +310,10 @@ function HomeLoadingShell() {
       <div className="h-full overflow-hidden">
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
           <section className="min-w-0">
-            <div className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+              <div className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
+            </div>
             <div className="mb-2.5 mt-5">
               <div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
             </div>
@@ -340,6 +352,7 @@ export function HomeWorkspace() {
     isDemo: isDemoMode(activeSession.user.email),
     impersonationActive: isImpersonating,
   });
+  const canSeeIntelligence = isIntelligencePreviewEnabled(activeRole);
 
   async function handleLogout() {
     try {
@@ -368,6 +381,8 @@ export function HomeWorkspace() {
 
   const MapIcon = MAP_WORKSPACE.icon;
   const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeRole);
+  const IntelligenceIcon = INTELLIGENCE_WORKSPACE.icon;
+  const intelligenceAccessibilityProps = getAccessibilityProps(INTELLIGENCE_WORKSPACE.module, INTELLIGENCE_WORKSPACE.title, activeRole);
 
   return (
     <WorkspaceShell
@@ -385,20 +400,42 @@ export function HomeWorkspace() {
       <div className="h-full overflow-y-auto overscroll-contain">
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
           <section className="min-w-0" aria-labelledby="home-heading">
-            <Link
-              href={MAP_WORKSPACE.href}
-              onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
-              className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
-              {...mapAccessibilityProps}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
-                <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
-              </div>
-              <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
-            </Link>
+            <div className={`grid gap-3 ${canSeeIntelligence ? 'sm:grid-cols-2' : ''}`}>
+              <Link
+                href={MAP_WORKSPACE.href}
+                onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
+                className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+                {...mapAccessibilityProps}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
+                  <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
+                </div>
+                <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
+              </Link>
+
+              {canSeeIntelligence ? (
+                <Link
+                  href={INTELLIGENCE_WORKSPACE.href}
+                  onClick={(event) => handleWorkspaceActivation(event, INTELLIGENCE_WORKSPACE)}
+                  className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.24)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+                  {...intelligenceAccessibilityProps}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
+                    <IntelligenceIcon size={20} strokeWidth={1.6} aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <h2 className="text-base font-semibold text-[var(--cd-color-text-primary)]">{INTELLIGENCE_WORKSPACE.title}</h2>
+                      <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-brand-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--cd-color-brand)]">Pilot Preview</span>
+                    </div>
+                  </div>
+                  <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
+                </Link>
+              ) : null}
+            </div>
 
             <div className="mb-2.5 mt-5">
               <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
