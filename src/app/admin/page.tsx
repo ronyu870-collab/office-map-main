@@ -14,7 +14,7 @@ function AdminSectionLoading() {
   return <div className="flex min-h-0 flex-1 items-center justify-center px-6"><LoadingState label="正在加载管理栏目" rows={0} /></div>;
 }
 
-const DatabaseManager = dynamic(() => import("@/src/components/admin/DatabaseManager").then(module => module.DatabaseManager), { loading: AdminSectionLoading });
+const DatabaseManager = dynamic(() => import("@/src/components/admin/DatabaseManagerEntry").then(module => module.DatabaseManagerEntry), { loading: AdminSectionLoading });
 const UserManager = dynamic(() => import("@/src/components/admin/UserManager").then(module => module.UserManager), { loading: AdminSectionLoading });
 const SubmissionManager = dynamic(() => import("@/src/components/admin/SubmissionManager").then(module => module.SubmissionManager), { loading: AdminSectionLoading });
 const SchemaMap = dynamic(() => import("@/src/components/admin/SchemaMap"), { loading: AdminSectionLoading, ssr: false });
