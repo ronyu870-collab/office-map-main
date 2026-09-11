@@ -31,6 +31,11 @@ export type IntelligenceMapRouteState = {
 
 type SearchParamReader = Pick<URLSearchParams, 'get' | 'getAll'>;
 
+type ParsedOptionalNumber = {
+  valid: boolean;
+  value: number | null;
+};
+
 function unique(values: string[]) {
   return [...new Set(values.map(value => value.trim()).filter(Boolean))];
 }
@@ -69,16 +74,19 @@ function toMonthlyRent(daily: number) {
   return Math.round(daily * DAILY_TO_MONTHLY_FACTOR * 10) / 10;
 }
 
-function safeNumber(value: string | null): number | null {
-  if (!value) return null;
+function parseOptionalNumber(value: string | null): ParsedOptionalNumber {
+  if (value === null) return { valid: true, value: null };
+  if (!value.trim()) return { valid: false, value: null };
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 5000) return null;
-  return parsed;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 5000) return { valid: false, value: null };
+  return { valid: true, value: parsed };
 }
 
-function validRepeatedValues(reader: SearchParamReader, key: string, allowed: readonly string[]) {
+function parseRepeatedValues(reader: SearchParamReader, key: string, allowed: readonly string[]): string[] | null {
+  const raw = unique(reader.getAll(key));
   const allowedSet = new Set(allowed);
-  return unique(reader.getAll(key)).filter(value => allowedSet.has(value));
+  if (raw.some(value => !allowedSet.has(value))) return null;
+  return raw;
 }
 
 export function createIntelligenceMapHandoff(result: RequirementParseResult): IntelligenceMapHandoff {
@@ -204,13 +212,17 @@ export function createIntelligenceMapHandoff(result: RequirementParseResult): In
 export function parseIntelligenceMapHandoff(reader: SearchParamReader): IntelligenceMapRouteState | null {
   if (reader.get('source') !== 'intelligence' || reader.get('v') !== HANDOFF_VERSION) return null;
 
-  const districts = validRepeatedValues(reader, 'district', MAP_DISTRICTS);
-  const submarkets = validRepeatedValues(reader, 'submarket', [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]);
+  const districts = parseRepeatedValues(reader, 'district', MAP_DISTRICTS);
+  const submarkets = parseRepeatedValues(reader, 'submarket', [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]);
+  const projectTypes = parseRepeatedValues(reader, 'projectType', DEFAULT_PROJECT_TYPES);
+  if (!districts || !submarkets || !projectTypes) return null;
   if (districts.length > 0 && submarkets.length > 0) return null;
 
-  const projectTypes = validRepeatedValues(reader, 'projectType', DEFAULT_PROJECT_TYPES);
-  const rentMin = safeNumber(reader.get('rentMinMonthly'));
-  const rentMax = safeNumber(reader.get('rentMaxMonthly'));
+  const rentMinResult = parseOptionalNumber(reader.get('rentMinMonthly'));
+  const rentMaxResult = parseOptionalNumber(reader.get('rentMaxMonthly'));
+  if (!rentMinResult.valid || !rentMaxResult.valid) return null;
+  const rentMin = rentMinResult.value;
+  const rentMax = rentMaxResult.value;
   if (rentMin !== null && rentMax !== null && rentMin > rentMax) return null;
 
   const filterState = defaultFilterState();
