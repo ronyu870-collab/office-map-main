@@ -98,7 +98,8 @@ export default function LeaseSubmissionPage() {
   const [submissions, setSubmissions] = React.useState<LeaseTransaction[]>([]);
   const [teamSubmissions, setTeamSubmissions] = React.useState<LeaseTransaction[]>([]);
   const [teamAccessEnabled, setTeamAccessEnabled] = React.useState(false);
-  const [loading, setLoading] = React.useState(true);
+  const [coreLoading, setCoreLoading] = React.useState(true);
+  const [teamLoading, setTeamLoading] = React.useState(false);
   const [progressError, setProgressError] = React.useState<string | null>(null);
   const [submissionsError, setSubmissionsError] = React.useState<string | null>(null);
   const [teamError, setTeamError] = React.useState<string | null>(null);
@@ -111,50 +112,52 @@ export default function LeaseSubmissionPage() {
   const [transferring, setTransferring] = React.useState(false);
   const [transferError, setTransferError] = React.useState<string | null>(null);
 
-  const loadData = React.useCallback(async (uid: string, role: string) => {
-    setLoading(true);
+  const loadCoreData = React.useCallback(async (uid: string) => {
+    setCoreLoading(true);
     setProgressError(null);
     setSubmissionsError(null);
-    setTeamError(null);
-
-    const canRequestTeamSubmissions = canViewLeaseTeamSubmissions(role);
-    if (!canRequestTeamSubmissions) {
-      setTeamAccessEnabled(false);
-      setTeamSubmissions([]);
-    }
-
-    const requests: Promise<unknown>[] = [
-      retryAsync(() => getWeeklyProgress(uid), { attempts: 3, baseDelayMs: 250 }),
-      retryAsync(() => getMySubmissions(uid), { attempts: 3, baseDelayMs: 250 }),
-    ];
-    if (canRequestTeamSubmissions) requests.push(retryAsync(() => getAllSubmissions(role), { attempts: 1 }));
 
     try {
-      const results = await Promise.allSettled(requests);
-      const progressResult = results[0];
-      const submissionsResult = results[1];
+      const [progressResult, submissionsResult] = await Promise.allSettled([
+        retryAsync(() => getWeeklyProgress(uid), { attempts: 3, baseDelayMs: 250 }),
+        retryAsync(() => getMySubmissions(uid), { attempts: 3, baseDelayMs: 250 }),
+      ]);
+
       if (progressResult.status === 'fulfilled') setProgress(progressResult.value as WeeklyProgress); else setProgressError(errorMessage(progressResult.reason));
       if (submissionsResult.status === 'fulfilled') setSubmissions(submissionsResult.value as LeaseTransaction[]); else setSubmissionsError(errorMessage(submissionsResult.reason));
+    } finally {
+      setCoreLoading(false);
+    }
+  }, []);
 
-      if (canRequestTeamSubmissions) {
-        const teamResult = results[2];
-        if (teamResult?.status === 'fulfilled') {
-          setTeamSubmissions(teamResult.value as LeaseTransaction[]);
-          setTeamAccessEnabled(true);
-        } else if (teamResult?.status === 'rejected') {
-          const message = errorMessage(teamResult.reason);
-          if (message === TEAM_ACCESS_DISABLED_MESSAGE) {
-            setTeamAccessEnabled(false);
-            setTeamSubmissions([]);
-            setTeamError(null);
-          } else {
-            setTeamAccessEnabled(true);
-            setTeamError(message);
-          }
-        }
+  const loadTeamData = React.useCallback(async (role: string) => {
+    setTeamError(null);
+
+    if (!canViewLeaseTeamSubmissions(role)) {
+      setTeamLoading(false);
+      setTeamAccessEnabled(false);
+      setTeamSubmissions([]);
+      return;
+    }
+
+    setTeamLoading(true);
+    setTeamAccessEnabled(true);
+
+    try {
+      const nextTeamSubmissions = await retryAsync(() => getAllSubmissions(role), { attempts: 1 });
+      setTeamSubmissions(nextTeamSubmissions);
+    } catch (teamLoadError) {
+      const message = errorMessage(teamLoadError);
+      if (message === TEAM_ACCESS_DISABLED_MESSAGE) {
+        setTeamAccessEnabled(false);
+        setTeamSubmissions([]);
+        setTeamError(null);
+      } else {
+        setTeamAccessEnabled(true);
+        setTeamError(message);
       }
     } finally {
-      setLoading(false);
+      setTeamLoading(false);
     }
   }, []);
 
@@ -172,20 +175,22 @@ export default function LeaseSubmissionPage() {
         setUserRole(role);
         setUserEmail(session.user.email ?? '');
         setReady(true);
-        await loadData(uid, role);
+        void loadTeamData(role);
+        await loadCoreData(uid);
       } catch (error) {
         console.error('Lease workspace session load failed', error);
         if (!cancelled) router.replace('/login');
       }
     })();
     return () => { cancelled = true; };
-  }, [loadData, router]);
+  }, [loadCoreData, loadTeamData, router]);
 
   const refreshData = React.useCallback(async () => {
     if (!userId) return;
     setLastSubmissionAt(new Date());
-    await loadData(userId, userRole);
-  }, [loadData, userId, userRole]);
+    void loadTeamData(userRole);
+    await loadCoreData(userId);
+  }, [loadCoreData, loadTeamData, userId, userRole]);
 
   const openCreate = () => {
     setEditingRecord(null);
@@ -274,7 +279,7 @@ export default function LeaseSubmissionPage() {
           </div>
           <div className="min-w-[170px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">工作区状态</div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{loading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : <CheckCircle2 size={13} className="text-emerald-600" />}{loading ? '正在刷新数据' : '数据已就绪'}</div>
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{coreLoading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : <CheckCircle2 size={13} className="text-emerald-600" />}{coreLoading ? '正在刷新数据' : '数据已就绪'}</div>
           </div>
           <div className="min-w-[150px] flex-1 px-3.5 py-3">
             <div className="text-[10px] font-medium text-slate-400">最近写入</div>
@@ -282,11 +287,11 @@ export default function LeaseSubmissionPage() {
           </div>
         </section>
 
-        {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void refreshData(); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void refreshData(); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
+        {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
 
         <MySubmissionTable items={submissions} userName={userName} onEdit={openEdit} onTransfer={openTransfer} />
 
-        {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void refreshData(); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500"><RotateCcw size={13} /></button></div> : loading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
+        {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
       </main>
 
       <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} />
