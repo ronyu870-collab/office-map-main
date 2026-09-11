@@ -21,6 +21,47 @@ Do not use this file for raw commit-by-commit history. Group related implementat
 
 ---
 
+## 2026-09-11 — Intelligence preview and DeepSeek requirement parsing
+
+### Area
+Home / Intelligence / DeepSeek AI / authenticated API / data trust boundary
+
+### What changed
+
+- Added the gated `/intelligence` Pilot Preview and a Home entry that is visible to admins by default, with an environment flag for later authenticated-role rollout.
+- Added live database status for buildings, quarterly metrics, lease transactions, lease-term coverage, building brochures, future supply, and current availability records; operational KPI values are queried rather than hard-coded.
+- Added an authenticated `/api/intelligence/parse-requirement` endpoint that calls DeepSeek through its Responses API and requests strict JSON Schema output.
+- Added a server-only DeepSeek configuration contract (`DEEPSEEK_API_KEY`, configurable base URL/model/fallback) with no `NEXT_PUBLIC_` AI secret.
+- Added deterministic post-model validation: district, submarket, and grade normalizations are accepted only when they match vocabulary read from the current building database.
+- Added a business-capability resolver that explicitly prevents desired unit area and move-in timing from becoming live filters while the system lacks reliable availability/unit data, and marks ambiguous rent/metro semantics for confirmation.
+- Added AI usage audit metadata (model, token counts, duration, prompt length, capability statuses) without storing the raw client requirement in the audit payload.
+- Enabled the Intelligence client requirement card to submit natural-language needs and render supported, partially supported, and unsupported conditions before any map action is allowed.
+
+### Why
+
+The Intelligence workbench needs AI language understanding without allowing a model to become a source of market truth. Separating model extraction, database vocabulary validation, and deterministic business capability checks creates a stable trust boundary before AI-derived conditions are allowed to drive the existing Map filter engine.
+
+### Impact
+
+- Existing Map, Quarterly Update, Lease Submission, Research Library, Admin, Supabase schema, and existing broker workflows are unchanged.
+- Intelligence Preview users can structure a client requirement when the server-side DeepSeek key is configured; if it is missing or the provider is unavailable, the page fails visibly without fabricating a result.
+- The model receives only the user's requirement plus small district/submarket/grade vocabularies, not the building inventory, transaction dataset, or other internal database rows.
+- The map handoff remains intentionally disabled in this increment, so an AI result cannot yet alter production map state.
+
+### Verification
+
+- Added resolver tests for hallucinated vocabulary rejection and unsupported availability semantics.
+- Added source-contract tests for server-only AI credentials, authenticated Preview access, JSON Schema output, and privacy-preserving AI audit metadata.
+- The repository's permanent Verify workflow (audit coverage, TypeScript, lint, tests, production build) must pass on the final branch head before merge.
+
+### Follow-up
+
+- Configure `DEEPSEEK_API_KEY` in Vercel server-side environment variables; do not commit the key.
+- Add the next controlled step: confirmed structured conditions → Map filter adapter → existing `/map` workbench.
+- Only after that flow is stable should Intelligence add proposal generation or multi-step agent/tool workflows.
+
+---
+
 ## 2026-08-27 — Lease team visibility and loading resilience
 
 ### Area
@@ -235,7 +276,7 @@ Home / information architecture / Chinese product language / responsive workspac
 
 ### Why
 
-The prior Home 2.0 combined tiny uppercase labels, mixed Chinese and English, badges, nested cards, a visually heavy Map hero, and a high-contrast collaboration rail. Those rules fragmented the typography and spatial hierarchy and made the page feel assembled from generic enterprise UI motifs rather than designed as one stable internal data workspace.
+The prior Home 2.0 combined tiny uppercase labels, mixed Chinese and English, badges, nested cards, a visually heavy Map hero, and a high-contrast collaboration rail. Those rules fragmented the typography and spatial hierarchy and made the page feel assembled from generic enterprise UI UI motifs rather than designed as one stable internal data workspace.
 
 ### Impact
 
