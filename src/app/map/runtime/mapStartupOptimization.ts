@@ -10,8 +10,8 @@ type DisplayOverride = {
 };
 
 type ControllerStartupInternals = {
-  fetchMapData: () => Promise<BuildingWithMetrics[]>;
-  initMap: MapController['initMap'];
+  fetchMapData?: () => Promise<BuildingWithMetrics[]>;
+  initMap?: MapController['initMap'];
   loadLocalMapData?: () => Promise<unknown>;
   _cachedMapDataPromise?: Promise<BuildingWithMetrics[]> | null;
   _allBuildingsCache?: BuildingWithMetrics[];
@@ -159,6 +159,10 @@ async function fetchSlimStartupData(
  */
 export function installMapStartupOptimization(controller: MapController): () => void {
   const internals = controller as unknown as ControllerStartupInternals;
+  if (typeof internals.fetchMapData !== 'function' || typeof internals.initMap !== 'function') {
+    return () => {};
+  }
+
   const originalFetchMapData = internals.fetchMapData.bind(controller);
   const originalInitMap = internals.initMap.bind(controller);
   const originalLocalLoader = internals.loadLocalMapData?.bind(controller);
