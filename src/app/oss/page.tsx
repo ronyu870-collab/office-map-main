@@ -10,7 +10,9 @@ import { AppHeader, LoadingState } from '@/src/components/ui';
 export default function OSSPage() {
   const router = useRouter();
   const { session, status } = useAppSession();
-  const userEmail = status === 'authenticated' ? (session?.user.email ?? '') : '';
+  const userEmail = status === 'authenticated' && session
+    ? (session.user.email ?? '未知用户')
+    : '';
 
   React.useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
