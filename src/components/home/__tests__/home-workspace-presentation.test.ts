@@ -32,10 +32,12 @@ describe('Home workspace presentation contract', () => {
     }
 
     expect(home).toContain("title: '北京办公楼市场地图'");
+    expect(home).toContain("title: '业务智能 Intelligence'");
     expect(home).toContain("title: '季度数据填报'");
     expect(home).toContain("title: '租赁成交填报'");
     expect(home).toContain("title: '研究资料库'");
     expect(home).toContain("title: '系统管理'");
+    expect(home).toContain('Pilot Preview');
     expect(home).toContain('>常用工作<');
     expect(home).toContain('>团队动态<');
     expect(home).toContain('aria-label="用户菜单"');
@@ -57,9 +59,11 @@ describe('Home workspace presentation contract', () => {
       'canAccessAdminConsole',
       'isModuleRestricted',
       'isDemoMode',
+      'isIntelligencePreviewEnabled',
       "'ENTER_MODULE'",
       "'LOGOUT'",
       "href: '/map'",
+      "href: '/intelligence'",
       "href: '/update'",
       "href: '/lease-submission'",
       "href: '/oss'",
