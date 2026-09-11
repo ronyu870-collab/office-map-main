@@ -8,7 +8,7 @@ import {
   installFallbackMarkerHardening,
   installNativeMarkerRenderer,
 } from './mapNativeMarkerRenderer';
-import { installMapVisualContinuityV2 } from './mapVisualContinuityV2';
+import { installMapVisualHierarchyV3 } from './mapVisualHierarchyV3';
 
 export function installMapInteractionHardening(
   controller: MapController,
@@ -19,31 +19,34 @@ export function installMapInteractionHardening(
   const map = internals.map;
   if (!container || !map) return () => {};
 
-  // Capture the controller's DOM-marker clear path before a native runtime wraps it.
-  // Competitor mode still renders legacy distance markers through MapController, so
-  // those markers need one targeted cleanup when normal native rendering resumes.
+  // MapClient can finish a legacy DOM-marker render before the runtime hardening
+  // attaches. Clear that stale layer exactly once so the native hierarchy starts
+  // from a clean slate instead of stacking over old dots.
   const clearLegacyMarkers = internals.clearMarkers.bind(internals);
+  clearLegacyMarkers();
+
+  // Competitor mode still uses legacy distance markers. After it exits, clear
+  // those markers once before normal native rendering resumes.
   let clearLegacyOnNextRender = false;
   const onCompetitorsCleared = () => { clearLegacyOnNextRender = true; };
   window.addEventListener('competitors-cleared', onCompetitorsCleared);
 
-  // Prefer the continuity runtime. Keep the previous native renderer and the
-  // DOM-marker hardening as ordered fallbacks so map rendering remains fail-open
-  // when an AMap browser/runtime does not expose all native layer primitives.
-  const continuityCleanup = installMapVisualContinuityV2(controller, container);
-  const nativeCleanup = continuityCleanup ? null : installNativeMarkerRenderer(internals, container);
-  const fallbackCleanup = continuityCleanup || nativeCleanup
+  // V3 enforces a strict visual hierarchy at rest: one primary tier only.
+  // Adjacent tiers are allowed to overlap only while a zoom gesture is active.
+  const hierarchyCleanup = installMapVisualHierarchyV3(controller, container);
+  const nativeCleanup = hierarchyCleanup ? null : installNativeMarkerRenderer(internals, container);
+  const fallbackCleanup = hierarchyCleanup || nativeCleanup
     ? null
     : installFallbackMarkerHardening(internals, container);
 
-  if (continuityCleanup) {
-    const continuityRender = internals.renderMarkers.bind(internals);
+  if (hierarchyCleanup) {
+    const hierarchyRender = internals.renderMarkers.bind(internals);
     internals.renderMarkers = ((...args: any[]) => {
       if (clearLegacyOnNextRender) {
         clearLegacyOnNextRender = false;
         clearLegacyMarkers();
       }
-      continuityRender(...args);
+      hierarchyRender(...args);
     }) as typeof internals.renderMarkers;
   }
 
@@ -52,7 +55,7 @@ export function installMapInteractionHardening(
   return () => {
     window.removeEventListener('competitors-cleared', onCompetitorsCleared);
     infoWindowCleanup();
-    continuityCleanup?.();
+    hierarchyCleanup?.();
     nativeCleanup?.();
     fallbackCleanup?.();
   };
