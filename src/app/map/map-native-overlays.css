@@ -32,11 +32,12 @@ body:has(#map-container) .map-submarket-bubble {
 }
 
 /* AMap Marker#setOpacity is not reliable enough for custom HTML content in all
- * browser/runtime combinations. Once the map has settled into the dot or
- * building tier, physically remove every submarket bubble from layout/paint.
- * During an active zoom gesture the runtime may still crossfade adjacent tiers. */
-body:has(#map-container:not(.map-is-zooming)[data-marker-tier="dot"]) .map-submarket-bubble,
-body:has(#map-container:not(.map-is-zooming)[data-marker-tier="building"]) .map-submarket-bubble {
+ * browser/runtime combinations. Once the runtime has entered the dot or
+ * building tier, keep every submarket bubble physically hidden for the entire
+ * zoom gesture as well. This prevents a one-frame flash when zoomstart adds
+ * the map-is-zooming class before AMap applies the next opacity update. */
+body:has(#map-container[data-marker-tier="dot"]) .map-submarket-bubble,
+body:has(#map-container[data-marker-tier="building"]) .map-submarket-bubble {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
