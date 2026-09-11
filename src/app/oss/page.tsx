@@ -3,31 +3,20 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 
-import { getSessionFast } from '@/src/services/Auth';
+import { useAppSession } from '@/src/components/SessionProvider';
 import { OSSManager } from '@/src/components/OSSManager';
 import { AppHeader, LoadingState } from '@/src/components/ui';
 
 export default function OSSPage() {
   const router = useRouter();
-  const [userEmail, setUserEmail] = React.useState('');
+  const { session, status } = useAppSession();
+  const userEmail = status === 'authenticated' && session
+    ? (session.user.email ?? '未知用户')
+    : '';
 
   React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const session = await getSessionFast();
-        if (cancelled) return;
-        if (!session) {
-          router.replace('/login');
-          return;
-        }
-        setUserEmail(session.user.email ?? '未知用户');
-      } catch {
-        if (!cancelled) router.replace('/login');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [router]);
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [router, status]);
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">

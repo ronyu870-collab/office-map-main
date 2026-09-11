@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import type { MapController } from '@/src/services/MapController';
 import { installMapInteractionHardening } from './mapInteractionHardening';
+import { installMapStartupOptimization } from './mapStartupOptimization';
 
 type MapRuntimeOptions = {
   enabled: boolean;
@@ -148,10 +149,17 @@ async function repairAndVerifyMapVisuals(
     console.warn('[MapRuntime] AMap resize failed', error);
   }
 
+  // The AMap `complete` event has already fired before this function runs.
+  // Check immediately on the healthy path instead of imposing a fixed 250 ms
+  // delay on every navigation. Keep the grace period only for a transiently
+  // incomplete visual tree before attempting the heavier recovery path.
+  let snapshot = readVisualSnapshot(controller, containerId);
+  if (snapshotLooksHealthy(snapshot)) return;
+
   await wait(250);
   if (isCancelled()) return;
 
-  let snapshot = readVisualSnapshot(controller, containerId);
+  snapshot = readVisualSnapshot(controller, containerId);
   if (snapshotLooksHealthy(snapshot)) return;
 
   console.warn('[MapRuntime] AMap visual layer unhealthy; attempting recovery', snapshot);
@@ -275,6 +283,7 @@ export function useMapRuntime({
     let cancelled = false;
     let ownedController: MapController | null = null;
     let hardeningCleanup: (() => void) | null = null;
+    let startupOptimizationCleanup: (() => void) | null = null;
 
     void (async () => {
       try {
@@ -286,6 +295,16 @@ export function useMapRuntime({
         controllerRef.current = controller;
         errorRef.current(null);
         setMapReady(false);
+        startupOptimizationCleanup = installMapStartupOptimization(controller);
+
+        // Start Supabase/business-data work as soon as the controller exists.
+        // MapClient's startup callback does not require an initialized AMap
+        // instance, so this runs in parallel with loader/tile initialization.
+        const startupWorkPromise = Promise.resolve(
+          readyRef.current(controller, () => cancelled),
+        ).catch((error) => {
+          if (!cancelled) console.error('[MapRuntime] parallel startup work failed', error);
+        });
 
         await controller.initMap(containerId);
         if (cancelled) return;
@@ -301,7 +320,7 @@ export function useMapRuntime({
 
         applyAdminMode(controller);
         setMapReady(true);
-        await readyRef.current(controller, () => cancelled);
+        await startupWorkPromise;
       } catch (error) {
         if (!cancelled) {
           console.error('[MapRuntime] map initialization failed', error);
@@ -316,6 +335,8 @@ export function useMapRuntime({
       setMapReady(false);
       hardeningCleanup?.();
       hardeningCleanup = null;
+      startupOptimizationCleanup?.();
+      startupOptimizationCleanup = null;
       if (controllerRef.current === ownedController) controllerRef.current = null;
       ownedController?.destroy();
     };

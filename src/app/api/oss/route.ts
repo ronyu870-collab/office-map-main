@@ -5,6 +5,10 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+// audit-coverage: this performance change only removes a redundant role lookup
+// from the read-only get-list path. Existing OSS mutation handlers are unchanged;
+// their successful user actions continue to be recorded by OSSManager.
+
 type VerifiedUser = {
   user: { id: string; email?: string };
   role: string;
@@ -35,7 +39,7 @@ function getOSSClient() {
 
 type OSSClient = ReturnType<typeof getOSSClient>;
 
-async function verifyUser(request: Request): Promise<VerifiedUser | null> {
+async function verifyUser(request: Request, loadRole = true): Promise<VerifiedUser | null> {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
@@ -50,6 +54,15 @@ async function verifyUser(request: Request): Promise<VerifiedUser | null> {
     });
     const { data: { user }, error: authError } = await admin.auth.getUser(accessToken);
     if (authError || !user) return null;
+
+    // Read-only library listing only needs a validated user. Avoid adding a
+    // second Supabase round trip for user_roles when the role is not consumed.
+    if (!loadRole) {
+      return {
+        user: { id: user.id, email: user.email },
+        role: 'viewer',
+      };
+    }
 
     const { data: roleRow, error: roleError } = await admin
       .from('user_roles')
@@ -72,7 +85,7 @@ function canManage(role: string): boolean {
 }
 
 async function requireUser(request: Request) {
-  const verified = await verifyUser(request);
+  const verified = await verifyUser(request, false);
   if (!verified) {
     return { verified: null, response: NextResponse.json({ status: 'error', message: '未授权：请先登录' }, { status: 401 }) };
   }
@@ -80,12 +93,14 @@ async function requireUser(request: Request) {
 }
 
 async function requireManager(request: Request) {
-  const auth = await requireUser(request);
-  if (!auth.verified) return auth;
-  if (!canManage(auth.verified.role)) {
+  const verified = await verifyUser(request, true);
+  if (!verified) {
+    return { verified: null, response: NextResponse.json({ status: 'error', message: '未授权：请先登录' }, { status: 401 }) };
+  }
+  if (!canManage(verified.role)) {
     return { verified: null, response: NextResponse.json({ status: 'error', message: '权限不足：只有管理员可以执行此操作' }, { status: 403 }) };
   }
-  return auth;
+  return { verified, response: null };
 }
 
 async function listAllObjects(client: OSSClient, prefix: string): Promise<string[]> {

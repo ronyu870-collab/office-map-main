@@ -4,7 +4,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
-  getSessionFast: vi.fn(),
+  appSession: {
+    status: 'loading' as 'loading' | 'authenticated' | 'unauthenticated',
+    session: null as null | { user: { email?: string } },
+  },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -21,8 +24,8 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/src/services/Auth', () => ({
-  getSessionFast: mocks.getSessionFast,
+vi.mock('@/src/components/SessionProvider', () => ({
+  useAppSession: () => mocks.appSession,
 }));
 
 vi.mock('@/src/components/OSSManager', () => ({
@@ -36,25 +39,26 @@ import OSSPage from '@/src/app/oss/page';
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mocks.appSession.status = 'loading';
+  mocks.appSession.session = null;
 });
 
 describe('Research Library page', () => {
-  it('renders the library only after a valid session resolves', async () => {
-    mocks.getSessionFast.mockResolvedValueOnce({
-      user: { email: 'analyst@colliers.com' },
-      displayName: 'Analyst',
-      role: 'viewer',
-    });
+  it('renders immediately from the shared authenticated session', () => {
+    mocks.appSession.status = 'authenticated';
+    mocks.appSession.session = { user: { email: 'analyst@colliers.com' } };
 
     render(<OSSPage />);
 
-    const manager = await screen.findByTestId('oss-manager');
+    const manager = screen.getByTestId('oss-manager');
     expect(manager).toHaveAttribute('data-user-email', 'analyst@colliers.com');
     expect(screen.getByRole('heading', { name: '研究资料库' })).toBeInTheDocument();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it('redirects unauthenticated users to login and never renders the library', async () => {
-    mocks.getSessionFast.mockResolvedValueOnce(null);
+    mocks.appSession.status = 'unauthenticated';
+    mocks.appSession.session = null;
 
     render(<OSSPage />);
 
@@ -62,25 +66,21 @@ describe('Research Library page', () => {
     expect(screen.queryByTestId('oss-manager')).not.toBeInTheDocument();
   });
 
-  it('redirects to login when session resolution fails', async () => {
-    mocks.getSessionFast.mockRejectedValueOnce(new Error('session unavailable'));
-
+  it('keeps the loading shell while the shared session is unresolved', () => {
     render(<OSSPage />);
 
-    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/login'));
     expect(screen.queryByTestId('oss-manager')).not.toBeInTheDocument();
+    expect(screen.getByText('正在加载研究资料库')).toBeInTheDocument();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
-  it('keeps the workspace return navigation available', async () => {
-    mocks.getSessionFast.mockResolvedValueOnce({
-      user: { email: 'research@colliers.com' },
-      displayName: 'Research',
-      role: 'viewer',
-    });
+  it('keeps the workspace return navigation available', () => {
+    mocks.appSession.status = 'authenticated';
+    mocks.appSession.session = { user: { email: 'research@colliers.com' } };
 
     render(<OSSPage />);
 
-    await screen.findByTestId('oss-manager');
+    expect(screen.getByTestId('oss-manager')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '主页' })).toHaveAttribute('href', '/');
   });
 });
