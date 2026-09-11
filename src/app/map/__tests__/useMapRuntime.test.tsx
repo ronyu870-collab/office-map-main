@@ -77,6 +77,31 @@ describe('useMapRuntime', () => {
     expect(controllerMocks.initMap).not.toHaveBeenCalled();
   });
 
+  it('starts delegated startup work before AMap initialization finishes', async () => {
+    let resolveInit!: () => void;
+    controllerMocks.initMap.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveInit = resolve;
+    }));
+    const onReady = vi.fn().mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useMapRuntime({
+      enabled: true,
+      containerId: 'map-container',
+      userRole: 'viewer',
+      currentUserId: 'user-1',
+      onEditBuildingMetrics: vi.fn(),
+      onReady,
+      onError: vi.fn(),
+    }));
+
+    await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+    expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);
+    expect(result.current.mapReady).toBe(false);
+
+    resolveInit();
+    await waitFor(() => expect(result.current.mapReady).toBe(true), { timeout: 2000 });
+  });
+
   it('initializes once, applies role mode and delegates ready work', async () => {
     const onReady = vi.fn().mockResolvedValue(undefined);
     const onError = vi.fn();
