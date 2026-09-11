@@ -53,6 +53,23 @@ describe('Intelligence map handoff', () => {
     expect(parsed?.filterState.numericFilters[0]?.value).toBe(212.9);
   });
 
+  it('allows multiple natural-language location aliases to collapse to one canonical submarket', () => {
+    const handoff = createIntelligenceMapHandoff({
+      ...baseResult,
+      parsed: {
+        ...baseResult.parsed,
+        locations: [
+          { raw: '望京', kind: 'submarket', normalizedDistrict: null, normalizedSubmarket: '望京-酒仙桥' },
+          { raw: '酒仙桥', kind: 'submarket', normalizedDistrict: null, normalizedSubmarket: '望京-酒仙桥' },
+        ],
+      },
+      capabilities: [supported('location', '区域')],
+    });
+
+    expect(handoff.appliedCapabilities).toContain('location');
+    expect(handoff.filterState.submarkets).toEqual(['望京-酒仙桥']);
+  });
+
   it('does not apply mixed district/submarket alternatives because the current Map would turn the OR into an AND', () => {
     const handoff = createIntelligenceMapHandoff({
       ...baseResult,
