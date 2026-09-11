@@ -115,8 +115,9 @@ export async function checkDuplicate(
  * @param company 企业名称
  * @param building 楼宇名称
  * @param area 成交面积（㎡）
- * @param quarter 季度（格式：YYYYQN，如：2024Q1）
+ * @param quarter 季度（Q1-Q4）
  * @param excludeId 可选：排除的记录 ID（用于编辑模式，避免"自己撞自己"）
+ * @param year 可选：成交年份。主填报流程会传入，用于避免跨年度误判重复。
  * @returns 重复检测结果，包含是否存在重复及重复记录列表
  */
 export async function checkFuzzyDuplicate(
@@ -125,6 +126,7 @@ export async function checkFuzzyDuplicate(
   area: number,
   quarter: string,
   excludeId?: string,
+  year?: number,
 ): Promise<DuplicateCheckResult> {
   // 参数验证
   if (!company || !company.trim()) {
@@ -143,12 +145,17 @@ export async function checkFuzzyDuplicate(
     console.error("❌ [检测] 参数错误: 季度为空");
     return { hasDuplicate: false, duplicates: [] };
   }
+  if (year !== undefined && (!Number.isInteger(year) || year <= 0)) {
+    console.error("❌ [检测] 参数错误: 成交年份无效", year);
+    return { hasDuplicate: false, duplicates: [] };
+  }
 
   try {
     console.log("🔍 [检测] 开始检测重复记录（使用简单查询）");
     console.log("   - 企业:", company.trim());
     console.log("   - 楼宇:", building.trim());
     console.log("   - 面积:", area);
+    console.log("   - 年份:", year ?? "未限定");
     console.log("   - 季度:", quarter.trim());
     console.log("   - 排除ID:", excludeId || "无");
 
@@ -157,7 +164,7 @@ export async function checkFuzzyDuplicate(
     // 1. 楼宇名称完全匹配
     // 2. 企业名称包含匹配（使用 ilike）
     // 3. 面积双向 ±50% 范围（见下方前端过滤逻辑）
-    // 4. 季度完全匹配
+    // 4. 成交年份和季度匹配（主填报流程传入年份；旧调用保持向后兼容）
 
     // 🔥 修复：使用更宽松的面积范围查询，然后在前端进行双向匹配
     // 原因：数据库查询只能做单向范围过滤，双向匹配需要在前端实现
@@ -172,10 +179,16 @@ export async function checkFuzzyDuplicate(
     let query = supabase
       .from("lease_transactions")
       .select(
-        "id, company, new_building, area_sqm, transaction_quarter, transaction_date, submitter_name, submitter_id, created_at",
+        "id, company, new_building, area_sqm, transaction_year, transaction_quarter, transaction_date, submitter_name, submitter_id, created_at",
       )
       .eq("new_building", building.trim())
-      .eq("transaction_quarter", quarter.trim())
+      .eq("transaction_quarter", quarter.trim());
+
+    if (year !== undefined) {
+      query = query.eq("transaction_year", year);
+    }
+
+    query = query
       .gte("area_sqm", areaMin)
       .lte("area_sqm", areaMax)
       .not("area_sqm", "is", null)
@@ -244,6 +257,7 @@ export async function checkFuzzyDuplicate(
       if (companyMatches) {
         console.log("🔍 [撞车匹配]");
         console.log("   - 楼宇:", building.trim());
+        console.log("   - 年份:", row.transaction_year);
         console.log("   - 季度:", quarter.trim());
         console.log("   - 面积匹配:");
         console.log("     • 用户输入:", area, "㎡");
@@ -288,6 +302,7 @@ export async function checkFuzzyDuplicate(
       id: row.id,
       company: row.company,
       new_building: row.new_building,
+      transaction_year: row.transaction_year ?? year ?? 0,
       transaction_quarter: row.transaction_quarter,
       transaction_date: row.transaction_date,
       area_sqm: row.area_sqm,
@@ -311,7 +326,6 @@ export async function checkFuzzyDuplicate(
       fit_out_months: null,
       rent_free_months: null,
       effective_rent: null,
-      transaction_year: 0,
       remarks: null,
     }));
 
@@ -545,6 +559,7 @@ export async function submitTransaction(
     logAction(transaction.submitter_id || '', 'SUBMIT_LEASE_TRANSACTION', {
       company: transaction.company,
       building: cleanedBuildingName,
+      year: transaction.transaction_year,
       quarter: transaction.transaction_quarter,
     });
 
