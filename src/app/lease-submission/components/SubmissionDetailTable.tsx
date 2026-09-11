@@ -64,6 +64,7 @@ const TABLE_COLUMNS: ColumnDef[] = [
   { key: 'faceRent', label: '表面租金', width: 88, align: 'right' },
   { key: 'effectiveRent', label: '有效租金', width: 92, align: 'right' },
   // ── 时间/提交人 ──
+  { key: 'year', label: '成交年份', width: 72 },
   { key: 'quarter', label: '成交季度', width: 84 },
   { key: 'submitter', label: '提交人', width: 80 },
 ];
@@ -180,6 +181,8 @@ const renderCell = (key: string, row: LeaseTransaction): React.ReactNode => {
     case 'effectiveRent':
       return <span className="tabular-nums font-semibold text-[#003e7e] text-[13px]">{fmtNum(row.effective_rent)}</span>;
     // ── 时间/提交人 ──
+    case 'year':
+      return <span className="tabular-nums text-zinc-600 text-[13px]">{row.transaction_year > 0 ? row.transaction_year : '—'}</span>;
     case 'quarter':
       return <span className="text-zinc-600 text-[13px]">{fmt(row.transaction_quarter)}</span>;
     case 'submitter':
