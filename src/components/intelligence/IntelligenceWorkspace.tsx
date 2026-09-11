@@ -19,6 +19,8 @@ import { WorkspaceShell } from '@/src/components/layout';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
+import type { RequirementParseResult, RequirementSupportStatus } from '@/src/lib/intelligence/requirementSchema';
+import { parseIntelligenceRequirement } from '@/src/services/intelligenceApi';
 import { supabase } from '@/src/services/supabaseClient';
 
 type IntelligenceSnapshot = {
@@ -41,6 +43,12 @@ const EMPTY_SNAPSHOT: IntelligenceSnapshot = {
   futureSupplyCount: null,
   currentDataCount: null,
   latestMetricPeriod: null,
+};
+
+const SUPPORT_PRESENTATION: Record<RequirementSupportStatus, { label: string; tone: 'success' | 'warning' | 'neutral' }> = {
+  supported: { label: '可执行', tone: 'success' },
+  partial: { label: '需确认', tone: 'warning' },
+  unsupported: { label: '暂不参与筛选', tone: 'neutral' },
 };
 
 function formatCount(value: number | null): string {
@@ -122,6 +130,9 @@ export function IntelligenceWorkspace() {
   const [snapshotLoading, setSnapshotLoading] = React.useState(true);
   const [snapshotError, setSnapshotError] = React.useState<string | null>(null);
   const [requirement, setRequirement] = React.useState('');
+  const [parseResult, setParseResult] = React.useState<RequirementParseResult | null>(null);
+  const [parseLoading, setParseLoading] = React.useState(false);
+  const [parseError, setParseError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
@@ -200,6 +211,24 @@ export function IntelligenceWorkspace() {
     };
   }, [previewEnabled, session, status]);
 
+  async function handleParseRequirement() {
+    const accessToken = session?.session?.access_token;
+    const input = requirement.trim();
+    if (!accessToken || !input || parseLoading) return;
+
+    setParseLoading(true);
+    setParseError(null);
+    try {
+      const result = await parseIntelligenceRequirement(input, accessToken);
+      setParseResult(result);
+    } catch (error) {
+      setParseResult(null);
+      setParseError(error instanceof Error ? error.message : '客户需求解析失败，请稍后重试');
+    } finally {
+      setParseLoading(false);
+    }
+  }
+
   if (status === 'loading' || !session) return <IntelligenceLoadingShell />;
   if (!previewEnabled) return <PreviewUnavailable />;
 
@@ -238,25 +267,87 @@ export function IntelligenceWorkspace() {
                 <Search size={16} className="text-[var(--cd-color-brand)]" aria-hidden="true" />
                 <h2 id="client-requirement-heading" className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">客户需求</h2>
               </div>
-              <Badge tone="neutral">下一阶段接入</Badge>
+              <Badge tone="brand">DeepSeek</Badge>
             </div>
             <p className="mt-2 text-sm text-[var(--cd-color-text-secondary)]">今天要帮客户找什么样的办公室？</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <textarea
                 value={requirement}
-                onChange={(event) => setRequirement(event.target.value)}
+                onChange={(event) => {
+                  setRequirement(event.target.value);
+                  setParseResult(null);
+                  setParseError(null);
+                }}
                 rows={3}
+                maxLength={1200}
                 placeholder="例如：望京或酒仙桥，800–1200㎡，预算7元以内，11月入住，优先甲级项目、地铁便利。"
                 className="min-h-[92px] min-w-0 flex-1 resize-none rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-white px-3 py-2.5 text-sm leading-6 text-[var(--cd-color-text-primary)] outline-none transition focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[color:rgb(0_62_126_/_0.08)]"
               />
-              <Button type="button" variant="primary" disabled className="sm:self-end">
-                智能查找项目 <ArrowRight size={14} aria-hidden="true" />
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!requirement.trim() || parseLoading}
+                onClick={() => void handleParseRequirement()}
+                className="sm:self-end"
+              >
+                {parseLoading ? '正在理解…' : '理解客户需求'} <ArrowRight size={14} aria-hidden="true" />
               </Button>
             </div>
+
+            {parseError ? (
+              <div className="mt-3 rounded-[var(--cd-radius-md)] border border-[color:rgb(201_54_43_/_0.18)] bg-[var(--cd-color-danger-soft)] px-3 py-2.5 text-sm text-[var(--cd-color-danger)]" role="alert">
+                {parseError}
+              </div>
+            ) : null}
+
+            {parseResult ? (
+              <div className="mt-4 border-t border-[var(--cd-color-border)] pt-4" aria-live="polite">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[13px] font-semibold text-[var(--cd-color-text-primary)]">AI 已理解客户需求</div>
+                    <div className="mt-0.5 text-[11px] text-[var(--cd-color-text-muted)]">
+                      仅结构化用户输入；业务可执行性由系统数据能力二次校验
+                    </div>
+                  </div>
+                  <span className="text-[11px] tabular-nums text-[var(--cd-color-text-muted)]">
+                    {parseResult.meta.durationMs.toLocaleString('zh-CN')} ms
+                  </span>
+                </div>
+
+                <div className="mt-3 divide-y divide-[var(--cd-color-border)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)]">
+                  {parseResult.capabilities.length > 0 ? parseResult.capabilities.map(item => {
+                    const presentation = SUPPORT_PRESENTATION[item.status];
+                    return (
+                      <div key={item.key} className="grid gap-2 px-3 py-3 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:items-start">
+                        <div className="text-xs font-medium text-[var(--cd-color-text-secondary)]">{item.label}</div>
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-medium text-[var(--cd-color-text-primary)]">{item.value}</div>
+                          <div className="mt-1 text-xs leading-5 text-[var(--cd-color-text-muted)]">{item.explanation}</div>
+                          {item.dataBasis ? <div className="mt-1 text-[10px] text-[var(--cd-color-text-muted)]">数据依据：{item.dataBasis}</div> : null}
+                        </div>
+                        <Badge tone={presentation.tone}>{presentation.label}</Badge>
+                      </div>
+                    );
+                  }) : (
+                    <div className="px-3 py-4 text-sm text-[var(--cd-color-text-secondary)]">暂未提取到可执行条件，请补充区域、预算或项目偏好。</div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] text-[var(--cd-color-text-muted)]">
+                    模型：{parseResult.meta.model} · 原始需求不会写入 AI 审计日志
+                  </div>
+                  <Button type="button" variant="secondary" size="sm" disabled title="下一阶段接入地图筛选">
+                    确认条件并查看地图 <ArrowRight size={13} aria-hidden="true" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-[var(--cd-color-text-muted)]">
-              <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-1">自然语言 → 结构化条件</span>
-              <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-1">真实楼宇数据库筛选</span>
-              <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-1">地图联动</span>
+              <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-1">自然语言 → 严格结构化条件</span>
+              <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-1">数据库词表二次校验</span>
+              <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-1">缺失字段不参与筛选</span>
             </div>
           </section>
 
