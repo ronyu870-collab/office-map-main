@@ -98,12 +98,17 @@ export function UserFeedbackDialog({
   const [commentSending, setCommentSending] = React.useState(false);
   const [commentError, setCommentError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const pendingImagesRef = React.useRef<PendingImage[]>([]);
 
   const releaseImages = React.useCallback((images: PendingImage[]) => {
     images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
   }, []);
 
-  React.useEffect(() => () => releaseImages(pendingImages), [pendingImages, releaseImages]);
+  React.useEffect(() => {
+    pendingImagesRef.current = pendingImages;
+  }, [pendingImages]);
+
+  React.useEffect(() => () => releaseImages(pendingImagesRef.current), [releaseImages]);
 
   const loadIssues = React.useCallback(async () => {
     setIssuesLoading(true);
@@ -305,6 +310,16 @@ export function UserFeedbackDialog({
                       <span>{formatTime(comment.created_at)}</span>
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[var(--cd-color-text-primary)]">{comment.content}</p>
+                    {comment.images.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {comment.images.map((image, index) => (
+                          <a key={image} href={image} target="_blank" rel="noreferrer" className="block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={image} alt={`回复截图 ${index + 1}`} className="h-20 w-20 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>
