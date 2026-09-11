@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
-import { getAllBrokers, getAllSubmissions, getLeaseTeamAccess, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
+import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
 import { logAction } from '@/src/utils/audit';
-import { isUserAdmin } from '@/src/utils/accessControl';
+import { canViewLeaseTeamSubmissions, isUserAdmin } from '@/src/utils/accessControl';
 import { isDemoMode } from '@/src/config/demoMode';
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
@@ -17,6 +17,8 @@ import { LeaseTransactionForm } from './components/LeaseTransactionForm';
 import { SubmissionDetailTable } from './components/SubmissionDetailTable';
 import type { LeaseTransaction, WeeklyProgress } from '@/src/types/lease-transaction';
 import { AppHeader, Badge, Button, Dialog, LoadingState } from '@/src/components/ui';
+
+const TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向编辑用户开放';
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
@@ -114,30 +116,42 @@ export default function LeaseSubmissionPage() {
     setProgressError(null);
     setSubmissionsError(null);
     setTeamError(null);
-    let canViewTeamSubmissions = false;
-    try {
-      canViewTeamSubmissions = await getLeaseTeamAccess();
-      setTeamAccessEnabled(canViewTeamSubmissions);
-    } catch (accessError) {
+
+    const canRequestTeamSubmissions = canViewLeaseTeamSubmissions(role);
+    if (!canRequestTeamSubmissions) {
       setTeamAccessEnabled(false);
-      setTeamError(errorMessage(accessError));
+      setTeamSubmissions([]);
     }
+
     const requests: Promise<unknown>[] = [
       retryAsync(() => getWeeklyProgress(uid), { attempts: 3, baseDelayMs: 250 }),
       retryAsync(() => getMySubmissions(uid), { attempts: 3, baseDelayMs: 250 }),
     ];
-    if (canViewTeamSubmissions) requests.push(retryAsync(() => getAllSubmissions(role), { attempts: 1 }));
+    if (canRequestTeamSubmissions) requests.push(retryAsync(() => getAllSubmissions(role), { attempts: 1 }));
+
     try {
       const results = await Promise.allSettled(requests);
       const progressResult = results[0];
       const submissionsResult = results[1];
       if (progressResult.status === 'fulfilled') setProgress(progressResult.value as WeeklyProgress); else setProgressError(errorMessage(progressResult.reason));
       if (submissionsResult.status === 'fulfilled') setSubmissions(submissionsResult.value as LeaseTransaction[]); else setSubmissionsError(errorMessage(submissionsResult.reason));
-      if (canViewTeamSubmissions) {
+
+      if (canRequestTeamSubmissions) {
         const teamResult = results[2];
-        if (teamResult?.status === 'fulfilled') setTeamSubmissions(teamResult.value as LeaseTransaction[]); else if (teamResult?.status === 'rejected') setTeamError(errorMessage(teamResult.reason));
-      } else {
-        setTeamSubmissions([]);
+        if (teamResult?.status === 'fulfilled') {
+          setTeamSubmissions(teamResult.value as LeaseTransaction[]);
+          setTeamAccessEnabled(true);
+        } else if (teamResult?.status === 'rejected') {
+          const message = errorMessage(teamResult.reason);
+          if (message === TEAM_ACCESS_DISABLED_MESSAGE) {
+            setTeamAccessEnabled(false);
+            setTeamSubmissions([]);
+            setTeamError(null);
+          } else {
+            setTeamAccessEnabled(true);
+            setTeamError(message);
+          }
+        }
       }
     } finally {
       setLoading(false);
