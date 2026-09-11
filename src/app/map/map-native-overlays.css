@@ -1,6 +1,7 @@
 /* Native map overlay system.
  * Low zoom: submarket bubbles. Mid zoom: MassMarks. High zoom: LabelMarkers.
- * V2 keeps broad SDK zoom ranges and lets runtime opacity own visual continuity.
+ * V3 enforces a single primary marker tier while idle; adjacent tiers only
+ * overlap during an active zoom gesture.
  */
 
 body:has(#map-container) .map-submarket-bubble {
@@ -28,6 +29,18 @@ body:has(#map-container) .map-submarket-bubble {
   transform-origin: center;
   will-change: transform, opacity, filter;
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease-out, filter 180ms ease-out, opacity 160ms ease-out;
+}
+
+/* AMap Marker#setOpacity is not reliable enough for custom HTML content in all
+ * browser/runtime combinations. Once the map has settled into the dot or
+ * building tier, physically remove every submarket bubble from layout/paint.
+ * During an active zoom gesture the runtime may still crossfade adjacent tiers. */
+body:has(#map-container:not(.map-is-zooming)[data-marker-tier="dot"]) .map-submarket-bubble,
+body:has(#map-container:not(.map-is-zooming)[data-marker-tier="building"]) .map-submarket-bubble {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 body:has(#map-container) .map-submarket-bubble:hover {
@@ -167,7 +180,7 @@ body:has(#map-container) .amap-info-content [data-map-action="nearby-compare"] {
 #map-container.map-info-avoiding .amap-info-content { transition: none !important; }
 
 /* While a fresh data/filter layer is prepared, never hide the current layer.
- * The V2 runtime mounts the new layer first and disposes the old one afterwards. */
+ * V3 mounts the replacement first and disposes the old set afterwards. */
 #map-container.map-marker-rendering { cursor: progress; }
 #map-container.map-marker-swapping { cursor: inherit; }
 
