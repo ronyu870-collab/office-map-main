@@ -1,0 +1,140 @@
+name: Apply Intelligence map handoff patch
+
+on:
+  push:
+    branches:
+      - feature/intelligence-map-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/intelligence-map-handoff
+          fetch-depth: 0
+
+      - name: Apply controlled integration patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected patch anchor missing in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Intelligence workspace: confirmed structured result -> safe map handoff.
+          replace_once(
+              'src/components/intelligence/IntelligenceWorkspace.tsx',
+              "import { WorkspaceShell } from '@/src/components/layout';\n",
+              "import { WorkspaceShell } from '@/src/components/layout';\nimport { createIntelligenceMapHandoff } from '@/src/app/map/model/intelligenceMapHandoff';\n",
+          )
+          replace_once(
+              'src/components/intelligence/IntelligenceWorkspace.tsx',
+              "  const hasCurrentData = (snapshot.currentDataCount ?? 0) > 0;\n\n  return (",
+              "  const hasCurrentData = (snapshot.currentDataCount ?? 0) > 0;\n  const mapHandoff = parseResult ? createIntelligenceMapHandoff(parseResult) : null;\n  const appliedCapabilityLabels = mapHandoff?.appliedCapabilities.map(key =>\n    parseResult?.capabilities.find(item => item.key === key)?.label ?? key,\n  ) ?? [];\n\n  return (",
+          )
+          replace_once(
+              'src/components/intelligence/IntelligenceWorkspace.tsx',
+              """                <div className=\"mt-3 flex flex-wrap items-center justify-between gap-2\">\n                  <div className=\"text-[11px] text-[var(--cd-color-text-muted)]\">\n                    模型：{parseResult.meta.model} · 原始需求不会写入 AI 审计日志\n                  </div>\n                  <Button type=\"button\" variant=\"secondary\" size=\"sm\" disabled title=\"下一阶段接入地图筛选\">\n                    确认条件并查看地图 <ArrowRight size={13} aria-hidden=\"true\" />\n                  </Button>\n                </div>\n""",
+              """                <div className=\"mt-3 flex flex-wrap items-center justify-between gap-3\">\n                  <div className=\"min-w-0 text-[11px] text-[var(--cd-color-text-muted)]\">\n                    <div>模型：{parseResult.meta.model} · 原始需求不会写入 AI 审计日志</div>\n                    {mapHandoff ? (\n                      <div className=\"mt-1\">\n                        {mapHandoff.appliedCapabilities.length > 0\n                          ? `进入地图后自动应用：${appliedCapabilityLabels.join('、')}；其余 ${mapHandoff.skippedCapabilities.length} 项仅保留为客户偏好。`\n                          : '当前没有可安全自动映射到地图的条件；请补充可执行的区域、项目等级或净有效租金口径。'}\n                      </div>\n                    ) : null}\n                  </div>\n                  <Button\n                    type=\"button\"\n                    variant=\"primary\"\n                    size=\"sm\"\n                    disabled={!mapHandoff || mapHandoff.appliedCapabilities.length === 0}\n                    title={mapHandoff?.appliedCapabilities.length ? '在现有地图筛选引擎中查看真实候选项目' : '当前没有可安全映射到地图的条件'}\n                    onClick={() => { if (mapHandoff) router.push(mapHandoff.href); }}\n                  >\n                    确认条件并查看地图 <ArrowRight size={13} aria-hidden=\"true\" />\n                  </Button>\n                </div>\n""",
+          )
+
+          # Map client: seed the existing filter engine, audit the handoff, and fit once.
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              "import { MapLoadingShell } from './components/MapLoadingShell';\n",
+              "import { MapLoadingShell } from './components/MapLoadingShell';\nimport type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';\n",
+          )
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              "export default function MapWorkbenchPage() {",
+              "export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initialIntelligenceHandoff: IntelligenceMapRouteState | null }) {",
+          )
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              """  const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(null);\n  const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(null);\n""",
+              """  const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(() => initialIntelligenceHandoff?.filterState ?? null);\n  const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(() => initialIntelligenceHandoff\n    ? { id: 1, type: 'patch', patch: initialIntelligenceHandoff.filterState }\n    : null);\n""",
+          )
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              "  const [userHasInteracted, setUserHasInteracted] = React.useState(false);",
+              "  const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));",
+          )
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              """  const initialRenderDone = React.useRef(false);\n\n  const [mapError, setMapError] = React.useState<string | null>(null);\n""",
+              """  const initialRenderDone = React.useRef(false);\n  const intelligenceAutoFitDoneRef = React.useRef(false);\n  const intelligenceAuditDoneRef = React.useRef(false);\n\n  React.useEffect(() => {\n    if (!initialIntelligenceHandoff || intelligenceAuditDoneRef.current) return;\n    intelligenceAuditDoneRef.current = true;\n    logAction(undefined, 'MAP_FILTER', {\n      source: 'intelligence',\n      applied_capabilities: initialIntelligenceHandoff.appliedCapabilities,\n      filter: JSON.stringify(initialIntelligenceHandoff.filterState),\n    });\n  }, [initialIntelligenceHandoff]);\n\n  const [mapError, setMapError] = React.useState<string | null>(null);\n""",
+          )
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              """    if (!competitorModeRef.current) {\n      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, compareGroups.length > 0 ? compareGroups : undefined);\n    }\n    setStats(computeStatsFromBuildings(filtered));\n\n    // ================= 🌟 未来新增供应分支逻辑 (修复后) =================\n""",
+              """    if (!competitorModeRef.current) {\n      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, compareGroups.length > 0 ? compareGroups : undefined);\n    }\n    setStats(computeStatsFromBuildings(filtered));\n\n    if (initialIntelligenceHandoff && !intelligenceAutoFitDoneRef.current && filtered.length > 0) {\n      intelligenceAutoFitDoneRef.current = true;\n      ctrl.fitToBuildings(filtered);\n    }\n\n    // ================= 🌟 未来新增供应分支逻辑 (修复后) =================\n""",
+          )
+          replace_once(
+              'src/app/map/MapClient.tsx',
+              """        displayOverrides={displayOverrides}\n        targetBuildingId={targetBuildingId}\n        onFilterPanelOpenChange={setIsFilterPanelOpen}\n""",
+              """        displayOverrides={displayOverrides}\n        targetBuildingId={targetBuildingId}\n        intelligenceContext={initialIntelligenceHandoff ? {\n          candidateCount: allBuildings.length > 0 ? filteredBuildings.length : null,\n          appliedCapabilities: initialIntelligenceHandoff.appliedCapabilities,\n        } : null}\n        onFilterPanelOpenChange={setIsFilterPanelOpen}\n""",
+          )
+
+          # Map view: expose the Intelligence context without creating a second filter UI.
+          replace_once(
+              'src/app/map/components/MapWorkbenchView.tsx',
+              "import * as React from 'react';\nimport dynamic from 'next/dynamic';\n",
+              "import * as React from 'react';\nimport dynamic from 'next/dynamic';\nimport Link from 'next/link';\n",
+          )
+          replace_once(
+              'src/app/map/components/MapWorkbenchView.tsx',
+              """  displayOverrides: Map<string, Map<string, DisplayOverride>>;\n  targetBuildingId: string | null;\n  onFilterPanelOpenChange: (open: boolean) => void;\n""",
+              """  displayOverrides: Map<string, Map<string, DisplayOverride>>;\n  targetBuildingId: string | null;\n  intelligenceContext?: {\n    candidateCount: number | null;\n    appliedCapabilities: string[];\n  } | null;\n  onFilterPanelOpenChange: (open: boolean) => void;\n""",
+          )
+          replace_once(
+              'src/app/map/components/MapWorkbenchView.tsx',
+              """  displayOverrides,\n  targetBuildingId,\n  onFilterPanelOpenChange,\n""",
+              """  displayOverrides,\n  targetBuildingId,\n  intelligenceContext = null,\n  onFilterPanelOpenChange,\n""",
+          )
+          replace_once(
+              'src/app/map/components/MapWorkbenchView.tsx',
+              "  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);\n",
+              "  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);\n  const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);\n",
+          )
+          replace_once(
+              'src/app/map/components/MapWorkbenchView.tsx',
+              """            {hasActiveFilters ? (\n              <div className=\"flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]\" aria-label=\"已生效筛选条件\">\n                <span className=\"shrink-0 text-[10px] font-medium text-slate-400\">筛选</span>\n""",
+              """            {showFilterSummary ? (\n              <div className=\"flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]\" aria-label=\"已生效筛选条件\">\n                {intelligenceContext ? (\n                  <>\n                    <span className=\"shrink-0 text-[10px] font-semibold text-[var(--cd-color-brand)]\">\n                      客户需求 · {intelligenceContext?.candidateCount === null ? '匹配中' : `${intelligenceContext.candidateCount} 个候选`}\n                    </span>\n                    <Link href=\"/intelligence\" className=\"shrink-0 text-[10px] text-slate-400 transition hover:text-[var(--cd-color-brand)]\">返回需求</Link>\n                  </>\n                ) : (\n                  <span className=\"shrink-0 text-[10px] font-medium text-slate-400\">筛选</span>\n                )}\n""",
+          )
+          replace_once(
+              'src/app/map/components/MapWorkbenchView.tsx',
+              """                <button type=\"button\" onClick={onResetFilters} className=\"shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]\">清空</button>\n              </div>\n""",
+              """                {hasActiveFilters ? (\n                  <button type=\"button\" onClick={onResetFilters} className=\"shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]\">清空</button>\n                ) : null}\n              </div>\n""",
+          )
+
+          # Durable engineering record.
+          p = Path('CHANGELOG.md')
+          text = p.read_text(encoding='utf-8')
+          marker = '## 2026-09-11 — Intelligence → Map controlled handoff'
+          if marker not in text:
+              anchor = '\n\n---\n\n## 2026-09-11 — Intelligence preview and DeepSeek requirement parsing'
+              if anchor not in text:
+                  raise SystemExit('CHANGELOG anchor missing')
+              entry = '''\n\n---\n\n## 2026-09-11 — Intelligence → Map controlled handoff\n\n### Area\nIntelligence / Map / filter adapter / client requirement workflow\n\n### What changed\n\n- Added a deterministic Intelligence-to-Map adapter that converts only supported AI-extracted conditions into the existing `SidebarFilterState`; no second filtering engine was introduced.\n- Added explicit daily-to-monthly conversion for net-effective rent (`365 / 12`) because customer requirements use RMB/㎡/day while the existing Map metric is RMB/㎡/month.\n- Tightened rent capability semantics so asking rent and unspecified rent remain confirmation-only; only net-effective rent can be applied automatically.\n- Mapped validated building grades into the Map's existing 甲级写字楼 / 乙级写字楼 / 产业园区 categories using the same grade semantics as `MapDataStore`.\n- Refused mixed district/submarket OR expressions that the current Map cannot represent without changing meaning, rather than silently converting them into an AND filter.\n- Passed the handoff through the Next.js map route boundary, seeded the existing filter state and filter command, and retained the existing authentication gate before `MapClient` mounts.\n- Added an Intelligence context strip on Map with live candidate count, removable existing filter chips, and a return path to Intelligence.\n- Added a one-time initial `fitToBuildings` for Intelligence entry only; normal Map filtering continues to preserve the user's current viewport.\n- Logged the derived Map filter as the existing `MAP_FILTER` audit action with `source=intelligence`; raw customer requirement text is not included.\n\n### Why\n\nThe AI parser is useful only when its confirmed output can enter the real broker workflow. The handoff must preserve semantic correctness, units, existing map behavior, and data trust boundaries rather than letting model output bypass established filter semantics.\n\n### Impact\n\n- Brokers can now go from natural-language client need → reviewed structured conditions → real candidate projects in the existing Map.\n- Unsupported area, move-in timing, generic metro preference, ambiguous rent basis, and other partial conditions remain visible in Intelligence but are not applied to Map.\n- Existing Map entry, manual filtering, project list, comparison mode, data loading, permissions, Supabase schema/RLS, and non-Intelligence users are unchanged.\n- The URL contains only validated derived filter values and capability keys, not the raw client requirement.\n\n### Verification\n\n- Added unit coverage for rent conversion, grade mapping, unsupported-condition exclusion, mixed-location semantic protection, and malformed URL rejection.\n- Added integration source contracts for the Intelligence button, async map `searchParams` boundary, authenticated route gate, existing filter-state seeding, one-time auto-fit, and candidate-context UI.\n- Final delivery requires the repository Verify workflow (audit coverage, TypeScript, lint, tests, production build) and Vercel deployment checks to pass on the exact merge head.\n\n### Follow-up\n\n- The next product increment should let a broker select candidates from the filtered Map and add them to a customer proposal draft; do not start proposal generation before that selection state is explicit.\n'''
+              text = text.replace(anchor, entry + anchor, 1)
+              p.write_text(text, encoding='utf-8')
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/components/intelligence/IntelligenceWorkspace.tsx src/app/map/MapClient.tsx src/app/map/components/MapWorkbenchView.tsx CHANGELOG.md
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "feat: connect Intelligence requirements to Map"
+          git push origin HEAD:feature/intelligence-map-handoff
