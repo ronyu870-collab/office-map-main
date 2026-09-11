@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import type { MapController } from '@/src/services/MapController';
 import { installMapInteractionHardening } from './mapInteractionHardening';
+import { installMapStartupOptimization } from './mapStartupOptimization';
 
 type MapRuntimeOptions = {
   enabled: boolean;
@@ -282,6 +283,7 @@ export function useMapRuntime({
     let cancelled = false;
     let ownedController: MapController | null = null;
     let hardeningCleanup: (() => void) | null = null;
+    let startupOptimizationCleanup: (() => void) | null = null;
 
     void (async () => {
       try {
@@ -293,6 +295,7 @@ export function useMapRuntime({
         controllerRef.current = controller;
         errorRef.current(null);
         setMapReady(false);
+        startupOptimizationCleanup = installMapStartupOptimization(controller);
 
         // Start Supabase/business-data work as soon as the controller exists.
         // MapClient's startup callback does not require an initialized AMap
@@ -332,6 +335,8 @@ export function useMapRuntime({
       setMapReady(false);
       hardeningCleanup?.();
       hardeningCleanup = null;
+      startupOptimizationCleanup?.();
+      startupOptimizationCleanup = null;
       if (controllerRef.current === ownedController) controllerRef.current = null;
       ownedController?.destroy();
     };
