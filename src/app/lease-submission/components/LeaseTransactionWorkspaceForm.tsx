@@ -64,9 +64,9 @@ function DuplicateDialog({ duplicates, onCancel, onConfirm }: DuplicateDialogPro
       footer={<><Button variant="secondary" onClick={onCancel}>返回检查</Button><Button onClick={onConfirm}>确认不是同一笔并提交</Button></>}
     >
         <div className="max-h-[45vh] overflow-auto">
-          <table className="w-full min-w-[620px] text-[11px]">
-            <thead className="sticky top-0 bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)]"><tr>{['提交人','企业','楼宇','面积','季度','提交时间'].map((label) => <th key={label} className="border-b border-[var(--cd-color-border)] px-3 py-2 text-left font-semibold">{label}</th>)}</tr></thead>
-            <tbody>{duplicates.map((item, index) => <tr key={item.id ?? index} className="border-b border-[var(--cd-color-border)]"><td className="px-3 py-2 font-medium text-[var(--cd-color-brand)]">{item.submitter_name || '-'}</td><td className="px-3 py-2">{item.company || '-'}</td><td className="px-3 py-2">{item.new_building || '-'}</td><td className="px-3 py-2 tabular-nums">{item.area_sqm?.toLocaleString('zh-CN') || '-'}</td><td className="px-3 py-2">{item.transaction_quarter || '-'}</td><td className="px-3 py-2 text-[var(--cd-color-text-muted)]">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td></tr>)}</tbody>
+          <table className="w-full min-w-[700px] text-[11px]">
+            <thead className="sticky top-0 bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)]"><tr>{['提交人','企业','楼宇','面积','成交年份','成交季度','提交时间'].map((label) => <th key={label} className="border-b border-[var(--cd-color-border)] px-3 py-2 text-left font-semibold">{label}</th>)}</tr></thead>
+            <tbody>{duplicates.map((item, index) => <tr key={item.id ?? index} className="border-b border-[var(--cd-color-border)]"><td className="px-3 py-2 font-medium text-[var(--cd-color-brand)]">{item.submitter_name || '-'}</td><td className="px-3 py-2">{item.company || '-'}</td><td className="px-3 py-2">{item.new_building || '-'}</td><td className="px-3 py-2 tabular-nums">{item.area_sqm?.toLocaleString('zh-CN') || '-'}</td><td className="px-3 py-2 tabular-nums">{item.transaction_year || '-'}</td><td className="px-3 py-2">{item.transaction_quarter || '-'}</td><td className="px-3 py-2 text-[var(--cd-color-text-muted)]">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td></tr>)}</tbody>
           </table>
         </div>
     </Dialog>
@@ -332,6 +332,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         data.area_sqm,
         data.transaction_quarter,
         mode === 'edit' ? initialData?.id : undefined,
+        data.transaction_year,
       );
       if (result.hasDuplicate && result.duplicates.length > 0) {
         setDuplicates(result.duplicates);
@@ -425,6 +426,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         building: data.new_building,
         area: data.area_sqm,
         district: data.district,
+        year: data.transaction_year,
         quarter: data.transaction_quarter,
       });
       persistRecentBuilding(data.new_building);
@@ -488,7 +490,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
                 <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">企业</dt><dd className="font-medium text-slate-800">{submittedRecord.company}</dd></div>
                 <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">楼宇</dt><dd className="font-medium text-slate-800">{submittedRecord.new_building}</dd></div>
                 <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">面积</dt><dd className="tabular-nums text-slate-800">{submittedRecord.area_sqm?.toLocaleString('zh-CN') ?? '-'} ㎡</dd></div>
-                <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">成交季度</dt><dd className="text-slate-800">{submittedRecord.transaction_year} {submittedRecord.transaction_quarter}</dd></div>
+                <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">成交年份</dt><dd className="tabular-nums text-slate-800">{submittedRecord.transaction_year || '-'}</dd></div>
+                <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">成交季度</dt><dd className="text-slate-800">{submittedRecord.transaction_quarter || '-'}</dd></div>
                 <div className="grid grid-cols-[90px_1fr] gap-3 px-3 py-2"><dt className="text-slate-400">记录编号</dt><dd className="truncate font-mono text-[10px] text-slate-500" title={submittedRecord.id}>{submittedRecord.id || '系统生成'}</dd></div>
               </dl>
               <p className="mt-3 text-[var(--cd-font-size-sm)] leading-5 text-[var(--cd-color-text-secondary)]">该记录已完成数据库写入。返回记录列表后，提交历史会刷新；新增模式可直接继续录入下一条。</p>
