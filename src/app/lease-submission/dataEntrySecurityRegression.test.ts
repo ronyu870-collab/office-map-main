@@ -29,6 +29,19 @@ describe('lease data entry authorization seams', () => {
     expect(source).toContain("TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向编辑用户开放'");
   });
 
+  it('keeps core workspace readiness independent from team loading', () => {
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
+    expect(source).toContain('const [coreLoading, setCoreLoading] = React.useState(true)');
+    expect(source).toContain('const [teamLoading, setTeamLoading] = React.useState(false)');
+    expect(source).toContain('const loadCoreData = React.useCallback');
+    expect(source).toContain('const loadTeamData = React.useCallback');
+    expect(source).toContain('void loadTeamData(role);');
+    expect(source).toContain('await loadCoreData(uid);');
+    expect(source).toContain("coreLoading ? '正在刷新数据' : '数据已就绪'");
+    expect(source).toContain('teamLoading && teamSubmissions.length === 0');
+    expect(source).not.toContain('requests.push(retryAsync(() => getAllSubmissions(role)');
+  });
+
   it('bounds the browser request for team submissions', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/services/leaseTransactionSubmitService.ts'), 'utf8');
     expect(source).toContain('new AbortController()');
