@@ -107,9 +107,11 @@ describe('Intelligence map handoff', () => {
     expect(handoff.filterState.numericFilters).toEqual([]);
   });
 
-  it('rejects malformed or contradictory map query values instead of trusting URL input', () => {
+  it('rejects malformed, contradictory, or partially tampered map query values instead of trusting URL input', () => {
     expect(parseIntelligenceMapHandoff(new URLSearchParams('source=intelligence&v=1&district=朝阳区&submarket=CBD'))).toBeNull();
     expect(parseIntelligenceMapHandoff(new URLSearchParams('source=intelligence&v=1&rentMinMonthly=300&rentMaxMonthly=200'))).toBeNull();
     expect(parseIntelligenceMapHandoff(new URLSearchParams('source=intelligence&v=1&submarket=不存在的商圈'))).toBeNull();
+    expect(parseIntelligenceMapHandoff(new URLSearchParams('source=intelligence&v=1&submarket=CBD&submarket=不存在的商圈'))).toBeNull();
+    expect(parseIntelligenceMapHandoff(new URLSearchParams('source=intelligence&v=1&submarket=CBD&rentMaxMonthly=not-a-number'))).toBeNull();
   });
 });
