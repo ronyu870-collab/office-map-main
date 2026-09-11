@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 
 import { WorkspaceShell } from '@/src/components/layout';
+import { createIntelligenceMapHandoff } from '@/src/app/map/model/intelligenceMapHandoff';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
@@ -233,6 +234,10 @@ export function IntelligenceWorkspace() {
   if (!previewEnabled) return <PreviewUnavailable />;
 
   const hasCurrentData = (snapshot.currentDataCount ?? 0) > 0;
+  const mapHandoff = parseResult ? createIntelligenceMapHandoff(parseResult) : null;
+  const appliedCapabilityLabels = mapHandoff?.appliedCapabilities.map(key =>
+    parseResult?.capabilities.find(item => item.key === key)?.label ?? key,
+  ) ?? [];
 
   return (
     <WorkspaceShell
@@ -333,11 +338,25 @@ export function IntelligenceWorkspace() {
                   )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[11px] text-[var(--cd-color-text-muted)]">
-                    模型：{parseResult.meta.model} · 原始需求不会写入 AI 审计日志
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0 text-[11px] text-[var(--cd-color-text-muted)]">
+                    <div>模型：{parseResult.meta.model} · 原始需求不会写入 AI 审计日志</div>
+                    {mapHandoff ? (
+                      <div className="mt-1">
+                        {mapHandoff.appliedCapabilities.length > 0
+                          ? `进入地图后自动应用：${appliedCapabilityLabels.join('、')}；其余 ${mapHandoff.skippedCapabilities.length} 项仅保留为客户偏好。`
+                          : '当前没有可安全自动映射到地图的条件；请补充可执行的区域、项目等级或净有效租金口径。'}
+                      </div>
+                    ) : null}
                   </div>
-                  <Button type="button" variant="secondary" size="sm" disabled title="下一阶段接入地图筛选">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={!mapHandoff || mapHandoff.appliedCapabilities.length === 0}
+                    title={mapHandoff?.appliedCapabilities.length ? '在现有地图筛选引擎中查看真实候选项目' : '当前没有可安全映射到地图的条件'}
+                    onClick={() => { if (mapHandoff) router.push(mapHandoff.href); }}
+                  >
                     确认条件并查看地图 <ArrowRight size={13} aria-hidden="true" />
                   </Button>
                 </div>

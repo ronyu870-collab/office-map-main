@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 
 import { SearchBar } from '@/src/components/SearchBar';
 import { AppHeader, Button } from '@/src/components/ui';
@@ -61,6 +62,10 @@ type MapWorkbenchViewProps = {
   combinedBuildingList: any[];
   displayOverrides: Map<string, Map<string, DisplayOverride>>;
   targetBuildingId: string | null;
+  intelligenceContext?: {
+    candidateCount: number | null;
+    appliedCapabilities: string[];
+  } | null;
   onFilterPanelOpenChange: (open: boolean) => void;
   onSupplyOpenChange: (open: boolean) => void;
   onFilterChange: (state: SidebarFilterState) => void;
@@ -257,6 +262,7 @@ export function MapWorkbenchView({
   combinedBuildingList,
   displayOverrides,
   targetBuildingId,
+  intelligenceContext = null,
   onFilterPanelOpenChange,
   onSupplyOpenChange,
   onFilterChange,
@@ -274,6 +280,7 @@ export function MapWorkbenchView({
   onBuildingHover,
 }: MapWorkbenchViewProps) {
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);
+  const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
 
   const closeOpenWorkspaces = React.useCallback(() => {
     if (isFilterPanelOpen) onFilterPanelOpenChange(false);
@@ -341,9 +348,18 @@ export function MapWorkbenchView({
           </div>
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
-            {hasActiveFilters ? (
+            {showFilterSummary ? (
               <div className="flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" aria-label="已生效筛选条件">
-                <span className="shrink-0 text-[10px] font-medium text-slate-400">筛选</span>
+                {intelligenceContext ? (
+                  <>
+                    <span className="shrink-0 text-[10px] font-semibold text-[var(--cd-color-brand)]">
+                      客户需求 · {intelligenceContext?.candidateCount === null ? '匹配中' : `${intelligenceContext.candidateCount} 个候选`}
+                    </span>
+                    <Link href="/intelligence" className="shrink-0 text-[10px] text-slate-400 transition hover:text-[var(--cd-color-brand)]">返回需求</Link>
+                  </>
+                ) : (
+                  <span className="shrink-0 text-[10px] font-medium text-slate-400">筛选</span>
+                )}
                 {keyword ? (
                   <button
                     type="button"
@@ -367,7 +383,9 @@ export function MapWorkbenchView({
                     <span aria-hidden="true">×</span>
                   </button>
                 ))}
-                <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]">清空</button>
+                {hasActiveFilters ? (
+                  <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]">清空</button>
+                ) : null}
               </div>
             ) : (
               <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
