@@ -77,19 +77,49 @@ function createNativeHarness() {
     off = this.handlers.off;
   }
 
-  return { map, AMap: { Marker, Pixel, Size, LabelMarker, LabelsLayer, MassMarks }, markerInstances, labelMarkerInstances, labelsLayerInstances, massMarksInstances, add, remove, panBy, setZoomAndCenter, emitMap: mapEvents.emit };
+  return {
+    map,
+    AMap: { Marker, Pixel, Size, LabelMarker, LabelsLayer, MassMarks },
+    markerInstances,
+    labelMarkerInstances,
+    labelsLayerInstances,
+    massMarksInstances,
+    add,
+    remove,
+    panBy,
+    setZoomAndCenter,
+    setZoom(next: number) { zoom = next; },
+    emitMap: mapEvents.emit,
+  };
 }
 
 function building(id: string, submarket: string, lng: number, lat: number, rent: number, vacancy: number) {
   return {
-    id, name: `项目${id}`, submarket, district: '朝阳区', grade: 'A', leed_certification: id === 'a' ? 'Gold' : '',
-    location_lng: lng, location_lat: lat,
-    metrics: [{ id: `m-${id}`, building_id: id, record_year: 2026, record_quarter: 2, net_effective_rent: rent, vacancy_rate: vacancy, total_area: 100000, vacant_area: 100000 * vacancy }],
+    id,
+    name: `项目${id}`,
+    submarket,
+    district: '朝阳区',
+    grade: 'A',
+    leed_certification: id === 'a' ? 'Gold' : '',
+    location_lng: lng,
+    location_lat: lat,
+    metrics: [{
+      id: `m-${id}`,
+      building_id: id,
+      record_year: 2026,
+      record_quarter: 2,
+      net_effective_rent: rent,
+      vacancy_rate: vacancy,
+      total_area: 100000,
+      vacant_area: 100000 * vacancy,
+    }],
   };
 }
 
 async function flushFrames(count = 3) {
-  for (let index = 0; index < count; index += 1) await new Promise<void>(resolve => window.setTimeout(resolve, 4));
+  for (let index = 0; index < count; index += 1) {
+    await new Promise<void>(resolve => window.setTimeout(resolve, 4));
+  }
 }
 
 beforeEach(() => {
@@ -104,45 +134,124 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('native high-volume map renderer', () => {
-  it('uses broad native layer ranges so opacity owns tier continuity', async () => {
+describe('native map visual hierarchy', () => {
+  it('clears legacy markers once and keeps only the submarket tier visible at overview zoom', async () => {
     const harness = createNativeHarness();
     const originalRender = vi.fn();
     const originalClear = vi.fn();
     const controller: any = {
-      AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [], currentRenderMode: null,
-      infoWindow: { close: vi.fn() }, renderMarkers: originalRender, clearMarkers: originalClear, updateVisibilityByZoom() {},
-      openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(), bounceMarker: vi.fn(), stopBounceMarker: vi.fn(),
+      AMap: harness.AMap,
+      map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [], currentRenderMode: null,
+      infoWindow: { close: vi.fn() },
+      renderMarkers: originalRender,
+      clearMarkers: originalClear,
+      updateVisibilityByZoom() {},
+      openBuildingInfoWindow: vi.fn(),
+      showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(), bounceMarker: vi.fn(), stopBounceMarker: vi.fn(),
     };
-    const cleanup = installMapInteractionHardening(controller, 'map-container');
-    const buildings = [building('a', 'CBD', 116.46, 39.91, 305, 0.08), building('b', 'CBD', 116.47, 39.92, 280, 0.12), building('c', '金融街', 116.36, 39.91, 320, 0.07), building('d', '望京', 116.48, 40.00, 180, 0.20)];
 
+    const cleanup = installMapInteractionHardening(controller, 'map-container');
+    expect(originalClear).toHaveBeenCalledTimes(1);
+
+    const buildings = [
+      building('a', 'CBD', 116.46, 39.91, 305, 0.08),
+      building('b', 'CBD', 116.47, 39.92, 280, 0.12),
+      building('c', '金融街', 116.36, 39.91, 320, 0.07),
+      building('d', '望京', 116.48, 40.00, 180, 0.20),
+    ];
     controller.renderMarkers(buildings, 'default', new Map(), undefined);
     await flushFrames();
 
     expect(originalRender).not.toHaveBeenCalled();
     expect(harness.markerInstances).toHaveLength(3);
-    expect(harness.markerInstances.every(marker => marker.options.zooms[1] === 20)).toBe(true);
     expect(harness.massMarksInstances).toHaveLength(1);
-    expect(harness.massMarksInstances[0].data).toHaveLength(4);
-    expect(harness.massMarksInstances[0].options.zooms).toEqual([10.4, 14]);
     expect(harness.labelsLayerInstances).toHaveLength(2);
-    expect(harness.labelsLayerInstances.every(layer => layer.options.collision === true)).toBe(true);
-
-    const detailMarkers = harness.labelMarkerInstances.filter(marker => marker.options.icon);
-    const nameMarkers = harness.labelMarkerInstances.filter(marker => marker.options.text);
-    expect(detailMarkers).toHaveLength(4);
-    expect(nameMarkers).toHaveLength(4);
-    expect(detailMarkers.every(marker => marker.options.zooms[0] === 12.2)).toBe(true);
-    expect(detailMarkers.every(marker => marker.options.icon.size[0] === 36 && marker.options.icon.size[1] === 36)).toBe(true);
-    expect(nameMarkers.every(marker => marker.options.zooms[0] === 13.55)).toBe(true);
+    expect(harness.markerInstances.every(marker => marker.setOpacity.mock.lastCall?.[0] === 1)).toBe(true);
+    expect(harness.massMarksInstances[0].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(harness.labelsLayerInstances[0].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(harness.labelsLayerInstances[1].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(document.getElementById('map-container')?.dataset.markerTier).toBe('submarket');
 
     cleanup();
   });
 
-  it('deduplicates identical renders and mounts a replacement before disposing the old layer', async () => {
+  it('allows adjacent tiers to overlap only during zoom, then settles to one idle tier', async () => {
     const harness = createNativeHarness();
-    const controller: any = { AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [], renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {}, openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn() };
+    const controller: any = {
+      AMap: harness.AMap, map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {},
+      openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller, 'map-container');
+    controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
+    await flushFrames();
+
+    harness.emitMap('zoomstart');
+    harness.setZoom(11.54);
+    harness.emitMap('zoomchange');
+    const subDuring = harness.markerInstances[0].setOpacity.mock.lastCall?.[0] as number;
+    const dotDuring = harness.massMarksInstances[0].setOpacity.mock.lastCall?.[0] as number;
+    expect(subDuring).toBeGreaterThan(0);
+    expect(dotDuring).toBeGreaterThan(0);
+
+    harness.setZoom(11.7);
+    harness.emitMap('zoomend');
+    expect(harness.markerInstances[0].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(harness.massMarksInstances[0].setOpacity.mock.lastCall?.[0]).toBe(0.9);
+    expect(harness.labelsLayerInstances[0].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(document.getElementById('map-container')?.dataset.markerTier).toBe('dot');
+
+    harness.emitMap('zoomstart');
+    harness.setZoom(13.16);
+    harness.emitMap('zoomchange');
+    expect(harness.massMarksInstances[0].setOpacity.mock.lastCall?.[0]).toBeGreaterThan(0);
+    expect(harness.labelsLayerInstances[0].setOpacity.mock.lastCall?.[0]).toBeGreaterThan(0);
+
+    harness.setZoom(13.35);
+    harness.emitMap('zoomend');
+    expect(harness.massMarksInstances[0].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(harness.labelsLayerInstances[0].setOpacity.mock.lastCall?.[0]).toBe(1);
+    expect(document.getElementById('map-container')?.dataset.markerTier).toBe('building');
+
+    cleanup();
+  });
+
+  it('hides future-supply markers at overview zoom and restores them from the dot tier onward', async () => {
+    const harness = createNativeHarness();
+    const renderFuture = vi.fn();
+    const clearFuture = vi.fn();
+    const controller: any = {
+      AMap: harness.AMap, map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {},
+      renderFutureMarkers: renderFuture, clearFutureMarkers: clearFuture,
+      openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller, 'map-container');
+    controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
+    await flushFrames();
+
+    controller.renderFutureMarkers([{ id: 'future-a' }], 'default');
+    expect(renderFuture).not.toHaveBeenCalled();
+    expect(clearFuture).toHaveBeenCalled();
+
+    harness.setZoom(11.8);
+    harness.emitMap('zoomend');
+    expect(renderFuture).toHaveBeenCalledWith([{ id: 'future-a' }], 'default');
+
+    cleanup();
+  });
+
+  it('deduplicates identical renders and swaps data without exposing two visual tiers', async () => {
+    const harness = createNativeHarness();
+    const controller: any = {
+      AMap: harness.AMap, map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {},
+      openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+    };
     const cleanup = installMapInteractionHardening(controller, 'map-container');
     const a = building('a', 'CBD', 116.46, 39.91, 305, 0.08);
     const b = building('b', '金融街', 116.36, 39.91, 320, 0.07);
@@ -150,7 +259,6 @@ describe('native high-volume map renderer', () => {
     controller.renderMarkers([a, b], 'default', new Map(), undefined);
     await flushFrames();
     expect(harness.massMarksInstances).toHaveLength(1);
-    expect(harness.labelsLayerInstances).toHaveLength(2);
 
     controller.renderMarkers([a, b], 'default', new Map(), undefined);
     await flushFrames();
@@ -159,37 +267,34 @@ describe('native high-volume map renderer', () => {
     controller.renderMarkers([a, b], 'rent', new Map(), undefined);
     await flushFrames();
     expect(harness.massMarksInstances).toHaveLength(2);
-    expect(harness.labelsLayerInstances).toHaveLength(4);
     expect(document.getElementById('map-container')?.classList.contains('map-marker-swapping')).toBe(true);
+    expect(harness.massMarksInstances[1].setOpacity.mock.lastCall?.[0]).toBe(0);
+    expect(harness.markerInstances.slice(-2).every(marker => marker.setOpacity.mock.lastCall?.[0] === 1)).toBe(true);
 
     cleanup();
   });
 
-  it('gives a clicked submarket an outgoing state while zooming progressively', async () => {
+  it('keeps click navigation coherent from submarket to dot to detail', async () => {
     const harness = createNativeHarness();
-    const controller: any = { AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [], renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {}, openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn() };
+    const open = vi.fn();
+    const controller: any = {
+      AMap: harness.AMap, map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {},
+      openBuildingInfoWindow: open, showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+    };
     const cleanup = installMapInteractionHardening(controller, 'map-container');
     controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
     await flushFrames();
 
     harness.markerInstances[0].handlers.emit('click');
-    expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.46, 39.91], false, 340);
-    expect((harness.markerInstances[0].options.content as HTMLElement).classList.contains('is-expanding')).toBe(true);
+    expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.46, 39.91], false, 320);
 
-    cleanup();
-  });
-
-  it('keeps a selected marker visible while a dot click zooms toward detail view', async () => {
-    const harness = createNativeHarness();
-    const open = vi.fn();
-    const controller: any = { AMap: harness.AMap, map: harness.map, markers: [], dotMarkers: [], submarketMarkers: [], renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {}, openBuildingInfoWindow: open, showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn() };
-    const cleanup = installMapInteractionHardening(controller, 'map-container');
-    controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
-    await flushFrames();
-
+    harness.setZoom(11.8);
+    harness.emitMap('zoomend');
     harness.massMarksInstances[0].handlers.emit('click', { data: harness.massMarksInstances[0].data[0] });
     expect(document.getElementById('map-container')?.dataset.selectedBuilding).toBe('a');
-    expect(harness.setZoomAndCenter).toHaveBeenCalledWith(14, [116.46, 39.91], false, 340);
+    expect(harness.setZoomAndCenter).toHaveBeenLastCalledWith(14, [116.46, 39.91], false, 320);
 
     cleanup();
   });
