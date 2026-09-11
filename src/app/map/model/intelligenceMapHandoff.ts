@@ -95,15 +95,18 @@ export function createIntelligenceMapHandoff(result: RequirementParseResult): In
 
     if (allSubmarkets) {
       const allowed = new Set([...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]);
+      // Multiple natural-language aliases may legitimately resolve to the same canonical
+      // submarket (e.g. “望京 or 酒仙桥” → “望京-酒仙桥”). De-duplication must not
+      // invalidate an otherwise lossless OR expression.
       const values = unique(locations.map(location => location.normalizedSubmarket ?? ''));
-      if (values.length === locations.length && values.every(value => allowed.has(value))) {
+      if (values.length > 0 && values.every(value => allowed.has(value))) {
         filterState.submarkets = values;
         appliedCapabilities.push('location');
       }
     } else if (allDistrictOnly) {
       const allowed = new Set(MAP_DISTRICTS);
       const values = unique(locations.map(location => location.normalizedDistrict ?? ''));
-      if (values.length === locations.length && values.every(value => allowed.has(value))) {
+      if (values.length > 0 && values.every(value => allowed.has(value))) {
         filterState.districts = values;
         appliedCapabilities.push('location');
       }
