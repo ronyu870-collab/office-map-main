@@ -5,13 +5,18 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 
 import { useAppSession } from '@/src/components/SessionProvider';
+import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
 import { MapLoadingShell } from './components/MapLoadingShell';
 
 const MapClient = dynamic(() => import('./MapClient').then(module => module.default), {
   ssr: false,
 });
 
-export function MapRouteGate() {
+export function MapRouteGate({
+  initialIntelligenceHandoff,
+}: {
+  initialIntelligenceHandoff: IntelligenceMapRouteState | null;
+}) {
   const router = useRouter();
   const { status } = useAppSession();
 
@@ -23,5 +28,5 @@ export function MapRouteGate() {
   // never mounted until the shared root session has resolved as authenticated.
   if (status !== 'authenticated') return <MapLoadingShell />;
 
-  return <MapClient />;
+  return <MapClient initialIntelligenceHandoff={initialIntelligenceHandoff} />;
 }
