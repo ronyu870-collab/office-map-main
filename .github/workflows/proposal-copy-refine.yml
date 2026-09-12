@@ -1,0 +1,68 @@
+name: Proposal Copy Refinement
+
+on:
+  push:
+    branches: [refine/intelligence-workspace-copy]
+    paths: [.github/workflows/proposal-copy-refine.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refine/intelligence-workspace-copy
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Refine Proposal product copy
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/intelligence/ProposalWorkspace.tsx')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+            '请先从 Intelligence 输入客户需求，让 AI 生成真实项目 shortlist，再选择 1–5 个候选项目生成方案。': '请先从业务智能输入客户需求，让系统生成真实候选项目，再选择 1–5 个项目生成方案。',
+            '返回 Intelligence <ArrowRight': '返回业务智能 <ArrowRight',
+            'status={<Badge tone="brand">AI Shortlist</Badge>}': 'status={<Badge tone="brand">候选方案</Badge>}',
+            '<ArrowLeft size={13} aria-hidden="true" /> 返回 Intelligence': '<ArrowLeft size={13} aria-hidden="true" /> 返回业务智能',
+            'AI 先生成 shortlist，Broker 审核候选和顺序后输出。匹配分只使用现有可验证字段，不使用实时销控猜测。': '系统先生成候选项目，业务人员审核候选和顺序后输出。匹配评分只使用现有可验证字段；未接入的实时销控信息不会参与自动判断。',
+            'Intelligence Pilot · 数据来自当前内部平台': '业务智能试用版 · 数据来自当前内部平台',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing expected snippet: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+
+          changelog = Path('CHANGELOG.md')
+          current = changelog.read_text(encoding='utf-8')
+          old = '- Replaced `数据覆盖` with `数据完整度` and reduced mixed Chinese/English copy in the visible workflow.\n'
+          new = old + '- Applied the same product-language cleanup to Proposal: `shortlist` / `Broker` / provider-style labels are replaced by business-facing Chinese copy while the underlying scoring and draft behavior remain unchanged.\n'
+          if old not in current:
+              raise SystemExit('Missing changelog refinement insertion point')
+          changelog.write_text(current.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Focused Intelligence tests
+        run: npx vitest run src/components/intelligence/__tests__
+      - name: Production build
+        run: npm run build
+      - name: Commit verified Proposal refinement
+        run: |
+          rm .github/workflows/proposal-copy-refine.yml
+          git config user.name "ronyu870-collab"
+          git config user.email "ronyu870@gmail.com"
+          git add src/components/intelligence/ProposalWorkspace.tsx CHANGELOG.md .github/workflows/proposal-copy-refine.yml
+          git commit -m "refactor: polish Intelligence proposal copy"
+          git push origin HEAD:refine/intelligence-workspace-copy
