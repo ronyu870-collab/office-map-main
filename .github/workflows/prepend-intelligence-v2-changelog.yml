@@ -69,3 +69,5 @@ The previous recommendation-first milestone fixed the core product direction but
           git add CHANGELOG.md .github/workflows/prepend-intelligence-v2-changelog.yml
           git commit -m "chore: document Intelligence workspace v2"
           git push origin HEAD:feature/intelligence-workspace-v2
+
+# Trigger the self-cleaning changelog job after workflow registration.
