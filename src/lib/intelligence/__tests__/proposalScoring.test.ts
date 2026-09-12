@@ -46,6 +46,13 @@ describe('proposalScoring', () => {
     expect(result.checks.map(item => item.key)).not.toContain('metro');
   });
 
+  it('uses the same A/P project-category semantics as the Map filter', () => {
+    const superPrime = { ...candidate, grade: 'P' };
+    const result = scoreProposalCandidate(parsed, capabilities, superPrime);
+    expect(result.checks.find(item => item.key === 'grade')?.passed).toBe(true);
+    expect(result.score).toBe(100);
+  });
+
   it('converts monthly rent to the customer daily-rent basis before testing budget', () => {
     const overBudget = {
       ...candidate,
