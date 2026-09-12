@@ -37,6 +37,14 @@ describe('Intelligence proposal builder contract', () => {
     expect(workspace).toContain('楼书字段，不代表当前可租单元');
   });
 
+  it('scores only the requirement conditions that actually entered the Map handoff', () => {
+    const workspace = source('src/components/intelligence/ProposalWorkspace.tsx');
+    expect(workspace).toContain('new Set(draft.requirement.appliedCapabilities)');
+    expect(workspace).toContain('scoringCapabilities');
+    expect(workspace).toContain('appliedCapabilitySet.has(item.key)');
+    expect(workspace).toContain('只有已经实际应用到地图的绿色条件参与匹配分');
+  });
+
   it('keeps recommendation scoring explainable and excludes unsupported requirement fields', () => {
     const scoring = source('src/lib/intelligence/proposalScoring.ts');
     expect(scoring).toContain("WEIGHTS = { location: 35, rent: 45, grade: 20 }");
