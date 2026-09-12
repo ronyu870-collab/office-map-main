@@ -138,6 +138,29 @@ export function addProposalCandidate(buildingId: string, buildingName: string): 
   return { status: 'added', draft: writeProposalDraft(next) };
 }
 
+export function setProposalCandidates(
+  candidates: Array<{ buildingId: string; buildingName: string }>,
+): ProposalDraft | null {
+  const draft = readProposalDraft();
+  if (!draft) return null;
+  const seen = new Set<string>();
+  const now = new Date().toISOString();
+  const items = candidates
+    .filter(candidate => {
+      const id = candidate.buildingId.trim();
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .slice(0, MAX_PROPOSAL_CANDIDATES)
+    .map(candidate => ({
+      buildingId: candidate.buildingId,
+      buildingName: candidate.buildingName.trim() || '未命名楼宇',
+      addedAt: now,
+    }));
+  return writeProposalDraft({ ...draft, items, updatedAt: now });
+}
+
 export function removeProposalCandidate(buildingId: string): ProposalDraft | null {
   const draft = readProposalDraft();
   if (!draft) return null;
