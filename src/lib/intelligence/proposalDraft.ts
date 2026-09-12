@@ -11,6 +11,7 @@ export const MAX_PROPOSAL_CANDIDATES = 5;
 type ProposalRequirementContext = {
   parsed: ParsedRequirement;
   capabilities: RequirementCapability[];
+  appliedCapabilities: RequirementCapability['key'][];
 };
 
 export type ProposalDraftItem = {
@@ -45,10 +46,12 @@ function storage(): Storage | null {
 function isDraft(value: unknown): value is ProposalDraft {
   if (!value || typeof value !== 'object') return false;
   const draft = value as Partial<ProposalDraft>;
+  const requirement = draft.requirement as Partial<ProposalRequirementContext> | undefined;
   return draft.version === 1
     && typeof draft.clientName === 'string'
     && typeof draft.requirementFingerprint === 'string'
-    && Boolean(draft.requirement && typeof draft.requirement === 'object')
+    && Boolean(requirement && typeof requirement === 'object')
+    && Array.isArray(requirement?.appliedCapabilities)
     && Array.isArray(draft.items)
     && draft.items.every(item => Boolean(
       item
@@ -71,10 +74,11 @@ function writeProposalDraft(draft: ProposalDraft): ProposalDraft | null {
   }
 }
 
-function fingerprint(result: RequirementParseResult): string {
+function fingerprint(result: RequirementParseResult, appliedCapabilities: RequirementCapability['key'][]): string {
   return JSON.stringify({
     parsed: result.parsed,
     capabilityStatuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
+    appliedCapabilities,
   });
 }
 
@@ -91,8 +95,12 @@ export function readProposalDraft(): ProposalDraft | null {
   }
 }
 
-export function beginProposalDraft(result: RequirementParseResult): ProposalDraft | null {
-  const requirementFingerprint = fingerprint(result);
+export function beginProposalDraft(
+  result: RequirementParseResult,
+  appliedCapabilities: RequirementCapability['key'][],
+): ProposalDraft | null {
+  const safeAppliedCapabilities = [...new Set(appliedCapabilities)];
+  const requirementFingerprint = fingerprint(result, safeAppliedCapabilities);
   const previous = readProposalDraft();
   const now = new Date().toISOString();
 
@@ -103,6 +111,7 @@ export function beginProposalDraft(result: RequirementParseResult): ProposalDraf
     requirement: {
       parsed: result.parsed,
       capabilities: result.capabilities,
+      appliedCapabilities: safeAppliedCapabilities,
     },
     items: previous?.requirementFingerprint === requirementFingerprint ? previous.items.slice(0, MAX_PROPOSAL_CANDIDATES) : [],
     updatedAt: now,
