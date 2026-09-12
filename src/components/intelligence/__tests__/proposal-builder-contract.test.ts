@@ -34,20 +34,25 @@ describe('Intelligence proposal builder contract', () => {
     expect(workspace).not.toContain('.insert(');
     expect(workspace).not.toContain('.update(');
     expect(workspace).toContain('市场指标，不等于实时销控');
+    expect(workspace).toContain('数据完整度');
+    expect(workspace).not.toContain('AI Shortlist');
+    expect(workspace).not.toContain('Broker');
+    expect(workspace).not.toContain('Client Requirement');
     expect(workspace).toContain('楼书字段，不代表当前可租单元');
   });
 
-  it('scores only the requirement conditions that actually entered the Map handoff', () => {
+  it('scores only requirement conditions explicitly eligible for proposal evaluation', () => {
     const workspace = source('src/components/intelligence/ProposalWorkspace.tsx');
     expect(workspace).toContain('new Set(draft.requirement.appliedCapabilities)');
+    expect(workspace).toContain('new Set(draft.requirement.evaluationCapabilities)');
     expect(workspace).toContain('scoringCapabilities');
     expect(workspace).toContain('appliedCapabilitySet.has(item.key)');
-    expect(workspace).toContain('只有已经实际应用到地图的绿色条件参与匹配分');
+    expect(workspace).toContain('绿色条件参与规则评估；黄色或灰色条件只保留为人工核验事项');
   });
 
   it('keeps recommendation scoring explainable and excludes unsupported requirement fields', () => {
     const scoring = source('src/lib/intelligence/proposalScoring.ts');
-    expect(scoring).toContain("WEIGHTS = { location: 35, rent: 45, grade: 20 }");
+    expect(scoring).toContain("WEIGHTS = { location: 25, rent: 35, grade: 20, metro: 15, green: 5 }");
     expect(scoring).not.toContain("key: 'area'");
     expect(scoring).not.toContain("key: 'moveIn'");
     expect(scoring).toContain('dataConfidence');

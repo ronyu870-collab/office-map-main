@@ -62,10 +62,10 @@ function EmptyProposal() {
       <div className="w-full rounded-[var(--cd-radius-lg)] border border-dashed border-[var(--cd-color-border-strong)] bg-white p-8 text-center">
         <div className="text-base font-semibold text-slate-900">还没有客户方案草稿</div>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-          请先从 Intelligence 输入客户需求，让 AI 生成真实项目 shortlist，再选择 1–5 个候选项目生成方案。
+          请先从业务智能输入客户需求，让系统生成真实候选项目，再选择 1–5 个项目生成方案。
         </p>
         <Link href="/intelligence" className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-4 text-sm font-medium text-white">
-          返回 Intelligence <ArrowRight size={14} aria-hidden="true" />
+          返回业务智能 <ArrowRight size={14} aria-hidden="true" />
         </Link>
       </div>
     </div>
@@ -191,7 +191,7 @@ export function ProposalWorkspace() {
 
   if (status === 'loading' || !session || !draftReady) {
     return (
-      <WorkspaceShell header={<AppHeader title="客户方案 Proposal" homeHref="/intelligence" />}>
+      <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}>
         <div className="flex h-full items-center justify-center"><LoadingState rows={0} label="正在读取客户方案" /></div>
       </WorkspaceShell>
     );
@@ -199,14 +199,14 @@ export function ProposalWorkspace() {
 
   if (!previewEnabled) {
     return (
-      <WorkspaceShell header={<AppHeader title="客户方案 Proposal" homeHref="/intelligence" />}>
-        <div className="mx-auto max-w-3xl px-6 py-12 text-sm text-slate-500">当前账号未开放 Intelligence Preview。</div>
+      <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}>
+        <div className="mx-auto max-w-3xl px-6 py-12 text-sm text-slate-500">当前账号未开放业务智能试用功能。</div>
       </WorkspaceShell>
     );
   }
 
   if (!draft) {
-    return <WorkspaceShell header={<AppHeader title="客户方案 Proposal" homeHref="/intelligence" />}><EmptyProposal /></WorkspaceShell>;
+    return <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}><EmptyProposal /></WorkspaceShell>;
   }
 
   const appliedCapabilitySet = new Set(draft.requirement.appliedCapabilities);
@@ -224,16 +224,16 @@ export function ProposalWorkspace() {
   return (
     <WorkspaceShell
       className="min-h-screen bg-[var(--cd-color-canvas)] print:bg-white"
-      header={<div className="print:hidden"><AppHeader title="客户方案 Proposal" homeHref="/intelligence" status={<Badge tone="brand">AI Shortlist</Badge>} /></div>}
+      header={<div className="print:hidden"><AppHeader title="客户方案" homeHref="/intelligence" status={<Badge tone="brand">候选方案</Badge>} /></div>}
     >
       <main className="mx-auto w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3 print:hidden">
           <div>
             <button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push('/intelligence'); }} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-[var(--cd-color-brand)]">
-              <ArrowLeft size={13} aria-hidden="true" /> 返回 Intelligence
+              <ArrowLeft size={13} aria-hidden="true" /> 返回业务智能
             </button>
             <h1 className="mt-2 text-xl font-semibold text-slate-900">客户候选方案</h1>
-            <p className="mt-1 text-sm text-slate-500">AI 先生成 shortlist，Broker 审核候选和顺序后输出。匹配分只使用现有可验证字段，不使用实时销控猜测。</p>
+            <p className="mt-1 text-sm text-slate-500">系统先生成候选项目，业务人员审核候选和顺序后输出。匹配评分只使用现有可验证字段；未接入的实时销控信息不会参与自动判断。</p>
           </div>
           <Button type="button" variant="secondary" onClick={() => window.print()} disabled={selectedCount === 0}>
             <FileDown size={14} aria-hidden="true" /> 打印 / 导出 PDF
@@ -248,7 +248,7 @@ export function ProposalWorkspace() {
               </div>
               <div>
                 <div className="text-sm font-semibold text-slate-900">北京办公室选址建议</div>
-                <div className="mt-0.5 text-[11px] text-slate-400">Intelligence Pilot · 数据来自当前内部平台</div>
+                <div className="mt-0.5 text-[11px] text-slate-400">业务智能试用版 · 数据来自当前内部平台</div>
               </div>
             </div>
             <div suppressHydrationWarning className="text-right text-[11px] text-slate-400">{new Date().toLocaleDateString('zh-CN')}</div>
@@ -267,12 +267,12 @@ export function ProposalWorkspace() {
               />
             </div>
             <div className="hidden print:block">
-              <div className="text-[10px] text-slate-400">CLIENT</div>
+              <div className="text-[10px] text-slate-400">客户</div>
               <div className="mt-1 text-base font-semibold text-slate-900">{clientName || '客户项目'}</div>
             </div>
 
             <div>
-              <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Client Requirement</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">客户需求</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {draft.requirement.capabilities.map(item => {
                   const evaluated = evaluationCapabilitySet.has(item.key);
@@ -299,7 +299,7 @@ export function ProposalWorkspace() {
           {loading ? <div className="py-12"><LoadingState rows={3} label="正在读取真实楼宇数据" /></div> : null}
 
           {!loading && selectedCount === 0 ? (
-            <div className="py-12 text-center text-sm text-slate-500">当前方案没有候选项目，请返回 Intelligence 从推荐结果中选择楼宇。</div>
+            <div className="py-12 text-center text-sm text-slate-500">当前方案没有候选项目，请返回业务智能从推荐结果中选择楼宇。</div>
           ) : null}
 
           {!loading && scored.length > 0 ? (
@@ -323,7 +323,7 @@ export function ProposalWorkspace() {
                           <div className="mt-0.5 text-lg font-semibold tabular-nums text-[var(--cd-color-brand)]">{score.score === null ? '—' : `${score.score}`}{score.score === null ? '' : <span className="text-[10px] font-normal text-slate-400"> /100</span>}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px] text-slate-400">数据覆盖</div>
+                          <div className="text-[10px] text-slate-400">数据完整度</div>
                           <div className="mt-0.5 text-lg font-semibold tabular-nums text-slate-700">{score.dataConfidence}<span className="text-[10px] font-normal text-slate-400">%</span></div>
                         </div>
                       </div>
@@ -392,7 +392,7 @@ export function ProposalWorkspace() {
           ) : null}
 
           <footer className="border-t border-slate-200 pt-4 text-[10px] leading-5 text-slate-400 print:mt-6">
-            本方案为 Intelligence Pilot 输出。租金、空置率等市场指标以系统最新季度数据为准；当前尚未接入正式实时销控与可入住日期，因此不对具体可租单元、面积或入住时间作事实承诺。最终对客版本应由 Broker 人工确认。
+            本方案由业务智能试用版生成。租金、空置率等市场指标以系统最新季度数据为准；当前尚未接入正式实时销控与可入住日期，因此不对具体可租单元、面积或入住时间作事实承诺。最终对客版本应由业务人员人工确认。
           </footer>
         </section>
       </main>

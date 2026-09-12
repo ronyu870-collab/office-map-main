@@ -1,3 +1,23 @@
+## 2026-09-12 — Intelligence workspace copy and hierarchy refinement
+
+### Area
+Intelligence / shortlist review / product copy / UI hierarchy
+
+### Changed
+- Replaced prototype-style `shortlist`, `AI Top N`, and Broker-facing implementation jargon in the primary workflow with clearer Chinese product language.
+- Distinguished system-preselected projects from user-reviewed selections: untouched defaults show `AI 预选`, while a project manually re-added by the user shows `已确认`.
+- Moved ranking-version and model identifiers out of the primary summary into a collapsed technical-details disclosure; the main surface now shows only data period and real-project coverage.
+- Renamed hard/preference/verification sections to business semantics: `必须满足`, `用于排序`, and `待核验`.
+- Renamed the result footer from `已选` to `方案候选` so default AI selections are not misrepresented as explicit user choices.
+- Replaced `数据覆盖` with `数据完整度` and reduced mixed Chinese/English copy in the visible workflow.
+- Applied the same product-language cleanup to Proposal: prototype-style `shortlist` / `Broker` / provider labels are replaced by business-facing Chinese copy while scoring, draft state, Map handoff, permissions, and database behavior remain unchanged.
+
+### Impact
+- Recommendation, ranking, Map handoff, Proposal seeding, permissions, Supabase schema, and RLS behavior are unchanged.
+- The Intelligence preview reads more like a production Broker workflow while retaining technical diagnostics on demand.
+
+---
+
 ## 2026-09-12 — Intelligence recommendation-first shortlist
 
 ### Area
