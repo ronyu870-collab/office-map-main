@@ -2,6 +2,7 @@ import './map-workbench.css';
 import './map-native-overlays.css';
 import { MapBuildingCompareBridge } from './MapBuildingCompareBridge';
 import { MapCompetitorModeGuard } from './MapCompetitorModeGuard';
+import { MapProposalBridge } from './MapProposalBridge';
 import { MapRouteGate } from './MapRouteGate';
 import { parseIntelligenceMapHandoff } from './model/intelligenceMapHandoff';
 
@@ -28,6 +29,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
   return (
     <>
       <MapBuildingCompareBridge />
+      {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
       <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} />
     </>

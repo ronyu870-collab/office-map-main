@@ -19,6 +19,46 @@ Each entry should include:
 Do not use this file for raw commit-by-commit history. Group related implementation work into one clear entry.
 
 
+
+---
+
+## 2026-09-12 — Intelligence candidate proposal builder
+
+### Area
+Intelligence / Map / proposal draft / client recommendation workflow
+
+### What changed
+
+- Added a session-scoped proposal draft that starts when a user confirms a structured Intelligence requirement. The draft stores only parsed requirement structure and selected building IDs/names; it does not persist the original free-text client requirement or create proposal-history rows in Supabase.
+- Added an Intelligence-only Map action, `加入客户方案`, to building info windows with a five-building cap and selected/full states. Normal Map entry remains unchanged.
+- Added a lazy proposal basket overlay on Map with selected candidates, removal/clear controls, and navigation to a proposal builder.
+- Added `/intelligence/proposal`, which reads selected buildings from the existing `buildings`, latest `building_metrics`, and `building_brochure_data` sources.
+- Added deterministic requirement-match scoring based only on location, net-effective rent, and grade conditions that were actually validated and applied to the Map handoff. Unsupported, confirmation-only, or semantically skipped conditions are excluded from scoring.
+- Added a separate data-completeness indicator so richer records are not confused with stronger client fit.
+- Added rule-based recommendation evidence, explicit latest metric periods, and disclaimers distinguishing quarterly vacancy/standard-floor fields from real-time availability or currently leasable unit area.
+- Added manual candidate ordering, removal, client/project naming, and browser print / Save as PDF output for the Pilot preview.
+
+### Why
+
+The previous milestone stopped at natural-language requirement → real Map candidates. This change closes the next broker workflow step: candidate selection → explainable shortlist → client-facing proposal preview, while preserving the data-trust boundary around missing availability data.
+
+### Impact
+
+- Intelligence users can build a five-project shortlist without affecting existing Map, Quarterly Update, Lease Submission, or Research Library workflows.
+- No Supabase schema, RLS, or proposal-history persistence was introduced in this phase. Drafts live only for the current browser tab/session.
+- Proposal scores are deterministic and inspectable; no model-generated facts or hidden recommendation weights are used.
+
+### Verification
+
+- Added scoring tests for supported-field-only scoring, daily/monthly rent basis conversion, and separation of match score from data completeness.
+- Added source-contract coverage for session-only draft storage, five-project cap, Intelligence-only Map mounting, real Supabase data reads, and missing-data disclaimers.
+- Full repository verification is required before merge.
+
+### Follow-up
+
+- Persist approved proposal history only after a dedicated Supabase schema/RLS design.
+- Add real availability/current-unit data when `building_current_data` has production records; until then area/move-in conditions remain non-scoring constraints.
+
 ---
 
 ## 2026-09-11 — Intelligence → Map controlled handoff
