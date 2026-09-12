@@ -18,6 +18,7 @@ describe('Intelligence recommended shortlist contract', () => {
     expect(workspace).toContain('AI 推荐结果');
     expect(workspace).toContain('为什么推荐');
     expect(workspace).toContain('需要 Broker 确认');
+    expect(workspace).toContain('系统假设');
     expect(workspace).toContain('生成 Top');
     expect(workspace).not.toContain('AI 已理解客户需求');
     expect(workspace).not.toContain('确认条件并查看地图');
