@@ -1,0 +1,71 @@
+name: Prepend Intelligence v2 changelog
+
+on:
+  push:
+    branches:
+      - feature/intelligence-workspace-v2
+    paths:
+      - .github/workflows/prepend-intelligence-v2-changelog.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/intelligence-workspace-v2
+          fetch-depth: 0
+      - name: Prepend changelog and remove helper
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('CHANGELOG.md')
+          old = path.read_text(encoding='utf-8')
+          entry = '''## 2026-09-12 — Intelligence Broker workspace v2
+
+### Area
+Intelligence / recommendation API / ranking / Broker shortlist / Proposal
+
+### What changed
+- Reworked the Intelligence experience into a Broker review workspace: natural-language requirement → real ranked shortlist → manual 1–5 project selection → Map verification / Proposal output.
+- Recommendation results now remain visible while the Broker edits the next requirement; reranking happens only after explicit resubmission.
+- Added compact recommendation cards with expandable score breakdowns, trade-offs, data coverage, and direct links to detailed building parameters.
+- Moved the full building / metric / brochure recommendation universe from the browser into an authenticated server route. The browser receives only recommendation results rather than the full internal ranking dataset.
+- Centralized server-side Intelligence authentication, Preview authorization, and vocabulary/latest-period loading for both parsing and recommendation routes.
+- Upgraded deterministic ranking so hard constraints only filter candidates and are not double-counted as ranking points. Ranking now uses budget headroom plus verifiable grade, metro, and green-building preferences when requested.
+- Added evidence-based zero-result relaxation hints instead of padding shortlists with projects that violate hard constraints.
+- Separated recommendation fit from data coverage, and exposed per-project score factors so Brokers can inspect why a project ranked where it did.
+- Expanded Proposal evaluation to use safe, fact-backed recommendation preferences in addition to Map-applied filters, while keeping live availability, requested unit area, and move-in timing outside automated scoring until production data exists.
+- Added asking-rent support to Proposal scoring so the selected rent basis remains consistent from requirement interpretation through output.
+
+### Why
+The previous recommendation-first milestone fixed the core product direction but still behaved like a long report and computed the recommendation universe in the browser. This release makes Intelligence usable as a repeatable Broker workflow while strengthening data boundaries and score explainability.
+
+### Impact
+- Brokers can accept, remove, or replace AI Top 5 projects before producing a client-facing proposal.
+- Editing a requirement no longer destroys the current shortlist.
+- Normal Map, Quarterly Update, Lease Submission, and Research Library workflows are unchanged.
+- No Supabase schema or RLS changes were introduced.
+- Raw free-text client requirements are not persisted in AI audit log details.
+
+### Verification
+- Updated ranking tests for hard-filter vs preference semantics and evidence-based relaxation hints.
+- Updated Proposal tests for metro preference evaluation, asking/net-effective rent consistency, and separation of business match from data coverage.
+- Updated source-contract tests for server-side recommendation retrieval, shared authentication, Broker shortlist selection, and raw-input audit privacy.
+- Full Audit Coverage, TypeScript, Lint, Tests, Production Build, and Vercel Preview are required before merge.
+
+---
+
+'''
+          path.write_text(entry + old, encoding='utf-8')
+          Path('.github/workflows/prepend-intelligence-v2-changelog.yml').unlink()
+      - name: Commit durable changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md .github/workflows/prepend-intelligence-v2-changelog.yml
+          git commit -m "chore: document Intelligence workspace v2"
+          git push origin HEAD:feature/intelligence-workspace-v2
