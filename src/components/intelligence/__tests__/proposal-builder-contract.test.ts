@@ -17,7 +17,8 @@ describe('Intelligence proposal builder contract', () => {
   it('mounts proposal selection only for a validated Intelligence map handoff', () => {
     const page = source('src/app/map/page.tsx');
     const bridge = source('src/app/map/MapProposalBridge.tsx');
-    expect(page).toContain('<MapProposalBridge enabled={Boolean(initialIntelligenceHandoff)} />');
+    expect(page).toContain('initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null');
+    expect(page).not.toContain('<MapProposalBridge enabled={false}');
     expect(bridge).toContain("'＋ 加入客户方案'");
     expect(bridge).toContain('MAX_PROPOSAL_CANDIDATES');
   });
