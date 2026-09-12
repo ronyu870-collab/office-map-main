@@ -15,10 +15,13 @@ describe('Intelligence recommended shortlist contract', () => {
   it('makes direct recommendation and Broker review the primary workflow', () => {
     const workspace = source('src/components/intelligence/IntelligenceRecommendationWorkspace.tsx');
     expect(workspace).toContain("'开始推荐'");
-    expect(workspace).toContain('AI 推荐 shortlist');
+    expect(workspace).toContain('AI 推荐候选');
     expect(workspace).toContain('核心推荐理由');
     expect(workspace).toContain('评分构成');
-    expect(workspace).toContain('已选 {selectedIds.length} / 5 个项目');
+    expect(workspace).toContain("aiPreselected ? 'AI 预选' : '已确认'");
+    expect(workspace).toContain('查看技术信息');
+    expect(workspace).not.toContain('AI 推荐 shortlist');
+    expect(workspace).toContain('方案候选 {selectedIds.length} / 5');
     expect(workspace).toContain('需求已修改');
     expect(workspace).not.toContain('AI 已理解客户需求');
     expect(workspace).not.toContain('确认条件并查看地图');

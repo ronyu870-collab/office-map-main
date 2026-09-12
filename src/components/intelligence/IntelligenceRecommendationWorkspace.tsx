@@ -86,6 +86,7 @@ function RecommendationCard({
   building,
   rank,
   selected,
+  aiPreselected,
   expanded,
   onToggleSelected,
   onToggleExpanded,
@@ -93,6 +94,7 @@ function RecommendationCard({
   building: RecommendedBuilding;
   rank: number;
   selected: boolean;
+  aiPreselected: boolean;
   expanded: boolean;
   onToggleSelected: () => void;
   onToggleExpanded: () => void;
@@ -107,7 +109,7 @@ function RecommendationCard({
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${rank <= 3 ? 'bg-[var(--cd-color-brand)] text-white' : 'bg-slate-100 text-slate-600'}`}>{rank}</span>
               <h3 className="max-w-[520px] truncate text-[15px] font-semibold text-slate-900">{building.name}</h3>
               <Badge tone="neutral">{formatGrade(building.grade)}</Badge>
-              {rank <= 5 ? <Badge tone="brand">AI Top {rank}</Badge> : null}
+              {rank <= 5 ? <Badge tone="brand">AI 推荐 #{rank}</Badge> : null}
             </div>
             <div className="mt-1.5 text-xs text-slate-500">
               {building.district || '—'} · {building.submarket || '—'}
@@ -122,7 +124,7 @@ function RecommendationCard({
               ) : (
                 <div className="mt-0.5 text-2xl font-semibold tabular-nums text-[var(--cd-color-brand)]">{building.score}<span className="text-[10px] font-normal text-slate-400"> /100</span></div>
               )}
-              <div className="mt-0.5 text-[10px] text-slate-400">数据覆盖 {building.dataCompleteness}%</div>
+              <div className="mt-0.5 text-[10px] text-slate-400">数据完整度 {building.dataCompleteness}%</div>
             </div>
             <button
               type="button"
@@ -131,7 +133,7 @@ function RecommendationCard({
               className={`inline-flex h-8 items-center gap-1 rounded-[var(--cd-radius-md)] border px-2.5 text-xs font-medium transition ${selected ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-[var(--cd-color-brand)] hover:text-[var(--cd-color-brand)]'}`}
             >
               {selected ? <Check size={13} aria-hidden="true" /> : null}
-              {selected ? '已选' : '加入方案'}
+              {selected ? (aiPreselected ? 'AI 预选' : '已确认') : '加入方案'}
             </button>
           </div>
         </div>
@@ -188,7 +190,7 @@ function RecommendationCard({
               </div>
             </div>
             <div>
-              <div className="text-[11px] font-semibold text-slate-600">需要 Broker 确认 / 权衡</div>
+              <div className="text-[11px] font-semibold text-slate-600">需业务人员确认 / 权衡</div>
               <div className="mt-2 space-y-1.5">
                 {building.cautions.length > 0 ? building.cautions.map(caution => (
                   <div key={caution} className="flex items-start gap-2 text-xs leading-5 text-slate-500">
@@ -228,6 +230,7 @@ export function IntelligenceRecommendationWorkspace() {
   const [error, setError] = React.useState<string | null>(null);
   const [showAll, setShowAll] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  const [aiPreselectedIds, setAiPreselectedIds] = React.useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
   const [selectionMessage, setSelectionMessage] = React.useState<string | null>(null);
 
@@ -253,7 +256,9 @@ export function IntelligenceRecommendationWorkspace() {
       setSubmittedRequirement(input);
       setShowAll(false);
       setExpandedIds(new Set());
-      setSelectedIds(next.plan.recommendations.slice(0, 5).map(item => item.id));
+      const initialSelection = next.plan.recommendations.slice(0, 5).map(item => item.id);
+      setSelectedIds(initialSelection);
+      setAiPreselectedIds(new Set(initialSelection));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '推荐生成失败，请稍后重试。');
     } finally {
@@ -270,6 +275,11 @@ export function IntelligenceRecommendationWorkspace() {
 
   function toggleSelected(buildingId: string) {
     setSelectionMessage(null);
+    setAiPreselectedIds(previous => {
+      const next = new Set(previous);
+      next.delete(buildingId);
+      return next;
+    });
     setSelectedIds(previous => {
       if (previous.includes(buildingId)) return previous.filter(id => id !== buildingId);
       if (previous.length >= 5) {
@@ -307,7 +317,7 @@ export function IntelligenceRecommendationWorkspace() {
   return (
     <WorkspaceShell
       className="h-screen h-[100dvh] overflow-hidden bg-[var(--cd-color-canvas)]"
-      header={<AppHeader title="业务智能 Intelligence" homeHref="/" status={<Badge tone="brand">AI Site Selection</Badge>} />}
+      header={<AppHeader title="业务智能 Intelligence" homeHref="/" status={<Badge tone="brand">Pilot Preview</Badge>} />}
     >
       <main className="h-full overflow-y-auto overscroll-contain pb-8">
         <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
@@ -317,7 +327,7 @@ export function IntelligenceRecommendationWorkspace() {
               <h1 className="text-xl font-semibold text-slate-900">AI 选址顾问</h1>
             </div>
             <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-500">
-              输入客户需求后直接得到真实项目 shortlist。AI 负责理解语言，内部数据负责事实，确定性规则负责筛选与排序，Broker 负责最终判断。
+              输入客户需求后，系统直接从内部真实数据中生成候选项目。AI 负责理解需求，内部数据负责事实，确定性规则负责筛选与排序，最终由业务人员判断。
             </p>
           </section>
 
@@ -366,7 +376,7 @@ export function IntelligenceRecommendationWorkspace() {
             </div>
             {isDirty ? (
               <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                需求已修改。下方结果仍基于上一轮需求，点击“重新推荐”后才会更新，不会因为编辑文字而丢失当前 shortlist。
+                需求已修改。下方结果仍基于上一轮需求，点击“重新推荐”后才会更新，不会因为编辑文字而丢失当前候选结果。
               </div>
             ) : null}
             {error ? <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-600" role="alert">{error}</div> : null}
@@ -374,7 +384,7 @@ export function IntelligenceRecommendationWorkspace() {
 
           {loading ? (
             <section className="mt-5 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-6">
-              <LoadingState rows={4} label="AI 正在理解需求，服务端正在检索真实楼宇并生成 shortlist" />
+              <LoadingState rows={4} label="AI 正在理解需求，并从真实楼宇数据中生成候选项目" />
             </section>
           ) : null}
 
@@ -385,35 +395,36 @@ export function IntelligenceRecommendationWorkspace() {
                   <div>
                     <div className="flex items-center gap-2">
                       <Building2 size={17} className="text-[var(--cd-color-brand)]" aria-hidden="true" />
-                      <h2 className="text-base font-semibold text-slate-900">AI 推荐 shortlist</h2>
+                      <h2 className="text-base font-semibold text-slate-900">AI 推荐候选</h2>
                     </div>
                     <p className="mt-1.5 text-sm text-slate-500">
-                      找到 <strong className="font-semibold text-slate-800">{plan.candidateCount}</strong> 个满足硬条件的候选。已默认选中排名前 {Math.min(5, plan.candidateCount)} 个，你可以直接替换后生成客户方案。
+                      找到 <strong className="font-semibold text-slate-800">{plan.candidateCount}</strong> 个满足硬条件的项目。系统已预选排名前 {Math.min(5, plan.candidateCount)} 个，你可以逐项保留、取消或替换后生成客户方案。
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-500">
-                    <CriterionPill>真实楼宇 {response.meta.universeCount}</CriterionPill>
-                    <CriterionPill>季度 {response.meta.latestMetricPeriod || '—'}</CriterionPill>
-                    <CriterionPill>规则 {response.meta.rankingVersion}</CriterionPill>
-                    <CriterionPill>{plan.effectiveResult.meta.model}</CriterionPill>
+                  <div className="text-right text-[11px] leading-5 text-slate-500">
+                    <div>数据截至 {response.meta.latestMetricPeriod || '—'} · 覆盖 {response.meta.universeCount} 个真实项目</div>
+                    <details className="mt-1 text-[10px] text-slate-400">
+                      <summary className="cursor-pointer select-none hover:text-slate-600">查看技术信息</summary>
+                      <div className="mt-1">规则 {response.meta.rankingVersion} · 模型 {plan.effectiveResult.meta.model}</div>
+                    </details>
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 lg:grid-cols-3">
                   <div className="rounded-md border border-slate-200 p-3">
-                    <div className="text-[11px] font-semibold text-slate-600">硬条件 · 负责淘汰</div>
+                    <div className="text-[11px] font-semibold text-slate-600">硬条件 · 必须满足</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {plan.hardCriteria.length ? plan.hardCriteria.map(item => <CriterionPill key={item} tone="brand">{item}</CriterionPill>) : <span className="text-xs text-slate-400">未识别到硬筛选条件</span>}
                     </div>
                   </div>
                   <div className="rounded-md border border-slate-200 p-3">
-                    <div className="text-[11px] font-semibold text-slate-600">偏好 · 负责排序</div>
+                    <div className="text-[11px] font-semibold text-slate-600">偏好条件 · 用于排序</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {plan.preferenceCriteria.length ? plan.preferenceCriteria.map(item => <CriterionPill key={item}>{item}</CriterionPill>) : <span className="text-xs text-slate-400">未识别到额外偏好</span>}
                     </div>
                   </div>
                   <div className="rounded-md border border-amber-200 bg-amber-50/40 p-3">
-                    <div className="text-[11px] font-semibold text-amber-700">待确认 · 不参与事实承诺</div>
+                    <div className="text-[11px] font-semibold text-amber-700">待核验 · 不作为自动判断依据</div>
                     <div className="mt-2 space-y-1 text-[11px] leading-5 text-amber-700">
                       {plan.verificationRequired.length ? plan.verificationRequired.slice(0, 4).map(item => <div key={item}>• {item}</div>) : <div>当前没有额外待确认项</div>}
                     </div>
@@ -449,6 +460,7 @@ export function IntelligenceRecommendationWorkspace() {
                       building={building}
                       rank={index + 1}
                       selected={selectedIds.includes(building.id)}
+                      aiPreselected={selectedIds.includes(building.id) && aiPreselectedIds.has(building.id)}
                       expanded={expandedIds.has(building.id)}
                       onToggleSelected={() => toggleSelected(building.id)}
                       onToggleExpanded={() => toggleExpanded(building.id)}
@@ -471,7 +483,7 @@ export function IntelligenceRecommendationWorkspace() {
             <section className="mt-5 rounded-[var(--cd-radius-lg)] border border-dashed border-slate-200 bg-white/70 p-5 text-sm leading-6 text-slate-500">
               <div className="flex items-start gap-2">
                 <AlertTriangle size={15} className="mt-1 shrink-0 text-amber-500" aria-hidden="true" />
-                <p>当前尚未接入正式实时销控，因此面积和明确入住月份会保留为 Broker 核验项；系统不会把标准层面积、季度空置率等字段冒充实时可租房源。</p>
+                <p>当前尚未接入正式实时销控，因此面积和明确入住月份会保留为业务核验项；系统不会把标准层面积、季度空置率等字段冒充实时可租房源。</p>
               </div>
             </section>
           ) : null}
@@ -481,8 +493,8 @@ export function IntelligenceRecommendationWorkspace() {
           <div className="mx-auto mt-5 w-full max-w-[1180px] px-4 pb-6 sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--cd-radius-lg)] border border-slate-200 bg-white px-4 py-3 sm:px-5">
               <div>
-                <div className="text-sm font-semibold text-slate-900">已选 {selectedIds.length} / 5 个项目</div>
-                <div className="mt-0.5 text-[11px] text-slate-400">AI 已预选 Top 5；调整完成后，可核验空间位置或生成客户方案。</div>
+                <div className="text-sm font-semibold text-slate-900">方案候选 {selectedIds.length} / 5</div>
+                <div className="mt-0.5 text-[11px] text-slate-400">系统默认预选前 5 名；你可以取消或替换，确认后再核验地图或生成方案。</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
