@@ -204,12 +204,16 @@ export function ProposalWorkspace() {
     return <WorkspaceShell header={<AppHeader title="客户方案 Proposal" homeHref="/intelligence" />}><EmptyProposal /></WorkspaceShell>;
   }
 
+  const appliedCapabilitySet = new Set(draft.requirement.appliedCapabilities);
+  const scoringCapabilities = draft.requirement.capabilities.filter(item => appliedCapabilitySet.has(item.key));
   const scored = candidates.map(candidate => ({
     candidate,
-    score: scoreProposalCandidate(draft.requirement.parsed, draft.requirement.capabilities, candidate),
+    score: scoreProposalCandidate(draft.requirement.parsed, scoringCapabilities, candidate),
   }));
 
-  const pendingCapabilities = draft.requirement.capabilities.filter(item => item.status !== 'supported');
+  const excludedCapabilities = draft.requirement.capabilities.filter(item =>
+    item.status !== 'supported' || !appliedCapabilitySet.has(item.key),
+  );
   const selectedCount = draft.items.length;
 
   return (
@@ -265,14 +269,22 @@ export function ProposalWorkspace() {
             <div>
               <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Client Requirement</div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {draft.requirement.capabilities.map(item => (
-                  <span key={item.key} className={`rounded-full border px-2.5 py-1 text-[11px] ${item.status === 'supported' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : item.status === 'partial' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                    {item.label}：{item.value}
-                  </span>
-                ))}
+                {draft.requirement.capabilities.map(item => {
+                  const applied = appliedCapabilitySet.has(item.key);
+                  const tone = applied
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : item.status === 'partial'
+                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-500';
+                  return (
+                    <span key={item.key} className={`rounded-full border px-2.5 py-1 text-[11px] ${tone}`}>
+                      {item.label}：{item.value}
+                    </span>
+                  );
+                })}
               </div>
-              {pendingCapabilities.length > 0 ? (
-                <p className="mt-2 text-[11px] leading-5 text-slate-400">灰色/黄色条件仍需人工确认，不参与匹配分和自动推荐结论。</p>
+              {excludedCapabilities.length > 0 ? (
+                <p className="mt-2 text-[11px] leading-5 text-slate-400">只有已经实际应用到地图的绿色条件参与匹配分；未执行、需确认或暂不支持的条件仅保留给 Broker 人工判断。</p>
               ) : null}
             </div>
           </div>

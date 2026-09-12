@@ -33,7 +33,7 @@ Intelligence / Map / proposal draft / client recommendation workflow
 - Added an Intelligence-only Map action, `加入客户方案`, to building info windows with a five-building cap and selected/full states. Normal Map entry remains unchanged.
 - Added a lazy proposal basket overlay on Map with selected candidates, removal/clear controls, and navigation to a proposal builder.
 - Added `/intelligence/proposal`, which reads selected buildings from the existing `buildings`, latest `building_metrics`, and `building_brochure_data` sources.
-- Added deterministic requirement-match scoring based only on supported location, net-effective rent, and grade conditions. Unsupported area, move-in date, generic metro preference, and other partial conditions are excluded from scoring.
+- Added deterministic requirement-match scoring based only on location, net-effective rent, and grade conditions that were actually validated and applied to the Map handoff. Unsupported, confirmation-only, or semantically skipped conditions are excluded from scoring.
 - Added a separate data-completeness indicator so richer records are not confused with stronger client fit.
 - Added rule-based recommendation evidence, explicit latest metric periods, and disclaimers distinguishing quarterly vacancy/standard-floor fields from real-time availability or currently leasable unit area.
 - Added manual candidate ordering, removal, client/project naming, and browser print / Save as PDF output for the Pilot preview.

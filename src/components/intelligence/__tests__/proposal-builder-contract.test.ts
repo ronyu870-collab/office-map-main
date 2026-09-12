@@ -11,14 +11,17 @@ describe('Intelligence proposal builder contract', () => {
     expect(draft).toContain('window.sessionStorage');
     expect(draft).not.toContain('window.localStorage');
     expect(draft).toContain('MAX_PROPOSAL_CANDIDATES = 5');
+    expect(draft).toContain('appliedCapabilities');
     expect(draft).not.toContain('meta: result.meta');
   });
 
   it('mounts proposal selection only for a validated Intelligence map handoff', () => {
     const page = source('src/app/map/page.tsx');
     const bridge = source('src/app/map/MapProposalBridge.tsx');
+    const intelligence = source('src/components/intelligence/IntelligenceWorkspace.tsx');
     expect(page).toContain('initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null');
     expect(page).not.toContain('<MapProposalBridge enabled={false}');
+    expect(intelligence).toContain('beginProposalDraft(parseResult, mapHandoff.appliedCapabilities)');
     expect(bridge).toContain("'＋ 加入客户方案'");
     expect(bridge).toContain('MAX_PROPOSAL_CANDIDATES');
   });

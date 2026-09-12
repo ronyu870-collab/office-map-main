@@ -358,7 +358,7 @@ export function IntelligenceWorkspace() {
                     title={mapHandoff?.appliedCapabilities.length ? '在现有地图筛选引擎中查看真实候选项目' : '当前没有可安全映射到地图的条件'}
                     onClick={() => {
                       if (!mapHandoff) return;
-                      const nextDraft = beginProposalDraft(parseResult);
+                      const nextDraft = beginProposalDraft(parseResult, mapHandoff.appliedCapabilities);
                       if (!nextDraft) {
                         setParseError('浏览器会话存储不可用，暂时无法创建客户方案草稿。');
                         return;
