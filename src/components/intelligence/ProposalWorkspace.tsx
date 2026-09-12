@@ -74,6 +74,7 @@ export function ProposalWorkspace() {
   const router = useRouter();
   const { session, status } = useAppSession();
   const [draft, setDraft] = React.useState<ProposalDraft | null>(null);
+  const [draftReady, setDraftReady] = React.useState(false);
   const [clientName, setClientName] = React.useState('');
   const [candidates, setCandidates] = React.useState<LoadedCandidate[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -90,6 +91,7 @@ export function ProposalWorkspace() {
       const next = readProposalDraft();
       setDraft(next);
       setClientName(next?.clientName || '');
+      setDraftReady(true);
     };
     sync();
     window.addEventListener(PROPOSAL_DRAFT_EVENT, sync);
@@ -180,9 +182,9 @@ export function ProposalWorkspace() {
     })();
 
     return () => { active = false; };
-  }, [idsKey, previewEnabled]);
+  }, [draft, idsKey, previewEnabled]);
 
-  if (status === 'loading' || !session) {
+  if (status === 'loading' || !session || !draftReady) {
     return (
       <WorkspaceShell header={<AppHeader title="客户方案 Proposal" homeHref="/intelligence" />}>
         <div className="flex h-full items-center justify-center"><LoadingState rows={0} label="正在读取客户方案" /></div>
@@ -240,7 +242,7 @@ export function ProposalWorkspace() {
                 <div className="mt-0.5 text-[11px] text-slate-400">Intelligence Pilot · 数据来自当前内部平台</div>
               </div>
             </div>
-            <div className="text-right text-[11px] text-slate-400">{new Date().toLocaleDateString('zh-CN')}</div>
+            <div suppressHydrationWarning className="text-right text-[11px] text-slate-400">{new Date().toLocaleDateString('zh-CN')}</div>
           </div>
 
           <div className="grid gap-5 border-b border-slate-200 py-5 md:grid-cols-[220px_minmax(0,1fr)]">
@@ -249,7 +251,7 @@ export function ProposalWorkspace() {
               <input
                 value={clientName}
                 onChange={event => setClientName(event.target.value)}
-                onBlur={() => setDraft(setProposalClientName(clientName))}
+                onBlur={() => { const next = setProposalClientName(clientName); if (next) setDraft(next); }}
                 maxLength={80}
                 placeholder="例如：XX科技有限公司"
                 className="mt-1.5 h-9 w-full rounded-[var(--cd-radius-md)] border border-slate-200 px-3 text-sm outline-none focus:border-[var(--cd-color-brand)]"
