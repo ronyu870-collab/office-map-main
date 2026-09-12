@@ -1,3 +1,22 @@
+## 2026-09-12 — Intelligence recommendation-first shortlist
+
+### Area
+Intelligence / DeepSeek requirement understanding / real-data building retrieval / recommendation ranking / Map / Proposal
+
+### Changed
+- Reframed Intelligence from a natural-language filter assistant into an AI site-selection advisor: one client requirement now returns a ranked building shortlist directly.
+- Split demand semantics into hard filters, ranking preferences, explicit system assumptions, and conditions requiring Broker verification.
+- Treats phrases such as “优先甲级” as a ranking preference rather than silently filtering out non-A-grade alternatives; explicit phrases such as “只考虑甲级” remain hard constraints.
+- When the client gives a rent ceiling without naming the rent basis, the recommendation stage explicitly assumes the platform's net-effective-rent basis instead of blocking the workflow; the assumption is shown to the Broker.
+- Added deterministic recommendation ranking from real `buildings`, latest `building_metrics`, and `building_brochure_data`, with explainable recommendation reasons and data-completeness metadata.
+- Area and move-in timing remain verification-required while real-time unit availability is absent; standard-floor area and quarterly vacancy are never represented as live availability.
+- Map is now a downstream spatial-review action rather than the place where the Broker must manually discover recommendations.
+- Top five real recommended building IDs can seed the existing session-scoped Proposal Builder in one click.
+
+### Verification
+- Added business-semantics tests for grade preference vs hard constraint, default net-effective-rent assumption, real hard-budget filtering, and availability disclaimers.
+- Added a product-contract test that keeps direct recommendation as the primary Intelligence flow and prevents regression to the parser-first UI.
+
 # Engineering Changelog
 
 This document is the durable record of meaningful product and engineering changes to the Colliers Data Platform.
