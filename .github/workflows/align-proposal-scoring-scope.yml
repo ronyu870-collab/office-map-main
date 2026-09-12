@@ -1,0 +1,78 @@
+name: Align proposal scoring scope
+
+on:
+  push:
+    branches:
+      - feature/intelligence-proposal-builder
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/intelligence-proposal-builder
+          fetch-depth: 0
+      - name: Align proposal with confirmed Map filters
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Expected anchor missing in {path}: {old[:160]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src/components/intelligence/IntelligenceWorkspace.tsx',
+              'const nextDraft = beginProposalDraft(parseResult);',
+              'const nextDraft = beginProposalDraft(parseResult, mapHandoff.appliedCapabilities);',
+          )
+
+          replace_once(
+              'src/components/intelligence/ProposalWorkspace.tsx',
+              """  const scored = candidates.map(candidate => ({\n    candidate,\n    score: scoreProposalCandidate(draft.requirement.parsed, draft.requirement.capabilities, candidate),\n  }));\n\n  const pendingCapabilities = draft.requirement.capabilities.filter(item => item.status !== 'supported');\n""",
+              """  const appliedCapabilitySet = new Set(draft.requirement.appliedCapabilities);\n  const scoringCapabilities = draft.requirement.capabilities.filter(item => appliedCapabilitySet.has(item.key));\n  const scored = candidates.map(candidate => ({\n    candidate,\n    score: scoreProposalCandidate(draft.requirement.parsed, scoringCapabilities, candidate),\n  }));\n\n  const excludedCapabilities = draft.requirement.capabilities.filter(item =>\n    item.status !== 'supported' || !appliedCapabilitySet.has(item.key),\n  );\n""",
+          )
+          replace_once(
+              'src/components/intelligence/ProposalWorkspace.tsx',
+              """                {draft.requirement.capabilities.map(item => (\n                  <span key={item.key} className={`rounded-full border px-2.5 py-1 text-[11px] ${item.status === 'supported' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : item.status === 'partial' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>\n                    {item.label}：{item.value}\n                  </span>\n                ))}\n              </div>\n              {pendingCapabilities.length > 0 ? (\n                <p className=\"mt-2 text-[11px] leading-5 text-slate-400\">灰色/黄色条件仍需人工确认，不参与匹配分和自动推荐结论。</p>\n              ) : null}\n""",
+              """                {draft.requirement.capabilities.map(item => {\n                  const applied = appliedCapabilitySet.has(item.key);\n                  const tone = applied\n                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'\n                    : item.status === 'partial'\n                      ? 'border-amber-200 bg-amber-50 text-amber-700'\n                      : 'border-slate-200 bg-slate-50 text-slate-500';\n                  return (\n                    <span key={item.key} className={`rounded-full border px-2.5 py-1 text-[11px] ${tone}`}>\n                      {item.label}：{item.value}\n                    </span>\n                  );\n                })}\n              </div>\n              {excludedCapabilities.length > 0 ? (\n                <p className=\"mt-2 text-[11px] leading-5 text-slate-400\">只有已经实际应用到地图的绿色条件参与匹配分；未执行、需确认或暂不支持的条件仅保留给 Broker 人工判断。</p>\n              ) : null}\n""",
+          )
+
+          replace_once(
+              'src/components/intelligence/__tests__/proposal-builder-contract.test.ts',
+              """    expect(draft).toContain('MAX_PROPOSAL_CANDIDATES = 5');\n    expect(draft).not.toContain('meta: result.meta');\n""",
+              """    expect(draft).toContain('MAX_PROPOSAL_CANDIDATES = 5');\n    expect(draft).toContain('appliedCapabilities');\n    expect(draft).not.toContain('meta: result.meta');\n""",
+          )
+          replace_once(
+              'src/components/intelligence/__tests__/proposal-builder-contract.test.ts',
+              """  it('mounts proposal selection only for a validated Intelligence map handoff', () => {\n    const page = source('src/app/map/page.tsx');\n    const bridge = source('src/app/map/MapProposalBridge.tsx');\n""",
+              """  it('mounts proposal selection only for a validated Intelligence map handoff', () => {\n    const page = source('src/app/map/page.tsx');\n    const bridge = source('src/app/map/MapProposalBridge.tsx');\n    const intelligence = source('src/components/intelligence/IntelligenceWorkspace.tsx');\n""",
+          )
+          replace_once(
+              'src/components/intelligence/__tests__/proposal-builder-contract.test.ts',
+              """    expect(page).not.toContain('<MapProposalBridge enabled={false}');\n    expect(bridge).toContain(\"'＋ 加入客户方案'\");\n""",
+              """    expect(page).not.toContain('<MapProposalBridge enabled={false}');\n    expect(intelligence).toContain('beginProposalDraft(parseResult, mapHandoff.appliedCapabilities)');\n    expect(bridge).toContain(\"'＋ 加入客户方案'\");\n""",
+          )
+
+          replace_once(
+              'CHANGELOG.md',
+              '- Added deterministic requirement-match scoring based only on supported location, net-effective rent, and grade conditions. Unsupported area, move-in date, generic metro preference, and other partial conditions are excluded from scoring.',
+              '- Added deterministic requirement-match scoring based only on location, net-effective rent, and grade conditions that were actually validated and applied to the Map handoff. Unsupported, confirmation-only, or semantically skipped conditions are excluded from scoring.',
+          )
+          PY
+
+          git rm .github/workflows/align-proposal-scoring-scope.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src CHANGELOG.md
+          git commit -m "fix: score only confirmed Map conditions"
+          git push origin feature/intelligence-proposal-builder
