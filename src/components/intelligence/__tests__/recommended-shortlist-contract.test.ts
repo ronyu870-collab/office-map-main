@@ -12,33 +12,38 @@ describe('Intelligence recommended shortlist contract', () => {
     expect(page).not.toContain('IntelligenceWorkspace');
   });
 
-  it('makes direct recommendation the primary user action instead of exposing the parser as the main workflow', () => {
+  it('makes direct recommendation and Broker review the primary workflow', () => {
     const workspace = source('src/components/intelligence/IntelligenceRecommendationWorkspace.tsx');
     expect(workspace).toContain("'开始推荐'");
-    expect(workspace).toContain('AI 推荐结果');
-    expect(workspace).toContain('为什么推荐');
-    expect(workspace).toContain('需要 Broker 确认');
-    expect(workspace).toContain('系统假设');
-    expect(workspace).toContain('生成 Top');
+    expect(workspace).toContain('AI 推荐 shortlist');
+    expect(workspace).toContain('核心推荐理由');
+    expect(workspace).toContain('评分构成');
+    expect(workspace).toContain('已选 {selectedIds.length} / 5 个项目');
+    expect(workspace).toContain('需求已修改');
     expect(workspace).not.toContain('AI 已理解客户需求');
     expect(workspace).not.toContain('确认条件并查看地图');
   });
 
-  it('reads recommendation facts only from existing real building, metric and brochure sources', () => {
-    const service = source('src/services/intelligenceRecommendations.ts');
-    expect(service).toContain("from('buildings')");
-    expect(service).toContain("from('building_metrics')");
-    expect(service).toContain("from('building_brochure_data')");
-    expect(service).not.toContain('.insert(');
-    expect(service).not.toContain('.update(');
+  it('keeps the full recommendation universe on the authenticated server route', () => {
+    const route = source('src/app/api/intelligence/recommend/route.ts');
+    const loader = source('src/lib/intelligence/recommendationServer.ts');
+    const workspace = source('src/components/intelligence/IntelligenceRecommendationWorkspace.tsx');
+    expect(route).toContain('requireIntelligenceAccess');
+    expect(route).toContain('loadRecommendationUniverse');
+    expect(loader).toContain("from('buildings')");
+    expect(loader).toContain("from('building_metrics')");
+    expect(loader).toContain("from('building_brochure_data')");
+    expect(workspace).toContain('recommendIntelligenceBuildings');
+    expect(workspace).not.toContain('loadIntelligenceRecommendationUniverse');
   });
 
-  it('keeps map and proposal as downstream review tools and seeds proposal from real Top 5 IDs', () => {
+  it('keeps map and proposal as downstream review tools and seeds the Broker-selected shortlist', () => {
     const workspace = source('src/components/intelligence/IntelligenceRecommendationWorkspace.tsx');
     const draft = source('src/lib/intelligence/proposalDraft.ts');
-    expect(workspace).toContain('在地图查看');
+    expect(workspace).toContain('在地图核验');
     expect(workspace).toContain("router.push('/intelligence/proposal')");
-    expect(workspace).toContain('setProposalCandidates(topFive.map');
+    expect(workspace).toContain('selectedBuildings.map');
     expect(draft).toContain('MAX_PROPOSAL_CANDIDATES = 5');
+    expect(draft).toContain('evaluationCapabilities');
   });
 });

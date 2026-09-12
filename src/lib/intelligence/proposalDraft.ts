@@ -12,6 +12,7 @@ type ProposalRequirementContext = {
   parsed: ParsedRequirement;
   capabilities: RequirementCapability[];
   appliedCapabilities: RequirementCapability['key'][];
+  evaluationCapabilities: RequirementCapability['key'][];
 };
 
 export type ProposalDraftItem = {
@@ -52,6 +53,7 @@ function isDraft(value: unknown): value is ProposalDraft {
     && typeof draft.requirementFingerprint === 'string'
     && Boolean(requirement && typeof requirement === 'object')
     && Array.isArray(requirement?.appliedCapabilities)
+    && (requirement?.evaluationCapabilities === undefined || Array.isArray(requirement?.evaluationCapabilities))
     && Array.isArray(draft.items)
     && draft.items.every(item => Boolean(
       item
@@ -60,6 +62,17 @@ function isDraft(value: unknown): value is ProposalDraft {
       && typeof item.addedAt === 'string',
     ))
     && typeof draft.updatedAt === 'string';
+}
+
+function normalizeDraft(draft: ProposalDraft): ProposalDraft {
+  if (Array.isArray(draft.requirement.evaluationCapabilities)) return draft;
+  return {
+    ...draft,
+    requirement: {
+      ...draft.requirement,
+      evaluationCapabilities: [...draft.requirement.appliedCapabilities],
+    },
+  };
 }
 
 function writeProposalDraft(draft: ProposalDraft): ProposalDraft | null {
@@ -74,12 +87,28 @@ function writeProposalDraft(draft: ProposalDraft): ProposalDraft | null {
   }
 }
 
-function fingerprint(result: RequirementParseResult, appliedCapabilities: RequirementCapability['key'][]): string {
+function fingerprint(
+  result: RequirementParseResult,
+  appliedCapabilities: RequirementCapability['key'][],
+  evaluationCapabilities: RequirementCapability['key'][],
+): string {
   return JSON.stringify({
     parsed: result.parsed,
     capabilityStatuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
     appliedCapabilities,
+    evaluationCapabilities,
   });
+}
+
+function defaultEvaluationCapabilities(
+  result: RequirementParseResult,
+  appliedCapabilities: RequirementCapability['key'][],
+) {
+  const keys = new Set<RequirementCapability['key']>(appliedCapabilities);
+  if (result.parsed.grades.length > 0) keys.add('grade');
+  if (result.parsed.metro.preferred || result.parsed.metro.maxDistanceMeters !== null) keys.add('metro');
+  if (result.parsed.greenCertifications.length > 0) keys.add('green');
+  return [...keys];
 }
 
 export function readProposalDraft(): ProposalDraft | null {
@@ -89,7 +118,7 @@ export function readProposalDraft(): ProposalDraft | null {
     const raw = target.getItem(PROPOSAL_DRAFT_STORAGE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isDraft(parsed) ? parsed : null;
+    return isDraft(parsed) ? normalizeDraft(parsed) : null;
   } catch {
     return null;
   }
@@ -98,9 +127,13 @@ export function readProposalDraft(): ProposalDraft | null {
 export function beginProposalDraft(
   result: RequirementParseResult,
   appliedCapabilities: RequirementCapability['key'][],
+  evaluationCapabilities?: RequirementCapability['key'][],
 ): ProposalDraft | null {
   const safeAppliedCapabilities = [...new Set(appliedCapabilities)];
-  const requirementFingerprint = fingerprint(result, safeAppliedCapabilities);
+  const safeEvaluationCapabilities = [...new Set(
+    evaluationCapabilities ?? defaultEvaluationCapabilities(result, safeAppliedCapabilities),
+  )];
+  const requirementFingerprint = fingerprint(result, safeAppliedCapabilities, safeEvaluationCapabilities);
   const previous = readProposalDraft();
   const now = new Date().toISOString();
 
@@ -112,6 +145,7 @@ export function beginProposalDraft(
       parsed: result.parsed,
       capabilities: result.capabilities,
       appliedCapabilities: safeAppliedCapabilities,
+      evaluationCapabilities: safeEvaluationCapabilities,
     },
     items: previous?.requirementFingerprint === requirementFingerprint ? previous.items.slice(0, MAX_PROPOSAL_CANDIDATES) : [],
     updatedAt: now,

@@ -54,6 +54,9 @@ function building(id: string, grade: string, rentMonthly: number, metroAccess: s
       standardFloorArea: 2000,
       propertyManagement: null,
       leedCertification: null,
+      wellCertification: null,
+      greenBuildingStandard: null,
+      completionDate: null,
     },
   };
 }
@@ -84,7 +87,7 @@ describe('recommendationEngine', () => {
     expect(plan.recommendations.map(item => item.id)).toEqual(['inside']);
   });
 
-  it('respects an explicit grade hard constraint', () => {
+  it('respects an explicit grade hard constraint without double-counting it in ranking score', () => {
     const plan = buildRecommendationPlan(
       result,
       '望京，只考虑甲级项目，预算7元以内',
@@ -93,6 +96,8 @@ describe('recommendationEngine', () => {
 
     expect(plan.gradeIsHard).toBe(true);
     expect(plan.recommendations.map(item => item.id)).toEqual(['a']);
+    expect(plan.recommendations[0]?.scoreBreakdown.map(item => item.key)).not.toContain('grade');
+    expect(plan.recommendations[0]?.scoreBreakdown.map(item => item.key)).not.toContain('location');
   });
 
   it('keeps unavailable unit area and move-in timing as verification items rather than scoring facts', () => {
@@ -102,5 +107,17 @@ describe('recommendationEngine', () => {
     expect(verification).toContain('实时可租单元面积');
     expect(verification).toContain('实时销控');
     expect(plan.recommendations[0]?.cautions.join(' ')).toContain('不代表当前有对应可租单元');
+  });
+
+  it('returns an evidence-based relaxation hint instead of padding an empty shortlist', () => {
+    const plan = buildRecommendationPlan(
+      result,
+      '望京，预算5元以内',
+      [building('a', 'A', 190, '地铁步行5分钟'), building('b', 'A', 210, '地铁步行8分钟')],
+    );
+
+    expect(plan.candidateCount).toBe(0);
+    expect(plan.relaxationHints.join(' ')).toContain('最低约');
+    expect(plan.relaxationHints.join(' ')).toContain('当前预算上限会过滤全部项目');
   });
 });

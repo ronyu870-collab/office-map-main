@@ -1,4 +1,12 @@
+import type { RecommendationResponse } from '@/src/lib/intelligence/recommendationEngine';
 import type { RequirementParseResult } from '@/src/lib/intelligence/requirementSchema';
+
+async function readJson<T>(response: Response, fallback: string): Promise<T> {
+  const payload = await response.json().catch(() => null) as (T & { error?: string }) | null;
+  if (!response.ok) throw new Error(payload?.error || fallback);
+  if (!payload) throw new Error(`${fallback}：返回为空`);
+  return payload;
+}
 
 export async function parseIntelligenceRequirement(
   requirement: string,
@@ -13,11 +21,21 @@ export async function parseIntelligenceRequirement(
     body: JSON.stringify({ requirement }),
     cache: 'no-store',
   });
+  return readJson<RequirementParseResult>(response, '客户需求解析失败，请稍后重试');
+}
 
-  const payload = await response.json().catch(() => null) as (RequirementParseResult & { error?: string }) | null;
-  if (!response.ok) {
-    throw new Error(payload?.error || '客户需求解析失败，请稍后重试');
-  }
-  if (!payload) throw new Error('客户需求解析返回为空，请重试');
-  return payload;
+export async function recommendIntelligenceBuildings(
+  requirement: string,
+  accessToken: string,
+): Promise<RecommendationResponse> {
+  const response = await fetch('/api/intelligence/recommend', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ requirement }),
+    cache: 'no-store',
+  });
+  return readJson<RecommendationResponse>(response, 'AI 推荐生成失败，请稍后重试');
 }

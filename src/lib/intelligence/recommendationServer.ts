@@ -1,10 +1,9 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 import {
   toFiniteNumber,
   type RecommendationBuildingSource,
-} from '@/src/lib/intelligence/recommendationEngine';
-import { supabase } from './supabaseClient';
-
-let cachedUniversePromise: Promise<RecommendationBuildingSource[]> | null = null;
+} from './recommendationEngine';
 
 function text(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -12,23 +11,24 @@ function text(value: unknown): string | null {
   return trimmed || null;
 }
 
-async function loadUniverse(): Promise<RecommendationBuildingSource[]> {
+export async function loadRecommendationUniverse(client: SupabaseClient): Promise<RecommendationBuildingSource[]> {
   const [buildingResult, metricResult, brochureResult] = await Promise.all([
-    supabase
+    client
       .from('buildings')
       .select('id,name,grade,submarket,district')
+      .eq('is_active', true)
       .order('name')
       .limit(3000),
-    supabase
+    client
       .from('building_metrics')
       .select('building_id,record_year,record_quarter,created_at,net_effective_rent,asking_rent,vacancy_rate,management_fee')
       .order('record_year', { ascending: false })
       .order('record_quarter', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(5000),
-    supabase
+    client
       .from('building_brochure_data')
-      .select('building_id,address,developer,metro_access,standard_floor_area,property_management,leed_certification,created_at')
+      .select('building_id,address,developer,metro_access,standard_floor_area,property_management,leed_certification,well_certification,green_building_standard,completion_date,created_at')
       .order('created_at', { ascending: false })
       .limit(3000),
   ]);
@@ -77,21 +77,10 @@ async function loadUniverse(): Promise<RecommendationBuildingSource[]> {
         standardFloorArea: toFiniteNumber(brochure.standard_floor_area),
         propertyManagement: text(brochure.property_management),
         leedCertification: text(brochure.leed_certification),
+        wellCertification: text(brochure.well_certification),
+        greenBuildingStandard: text(brochure.green_building_standard),
+        completionDate: text(brochure.completion_date),
       } : null,
     } satisfies RecommendationBuildingSource];
   });
-}
-
-export function loadIntelligenceRecommendationUniverse() {
-  if (!cachedUniversePromise) {
-    cachedUniversePromise = loadUniverse().catch(error => {
-      cachedUniversePromise = null;
-      throw error;
-    });
-  }
-  return cachedUniversePromise;
-}
-
-export function clearIntelligenceRecommendationCache() {
-  cachedUniversePromise = null;
 }

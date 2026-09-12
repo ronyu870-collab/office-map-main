@@ -1,12 +1,16 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
   ArrowRight,
   Building2,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   FileChartColumn,
   MapPinned,
   Search,
@@ -18,14 +22,18 @@ import { WorkspaceShell } from '@/src/components/layout';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
-import {
-  buildRecommendationPlan,
-  type RecommendationPlan,
-  type RecommendedBuilding,
+import type {
+  RecommendationResponse,
+  RecommendedBuilding,
 } from '@/src/lib/intelligence/recommendationEngine';
 import { beginProposalDraft, setProposalCandidates } from '@/src/lib/intelligence/proposalDraft';
-import { parseIntelligenceRequirement } from '@/src/services/intelligenceApi';
-import { loadIntelligenceRecommendationUniverse } from '@/src/services/intelligenceRecommendations';
+import { recommendIntelligenceBuildings } from '@/src/services/intelligenceApi';
+
+const EXAMPLES = [
+  '望京或酒仙桥，800–1200㎡，预算7元以内，11月入住，优先甲级项目、地铁便利',
+  'CBD，预算9元以内，只考虑甲级写字楼，地铁方便，优先LEED认证',
+  '中关村，500–800㎡，控制成本，优先交通便利和成熟物业管理',
+];
 
 function formatGrade(grade: string) {
   const normalized = grade.toUpperCase();
@@ -74,72 +82,136 @@ function CriterionPill({ children, tone = 'neutral' }: { children: React.ReactNo
   return <span className={`rounded-full border px-2.5 py-1 text-[11px] ${className}`}>{children}</span>;
 }
 
-function RecommendationCard({ building, rank }: { building: RecommendedBuilding; rank: number }) {
+function RecommendationCard({
+  building,
+  rank,
+  selected,
+  expanded,
+  onToggleSelected,
+  onToggleExpanded,
+}: {
+  building: RecommendedBuilding;
+  rank: number;
+  selected: boolean;
+  expanded: boolean;
+  onToggleSelected: () => void;
+  onToggleExpanded: () => void;
+}) {
+  const visibleReasons = expanded ? building.reasons : building.reasons.slice(0, 2);
   return (
-    <article className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--cd-color-brand)] text-xs font-semibold text-white">{rank}</span>
-            <h3 className="truncate text-[15px] font-semibold text-slate-900">{building.name}</h3>
-            <Badge tone="neutral">{formatGrade(building.grade)}</Badge>
+    <article className={`rounded-[var(--cd-radius-lg)] border bg-white transition ${selected ? 'border-[color:rgb(0_62_126_/_0.35)] shadow-[0_4px_18px_rgb(15_23_42_/_0.05)]' : 'border-[var(--cd-color-border)]'}`}>
+      <div className="p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${rank <= 3 ? 'bg-[var(--cd-color-brand)] text-white' : 'bg-slate-100 text-slate-600'}`}>{rank}</span>
+              <h3 className="max-w-[520px] truncate text-[15px] font-semibold text-slate-900">{building.name}</h3>
+              <Badge tone="neutral">{formatGrade(building.grade)}</Badge>
+              {rank <= 5 ? <Badge tone="brand">AI Top {rank}</Badge> : null}
+            </div>
+            <div className="mt-1.5 text-xs text-slate-500">
+              {building.district || '—'} · {building.submarket || '—'}
+              {building.brochure?.address ? ` · ${building.brochure.address}` : ''}
+            </div>
           </div>
-          <div className="mt-1.5 text-xs text-slate-500">
-            {building.district || '—'} · {building.submarket || '—'}
-            {building.brochure?.address ? ` · ${building.brochure.address}` : ''}
+          <div className="flex items-start gap-3">
+            <div className="text-right">
+              <div className="text-[10px] text-slate-400">综合匹配</div>
+              {building.score === null ? (
+                <div className="mt-1 text-sm font-semibold text-slate-600">符合硬条件</div>
+              ) : (
+                <div className="mt-0.5 text-2xl font-semibold tabular-nums text-[var(--cd-color-brand)]">{building.score}<span className="text-[10px] font-normal text-slate-400"> /100</span></div>
+              )}
+              <div className="mt-0.5 text-[10px] text-slate-400">数据覆盖 {building.dataCompleteness}%</div>
+            </div>
+            <button
+              type="button"
+              onClick={onToggleSelected}
+              aria-pressed={selected}
+              className={`inline-flex h-8 items-center gap-1 rounded-[var(--cd-radius-md)] border px-2.5 text-xs font-medium transition ${selected ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand)] text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-[var(--cd-color-brand)] hover:text-[var(--cd-color-brand)]'}`}
+            >
+              {selected ? <Check size={13} aria-hidden="true" /> : null}
+              {selected ? '已选' : '加入方案'}
+            </button>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-[10px] text-slate-400">推荐度</div>
-          <div className="mt-0.5 text-2xl font-semibold tabular-nums text-[var(--cd-color-brand)]">{building.score}<span className="text-[10px] font-normal text-slate-400"> /100</span></div>
-        </div>
-      </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="rounded-md bg-slate-50 p-3">
-          <div className="text-[10px] text-slate-400">租金口径</div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">{building.rentDaily === null ? '—' : `¥${building.rentDaily.toFixed(1)}`}</div>
-          <div className="text-[10px] text-slate-400">元/㎡/天 · {building.rentBasisLabel || '—'}</div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-md bg-slate-50 p-3">
+            <div className="text-[10px] text-slate-400">租金</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">{building.rentDaily === null ? '—' : `¥${building.rentDaily.toFixed(1)}`}</div>
+            <div className="text-[10px] text-slate-400">元/㎡/天 · {building.rentBasisLabel || '—'}</div>
+          </div>
+          <div className="rounded-md bg-slate-50 p-3">
+            <div className="text-[10px] text-slate-400">地铁</div>
+            <div className="mt-1 line-clamp-1 text-sm font-semibold text-slate-900">{building.brochure?.metroAccess || '—'}</div>
+            <div className="text-[10px] text-slate-400">楼书通达信息</div>
+          </div>
+          <div className="rounded-md bg-slate-50 p-3">
+            <div className="text-[10px] text-slate-400">标准层面积</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">{building.brochure?.standardFloorArea == null ? '—' : `${building.brochure.standardFloorArea.toLocaleString('zh-CN')}㎡`}</div>
+            <div className="text-[10px] text-slate-400">非实时可租面积</div>
+          </div>
+          <div className="rounded-md bg-slate-50 p-3">
+            <div className="text-[10px] text-slate-400">空置率</div>
+            <div className="mt-1 text-sm font-semibold text-slate-900">{formatVacancy(building.metrics.vacancyRate)}</div>
+            <div className="text-[10px] text-slate-400">市场指标 · {building.metricPeriod || '—'}</div>
+          </div>
         </div>
-        <div className="rounded-md bg-slate-50 p-3">
-          <div className="text-[10px] text-slate-400">空置率</div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">{formatVacancy(building.metrics.vacancyRate)}</div>
-          <div className="text-[10px] text-slate-400">市场指标 · {building.metricPeriod || '无数据期'}</div>
-        </div>
-        <div className="rounded-md bg-slate-50 p-3">
-          <div className="text-[10px] text-slate-400">标准层面积</div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">{building.brochure?.standardFloorArea == null ? '—' : `${building.brochure.standardFloorArea.toLocaleString('zh-CN')}㎡`}</div>
-          <div className="text-[10px] text-slate-400">楼书字段，非实时可租面积</div>
-        </div>
-        <div className="rounded-md bg-slate-50 p-3">
-          <div className="text-[10px] text-slate-400">数据完整度</div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">{building.dataCompleteness}%</div>
-          <div className="text-[10px] text-slate-400">仅衡量已有字段覆盖</div>
-        </div>
-      </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div>
-          <div className="text-[11px] font-semibold text-slate-600">为什么推荐</div>
-          <div className="mt-2 space-y-1.5">
-            {building.reasons.length > 0 ? building.reasons.map(reason => (
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold text-slate-600">核心推荐理由</div>
+          <div className="mt-2 grid gap-1.5 lg:grid-cols-2">
+            {visibleReasons.length > 0 ? visibleReasons.map(reason => (
               <div key={reason} className="flex items-start gap-2 text-xs leading-5 text-slate-600">
                 <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
                 <span>{reason}</span>
               </div>
-            )) : <div className="text-xs text-slate-400">当前没有足够的可验证字段生成推荐理由。</div>}
+            )) : <div className="text-xs text-slate-400">当前没有额外排序偏好，项目主要因满足硬条件进入候选。</div>}
           </div>
         </div>
-        <div>
-          <div className="text-[11px] font-semibold text-slate-600">需要 Broker 确认</div>
-          <div className="mt-2 space-y-1.5">
-            {building.cautions.length > 0 ? building.cautions.map(caution => (
-              <div key={caution} className="flex items-start gap-2 text-xs leading-5 text-slate-500">
-                <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
-                <span>{caution}</span>
+
+        {expanded ? (
+          <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 lg:grid-cols-2">
+            <div>
+              <div className="text-[11px] font-semibold text-slate-600">评分构成</div>
+              <div className="mt-2 space-y-2">
+                {building.scoreBreakdown.length > 0 ? building.scoreBreakdown.map(factor => (
+                  <div key={factor.key} className="rounded-md bg-slate-50 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className="font-medium text-slate-700">{factor.label}</span>
+                      <span className="tabular-nums text-slate-500">{Math.round(factor.score)} / {factor.max}</span>
+                    </div>
+                    <div className="mt-1 text-[11px] leading-4 text-slate-400">{factor.detail}</div>
+                  </div>
+                )) : <div className="text-xs text-slate-400">没有额外排序因子；仅按硬条件筛选和数据覆盖排序。</div>}
               </div>
-            )) : <div className="text-xs text-slate-400">当前没有额外待确认项。</div>}
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold text-slate-600">需要 Broker 确认 / 权衡</div>
+              <div className="mt-2 space-y-1.5">
+                {building.cautions.length > 0 ? building.cautions.map(caution => (
+                  <div key={caution} className="flex items-start gap-2 text-xs leading-5 text-slate-500">
+                    <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
+                    <span>{caution}</span>
+                  </div>
+                )) : <div className="text-xs text-slate-400">当前没有额外待确认项。</div>}
+              </div>
+            </div>
           </div>
+        ) : null}
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <button type="button" onClick={onToggleExpanded} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-[var(--cd-color-brand)]">
+            {expanded ? <ChevronUp size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
+            {expanded ? '收起分析' : '展开分析'}
+          </button>
+          <Link
+            href={`/compare?buildingId=${encodeURIComponent(building.id)}&name=${encodeURIComponent(building.name)}`}
+            className="text-xs font-medium text-[var(--cd-color-brand)] hover:underline"
+          >
+            查看详细参数 →
+          </Link>
         </div>
       </div>
     </article>
@@ -150,16 +222,22 @@ export function IntelligenceRecommendationWorkspace() {
   const router = useRouter();
   const { session, status } = useAppSession();
   const [requirement, setRequirement] = React.useState('');
-  const [plan, setPlan] = React.useState<RecommendationPlan | null>(null);
+  const [submittedRequirement, setSubmittedRequirement] = React.useState('');
+  const [response, setResponse] = React.useState<RecommendationResponse | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showAll, setShowAll] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
+  const [selectionMessage, setSelectionMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
   }, [router, status]);
 
   const previewEnabled = isIntelligencePreviewEnabled(session?.role);
+  const plan = response?.plan ?? null;
+  const isDirty = Boolean(plan && requirement.trim() !== submittedRequirement);
 
   async function handleRecommend() {
     const accessToken = session?.session?.access_token;
@@ -168,14 +246,14 @@ export function IntelligenceRecommendationWorkspace() {
 
     setLoading(true);
     setError(null);
-    setPlan(null);
-    setShowAll(false);
+    setSelectionMessage(null);
     try {
-      const [result, universe] = await Promise.all([
-        parseIntelligenceRequirement(input, accessToken),
-        loadIntelligenceRecommendationUniverse(),
-      ]);
-      setPlan(buildRecommendationPlan(result, input, universe));
+      const next = await recommendIntelligenceBuildings(input, accessToken);
+      setResponse(next);
+      setSubmittedRequirement(input);
+      setShowAll(false);
+      setExpandedIds(new Set());
+      setSelectedIds(next.plan.recommendations.slice(0, 5).map(item => item.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '推荐生成失败，请稍后重试。');
     } finally {
@@ -186,23 +264,42 @@ export function IntelligenceRecommendationWorkspace() {
   if (status === 'loading' || !session) return <IntelligenceLoadingShell />;
   if (!previewEnabled) return <PreviewUnavailable />;
 
-  const topFive = plan?.recommendations.slice(0, 5) ?? [];
-  const visible = plan?.recommendations.slice(0, showAll ? 20 : 5) ?? [];
+  const visible = plan?.recommendations.slice(0, showAll ? response?.meta.returnedCount ?? 5 : 5) ?? [];
   const mapHandoff = plan ? createIntelligenceMapHandoff(plan.effectiveResult) : null;
+  const selectedBuildings = plan?.recommendations.filter(item => selectedIds.includes(item.id)) ?? [];
 
-  function prepareDraft(seedTopFive: boolean) {
+  function toggleSelected(buildingId: string) {
+    setSelectionMessage(null);
+    setSelectedIds(previous => {
+      if (previous.includes(buildingId)) return previous.filter(id => id !== buildingId);
+      if (previous.length >= 5) {
+        setSelectionMessage('客户方案最多保留 5 个项目；请先取消一个已选项目。');
+        return previous;
+      }
+      return [...previous, buildingId];
+    });
+  }
+
+  function toggleExpanded(buildingId: string) {
+    setExpandedIds(previous => {
+      const next = new Set(previous);
+      if (next.has(buildingId)) next.delete(buildingId);
+      else next.add(buildingId);
+      return next;
+    });
+  }
+
+  function prepareDraft() {
     if (!plan || !mapHandoff) return false;
     const draft = beginProposalDraft(plan.effectiveResult, mapHandoff.appliedCapabilities);
     if (!draft) {
       setError('浏览器会话存储不可用，暂时无法创建客户方案。');
       return false;
     }
-    if (seedTopFive) {
-      const seeded = setProposalCandidates(topFive.map(item => ({ buildingId: item.id, buildingName: item.name })));
-      if (!seeded) {
-        setError('无法写入推荐项目，请刷新页面后重试。');
-        return false;
-      }
+    const seeded = setProposalCandidates(selectedBuildings.map(item => ({ buildingId: item.id, buildingName: item.name })));
+    if (!seeded) {
+      setError('无法写入推荐项目，请刷新页面后重试。');
+      return false;
     }
     return true;
   }
@@ -210,9 +307,9 @@ export function IntelligenceRecommendationWorkspace() {
   return (
     <WorkspaceShell
       className="h-screen h-[100dvh] overflow-hidden bg-[var(--cd-color-canvas)]"
-      header={<AppHeader title="业务智能 Intelligence" homeHref="/" status={<Badge tone="brand">AI Shortlist Pilot</Badge>} />}
+      header={<AppHeader title="业务智能 Intelligence" homeHref="/" status={<Badge tone="brand">AI Site Selection</Badge>} />}
     >
-      <main className="h-full overflow-y-auto overscroll-contain">
+      <main className="h-full overflow-y-auto overscroll-contain pb-24">
         <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
           <section className="mb-5">
             <div className="flex items-center gap-2">
@@ -220,7 +317,7 @@ export function IntelligenceRecommendationWorkspace() {
               <h1 className="text-xl font-semibold text-slate-900">AI 选址顾问</h1>
             </div>
             <p className="mt-1.5 max-w-3xl text-sm leading-6 text-slate-500">
-              直接描述客户需求。系统会用真实楼宇、季度指标与楼书数据检索并排序候选项目；无法由当前数据库验证的条件会明确标记给 Broker 二次确认。
+              输入客户需求后直接得到真实项目 shortlist。AI 负责理解语言，内部数据负责事实，确定性规则负责筛选与排序，Broker 负责最终判断。
             </p>
           </section>
 
@@ -228,144 +325,194 @@ export function IntelligenceRecommendationWorkspace() {
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Search size={16} className="text-[var(--cd-color-brand)]" aria-hidden="true" />
-                <h2 className="text-[15px] font-semibold text-slate-900">今天要帮客户找什么样的办公室？</h2>
+                <h2 className="text-[15px] font-semibold text-slate-900">客户需求</h2>
               </div>
               <Badge tone="brand">DeepSeek</Badge>
             </div>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <textarea
-                value={requirement}
-                onChange={event => {
-                  setRequirement(event.target.value);
-                  setPlan(null);
-                  setError(null);
-                }}
-                rows={3}
-                maxLength={1200}
-                placeholder="例如：望京或酒仙桥，800–1200㎡，预算7元以内，11月入住，优先甲级项目、地铁便利。"
-                className="min-h-[92px] min-w-0 flex-1 resize-none rounded-[var(--cd-radius-md)] border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 outline-none transition focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[color:rgb(0_62_126_/_0.08)]"
-              />
-              <Button type="button" variant="primary" disabled={!requirement.trim() || loading} onClick={() => void handleRecommend()} className="sm:self-end">
-                {loading ? '正在检索与排序…' : '开始推荐'} <ArrowRight size={14} aria-hidden="true" />
+            <textarea
+              value={requirement}
+              onChange={event => {
+                setRequirement(event.target.value);
+                setError(null);
+              }}
+              onKeyDown={event => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleRecommend();
+                }
+              }}
+              rows={3}
+              maxLength={1200}
+              placeholder="例如：望京或酒仙桥，800–1200㎡，预算7元以内，11月入住，优先甲级项目、地铁便利。"
+              className="mt-3 min-h-[92px] w-full resize-none rounded-[var(--cd-radius-md)] border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-900 outline-none transition focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[color:rgb(0_62_126_/_0.08)]"
+            />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-1.5">
+                {EXAMPLES.map((example, index) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => setRequirement(example)}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-500 transition hover:border-blue-200 hover:text-blue-700"
+                  >
+                    示例 {index + 1}
+                  </button>
+                ))}
+                <span className="self-center text-[10px] text-slate-400">⌘/Ctrl + Enter 快速推荐</span>
+              </div>
+              <Button type="button" variant="primary" disabled={!requirement.trim() || loading} onClick={() => void handleRecommend()}>
+                {loading ? '正在理解、检索与排序…' : plan ? '重新推荐' : '开始推荐'} <ArrowRight size={14} aria-hidden="true" />
               </Button>
             </div>
+            {isDirty ? (
+              <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                需求已修改。下方结果仍基于上一轮需求，点击“重新推荐”后才会更新，不会因为编辑文字而丢失当前 shortlist。
+              </div>
+            ) : null}
             {error ? <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-600" role="alert">{error}</div> : null}
           </section>
 
           {loading ? (
             <section className="mt-5 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-6">
-              <LoadingState rows={4} label="AI 正在理解需求，并用真实数据生成候选项目" />
+              <LoadingState rows={4} label="AI 正在理解需求，服务端正在检索真实楼宇并生成 shortlist" />
             </section>
           ) : null}
 
-          {plan ? (
+          {plan && response ? (
             <section className="mt-5" aria-live="polite">
               <div className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
                       <Building2 size={17} className="text-[var(--cd-color-brand)]" aria-hidden="true" />
-                      <h2 className="text-base font-semibold text-slate-900">AI 推荐结果</h2>
+                      <h2 className="text-base font-semibold text-slate-900">AI 推荐 shortlist</h2>
                     </div>
                     <p className="mt-1.5 text-sm text-slate-500">
-                      找到 <strong className="font-semibold text-slate-800">{plan.candidateCount}</strong> 个满足当前硬条件的初步候选，优先推荐以下 {Math.min(5, plan.candidateCount)} 个项目。
+                      找到 <strong className="font-semibold text-slate-800">{plan.candidateCount}</strong> 个满足硬条件的候选。已默认选中排名前 {Math.min(5, plan.candidateCount)} 个，你可以直接替换后生成客户方案。
                     </p>
                   </div>
-                  <div className="text-right text-[11px] text-slate-400">
-                    <div>模型：{plan.effectiveResult.meta.model}</div>
-                    <div>{plan.effectiveResult.meta.durationMs.toLocaleString('zh-CN')} ms · 推荐排序由本地可解释规则完成</div>
+                  <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-500">
+                    <CriterionPill>真实楼宇 {response.meta.universeCount}</CriterionPill>
+                    <CriterionPill>季度 {response.meta.latestMetricPeriod || '—'}</CriterionPill>
+                    <CriterionPill>规则 {response.meta.rankingVersion}</CriterionPill>
+                    <CriterionPill>{plan.effectiveResult.meta.model}</CriterionPill>
                   </div>
                 </div>
 
                 <div className="mt-4 grid gap-3 lg:grid-cols-3">
                   <div className="rounded-md border border-slate-200 p-3">
-                    <div className="text-[11px] font-semibold text-slate-600">硬条件 · 必须满足</div>
+                    <div className="text-[11px] font-semibold text-slate-600">硬条件 · 负责淘汰</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {plan.hardCriteria.length ? plan.hardCriteria.map(item => <CriterionPill key={item} tone="brand">{item}</CriterionPill>) : <span className="text-xs text-slate-400">未识别到硬筛选条件</span>}
                     </div>
                   </div>
                   <div className="rounded-md border border-slate-200 p-3">
-                    <div className="text-[11px] font-semibold text-slate-600">偏好 · 用于排序</div>
+                    <div className="text-[11px] font-semibold text-slate-600">偏好 · 负责排序</div>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {plan.preferenceCriteria.length ? plan.preferenceCriteria.map(item => <CriterionPill key={item}>{item}</CriterionPill>) : <span className="text-xs text-slate-400">未识别到额外偏好</span>}
                     </div>
                   </div>
                   <div className="rounded-md border border-amber-200 bg-amber-50/40 p-3">
-                    <div className="text-[11px] font-semibold text-amber-700">待确认 · 不作事实承诺</div>
+                    <div className="text-[11px] font-semibold text-amber-700">待确认 · 不参与事实承诺</div>
                     <div className="mt-2 space-y-1 text-[11px] leading-5 text-amber-700">
-                      {plan.verificationRequired.length ? plan.verificationRequired.map(item => <div key={item}>• {item}</div>) : <div>当前没有额外待确认项</div>}
+                      {plan.verificationRequired.length ? plan.verificationRequired.slice(0, 4).map(item => <div key={item}>• {item}</div>) : <div>当前没有额外待确认项</div>}
                     </div>
                   </div>
                 </div>
 
                 {plan.assumptions.length ? (
                   <div className="mt-3 rounded-md bg-blue-50 px-3 py-2 text-[11px] leading-5 text-blue-700">
-                    <strong className="font-semibold">系统假设：</strong> {plan.assumptions.join(' ')}
+                    <strong className="font-semibold">系统采用的默认口径：</strong> {plan.assumptions.join(' ')}
                   </div>
                 ) : null}
 
                 {plan.candidateCount === 0 ? (
                   <div className="mt-5 rounded-md border border-dashed border-slate-200 p-8 text-center">
                     <div className="text-sm font-semibold text-slate-800">当前没有项目同时满足硬条件</div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">可以放宽区域或预算后重新推荐。系统不会为了凑数把不满足硬条件的项目塞进结果。</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">系统不会为了凑数把不满足条件的项目塞进结果。</p>
+                    {plan.relaxationHints.length ? (
+                      <div className="mx-auto mt-4 max-w-2xl space-y-1.5 text-left text-xs leading-5 text-amber-700">
+                        {plan.relaxationHints.map(item => <div key={item} className="rounded-md bg-amber-50 px-3 py-2">建议：{item}</div>)}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
 
+              {selectionMessage ? <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{selectionMessage}</div> : null}
+
               {visible.length > 0 ? (
                 <div className="mt-4 space-y-3">
-                  {visible.map((building, index) => <RecommendationCard key={building.id} building={building} rank={index + 1} />)}
+                  {visible.map((building, index) => (
+                    <RecommendationCard
+                      key={building.id}
+                      building={building}
+                      rank={index + 1}
+                      selected={selectedIds.includes(building.id)}
+                      expanded={expandedIds.has(building.id)}
+                      onToggleSelected={() => toggleSelected(building.id)}
+                      onToggleExpanded={() => toggleExpanded(building.id)}
+                    />
+                  ))}
                 </div>
               ) : null}
 
-              {plan.candidateCount > 0 ? (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-4">
-                  <div className="text-xs leading-5 text-slate-500">
-                    AI 已完成检索和排序；地图用于空间核验，Proposal 用于 Broker 审核后输出客户方案。
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {plan.candidateCount > 5 ? (
-                      <Button type="button" size="sm" variant="secondary" onClick={() => setShowAll(value => !value)}>
-                        {showAll ? '收起候选' : `查看更多候选（共 ${plan.candidateCount}）`}
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={!mapHandoff || mapHandoff.appliedCapabilities.length === 0}
-                      onClick={() => {
-                        if (!mapHandoff || !prepareDraft(false)) return;
-                        router.push(mapHandoff.href);
-                      }}
-                    >
-                      <MapPinned size={13} aria-hidden="true" /> 在地图查看
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="primary"
-                      disabled={topFive.length === 0 || !mapHandoff}
-                      onClick={() => {
-                        if (!prepareDraft(true)) return;
-                        router.push('/intelligence/proposal');
-                      }}
-                    >
-                      <FileChartColumn size={13} aria-hidden="true" /> 生成 Top {topFive.length} 客户方案
-                    </Button>
-                  </div>
+              {plan.candidateCount > 5 && response.meta.returnedCount > 5 ? (
+                <div className="mt-4 text-center">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setShowAll(value => !value)}>
+                    {showAll ? '收起候选' : `查看更多候选（已返回 ${response.meta.returnedCount} / 共 ${plan.candidateCount}）`}
+                  </Button>
                 </div>
               ) : null}
             </section>
           ) : null}
 
-          <section className="mt-5 rounded-[var(--cd-radius-lg)] border border-dashed border-slate-200 bg-white/70 p-4 text-xs leading-5 text-slate-500">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
-              <p>当前系统尚未接入正式实时销控，因此不会声称某栋楼当前一定存在指定面积、确定可在指定月份入住。推荐负责缩小搜索范围，最终对客事实仍由 Broker 核验。</p>
-            </div>
-          </section>
+          {!plan ? (
+            <section className="mt-5 rounded-[var(--cd-radius-lg)] border border-dashed border-slate-200 bg-white/70 p-5 text-sm leading-6 text-slate-500">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={15} className="mt-1 shrink-0 text-amber-500" aria-hidden="true" />
+                <p>当前尚未接入正式实时销控，因此面积和明确入住月份会保留为 Broker 核验项；系统不会把标准层面积、季度空置率等字段冒充实时可租房源。</p>
+              </div>
+            </section>
+          ) : null}
         </div>
+
+        {plan && plan.candidateCount > 0 ? (
+          <div className="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgb(15_23_42_/_0.06)] backdrop-blur sm:px-6">
+            <div className="mx-auto flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">已选 {selectedIds.length} / 5 个项目</div>
+                <div className="mt-0.5 text-[11px] text-slate-400">AI 先推荐，Broker 审核后再进入地图或输出客户方案。</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={!mapHandoff || mapHandoff.appliedCapabilities.length === 0}
+                  onClick={() => {
+                    if (!mapHandoff || !prepareDraft()) return;
+                    router.push(mapHandoff.href);
+                  }}
+                >
+                  <MapPinned size={13} aria-hidden="true" /> 在地图核验
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  disabled={selectedIds.length === 0 || !mapHandoff}
+                  onClick={() => {
+                    if (!prepareDraft()) return;
+                    router.push('/intelligence/proposal');
+                  }}
+                >
+                  <FileChartColumn size={13} aria-hidden="true" /> 生成已选 {selectedIds.length} 个项目方案
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </main>
     </WorkspaceShell>
   );
