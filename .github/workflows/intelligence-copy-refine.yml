@@ -1,0 +1,97 @@
+name: Intelligence Copy Refinement
+
+on:
+  push:
+    branches: [refine/intelligence-workspace-copy]
+    paths: [.github/workflows/intelligence-copy-refine.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refine/intelligence-workspace-copy
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Refine Intelligence product copy and selection semantics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/components/intelligence/IntelligenceRecommendationWorkspace.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = {
+            "  selected,\n  expanded,\n  onToggleSelected,": "  selected,\n  aiPreselected,\n  expanded,\n  onToggleSelected,",
+            "  selected: boolean;\n  expanded: boolean;": "  selected: boolean;\n  aiPreselected: boolean;\n  expanded: boolean;",
+            "{rank <= 5 ? <Badge tone=\"brand\">AI Top {rank}</Badge> : null}": "{rank <= 5 ? <Badge tone=\"brand\">AI 推荐 #{rank}</Badge> : null}",
+            "<div className=\"mt-0.5 text-[10px] text-slate-400\">数据覆盖 {building.dataCompleteness}%</div>": "<div className=\"mt-0.5 text-[10px] text-slate-400\">数据完整度 {building.dataCompleteness}%</div>",
+            "{selected ? '已选' : '加入方案'}": "{selected ? (aiPreselected ? 'AI 预选' : '已确认') : '加入方案'}",
+            "<div className=\"text-[11px] font-semibold text-slate-600\">需要 Broker 确认 / 权衡</div>": "<div className=\"text-[11px] font-semibold text-slate-600\">需业务人员确认 / 权衡</div>",
+            "const [selectedIds, setSelectedIds] = React.useState<string[]>([]);\n  const [expandedIds": "const [selectedIds, setSelectedIds] = React.useState<string[]>([]);\n  const [aiPreselectedIds, setAiPreselectedIds] = React.useState<Set<string>>(new Set());\n  const [expandedIds",
+            "setSelectedIds(next.plan.recommendations.slice(0, 5).map(item => item.id));": "const initialSelection = next.plan.recommendations.slice(0, 5).map(item => item.id);\n      setSelectedIds(initialSelection);\n      setAiPreselectedIds(new Set(initialSelection));",
+            "function toggleSelected(buildingId: string) {\n    setSelectionMessage(null);": "function toggleSelected(buildingId: string) {\n    setSelectionMessage(null);\n    setAiPreselectedIds(previous => {\n      const next = new Set(previous);\n      next.delete(buildingId);\n      return next;\n    });",
+            "status={<Badge tone=\"brand\">AI Site Selection</Badge>}": "status={<Badge tone=\"brand\">Pilot Preview</Badge>}",
+            "输入客户需求后直接得到真实项目 shortlist。AI 负责理解语言，内部数据负责事实，确定性规则负责筛选与排序，Broker 负责最终判断。": "输入客户需求后，系统直接从内部真实数据中生成候选项目。AI 负责理解需求，内部数据负责事实，确定性规则负责筛选与排序，最终由业务人员判断。",
+            "需求已修改。下方结果仍基于上一轮需求，点击“重新推荐”后才会更新，不会因为编辑文字而丢失当前 shortlist。": "需求已修改。下方结果仍基于上一轮需求，点击“重新推荐”后才会更新，不会因为编辑文字而丢失当前候选结果。",
+            "AI 正在理解需求，服务端正在检索真实楼宇并生成 shortlist": "AI 正在理解需求，并从真实楼宇数据中生成候选项目",
+            "<h2 className=\"text-base font-semibold text-slate-900\">AI 推荐 shortlist</h2>": "<h2 className=\"text-base font-semibold text-slate-900\">AI 推荐候选</h2>",
+            "找到 <strong className=\"font-semibold text-slate-800\">{plan.candidateCount}</strong> 个满足硬条件的候选。已默认选中排名前 {Math.min(5, plan.candidateCount)} 个，你可以直接替换后生成客户方案。": "找到 <strong className=\"font-semibold text-slate-800\">{plan.candidateCount}</strong> 个满足硬条件的项目。系统已预选排名前 {Math.min(5, plan.candidateCount)} 个，你可以逐项保留、取消或替换后生成客户方案。",
+            "<div className=\"flex flex-wrap gap-1.5 text-[10px] text-slate-500\">\n                    <CriterionPill>真实楼宇 {response.meta.universeCount}</CriterionPill>\n                    <CriterionPill>季度 {response.meta.latestMetricPeriod || '—'}</CriterionPill>\n                    <CriterionPill>规则 {response.meta.rankingVersion}</CriterionPill>\n                    <CriterionPill>{plan.effectiveResult.meta.model}</CriterionPill>\n                  </div>": "<div className=\"text-right text-[11px] leading-5 text-slate-500\">\n                    <div>数据截至 {response.meta.latestMetricPeriod || '—'} · 覆盖 {response.meta.universeCount} 个真实项目</div>\n                    <details className=\"mt-1 text-[10px] text-slate-400\">\n                      <summary className=\"cursor-pointer select-none hover:text-slate-600\">查看技术信息</summary>\n                      <div className=\"mt-1\">规则 {response.meta.rankingVersion} · 模型 {plan.effectiveResult.meta.model}</div>\n                    </details>\n                  </div>",
+            "<div className=\"text-[11px] font-semibold text-slate-600\">硬条件 · 负责淘汰</div>": "<div className=\"text-[11px] font-semibold text-slate-600\">硬条件 · 必须满足</div>",
+            "<div className=\"text-[11px] font-semibold text-slate-600\">偏好 · 负责排序</div>": "<div className=\"text-[11px] font-semibold text-slate-600\">偏好条件 · 用于排序</div>",
+            "<div className=\"text-[11px] font-semibold text-amber-700\">待确认 · 不参与事实承诺</div>": "<div className=\"text-[11px] font-semibold text-amber-700\">待核验 · 不作为自动判断依据</div>",
+            "当前尚未接入正式实时销控，因此面积和明确入住月份会保留为 Broker 核验项；系统不会把标准层面积、季度空置率等字段冒充实时可租房源。": "当前尚未接入正式实时销控，因此面积和明确入住月份会保留为业务核验项；系统不会把标准层面积、季度空置率等字段冒充实时可租房源。",
+            "selected={selectedIds.includes(building.id)}\n                      expanded=": "selected={selectedIds.includes(building.id)}\n                      aiPreselected={selectedIds.includes(building.id) && aiPreselectedIds.has(building.id)}\n                      expanded=",
+            "<div className=\"text-sm font-semibold text-slate-900\">已选 {selectedIds.length} / 5 个项目</div>\n                <div className=\"mt-0.5 text-[11px] text-slate-400\">AI 已预选 Top 5；调整完成后，可核验空间位置或生成客户方案。</div>": "<div className=\"text-sm font-semibold text-slate-900\">方案候选 {selectedIds.length} / 5</div>\n                <div className=\"mt-0.5 text-[11px] text-slate-400\">系统默认预选前 5 名；你可以取消或替换，确认后再核验地图或生成方案。</div>",
+          }
+
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f'Missing expected snippet: {old[:120]}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path('src/components/intelligence/__tests__/recommended-shortlist-contract.test.ts')
+          test = test_path.read_text(encoding='utf-8')
+          test = test.replace("expect(workspace).toContain('AI 推荐 shortlist');", "expect(workspace).toContain('AI 推荐候选');")
+          test = test.replace("expect(workspace).toContain('已选 {selectedIds.length} / 5 个项目');", "expect(workspace).toContain('方案候选 {selectedIds.length} / 5');")
+          insert_after = "expect(workspace).toContain('评分构成');\n"
+          if insert_after not in test:
+              raise SystemExit('Missing shortlist contract insertion point')
+          test = test.replace(insert_after, insert_after + "    expect(workspace).toContain(\"aiPreselected ? 'AI 预选' : '已确认'\");\n    expect(workspace).toContain('查看技术信息');\n    expect(workspace).not.toContain('AI 推荐 shortlist');\n", 1)
+          test_path.write_text(test, encoding='utf-8')
+
+          changelog = Path('CHANGELOG.md')
+          current = changelog.read_text(encoding='utf-8')
+          marker = '## 2026-09-12 — Intelligence workspace copy and hierarchy refinement'
+          if marker not in current:
+              entry = '''## 2026-09-12 — Intelligence workspace copy and hierarchy refinement\n\n### Area\nIntelligence / shortlist review / product copy / UI hierarchy\n\n### Changed\n- Replaced prototype-style `shortlist`, `AI Top N`, and Broker-facing implementation jargon in the primary workflow with clearer Chinese product language.\n- Distinguished system-preselected projects from user-reviewed selections: untouched defaults show `AI 预选`, while a project manually re-added by the user shows `已确认`.\n- Moved ranking-version and model identifiers out of the primary summary into a collapsed technical-details disclosure; the main surface now shows only data period and real-project coverage.\n- Renamed hard/preference/verification sections to business semantics: `必须满足`, `用于排序`, and `待核验`.\n- Renamed the result footer from `已选` to `方案候选` so default AI selections are not misrepresented as explicit user choices.\n- Replaced `数据覆盖` with `数据完整度` and reduced mixed Chinese/English copy in the visible workflow.\n\n### Impact\n- Recommendation, ranking, Map handoff, Proposal seeding, permissions, Supabase schema, and RLS behavior are unchanged.\n- The Intelligence preview reads more like a production Broker workflow while retaining technical diagnostics on demand.\n\n---\n\n'''
+              changelog.write_text(entry + current, encoding='utf-8')
+          PY
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Test focused shortlist contract
+        run: npx vitest run src/components/intelligence/__tests__/recommended-shortlist-contract.test.ts
+      - name: Production build
+        run: npm run build
+      - name: Commit verified refinement
+        run: |
+          rm .github/workflows/intelligence-copy-refine.yml
+          git config user.name "ronyu870-collab"
+          git config user.email "ronyu870@gmail.com"
+          git add src/components/intelligence/IntelligenceRecommendationWorkspace.tsx src/components/intelligence/__tests__/recommended-shortlist-contract.test.ts CHANGELOG.md .github/workflows/intelligence-copy-refine.yml
+          git commit -m "refactor: polish Intelligence review semantics"
+          git push origin HEAD:refine/intelligence-workspace-copy
