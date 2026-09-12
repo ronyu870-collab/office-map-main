@@ -29,7 +29,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
   return (
     <>
       <MapBuildingCompareBridge />
-      <MapProposalBridge enabled={Boolean(initialIntelligenceHandoff)} />
+      {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
       <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} />
     </>
