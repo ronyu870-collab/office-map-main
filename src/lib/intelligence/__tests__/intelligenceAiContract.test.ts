@@ -20,23 +20,33 @@ describe('Intelligence AI integration contract', () => {
     expect(envExample).not.toContain('NEXT_PUBLIC_DEEPSEEK');
   });
 
-  it('requires verified authentication and Intelligence Preview access before model calls', () => {
-    const route = source('src/app/api/intelligence/parse-requirement/route.ts');
+  it('requires verified authentication and Intelligence Preview access through one shared server boundary', () => {
+    const context = source('src/lib/intelligence/serverContext.ts');
+    const parseRoute = source('src/app/api/intelligence/parse-requirement/route.ts');
+    const recommendRoute = source('src/app/api/intelligence/recommend/route.ts');
 
-    expect(route).toContain('auth.getUser(accessToken)');
-    expect(route).toContain(".from('user_roles')");
-    expect(route).toContain('isIntelligencePreviewEnabled(roleRow.role)');
-    expect(route).toContain('RequirementParseInputSchema.safeParse');
-    expect(route).toContain('normalizeRequirementAgainstVocabulary');
+    expect(context).toContain('auth.getUser(accessToken)');
+    expect(context).toContain(".from('user_roles')");
+    expect(context).toContain('isIntelligencePreviewEnabled(roleRow.role)');
+    expect(parseRoute).toContain('requireIntelligenceAccess(request)');
+    expect(recommendRoute).toContain('requireIntelligenceAccess(request)');
+    expect(parseRoute).toContain('RequirementParseInputSchema.safeParse');
+    expect(recommendRoute).toContain('RequirementParseInputSchema.safeParse');
+    expect(recommendRoute).toContain('normalizeRequirementAgainstVocabulary');
   });
 
-  it('audits AI usage metadata without persisting the raw client requirement', () => {
-    const route = source('src/app/api/intelligence/parse-requirement/route.ts');
+  it('audits AI usage metadata without persisting raw client requirements', () => {
+    const parseRoute = source('src/app/api/intelligence/parse-requirement/route.ts');
+    const recommendRoute = source('src/app/api/intelligence/recommend/route.ts');
 
-    expect(route).toContain("action_type: 'AI_REQUIREMENT_PARSE'");
-    expect(route).toContain('requirement_length: requirementLength');
-    expect(route).toContain('input_tokens: result.meta.inputTokens');
-    expect(route).not.toContain('details: { requirement');
-    expect(route).not.toContain('target_name: input.data.requirement');
+    expect(parseRoute).toContain("action_type: 'AI_REQUIREMENT_PARSE'");
+    expect(recommendRoute).toContain("action_type: 'AI_RECOMMENDATION'");
+    expect(parseRoute).toContain('requirement_length: requirementLength');
+    expect(recommendRoute).toContain('requirement_length: requirementLength');
+    expect(recommendRoute).toContain('candidate_count: response.plan.candidateCount');
+    expect(parseRoute).not.toContain('details: { requirement');
+    expect(recommendRoute).not.toContain('details: { requirement');
+    expect(parseRoute).not.toContain('target_name: input.data.requirement');
+    expect(recommendRoute).not.toContain('target_name: input.data.requirement');
   });
 });
