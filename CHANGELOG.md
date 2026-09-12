@@ -10,6 +10,7 @@ Intelligence / shortlist review / product copy / UI hierarchy
 - Renamed hard/preference/verification sections to business semantics: `必须满足`, `用于排序`, and `待核验`.
 - Renamed the result footer from `已选` to `方案候选` so default AI selections are not misrepresented as explicit user choices.
 - Replaced `数据覆盖` with `数据完整度` and reduced mixed Chinese/English copy in the visible workflow.
+- Applied the same product-language cleanup to Proposal: prototype-style `shortlist` / `Broker` / provider labels are replaced by business-facing Chinese copy while scoring, draft state, Map handoff, permissions, and database behavior remain unchanged.
 
 ### Impact
 - Recommendation, ranking, Map handoff, Proposal seeding, permissions, Supabase schema, and RLS behavior are unchanged.
