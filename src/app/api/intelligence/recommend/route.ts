@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   IntelligenceAIError,
@@ -29,9 +30,7 @@ const MAX_BODY_BYTES = 8 * 1024;
 const MAX_RETURNED_RECOMMENDATIONS = 50;
 
 async function auditRecommendation(
-  client: Awaited<ReturnType<typeof requireIntelligenceAccess>> extends infer T
-    ? T extends { client: infer C } ? C : never
-    : never,
+  client: SupabaseClient,
   callerId: string,
   result: RequirementParseResult,
   response: RecommendationResponse,
