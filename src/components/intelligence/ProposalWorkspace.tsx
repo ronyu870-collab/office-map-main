@@ -3,6 +3,7 @@
 import * as React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FileDown, Trash2 } from 'lucide-react';
 
 import { WorkspaceShell } from '@/src/components/layout';
@@ -70,6 +71,7 @@ function EmptyProposal() {
 }
 
 export function ProposalWorkspace() {
+  const router = useRouter();
   const { session, status } = useAppSession();
   const [draft, setDraft] = React.useState<ProposalDraft | null>(null);
   const [clientName, setClientName] = React.useState('');
@@ -78,6 +80,10 @@ export function ProposalWorkspace() {
   const [error, setError] = React.useState<string | null>(null);
 
   const previewEnabled = isIntelligencePreviewEnabled(session?.role);
+
+  React.useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [router, status]);
 
   React.useEffect(() => {
     const sync = () => {
@@ -212,9 +218,9 @@ export function ProposalWorkspace() {
       <main className="mx-auto w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3 print:hidden">
           <div>
-            <Link href="/map?source=intelligence&v=1" className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-[var(--cd-color-brand)]">
+            <button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push('/intelligence'); }} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-[var(--cd-color-brand)]">
               <ArrowLeft size={13} aria-hidden="true" /> 返回地图
-            </Link>
+            </button>
             <h1 className="mt-2 text-xl font-semibold text-slate-900">客户候选方案</h1>
             <p className="mt-1 text-sm text-slate-500">选择顺序即方案展示顺序。匹配分仅来自可验证字段，不使用实时销控、可租单元面积或模型猜测。</p>
           </div>

@@ -27,6 +27,8 @@ import {
   type SupplyCalendarCategory,
 } from '../model/mapDomain';
 
+const ProposalDraftBasket = dynamic(() => import('@/src/components/intelligence/ProposalDraftBasket'), { ssr: false });
+
 const FloatingBuildingList = dynamic(() => import('./FloatingBuildingList'), {
   ssr: false,
   loading: () => (
@@ -509,6 +511,8 @@ export function MapWorkbenchView({
 
         {mapReady && !mapError ? <MapLegend mode={renderMode} /> : null}
         {mapReady && !mapError ? <MetricStrip stats={stats} /> : null}
+
+        {intelligenceContext && mapReady && !mapError && !isFilterPanelOpen && !isSupplyOpen && !isListVisible ? <ProposalDraftBasket /> : null}
 
         {isListVisible ? (
           <div className="pointer-events-none absolute inset-0 z-[355]">

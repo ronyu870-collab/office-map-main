@@ -21,6 +21,7 @@ import { useAppSession } from '@/src/components/SessionProvider';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import type { RequirementParseResult, RequirementSupportStatus } from '@/src/lib/intelligence/requirementSchema';
+import { beginProposalDraft } from '@/src/lib/intelligence/proposalDraft';
 import { parseIntelligenceRequirement } from '@/src/services/intelligenceApi';
 import { supabase } from '@/src/services/supabaseClient';
 
@@ -355,7 +356,15 @@ export function IntelligenceWorkspace() {
                     size="sm"
                     disabled={!mapHandoff || mapHandoff.appliedCapabilities.length === 0}
                     title={mapHandoff?.appliedCapabilities.length ? '在现有地图筛选引擎中查看真实候选项目' : '当前没有可安全映射到地图的条件'}
-                    onClick={() => { if (mapHandoff) router.push(mapHandoff.href); }}
+                    onClick={() => {
+                      if (!mapHandoff) return;
+                      const nextDraft = beginProposalDraft(parseResult);
+                      if (!nextDraft) {
+                        setParseError('浏览器会话存储不可用，暂时无法创建客户方案草稿。');
+                        return;
+                      }
+                      router.push(mapHandoff.href);
+                    }}
                   >
                     确认条件并查看地图 <ArrowRight size={13} aria-hidden="true" />
                   </Button>
