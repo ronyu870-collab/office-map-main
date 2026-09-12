@@ -309,7 +309,7 @@ export function IntelligenceRecommendationWorkspace() {
       className="h-screen h-[100dvh] overflow-hidden bg-[var(--cd-color-canvas)]"
       header={<AppHeader title="业务智能 Intelligence" homeHref="/" status={<Badge tone="brand">AI Site Selection</Badge>} />}
     >
-      <main className="h-full overflow-y-auto overscroll-contain pb-24">
+      <main className="h-full overflow-y-auto overscroll-contain pb-8">
         <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
           <section className="mb-5">
             <div className="flex items-center gap-2">
@@ -478,11 +478,11 @@ export function IntelligenceRecommendationWorkspace() {
         </div>
 
         {plan && plan.candidateCount > 0 ? (
-          <div className="sticky bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgb(15_23_42_/_0.06)] backdrop-blur sm:px-6">
-            <div className="mx-auto flex w-full max-w-[1180px] flex-wrap items-center justify-between gap-3">
+          <div className="mx-auto mt-5 w-full max-w-[1180px] px-4 pb-6 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--cd-radius-lg)] border border-slate-200 bg-white px-4 py-3 sm:px-5">
               <div>
                 <div className="text-sm font-semibold text-slate-900">已选 {selectedIds.length} / 5 个项目</div>
-                <div className="mt-0.5 text-[11px] text-slate-400">AI 先推荐，Broker 审核后再进入地图或输出客户方案。</div>
+                <div className="mt-0.5 text-[11px] text-slate-400">AI 已预选 Top 5；调整完成后，可核验空间位置或生成客户方案。</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -507,7 +507,7 @@ export function IntelligenceRecommendationWorkspace() {
                     router.push('/intelligence/proposal');
                   }}
                 >
-                  <FileChartColumn size={13} aria-hidden="true" /> 生成已选 {selectedIds.length} 个项目方案
+                  <FileChartColumn size={13} aria-hidden="true" /> 生成方案（{selectedIds.length}个）
                 </Button>
               </div>
             </div>
