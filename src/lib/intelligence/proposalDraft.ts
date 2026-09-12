@@ -100,6 +100,17 @@ function fingerprint(
   });
 }
 
+function defaultEvaluationCapabilities(
+  result: RequirementParseResult,
+  appliedCapabilities: RequirementCapability['key'][],
+) {
+  const keys = new Set<RequirementCapability['key']>(appliedCapabilities);
+  if (result.parsed.grades.length > 0) keys.add('grade');
+  if (result.parsed.metro.preferred || result.parsed.metro.maxDistanceMeters !== null) keys.add('metro');
+  if (result.parsed.greenCertifications.length > 0) keys.add('green');
+  return [...keys];
+}
+
 export function readProposalDraft(): ProposalDraft | null {
   const target = storage();
   if (!target) return null;
@@ -116,10 +127,12 @@ export function readProposalDraft(): ProposalDraft | null {
 export function beginProposalDraft(
   result: RequirementParseResult,
   appliedCapabilities: RequirementCapability['key'][],
-  evaluationCapabilities: RequirementCapability['key'][] = appliedCapabilities,
+  evaluationCapabilities?: RequirementCapability['key'][],
 ): ProposalDraft | null {
   const safeAppliedCapabilities = [...new Set(appliedCapabilities)];
-  const safeEvaluationCapabilities = [...new Set(evaluationCapabilities)];
+  const safeEvaluationCapabilities = [...new Set(
+    evaluationCapabilities ?? defaultEvaluationCapabilities(result, safeAppliedCapabilities),
+  )];
   const requirementFingerprint = fingerprint(result, safeAppliedCapabilities, safeEvaluationCapabilities);
   const previous = readProposalDraft();
   const now = new Date().toISOString();
