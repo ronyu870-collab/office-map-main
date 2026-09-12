@@ -46,6 +46,15 @@ function monthlyToDaily(monthly: number) {
   return monthly * 12 / 365;
 }
 
+function gradeCategory(grade: string): 'A' | 'B' | 'BP' | null {
+  const normalized = grade.trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized.includes('BP')) return 'BP';
+  if (normalized.includes('B')) return 'B';
+  if (normalized.includes('A') || normalized.includes('P')) return 'A';
+  return null;
+}
+
 function locationCheck(parsed: ParsedRequirement, candidate: ProposalCandidateData): CandidateMatchCheck {
   const normalized = parsed.locations.filter(item => item.normalizedSubmarket || item.normalizedDistrict);
   const passed = normalized.some(item => (
@@ -61,7 +70,9 @@ function locationCheck(parsed: ParsedRequirement, candidate: ProposalCandidateDa
 }
 
 function gradeCheck(parsed: ParsedRequirement, candidate: ProposalCandidateData): CandidateMatchCheck {
-  const passed = parsed.grades.includes(candidate.grade);
+  const candidateCategory = gradeCategory(candidate.grade);
+  const acceptedCategories = new Set(parsed.grades.map(gradeCategory).filter((value): value is 'A' | 'B' | 'BP' => Boolean(value)));
+  const passed = Boolean(candidateCategory && acceptedCategories.has(candidateCategory));
   return {
     key: 'grade',
     label: '项目等级',
