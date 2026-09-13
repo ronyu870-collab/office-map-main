@@ -1,3 +1,41 @@
+## 2026-09-13 — Authoritative OSS mutation auditing
+
+### Area
+Research Library / Ali OSS / server audit / destructive-operation observability
+
+### What changed
+
+- Moved `create-folder`, `delete`, and `move` / rename audit ownership into the authenticated `/api/oss` server route. Successful or partially successful OSS mutations now await `writeAuditBestEffort` before the business response returns.
+- Recursive folder deletion and folder moves now write the real operation statistics returned by the OSS helpers. Partial outcomes retain `total`, `success` / `copied`, `deleted`, and `failed` counts instead of being flattened into a generic failure.
+- Split file moves into explicit copy and source-delete stages. If the destination copy succeeds but deleting the old object fails, the server records an `OSS_MOVE` partial outcome with `{ copied: 1, deleted: 0, failed: 1 }` and returns a clear partial-completion response.
+- Removed duplicate browser-side `OSS_CREATE_FOLDER`, `OSS_DELETE`, and `OSS_MOVE` events. Direct `OSS_UPLOAD` remains browser-owned because the browser performs the signed upload and is the component that can authoritatively observe upload completion.
+- Kept `OSS_BATCH_DELETE` as an aggregate browser event only. Individual requests are marked as batch members while each underlying server deletion retains its authoritative per-item `OSS_DELETE` event, making aggregate intent distinct from item-level mutation evidence.
+- Removed `/api/oss` from the server-mutation audit exemption registry. The audit-ingestion endpoint remains the only explicit exemption because recursively auditing the audit sink would create an audit loop.
+- Added regression coverage for server ownership, partial folder statistics, file copy/delete partial outcomes, browser-event de-duplication, batch aggregation, and removal of the OSS audit exemption.
+
+### Why
+
+The server is the authority for create-folder, delete, and move operations. Recording those operations only after the browser receives a response can lose evidence if the tab closes or the client audit outbox fails, and retaining both server and browser item events would create duplicates. Direct signed uploads are different: signature issuance does not prove the browser actually completed the upload, so upload completion remains a client-observed event until a callback or server-mediated completion path exists.
+
+### Impact
+
+- Research Library permissions, OSS credentials, object paths, delete/move business semantics, Supabase schema, and RLS policies are unchanged.
+- Server-mediated OSS mutations now have an authoritative, awaited best-effort audit attempt tied to the authenticated caller. Audit-storage failure still does not turn an already-completed OSS operation into a false user-facing business failure.
+- Partial folder and file moves are more observable without pretending they fully succeeded. The existing error response behavior remains fail-visible to the UI.
+- Direct browser uploads continue to emit one `OSS_UPLOAD` event after actual upload success; batch delete retains one aggregate event in addition to server-owned per-item deletion evidence.
+
+### Verification
+
+- Added `src/app/api/oss/__tests__/oss-authoritative-audit.test.ts` to lock the server/client ownership boundary and partial-result contracts.
+- The repository-wide audit coverage gate now treats `/api/oss` as a normal mutation route rather than an exempt route.
+- Final acceptance requires the exact pull-request head to pass Audit coverage, Typecheck, Lint, Test, and Production build through the permanent Verify workflow, with the corresponding Vercel Preview in Ready state before merge.
+
+### Follow-up
+
+- If upload auditing later needs server-authoritative completion, add an OSS callback or server-mediated completion flow; do not treat upload-signature issuance as proof that the upload succeeded.
+
+---
+
 ## 2026-09-13 — Server audit baseline and CI hygiene
 
 ### Area

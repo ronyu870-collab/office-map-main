@@ -215,7 +215,6 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '创建失败');
-      logAction(userEmail, 'OSS_CREATE_FOLDER', { folderName: `${currentPrefix}${folderName.trim()}/` });
       setShowCreateFolderModal(false);
       setNotice({ tone: 'success', text: '文件夹已创建。' });
       await loadReports(currentPrefix);
@@ -302,7 +301,6 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '重命名失败');
-      logAction(userEmail, 'OSS_MOVE', { fileName: targetItem.name, targetPath: newName.trim(), stats: result.stats });
       setShowRenameModal(false);
       setNotice({ tone: 'success', text: result.message || '名称已更新。' });
       await loadReports(currentPrefix);
@@ -327,7 +325,6 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       const response = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(targetItem.name)}`, { method: 'POST', headers });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '删除失败');
-      logAction(userEmail, 'OSS_DELETE', { fileName: targetItem.name, type: targetItem.type, stats: result.stats });
       setShowDeleteModal(false);
       setNotice({ tone: 'success', text: result.message || '项目已删除。' });
       await loadReports(currentPrefix);
@@ -340,16 +337,25 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
 
   const deleteSelected = async () => {
     if (!selectedItems.size) return;
+    const attempted = selectedItems.size;
     setOperationInProgress(true);
     let success = 0;
     let failed = 0;
     try {
       const headers = await authHeaders();
       for (const name of selectedItems) {
-        const response = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(name)}`, { method: 'POST', headers });
+        const response = await fetch(`/api/oss?action=delete&batch=1&file=${encodeURIComponent(name)}`, { method: 'POST', headers });
         if (response.ok) success += 1; else failed += 1;
       }
-      if (success) logAction(userEmail, 'OSS_BATCH_DELETE', { count: success });
+      if (success) {
+        logAction(userEmail, 'OSS_BATCH_DELETE', {
+          count: success,
+          attempted,
+          failed,
+          audit_scope: 'aggregate',
+          item_audit_authority: 'server',
+        });
+      }
       setShowBatchDeleteModal(false);
       setSelectedItems(new Set());
       setNotice({ tone: failed ? 'warning' : 'success', text: `批量删除完成：成功 ${success} 个，失败 ${failed} 个。` });
