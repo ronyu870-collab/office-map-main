@@ -1,3 +1,43 @@
+## 2026-09-13 — Server audit baseline and CI hygiene
+
+### Area
+Audit logging / server API mutations / CI hygiene / repository maintenance
+
+### What changed
+
+- Promoted the audit-coverage contract from changed-route review to a full baseline scan of every server API route with recognized Supabase, Auth Admin, RPC, or OSS mutations.
+- Replaced the previous free-form `audit-coverage:` comment escape hatch with a narrow explicit exemption registry that fails when an exemption becomes stale.
+- Added a shared awaited `writeAuditBestEffort` server helper: successful business mutations wait for the audit write attempt before returning, while audit-storage failures are logged and do not incorrectly turn an already-successful business operation into a user-facing failure.
+- Migrated user creation, administrator password reset, lease-submission transfer, and required password-change completion onto the shared server-audit helper.
+- Added unit coverage for successful audit persistence, Supabase insert rejection, and transport exceptions.
+- Removed the leftover self-modifying identity-permission GitHub Actions workflow and its one-off Python patch scripts. The permanent repository verification surface remains `.github/workflows/verify.yml`.
+- Kept two deliberate audit exceptions visible in code: the audit-ingestion endpoint cannot recursively audit itself, and server-mediated OSS mutations still rely on the existing browser audit outbox pending a dedicated OSS audit migration.
+
+### Why
+
+The previous contract could prove that newly changed routes had an audit signal, but it could not guarantee the historical API baseline. It also allowed a source comment to satisfy the mutation review, which made future drift too easy. Separately, an old write-enabled patch workflow remained in the repository after its migration purpose had ended.
+
+This change makes audit coverage a repository invariant rather than a per-diff convention, and removes self-modifying CI machinery that no longer belongs in the normal development path.
+
+### Impact
+
+- Existing successful business operations keep their response semantics; audit persistence is attempted synchronously before the response rather than being fire-and-forget.
+- Audit-storage failures remain observable in server logs without causing false business-operation failures.
+- No Supabase schema, RLS policy, user-facing workflow, Intelligence ranking behavior, Map behavior, or proposal logic changes in this pass.
+- CI no longer contains the old identity patch workflow with `contents: write` and automatic branch pushes.
+
+### Verification
+
+- Implementation head `543fbeec4017a6c2fb1229600558670efdbfa7e9` passed Verify #341 (`34753379377`) end to end: Audit coverage, Typecheck, Lint, Test, and Production build all succeeded.
+- The Vercel `colliersdata` Preview for that implementation head reached Ready.
+- The exact post-changelog PR head must pass the same permanent Verify workflow and receive a Ready Vercel Preview before merge.
+
+### Follow-up
+
+- Move server-mediated OSS create-folder/delete/move auditing to authoritative server-side writes, remove duplicate browser events for those operations, and then delete the OSS exemption. Direct browser-to-OSS upload completion should retain a client-side or callback-backed audit path until the server can authoritatively observe upload success.
+
+---
+
 ## 2026-09-12 — Intelligence workspace copy and hierarchy refinement
 
 ### Area
@@ -97,7 +137,6 @@ The previous milestone stopped at natural-language requirement → real Map cand
 
 - Persist approved proposal history only after a dedicated Supabase schema/RLS design.
 - Add real availability/current-unit data when `building_current_data` has production records; until then area/move-in conditions remain non-scoring constraints.
-
 ---
 
 ## 2026-09-11 — Intelligence → Map controlled handoff
@@ -297,7 +336,6 @@ This pass targeted concrete maintenance risk rather than style preferences: dead
 - Source-level presentation tests remain for static product invariants; replacing every one with DOM tests would add cost without improving confidence in those non-behavioral contracts.
 
 ### Follow-up
-
 - Do not reintroduce Home development-state machinery until a real module needs it; when that happens, add the state model at the owning feature boundary rather than reviving dormant Home branches.
 - Revisit shared access/a11y helpers only when another caller demonstrates a concrete semantic mismatch; keep this pass scoped to proven Home risks.
 
@@ -397,7 +435,6 @@ Home / information architecture / Chinese product language / responsive workspac
 ### Why
 
 The prior Home 2.0 combined tiny uppercase labels, mixed Chinese and English, badges, nested cards, a visually heavy Map hero, and a high-contrast collaboration rail. Those rules fragmented the typography and spatial hierarchy and made the page feel assembled from generic enterprise UI UI motifs rather than designed as one stable internal data workspace.
-
 ### Impact
 
 - Map remains the primary Home entry; Quarterly Update, Lease Submission, Research Library, and Administration retain their existing routes and access rules.
@@ -498,7 +535,6 @@ The audit also found two authorization weaknesses worth correcting in the same s
 - Final acceptance requires the exact post-changelog PR head to pass the permanent Verify workflow in order: Typecheck, Lint, Test, and Production Build.
 
 ### Follow-up
-
 - Continue Admin table-level refinements only where observed operational workflows justify them; do not add speculative backend modules for visual completeness.
 - If Research Library volume grows beyond the current OSS listing limit, introduce server-side indexed search as a separate data/backend change rather than silently expanding this UI refactor.
 
@@ -797,7 +833,6 @@ The goal was to eliminate reachable or unnecessary high-impact risk without conv
 - Revisit the remaining Ali OSS optional proxy-chain advisories when Alibaba publishes a stable SDK/dependency graph that removes the old proxy stack, or when there is a tested compatible override that does not alter OSS request behavior.
 - Continue consuming non-breaking fixes for `ip-address` and `qs` as their parent dependency ranges allow them to resolve cleanly.
 - Do not use `npm audit fix --force` as a substitute for dependency-path review.
-
 ---
 
 ## 2026-08-24 — P0 Verify baseline recovery

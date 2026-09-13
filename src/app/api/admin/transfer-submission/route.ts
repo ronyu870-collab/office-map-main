@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,8 +75,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `赠与失败: ${updateError.message}` }, { status: 500 });
     }
 
-    // 记录审计日志
-    await supabaseAdmin.from('audit_logs').insert({
+    await writeAuditBestEffort(supabaseAdmin, {
       user_id: caller.id,
       action_type: 'TRANSFER_SUBMISSION',
       details: {
@@ -85,13 +85,13 @@ export async function POST(req: NextRequest) {
         target_user_id: targetUserId,
         target_user_name: targetUserName,
       },
-    });
+    }, 'admin/transfer-submission');
 
     return NextResponse.json({
       success: true,
       message: `已成功赠与给 ${targetUserName}`,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[transfer-submission] 未预期的错误:', err);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });
   }

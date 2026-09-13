@@ -1,5 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
 const ROOT = process.cwd();
@@ -13,6 +12,16 @@ const READ_ONLY_RPCS = new Set([
   'get_quarterly_submission_summary',
 ]);
 const SERVER_AUDIT_CALL = /\b(?:audit|logAudit|logAction|writeAudit)[A-Za-z0-9_$]*\s*\(/gi;
+const SERVER_MUTATION_AUDIT_EXEMPTIONS = new Map([
+  [
+    'src/app/api/audit-events/route.ts',
+    'This route is the audit ingestion sink itself; recursively auditing its own audit write would create an audit loop.',
+  ],
+  [
+    'src/app/api/oss/route.ts',
+    'Ali OSS mutations are currently recorded by the persistent browser audit outbox; migrate server-mediated OSS mutations to authoritative server audit before removing this exemption.',
+  ],
+]);
 const errors = [];
 
 function walk(directory) {
@@ -27,28 +36,6 @@ function walk(directory) {
 
 function source(path) {
   return readFileSync(join(ROOT, path), 'utf8');
-}
-
-function gitLines(args) {
-  try {
-    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-      .split(/\r?\n/).map(value => value.trim()).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-function changedFiles() {
-  const files = new Set();
-  const base = process.env.AUDIT_COVERAGE_BASE_SHA;
-  if (base && !/^0+$/.test(base)) {
-    for (const file of gitLines(['diff', '--name-only', `${base}..HEAD`])) files.add(file);
-  } else {
-    for (const file of gitLines(['diff', '--name-only', 'HEAD'])) files.add(file);
-    for (const line of gitLines(['status', '--porcelain'])) files.add(line.slice(3));
-    if (files.size === 0) for (const file of gitLines(['diff', '--name-only', 'HEAD^', 'HEAD'])) files.add(file);
-  }
-  return [...files].map(path => path.replaceAll('\\', '/'));
 }
 
 function rpcNames(text) {
@@ -71,6 +58,14 @@ function unawaitedServerAuditCalls(text) {
   return violations;
 }
 
+function mutationSignals(text) {
+  const hasPostgrestMutation = /\.from\s*\([^)]*\)[\s\S]{0,1800}?\.(?:insert|update|delete|upsert)\s*\(/.test(text);
+  const hasAuthAdminMutation = /auth\.admin\.(?:createUser|updateUserById|deleteUser|inviteUserByEmail)\s*\(/.test(text);
+  const hasUnknownRpc = rpcNames(text).some(name => !READ_ONLY_RPCS.has(name));
+  const hasOssMutation = /\bclient\.(?:put|copy|delete|deleteMulti|multipartUpload)\s*\(/.test(text);
+  return { hasPostgrestMutation, hasAuthAdminMutation, hasUnknownRpc, hasOssMutation };
+}
+
 const supabaseClient = source('src/services/supabaseClient.ts');
 const auditQueue = source('src/utils/audit.ts');
 if (!supabaseClient.includes('createAuditAwareFetch')) errors.push('shared Supabase client no longer wires createAuditAwareFetch');
@@ -87,27 +82,39 @@ for (const path of allSources) {
 }
 
 const serverRoutes = allSources.filter(path => /^src\/app\/api\/.+\/route\.[jt]s$/.test(path));
+let reviewedServerMutationRoutes = 0;
+let exemptServerMutationRoutes = 0;
 for (const path of serverRoutes) {
-  const violations = unawaitedServerAuditCalls(source(path));
+  const text = source(path);
+  const violations = unawaitedServerAuditCalls(text);
   if (violations.length > 0) {
     errors.push(`${path}: server audit write is unawaited (${[...new Set(violations)].join(', ')}); await best-effort audit persistence before returning the response.`);
   }
+
+  const signals = mutationSignals(text);
+  if (!Object.values(signals).some(Boolean)) continue;
+  reviewedServerMutationRoutes += 1;
+
+  const exemption = SERVER_MUTATION_AUDIT_EXEMPTIONS.get(path);
+  if (exemption) {
+    exemptServerMutationRoutes += 1;
+    continue;
+  }
+
+  const hasAuditSignal = /audit_logs|logAudit|logAction|AuditService|writeAudit/i.test(text);
+  if (!hasAuditSignal) {
+    errors.push(`${path}: server mutation route has no explicit audit signal. Add awaited audit persistence or add a narrowly reviewed route exemption in scripts/check-audit-coverage.mjs.`);
+  }
 }
 
-const changedRoutes = changedFiles().filter(path => /^src\/app\/api\/.+\/route\.[jt]s$/.test(path) && existsSync(join(ROOT, path)));
-let reviewedServerMutationRoutes = 0;
-for (const path of changedRoutes) {
-  const text = source(path);
-  const hasPostgrestMutation = /\.from\s*\([^)]*\)[\s\S]{0,1800}?\.(?:insert|update|delete|upsert)\s*\(/.test(text)
-    && !/^src\/app\/api\/audit-events\/route\.[jt]s$/.test(path);
-  const hasAuthAdminMutation = /auth\.admin\.(?:createUser|updateUserById|deleteUser|inviteUserByEmail)\s*\(/.test(text);
-  const hasUnknownRpc = rpcNames(text).some(name => !READ_ONLY_RPCS.has(name));
-  if (!hasPostgrestMutation && !hasAuthAdminMutation && !hasUnknownRpc) continue;
-
-  reviewedServerMutationRoutes += 1;
-  const hasAuditSignal = /audit_logs|logAudit|logAction|AuditService|writeAudit|audit-coverage:/i.test(text);
-  if (!hasAuditSignal) {
-    errors.push(`${path}: changed server mutation route has no explicit audit signal. Add audit logging or an "audit-coverage:" review comment with rationale.`);
+for (const [path, rationale] of SERVER_MUTATION_AUDIT_EXEMPTIONS) {
+  if (!serverRoutes.includes(path)) {
+    errors.push(`${path}: stale audit exemption; route no longer exists. Remove exemption: ${rationale}`);
+    continue;
+  }
+  const signals = mutationSignals(source(path));
+  if (!Object.values(signals).some(Boolean)) {
+    errors.push(`${path}: stale audit exemption; route no longer contains a recognized mutation. Remove exemption: ${rationale}`);
   }
 }
 
@@ -117,4 +124,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`Audit coverage contract passed: shared browser fallback is wired; ${reviewedServerMutationRoutes} changed server mutation route(s) reviewed; server audit writes are awaited.`);
+console.log(`Audit coverage contract passed: shared browser fallback is wired; ${reviewedServerMutationRoutes} server mutation route(s) reviewed across the full API baseline; ${exemptServerMutationRoutes} explicit exemption(s); server audit writes are awaited.`);
