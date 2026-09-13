@@ -11,7 +11,7 @@ describe('Intelligence AI integration contract', () => {
     const envExample = source('.env.local.example');
 
     expect(parser).toContain('process.env.DEEPSEEK_API_KEY');
-    expect(parser).toContain("/responses");
+    expect(parser).toContain('/responses');
     expect(parser).toContain("type: 'json_schema'");
     expect(parser).toContain("reasoning: { effort: 'none' }");
     expect(parser).toContain("cache: 'no-store'");
@@ -35,15 +35,24 @@ describe('Intelligence AI integration contract', () => {
     expect(recommendRoute).toContain('normalizeRequirementAgainstVocabulary');
   });
 
-  it('audits AI usage metadata without persisting raw client requirements', () => {
+  it('awaits privacy-preserving AI audit writes before returning while keeping audit failures non-blocking', () => {
     const parseRoute = source('src/app/api/intelligence/parse-requirement/route.ts');
     const recommendRoute = source('src/app/api/intelligence/recommend/route.ts');
+    const auditCoverage = source('scripts/check-audit-coverage.mjs');
 
     expect(parseRoute).toContain("action_type: 'AI_REQUIREMENT_PARSE'");
     expect(recommendRoute).toContain("action_type: 'AI_RECOMMENDATION'");
     expect(parseRoute).toContain('requirement_length: requirementLength');
     expect(recommendRoute).toContain('requirement_length: requirementLength');
     expect(recommendRoute).toContain('candidate_count: response.plan.candidateCount');
+    expect(parseRoute).toContain('await auditAIParse(');
+    expect(recommendRoute).toContain('await auditRecommendation(');
+    expect(parseRoute).not.toMatch(/\bvoid\s+auditAIParse\s*\(/);
+    expect(recommendRoute).not.toMatch(/\bvoid\s+auditRecommendation\s*\(/);
+    expect(parseRoute).toContain('AI_REQUIREMENT_PARSE write threw');
+    expect(recommendRoute).toContain('AI_RECOMMENDATION write threw');
+    expect(auditCoverage).toContain('server audit write is unawaited');
+    expect(auditCoverage).toContain('unawaitedServerAuditCalls');
     expect(parseRoute).not.toContain('details: { requirement');
     expect(recommendRoute).not.toContain('details: { requirement');
     expect(parseRoute).not.toContain('target_name: input.data.requirement');

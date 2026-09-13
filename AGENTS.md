@@ -22,6 +22,14 @@ npm run check
 
 Do not merge a change with known typecheck, lint, test, or production-build failures unless the failure is explicitly documented as an existing baseline issue and the change does not worsen it.
 
+## Deployment discipline
+
+- Work on one feature/fix branch per coherent change; do not use `main` as an iteration branch.
+- Batch local edits and verification before pushing. Avoid marker, stage, checkpoint, copy-only, or one-file-at-a-time pushes that exist only to trigger remote testing.
+- Prefer one stable Preview push for a reviewable checkpoint and one final verified push before merge. Push additional commits only when CI or Preview feedback requires a real code change.
+- Merge to `main` only after the exact pull-request head passes the repository Verify workflow. A Vercel `READY` deployment is deployment-health evidence, not a substitute for CI.
+- Fold changelog and small documentation refinements into the same coherent branch before final verification rather than creating standalone deployment-triggering commits where practical.
+
 ## Persistent change record
 
 `CHANGELOG.md` is the durable engineering record for this repository.
