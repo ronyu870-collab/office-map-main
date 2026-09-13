@@ -12,7 +12,7 @@ const READ_ONLY_RPCS = new Set([
   'admin_get_auth_audit_logs',
   'get_quarterly_submission_summary',
 ]);
-const FIRE_AND_FORGET_SERVER_AUDIT = /\bvoid\s+(?:audit|logAudit|logAction|writeAudit)[A-Za-z0-9_$]*\s*\(/i;
+const SERVER_AUDIT_CALL = /\b(?:audit|logAudit|logAction|writeAudit)[A-Za-z0-9_$]*\s*\(/gi;
 const errors = [];
 
 function walk(directory) {
@@ -58,6 +58,19 @@ function rpcNames(text) {
   return names;
 }
 
+function unawaitedServerAuditCalls(text) {
+  const violations = [];
+  SERVER_AUDIT_CALL.lastIndex = 0;
+  for (const match of text.matchAll(SERVER_AUDIT_CALL)) {
+    const index = match.index ?? 0;
+    const prefix = text.slice(Math.max(0, index - 80), index);
+    if (/(?:async\s+)?function\s+$/.test(prefix)) continue;
+    if (/\bawait\s+$/.test(prefix)) continue;
+    violations.push(match[0].replace(/\s*\($/, ''));
+  }
+  return violations;
+}
+
 const supabaseClient = source('src/services/supabaseClient.ts');
 const auditQueue = source('src/utils/audit.ts');
 if (!supabaseClient.includes('createAuditAwareFetch')) errors.push('shared Supabase client no longer wires createAuditAwareFetch');
@@ -75,9 +88,9 @@ for (const path of allSources) {
 
 const serverRoutes = allSources.filter(path => /^src\/app\/api\/.+\/route\.[jt]s$/.test(path));
 for (const path of serverRoutes) {
-  const text = source(path);
-  if (FIRE_AND_FORGET_SERVER_AUDIT.test(text)) {
-    errors.push(`${path}: server audit write is fire-and-forget; await the best-effort audit before returning the response.`);
+  const violations = unawaitedServerAuditCalls(source(path));
+  if (violations.length > 0) {
+    errors.push(`${path}: server audit write is unawaited (${[...new Set(violations)].join(', ')}); await best-effort audit persistence before returning the response.`);
   }
 }
 

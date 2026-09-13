@@ -51,7 +51,8 @@ describe('Intelligence AI integration contract', () => {
     expect(recommendRoute).not.toMatch(/\bvoid\s+auditRecommendation\s*\(/);
     expect(parseRoute).toContain('AI_REQUIREMENT_PARSE write threw');
     expect(recommendRoute).toContain('AI_RECOMMENDATION write threw');
-    expect(auditCoverage).toContain('server audit write is fire-and-forget');
+    expect(auditCoverage).toContain('server audit write is unawaited');
+    expect(auditCoverage).toContain('unawaitedServerAuditCalls');
     expect(parseRoute).not.toContain('details: { requirement');
     expect(recommendRoute).not.toContain('details: { requirement');
     expect(parseRoute).not.toContain('target_name: input.data.requirement');
