@@ -110,8 +110,18 @@ describe('recommendationEngine', () => {
   });
 
   it('returns an evidence-based relaxation hint instead of padding an empty shortlist', () => {
+    const constrainedResult: RequirementParseResult = {
+      ...result,
+      parsed: {
+        ...result.parsed,
+        rent: {
+          ...result.parsed.rent,
+          maxDailyRmbSqm: 5,
+        },
+      },
+    };
     const plan = buildRecommendationPlan(
-      result,
+      constrainedResult,
       '望京，预算5元以内',
       [building('a', 'A', 190, '地铁步行5分钟'), building('b', 'A', 210, '地铁步行8分钟')],
     );

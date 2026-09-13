@@ -37,24 +37,33 @@ async function auditRecommendation(
   requirementLength: number,
   totalDurationMs: number,
 ) {
-  const { error } = await client.from('audit_logs').insert({
-    user_id: callerId,
-    action_type: 'AI_RECOMMENDATION',
-    module: 'intelligence',
-    target_name: 'AI选址推荐',
-    duration_ms: totalDurationMs,
-    details: {
-      model: result.meta.model,
-      input_tokens: result.meta.inputTokens,
-      output_tokens: result.meta.outputTokens,
-      requirement_length: requirementLength,
-      candidate_count: response.plan.candidateCount,
-      returned_count: response.meta.returnedCount,
-      ranking_version: response.meta.rankingVersion,
-      capability_statuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
-    },
-  });
-  if (error) console.warn('[intelligence] 推荐审计写入失败', error.code, error.message);
+  try {
+    const { error } = await client.from('audit_logs').insert({
+      user_id: callerId,
+      action_type: 'AI_RECOMMENDATION',
+      module: 'intelligence',
+      target_name: 'AI选址推荐',
+      duration_ms: totalDurationMs,
+      details: {
+        model: result.meta.model,
+        input_tokens: result.meta.inputTokens,
+        output_tokens: result.meta.outputTokens,
+        requirement_length: requirementLength,
+        candidate_count: response.plan.candidateCount,
+        returned_count: response.meta.returnedCount,
+        ranking_version: response.meta.rankingVersion,
+        capability_statuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
+      },
+    });
+    if (error) {
+      console.error('[audit][intelligence] AI_RECOMMENDATION write failed', error.code, error.message);
+    }
+  } catch (error) {
+    console.error(
+      '[audit][intelligence] AI_RECOMMENDATION write threw',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -118,7 +127,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    void auditRecommendation(
+    await auditRecommendation(
       context.client,
       context.caller.id,
       result,

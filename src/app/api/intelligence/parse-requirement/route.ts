@@ -31,21 +31,30 @@ async function auditAIParse(
   result: RequirementParseResult,
   requirementLength: number,
 ) {
-  const { error } = await client.from('audit_logs').insert({
-    user_id: callerId,
-    action_type: 'AI_REQUIREMENT_PARSE',
-    module: 'intelligence',
-    target_name: '客户需求结构化解析',
-    duration_ms: result.meta.durationMs,
-    details: {
-      model: result.meta.model,
-      input_tokens: result.meta.inputTokens,
-      output_tokens: result.meta.outputTokens,
-      requirement_length: requirementLength,
-      capability_statuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
-    },
-  });
-  if (error) console.warn('[intelligence] AI 解析审计写入失败', error.code, error.message);
+  try {
+    const { error } = await client.from('audit_logs').insert({
+      user_id: callerId,
+      action_type: 'AI_REQUIREMENT_PARSE',
+      module: 'intelligence',
+      target_name: '客户需求结构化解析',
+      duration_ms: result.meta.durationMs,
+      details: {
+        model: result.meta.model,
+        input_tokens: result.meta.inputTokens,
+        output_tokens: result.meta.outputTokens,
+        requirement_length: requirementLength,
+        capability_statuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
+      },
+    });
+    if (error) {
+      console.error('[audit][intelligence] AI_REQUIREMENT_PARSE write failed', error.code, error.message);
+    }
+  } catch (error) {
+    console.error(
+      '[audit][intelligence] AI_REQUIREMENT_PARSE write threw',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -88,7 +97,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    void auditAIParse(context.client, context.caller.id, result, input.data.requirement.length);
+    await auditAIParse(context.client, context.caller.id, result, input.data.requirement.length);
     return NextResponse.json(result, {
       headers: { 'Cache-Control': 'no-store' },
     });

@@ -12,6 +12,7 @@ const READ_ONLY_RPCS = new Set([
   'admin_get_auth_audit_logs',
   'get_quarterly_submission_summary',
 ]);
+const FIRE_AND_FORGET_SERVER_AUDIT = /\bvoid\s+(?:audit|logAudit|logAction|writeAudit)[A-Za-z0-9_$]*\s*\(/i;
 const errors = [];
 
 function walk(directory) {
@@ -72,6 +73,14 @@ for (const path of allSources) {
   }
 }
 
+const serverRoutes = allSources.filter(path => /^src\/app\/api\/.+\/route\.[jt]s$/.test(path));
+for (const path of serverRoutes) {
+  const text = source(path);
+  if (FIRE_AND_FORGET_SERVER_AUDIT.test(text)) {
+    errors.push(`${path}: server audit write is fire-and-forget; await the best-effort audit before returning the response.`);
+  }
+}
+
 const changedRoutes = changedFiles().filter(path => /^src\/app\/api\/.+\/route\.[jt]s$/.test(path) && existsSync(join(ROOT, path)));
 let reviewedServerMutationRoutes = 0;
 for (const path of changedRoutes) {
@@ -95,4 +104,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`Audit coverage contract passed: shared browser fallback is wired; ${reviewedServerMutationRoutes} changed server mutation route(s) reviewed.`);
+console.log(`Audit coverage contract passed: shared browser fallback is wired; ${reviewedServerMutationRoutes} changed server mutation route(s) reviewed; server audit writes are awaited.`);
