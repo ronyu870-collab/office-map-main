@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePassword } from '@/src/utils/passwordPolicy';
+import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,7 +118,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `创建用户档案失败: ${profileError.message}` }, { status: 500 });
     }
 
-    await supabaseAdmin.from('audit_logs').insert({
+    await writeAuditBestEffort(supabaseAdmin, {
       user_id: caller.email || caller.id,
       action_type: 'ADMIN_DATA_OPERATION',
       details: {
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
         name: optionalText(full_name) || optionalText(chinese_name),
         email: normalizedEmail,
       },
-    });
+    }, 'admin/create-user');
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 import { validatePassword } from '@/src/utils/passwordPolicy';
 
 export const dynamic = 'force-dynamic';
@@ -47,11 +48,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `密码修改失败: ${updateError.message}` }, { status: 500 });
     }
 
-    await supabaseAdmin.from('audit_logs').insert({
+    await writeAuditBestEffort(supabaseAdmin, {
       user_id: user.email || user.id,
       action_type: 'CHANGE_PASSWORD',
       details: { status: 'success', required_change_completed: true },
-    });
+    }, 'auth/complete-password-change');
 
     return NextResponse.json({ success: true });
   } catch (error) {

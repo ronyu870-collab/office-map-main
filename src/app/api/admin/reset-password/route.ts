@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePassword } from '@/src/utils/passwordPolicy';
+import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 
 // 明确告诉 Next.js 这是完全动态的 API，不要在构建时静态渲染
 export const dynamic = 'force-dynamic';
@@ -84,11 +85,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `重置失败: ${updateError.message}` }, { status: 500 });
     }
 
-    await supabaseAdmin.from('audit_logs').insert({
+    await writeAuditBestEffort(supabaseAdmin, {
       user_id: caller.email || caller.id,
       action_type: 'ADMIN_DATA_OPERATION',
       details: { operation: 'UPDATE', table: 'auth.users', table_label: '重置密码', target_user_id: userId },
-    });
+    }, 'admin/reset-password');
 
     return NextResponse.json({ success: true, message: '临时密码已生成' });
   } catch (err: unknown) {
