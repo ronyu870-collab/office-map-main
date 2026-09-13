@@ -1,22 +1,24 @@
 import { NextResponse } from 'next/server';
 import OSS from 'ali-oss';
 import crypto from 'crypto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 
 export const dynamic = 'force-dynamic';
-
-// audit-coverage: this performance change only removes a redundant role lookup
-// from the read-only get-list path. Existing OSS mutation handlers are unchanged;
-// their successful user actions continue to be recorded by OSSManager.
 
 type VerifiedUser = {
   user: { id: string; email?: string };
   role: string;
+  admin: SupabaseClient;
 };
 
 type DeleteStats = { total: number; success: number; failed: number };
 type MoveStats = { total: number; copied: number; deleted: number; failed: number };
+type MoveStage = 'complete' | 'copy' | 'delete-source';
+type MoveResult = { success: boolean; message: string; stats: MoveStats; stage: MoveStage };
 type OSSListObject = { name: string; size: number; lastModified?: string | Date };
+type OssAuditOutcome = 'success' | 'partial' | 'failed';
+type OssRequestMode = 'single' | 'batch';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -61,6 +63,7 @@ async function verifyUser(request: Request, loadRole = true): Promise<VerifiedUs
       return {
         user: { id: user.id, email: user.email },
         role: 'viewer',
+        admin,
       };
     }
 
@@ -74,6 +77,7 @@ async function verifyUser(request: Request, loadRole = true): Promise<VerifiedUs
     return {
       user: { id: user.id, email: user.email },
       role: roleRow?.role ? String(roleRow.role).trim().toLowerCase() : 'viewer',
+      admin,
     };
   } catch {
     return null;
@@ -101,6 +105,27 @@ async function requireManager(request: Request) {
     return { verified: null, response: NextResponse.json({ status: 'error', message: '权限不足：只有管理员可以执行此操作' }, { status: 403 }) };
   }
   return { verified, response: null };
+}
+
+async function writeOssAudit(
+  verified: VerifiedUser,
+  actionType: 'OSS_CREATE_FOLDER' | 'OSS_DELETE' | 'OSS_MOVE',
+  details: Record<string, unknown> & { outcome: OssAuditOutcome },
+  context: string,
+  targetName?: string,
+) {
+  await writeAuditBestEffort(verified.admin, {
+    user_id: verified.user.email || verified.user.id,
+    action_type: actionType,
+    details: {
+      ...details,
+      authority: 'server',
+    },
+    request_source: 'server',
+    module: 'oss',
+    page_url: '/oss',
+    target_name: targetName,
+  }, context);
 }
 
 async function listAllObjects(client: OSSClient, prefix: string): Promise<string[]> {
@@ -154,9 +179,14 @@ async function deleteFolderRecursive(client: OSSClient, folderKey: string): Prom
     : { success: true, message: objects.length ? `已删除文件夹及 ${objects.length} 个子对象` : '空文件夹已删除', stats };
 }
 
-async function renameFolderRecursive(client: OSSClient, oldPrefix: string, newPrefix: string): Promise<{ success: boolean; message: string; stats: MoveStats }> {
+async function renameFolderRecursive(client: OSSClient, oldPrefix: string, newPrefix: string): Promise<MoveResult> {
   if (!oldPrefix.endsWith('/') || !newPrefix.endsWith('/')) {
-    return { success: false, message: '文件夹路径必须以 / 结尾', stats: { total: 0, copied: 0, deleted: 0, failed: 0 } };
+    return {
+      success: false,
+      message: '文件夹路径必须以 / 结尾',
+      stats: { total: 0, copied: 0, deleted: 0, failed: 0 },
+      stage: 'copy',
+    };
   }
 
   const objects = await listAllObjects(client, oldPrefix);
@@ -185,6 +215,7 @@ async function renameFolderRecursive(client: OSSClient, oldPrefix: string, newPr
       success: false,
       message: `重命名未完成：${failed} 个对象复制失败，原目录已保留`,
       stats: { total: sourceKeys.length, copied, deleted, failed },
+      stage: 'copy',
     };
   }
 
@@ -198,8 +229,18 @@ async function renameFolderRecursive(client: OSSClient, oldPrefix: string, newPr
   }
 
   return failed
-    ? { success: false, message: `新目录已创建，但 ${failed} 个旧对象未能删除`, stats: { total: sourceKeys.length, copied, deleted, failed } }
-    : { success: true, message: `已重命名文件夹及 ${objects.length} 个子对象`, stats: { total: sourceKeys.length, copied, deleted, failed } };
+    ? {
+        success: false,
+        message: `新目录已创建，但 ${failed} 个旧对象未能删除`,
+        stats: { total: sourceKeys.length, copied, deleted, failed },
+        stage: 'delete-source',
+      }
+    : {
+        success: true,
+        message: `已重命名文件夹及 ${objects.length} 个子对象`,
+        stats: { total: sourceKeys.length, copied, deleted, failed },
+        stage: 'complete',
+      };
 }
 
 export async function GET(request: Request) {
@@ -281,8 +322,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
+  const requestMode: OssRequestMode = searchParams.get('batch') === '1' ? 'batch' : 'single';
   const auth = await requireManager(request);
   if (auth.response) return auth.response;
+  const verified = auth.verified;
+  if (!verified) return NextResponse.json({ status: 'error', message: '未授权：请先登录' }, { status: 401 });
 
   try {
     const client = getOSSClient();
@@ -293,6 +337,10 @@ export async function POST(request: Request) {
       if (!rawFolder) return NextResponse.json({ status: 'error', message: '缺少文件夹名称' }, { status: 400 });
       const folder = rawFolder.endsWith('/') ? rawFolder : `${rawFolder}/`;
       await client.put(folder, Buffer.from(''));
+      await writeOssAudit(verified, 'OSS_CREATE_FOLDER', {
+        folderName: folder,
+        outcome: 'success',
+      }, 'oss/create-folder', folder);
       return NextResponse.json({ status: 'success' });
     }
 
@@ -301,9 +349,27 @@ export async function POST(request: Request) {
       if (!fileKey) return NextResponse.json({ status: 'error', message: 'Missing file key' }, { status: 400 });
       if (fileKey.endsWith('/')) {
         const result = await deleteFolderRecursive(client, fileKey);
-        return NextResponse.json({ status: result.success ? 'success' : 'error', message: result.message, stats: result.stats }, { status: result.success ? 200 : 500 });
+        await writeOssAudit(verified, 'OSS_DELETE', {
+          fileName: fileKey,
+          type: 'folder',
+          request_mode: requestMode,
+          outcome: result.success ? 'success' : 'partial',
+          stats: result.stats,
+          message: result.message,
+        }, 'oss/delete-folder', fileKey);
+        return NextResponse.json(
+          { status: result.success ? 'success' : 'error', message: result.message, stats: result.stats },
+          { status: result.success ? 200 : 500 },
+        );
       }
+
       await client.delete(fileKey);
+      await writeOssAudit(verified, 'OSS_DELETE', {
+        fileName: fileKey,
+        type: 'file',
+        request_mode: requestMode,
+        outcome: 'success',
+      }, 'oss/delete-file', fileKey);
       return NextResponse.json({ status: 'success', message: '文件已删除' });
     }
 
@@ -320,12 +386,65 @@ export async function POST(request: Request) {
 
       if (oldIsFolder) {
         const result = await renameFolderRecursive(client, oldKey, newKey);
-        return NextResponse.json({ status: result.success ? 'success' : 'error', message: result.message, stats: result.stats }, { status: result.success ? 200 : 500 });
+        await writeOssAudit(verified, 'OSS_MOVE', {
+          fileName: oldKey,
+          targetPath: newKey,
+          type: 'folder',
+          outcome: result.success ? 'success' : 'partial',
+          stage: result.stage,
+          stats: result.stats,
+          message: result.message,
+        }, 'oss/move-folder', oldKey);
+        return NextResponse.json(
+          { status: result.success ? 'success' : 'error', message: result.message, stats: result.stats },
+          { status: result.success ? 200 : 500 },
+        );
       }
 
-      await client.copy(newKey, oldKey);
-      await client.delete(oldKey);
-      return NextResponse.json({ status: 'success', message: '文件已重命名' });
+      try {
+        await client.copy(newKey, oldKey);
+      } catch (error) {
+        const stats: MoveStats = { total: 1, copied: 0, deleted: 0, failed: 1 };
+        await writeOssAudit(verified, 'OSS_MOVE', {
+          fileName: oldKey,
+          targetPath: newKey,
+          type: 'file',
+          outcome: 'failed',
+          stage: 'copy',
+          stats,
+          error_message: errorMessage(error),
+        }, 'oss/move-file-copy', oldKey);
+        return NextResponse.json({ status: 'error', message: '文件复制失败，原文件已保留', stats }, { status: 500 });
+      }
+
+      try {
+        await client.delete(oldKey);
+      } catch (error) {
+        const stats: MoveStats = { total: 1, copied: 1, deleted: 0, failed: 1 };
+        const message = '新文件已创建，但旧文件未能删除';
+        await writeOssAudit(verified, 'OSS_MOVE', {
+          fileName: oldKey,
+          targetPath: newKey,
+          type: 'file',
+          outcome: 'partial',
+          stage: 'delete-source',
+          stats,
+          message,
+          error_message: errorMessage(error),
+        }, 'oss/move-file-delete-source', oldKey);
+        return NextResponse.json({ status: 'error', message, stats }, { status: 500 });
+      }
+
+      const stats: MoveStats = { total: 1, copied: 1, deleted: 1, failed: 0 };
+      await writeOssAudit(verified, 'OSS_MOVE', {
+        fileName: oldKey,
+        targetPath: newKey,
+        type: 'file',
+        outcome: 'success',
+        stage: 'complete',
+        stats,
+      }, 'oss/move-file', oldKey);
+      return NextResponse.json({ status: 'success', message: '文件已重命名', stats });
     }
 
     return NextResponse.json({ status: 'error', message: 'Invalid action' }, { status: 400 });

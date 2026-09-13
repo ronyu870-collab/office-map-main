@@ -17,10 +17,6 @@ const SERVER_MUTATION_AUDIT_EXEMPTIONS = new Map([
     'src/app/api/audit-events/route.ts',
     'This route is the audit ingestion sink itself; recursively auditing its own audit write would create an audit loop.',
   ],
-  [
-    'src/app/api/oss/route.ts',
-    'Ali OSS mutations are currently recorded by the persistent browser audit outbox; migrate server-mediated OSS mutations to authoritative server audit before removing this exemption.',
-  ],
 ]);
 const errors = [];
 
