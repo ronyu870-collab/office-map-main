@@ -1,7 +1,17 @@
 'use client';
 
 import * as React from 'react';
-import { ImagePlus, MessageSquare, Plus, RefreshCw, Send, Trash2, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ImagePlus,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Trash2,
+  X,
+} from 'lucide-react';
 
 import {
   adminReplyToFeedback,
@@ -30,11 +40,11 @@ const STATUS_LABEL: Record<AdminFeedbackStatus, string> = {
 };
 
 const STATUS_CLASS: Record<AdminFeedbackStatus, string> = {
-  open: 'bg-red-50 text-red-700 ring-red-100',
-  in_progress: 'bg-amber-50 text-amber-700 ring-amber-100',
+  open: 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] ring-[var(--cd-color-border)]',
+  in_progress: 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)] ring-[var(--cd-color-brand)]/15',
   resolved: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-  wontfix: 'bg-zinc-100 text-zinc-600 ring-zinc-200',
-  duplicate: 'bg-purple-50 text-purple-700 ring-purple-100',
+  wontfix: 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-muted)] ring-[var(--cd-color-border)]',
+  duplicate: 'bg-violet-50 text-violet-700 ring-violet-100',
 };
 
 const PRIORITY_LABEL: Record<AdminFeedbackPriority, string> = {
@@ -76,7 +86,7 @@ function formatTime(value: string | null) {
 }
 
 function StatusBadge({ status }: { status: AdminFeedbackStatus }) {
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_CLASS[status]}`}>{STATUS_LABEL[status]}</span>;
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${STATUS_CLASS[status]}`}>{STATUS_LABEL[status]}</span>;
 }
 
 function NewIssueDialog({
@@ -128,24 +138,71 @@ function NewIssueDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <form onSubmit={submit} className="w-full max-w-xl rounded-xl border border-zinc-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
-          <div><h3 className="text-base font-semibold text-zinc-900">新建内部问题</h3><p className="mt-0.5 text-xs text-zinc-500">管理员创建的事项不会出现在普通用户的“我的反馈”中。</p></div>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100"><X size={16} /></button>
+    <div className="fixed inset-0 z-[var(--cd-z-modal)] flex items-center justify-center bg-[var(--cd-color-overlay)] p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <form onSubmit={submit} className="w-full max-w-xl overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]">
+        <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-5 py-4">
+          <div>
+            <h3 className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">新建内部问题</h3>
+            <p className="mt-0.5 text-xs text-[var(--cd-color-text-muted)]">仅用于内部跟踪，不会显示在普通用户的“我的反馈”中。</p>
+          </div>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-[var(--cd-radius-md)] text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]"><X size={16} /></button>
         </div>
         <div className="space-y-4 p-5">
-          <div><label className="mb-1 block text-xs font-medium text-zinc-600">标题 *</label><input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} className="h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm outline-none focus:border-[#003e7e]" /></div>
-          <div><label className="mb-1 block text-xs font-medium text-zinc-600">描述</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} maxLength={4000} className="w-full resize-y rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-[#003e7e]" /></div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div><label className="mb-1 block text-xs font-medium text-zinc-600">分类</label><select value={category} onChange={(e) => setCategory(e.target.value as AdminFeedbackCategory)} className="h-10 w-full rounded-lg border border-zinc-300 px-2 text-sm"><option value="bug">缺陷</option><option value="feature">需求</option><option value="data">数据</option><option value="other">其他</option></select></div>
-            <div><label className="mb-1 block text-xs font-medium text-zinc-600">优先级</label><select value={priority} onChange={(e) => setPriority(e.target.value as AdminFeedbackPriority)} className="h-10 w-full rounded-lg border border-zinc-300 px-2 text-sm"><option value="high">紧急</option><option value="medium">普通</option><option value="low">低</option></select></div>
-            <div><label className="mb-1 block text-xs font-medium text-zinc-600">模块</label><select value={module} onChange={(e) => setModule(e.target.value)} className="h-10 w-full rounded-lg border border-zinc-300 px-2 text-sm">{MODULE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">标题</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="一句话说明事项" className="h-10 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 text-sm outline-none placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
           </div>
-          {error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">描述</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} maxLength={4000} className="w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 py-2 text-sm outline-none focus:border-[var(--cd-color-brand)]" />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div><label className="mb-1 block text-[11px] font-medium text-[var(--cd-color-text-muted)]">分类</label><select value={category} onChange={(e) => setCategory(e.target.value as AdminFeedbackCategory)} className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-xs"><option value="bug">缺陷</option><option value="feature">需求</option><option value="data">数据</option><option value="other">其他</option></select></div>
+            <div><label className="mb-1 block text-[11px] font-medium text-[var(--cd-color-text-muted)]">优先级</label><select value={priority} onChange={(e) => setPriority(e.target.value as AdminFeedbackPriority)} className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-xs"><option value="high">紧急</option><option value="medium">普通</option><option value="low">低</option></select></div>
+            <div><label className="mb-1 block text-[11px] font-medium text-[var(--cd-color-text-muted)]">模块</label><select value={module} onChange={(e) => setModule(e.target.value)} className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-xs">{MODULE_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
+          </div>
+          {error ? <p className="rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
         </div>
-        <div className="flex justify-end gap-2 border-t border-zinc-200 px-5 py-4"><button type="button" onClick={onClose} className="h-9 rounded-lg border border-zinc-300 px-3 text-sm text-zinc-600">取消</button><button type="submit" disabled={saving || !title.trim()} className="h-9 rounded-lg bg-[#003e7e] px-4 text-sm font-medium text-white disabled:opacity-50">{saving ? '创建中…' : '创建'}</button></div>
+        <div className="flex justify-end gap-2 border-t border-[var(--cd-color-border)] px-5 py-4">
+          <button type="button" onClick={onClose} className="h-9 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 text-sm text-[var(--cd-color-text-secondary)]">取消</button>
+          <button type="submit" disabled={saving || !title.trim()} className="h-9 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-4 text-sm font-medium text-white disabled:opacity-50">{saving ? '创建中…' : '创建'}</button>
+        </div>
       </form>
+    </div>
+  );
+}
+
+function TimelineItem({ comment }: { comment: AdminFeedbackComment }) {
+  if (comment.kind === 'status_change') {
+    const from = comment.metadata?.from as AdminFeedbackStatus | undefined;
+    const to = comment.metadata?.to as AdminFeedbackStatus | undefined;
+    return (
+      <div className="relative pl-8">
+        <span className="absolute left-[9px] top-2 h-2 w-2 rounded-full border-2 border-[var(--cd-color-surface)] bg-[var(--cd-color-border-strong)] ring-1 ring-[var(--cd-color-border)]" />
+        <div className="py-0.5 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">
+          {comment.is_admin ? '管理员' : '用户'}将状态从「{from ? STATUS_LABEL[from] : '未知'}」更新为「{to ? STATUS_LABEL[to] : '未知'}」 · {formatTime(comment.created_at)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative pl-8">
+      <span className={`absolute left-[4px] top-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold ring-4 ring-[var(--cd-color-surface)] ${comment.is_admin ? 'bg-[var(--cd-color-brand)] text-white' : 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] ring-1 ring-[var(--cd-color-border)]'}`}>
+        {comment.is_admin ? '管' : '用'}
+      </span>
+      <div className="pb-1">
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className={`font-medium ${comment.is_admin ? 'text-[var(--cd-color-brand)]' : 'text-[var(--cd-color-text-secondary)]'}`}>{comment.is_admin ? '管理员' : comment.created_by}</span>
+          <span className="text-[var(--cd-color-text-muted)]">{formatTime(comment.created_at)}</span>
+        </div>
+        {comment.content ? <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-5 text-[var(--cd-color-text-primary)]">{comment.content}</p> : null}
+        {comment.images?.length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {comment.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`回复截图 ${index + 1}`} className="h-16 w-16 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] object-cover" /></a>)}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -166,6 +223,7 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
   const [uploading, setUploading] = React.useState(false);
   const [detailError, setDetailError] = React.useState('');
   const [newDialogOpen, setNewDialogOpen] = React.useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const loadIssues = React.useCallback(async () => {
@@ -189,6 +247,13 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
 
   const unreadCount = React.useMemo(() => issues.filter((issue) => issue.has_unread_user_activity).length, [issues]);
 
+  const counts = React.useMemo(() => ({
+    all: issues.length,
+    open: issues.filter((issue) => issue.status === 'open').length,
+    in_progress: issues.filter((issue) => issue.status === 'in_progress').length,
+    resolved: issues.filter((issue) => issue.status === 'resolved').length,
+  }), [issues]);
+
   const filtered = React.useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return issues.filter((issue) => {
@@ -205,6 +270,7 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
     setReply('');
     setReplyImages([]);
     setDetailError('');
+    setActionMenuOpen(false);
     setCommentsLoading(true);
     try {
       await markAdminFeedbackRead(issue.id);
@@ -231,6 +297,7 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
     if (!selected || replying || (!reply.trim() && replyImages.length === 0)) return;
     setReplying(true);
     setDetailError('');
+    setActionMenuOpen(false);
     try {
       await adminReplyToFeedback({ issueId: selected.id, content: reply, images: replyImages, nextStatus });
       logAction(adminEmail, 'FEEDBACK_ADMIN_REPLIED', { issue_id: selected.id, next_status: nextStatus, has_images: replyImages.length > 0 });
@@ -295,94 +362,154 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
     }
   };
 
-  return (
-    <div className="mx-auto flex h-full min-h-[620px] max-w-[1320px] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-3 sm:px-5">
-        <div className="mr-auto min-w-0">
-          <div className="flex items-center gap-2"><h2 className="text-base font-semibold text-zinc-900">需求反馈</h2>{unreadCount > 0 ? <span className="rounded-full bg-[#003e7e] px-2 py-0.5 text-[11px] font-semibold text-white">{unreadCount} 条用户新动态</span> : null}</div>
-          <p className="mt-0.5 text-xs text-zinc-500">用户反馈与内部问题统一管理；打开反馈后会标记为已读。</p>
-        </div>
-        <button type="button" onClick={() => void loadIssues()} disabled={loading} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-300 px-3 text-xs text-zinc-600 hover:bg-zinc-50"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} />刷新</button>
-        <button type="button" onClick={() => setNewDialogOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#003e7e] px-3 text-xs font-medium text-white"><Plus size={14} />新建内部问题</button>
-      </div>
+  const primaryReplyAction = selected?.status === 'open'
+    ? { label: '回复并开始处理', status: 'in_progress' as AdminFeedbackStatus }
+    : selected?.status === 'in_progress'
+      ? { label: '回复并标记已解决', status: 'resolved' as AdminFeedbackStatus }
+      : { label: '回复', status: null };
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)]">
-        <div className="flex min-h-0 flex-col border-r border-zinc-200">
-          <div className="space-y-2 border-b border-zinc-200 p-3">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索标题、描述或提交人" className="h-9 w-full rounded-lg border border-zinc-300 px-3 text-sm outline-none focus:border-[#003e7e]" />
-            <div className="grid grid-cols-2 gap-2">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | AdminFeedbackStatus)} className="h-9 rounded-lg border border-zinc-300 px-2 text-xs"><option value="all">全部状态</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as 'all' | 'user_feedback' | 'admin')} className="h-9 rounded-lg border border-zinc-300 px-2 text-xs"><option value="all">全部来源</option><option value="user_feedback">用户反馈</option><option value="admin">内部问题</option></select>
+  const replyDisabled = replying || (!reply.trim() && replyImages.length === 0);
+
+  return (
+    <div className="mx-auto flex h-full min-h-[620px] max-w-[1380px] flex-col overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-sm">
+      <header className="flex flex-wrap items-center gap-3 border-b border-[var(--cd-color-border)] px-4 py-3.5 sm:px-5">
+        <div className="mr-auto min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">需求反馈</h2>
+            {unreadCount > 0 ? <span className="rounded-full bg-[var(--cd-color-brand)] px-2 py-0.5 text-[10px] font-semibold text-white">{unreadCount} 条新动态</span> : null}
+          </div>
+          <p className="mt-0.5 text-[11px] text-[var(--cd-color-text-muted)]">集中处理用户反馈与内部问题</p>
+        </div>
+        <button type="button" onClick={() => void loadIssues()} disabled={loading} className="inline-flex h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]"><RefreshCw size={13} className={loading ? 'animate-spin' : ''} />刷新</button>
+        <button type="button" onClick={() => setNewDialogOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3 text-xs font-medium text-white"><Plus size={14} />新建内部问题</button>
+      </header>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col border-r border-[var(--cd-color-border)]">
+          <div className="border-b border-[var(--cd-color-border)] p-3">
+            <div className="flex gap-1 overflow-x-auto pb-2">
+              {([
+                ['all', '全部', counts.all],
+                ['open', '待处理', counts.open],
+                ['in_progress', '处理中', counts.in_progress],
+                ['resolved', '已解决', counts.resolved],
+              ] as const).map(([value, label, count]) => (
+                <button key={value} type="button" onClick={() => setStatusFilter(value)} className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-colors ${statusFilter === value ? 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)]'}`}>
+                  {label} <span className="opacity-70">{count}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <label className="relative min-w-0 flex-1">
+                <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索反馈" className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] pl-8 pr-3 text-xs outline-none placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
+              </label>
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as 'all' | 'user_feedback' | 'admin')} className="h-9 w-[100px] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-[11px] text-[var(--cd-color-text-secondary)]"><option value="all">全部来源</option><option value="user_feedback">用户反馈</option><option value="admin">内部问题</option></select>
+              <select aria-label="其他状态筛选" value={statusFilter === 'wontfix' || statusFilter === 'duplicate' ? statusFilter : ''} onChange={(e) => { if (e.target.value) setStatusFilter(e.target.value as AdminFeedbackStatus); }} className="h-9 w-[92px] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-[11px] text-[var(--cd-color-text-secondary)]"><option value="">其他状态</option><option value="wontfix">暂不处理</option><option value="duplicate">重复反馈</option></select>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {loading && issues.length === 0 ? <div className="p-6 text-center text-sm text-zinc-400">正在加载…</div> : error ? <div className="m-3 rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</div> : filtered.length === 0 ? <div className="p-8 text-center text-sm text-zinc-400">暂无匹配问题</div> : filtered.map((issue) => (
-              <button key={issue.id} type="button" onClick={() => void openIssue(issue)} className={`flex w-full items-start gap-3 border-b border-zinc-100 px-4 py-3 text-left transition-colors hover:bg-zinc-50 ${selected?.id === issue.id ? 'bg-blue-50/60' : ''}`}>
-                <span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${issue.has_unread_user_activity ? 'bg-[#003e7e]' : 'bg-transparent'}`} />
+            {loading && issues.length === 0 ? (
+              <div className="p-6 text-center text-sm text-[var(--cd-color-text-muted)]">正在加载…</div>
+            ) : error ? (
+              <div className="m-3 rounded-[var(--cd-radius-md)] bg-red-50 p-3 text-xs text-red-700">{error}</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-8 text-center text-sm text-[var(--cd-color-text-muted)]">暂无匹配反馈</div>
+            ) : filtered.map((issue) => (
+              <button key={issue.id} type="button" onClick={() => void openIssue(issue)} className={`group flex w-full items-start gap-3 border-b border-[var(--cd-color-border)] px-4 py-3.5 text-left transition-colors hover:bg-[var(--cd-color-surface-alt)] ${selected?.id === issue.id ? 'bg-[var(--cd-color-brand-soft)]/55' : ''}`}>
+                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${issue.has_unread_user_activity ? 'bg-[var(--cd-color-brand)]' : 'bg-transparent'}`} />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2"><span className="truncate text-sm font-medium text-zinc-800">{issue.title}</span>{issue.source === 'user_feedback' ? <span className="shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">用户</span> : <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">内部</span>}</span>
-                  <span className="mt-1 flex items-center gap-2 text-[11px] text-zinc-400"><span className="truncate">{issue.has_unread_user_activity ? '用户有新动态' : issue.created_by}</span><span>·</span><span>{formatTime(issue.last_activity_at ?? issue.created_at)}</span></span>
+                  <span className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]">{issue.title}</span>
+                    <StatusBadge status={issue.status} />
+                  </span>
+                  <span className={`mt-1 block truncate text-[11px] ${issue.has_unread_user_activity ? 'font-medium text-[var(--cd-color-brand)]' : 'text-[var(--cd-color-text-muted)]'}`}>
+                    {issue.has_unread_user_activity ? '用户有新动态' : issue.source === 'user_feedback' ? issue.created_by : '内部问题'} · {formatTime(issue.last_activity_at ?? issue.created_at)}
+                  </span>
                 </span>
-                <StatusBadge status={issue.status} />
               </button>
             ))}
           </div>
-        </div>
+        </aside>
 
-        <div className="min-h-0 overflow-y-auto">
+        <main className="min-h-0 overflow-y-auto">
           {!selected ? (
-            <div className="flex h-full min-h-[420px] flex-col items-center justify-center text-zinc-400"><MessageSquare size={28} strokeWidth={1.4} /><p className="mt-3 text-sm">选择一条反馈查看详情和沟通记录</p></div>
+            <div className="flex h-full min-h-[420px] flex-col items-center justify-center text-[var(--cd-color-text-muted)]">
+              <MessageSquare size={26} strokeWidth={1.35} />
+              <p className="mt-3 text-sm">选择一条反馈查看详情</p>
+            </div>
           ) : (
             <div className="mx-auto max-w-3xl p-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words text-lg font-semibold text-zinc-900">{selected.title}</h3><StatusBadge status={selected.status} /></div><p className="mt-1 text-xs text-zinc-500">{selected.source === 'user_feedback' ? `用户反馈 · ${selected.created_by}` : `内部问题 · ${selected.created_by}`} · {CATEGORY_LABEL[selected.category]} · {MODULE_LABEL[selected.module] ?? selected.module} · {formatTime(selected.created_at)}</p></div>
-                <button type="button" onClick={() => void removeIssue()} className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-xs text-zinc-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={13} />删除</button>
-              </div>
-
-              <div className="mt-4 whitespace-pre-wrap break-words rounded-lg bg-zinc-50 px-4 py-3 text-sm leading-6 text-zinc-700">{selected.description || '无详细描述'}</div>
-              {selected.images?.length ? <div className="mt-3 flex flex-wrap gap-2">{selected.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`截图 ${index + 1}`} className="h-20 w-20 rounded-lg border border-zinc-200 object-cover" /></a>)}</div> : null}
-
-              <div className="mt-5 grid grid-cols-1 gap-3 rounded-lg border border-zinc-200 p-3 sm:grid-cols-2">
-                <div><label className="mb-1 block text-[11px] font-medium text-zinc-500">处理状态</label><select value={selected.status} onChange={(e) => void changeStatus(e.target.value as AdminFeedbackStatus)} className="h-9 w-full rounded-lg border border-zinc-300 px-2 text-sm">{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-                <div><label className="mb-1 block text-[11px] font-medium text-zinc-500">优先级</label><select value={selected.priority} onChange={(e) => void changePriority(e.target.value as AdminFeedbackPriority)} className="h-9 w-full rounded-lg border border-zinc-300 px-2 text-sm">{Object.entries(PRIORITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-              </div>
-
-              <div className="mt-6 border-t border-zinc-200 pt-5">
-                <h4 className="text-sm font-semibold text-zinc-800">沟通记录</h4>
-                {commentsLoading ? <div className="py-6 text-center text-sm text-zinc-400">正在加载…</div> : comments.length === 0 ? <div className="py-6 text-center text-sm text-zinc-400">暂无沟通记录</div> : (
-                  <div className="mt-3 space-y-3">
-                    {comments.map((comment) => {
-                      if (comment.kind === 'status_change') {
-                        const from = comment.metadata?.from as AdminFeedbackStatus | undefined;
-                        const to = comment.metadata?.to as AdminFeedbackStatus | undefined;
-                        return <div key={comment.id} className="flex items-center gap-2 text-[11px] text-zinc-400"><span className="h-px flex-1 bg-zinc-200" /><span>{comment.is_admin ? '管理员' : '用户'}将状态从「{from ? STATUS_LABEL[from] : '未知'}」更新为「{to ? STATUS_LABEL[to] : '未知'}」 · {formatTime(comment.created_at)}</span><span className="h-px flex-1 bg-zinc-200" /></div>;
-                      }
-                      return <div key={comment.id} className={`rounded-lg border p-3 ${comment.is_admin ? 'border-blue-100 bg-blue-50/70' : 'border-zinc-200 bg-white'}`}><div className="flex items-center justify-between gap-3 text-[11px]"><span className={`font-semibold ${comment.is_admin ? 'text-blue-700' : 'text-zinc-600'}`}>{comment.is_admin ? '管理员' : comment.created_by}</span><span className="text-zinc-400">{formatTime(comment.created_at)}</span></div>{comment.content ? <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-5 text-zinc-700">{comment.content}</p> : null}{comment.images?.length ? <div className="mt-2 flex flex-wrap gap-2">{comment.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`回复截图 ${index + 1}`} className="h-16 w-16 rounded border border-zinc-200 object-cover" /></a>)}</div> : null}</div>;
-                    })}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="break-words text-[18px] font-semibold leading-7 text-[var(--cd-color-text-primary)]">{selected.title}</h3>
+                    <StatusBadge status={selected.status} />
                   </div>
-                )}
-              </div>
-
-              <div className="mt-6 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                <label className="block text-sm font-semibold text-zinc-800">回复用户</label>
-                <p className="mt-0.5 text-xs text-zinc-500">回复会直接显示在用户的“我的反馈”中；状态变化也会进入沟通记录。</p>
-                <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={4} maxLength={2000} placeholder={selected.source === 'user_feedback' ? '例如：问题已经定位，正在处理；或已修复，请刷新后重试。' : '添加处理说明…'} className="mt-3 w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#003e7e]" />
-                {replyImages.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{replyImages.map((url, index) => <div key={url} className="relative"><img src={url} alt="" className="h-14 w-14 rounded border border-zinc-200 object-cover" /><button type="button" onClick={() => setReplyImages((current) => current.filter((_, i) => i !== index))} className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white"><X size={10} /></button></div>)}</div> : null}
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || replyImages.length >= 3} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 text-xs text-zinc-600 disabled:opacity-50"><ImagePlus size={13} />{uploading ? '上传中…' : '添加截图'}</button>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadReplyImage(file); e.target.value = ''; }} />
-                  <div className="ml-auto flex flex-wrap justify-end gap-2">
-                    <button type="button" onClick={() => void submitReply(null)} disabled={replying || (!reply.trim() && replyImages.length === 0)} className="h-9 rounded-lg border border-zinc-300 bg-white px-3 text-xs font-medium text-zinc-600 disabled:opacity-50">仅回复</button>
-                    <button type="button" onClick={() => void submitReply('in_progress')} disabled={replying || (!reply.trim() && replyImages.length === 0)} className="h-9 rounded-lg border border-amber-300 bg-amber-50 px-3 text-xs font-medium text-amber-700 disabled:opacity-50">回复并开始处理</button>
-                    <button type="button" onClick={() => void submitReply('resolved')} disabled={replying || (!reply.trim() && replyImages.length === 0)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#003e7e] px-3 text-xs font-medium text-white disabled:opacity-50"><Send size={13} />回复并标记已解决</button>
+                  <p className="mt-1 text-[11px] text-[var(--cd-color-text-muted)]">{selected.source === 'user_feedback' ? `用户反馈 · ${selected.created_by}` : `内部问题 · ${selected.created_by}`} · {CATEGORY_LABEL[selected.category]} · {MODULE_LABEL[selected.module] ?? selected.module} · {formatTime(selected.created_at)}</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--cd-color-text-muted)]">状态
+                      <select value={selected.status} onChange={(e) => void changeStatus(e.target.value as AdminFeedbackStatus)} className="h-8 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-[11px] font-medium text-[var(--cd-color-text-secondary)]"><option value="open">待处理</option><option value="in_progress">处理中</option><option value="resolved">已解决</option><option value="wontfix">暂不处理</option><option value="duplicate">重复反馈</option></select>
+                    </label>
+                    <label className="inline-flex items-center gap-1.5 text-[11px] text-[var(--cd-color-text-muted)]">优先级
+                      <select value={selected.priority} onChange={(e) => void changePriority(e.target.value as AdminFeedbackPriority)} className="h-8 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2 text-[11px] font-medium text-[var(--cd-color-text-secondary)]"><option value="high">紧急</option><option value="medium">普通</option><option value="low">低</option></select>
+                    </label>
                   </div>
                 </div>
-                {detailError ? <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{detailError}</p> : null}
+                <button type="button" onClick={() => void removeIssue()} className="inline-flex h-8 items-center gap-1 rounded-[var(--cd-radius-sm)] px-2 text-[11px] text-[var(--cd-color-text-muted)] hover:bg-red-50 hover:text-red-600"><Trash2 size={12} />删除</button>
               </div>
+
+              <section className="mt-5">
+                <p className="mb-1.5 text-[11px] font-medium text-[var(--cd-color-text-muted)]">问题描述</p>
+                <p className="whitespace-pre-wrap break-words text-[13px] leading-6 text-[var(--cd-color-text-primary)]">{selected.description || '无详细描述'}</p>
+                {selected.images?.length ? <div className="mt-3 flex flex-wrap gap-2">{selected.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`截图 ${index + 1}`} className="h-20 w-20 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] object-cover" /></a>)}</div> : null}
+              </section>
+
+              <section className="mt-6 border-t border-[var(--cd-color-border)] pt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-[12px] font-semibold text-[var(--cd-color-text-secondary)]">沟通记录</h4>
+                  <span className="text-[10px] text-[var(--cd-color-text-muted)]">回复与状态变化按时间保留</span>
+                </div>
+                {commentsLoading ? (
+                  <div className="py-6 text-center text-sm text-[var(--cd-color-text-muted)]">正在加载…</div>
+                ) : comments.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-[var(--cd-color-text-muted)]">暂无沟通记录</div>
+                ) : (
+                  <div className="relative mt-4 space-y-4 before:absolute before:bottom-2 before:left-[13px] before:top-2 before:w-px before:bg-[var(--cd-color-border)]">
+                    {comments.map((comment) => <TimelineItem key={comment.id} comment={comment} />)}
+                  </div>
+                )}
+              </section>
+
+              <section className="mt-6 border-t border-[var(--cd-color-border)] pt-5">
+                <label className="block text-[12px] font-semibold text-[var(--cd-color-text-secondary)]">{selected.source === 'user_feedback' ? '回复用户' : '添加处理说明'}</label>
+                <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={4} maxLength={2000} placeholder={selected.source === 'user_feedback' ? '输入回复，例如：问题已经定位，正在处理。' : '添加处理说明…'} className="mt-2.5 w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 text-[13px] leading-5 outline-none placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
+
+                {replyImages.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{replyImages.map((url, index) => <div key={url} className="relative"><img src={url} alt="" className="h-14 w-14 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] object-cover" /><button type="button" onClick={() => setReplyImages((current) => current.filter((_, i) => i !== index))} className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white"><X size={10} /></button></div>)}</div> : null}
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading || replyImages.length >= 3} className="inline-flex h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50"><ImagePlus size={13} />{uploading ? '上传中…' : '添加截图'}</button>
+                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadReplyImage(file); e.target.value = ''; }} />
+
+                  <div className="relative ml-auto flex items-center">
+                    <button type="button" onClick={() => void submitReply(primaryReplyAction.status)} disabled={replyDisabled} className="inline-flex h-9 items-center gap-1.5 rounded-l-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 text-xs font-medium text-white disabled:opacity-45"><Send size={13} />{replying ? '发送中…' : primaryReplyAction.label}</button>
+                    <button type="button" onClick={() => setActionMenuOpen((value) => !value)} disabled={replyDisabled} className="flex h-9 w-8 items-center justify-center rounded-r-[var(--cd-radius-md)] border-l border-white/20 bg-[var(--cd-color-brand)] text-white disabled:opacity-45" aria-label="更多回复动作"><ChevronDown size={13} /></button>
+                    {actionMenuOpen ? (
+                      <div className="absolute bottom-11 right-0 z-10 min-w-[190px] overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] py-1 shadow-[var(--cd-shadow-popover)]">
+                        <button type="button" onClick={() => void submitReply(null)} className="block w-full px-3 py-2 text-left text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]">仅回复</button>
+                        <button type="button" onClick={() => void submitReply('in_progress')} className="block w-full px-3 py-2 text-left text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]">回复并开始处理</button>
+                        <button type="button" onClick={() => void submitReply('resolved')} className="block w-full px-3 py-2 text-left text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]">回复并标记已解决</button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {detailError ? <p className="mt-3 rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-2 text-xs text-red-700">{detailError}</p> : null}
+              </section>
             </div>
           )}
-        </div>
+        </main>
       </div>
 
       <NewIssueDialog open={newDialogOpen} adminEmail={adminEmail} onClose={() => setNewDialogOpen(false)} onCreated={loadIssues} />
