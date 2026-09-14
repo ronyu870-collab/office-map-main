@@ -2,6 +2,7 @@ import { supabase } from '@/src/services/supabaseClient';
 
 export type FeedbackCategory = 'bug' | 'feature' | 'data' | 'other';
 export type FeedbackStatus = 'open' | 'in_progress' | 'resolved' | 'wontfix' | 'duplicate';
+export type FeedbackCommentKind = 'comment' | 'status_change' | 'system';
 
 export interface FeedbackIssue {
   id: string;
@@ -19,6 +20,11 @@ export interface FeedbackIssue {
   reopened_at: string | null;
   source: 'admin' | 'user_feedback';
   context: Record<string, unknown>;
+  last_activity_at: string | null;
+  last_admin_activity_at: string | null;
+  last_user_activity_at: string | null;
+  last_read_at: string | null;
+  has_unread_admin_activity: boolean;
 }
 
 export interface FeedbackComment {
@@ -29,6 +35,8 @@ export interface FeedbackComment {
   created_by: string;
   is_admin: boolean;
   created_at: string;
+  kind: FeedbackCommentKind;
+  metadata: Record<string, unknown>;
 }
 
 export interface CreateFeedbackInput {
@@ -57,20 +65,44 @@ const ISSUE_SELECT = [
   'reopened_at',
   'source',
   'context',
+  'last_activity_at',
+  'last_admin_activity_at',
+  'last_user_activity_at',
 ].join(',');
 
-export async function getMyFeedback(userEmail: string): Promise<FeedbackIssue[]> {
-  const { data, error } = await supabase
-    .from('admin_issues')
-    .select(ISSUE_SELECT)
-    .eq('source', 'user_feedback')
-    .eq('created_by', userEmail)
-    .order('created_at', { ascending: false });
+function isLater(value: string | null, baseline: string | null): boolean {
+  if (!value) return false;
+  if (!baseline) return true;
+  return new Date(value).getTime() > new Date(baseline).getTime();
+}
 
-  if (error) throw new Error(`获取反馈失败：${error.message}`);
-  // ISSUE_SELECT is composed dynamically, so supabase-js cannot infer the row shape.
-  // Keep the runtime selection contract explicit and isolate the assertion here.
-  return (data ?? []) as unknown as FeedbackIssue[];
+export async function getMyFeedback(userEmail: string, userId: string): Promise<FeedbackIssue[]> {
+  const [{ data: issues, error: issueError }, { data: reads, error: readError }] = await Promise.all([
+    supabase
+      .from('admin_issues')
+      .select(ISSUE_SELECT)
+      .eq('source', 'user_feedback')
+      .eq('created_by', userEmail)
+      .order('last_activity_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('admin_issue_reads')
+      .select('issue_id,last_read_at')
+      .eq('user_id', userId),
+  ]);
+
+  if (issueError) throw new Error(`获取反馈失败：${issueError.message}`);
+  if (readError) throw new Error(`获取反馈已读状态失败：${readError.message}`);
+
+  const readMap = new Map((reads ?? []).map((row) => [row.issue_id as string, row.last_read_at as string]));
+  return ((issues ?? []) as unknown as Omit<FeedbackIssue, 'last_read_at' | 'has_unread_admin_activity'>[]).map((issue) => {
+    const lastReadAt = readMap.get(issue.id) ?? null;
+    return {
+      ...issue,
+      last_read_at: lastReadAt,
+      has_unread_admin_activity: isLater(issue.last_admin_activity_at, lastReadAt),
+    };
+  });
 }
 
 export async function createFeedback(input: CreateFeedbackInput): Promise<FeedbackIssue> {
@@ -87,23 +119,27 @@ export async function createFeedback(input: CreateFeedbackInput): Promise<Feedba
       created_by: input.createdBy,
       source: 'user_feedback',
       context: input.context,
+      last_user_activity_at: new Date().toISOString(),
     })
     .select(ISSUE_SELECT)
     .single();
 
   if (error) throw new Error(`提交反馈失败：${error.message}`);
-  // See getMyFeedback: the dynamic select string prevents static row inference.
-  return data as unknown as FeedbackIssue;
+  return {
+    ...(data as unknown as Omit<FeedbackIssue, 'last_read_at' | 'has_unread_admin_activity'>),
+    last_read_at: null,
+    has_unread_admin_activity: false,
+  };
 }
 
 export async function getFeedbackComments(issueId: string): Promise<FeedbackComment[]> {
   const { data, error } = await supabase
     .from('admin_issue_comments')
-    .select('id,issue_id,content,images,created_by,is_admin,created_at')
+    .select('id,issue_id,content,images,created_by,is_admin,created_at,kind,metadata')
     .eq('issue_id', issueId)
     .order('created_at', { ascending: true });
 
-  if (error) throw new Error(`获取反馈回复失败：${error.message}`);
+  if (error) throw new Error(`获取反馈沟通记录失败：${error.message}`);
   return (data ?? []) as FeedbackComment[];
 }
 
@@ -121,12 +157,27 @@ export async function addFeedbackComment(
       images,
       created_by: createdBy,
       is_admin: false,
+      kind: 'comment',
+      metadata: {},
     })
-    .select('id,issue_id,content,images,created_by,is_admin,created_at')
+    .select('id,issue_id,content,images,created_by,is_admin,created_at,kind,metadata')
     .single();
 
   if (error) throw new Error(`补充反馈失败：${error.message}`);
   return data as FeedbackComment;
+}
+
+export async function markFeedbackRead(issueId: string): Promise<void> {
+  const { error } = await supabase.rpc('feedback_mark_read', { p_issue_id: issueId });
+  if (error) throw new Error(`更新反馈已读状态失败：${error.message}`);
+}
+
+export async function reopenFeedback(issueId: string, message: string): Promise<void> {
+  const { error } = await supabase.rpc('feedback_reopen', {
+    p_issue_id: issueId,
+    p_message: message.trim(),
+  });
+  if (error) throw new Error(`重新打开反馈失败：${error.message}`);
 }
 
 async function compressImage(file: File, maxDim = 1600, quality = 0.8): Promise<File> {
