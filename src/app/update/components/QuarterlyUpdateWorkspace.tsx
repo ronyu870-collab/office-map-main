@@ -17,6 +17,13 @@ import { SaveStatus, type SaveState } from '@/src/components/data-entry/SaveStat
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
 import { AppHeader, Badge, Button, Dialog, EmptyState, ErrorState, LoadingState } from '@/src/components/ui';
 import {
+  canonicalDraftUserName,
+  isDraftRevisionConflict,
+  isSubmissionPeriodChanged,
+  parseSubmissionPeriod,
+  previousSubmissionPeriod,
+} from '../quarterlyDraftLifecycle';
+import {
   buildQuarterlySubmissionPayload,
   getQuarterlyRowIssues,
   isQuarterlyRowComplete,
@@ -135,6 +142,7 @@ export function QuarterlyUpdateWorkspace() {
   const [ready, setReady] = React.useState(false);
   const [currentUser, setCurrentUser] = React.useState<any>(null);
   const [matchName, setMatchName] = React.useState('');
+  const [draftOwnerUserId, setDraftOwnerUserId] = React.useState('');
   const [draftUserName, setDraftUserName] = React.useState('');
   const [isPreview, setIsPreview] = React.useState(false);
   const [previewUserName, setPreviewUserName] = React.useState('');
@@ -152,12 +160,21 @@ export function QuarterlyUpdateWorkspace() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [completionNotice, setCompletionNotice] = React.useState<CompletionNotice | null>(null);
   const [saveState, setSaveState] = React.useState<SaveState>('idle');
-  const [saveMessage, setSaveMessage] = React.useState('云端草稿已启用');
+  const [saveMessage, setSaveMessage] = React.useState('正在准备云端草稿');
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
+  const [draftReady, setDraftReady] = React.useState(false);
+  const [draftLoadError, setDraftLoadError] = React.useState<string | null>(null);
+  const [submitYear, setSubmitYear] = React.useState(0);
+  const [submitQuarter, setSubmitQuarter] = React.useState(0);
 
-  const now = React.useMemo(() => new Date(), []);
-  const [submitYear, setSubmitYear] = React.useState(now.getFullYear());
-  const [submitQuarter, setSubmitQuarter] = React.useState(Math.ceil((now.getMonth() + 1) / 3));
+  const draftRequestSeqRef = React.useRef(0);
+  const serverRevisionRef = React.useRef(0);
+  const localRevisionRef = React.useRef(0);
+  const lastSyncedLocalRevisionRef = React.useRef(0);
+  const latestDraftRef = React.useRef<Record<string, any>>({});
+  const currentTabRef = React.useRef(currentTab);
+  const saveStateRef = React.useRef<SaveState>(saveState);
+  const draftReadyRef = React.useRef(draftReady);
 
   const lastSuccessfulBuildings = React.useRef<any[] | null>(null);
   const { buildings, error: buildingsError, mutate } = useBuildings({ revalidateOnMount: true });
@@ -165,6 +182,10 @@ export function QuarterlyUpdateWorkspace() {
   React.useEffect(() => {
     if (buildings !== undefined) lastSuccessfulBuildings.current = buildings;
   }, [buildings]);
+
+  React.useEffect(() => { currentTabRef.current = currentTab; }, [currentTab]);
+  React.useEffect(() => { saveStateRef.current = saveState; }, [saveState]);
+  React.useEffect(() => { draftReadyRef.current = draftReady; }, [draftReady]);
 
   const protectedBuildings = buildings !== undefined ? buildings : lastSuccessfulBuildings.current ?? undefined;
 
@@ -227,7 +248,11 @@ export function QuarterlyUpdateWorkspace() {
   React.useEffect(() => {
     let cancelled = false;
     setAssignmentsError(null);
-    setReady(true);
+    setReady(false);
+    setAssignedBuildingIds(null);
+    setFutureSupplyAssignments([]);
+    setFutureSupplyData({});
+    setMetricsMap({});
 
     void (async () => {
       try {
@@ -237,31 +262,54 @@ export function QuarterlyUpdateWorkspace() {
           router.replace('/login');
           return;
         }
+
         const user = session.user;
         setCurrentUser(user);
         const name = (user.user_metadata?.full_name as string) || user.email?.split('@')[0] || '未知用户';
         setMatchName(name);
-        setDraftUserName(name);
 
-        const { data: roleRow } = await supabase.from('user_roles').select('role').eq('user_id', user.id).single();
+        const { data: roleRow, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        if (roleError) throw new Error(`读取用户权限失败：${roleError.message}`);
         if (roleRow?.role !== 'admin' && roleRow?.role !== 'editor') {
           router.replace('/');
           return;
         }
 
+        const { data: settings, error: settingsError } = await supabase
+          .from('app_settings')
+          .select('key,value')
+          .in('key', ['current_submission_year', 'current_submission_quarter']);
+        if (settingsError) throw new Error(`读取当前填报季度失败：${settingsError.message}`);
+        const period = parseSubmissionPeriod(settings);
+        const previousPeriod = previousSubmissionPeriod(period);
+        if (cancelled) return;
+        setSubmitYear(period.year);
+        setSubmitQuarter(period.quarter);
+
         let assignmentUserId = user.id;
+        let canonicalName = canonicalDraftUserName(user.email, name);
+        setIsPreview(false);
+        setPreviewUserName('');
+
         if (previewAsUserId && roleRow?.role === 'admin') {
-          setIsPreview(true);
-          assignmentUserId = previewAsUserId;
-          const { data: previewUser } = await supabase
+          const { data: previewUser, error: previewError } = await supabase
             .from('user_roles')
             .select('chinese_name, full_name, email')
             .eq('user_id', previewAsUserId)
             .single();
-          setPreviewUserName(previewUser?.chinese_name || previewUser?.full_name || previewAsUserId);
-          const previewDraftName = previewUser?.full_name || previewUser?.email?.split('@')[0] || '';
-          if (previewDraftName) setDraftUserName(previewDraftName);
+          if (previewError) throw new Error(`读取预览用户失败：${previewError.message}`);
+          setIsPreview(true);
+          assignmentUserId = previewAsUserId;
+          setPreviewUserName(previewUser?.chinese_name || previewUser?.full_name || previewUser?.email || previewAsUserId);
+          canonicalName = canonicalDraftUserName(previewUser?.email, previewUser?.full_name || previewAsUserId);
         }
+
+        setDraftOwnerUserId(assignmentUserId);
+        setDraftUserName(canonicalName);
 
         const assignments = await retryAsync(async () => {
           const result = await supabase.from('building_assignments').select('building_id').eq('user_id', assignmentUserId);
@@ -270,7 +318,7 @@ export function QuarterlyUpdateWorkspace() {
         }, { attempts: 3, baseDelayMs: 250 });
         if (cancelled) return;
         const ids = assignments.map((assignment: any) => assignment.building_id as string);
-        setAssignedBuildingIds((previous) => previous && previous.length > 0 && ids.length === 0 ? previous : ids);
+        setAssignedBuildingIds(ids);
 
         if (ids.length > 0) {
           try {
@@ -279,8 +327,8 @@ export function QuarterlyUpdateWorkspace() {
                 .from('building_metrics')
                 .select('building_id,record_year,record_quarter,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent,vacancy_rate,vacant_area,total_area')
                 .in('building_id', ids)
-                .order('record_year', { ascending: false })
-                .order('record_quarter', { ascending: false });
+                .eq('record_year', previousPeriod.year)
+                .eq('record_quarter', previousPeriod.quarter);
               if (result.error) throw result.error;
               return result.data ?? [];
             }, { attempts: 3, baseDelayMs: 250 });
@@ -288,75 +336,73 @@ export function QuarterlyUpdateWorkspace() {
             for (const row of metrics) (grouped[row.building_id] ||= []).push(row);
             if (!cancelled) setMetricsMap(grouped);
           } catch (error) {
-            console.warn('[QuarterlyUpdate] building_metrics unavailable; continuing without prior-quarter reference', error);
+            console.warn('[QuarterlyUpdate] previous-quarter metrics unavailable; continuing without reference data', error);
           }
         }
 
-        try {
-          const { data: settings } = await supabase
-            .from('app_settings')
-            .select('key,value')
-            .in('key', ['current_submission_year', 'current_submission_quarter']);
-          const yearValue = settings?.find((row) => row.key === 'current_submission_year')?.value;
-          const quarterValue = settings?.find((row) => row.key === 'current_submission_quarter')?.value;
-          const effectiveYear = yearValue ? Number(yearValue) : submitYear;
-          const effectiveQuarter = quarterValue ? Number(quarterValue) : submitQuarter;
-          if (yearValue) setSubmitYear(effectiveYear);
-          if (quarterValue) setSubmitQuarter(effectiveQuarter);
-
-          const { data: supplyAssignments, error: supplyError } = await supabase
-            .from('future_supply_assignments')
-            .select('id,future_supply_id,record_year,record_quarter')
-            .eq('user_id', assignmentUserId)
-            .eq('record_year', effectiveYear)
-            .eq('record_quarter', effectiveQuarter);
-          if (!supplyError && supplyAssignments?.length) {
-            setFutureSupplyAssignments(supplyAssignments);
-            const idsToLoad = supplyAssignments.map((assignment) => assignment.future_supply_id);
-            const { data: supplies } = await supabase
-              .from('future_supplies')
-              .select('id,name,submarket,grade,owner,total_area,district')
-              .in('id', idsToLoad);
-            const supplyMap: Record<string, any> = {};
-            for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
-            setFutureSupplyData(supplyMap);
-          }
-        } catch (error) {
-          console.warn('[QuarterlyUpdate] future supply unavailable; continuing with regular assignments', error);
+        const { data: supplyAssignments, error: supplyError } = await supabase
+          .from('future_supply_assignments')
+          .select('id,future_supply_id,record_year,record_quarter')
+          .eq('user_id', assignmentUserId)
+          .eq('record_year', period.year)
+          .eq('record_quarter', period.quarter);
+        if (supplyError) throw new Error(`读取未来供应任务失败：${supplyError.message}`);
+        if (cancelled) return;
+        setFutureSupplyAssignments(supplyAssignments ?? []);
+        if (supplyAssignments?.length) {
+          const idsToLoad = supplyAssignments.map((assignment) => assignment.future_supply_id);
+          const { data: supplies, error: suppliesError } = await supabase
+            .from('future_supplies')
+            .select('id,name,submarket,grade,owner,total_area,district')
+            .in('id', idsToLoad);
+          if (suppliesError) throw new Error(`读取未来供应项目失败：${suppliesError.message}`);
+          const supplyMap: Record<string, any> = {};
+          for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
+          setFutureSupplyData(supplyMap);
         }
+
+        if (!cancelled) setReady(true);
       } catch (error: any) {
-        console.error('[QuarterlyUpdate] assignment load failed', error);
+        console.error('[QuarterlyUpdate] initialization failed', error);
         if (!cancelled) {
-          setAssignmentsError(`读取分配数据时发生异常：${error?.message ?? '未知错误'}`);
+          setAssignmentsError(error?.message ?? '季度填报初始化失败，请重试。');
           setAssignedBuildingIds((previous) => previous ?? []);
         }
       }
     })();
 
     return () => { cancelled = true; };
-  // Keep the original assignment lifecycle stable: explicit retry is the only refetch trigger.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentsRetryKey, previewAsUserId, router]);
 
-  const fetchDraftFromServer = React.useCallback(async (userName: string, tab: string) => {
+  const fetchDraftFromServer = React.useCallback(async (ownerUserId: string, tab: string, year: number, quarter: number) => {
+    const requestId = ++draftRequestSeqRef.current;
+    const localRevisionAtStart = localRevisionRef.current;
+    setDraftReady(false);
+    setDraftLoadError(null);
+    setSaveState('saving');
+    setSaveMessage('正在加载当前季度云端草稿');
+
     try {
-      setSaveState('saving');
-      setSaveMessage('正在加载云端草稿');
       const { data, error } = await supabase
         .from('update_drafts')
-        .select('draft_data,updated_at')
-        .eq('user_name', userName)
+        .select('draft_data,updated_at,revision')
+        .eq('user_id', ownerUserId)
+        .eq('record_year', year)
+        .eq('record_quarter', quarter)
         .eq('tab', tab)
-        .single();
-      if (error) {
-        // Preserve legacy degradation: a missing/unreadable draft never hides assigned projects.
-        setDraftData({});
-        setFutureSupplyDrafts({});
-        setSaveState('idle');
-        setSaveMessage('暂无云端草稿');
+        .maybeSingle();
+
+      if (requestId !== draftRequestSeqRef.current) return;
+      if (error) throw error;
+
+      if (localRevisionRef.current !== localRevisionAtStart) {
+        setDraftReady(true);
+        setSaveState('unsaved');
+        setSaveMessage('检测到本地修改，未使用稍晚返回的云端数据覆盖');
         return;
       }
-      if (data?.draft_data) {
+
+      if (data?.draft_data && typeof data.draft_data === 'object') {
         const { __futureSupply__, ...regular } = data.draft_data as Record<string, any>;
         setDraftData(regular);
         setFutureSupplyDrafts(__futureSupply__ && typeof __futureSupply__ === 'object' ? __futureSupply__ : {});
@@ -364,75 +410,133 @@ export function QuarterlyUpdateWorkspace() {
         setDraftData({});
         setFutureSupplyDrafts({});
       }
+
+      const revision = Number(data?.revision ?? 0);
+      serverRevisionRef.current = Number.isFinite(revision) ? revision : 0;
+      localRevisionRef.current = 0;
+      lastSyncedLocalRevisionRef.current = 0;
       setLastSavedAt(data?.updated_at ? new Date(data.updated_at) : null);
-      setSaveState('saved');
-      setSaveMessage('已加载云端草稿');
-    } catch (error) {
-      console.warn('[QuarterlyUpdate] draft read failed; continuing with empty draft', error);
-      setDraftData({});
-      setFutureSupplyDrafts({});
+      setSaveState(data ? 'saved' : 'idle');
+      setSaveMessage(data ? '已加载当前季度云端草稿' : '当前季度暂无云端草稿');
+      setDraftReady(true);
+    } catch (error: any) {
+      if (requestId !== draftRequestSeqRef.current) return;
+      console.warn('[QuarterlyUpdate] draft read failed', error);
+      setDraftLoadError(error?.message || '云端草稿读取失败');
       setSaveState('idle');
-      setSaveMessage('云端草稿暂不可用，当前修改保留在本地');
+      setSaveMessage('云端草稿读取失败；当前页面不会自动清空本地修改');
+      setDraftReady(true);
     }
   }, []);
 
   React.useEffect(() => {
-    if (draftUserName && myBuildings.length > 0) void fetchDraftFromServer(draftUserName, currentTab);
-  }, [draftUserName, myBuildings.length, currentTab, fetchDraftFromServer]);
+    if (!ready || !draftOwnerUserId || submitYear <= 0 || submitQuarter <= 0) return;
+    void fetchDraftFromServer(draftOwnerUserId, currentTab, submitYear, submitQuarter);
+  }, [ready, draftOwnerUserId, currentTab, submitYear, submitQuarter, fetchDraftFromServer]);
+
+  const mergedDraft = React.useCallback(
+    () => ({ ...draftData, __futureSupply__: futureSupplyDrafts }),
+    [draftData, futureSupplyDrafts],
+  );
+
+  React.useEffect(() => {
+    latestDraftRef.current = mergedDraft();
+  }, [mergedDraft]);
 
   const syncDraftToServer = React.useCallback(async (draft: Record<string, any>, tab: string) => {
-    if (!draftUserName || isPreview || isImpersonating) return false;
-    setSaveState('saving');
-    setSaveMessage('正在同步云端草稿');
-    try {
-      const timestamp = new Date();
-      const { error } = await supabase.from('update_drafts').upsert(
-        { user_name: draftUserName, tab, draft_data: draft, updated_at: timestamp.toISOString() },
-        { onConflict: 'user_name,tab' },
-      );
-      if (error) throw error;
-      setLastSavedAt(timestamp);
-      setSaveState('saved');
-      setSaveMessage('更改已同步至云端草稿');
+    if (!currentUser?.id || !draftUserName || isPreview || isImpersonating || submitYear <= 0 || submitQuarter <= 0) return false;
+
+    const localRevision = localRevisionRef.current;
+    if (localRevision === lastSyncedLocalRevisionRef.current && serverRevisionRef.current > 0) {
       return true;
+    }
+
+    setSaveState('saving');
+    setSaveMessage('正在同步当前季度云端草稿');
+    try {
+      const { data, error } = await supabase.rpc('save_quarterly_draft', {
+        p_user_id: currentUser.id,
+        p_user_name: draftUserName,
+        p_year: submitYear,
+        p_quarter: submitQuarter,
+        p_tab: tab,
+        p_draft_data: draft,
+        p_expected_revision: serverRevisionRef.current,
+      });
+      if (error) throw error;
+
+      const row = Array.isArray(data) ? data[0] : data;
+      const nextServerRevision = Number(row?.revision ?? serverRevisionRef.current + 1);
+      serverRevisionRef.current = Number.isFinite(nextServerRevision) ? nextServerRevision : serverRevisionRef.current + 1;
+      lastSyncedLocalRevisionRef.current = localRevision;
+      const timestamp = row?.updated_at ? new Date(row.updated_at) : new Date();
+      setLastSavedAt(timestamp);
+
+      if (localRevisionRef.current === localRevision) {
+        setSaveState('saved');
+        setSaveMessage('更改已同步至当前季度云端草稿');
+        return true;
+      }
+
+      setSaveState('unsaved');
+      setSaveMessage('保存期间产生了新修改，最新修改仍待同步');
+      return false;
     } catch (error: any) {
       console.error('[QuarterlyUpdate] draft sync failed', error);
       setSaveState('error');
-      setSaveMessage(error?.message || '云端草稿保存失败；当前页面仍保留本地修改');
+      if (isDraftRevisionConflict(error)) {
+        setSaveMessage('检测到另一窗口已更新云端草稿；本地修改未覆盖云端，请刷新后核对');
+      } else if (isSubmissionPeriodChanged(error)) {
+        setSaveMessage('当前开放填报季度已变化，请刷新页面后继续');
+      } else {
+        setSaveMessage(error?.message || '云端草稿保存失败；当前页面仍保留本地修改');
+      }
       return false;
     }
-  }, [draftUserName, isPreview, isImpersonating]);
-
-  const mergedDraft = React.useCallback(() => ({ ...draftData, __futureSupply__: futureSupplyDrafts }), [draftData, futureSupplyDrafts]);
+  }, [currentUser?.id, draftUserName, isPreview, isImpersonating, submitYear, submitQuarter]);
 
   const manualSave = React.useCallback(async () => {
-    await syncDraftToServer(mergedDraft(), currentTab);
-  }, [currentTab, mergedDraft, syncDraftToServer]);
+    await syncDraftToServer(latestDraftRef.current, currentTabRef.current);
+  }, [syncDraftToServer]);
 
   React.useEffect(() => {
-    if (!draftUserName || isPreview || isImpersonating) return;
+    if (!currentUser?.id || isPreview || isImpersonating) return;
     const timer = window.setInterval(() => {
-      const draft = mergedDraft();
-      const hasBuildingData = Object.keys(draft).some((key) => key !== '__futureSupply__');
-      const hasFutureData = Object.keys(futureSupplyDrafts).length > 0;
-      if ((hasBuildingData || hasFutureData) && saveState === 'unsaved') void syncDraftToServer(draft, currentTab);
+      if (draftReadyRef.current && saveStateRef.current === 'unsaved') {
+        void syncDraftToServer(latestDraftRef.current, currentTabRef.current);
+      }
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [draftUserName, currentTab, futureSupplyDrafts, isPreview, isImpersonating, mergedDraft, saveState, syncDraftToServer]);
+  }, [currentUser?.id, isPreview, isImpersonating, syncDraftToServer]);
 
   const switchTab = async (nextTab: string) => {
     if (nextTab === currentTab) return;
-    if (saveState === 'unsaved') await syncDraftToServer(mergedDraft(), currentTab);
+    if (saveStateRef.current === 'unsaved' || saveStateRef.current === 'error') {
+      const saved = await syncDraftToServer(latestDraftRef.current, currentTab);
+      if (!saved) return;
+    }
+
+    draftRequestSeqRef.current += 1;
+    serverRevisionRef.current = 0;
+    localRevisionRef.current = 0;
+    lastSyncedLocalRevisionRef.current = 0;
+    latestDraftRef.current = {};
+    setDraftData({});
+    setFutureSupplyDrafts({});
+    setLastSavedAt(null);
+    setDraftLoadError(null);
+    setDraftReady(false);
     setCurrentTab(nextTab);
     setCompletionNotice(null);
     setSubmitError(null);
   };
 
   const markUnsaved = () => {
-    if (isPreview || isImpersonating) return;
+    if (isPreview || isImpersonating || !draftReadyRef.current || submitting) return;
+    localRevisionRef.current += 1;
     setCompletionNotice(null);
     setSaveState('unsaved');
-    setSaveMessage('当前修改尚未同步到云端草稿');
+    setSaveMessage('当前修改尚未同步到当前季度云端草稿');
   };
 
   const updateRegularField = (buildingId: string, field: string, value: string) => {
@@ -474,15 +578,26 @@ export function QuarterlyUpdateWorkspace() {
   const completedCount = filteredBuildings.filter((building: any) => isQuarterlyRowComplete(rowState(building))).length;
   const exceptionCount = filteredBuildings.filter((building: any) => getQuarterlyRowIssues(rowState(building), totalAreaFor(building)).length > 0).length;
   const incompleteBuildings = filteredBuildings.filter((building: any) => !isQuarterlyRowComplete(rowState(building)));
-  const readOnly = isPreview || isImpersonating;
+  const accessReadOnly = isPreview || isImpersonating;
+  const readOnly = accessReadOnly || !draftReady || submitting;
+
+  const assertCurrentPeriod = React.useCallback(async () => {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('key,value')
+      .in('key', ['current_submission_year', 'current_submission_quarter']);
+    if (error) throw new Error(`无法确认当前开放填报季度：${error.message}`);
+    const current = parseSubmissionPeriod(data);
+    if (current.year !== submitYear || current.quarter !== submitQuarter) {
+      throw new Error(`当前开放填报季度已切换为 ${current.year} Q${current.quarter}，请刷新页面后继续。`);
+    }
+  }, [submitYear, submitQuarter]);
 
   const executeSubmit = async () => {
     setShowIncompleteDialog(false);
     setSubmitting(true);
     setSubmitError(null);
     setCompletionNotice(null);
-    setSaveState('submitting');
-    setSaveMessage('正在写入提交数据');
 
     const regularRows: any[] = [];
     const futureRows: any[] = [];
@@ -505,11 +620,17 @@ export function QuarterlyUpdateWorkspace() {
     if (total === 0) {
       setSubmitError('当前分类下没有填写任何数据，无需提交。');
       setSubmitting(false);
-      setSaveState(saveState === 'saved' ? 'saved' : 'idle');
+      setSaveState(saveStateRef.current === 'saved' ? 'saved' : 'idle');
       return;
     }
 
     try {
+      await assertCurrentPeriod();
+      const saved = await syncDraftToServer(latestDraftRef.current, currentTab);
+      if (!saved) throw new Error('最新修改尚未完整同步到云端草稿，请先完成草稿保存后再提交。');
+
+      setSaveState('submitting');
+      setSaveMessage('正在写入提交数据');
       if (regularRows.length) {
         const { error } = await supabase.from('quarterly_submissions').insert(regularRows);
         if (error) throw error;
@@ -526,23 +647,26 @@ export function QuarterlyUpdateWorkspace() {
         year: submitYear,
         quarter: submitQuarter,
       });
-      await syncDraftToServer(mergedDraft(), currentTab);
       setCompletionNotice({ total, regular: regularRows.length, future: futureRows.length });
       setSaveState('submitted');
       setLastSavedAt(new Date());
-      setSaveMessage('提交成功；云端草稿已保留');
+      setSaveMessage('提交成功；当前季度云端草稿已同步');
     } catch (error: any) {
       console.error('[QuarterlyUpdate] submit failed', error);
       setSubmitError(error?.message ? `提交失败：${error.message}` : '提交失败，请重试。');
       setSaveState('error');
-      setSaveMessage('提交失败；草稿仍可用于重试');
+      setSaveMessage('提交失败；本地内容仍保留，可核对后重试');
     } finally {
       setSubmitting(false);
     }
   };
 
   const submitData = async () => {
-    await syncDraftToServer(mergedDraft(), currentTab);
+    const saved = await syncDraftToServer(latestDraftRef.current, currentTab);
+    if (!saved) {
+      setSubmitError('草稿尚未完整同步，已阻止提交以避免数据状态不一致。请先重试保存。');
+      return;
+    }
     if (incompleteBuildings.length > 0) {
       setShowIncompleteDialog(true);
       return;
@@ -572,7 +696,7 @@ export function QuarterlyUpdateWorkspace() {
     return (
       <QuarterlyStateShell>
         <ErrorState
-          title="填报任务加载失败"
+          title="季度填报初始化失败"
           description={assignmentsError}
           action={(
             <div className="flex flex-wrap justify-center gap-2">
@@ -585,8 +709,8 @@ export function QuarterlyUpdateWorkspace() {
     );
   }
 
-  if (!ready || protectedBuildings === undefined || assignedBuildingIds === null) {
-    return <QuarterlyStateShell><LoadingState rows={0} label="正在加载季度填报任务" /></QuarterlyStateShell>;
+  if (!ready || protectedBuildings === undefined || assignedBuildingIds === null || submitYear <= 0 || submitQuarter <= 0) {
+    return <QuarterlyStateShell><LoadingState rows={0} label="正在确认当前填报季度并加载任务" /></QuarterlyStateShell>;
   }
 
   if (assignedBuildingIds.length === 0 && futureSupplyAssignments.length === 0) {
@@ -601,12 +725,12 @@ export function QuarterlyUpdateWorkspace() {
     <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[#f3f5f7] text-zinc-900">
       <header className="shrink-0 border-b border-zinc-200 bg-white">
         <AppHeader
-          title={<span className="flex items-center gap-2">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{readOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
+          title={<span className="flex items-center gap-2">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{accessReadOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
           status={<span className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">{isPreview ? `管理员预览 · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</span>}
           homeHref="/"
           actions={<SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { void manualSave(); }} />}
         />
-        {isPreview && <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">管理员预览模式：正在查看 {previewUserName} 的分配与草稿，不允许写入。</div>}
+        {isPreview && <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">管理员预览模式：正在查看 {previewUserName} 在 {submitYear} Q{submitQuarter} 的分配与草稿，不允许写入。</div>}
       </header>
 
       <div className="flex shrink-0 items-center gap-1 border-b border-zinc-200 bg-white px-3 py-2 sm:px-5">
@@ -615,7 +739,8 @@ export function QuarterlyUpdateWorkspace() {
             key={tab}
             type="button"
             onClick={() => { void switchTab(tab); }}
-            className={`rounded-[4px] border px-3 py-1.5 text-[11px] font-semibold transition ${currentTab === tab ? 'border-[#003e7e] bg-[#003e7e] text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+            disabled={!draftReady || submitting}
+            className={`rounded-[4px] border px-3 py-1.5 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${currentTab === tab ? 'border-[#003e7e] bg-[#003e7e] text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
           >
             {TAB_LABELS[tab]}
           </button>
@@ -629,19 +754,20 @@ export function QuarterlyUpdateWorkspace() {
 
       <main className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
         <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-zinc-200 bg-white">
-          {(completionNotice || submitError) && (
+          {(completionNotice || submitError || draftLoadError) && (
             <div className="shrink-0 border-b border-zinc-200 p-2.5">
               {completionNotice ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                   <CheckCircle2 size={15} />
                   <strong>提交成功</strong>
-                  <span>已写入 {completionNotice.total} 条（普通楼宇 {completionNotice.regular} / 未来供应 {completionNotice.future}）。云草稿已保留。</span>
+                  <span>已写入 {completionNotice.total} 条（普通楼宇 {completionNotice.regular} / 未来供应 {completionNotice.future}）。当前季度云草稿已同步。</span>
                   <button onClick={() => setCompletionNotice(null)} className="ml-auto font-semibold underline underline-offset-2">继续录入</button>
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <ValidationMessage severity="error">{submitError}</ValidationMessage>
-                  <button onClick={() => { void executeSubmit(); }} className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">重试提交</button>
+                  <ValidationMessage severity="error">{submitError || `云端草稿读取失败：${draftLoadError}`}</ValidationMessage>
+                  {submitError && <button onClick={() => { void executeSubmit(); }} className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">重试提交</button>}
+                  {draftLoadError && !submitError && <button onClick={() => { void fetchDraftFromServer(draftOwnerUserId, currentTab, submitYear, submitQuarter); }} className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">重试读取</button>}
                 </div>
               )}
             </div>
@@ -738,10 +864,10 @@ export function QuarterlyUpdateWorkspace() {
             })}
           </div>
 
-          <DataEntryToolbar leading={<div className="flex items-center gap-2 text-[10px] text-zinc-500"><Database size={12} /><span>30 秒自动同步云草稿；提交成功后保留草稿作为下一轮编辑基础。</span></div>}>
-            {!readOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> 保存草稿</button>}
-            {!readOnly && <button type="button" onClick={() => { void submitData(); }} disabled={submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? '提交中…' : '提交当前分类'}</button>}
-            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{isImpersonating ? '模拟模式不可写入' : '预览模式不可写入'}</span>}
+          <DataEntryToolbar leading={<div className="flex items-center gap-2 text-[10px] text-zinc-500"><Database size={12} /><span>每 30 秒检查未同步修改；草稿按用户 + 年份 + 季度 + 分类隔离保存。</span></div>}>
+            {!accessReadOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={!draftReady || saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> 保存草稿</button>}
+            {!accessReadOnly && <button type="button" onClick={() => { void submitData(); }} disabled={!draftReady || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? '提交中…' : '提交当前分类'}</button>}
+            {accessReadOnly && <span className="text-[11px] font-medium text-zinc-400">{isImpersonating ? '模拟模式不可写入' : '预览模式不可写入'}</span>}
           </DataEntryToolbar>
         </div>
       </main>
