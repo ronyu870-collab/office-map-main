@@ -36,10 +36,10 @@ interface FeedbackPanelProps {
 }
 
 const CATEGORY_OPTIONS: Array<{ value: FeedbackCategory; label: string }> = [
-  { value: 'bug', label: '系统 Bug' },
-  { value: 'feature', label: '功能需求' },
-  { value: 'data', label: '数据问题' },
-  { value: 'other', label: '其他建议' },
+  { value: 'bug', label: 'Bug' },
+  { value: 'feature', label: '功能' },
+  { value: 'data', label: '数据' },
+  { value: 'other', label: '其他' },
 ];
 
 const CATEGORY_LABEL: Record<FeedbackCategory, string> = {
@@ -68,11 +68,11 @@ const STATUS_LABEL: Record<FeedbackStatus, string> = {
 };
 
 const STATUS_CLASS: Record<FeedbackStatus, string> = {
-  open: 'bg-red-50 text-red-700 ring-red-100',
-  in_progress: 'bg-amber-50 text-amber-700 ring-amber-100',
+  open: 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] ring-[var(--cd-color-border)]',
+  in_progress: 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)] ring-[var(--cd-color-brand)]/15',
   resolved: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
-  wontfix: 'bg-zinc-100 text-zinc-600 ring-zinc-200',
-  duplicate: 'bg-purple-50 text-purple-700 ring-purple-100',
+  wontfix: 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-muted)] ring-[var(--cd-color-border)]',
+  duplicate: 'bg-violet-50 text-violet-700 ring-violet-100',
 };
 
 const MAX_IMAGES = 3;
@@ -123,7 +123,7 @@ function LocalImagePreview({ file, onRemove, disabled }: { file: File; onRemove:
   );
 }
 
-function ImagePicker({ files, onChange, disabled }: { files: File[]; onChange: (files: File[]) => void; disabled: boolean }) {
+function ImagePicker({ files, onChange, disabled, compact = false }: { files: File[]; onChange: (files: File[]) => void; disabled: boolean; compact?: boolean }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [error, setError] = React.useState('');
   const [dragging, setDragging] = React.useState(false);
@@ -180,10 +180,10 @@ function ImagePicker({ files, onChange, disabled }: { files: File[]; onChange: (
           setDragging(false);
           addFiles(Array.from(event.dataTransfer.files));
         }}
-        className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border border-dashed px-3 py-2.5 text-xs transition-colors disabled:opacity-50 ${dragging ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-muted)] hover:border-[var(--cd-color-brand)] hover:text-[var(--cd-color-brand)]'}`}
+        className={`flex w-full items-center justify-center gap-2 rounded-[var(--cd-radius-md)] border border-dashed px-3 text-xs transition-colors disabled:opacity-50 ${compact ? 'min-h-10 py-2' : 'min-h-12 py-2.5'} ${dragging ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-muted)] hover:border-[var(--cd-color-brand)]/45 hover:text-[var(--cd-color-brand)]'}`}
       >
         <ImagePlus size={15} strokeWidth={1.6} />
-        <span>{files.length >= MAX_IMAGES ? '已达到 3 张上限' : '粘贴、拖拽或点击添加截图（最多 3 张）'}</span>
+        <span>{files.length >= MAX_IMAGES ? '已达到 3 张上限' : compact ? '添加截图' : '粘贴、拖拽或点击添加截图（最多 3 张）'}</span>
       </button>
       <input
         ref={inputRef}
@@ -202,7 +202,46 @@ function ImagePicker({ files, onChange, disabled }: { files: File[]; onChange: (
   );
 }
 
-export function FeedbackPanel({ userId, userEmail, userName }: FeedbackPanelProps) {
+function TimelineItem({ comment }: { comment: FeedbackComment }) {
+  if (comment.kind === 'status_change') {
+    const from = comment.metadata?.from as FeedbackStatus | undefined;
+    const to = comment.metadata?.to as FeedbackStatus | undefined;
+    return (
+      <div className="relative pl-8">
+        <span className="absolute left-[9px] top-2 h-2 w-2 rounded-full border-2 border-[var(--cd-color-surface)] bg-[var(--cd-color-border-strong)] ring-1 ring-[var(--cd-color-border)]" />
+        <div className="py-0.5 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">
+          {comment.is_admin ? '管理员' : '你'}将状态从「{from ? STATUS_LABEL[from] : '未知'}」更新为「{to ? STATUS_LABEL[to] : '未知'}」 · {formatTime(comment.created_at)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative pl-8">
+      <span className={`absolute left-[4px] top-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold ring-4 ring-[var(--cd-color-surface)] ${comment.is_admin ? 'bg-[var(--cd-color-brand)] text-white' : 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] ring-1 ring-[var(--cd-color-border)]'}`}>
+        {comment.is_admin ? '管' : '我'}
+      </span>
+      <div className="pb-1">
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className={`font-medium ${comment.is_admin ? 'text-[var(--cd-color-brand)]' : 'text-[var(--cd-color-text-secondary)]'}`}>{comment.is_admin ? '管理员' : '我'}</span>
+          <span className="text-[var(--cd-color-text-muted)]">{formatTime(comment.created_at)}</span>
+        </div>
+        {comment.content ? <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-5 text-[var(--cd-color-text-primary)]">{comment.content}</p> : null}
+        {comment.images?.length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {comment.images.map((url, index) => (
+              <a key={url} href={url} target="_blank" rel="noreferrer">
+                <img src={url} alt={`回复截图 ${index + 1}`} className="h-16 w-16 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] object-cover" />
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const closeRef = React.useRef<HTMLButtonElement>(null);
@@ -394,6 +433,15 @@ export function FeedbackPanel({ userId, userEmail, userName }: FeedbackPanelProp
     }
   };
 
+  const issueHint = (issue: FeedbackIssue) => {
+    if (issue.has_unread_admin_activity) return '管理员有新回复';
+    if (issue.status === 'in_progress') return '正在处理中';
+    if (issue.status === 'resolved') return '已完成处理';
+    if (issue.status === 'wontfix') return '暂不处理';
+    if (issue.status === 'duplicate') return '已标记为重复反馈';
+    return '等待管理员处理';
+  };
+
   return (
     <>
       <button
@@ -426,127 +474,181 @@ export function FeedbackPanel({ userId, userEmail, userName }: FeedbackPanelProp
             role="dialog"
             aria-modal="true"
             aria-labelledby="feedback-dialog-title"
-            className="flex h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)] sm:h-auto sm:max-h-[86dvh] sm:rounded-[var(--cd-radius-lg)]"
+            className="flex h-[92dvh] w-full max-w-[660px] flex-col overflow-hidden rounded-t-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)] sm:h-auto sm:max-h-[86dvh] sm:rounded-[var(--cd-radius-lg)]"
           >
-            <div className="flex shrink-0 items-center justify-between border-b border-[var(--cd-color-border)] px-4 py-3.5 sm:px-5">
-              <div>
-                <h2 id="feedback-dialog-title" className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">问题与建议</h2>
-                <p className="mt-0.5 text-xs text-[var(--cd-color-text-muted)]">提交后可在这里查看处理进度和管理员回复</p>
-              </div>
-              <button ref={closeRef} type="button" onClick={closeDialog} className="flex h-9 w-9 items-center justify-center rounded-[var(--cd-radius-md)] text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]" aria-label="关闭反馈窗口">
-                <X size={17} />
+            <div className="flex shrink-0 items-center justify-between px-4 py-3.5 sm:px-5">
+              <h2 id="feedback-dialog-title" className="text-[15px] font-semibold text-[var(--cd-color-text-primary)]">问题与建议</h2>
+              <button ref={closeRef} type="button" onClick={closeDialog} className="flex h-8 w-8 items-center justify-center rounded-[var(--cd-radius-md)] text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]" aria-label="关闭反馈窗口">
+                <X size={16} />
               </button>
             </div>
 
-            <div className="flex shrink-0 border-b border-[var(--cd-color-border)] px-4 sm:px-5" role="tablist">
-              {([['submit', '提交反馈'], ['mine', unreadCount > 0 ? `我的反馈 · ${unreadCount}` : '我的反馈']] as const).map(([value, label]) => (
+            <div className="mx-4 mb-3 flex shrink-0 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] p-1 sm:mx-5" role="tablist">
+              {([['submit', '提交反馈'], ['mine', '我的反馈']] as const).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
                   role="tab"
                   aria-selected={tab === value}
                   onClick={() => { setTab(value); setSelectedIssue(null); if (value === 'mine') void loadIssues(); }}
-                  className={`relative min-h-11 px-1 text-[13px] font-medium ${tab === value ? 'text-[var(--cd-color-brand)]' : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'} ${value === 'mine' ? 'ml-6' : ''}`}
+                  className={`flex min-h-8 flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--cd-radius-md)-2px)] px-3 text-xs font-medium transition-colors ${tab === value ? 'bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)] shadow-sm' : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'}`}
                 >
                   {label}
-                  {tab === value ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--cd-color-brand)]" /> : null}
+                  {value === 'mine' && unreadCount > 0 ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--cd-color-brand)] px-1 text-[9px] font-semibold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span> : null}
                 </button>
               ))}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+            <div className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--cd-color-border)] px-4 py-4 sm:px-5 sm:py-5">
               {tab === 'submit' ? (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-xs font-medium text-[var(--cd-color-text-secondary)]">反馈类型</label>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {CATEGORY_OPTIONS.map((option) => (
-                        <button key={option.value} type="button" disabled={submitting} onClick={() => setCategory(option.value)} className={`min-h-10 rounded-[var(--cd-radius-md)] border px-2 text-xs font-medium ${category === option.value ? 'border-[var(--cd-color-brand)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'border-[var(--cd-color-border)] text-[var(--cd-color-text-secondary)]'}`}>
-                          {option.label}
-                        </button>
-                      ))}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <div className="min-w-0 flex-1">
+                      <label className="mb-1.5 block text-[11px] font-medium text-[var(--cd-color-text-muted)]">类型</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CATEGORY_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            disabled={submitting}
+                            onClick={() => setCategory(option.value)}
+                            className={`min-h-8 rounded-full px-3 text-xs font-medium transition-colors ${category === option.value ? 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]' : 'bg-[var(--cd-color-surface-alt)] text-[var(--cd-color-text-secondary)] hover:text-[var(--cd-color-text-primary)]'}`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="w-full sm:w-[190px]">
+                      <label htmlFor="feedback-module" className="mb-1.5 block text-[11px] font-medium text-[var(--cd-color-text-muted)]">相关模块</label>
+                      <select id="feedback-module" value={module} onChange={(event) => setModule(event.target.value)} disabled={submitting} className="min-h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 text-xs text-[var(--cd-color-text-secondary)] outline-none focus:border-[var(--cd-color-brand)]">
+                        {MODULE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
                     </div>
                   </div>
+
                   <div>
-                    <label htmlFor="feedback-module" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">相关模块</label>
-                    <select id="feedback-module" value={module} onChange={(event) => setModule(event.target.value)} disabled={submitting} className="min-h-10 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[13px] outline-none focus:border-[var(--cd-color-brand)]">
-                      {MODULE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
+                    <label htmlFor="feedback-title" className="mb-1.5 block text-[13px] font-medium text-[var(--cd-color-text-primary)]">发生了什么？</label>
+                    <input id="feedback-title" value={title} maxLength={120} disabled={submitting} onChange={(event) => setTitle(event.target.value)} placeholder="例如：租赁成交草稿无法保存" className="min-h-11 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[13px] outline-none transition-colors placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
                   </div>
+
                   <div>
-                    <label htmlFor="feedback-title" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">标题</label>
-                    <input id="feedback-title" value={title} maxLength={120} disabled={submitting} onChange={(event) => setTitle(event.target.value)} placeholder="一句话说明问题或需求" className="min-h-10 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 text-[13px] outline-none focus:border-[var(--cd-color-brand)]" />
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <label htmlFor="feedback-description" className="text-[13px] font-medium text-[var(--cd-color-text-primary)]">补充说明</label>
+                      <span className="text-[10px] text-[var(--cd-color-text-muted)]">{description.length}/4000</span>
+                    </div>
+                    <textarea id="feedback-description" value={description} maxLength={4000} rows={6} disabled={submitting} onChange={(event) => setDescription(event.target.value)} placeholder="描述问题、操作步骤，或你希望怎样改进。" className="w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 text-[13px] leading-5 outline-none transition-colors placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
                   </div>
+
                   <div>
-                    <div className="mb-1.5 flex items-center justify-between"><label htmlFor="feedback-description" className="text-xs font-medium text-[var(--cd-color-text-secondary)]">详细描述</label><span className="text-[11px] text-[var(--cd-color-text-muted)]">{description.length}/4000</span></div>
-                    <textarea id="feedback-description" value={description} maxLength={4000} rows={6} disabled={submitting} onChange={(event) => setDescription(event.target.value)} placeholder="请说明发生了什么、你希望怎样改进；如果是 Bug，可写一下操作步骤。" className="w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 py-2.5 text-[13px] leading-5 outline-none focus:border-[var(--cd-color-brand)]" />
+                    <label className="mb-1.5 block text-[11px] font-medium text-[var(--cd-color-text-muted)]">截图（可选）</label>
+                    <ImagePicker files={files} onChange={setFiles} disabled={submitting} />
                   </div>
-                  <div><label className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">截图（可选）</label><ImagePicker files={files} onChange={setFiles} disabled={submitting} /></div>
+
                   {submitError ? <p className="rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-2 text-xs text-red-700">{submitError}</p> : null}
-                  <div className="flex items-center justify-between gap-3 border-t border-[var(--cd-color-border)] pt-4">
-                    <p className="text-[11px] text-[var(--cd-color-text-muted)]">提交人：{userName}</p>
-                    <button type="submit" disabled={submitting || !title.trim() || !description.trim()} className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-4 text-[13px] font-medium text-white disabled:opacity-45"><Send size={14} />{submitting ? '提交中…' : '提交反馈'}</button>
+
+                  <div className="flex justify-end border-t border-[var(--cd-color-border)] pt-4">
+                    <button type="submit" disabled={submitting || !title.trim() || !description.trim()} className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-4 text-[13px] font-medium text-white transition-opacity disabled:opacity-45">
+                      <Send size={14} />{submitting ? '提交中…' : '提交反馈'}
+                    </button>
                   </div>
                 </form>
               ) : selectedIssue ? (
                 <div>
-                  <button type="button" onClick={() => { setSelectedIssue(null); setComments([]); }} className="mb-4 inline-flex min-h-9 items-center gap-1 rounded-[var(--cd-radius-sm)] px-1.5 text-xs text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]"><ChevronLeft size={14} />返回我的反馈</button>
+                  <button type="button" onClick={() => { setSelectedIssue(null); setComments([]); }} className="mb-4 inline-flex min-h-8 items-center gap-1 rounded-[var(--cd-radius-sm)] px-1.5 text-xs text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]">
+                    <ChevronLeft size={14} />返回
+                  </button>
+
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0"><h3 className="break-words text-[15px] font-semibold text-[var(--cd-color-text-primary)]">{selectedIssue.title}</h3><p className="mt-1 text-xs text-[var(--cd-color-text-muted)]">{CATEGORY_LABEL[selectedIssue.category]} · {MODULE_LABEL[selectedIssue.module] ?? selectedIssue.module} · {formatTime(selectedIssue.created_at)}</p></div>
+                    <div className="min-w-0">
+                      <h3 className="break-words text-[16px] font-semibold leading-6 text-[var(--cd-color-text-primary)]">{selectedIssue.title}</h3>
+                      <p className="mt-1 text-[11px] text-[var(--cd-color-text-muted)]">{CATEGORY_LABEL[selectedIssue.category]} · {MODULE_LABEL[selectedIssue.module] ?? selectedIssue.module} · {formatTime(selectedIssue.created_at)}</p>
+                    </div>
                     <StatusBadge status={selectedIssue.status} />
                   </div>
-                  <div className="mt-4 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] px-3.5 py-3 text-[13px] leading-6 whitespace-pre-wrap break-words">{selectedIssue.description}</div>
-                  {selectedIssue.images?.length ? <div className="mt-3 flex flex-wrap gap-2">{selectedIssue.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`反馈截图 ${index + 1}`} className="h-20 w-20 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] object-cover" /></a>)}</div> : null}
 
-                  <div className="mt-6 border-t border-[var(--cd-color-border)] pt-4">
-                    <h4 className="text-xs font-semibold text-[var(--cd-color-text-secondary)]">沟通记录</h4>
-                    {commentsLoading ? <p className="py-5 text-center text-xs text-[var(--cd-color-text-muted)]">正在加载…</p> : comments.length === 0 ? <p className="py-5 text-center text-xs text-[var(--cd-color-text-muted)]">暂无沟通记录</p> : (
-                      <div className="mt-3 space-y-2.5">
-                        {comments.map((comment) => {
-                          if (comment.kind === 'status_change') {
-                            const from = comment.metadata?.from as FeedbackStatus | undefined;
-                            const to = comment.metadata?.to as FeedbackStatus | undefined;
-                            return <div key={comment.id} className="flex items-center gap-2 py-1 text-[11px] text-[var(--cd-color-text-muted)]"><span className="h-px flex-1 bg-[var(--cd-color-border)]" /><span>{comment.is_admin ? '管理员' : '你'}将状态从「{from ? STATUS_LABEL[from] : '未知'}」更新为「{to ? STATUS_LABEL[to] : '未知'}」 · {formatTime(comment.created_at)}</span><span className="h-px flex-1 bg-[var(--cd-color-border)]" /></div>;
-                          }
-                          return (
-                            <div key={comment.id} className={`rounded-[var(--cd-radius-md)] border px-3 py-2.5 ${comment.is_admin ? 'border-[var(--cd-color-brand)]/20 bg-[var(--cd-color-brand-soft)]/50' : 'border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]'}`}>
-                              <div className="flex items-center justify-between gap-3 text-[11px]"><span className="font-medium text-[var(--cd-color-text-secondary)]">{comment.is_admin ? '管理员' : '我'}</span><span className="text-[var(--cd-color-text-muted)]">{formatTime(comment.created_at)}</span></div>
-                              {comment.content ? <p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-5">{comment.content}</p> : null}
-                              {comment.images?.length ? <div className="mt-2 flex flex-wrap gap-2">{comment.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`回复截图 ${index + 1}`} className="h-16 w-16 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] object-cover" /></a>)}</div> : null}
-                            </div>
-                          );
-                        })}
+                  <section className="mt-5">
+                    <p className="mb-1.5 text-[11px] font-medium text-[var(--cd-color-text-muted)]">提交内容</p>
+                    <p className="whitespace-pre-wrap break-words text-[13px] leading-6 text-[var(--cd-color-text-primary)]">{selectedIssue.description}</p>
+                    {selectedIssue.images?.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedIssue.images.map((url, index) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt={`反馈截图 ${index + 1}`} className="h-20 w-20 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] object-cover" /></a>)}
+                      </div>
+                    ) : null}
+                  </section>
+
+                  <section className="mt-6 border-t border-[var(--cd-color-border)] pt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-[12px] font-semibold text-[var(--cd-color-text-secondary)]">沟通记录</h4>
+                      <span className="text-[10px] text-[var(--cd-color-text-muted)]">处理进度与回复都会保留在这里</span>
+                    </div>
+                    {commentsLoading ? <p className="py-6 text-center text-xs text-[var(--cd-color-text-muted)]">正在加载…</p> : comments.length === 0 ? <p className="py-6 text-center text-xs text-[var(--cd-color-text-muted)]">管理员暂未回复</p> : (
+                      <div className="relative mt-4 space-y-4 before:absolute before:bottom-2 before:left-[13px] before:top-2 before:w-px before:bg-[var(--cd-color-border)]">
+                        {comments.map((comment) => <TimelineItem key={comment.id} comment={comment} />)}
                       </div>
                     )}
-                  </div>
+                  </section>
 
                   {selectedIssue.status === 'resolved' ? (
-                    <div className="mt-5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] p-3.5">
-                      <div className="flex items-center gap-2 text-[13px] font-medium text-[var(--cd-color-text-primary)]"><RotateCcw size={15} />问题仍未解决？</div>
-                      <p className="mt-1 text-xs text-[var(--cd-color-text-muted)]">可以重新打开这条反馈，不需要重复提交。</p>
-                      <textarea value={reopenMessage} onChange={(event) => setReopenMessage(event.target.value)} rows={2} maxLength={1000} placeholder="可选：说明目前仍存在的问题" className="mt-3 w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--cd-color-brand)]" />
-                      <div className="mt-2 flex justify-end"><button type="button" onClick={() => void handleReopen()} disabled={reopening} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-brand)] px-3 text-xs font-medium text-[var(--cd-color-brand)] disabled:opacity-50"><RotateCcw size={13} />{reopening ? '重新打开中…' : '问题仍未解决'}</button></div>
-                    </div>
+                    <section className="mt-6 border-t border-[var(--cd-color-border)] pt-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[13px] font-medium text-[var(--cd-color-text-primary)]">问题仍未解决？</p>
+                          <p className="mt-0.5 text-[11px] text-[var(--cd-color-text-muted)]">重新打开即可继续处理，不需要重复提交。</p>
+                        </div>
+                        <RotateCcw size={16} className="shrink-0 text-[var(--cd-color-text-muted)]" />
+                      </div>
+                      <textarea value={reopenMessage} onChange={(event) => setReopenMessage(event.target.value)} rows={2} maxLength={1000} placeholder="可选：说明目前仍存在的问题" className="mt-3 w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2 text-[13px] outline-none placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
+                      <div className="mt-2 flex justify-end">
+                        <button type="button" onClick={() => void handleReopen()} disabled={reopening} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-3 text-xs font-medium text-[var(--cd-color-text-secondary)] hover:border-[var(--cd-color-brand)]/40 hover:text-[var(--cd-color-brand)] disabled:opacity-50">
+                          <RotateCcw size={13} />{reopening ? '重新打开中…' : '问题仍未解决'}
+                        </button>
+                      </div>
+                    </section>
                   ) : (
-                    <form onSubmit={handleReply} className="mt-5 space-y-2.5">
-                      <textarea value={reply} maxLength={2000} rows={3} disabled={replying} onChange={(event) => setReply(event.target.value)} placeholder="补充说明或回复管理员…" className="w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 py-2.5 text-[13px] leading-5 outline-none focus:border-[var(--cd-color-brand)]" />
-                      <ImagePicker files={replyFiles} onChange={setReplyFiles} disabled={replying} />
-                      <div className="flex justify-end"><button type="submit" disabled={replying || (!reply.trim() && replyFiles.length === 0)} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 text-xs font-medium text-white disabled:opacity-45"><Send size={13} />{replying ? '发送中…' : '补充说明'}</button></div>
+                    <form onSubmit={handleReply} className="mt-6 border-t border-[var(--cd-color-border)] pt-5">
+                      <textarea value={reply} maxLength={2000} rows={3} disabled={replying} onChange={(event) => setReply(event.target.value)} placeholder="补充说明或回复管理员…" className="w-full resize-y rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 text-[13px] leading-5 outline-none placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)]" />
+                      <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <div className="min-w-0 flex-1"><ImagePicker files={replyFiles} onChange={setReplyFiles} disabled={replying} compact /></div>
+                        <button type="submit" disabled={replying || (!reply.trim() && replyFiles.length === 0)} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 text-xs font-medium text-white disabled:opacity-45">
+                          <Send size={13} />{replying ? '发送中…' : '补充说明'}
+                        </button>
+                      </div>
                     </form>
                   )}
+
                   {detailError ? <p className="mt-3 rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-2 text-xs text-red-700">{detailError}</p> : null}
                 </div>
               ) : (
                 <div>
-                  <div className="mb-3 flex items-center justify-between gap-3"><p className="text-xs text-[var(--cd-color-text-muted)]">仅显示你自己提交的反馈。</p><button type="button" disabled={issuesLoading} onClick={() => void loadIssues()} className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-xs text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]"><RefreshCw size={13} className={issuesLoading ? 'animate-spin' : ''} />刷新</button></div>
-                  {issuesLoading && !issuesLoaded ? <div className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)]" />)}</div> : issuesError ? <p className="rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-3 text-center text-xs text-red-700">{issuesError}</p> : issues.length === 0 ? <div className="rounded-[var(--cd-radius-md)] border border-dashed border-[var(--cd-color-border)] px-4 py-9 text-center"><MessageSquareMore size={22} className="mx-auto text-[var(--cd-color-text-muted)]" /><p className="mt-2 text-xs text-[var(--cd-color-text-muted)]">还没有提交过反馈</p></div> : (
-                    <div className="overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)]">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-[var(--cd-color-text-muted)]">{issues.length > 0 ? `${issues.length} 条反馈` : '你的反馈记录'}</p>
+                    <button type="button" disabled={issuesLoading} onClick={() => void loadIssues()} className="inline-flex min-h-8 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-xs text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]">
+                      <RefreshCw size={13} className={issuesLoading ? 'animate-spin' : ''} />刷新
+                    </button>
+                  </div>
+                  {issuesLoading && !issuesLoaded ? (
+                    <div className="space-y-2">{[0, 1, 2].map((item) => <div key={item} className="h-[72px] animate-pulse rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)]" />)}</div>
+                  ) : issuesError ? (
+                    <p className="rounded-[var(--cd-radius-md)] bg-red-50 px-3 py-3 text-center text-xs text-red-700">{issuesError}</p>
+                  ) : issues.length === 0 ? (
+                    <div className="rounded-[var(--cd-radius-md)] border border-dashed border-[var(--cd-color-border)] px-4 py-10 text-center">
+                      <MessageSquareMore size={22} className="mx-auto text-[var(--cd-color-text-muted)]" />
+                      <p className="mt-2 text-xs text-[var(--cd-color-text-muted)]">还没有提交过反馈</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[var(--cd-color-border)] overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)]">
                       {issues.map((issue) => (
-                        <button key={issue.id} type="button" onClick={() => void openIssue(issue)} className="flex w-full items-center gap-3 border-b border-[var(--cd-color-border)] px-3.5 py-3 text-left last:border-b-0 hover:bg-[var(--cd-color-surface-alt)]">
-                          {issue.has_unread_admin_activity ? <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--cd-color-brand)]" aria-label="有新回复" /> : <span className="h-2 w-2 shrink-0" />}
-                          <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]">{issue.title}</span><span className="mt-1 block text-[11px] text-[var(--cd-color-text-muted)]">{issue.has_unread_admin_activity ? '管理员有新回复 · ' : ''}{formatTime(issue.last_activity_at ?? issue.created_at)}</span></span>
-                          <StatusBadge status={issue.status} />
-                          <ArrowRight size={13} className="shrink-0 text-[var(--cd-color-text-muted)]" />
+                        <button key={issue.id} type="button" onClick={() => void openIssue(issue)} className="group flex w-full items-center gap-3 px-3.5 py-3.5 text-left transition-colors hover:bg-[var(--cd-color-surface-alt)]">
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${issue.has_unread_admin_activity ? 'bg-[var(--cd-color-brand)]' : 'bg-transparent'}`} aria-label={issue.has_unread_admin_activity ? '有新回复' : undefined} />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span className="block min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]">{issue.title}</span>
+                              <StatusBadge status={issue.status} />
+                            </span>
+                            <span className={`mt-1 block truncate text-[11px] ${issue.has_unread_admin_activity ? 'font-medium text-[var(--cd-color-brand)]' : 'text-[var(--cd-color-text-muted)]'}`}>{issueHint(issue)} · {formatTime(issue.last_activity_at ?? issue.created_at)}</span>
+                          </span>
+                          <ArrowRight size={13} className="shrink-0 text-[var(--cd-color-text-muted)] transition-transform group-hover:translate-x-0.5" />
                         </button>
                       ))}
                     </div>
