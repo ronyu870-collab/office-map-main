@@ -97,20 +97,24 @@ Historical source remains:
 - 6,543 rows
 - 6,543 unique `source_uid`
 
-Canonical historical read result:
+Canonical historical read result after v18:
 
-- exact: 3,845 rows
-- project: 1,047 rows
-- safely usable exact + project: 4,892 / 6,543 = 74.8%
-- unmapped: 1,651 rows
+- exact: 3,852 rows
+- project: 1,058 rows
+- safely usable exact + project: 4,910 / 6,543 = 75.0%
+- unmapped: 1,633 rows
 - source_uid-level exact overrides: 8 rows
 
 Governance ledger:
 
-- `AUTO_VERIFIED`: 369 names / 1,625 source rows
-- `AUTO_VERIFIED_PROJECT`: 118 names / 1,047 source rows
+- `AUTO_VERIFIED`: 374 names / 1,632 source rows
+- `AUTO_VERIFIED_PROJECT`: 127 names / 1,058 source rows
 - `INVENTORY_GAP`: 46 names / 303 source rows
-- `NEEDS_REVIEW`: 1,050 names / 1,356 name-level source rows
+- `NEEDS_REVIEW`: 1,036 names / 1,338 name-level source rows
+
+v18 propagated only previously verified exact/project seeds through non-semantic formatting or suffix variants. It resolved 14 historical names covering 18 rows: 5 exact aliases covering 7 rows and 9 project aliases covering 11 rows.
+
+One intended v18 candidate, `金地中心 A`, was deliberately not resolved by the migration. Its configured seed `金地中心A` exists only in `lease_building_project_map`, while the exact-propagation branch reads only `lease_building_name_map`; therefore the row stayed `NEEDS_REVIEW` instead of being upgraded across precision levels. This is a safe no-op, not a partial or incorrect write.
 
 The alias-review row total is not the same as the read-layer unmapped total because one globally unresolved alias can have selected source_uids safely resolved by `lease_building_record_map`. The read layer is authoritative for row-level coverage.
 
@@ -127,11 +131,11 @@ Exact examples:
 - 万豪中心 / 万豪 / 万豪写字楼 -> 荷华明城大厦
 - 用友软件园 -> 用友产业园
 - 中关村一号 -> 中关村壹号
-- 海航实业大厦 -> 横琴人寿大厦
+- 海航实业大厦 / 海航实业 -> 横琴人寿大厦
 - 盘古大厦 -> 钰珵大厦
 - PVG / 侨福 -> 北京侨福芳草地
 
-Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际 and 月坛中心/金融街月坛中心.
+Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列 and 兆泰国际中心系列.
 
 ## Manual verification contract
 
