@@ -10,6 +10,8 @@ type LeaseReadRecord = {
   read_id: string;
   record_source: 'live' | 'history';
   building_id: string | null;
+  building_match_scope: 'exact' | 'project' | 'unmapped';
+  related_building_ids: string[];
   company: string | null;
   industry: string | null;
   demand_type: string | null;
@@ -27,6 +29,12 @@ type LeaseReadRecord = {
 
 function fmtNumber(value: number | null) {
   return value == null ? '-' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+}
+
+function associationLabel(scope: LeaseReadRecord['building_match_scope']) {
+  if (scope === 'exact') return '精确楼宇';
+  if (scope === 'project') return '项目级';
+  return '待映射';
 }
 
 export default function LeaseHistoryPage() {
@@ -80,7 +88,7 @@ export default function LeaseHistoryPage() {
               <h1 className="text-sm font-semibold">租赁成交数据库</h1>
               <Badge tone="neutral">实时 + 历史</Badge>
             </div>
-            <p className="mt-1 text-[11px] text-[var(--cd-color-text-secondary)]">统一读取 2015 至今成交；历史数据只读，未知字段保留为空。</p>
+            <p className="mt-1 text-[11px] text-[var(--cd-color-text-secondary)]">统一读取 2015 至今成交；“项目级”表示已确认到项目，但没有把历史成交伪精确到当前某一塔楼。</p>
           </div>
           <Link href="/lease-submission" className="text-xs font-medium text-[var(--cd-color-brand)] hover:underline">返回成交填报</Link>
         </div>
@@ -123,7 +131,7 @@ export default function LeaseHistoryPage() {
                       <td className="px-3 py-2.5 text-right tabular-nums">{fmtNumber(row.lease_term_months)}</td>
                       <td className="px-3 py-2.5 tabular-nums">{row.transaction_year ?? '-'}</td>
                       <td className="px-3 py-2.5">{row.transaction_quarter || '-'}</td>
-                      <td className="px-3 py-2.5">{row.building_id ? '已关联' : '待映射'}</td>
+                      <td className="px-3 py-2.5"><Badge tone={row.building_match_scope === 'exact' ? 'success' : 'neutral'}>{associationLabel(row.building_match_scope)}</Badge></td>
                     </tr>
                   ))}
                   {records.length === 0 && <tr><td colSpan={13} className="px-4 py-12 text-center text-xs text-[var(--cd-color-text-secondary)]">没有符合条件的成交记录</td></tr>}
