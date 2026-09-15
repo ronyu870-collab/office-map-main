@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { canAccessModule } from '@/src/utils/accessControl';
@@ -15,6 +16,7 @@ function LeaseSubmissionGuardLoading() {
 
 export default function LeaseSubmissionLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [authorized, setAuthorized] = React.useState(false);
 
   React.useEffect(() => {
@@ -47,5 +49,17 @@ export default function LeaseSubmissionLayout({ children }: { children: React.Re
   }, [router]);
 
   if (!authorized) return <LeaseSubmissionGuardLoading />;
-  return children;
+
+  const inDatabase = pathname?.startsWith('/lease-submission/history');
+  return (
+    <>
+      {children}
+      <Link
+        href={inDatabase ? '/lease-submission' : '/lease-submission/history'}
+        className="fixed bottom-5 right-5 z-[var(--cd-z-sticky)] rounded-full border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-4 py-2 text-xs font-semibold text-[var(--cd-color-brand)] shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+      >
+        {inDatabase ? '返回成交填报' : '成交数据库'}
+      </Link>
+    </>
+  );
 }
