@@ -1,83 +1,160 @@
-# Historical Lease Building Alias Governance
+# Historical Lease Building Identity Governance
 
 ## Purpose
 
-Historical lease rows preserve source-era building names as text, while the current building inventory uses `public.buildings.id` as the canonical project identity. This document defines the controlled bridge between those two representations.
+Historical lease rows preserve source-era building names as text, while the current building inventory uses `public.buildings.id` as the canonical identity. This document defines the controlled, auditable bridge between those representations.
 
 The historical transaction source table is not rewritten during identity resolution.
 
 ## Authoritative objects
 
-- `public.lease_transactions_history`: governed historical source records; unchanged by alias resolution.
+- `public.lease_transactions_history`: governed historical source records; identity resolution must not rewrite these rows.
 - `public.buildings`: current building/project inventory.
-- `public.lease_building_name_map`: machine-readable alias -> `building_id` relation used by the lease read layer.
-- `public.lease_building_alias_review`: review ledger for historical aliases, evidence, candidates and resolution status.
-- `public.buildings.former_names`: user-visible historical/legacy aliases confirmed for the current building entity. In this system the field may include a historical tower/phase label that resolves to a current project-level entity; it must not be interpreted as a legal/corporate-name-history field.
+- `public.lease_building_name_map`: exact historical alias -> one current `building_id`.
+- `public.lease_building_project_map`: verified project/complex alias -> one or more current building members where project identity is certain but tower attribution is not.
+- `public.lease_building_record_map`: source_uid-level override used only for true same-name/multi-building exceptions that can be resolved from row context without polluting the global alias map.
+- `public.lease_building_alias_review`: governance ledger for historical aliases, candidates, evidence, inventory gaps and review state.
+- `public.buildings.former_names`: user-visible historical/legacy aliases confirmed for a current entity. In this system it is an identity/search field, not a legal/corporate-name-history field.
+- `public.lease_transactions_read_v1`: service-only canonical read model. For history it resolves identity in precedence order: record-level override -> exact alias -> project membership -> unmapped.
 
-## Resolution statuses
+## Resolution states and read precision
 
-- `AUTO_VERIFIED`: deterministic, unique mapping under the conservative rules below.
-- `MANUAL_VERIFIED`: mapping explicitly confirmed through human review.
-- `NEEDS_REVIEW`: no safe automatic decision; must not enter the canonical alias map.
-- `NO_MATCH`: reviewed and confirmed to have no current building entity.
+Alias review states:
 
-## Automatic matching rules
+- `AUTO_VERIFIED`: deterministic exact mapping to one current building.
+- `MANUAL_VERIFIED`: exact mapping explicitly confirmed through human review.
+- `AUTO_VERIFIED_PROJECT`: deterministic project/complex association where exact tower attribution is not justified.
+- `INVENTORY_GAP`: external/current building identity is confirmed, but the current 642-building inventory has no safe canonical/former-name carrier.
+- `NEEDS_REVIEW`: evidence is insufficient or genuinely ambiguous.
 
-Automatic matching deliberately does **not** use fuzzy similarity to create a relationship.
+The read layer exposes `building_match_scope`:
 
-Allowed deterministic cases:
+- `exact`: one current building is safely known, including source_uid-level overrides.
+- `project`: the project/complex is known, but one exact current tower is not asserted.
+- `unmapped`: no safe current association is available.
 
-1. Normalized exact identity: punctuation, whitespace, case or full-width formatting only.
-2. Exact normalized match to an already registered `former_names` value.
-3. Exact match to a unique parenthetical alias embedded in the current building name, e.g. `IFC` -> `国际财源中心（IFC）`.
-4. Unique `北京` / `中国` leading-prefix difference when location context does not conflict.
-5. Unique trailing parenthetical annotation only, with no competing current sibling entity.
-6. Tightly constrained `大厦` / `中心` suffix difference only when the historical core is sufficiently specific, there is one candidate, and a single historical submarket agrees with the current building submarket.
-7. Historical subunit -> current project-level entity only when the historical name is the current project name plus a recognized tower/phase suffix, the candidate is unique, location context does not conflict, and the current inventory contains no competing sibling entity under that project base name.
+## Evidence hierarchy
 
-The reverse direction is intentionally unsafe: a historical project-level name must not be automatically assigned to one current tower. For example, a historical `华贸中心` row cannot be forced into either `华贸中心三座` or `华贸中心 (一座、二座)` without additional evidence.
+Automatic resolution deliberately does **not** use a generic fuzzy-similarity threshold to create identity.
+
+Strong evidence includes:
+
+1. normalized exact identity: punctuation, whitespace, case or full-width formatting only;
+2. exact match to a verified `former_names` value;
+3. unique canonical-name expansion or contraction with no competing sibling entity;
+4. exact parenthetical/English acronym identity such as `IFC` or `PVG` when current metadata and location context agree;
+5. current address / coordinate coincidence plus rename evidence;
+6. official or current company/building sources documenting a rename;
+7. historical tenant/address/context corroboration;
+8. current project structure proving a historical tower belongs to one current aggregate entity;
+9. verified project membership when a historical project-level name cannot honestly be assigned to a current tower;
+10. source_uid-level contextual resolution for a reused historical label, for example a submarket that uniquely distinguishes two current buildings.
+
+Dense-area proximity alone never proves identity. Address/building-number/project evidence overrides nearest-neighbour distance.
+
+## Granularity rule
+
+The unsafe direction is intentionally prohibited: a historical project-level name must not be forced into one current tower simply because only one candidate looks convenient.
+
+Examples:
+
+- historical `华贸中心` must not be arbitrarily assigned to `华贸中心三座` or `华贸中心 (一座、二座)`;
+- historical `环球贸易中心` is a project association across current tower groups unless a row contains stronger tower evidence;
+- historical `月坛中心` is associated to the current project surface without pretending that every historical deal occurred in the currently inventoried E座.
+
+## Same-name/multi-building exception
+
+A global alias map is not sufficient when the same historical label was reused for different physical buildings.
+
+`平安金融中心` is the reference case:
+
+- rows with `sub_market in ('丽泽', '丽泽商务区')` resolve at source_uid level to `丽泽平安金融中心`;
+- rows with `sub_market='燕莎'` resolve at source_uid level to `平安国际金融中心`;
+- CBD and no-submarket rows remain unresolved.
+
+No global `平安金融中心 -> building_id` alias is created.
+
+## Inventory gaps
+
+`INVENTORY_GAP` means the identity problem is understood but the current building inventory is incomplete. These rows are not candidates for forced nearest-neighbour matching.
+
+The review ledger stores, when known:
+
+- `external_canonical_name`
+- `external_address`
+- `external_lat`
+- `external_lng`
+- `evidence_snapshot`
+
+This makes the gap pool a structured input to future building-inventory expansion.
+
+Examples include 石榴中心、东方梅地亚中心、通泰大厦、方正国际大厦、金隅嘉华大厦（历史嘉华大厦）、京泰大厦、南新仓商务大厦、四惠大厦、大恒科技大厦、学院国际大厦、银网中心、国华投资大厦、中关村新兴产业联盟大厦、北京世茂大厦 and 国际财经中心.
 
 ## Production result — 2026-09-15
 
-Starting unresolved universe: 1,583 distinct historical building names.
+Historical source remains:
 
-After deterministic automatic resolution:
+- 6,543 rows
+- 6,543 unique `source_uid`
 
-- 137 historical names were `AUTO_VERIFIED`.
-- Those names cover 567 formerly-unmapped historical lease rows.
-- Total historical rows linked to a current `building_id`: 2,779 / 6,543 (42.5%).
-- 1,446 names covering 3,764 rows remain `NEEDS_REVIEW`.
-- 203 unresolved names have non-binding candidate suggestions in `candidate_snapshot`.
-- 1,243 unresolved names have no conservative prefix candidate.
+Canonical historical read result:
 
-The history table remains 6,543 rows with 6,543 unique `source_uid` values. No historical source row was updated or deleted.
+- exact: 3,845 rows
+- project: 1,047 rows
+- safely usable exact + project: 4,892 / 6,543 = 74.8%
+- unmapped: 1,651 rows
+- source_uid-level exact overrides: 8 rows
 
-## Human review order
+Governance ledger:
 
-Review `NEEDS_REVIEW` rows by `historical_row_count DESC` so the highest-impact aliases are resolved first. Candidate snapshots are suggestions only and must not be treated as mappings.
+- `AUTO_VERIFIED`: 369 names / 1,625 source rows
+- `AUTO_VERIFIED_PROJECT`: 118 names / 1,047 source rows
+- `INVENTORY_GAP`: 46 names / 303 source rows
+- `NEEDS_REVIEW`: 1,050 names / 1,356 name-level source rows
 
-High-impact examples include:
+The alias-review row total is not the same as the read-layer unmapped total because one globally unresolved alias can have selected source_uids safely resolved by `lease_building_record_map`. The read layer is authoritative for row-level coverage.
 
-- `华贸中心` — 101 rows; multiple current building entities.
-- `东方广场` — 88 rows; current East / Central / West entities.
-- `环球贸易中心` — 77 rows; multiple current tower groups.
-- `恒通商务园` — 45 rows; no conservative candidate.
-- `WFC` — 42 rows; abbreviation requires human confirmation.
-- `望京SOHO` — 41 rows; current inventory is more specific than the historical project-level name.
-- `保利国际广场` — 40 rows; current inventory is more specific than the historical project-level name.
-- `盈科中心` — 39 rows; multiple current entities.
-- `大族广场` — 35 rows; multiple current tower groups.
+Current unified read count is 6,872 = 329 live + 6,543 history, with 6,872 unique `read_id` values.
+
+## Examples of verified identity resolution
+
+Exact examples:
+
+- 君康人寿大厦 -> 富泽人寿大厦
+- 金泰大厦 -> 能+中心金泰
+- 东亿国际 / 东亿国际传媒产业园 -> 东亿文化科技产业园
+- 中航资本大厦 -> 中航产融大厦
+- 万豪中心 / 万豪 / 万豪写字楼 -> 荷华明城大厦
+- 用友软件园 -> 用友产业园
+- 中关村一号 -> 中关村壹号
+- 海航实业大厦 -> 横琴人寿大厦
+- 盘古大厦 -> 钰珵大厦
+- PVG / 侨福 -> 北京侨福芳草地
+
+Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际 and 月坛中心/金融街月坛中心.
 
 ## Manual verification contract
 
-A human-approved mapping should:
+A human-approved exact mapping should:
 
-1. update the review row to `MANUAL_VERIFIED` with the chosen `matched_building_id`, basis, reviewer note and resolution time;
+1. update the review row to `MANUAL_VERIFIED` with evidence and resolution time;
 2. insert the alias into `lease_building_name_map` with `verification_status='MANUAL_VERIFIED'`;
-3. append the confirmed alias to `buildings.former_names` when it is useful for user-facing identity/history lookup;
-4. never rewrite the historical transaction's original `new_building` text;
-5. preserve the ability to audit which historical string produced the relationship.
+3. append the confirmed semantic alias to `buildings.former_names` when useful for user-facing identity/search;
+4. never rewrite historical `new_building` source text;
+5. preserve auditability from historical string/source_uid to the chosen identity.
 
-## Safety boundary
+A human-approved project mapping should use `lease_building_project_map` and must not create a fake exact `building_id`.
 
-Do not broaden automatic rules merely to improve the coverage percentage. A missing relationship is preferable to a wrong building identity because Map building profiles, tenant histories, company migration paths, expiry analysis and future AI queries all inherit this relation.
+A row-specific decision for a reused ambiguous label should use `lease_building_record_map`; it must not create a global alias that changes unrelated rows.
+
+## Security boundary
+
+- `lease_transactions_history` service role: SELECT + INSERT only.
+- exact/project mapping tables: runtime service role SELECT only.
+- review and record-override governance tables: service role SELECT + INSERT + UPDATE only; no DELETE/TRUNCATE.
+- `anon` / `authenticated` receive no direct grants on historical source/governance/read tables.
+- governance tables are RLS-enabled with no client policy by design.
+- `lease_transactions_read_v1` uses `security_invoker=true`.
+- the historical identity layer introduces no `SECURITY DEFINER` function.
+
+Do not broaden matching rules merely to improve a percentage. A missing relationship is preferable to a wrong building identity because Map building profiles, tenant histories, company migration paths, expiry analysis and future AI queries inherit this relation.
