@@ -13,6 +13,12 @@ function clampLimit(raw: string | null) {
   return Math.max(1, Math.min(MAX_LIMIT, Math.floor(value)));
 }
 
+function parseOptionalNumber(raw: string | null) {
+  if (raw == null || raw.trim() === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -69,10 +75,10 @@ export async function GET(req: NextRequest) {
     const subMarket = params.get('sub_market')?.trim();
     const industry = params.get('industry')?.trim();
     const source = params.get('record_source')?.trim();
-    const yearFrom = Number(params.get('year_from'));
-    const yearTo = Number(params.get('year_to'));
-    const areaMin = Number(params.get('area_min'));
-    const areaMax = Number(params.get('area_max'));
+    const yearFrom = parseOptionalNumber(params.get('year_from'));
+    const yearTo = parseOptionalNumber(params.get('year_to'));
+    const areaMin = parseOptionalNumber(params.get('area_min'));
+    const areaMax = parseOptionalNumber(params.get('area_max'));
 
     // related_building_ids contains the exact building for exact matches and every
     // current project member for project-level matches. Filtering on the array lets
@@ -84,10 +90,10 @@ export async function GET(req: NextRequest) {
     if (subMarket) query = query.eq('sub_market', subMarket);
     if (industry) query = query.eq('industry', industry);
     if (source === 'live' || source === 'history') query = query.eq('record_source', source);
-    if (Number.isFinite(yearFrom)) query = query.gte('transaction_year', yearFrom);
-    if (Number.isFinite(yearTo)) query = query.lte('transaction_year', yearTo);
-    if (Number.isFinite(areaMin)) query = query.gte('area_sqm', areaMin);
-    if (Number.isFinite(areaMax)) query = query.lte('area_sqm', areaMax);
+    if (yearFrom !== null) query = query.gte('transaction_year', yearFrom);
+    if (yearTo !== null) query = query.lte('transaction_year', yearTo);
+    if (areaMin !== null) query = query.gte('area_sqm', areaMin);
+    if (areaMax !== null) query = query.lte('area_sqm', areaMax);
 
     const { data, error, count } = await query
       .order('transaction_year', { ascending: false })
