@@ -11,6 +11,7 @@ const cache = new Map<string, { count: number; records: LeaseRow[] }>();
 type LeaseRow = {
   read_id: string;
   record_source: 'live' | 'history';
+  building_match_scope: 'exact' | 'project' | 'unmapped';
   company: string | null;
   area_sqm: number | null;
   face_rent: number | null;
@@ -31,13 +32,18 @@ function fmt(value: number | null) {
 }
 
 function renderPanel(panel: HTMLElement, payload: { count: number; records: LeaseRow[] }) {
-  const rows = payload.records.slice(0, 5).map(row => `
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) 60px 56px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #edf0f3;font-size:11px;">
-      <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172033;font-weight:500;" title="${escapeHtml(row.company || '-')}">${escapeHtml(row.company || '-')}</div>
-      <div style="text-align:right;color:#566174;font-variant-numeric:tabular-nums;">${escapeHtml(fmt(row.area_sqm))}㎡</div>
-      <div style="text-align:right;color:#566174;font-variant-numeric:tabular-nums;">${escapeHtml(`${row.transaction_year ?? '-'}${row.transaction_quarter ?? ''}`)}</div>
-    </div>
-  `).join('');
+  const hasProjectRows = payload.records.some(row => row.building_match_scope === 'project');
+  const rows = payload.records.slice(0, 5).map(row => {
+    const period = `${row.transaction_year ?? '-'}${row.transaction_quarter ?? ''}`;
+    const scope = row.building_match_scope === 'project' ? ' · 项目级' : '';
+    return `
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 60px 94px;gap:8px;align-items:center;padding:6px 0;border-top:1px solid #edf0f3;font-size:11px;">
+        <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172033;font-weight:500;" title="${escapeHtml(row.company || '-')}">${escapeHtml(row.company || '-')}</div>
+        <div style="text-align:right;color:#566174;font-variant-numeric:tabular-nums;">${escapeHtml(fmt(row.area_sqm))}㎡</div>
+        <div style="text-align:right;color:${row.building_match_scope === 'project' ? '#7b8494' : '#566174'};font-variant-numeric:tabular-nums;">${escapeHtml(`${period}${scope}`)}</div>
+      </div>
+    `;
+  }).join('');
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px;">
@@ -45,6 +51,7 @@ function renderPanel(panel: HTMLElement, payload: { count: number; records: Leas
       <div style="font-size:10px;color:#7b8494;">${payload.count.toLocaleString('zh-CN')} 条 · 实时+历史</div>
     </div>
     ${rows || '<div style="padding:8px 0;font-size:11px;color:#8a94a3;">暂无已关联成交</div>'}
+    ${hasProjectRows ? '<div style="padding-top:5px;border-top:1px solid #edf0f3;font-size:9px;line-height:1.4;color:#8a94a3;">“项目级”表示历史成交已确认属于该项目，但未精确到当前具体塔楼。</div>' : ''}
   `;
 }
 
