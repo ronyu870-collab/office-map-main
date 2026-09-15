@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin
       .from('lease_transactions_read_v1')
       .select(
-        'read_id,record_source,building_id,company,industry,sub_industry,demand_type,new_building,sub_market,district,area_sqm,face_rent,effective_rent,lease_term_months,transaction_year,transaction_quarter,transaction_period,transaction_time_precision,remarks,agency_company,agency_person,quality_status',
+        'read_id,record_source,building_id,building_match_scope,related_building_ids,company,industry,sub_industry,demand_type,new_building,sub_market,district,area_sqm,face_rent,effective_rent,lease_term_months,transaction_year,transaction_quarter,transaction_period,transaction_time_precision,remarks,agency_company,agency_person,quality_status',
         { count: 'exact' },
       );
 
@@ -74,7 +74,11 @@ export async function GET(req: NextRequest) {
     const areaMin = Number(params.get('area_min'));
     const areaMax = Number(params.get('area_max'));
 
-    if (buildingId) query = query.eq('building_id', buildingId);
+    // related_building_ids contains the exact building for exact matches and every
+    // current project member for project-level matches. Filtering on the array lets
+    // Map surface governed project-level history without pretending it belongs to a
+    // specific tower.
+    if (buildingId) query = query.contains('related_building_ids', [buildingId]);
     if (company) query = query.ilike('company', `%${company}%`);
     if (building) query = query.ilike('new_building', `%${building}%`);
     if (subMarket) query = query.eq('sub_market', subMarket);
