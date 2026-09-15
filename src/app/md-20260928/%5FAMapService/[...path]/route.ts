@@ -1,3 +1,6 @@
+export const runtime = 'nodejs';
+export const preferredRegion = 'hnd1';
+
 const ALLOWED_ORIGINS = new Set([
   'null',
   'https://colliersdata.com',
