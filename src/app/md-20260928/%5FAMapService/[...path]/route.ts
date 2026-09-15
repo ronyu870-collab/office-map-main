@@ -2,7 +2,6 @@ export const runtime = 'nodejs';
 export const preferredRegion = 'hnd1';
 
 const ALLOWED_ORIGINS = new Set([
-  'null',
   'https://colliersdata.com',
   'https://www.colliersdata.com',
   'https://colliersdata-ronyu870-9030s-projects.vercel.app',
@@ -13,7 +12,7 @@ const EXPIRY = Date.parse('2026-10-15T00:00:00+08:00');
 
 function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get('origin');
-  const allowOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'null';
+  const allowOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://www.colliersdata.com';
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
@@ -24,8 +23,16 @@ function corsHeaders(request: Request): HeadersInit {
 
 function isAllowedRequest(request: Request): boolean {
   const origin = request.headers.get('origin');
-  if (!origin) return true;
-  return ALLOWED_ORIGINS.has(origin);
+  const referer = request.headers.get('referer');
+  if (origin && ALLOWED_ORIGINS.has(origin)) return true;
+  if (referer) {
+    try {
+      return ALLOWED_ORIGINS.has(new URL(referer).origin);
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 function getSecurityCode(): string {
@@ -81,8 +88,19 @@ async function proxy(request: Request, context: { params: Promise<{ path?: strin
   const headers = new Headers();
   const contentType = request.headers.get('content-type');
   const accept = request.headers.get('accept');
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
   if (contentType) headers.set('content-type', contentType);
   if (accept) headers.set('accept', accept);
+  if (origin && ALLOWED_ORIGINS.has(origin)) headers.set('origin', origin);
+  if (referer) {
+    try {
+      const refererOrigin = new URL(referer).origin;
+      if (ALLOWED_ORIGINS.has(refererOrigin)) headers.set('referer', referer);
+    } catch {
+      // Ignore malformed referers.
+    }
+  }
 
   const init: RequestInit = {
     method: request.method,
