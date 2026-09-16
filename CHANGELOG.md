@@ -1,3 +1,37 @@
+## 2026-09-16 — Lease read optional-filter hotfix
+
+### Area
+Lease Submission / Map / unified lease-transaction read API / production data retrieval
+
+### What changed
+
+- Fixed optional numeric query parsing in `/api/lease-transactions/read` so an absent `year_from`, `year_to`, `area_min`, or `area_max` is treated as “no filter” instead of being coerced through `Number(null)` to `0`.
+- Kept numeric predicates conditional: year and area bounds are added only when the caller actually supplies a non-empty, finite number.
+- Added a regression contract covering all four optional numeric filters and specifically preventing direct `Number(...)` initialization of those filter variables.
+
+### Why
+
+The production API was successfully authenticated, connected to Supabase, and returning HTTP 200, but missing optional query parameters were silently converted to zero. Lease-database requests omitted `area_max`, which added `area_sqm <= 0`; Map requests omitted both year and area bounds, which added impossible zero-value predicates. The result was a healthy-looking 200 response with an empty record set in both user surfaces.
+
+### Impact
+
+- Broker/editor and admin users can again retrieve the unified live + historical lease dataset through the lease database and mapped-building Map popups.
+- Authentication, role authorization, live-record write ownership, historical data, building identity mappings, Supabase schema, RLS, and grants are unchanged.
+- This is a read-path hotfix only; no verified historical row is modified.
+
+### Verification
+
+- Production database inspection confirmed `lease_transactions_read_v1` contains 6,872 rows before the fix.
+- Production Vercel logs showed `/api/lease-transactions/read` requests returning HTTP 200, establishing that the production route and Supabase credentials were connected rather than missing.
+- Reproducing the accidental `area_sqm <= 0` and `transaction_year <= 0 AND area_sqm <= 0` predicates returned zero rows, matching the empty UI symptom.
+- Final acceptance requires the exact post-changelog pull-request head to pass Audit coverage, Typecheck, Lint, Test, and Production build in the permanent Verify workflow and to produce a Ready Vercel deployment before merge.
+
+### Follow-up
+
+- After production deployment, re-check both `/lease-submission/history` and a mapped Map InfoWindow with an editor/Broker account; treat any remaining Map-only absence as a building-identity coverage issue rather than reintroducing permissive text matching.
+
+---
+
 ## 2026-09-13 — Authoritative OSS mutation auditing
 
 ### Area
@@ -72,7 +106,7 @@ This change makes audit coverage a repository invariant rather than a per-diff c
 
 ### Follow-up
 
-- Move server-mediated OSS create-folder/delete/move auditing to authoritative server-side writes, remove duplicate browser events for those operations, and then delete the OSS exemption. Direct browser-to-OSS upload completion should retain a client-side or callback-backed audit path until the server can authoritatively observe upload success.
+- Move server-mediated OSS create-folder/delete/move auditing to authoritative server-side writes, remove duplicate browser events for those operations, and then delete the OSS exemption. Direct browser uploads should retain a client-side or callback-backed audit path until the server can authoritatively observe upload success.
 
 ---
 
