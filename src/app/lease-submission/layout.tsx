@@ -51,14 +51,16 @@ export default function LeaseSubmissionLayout({ children }: { children: React.Re
   if (!authorized) return <LeaseSubmissionGuardLoading />;
 
   const inDatabase = pathname?.startsWith('/lease-submission/history');
+  if (inDatabase) return <>{children}</>;
+
   return (
     <>
       {children}
       <Link
-        href={inDatabase ? '/lease-submission' : '/lease-submission/history'}
+        href="/lease-submission/history"
         className="fixed bottom-5 right-5 z-[var(--cd-z-sticky)] rounded-full border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-4 py-2 text-xs font-semibold text-[var(--cd-color-brand)] shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
       >
-        {inDatabase ? '返回成交填报' : '成交数据库'}
+        成交数据库
       </Link>
     </>
   );
