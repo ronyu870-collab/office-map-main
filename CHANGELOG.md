@@ -817,7 +817,7 @@ The first Map 2.0 slice established the full-canvas workbench but several nested
 ### Impact
 
 - More projects and metrics fit in the visible map workspace with less visual obstruction.
-- Building comparison is faster because rent, vacancy, area, data quarter, submarket, grade are exposed in a consistent tabular hierarchy.
+- Building comparison is faster because rent, vacancy, area, data quarter, submarket, and grade are exposed in a consistent tabular hierarchy.
 - InfoWindow, filter, and marker presentation now visually align with the Map 2.0 shell while their existing runtime contracts remain intact.
 - No authentication, Supabase/RLS, MapDataStore filtering, useMapRuntime lifecycle, or MapController behavioral changes are included.
 
