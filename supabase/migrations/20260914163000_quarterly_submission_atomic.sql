@@ -73,7 +73,7 @@ begin
     from jsonb_to_recordset(coalesce(p_regular_rows, '[]'::jsonb)) as x(building_id uuid)
     left join public.building_assignments a
       on a.building_id = x.building_id
-     and a.user_id = p_user_id
+     and a.user_id = p_user_id::text
     where x.building_id is null or a.building_id is null
   ) then
     raise exception using message = 'building_assignment_mismatch', errcode = '42501';
