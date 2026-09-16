@@ -13,6 +13,12 @@ import { SaveStatus, type SaveState } from '@/src/components/data-entry/SaveStat
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
 import { DataEntryToolbar } from '@/src/components/data-entry/DataEntryToolbar';
 import { checkFuzzyDuplicate, getAllBrokers, submitTransaction, updateTransaction } from '@/src/services/leaseTransactionSubmitService';
+import {
+  deleteLeaseTransactionDraft,
+  getLeaseTransactionDraft,
+  saveLeaseTransactionDraft,
+  type LeaseTransactionDraftSnapshot,
+} from '@/src/services/leaseTransactionDraftService';
 import { useBuildings } from '@/src/hooks/useBuildings';
 import { logAction } from '@/src/utils/audit';
 import { supabase } from '@/src/services/supabaseClient';
@@ -116,6 +122,11 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const [submitMessage, setSubmitMessage] = React.useState('带 * 的字段为必填项');
   const [submitError, setSubmitErrorMessage] = React.useState<string | null>(null);
   const [submittedRecord, setSubmittedRecord] = React.useState<LeaseTransaction | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = React.useState<string | null>(null);
+  const [draftHydrated, setDraftHydrated] = React.useState(mode !== 'create');
+  const [draftUiBaseline, setDraftUiBaseline] = React.useState('');
+  const createInitializedRef = React.useRef(false);
+  const draftLoadTokenRef = React.useRef(0);
 
   const {
     register,
@@ -146,6 +157,43 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const subIndustryOptions = selectedIndustry ? industryMap[selectedIndustry] ?? [] : [];
   const errorCount = Object.keys(errors).length;
   const dirtyCount = Object.keys(dirtyFields).length;
+
+  const currentDraftUi = React.useMemo(() => ({
+    isCustomSubIndustry,
+    customSubIndustryText,
+    isOnBehalf,
+    behalfUserId,
+    manualBuilding,
+    manualOldBuilding,
+    buildingLocked,
+    oldBuildingLocked,
+    faceRentUnit,
+    effectiveRentUnit,
+    floorInfoUnknown,
+    floorUnknown,
+    oldAddressUnknown,
+    oldSubmarketUnknown,
+    oldDistrictUnknown,
+    oldGradeUnknown,
+  }), [
+    isCustomSubIndustry,
+    customSubIndustryText,
+    isOnBehalf,
+    behalfUserId,
+    manualBuilding,
+    manualOldBuilding,
+    buildingLocked,
+    oldBuildingLocked,
+    faceRentUnit,
+    effectiveRentUnit,
+    floorInfoUnknown,
+    floorUnknown,
+    oldAddressUnknown,
+    oldSubmarketUnknown,
+    oldDistrictUnknown,
+    oldGradeUnknown,
+  ]);
+  const currentDraftUiSignature = React.useMemo(() => JSON.stringify(currentDraftUi), [currentDraftUi]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -186,16 +234,21 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   }, [isOpen, mode, brokers.length, userId]);
 
   React.useEffect(() => {
-    if (!isOpen) return;
-    setSubmittedRecord(null);
-    setSubmitErrorMessage(null);
-    setSubmitState('idle');
-    setSubmitMessage(mode === 'edit' ? '已载入现有成交记录' : '带 * 的字段为必填项');
-    setForceSubmit(false);
-    forceSubmitRef.current = false;
-    setShowDuplicate(false);
+    if (!isOpen) {
+      createInitializedRef.current = false;
+      setDraftHydrated(mode !== 'create');
+      return;
+    }
 
     if (mode === 'edit' && initialData) {
+      setSubmittedRecord(null);
+      setSubmitErrorMessage(null);
+      setSubmitState('idle');
+      setSubmitMessage('已载入现有成交记录');
+      setForceSubmit(false);
+      forceSubmitRef.current = false;
+      setShowDuplicate(false);
+      setDraftHydrated(true);
       reset(mapLeaseRecordToFormDefaults(initialData));
       const standardSubIndustries = initialData.industry ? industryMap[initialData.industry] ?? [] : [];
       const customSubIndustry = Boolean(initialData.sub_industry && standardSubIndustries.length > 0 && !standardSubIndustries.includes(initialData.sub_industry));
@@ -215,7 +268,21 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       const oldMatch = initialData.old_address ? (buildings ?? []).some((building) => building.name === initialData.old_address) : false;
       setOldBuildingLocked(oldMatch && !initialData.is_manual_old_building);
       setManualOldBuilding(Boolean(initialData.is_manual_old_building) || Boolean(initialData.old_address && !oldMatch && initialData.old_address !== '未知'));
-    } else {
+      return;
+    }
+
+    if (mode === 'create' && !createInitializedRef.current) {
+      createInitializedRef.current = true;
+      setSubmittedRecord(null);
+      setSubmitErrorMessage(null);
+      setSubmitState('idle');
+      setSubmitMessage('正在读取云端草稿…');
+      setForceSubmit(false);
+      forceSubmitRef.current = false;
+      setShowDuplicate(false);
+      setDraftSavedAt(null);
+      setDraftHydrated(false);
+      setDraftUiBaseline('');
       reset(DEFAULTS);
       setFaceRentUnit('monthly');
       setEffectiveRentUnit('monthly');
@@ -237,6 +304,72 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   }, [isOpen, mode, initialData, reset, buildings, industryMap]);
 
   React.useEffect(() => {
+    if (!isOpen || mode !== 'create' || !userId || draftHydrated) return;
+    const token = ++draftLoadTokenRef.current;
+
+    void (async () => {
+      try {
+        const record = await getLeaseTransactionDraft(userId);
+        if (token !== draftLoadTokenRef.current) return;
+
+        if (record) {
+          reset({ ...DEFAULTS, ...(record.draft.values as Partial<LeaseTransactionFormData>) });
+          const ui = record.draft.ui;
+          setIsCustomSubIndustry(ui.isCustomSubIndustry);
+          setCustomSubIndustryText(ui.customSubIndustryText || '');
+          setIsOnBehalf(ui.isOnBehalf);
+          setBehalfUserId(ui.behalfUserId || '');
+          setManualBuilding(ui.manualBuilding);
+          setManualOldBuilding(ui.manualOldBuilding);
+          setBuildingLocked(ui.buildingLocked);
+          setOldBuildingLocked(ui.oldBuildingLocked);
+          setFaceRentUnit(ui.faceRentUnit);
+          setEffectiveRentUnit(ui.effectiveRentUnit);
+          setFloorInfoUnknown(ui.floorInfoUnknown);
+          setFloorUnknown(ui.floorUnknown);
+          setOldAddressUnknown(ui.oldAddressUnknown);
+          setOldSubmarketUnknown(ui.oldSubmarketUnknown);
+          setOldDistrictUnknown(ui.oldDistrictUnknown);
+          setOldGradeUnknown(ui.oldGradeUnknown);
+          setDraftSavedAt(record.updatedAt);
+          setDraftUiBaseline(JSON.stringify(ui));
+          setSubmitState('saved');
+          setSubmitMessage('已恢复上次云端草稿');
+        } else {
+          setSubmitState('idle');
+          setSubmitMessage('带 * 的字段为必填项');
+          setDraftUiBaseline(currentDraftUiSignature);
+        }
+      } catch (error) {
+        console.error('Lease draft restore failed', error);
+        setSubmitState('error');
+        setSubmitMessage('草稿读取失败，可继续填写并稍后重试保存');
+      } finally {
+        if (token === draftLoadTokenRef.current) setDraftHydrated(true);
+      }
+    })();
+
+    return () => { draftLoadTokenRef.current += 1; };
+  }, [isOpen, mode, userId, draftHydrated, reset, currentDraftUiSignature]);
+
+  React.useEffect(() => {
+    if (!isOpen || mode !== 'create' || !draftHydrated) return;
+    const subscription = watch((_values, info) => {
+      if (!info.name) return;
+      setSubmitState((state) => state === 'saving' || state === 'submitting' || state === 'submitted' ? state : 'unsaved');
+      setSubmitMessage('有未保存的草稿修改');
+    });
+    return () => subscription.unsubscribe();
+  }, [isOpen, mode, draftHydrated, watch]);
+
+  React.useEffect(() => {
+    if (!isOpen || mode !== 'create' || !draftHydrated || !draftUiBaseline) return;
+    if (currentDraftUiSignature === draftUiBaseline) return;
+    setSubmitState((state) => state === 'saving' || state === 'submitting' || state === 'submitted' ? state : 'unsaved');
+    setSubmitMessage('有未保存的草稿修改');
+  }, [isOpen, mode, draftHydrated, draftUiBaseline, currentDraftUiSignature]);
+
+  React.useEffect(() => {
     if (!selectedYear || availableQuarters.length === 0) return;
     const currentQuarter = getValues('transaction_quarter');
     if (!currentQuarter || !availableQuarters.includes(currentQuarter)) {
@@ -247,6 +380,32 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   React.useEffect(() => {
     if (dirtyCount > 0 && submitState === 'idle') setSubmitMessage(`已修改 ${dirtyCount} 个字段`);
   }, [dirtyCount, submitState]);
+
+  const saveDraft = React.useCallback(async () => {
+    if (mode !== 'create' || !draftHydrated || !userId) return;
+    const snapshot: LeaseTransactionDraftSnapshot = {
+      version: 1,
+      values: getValues() as unknown as Record<string, unknown>,
+      ui: currentDraftUi,
+    };
+
+    setSubmitErrorMessage(null);
+    setSubmitState('saving');
+    setSubmitMessage('正在保存云端草稿');
+    try {
+      const savedAt = await saveLeaseTransactionDraft(userId, userName, snapshot);
+      setDraftSavedAt(savedAt);
+      setDraftUiBaseline(JSON.stringify(snapshot.ui));
+      setSubmitState('saved');
+      setSubmitMessage('草稿已保存到云端');
+    } catch (error) {
+      console.error('Lease draft save failed', error);
+      const message = error instanceof Error ? error.message : '草稿保存失败';
+      setSubmitState('error');
+      setSubmitMessage(message);
+      setSubmitErrorMessage('草稿保存失败，请检查网络后重试。当前表单内容仍保留在本页。');
+    }
+  }, [mode, draftHydrated, userId, userName, getValues, currentDraftUi]);
 
   const selectBuilding = (buildingName: string, old = false) => {
     const building = (buildings ?? []).find((item) => item.name === buildingName);
@@ -337,7 +496,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       if (result.hasDuplicate && result.duplicates.length > 0) {
         setDuplicates(result.duplicates);
         setShowDuplicate(true);
-        setSubmitState('idle');
+        setSubmitState(mode === 'create' ? 'unsaved' : 'idle');
         setSubmitMessage(`发现 ${result.duplicates.length} 条疑似重复记录，请确认`);
         return true;
       }
@@ -419,6 +578,17 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         return;
       }
 
+      if (mode === 'create') {
+        try {
+          await deleteLeaseTransactionDraft(userId);
+          setDraftSavedAt(null);
+          setDraftUiBaseline('');
+        } catch (draftError) {
+          // The transaction is already committed. Never invite a retry that could duplicate it.
+          console.error('Lease transaction saved but draft cleanup failed', draftError);
+        }
+      }
+
       logAction(userId, 'SUBMIT_LEASE_TRANSACTION', {
         mode,
         recordId: result.data.id,
@@ -459,6 +629,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     setSubmitState('idle');
     setSubmitMessage('可以继续录入下一笔成交');
     setSubmitErrorMessage(null);
+    setDraftSavedAt(null);
     setForceSubmit(false);
     forceSubmitRef.current = false;
     setIsCustomSubIndustry(false);
@@ -513,7 +684,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         <div className="shrink-0 border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0"><div className="text-[10px] font-medium text-[#003e7e]">租赁成交填报</div><h2 id="lease-entry-title" className="mt-0.5 truncate text-sm font-semibold text-slate-900">{mode === 'edit' ? '编辑成交记录' : '新增成交记录'}</h2></div>
-            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} /><button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
+            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} savedAt={draftSavedAt} /><button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400"><span>{errorCount ? `${errorCount} 个字段待检查` : '校验就绪'}</span><span>·</span><span>已修改 {dirtyCount} 项</span><span>·</span><span>* 为必填</span></div>
         </div>
@@ -579,14 +750,15 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
             </div>
           </Section>
 
-          <DataEntryToolbar className="sticky bottom-0 z-30" leading={<div className="text-[10px] text-zinc-500">{errorCount ? <span className="font-semibold text-rose-700">{errorCount} 个字段需要检查</span> : '校验提示会显示在对应字段附近'}</div>}>
-            <Button variant="secondary" size="sm" onClick={onClose} disabled={isSubmitting || submitState === 'saving'}>取消</Button>
-            <Button type="submit" size="sm" disabled={isSubmitting || submitState === 'saving' || submitState === 'submitting'}>{(isSubmitting || submitState === 'saving' || submitState === 'submitting') && <Loader2 size={13} className="animate-spin" />}{submitState === 'saving' ? '检查中…' : submitState === 'submitting' ? '提交中…' : mode === 'edit' ? '更新记录' : '提交记录'}</Button>
+          <DataEntryToolbar className="sticky bottom-0 z-30" leading={<div className="text-[10px] text-zinc-500">{errorCount ? <span className="font-semibold text-rose-700">{errorCount} 个字段需要检查</span> : mode === 'create' ? '草稿可在未填完整时直接保存' : '校验提示会显示在对应字段附近'}</div>}>
+            <Button type="button" variant="secondary" size="sm" onClick={onClose} disabled={isSubmitting || submitState === 'saving'}>取消</Button>
+            {mode === 'create' && <Button type="button" variant="secondary" size="sm" onClick={() => { void saveDraft(); }} disabled={!draftHydrated || isSubmitting || submitState === 'saving' || submitState === 'submitting'}>{submitState === 'saving' && <Loader2 size={13} className="animate-spin" />}保存草稿</Button>}
+            <Button type="submit" size="sm" disabled={isSubmitting || submitState === 'saving' || submitState === 'submitting' || !draftHydrated}>{(isSubmitting || submitState === 'submitting') && <Loader2 size={13} className="animate-spin" />}{submitState === 'submitting' ? '提交中…' : mode === 'edit' ? '更新记录' : '提交记录'}</Button>
           </DataEntryToolbar>
         </form>
       </aside>
 
-      {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState('idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
+      {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState(mode === 'create' ? 'unsaved' : 'idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
     </>
   );
 }
