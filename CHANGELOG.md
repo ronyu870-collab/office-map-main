@@ -1,3 +1,41 @@
+## 2026-09-16 — Lease transaction database workbench redesign
+
+### Area
+Lease Submission / historical transaction database / Broker research workflow / UI
+
+### What changed
+
+- Rebuilt `/lease-submission/history` from a flat first-100-row table into a paginated lease intelligence workspace using the existing unified read API.
+- Added result-summary metrics, company/building search, live/history source filtering, collapsible year/area filters, applied-filter chips, and reset behavior.
+- Reduced the primary result table to scan-friendly business fields while retaining detailed transaction metadata in a keyboard-accessible right-side drawer.
+- Added 50-row pagination using the existing exact-count and offset contract instead of silently limiting users to the first 100 records.
+- Preserved exact / project / unmapped building identity semantics and made their visual states distinct without introducing fuzzy client-side matching.
+- Added same-company and same-building pivots from a transaction detail row without changing record ownership or edit behavior.
+- Added regression coverage for pagination, layered filtering, row-detail interactions, and building-identity labels.
+
+### Why
+
+The first historical transaction page exposed the new data successfully but behaved like an implementation/debug table: tiny hierarchy, all filters presented at the same weight, thirteen flat columns, no pagination, no row detail, and no clear intelligence workflow. Brokers need a dense but calm research surface that supports quick scanning and drill-down without turning the product into a generic admin dashboard.
+
+### Impact
+
+- Broker/editor and admin users get a significantly more usable transaction research workflow while the existing lease submission/write workflow remains unchanged.
+- No Supabase schema, historical row, building mapping, RLS policy, grant, API authorization boundary, or Map behavior is changed.
+- The page remains read-only market intelligence; historical records are not editable.
+
+### Verification
+
+- Added `src/app/lease-submission/__tests__/lease-history-workbench.test.ts`.
+- The implementation head passed Audit coverage, Typecheck, Lint, Test, and Production build in Verify #398, and its Vercel Preview reached READY.
+- Final acceptance requires the exact post-changelog pull-request head to pass the same full Verify workflow before merge.
+
+### Follow-up
+
+- After production merge, validate the page with an authenticated Broker/editor account across desktop and mobile widths; authenticated browser QA is not claimed from this connected environment.
+- Consider saved searches or export only after real Broker usage demonstrates a need; do not add dashboard decoration for its own sake.
+
+---
+
 ## 2026-09-16 — Lease read optional-filter hotfix
 
 ### Area
