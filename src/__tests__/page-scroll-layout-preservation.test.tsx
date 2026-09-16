@@ -30,6 +30,7 @@ const navigationMocks = vi.hoisted(() => ({
 const supabaseMocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   from: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -42,6 +43,7 @@ vi.mock('@/src/services/supabaseClient', () => ({
   supabase: {
     auth: { getSession: supabaseMocks.getSession },
     from: supabaseMocks.from,
+    rpc: supabaseMocks.rpc,
   },
 }));
 
@@ -190,6 +192,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       data: { session: { user: session.user, access_token: 'test-token' } },
       error: null,
     });
+    supabaseMocks.rpc.mockResolvedValue({ data: [], error: null });
 
     const makeQuery = (data: unknown) => {
       const query: any = { data, error: null };
@@ -203,10 +206,17 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
 
     const roleQuery = makeQuery({ role: 'editor' });
     const assignmentQuery = makeQuery([{ building_id: 'building-0' }]);
+    const settingsQuery = makeQuery([
+      { key: 'current_submission_year', value: '2026' },
+      { key: 'current_submission_quarter', value: '2' },
+    ]);
+    const draftQuery = makeQuery(null);
     const emptyQuery = makeQuery([]);
     supabaseMocks.from.mockImplementation((table: string) => {
       if (table === 'user_roles') return roleQuery;
       if (table === 'building_assignments') return assignmentQuery;
+      if (table === 'app_settings') return settingsQuery;
+      if (table === 'update_drafts') return draftQuery;
       return emptyQuery;
     });
 
