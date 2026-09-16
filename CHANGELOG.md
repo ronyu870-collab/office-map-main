@@ -1,3 +1,40 @@
+## 2026-09-16 — Map 关联成交 panel
+
+### Area
+Map / building InfoWindow / lease transactions / building identity / Broker research workflow
+
+### What changed
+
+- Removed the inline five-row lease-transaction block from building InfoWindows so transaction history no longer competes with core building metrics and Map actions.
+- Replaced the unused `最新销控` action slot with a first-class `关联成交` module using the same compact action-module presentation as `周边项目对比`.
+- Associated transactions now load only after explicit user intent and continue to query the governed unified lease read API by current `building_id`; no client-side fuzzy matching was added.
+- Added a restrained non-modal right-side Map panel with company, period, industry/demand, area, face rent and source metadata while keeping exact matches visually quiet.
+- Project-level rows show `项目级关联` only where that precision changes interpretation, with a concise explanation that the historical record cannot be assigned to a specific current tower.
+- Added 50-row pagination, a short per-building/page cache, loading/error/empty states, retry, close and Escape behavior while leaving the Map itself interactive.
+- Added regression coverage that prevents the inline lease mini-table from returning and locks the `关联成交` action, building-id query, pagination and exact/project presentation boundary.
+
+### Why
+
+Lease history is a drill-down workflow rather than baseline popup content. The previous inline block lengthened every InfoWindow and surfaced at most five transactions, making the popup feel like a mixed property card and database table. A dedicated action keeps the popup compact and gives associated transactions enough space to scan without leaving the spatial Map context.
+
+### Impact
+
+- Brokers get a cleaner building popup and can inspect substantially more associated transactions on demand without navigating away from the Map.
+- Exact/project identity governance, read authorization and source data remain unchanged; `related_building_ids` continues to determine which records belong to the selected current building/project.
+- No Supabase schema/data, RLS/grant, lease-write workflow or lease-read API query semantics changed.
+
+### Verification
+
+- Implementation head `962bbd845f98c63dfe3998a9b54be7d0fdfae141` passed Verify #404 end to end: Audit coverage, Typecheck, Lint, Test and Production build.
+- Vercel Preview for the same implementation head reached READY.
+- Final acceptance requires the exact post-changelog pull-request head to pass the same full Verify workflow and reach a Ready Preview before merge.
+
+### Follow-up
+
+- Validate the production panel with an authenticated Broker on both a high-history exact-match building and a project-level building; keep future Map refinements focused on observed browsing friction rather than reintroducing inline transaction rows.
+
+---
+
 ## 2026-09-16 — Lease transaction database visual simplification
 
 ### Area
@@ -780,7 +817,7 @@ The first Map 2.0 slice established the full-canvas workbench but several nested
 ### Impact
 
 - More projects and metrics fit in the visible map workspace with less visual obstruction.
-- Building comparison is faster because rent, vacancy, area, data quarter, submarket, and grade are exposed in a consistent tabular hierarchy.
+- Building comparison is faster because rent, vacancy, area, data quarter, submarket, grade are exposed in a consistent tabular hierarchy.
 - InfoWindow, filter, and marker presentation now visually align with the Map 2.0 shell while their existing runtime contracts remain intact.
 - No authentication, Supabase/RLS, MapDataStore filtering, useMapRuntime lifecycle, or MapController behavioral changes are included.
 
