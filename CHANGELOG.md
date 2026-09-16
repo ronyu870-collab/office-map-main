@@ -1,3 +1,39 @@
+## 2026-09-16 — Lease transaction database visual simplification
+
+### Area
+Lease Submission / historical transaction database / visual hierarchy / Broker research workflow
+
+### What changed
+
+- Removed the duplicated page hero, English eyebrow, static health copy, and four KPI summary cards after production screenshot review showed they added cognitive load without helping the primary research task.
+- Consolidated company/building search, source switching, advanced filters, results, and pagination into one restrained workspace surface instead of stacked dashboard cards.
+- Reduced the primary table from nine columns to six high-value columns. Source and building-identity state now sit in secondary row metadata; exact building matches are no longer repeated as badges on every row.
+- Kept project-level and unmapped identity visible only where it changes interpretation, while preserving the transaction drawer for full detail.
+- Removed the history route's duplicate floating “返回成交填报” action because the sticky header already owns navigation.
+- Updated presentation regression tests to prevent the removed KPI/English/badge-heavy hierarchy from returning.
+
+### Why
+
+The production screenshot showed that the first workbench redesign still carried too much dashboard chrome: duplicated page identity, multiple bordered sections, summary numbers that did not help transaction research, and repeated status labels competing with the actual deal rows. The intended visual language is quieter and more institutional: one work surface, clear typography, fewer columns, and progressive detail on demand.
+
+### Impact
+
+- Brokers see records substantially earlier on the page and can scan company, building, area, rent, industry and time without reading redundant dashboard/status content first.
+- Pagination, filtering, drawer drill-down, same-company/same-building pivots, exact/project/unmapped semantics, authorization and API behavior remain intact.
+- No Supabase schema/data, RLS/grant, Map data, or lease-write workflow changes.
+
+### Verification
+
+- Implementation head `6d24a8d810f7ba526589e5768e9a3d781885f9a3` passed Verify #401 end to end: Audit coverage, Typecheck, Lint, Test and Production build.
+- Vercel Preview for that implementation head reached READY.
+- Final acceptance requires the exact post-changelog pull-request head to pass the same full Verify workflow before merge.
+
+### Follow-up
+
+- Validate the production result with the authenticated Broker view that surfaced the original screenshot feedback; keep future changes focused on observed scanning friction rather than adding dashboard decoration.
+
+---
+
 ## 2026-09-16 — Lease transaction database workbench redesign
 
 ### Area
