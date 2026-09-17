@@ -7,15 +7,18 @@
 body:has(#map-container) .map-submarket-bubble {
   --sm-accent: #245b78;
   --sm-size: 82px;
-  width: var(--sm-size);
-  height: var(--sm-size);
+  /* V3 supplies --sm-size from submarket density (about 74–86px). Keep that
+   * relative sizing, but add enough room for the two default market metrics. */
+  --sm-render-size: calc(var(--sm-size) + 18px);
+  width: var(--sm-render-size);
+  height: var(--sm-render-size);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 9px;
+  gap: 4px;
+  padding: 9px 6px;
   overflow: hidden;
   cursor: pointer;
   user-select: none;
@@ -56,7 +59,7 @@ body:has(#map-container) .map-submarket-bubble.is-expanding {
 }
 
 body:has(#map-container) .map-submarket-bubble__name {
-  width: calc(var(--sm-size) - 20px);
+  width: calc(var(--sm-render-size) - 20px);
   max-height: 32px;
   overflow: hidden;
   display: -webkit-box;
@@ -76,11 +79,11 @@ body:has(#map-container) .map-submarket-bubble__name {
 body:has(#map-container) .map-submarket-bubble__metrics {
   display: flex;
   min-width: 0;
-  max-width: calc(var(--sm-size) - 18px);
+  max-width: calc(var(--sm-render-size) - 12px);
   align-items: baseline;
   justify-content: center;
-  gap: 4px;
-  overflow: hidden;
+  gap: 3px;
+  overflow: visible;
   white-space: nowrap;
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-size: 10px;
@@ -91,14 +94,13 @@ body:has(#map-container) .map-submarket-bubble__metrics {
 }
 
 body:has(#map-container) .map-submarket-bubble__primary {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
   color: #ffffff;
   font-size: 11px;
   font-weight: 800;
 }
-body:has(#map-container) .map-submarket-bubble__secondary { overflow: hidden; text-overflow: ellipsis; }
-body:has(#map-container) .map-submarket-bubble__sep { color: rgba(255, 255, 255, 0.5); }
+body:has(#map-container) .map-submarket-bubble__secondary { flex: 0 0 auto; }
+body:has(#map-container) .map-submarket-bubble__sep { flex: 0 0 auto; color: rgba(255, 255, 255, 0.5); }
 
 /* Selected building continuity marker. It is deliberately DOM-based so selection
  * remains visible while native marker tiers cross-fade underneath it. */
@@ -186,9 +188,9 @@ body:has(#map-container) .amap-info-content [data-map-action="nearby-compare"] {
 #map-container.map-marker-swapping { cursor: inherit; }
 
 @media (max-width: 640px) {
-  body:has(#map-container) .map-submarket-bubble { --sm-size: 76px; padding: 8px; gap: 4px; }
-  body:has(#map-container) .map-submarket-bubble__name { width: calc(var(--sm-size) - 18px); max-height: 29px; font-size: 12px; }
-  body:has(#map-container) .map-submarket-bubble__metrics { max-width: calc(var(--sm-size) - 16px); font-size: 9px; }
+  body:has(#map-container) .map-submarket-bubble { --sm-render-size: 88px; padding: 8px 6px; gap: 4px; }
+  body:has(#map-container) .map-submarket-bubble__name { width: calc(var(--sm-render-size) - 18px); max-height: 29px; font-size: 12px; }
+  body:has(#map-container) .map-submarket-bubble__metrics { max-width: calc(var(--sm-render-size) - 12px); font-size: 9px; gap: 2px; }
   body:has(#map-container) .map-submarket-bubble__primary { font-size: 10px; }
   body:has(#map-container) .amap-info-content [data-map-action] { min-height: 34px; font-size: 11px !important; }
 }
