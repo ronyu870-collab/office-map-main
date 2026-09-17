@@ -7,9 +7,11 @@
 body:has(#map-container) .map-submarket-bubble {
   --sm-accent: #245b78;
   --sm-size: 82px;
-  /* V3 supplies --sm-size from submarket density (about 74–86px). Keep that
-   * relative sizing, but add enough room for the two default market metrics. */
-  --sm-render-size: calc(var(--sm-size) + 18px);
+  --sm-collision-x: 0px;
+  --sm-collision-y: 0px;
+  /* V3 supplies --sm-size from submarket density (about 74–86px). Keep a
+   * restrained density signal while guaranteeing enough room for both metrics. */
+  --sm-render-size: clamp(88px, calc(var(--sm-size) + 12px), 96px);
   width: var(--sm-render-size);
   height: var(--sm-render-size);
   box-sizing: border-box;
@@ -28,7 +30,7 @@ body:has(#map-container) .map-submarket-bubble {
   color: #ffffff;
   box-shadow: 0 5px 16px rgba(23, 42, 58, 0.18), 0 1px 3px rgba(23, 42, 58, 0.12);
   contain: layout paint style;
-  transform: translateZ(0) scale(1);
+  transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(1);
   transform-origin: center;
   will-change: transform, opacity, filter;
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease-out, filter 180ms ease-out, opacity 160ms ease-out;
@@ -48,13 +50,13 @@ body:has(#map-container[data-marker-tier="building"]) .map-submarket-bubble {
 }
 
 body:has(#map-container) .map-submarket-bubble:hover {
-  transform: translateZ(0) scale(1.055);
+  transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(1.055);
   filter: saturate(1.045) brightness(1.02);
   box-shadow: 0 9px 24px rgba(23, 42, 58, 0.22), 0 2px 6px rgba(23, 42, 58, 0.14);
 }
 
 body:has(#map-container) .map-submarket-bubble.is-expanding {
-  transform: translateZ(0) scale(0.94);
+  transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(0.94);
   filter: saturate(0.96) brightness(1.025);
 }
 
