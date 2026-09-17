@@ -8,6 +8,7 @@ import {
   installFallbackMarkerHardening,
   installNativeMarkerRenderer,
 } from './mapNativeMarkerRenderer';
+import { installSubmarketCollisionAvoidance } from './mapSubmarketCollisionAvoidance';
 import { installMapVisualHierarchyV3 } from './mapVisualHierarchyV3';
 
 export function installMapInteractionHardening(
@@ -38,6 +39,9 @@ export function installMapInteractionHardening(
   const fallbackCleanup = hierarchyCleanup || nativeCleanup
     ? null
     : installFallbackMarkerHardening(internals, container);
+  const submarketCollisionCleanup = hierarchyCleanup
+    ? installSubmarketCollisionAvoidance(map, container)
+    : null;
 
   if (hierarchyCleanup) {
     const hierarchyRender = internals.renderMarkers.bind(internals);
@@ -55,6 +59,7 @@ export function installMapInteractionHardening(
   return () => {
     window.removeEventListener('competitors-cleared', onCompetitorsCleared);
     infoWindowCleanup();
+    submarketCollisionCleanup?.();
     hierarchyCleanup?.();
     nativeCleanup?.();
     fallbackCleanup?.();
