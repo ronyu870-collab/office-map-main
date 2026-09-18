@@ -2715,6 +2715,28 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           >
             联系方式
           </button>
+
+          <div
+            data-map-action="building-sales-control"
+            aria-disabled="true"
+            title="楼宇销控功能建设中"
+            style="
+              background: #f8fafc;
+              color: #94a3b8;
+              border: 1px solid #e2e8f0;
+              padding: 6px 2px;
+              border-radius: 5px;
+              font-size: 9px;
+              font-weight: 700;
+              cursor: not-allowed;
+              text-align: center;
+              opacity: 0.6;
+              white-space: nowrap;
+              user-select: none;
+            "
+          >
+            楼宇销控
+          </div>
         </div>
 
       </div>
