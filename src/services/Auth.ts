@@ -255,6 +255,8 @@ async function getRealSession(): Promise<AuthSessionResult | null> {
  *
  * 模拟模式：
  * - 如果 sessionStorage 中存在 __impersonation_state，返回被模拟用户的合成 session
+ * - session.access_token 始终保留真实管理员 JWT；调用应用 API 时必须通过
+ *   impersonationHeaders 显式携带被模拟 user id，由服务端验证管理员身份后再解析有效权限
  */
 export async function getSessionFast(): Promise<AuthSessionResult | null> {
   // --- 模拟模式拦截 ---
@@ -278,7 +280,7 @@ export async function getSessionFast(): Promise<AuthSessionResult | null> {
                   full_name: emailPrefix,
                 },
               } as User,
-              session: realSession.session, // 使用管理员的 JWT
+              session: realSession.session, // 真实管理员 JWT；服务端授权上下文由受验证的 impersonation header 决定
               role: imp.targetRole || 'viewer',
               displayName: imp.targetDisplayName || imp.targetEmail.split('@')[0],
               sessionId: realSession.sessionId,
