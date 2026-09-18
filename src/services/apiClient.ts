@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { withImpersonationHeaders } from "./impersonationHeaders";
 import type { NumericLike } from "../utils/calculations";
 
 /**
@@ -391,10 +392,10 @@ export function createApiClient() {
 
         const response = await fetch(url, {
           ...options,
-          headers: {
+          headers: withImpersonationHeaders({
             ...options?.headers,
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          }),
         });
 
         // 拦截 401 响应
