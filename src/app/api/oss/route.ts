@@ -56,11 +56,13 @@ async function verifyUser(request: Request, loadRole = true): Promise<VerifiedUs
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data: { user }, error: authError } = await admin.auth.getUser(accessToken);
-    if (authError || !user) return null;
 
-    // Read-only library listing is identical for every authenticated role.
+    // Read-only library listing is identical for every authenticated role, so it
+    // only needs real JWT validation. Role-sensitive management uses the shared
+    // effective-identity resolver below.
     if (!loadRole) {
+      const { data: { user }, error: authError } = await admin.auth.getUser(accessToken);
+      if (authError || !user) return null;
       return {
         user: { id: user.id, email: user.email },
         role: 'viewer',
