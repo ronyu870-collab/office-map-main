@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
+import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import type { RequirementVocabulary } from './requirementResolver';
 
 export type IntelligenceContext = {
@@ -27,23 +28,15 @@ export async function requireIntelligenceAccess(request: NextRequest): Promise<I
     return NextResponse.json({ error: '服务端认证配置缺失' }, { status: 500 });
   }
 
-  const accessToken = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
-  if (!accessToken) return NextResponse.json({ error: '未认证' }, { status: 401 });
+  const identityResult = await resolveEffectiveRequestIdentity(request, client);
+  if ('response' in identityResult) return identityResult.response;
+  const { identity } = identityResult;
 
-  const { data: { user: caller }, error: authError } = await client.auth.getUser(accessToken);
-  if (authError || !caller) return NextResponse.json({ error: '登录状态已失效' }, { status: 401 });
-
-  const { data: roleRow, error: roleError } = await client
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', caller.id)
-    .maybeSingle();
-
-  if (roleError || !roleRow?.role || !isIntelligencePreviewEnabled(roleRow.role)) {
+  if (!identity.effectiveRole || !isIntelligencePreviewEnabled(identity.effectiveRole)) {
     return NextResponse.json({ error: '当前账号未开放 Intelligence Preview' }, { status: 403 });
   }
 
-  return { client, caller, role: roleRow.role };
+  return { client, caller: identity.caller, role: identity.effectiveRole };
 }
 
 export function isIntelligenceContext(value: IntelligenceContext | NextResponse): value is IntelligenceContext {
