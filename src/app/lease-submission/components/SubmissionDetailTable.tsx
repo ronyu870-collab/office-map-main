@@ -325,7 +325,7 @@ export function SubmissionDetailTable({
       if (s.new_building?.trim()) vals.newBuilding.add(s.new_building.trim());
       if (s.sub_market?.trim()) vals.subMarket.add(s.sub_market.trim());
       if (s.building_grade?.trim()) vals.grade.add(s.building_grade.trim());
-      if (s.submitter_active !== false && s.submitter_id && s.submitter_name?.trim()) {
+      if (s.submitter_id && s.submitter_name?.trim()) {
         submitterMap.set(s.submitter_id, s.submitter_name.trim());
       }
     }
