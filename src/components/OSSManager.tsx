@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
+import { getImpersonationRequestHeaders } from '@/src/services/impersonationHeaders';
 import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
 import { isResearchLibraryManager } from '@/src/utils/adminAccess';
@@ -90,7 +91,7 @@ function typeLabel(item: ResearchLibraryItem) {
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('登录状态已失效，请重新登录');
-  return { Authorization: `Bearer ${session.access_token}` };
+  return { Authorization: `Bearer ${session.access_token}`, ...getImpersonationRequestHeaders() };
 }
 
 function uploadToOSS(host: string, formData: FormData, onProgress: (progress: number) => void): Promise<void> {
