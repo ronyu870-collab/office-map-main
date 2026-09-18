@@ -120,6 +120,7 @@ export default function LeaseHistoryPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [selectedRecord, setSelectedRecord] = React.useState<LeaseReadRecord | null>(null);
+  const [canReadHistory, setCanReadHistory] = React.useState<boolean | null>(null);
 
   const load = React.useCallback(async (pageIndex: number, queryFilters: FilterState) => {
     setLoading(true);
@@ -146,7 +147,11 @@ export default function LeaseHistoryPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || '查询失败');
+      if (!response.ok) {
+        if (response.status === 403) setCanReadHistory(false);
+        throw new Error(body.error || '查询失败');
+      }
+      setCanReadHistory(body?.access?.canReadHistory === true);
       setRecords(body.records ?? []);
       setCount(body.count ?? 0);
       setPage(pageIndex);
@@ -238,11 +243,12 @@ export default function LeaseHistoryPage() {
     void load(0, next);
   };
 
+  const effectiveSource: SourceFilter = canReadHistory === true ? appliedFilters.source : 'live';
   const headerStatus = loading
     ? '正在读取'
     : error
       ? '读取异常'
-      : `${appliedFilters.yearFrom || '不限'}–${appliedFilters.yearTo || '不限'} · ${sourceLabel(appliedFilters.source)}`;
+      : `${appliedFilters.yearFrom || '不限'}–${appliedFilters.yearTo || '不限'} · ${sourceLabel(effectiveSource)}`;
 
   return (
     <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
@@ -289,26 +295,32 @@ export default function LeaseHistoryPage() {
                 />
               </div>
 
-              <div className="flex shrink-0 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] p-0.5">
-                {([
-                  ['', '全部'],
-                  ['live', '实时'],
-                  ['history', '历史'],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => updateFilter('source', value)}
-                    className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${
-                      filters.source === value
-                        ? 'bg-white text-[var(--cd-color-text-primary)] shadow-[var(--cd-shadow-sm)]'
-                        : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+              {canReadHistory === true ? (
+                <div className="flex shrink-0 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] p-0.5">
+                  {([
+                    ['', '全部'],
+                    ['live', '实时'],
+                    ['history', '历史'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => updateFilter('source', value)}
+                      className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${
+                        filters.source === value
+                          ? 'bg-white text-[var(--cd-color-text-primary)] shadow-[var(--cd-shadow-sm)]'
+                          : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : canReadHistory === false ? (
+                <div className="flex h-8 shrink-0 items-center rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 text-[11px] font-medium text-[var(--cd-color-text-secondary)]">
+                  实时
+                </div>
+              ) : null}
 
               <Button type="button" variant="ghost" size="sm" onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}>
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
