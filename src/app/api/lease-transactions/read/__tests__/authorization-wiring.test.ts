@@ -13,6 +13,6 @@ describe('lease read route authorization wiring', () => {
   it('returns the effective historical capability without exposing historical counts to non-admins', () => {
     expect(routeSource).toContain('canReadHistory: access.canReadHistory');
     expect(routeSource).toContain("effectiveSource: access.enforcedSource ?? 'all'");
-    expect(routeSource).toContain("{ records: data ?? []");
+    expect(routeSource).toContain("records: data ?? []");
   });
 });
