@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { canViewLeaseTeamSubmissions } from '@/src/utils/accessControl';
 import { annotateSubmitterActivity } from '@/src/utils/leaseSubmitterPrivacy';
+import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -42,33 +43,14 @@ export async function GET(req: NextRequest) {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const accessToken = (req.headers.get('authorization') ?? '')
-      .replace(/^Bearer\s+/i, '')
-      .trim();
-    if (!accessToken) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
-
-    const { data: { user: caller }, error: authError } =
-      await supabaseAdmin.auth.getUser(accessToken);
-    if (authError || !caller) {
-      return NextResponse.json({ error: '无效的认证 Token' }, { status: 401 });
-    }
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
+    const { identity } = identityResult;
 
     // This endpoint uses the service role and therefore bypasses RLS. Authorization
-    // must be checked explicitly before any team-wide data is queried.
-    const { data: callerProfile, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', caller.id)
-      .maybeSingle();
-
-    if (roleError) {
-      console.error('[team-submissions] 查询调用方角色失败:', roleError);
-      return NextResponse.json({ error: '权限校验失败' }, { status: 500 });
-    }
-
-    const callerRole = String(callerProfile?.role ?? '').trim().toLowerCase();
+    // must be checked against the effective (possibly impersonated) role before any
+    // team-wide data is queried.
+    const callerRole = identity.effectiveRole;
     const { data: accessSetting, error: settingError } = await supabaseAdmin
       .from('system_settings')
       .select('boolean_value')
@@ -89,7 +71,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (!canViewLeaseTeamSubmissions(callerProfile?.role) || !canAccessTeamSubmissions) {
+    if (!canViewLeaseTeamSubmissions(identity.effectiveRole) || !canAccessTeamSubmissions) {
       return NextResponse.json(
         { error: '团队成交汇总当前未向编辑用户开放', code: 'LEASE_TEAM_ACCESS_DISABLED' },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
