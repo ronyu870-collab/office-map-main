@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { IMPERSONATION_COOKIE } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,8 +101,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, target_user_id, target_email } = body;
 
-    if (!action || !target_user_id) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    if ((action !== 'impersonate_start' && action !== 'impersonate_end') || !target_user_id) {
+      return NextResponse.json({ error: '模拟操作参数无效' }, { status: 400 });
+    }
+
+    if (action === 'impersonate_start') {
+      const { data: targetProfile, error: targetError } = await supabaseAdmin
+        .from('user_roles')
+        .select('user_id')
+        .eq('user_id', target_user_id)
+        .maybeSingle();
+      if (targetError) {
+        return NextResponse.json({ error: '模拟用户校验失败' }, { status: 500 });
+      }
+      if (!targetProfile?.user_id) {
+        return NextResponse.json({ error: '被模拟用户不存在' }, { status: 404 });
+      }
     }
 
     const { error: insertError } = await supabaseAdmin
@@ -120,10 +135,24 @@ export async function POST(req: NextRequest) {
 
     if (insertError) {
       console.error('[impersonate POST] Audit log insert error:', insertError);
-      return NextResponse.json({ error: '审计日志写入失败' }, { status: 500 });
+      const response = NextResponse.json({ error: '审计日志写入失败' }, { status: 500 });
+      if (action === 'impersonate_end') response.cookies.delete(IMPERSONATION_COOKIE);
+      return response;
     }
 
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+    if (action === 'impersonate_start') {
+      response.cookies.set(IMPERSONATION_COOKIE, String(target_user_id), {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: 8 * 60 * 60,
+      });
+    } else {
+      response.cookies.delete(IMPERSONATION_COOKIE);
+    }
+    return response;
   } catch (err) {
     console.error('[impersonate POST] Error:', err);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });
