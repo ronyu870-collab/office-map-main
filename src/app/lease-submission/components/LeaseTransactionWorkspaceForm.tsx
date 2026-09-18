@@ -93,10 +93,10 @@ function EditConfirmationDialog({ recordLabel, changes, onCancel, onConfirm }: E
       open
       onOpenChange={(open) => { if (!open) onCancel(); }}
       title="确认更新成交记录"
-      description={`${recordLabel} · 仅展示本次实际发生变化的字段。`}
       size="lg"
       footer={<><Button variant="secondary" onClick={onCancel}>返回修改</Button><Button onClick={onConfirm}>确认更新</Button></>}
     >
+      <p className="mb-3 text-xs text-zinc-500">{recordLabel} · 仅展示本次实际发生变化的字段。</p>
       <div className="max-h-[48vh] overflow-auto rounded-md border border-zinc-200 bg-white">
         <div className="grid grid-cols-[minmax(100px,.8fr)_1fr_1fr] border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-[10px] font-semibold text-zinc-400">
           <span>字段</span><span>修改前</span><span>修改后</span>
