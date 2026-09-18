@@ -5,6 +5,7 @@
  */
 
 import { logAction } from "@/src/utils/audit";
+import { withImpersonationHeaders } from "@/src/services/impersonationHeaders";
 
 import { supabase } from "./supabaseClient";
 import type {
@@ -631,7 +632,7 @@ export async function getLeaseTeamAccess(): Promise<boolean> {
   if (!token) throw new Error('未登录，无法读取团队成交权限');
 
   const response = await fetch('/api/lease-submission/team-submissions?access=1', {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
     cache: 'no-store',
   });
   const body = await response.json().catch(() => ({}));
@@ -660,7 +661,7 @@ export async function getAllSubmissions(
     let response: Response;
     try {
       response = await fetch("/api/lease-submission/team-submissions", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
         signal: controller.signal,
       });
     } catch (error) {
@@ -710,7 +711,7 @@ export async function getAllBrokers(): Promise<
 
     // 通过 API route 查询（使用 service_role key 绕过 RLS）
     const res = await fetch("/api/brokers", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
     });
 
     if (!res.ok) {
