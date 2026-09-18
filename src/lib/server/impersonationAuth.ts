@@ -64,7 +64,7 @@ export async function resolveEffectiveRequestIdentity(
   }
 
   // Only a real admin session may project another user's authorization context.
-  // If a stale or forged cookie appears on any non-admin session, fail closed.
+  // If a stale or forged header appears on any non-admin session, fail closed.
   if (callerRole !== 'admin') {
     return {
       response: NextResponse.json(
