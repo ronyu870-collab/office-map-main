@@ -245,6 +245,12 @@ export interface LeaseTransaction {
    * @description 提交时由数据库自动生成
    */
   created_at?: string;
+
+  /**
+   * 最近更新时间
+   * @description 数据库在每次更新时自动刷新，用于并发编辑保护
+   */
+  updated_at?: string;
 }
 
 /**

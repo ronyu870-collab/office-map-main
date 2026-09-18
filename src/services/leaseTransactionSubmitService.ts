@@ -745,6 +745,7 @@ export async function updateTransaction(
   id: string,
   transaction: Partial<LeaseTransaction>,
   userId: string,
+  expectedUpdatedAt?: string,
 ): Promise<SubmissionResult> {
   console.log("🚀🚀🚀 [DEBUG] updateTransaction 函数被调用了！");
   console.log("   - ID:", id);
@@ -819,7 +820,7 @@ export async function updateTransaction(
 
     const { data: existing, error: fetchError } = await supabase
       .from("lease_transactions")
-      .select("submitter_id, face_rent, effective_rent, new_building")
+      .select("submitter_id, face_rent, effective_rent, new_building, updated_at")
       .eq("id", id.trim())
       .single();
 
@@ -841,6 +842,13 @@ export async function updateTransaction(
       return {
         success: false,
         error: "无权编辑此记录",
+      };
+    }
+
+    if (expectedUpdatedAt && existing.updated_at && existing.updated_at !== expectedUpdatedAt) {
+      return {
+        success: false,
+        error: "该记录已被其他人修改，请返回列表刷新后重新编辑，避免覆盖最新数据。",
       };
     }
 
@@ -1005,11 +1013,16 @@ export async function updateTransaction(
     console.log("   - 用户 ID:", userId.trim());
     console.log("   - 更新数据:", JSON.stringify(cleanedData, null, 2));
 
-    const { data, error } = await supabase
+    let updateQuery = supabase
       .from("lease_transactions")
       .update(cleanedData)
-      .eq("id", id.trim())
-      .select();
+      .eq("id", id.trim());
+
+    if (expectedUpdatedAt) {
+      updateQuery = updateQuery.eq("updated_at", expectedUpdatedAt);
+    }
+
+    const { data, error } = await updateQuery.select();
 
     console.log("🔍 [更新结果]");
     console.log("   - error:", error);
@@ -1030,10 +1043,12 @@ export async function updateTransaction(
       console.error("❌ [更新失败] 返回数据为空");
       console.error("   - 可能原因 1: ID 不存在");
       console.error("   - 可能原因 2: RLS 策略阻止了更新");
-      console.error("   - 可能原因 3: 更新条件不匹配");
+      console.error("   - 可能原因 3: 记录在编辑期间已被其他用户更新");
       return {
         success: false,
-        error: "更新失败：未找到匹配的记录",
+        error: expectedUpdatedAt
+          ? "该记录已被其他人修改，请返回列表刷新后重新编辑，避免覆盖最新数据。"
+          : "更新失败：未找到匹配的记录",
       };
     }
 
@@ -1042,14 +1057,6 @@ export async function updateTransaction(
     }
 
     console.log("✅ [更新成功] 返回数据:", data[0]);
-
-    logAction(userId, 'ADMIN_DATA_OPERATION', {
-      operation: 'UPDATE',
-      table: 'lease_transactions',
-      table_label: '租赁成交',
-      target_id: id,
-      changes: cleanedData,
-    });
 
     return {
       success: true,

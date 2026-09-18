@@ -7,6 +7,7 @@ import { AlertTriangle, Building2, CheckCircle2, ChevronRight, Loader2, RotateCc
 
 import { leaseTransactionSchema, type LeaseTransactionFormData } from '../schemas/leaseTransactionSchema';
 import { dbGradeToFormGrade, getAvailableLeasePeriods, mapLeaseRecordToFormDefaults } from '../leaseEntryModel';
+import { buildLeaseTransactionChanges, type LeaseFieldChange } from '../leaseTransactionChangeHistory';
 import { FormField } from './FormField';
 import { SearchableSelect } from '@/src/components/ui/SearchableSelect';
 import { SaveStatus, type SaveState } from '@/src/components/data-entry/SaveStatus';
@@ -79,6 +80,40 @@ function DuplicateDialog({ duplicates, onCancel, onConfirm }: DuplicateDialogPro
   );
 }
 
+interface EditConfirmationDialogProps {
+  recordLabel: string;
+  changes: LeaseFieldChange[];
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function EditConfirmationDialog({ recordLabel, changes, onCancel, onConfirm }: EditConfirmationDialogProps) {
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => { if (!open) onCancel(); }}
+      title="确认更新成交记录"
+      size="lg"
+      footer={<><Button variant="secondary" onClick={onCancel}>返回修改</Button><Button onClick={onConfirm}>确认更新</Button></>}
+    >
+      <p className="mb-3 text-xs text-zinc-500">{recordLabel} · 仅展示本次实际发生变化的字段。</p>
+      <div className="max-h-[48vh] overflow-auto rounded-md border border-zinc-200 bg-white">
+        <div className="grid grid-cols-[minmax(100px,.8fr)_1fr_1fr] border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-[10px] font-semibold text-zinc-400">
+          <span>字段</span><span>修改前</span><span>修改后</span>
+        </div>
+        {changes.map((change) => (
+          <div key={change.key} className="grid grid-cols-[minmax(100px,.8fr)_1fr_1fr] border-b border-zinc-100 px-3 py-2.5 text-xs last:border-b-0">
+            <span className="font-medium text-zinc-600">{change.label}</span>
+            <span className="break-words pr-3 text-zinc-500">{change.beforeText}</span>
+            <span className="break-words font-semibold text-zinc-900">{change.afterText}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[11px] text-zinc-400">本次共修改 {changes.length} 项。确认后将写入数据库，并自动生成不可覆盖的变更记录。</p>
+    </Dialog>
+  );
+}
+
 const DEFAULTS: Partial<LeaseTransactionFormData> = {
   is_manual_building: false,
   is_manual_old_building: false,
@@ -116,6 +151,11 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const [recentBuildings, setRecentBuildings] = React.useState<string[]>([]);
   const [duplicates, setDuplicates] = React.useState<LeaseTransaction[]>([]);
   const [showDuplicate, setShowDuplicate] = React.useState(false);
+  const [pendingEdit, setPendingEdit] = React.useState<{
+    data: LeaseTransactionFormData;
+    payload: LeaseTransaction;
+    changes: LeaseFieldChange[];
+  } | null>(null);
   const [forceSubmit, setForceSubmit] = React.useState(false);
   const forceSubmitRef = React.useRef(false);
   const [submitState, setSubmitState] = React.useState<SaveState>('idle');
@@ -200,14 +240,14 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showDuplicate && !isSubmitting) onClose();
+      if (event.key === 'Escape' && !showDuplicate && !pendingEdit && !isSubmitting) onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, isSubmitting, onClose, showDuplicate]);
+  }, [isOpen, isSubmitting, onClose, pendingEdit, showDuplicate]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -248,6 +288,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setForceSubmit(false);
       forceSubmitRef.current = false;
       setShowDuplicate(false);
+      setPendingEdit(null);
       setDraftHydrated(true);
       reset(mapLeaseRecordToFormDefaults(initialData));
       const standardSubIndustries = initialData.industry ? industryMap[initialData.industry] ?? [] : [];
@@ -280,6 +321,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setForceSubmit(false);
       forceSubmitRef.current = false;
       setShowDuplicate(false);
+      setPendingEdit(null);
       setDraftSavedAt(null);
       setDraftHydrated(false);
       setDraftUiBaseline('');
@@ -554,22 +596,14 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     };
   };
 
-  const submitValidated = async (data: LeaseTransactionFormData) => {
-    if (!validateRentRelationship(data)) return;
-    if (mode === 'create' && isOnBehalf && !behalfUserId) {
-      setSubmitErrorMessage('选择“代他人填报”后，必须选择被代报人。');
-      return;
-    }
-    if (!forceSubmitRef.current && await findDuplicates(data)) return;
-
+  const persistTransaction = async (data: LeaseTransactionFormData, payload: LeaseTransaction) => {
     setSubmitErrorMessage(null);
     setSubmitState('submitting');
     setSubmitMessage(mode === 'edit' ? '正在更新成交记录' : '正在写入成交记录');
-    const payload = buildPayload(data);
 
     try {
       const result = mode === 'edit' && initialData?.id
-        ? await updateTransaction(initialData.id, payload, userId)
+        ? await updateTransaction(initialData.id, payload, userId, initialData.updated_at)
         : await submitTransaction(payload);
       if (!result.success || !result.data) {
         setSubmitState('error');
@@ -603,6 +637,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setSubmittedRecord(result.data);
       setSubmitState('submitted');
       setSubmitMessage('成交记录已写入');
+      setPendingEdit(null);
       setForceSubmit(false);
       forceSubmitRef.current = false;
       onSubmitSuccess();
@@ -612,6 +647,36 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setSubmitMessage('提交失败，当前表单内容已保留');
       setSubmitErrorMessage('提交失败，请重试。当前表单内容仍保留。');
     }
+  };
+
+  const submitValidated = async (data: LeaseTransactionFormData) => {
+    if (!validateRentRelationship(data)) return;
+    if (mode === 'create' && isOnBehalf && !behalfUserId) {
+      setSubmitErrorMessage('选择“代他人填报”后，必须选择被代报人。');
+      return;
+    }
+    if (!forceSubmitRef.current && await findDuplicates(data)) return;
+
+    const payload = buildPayload(data);
+
+    if (mode === 'edit' && initialData) {
+      const changes = buildLeaseTransactionChanges(initialData, payload);
+      if (changes.length === 0) {
+        setSubmitErrorMessage(null);
+        setSubmitState('idle');
+        setSubmitMessage('未检测到实际变更，无需更新');
+        setForceSubmit(false);
+        forceSubmitRef.current = false;
+        return;
+      }
+
+      setPendingEdit({ data, payload, changes });
+      setSubmitState('idle');
+      setSubmitMessage(`待确认 ${changes.length} 项修改`);
+      return;
+    }
+
+    await persistTransaction(data, payload);
   };
 
   const invalidSubmit = (formErrors: typeof errors) => {
@@ -648,8 +713,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   if (submittedRecord) {
     return (
       <>
-        <div className="fixed inset-0 z-[90] bg-slate-950/35" aria-hidden="true" />
-        <aside className="fixed inset-y-0 right-0 z-[95] flex w-full max-w-xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" aria-label="租赁成交填报结果">
+        <div className="fixed inset-0 z-[45] bg-slate-950/35" aria-hidden="true" />
+        <aside className="fixed inset-y-0 right-0 z-[var(--cd-z-drawer)] flex w-full max-w-xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" aria-label="租赁成交填报结果">
           <div className="flex items-center justify-between border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
             <h2 className="text-sm font-semibold text-slate-900">提交成功</h2>
             <button type="button" onClick={onClose} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)]" aria-label="返回记录列表"><X size={17} /></button>
@@ -679,8 +744,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
 
   return (
     <>
-      <div className="fixed inset-0 z-[90] bg-slate-950/35" onClick={onClose} aria-hidden="true" />
-      <aside className="fixed inset-y-0 right-0 z-[95] flex w-full max-w-3xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="lease-entry-title">
+      <div className="fixed inset-0 z-[45] bg-slate-950/35" onClick={onClose} aria-hidden="true" />
+      <aside className="fixed inset-y-0 right-0 z-[var(--cd-z-drawer)] flex w-full max-w-3xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="lease-entry-title">
         <div className="shrink-0 border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <h2 id="lease-entry-title" className="truncate text-sm font-semibold text-slate-900">{mode === 'edit' ? '编辑成交记录' : '新增成交记录'}</h2>
@@ -758,6 +823,27 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       </aside>
 
       {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState(mode === 'create' ? 'unsaved' : 'idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
+
+      {pendingEdit && (
+        <EditConfirmationDialog
+          recordLabel={`${initialData?.company || '成交记录'} · ${initialData?.new_building || '未标记楼宇'}`}
+          changes={pendingEdit.changes}
+          onCancel={() => {
+            setPendingEdit(null);
+            setForceSubmit(false);
+            forceSubmitRef.current = false;
+            setSubmitState('idle');
+            setSubmitMessage('已返回编辑，可继续调整');
+          }}
+          onConfirm={() => {
+            const pending = pendingEdit;
+            setPendingEdit(null);
+            setForceSubmit(false);
+            forceSubmitRef.current = false;
+            void persistTransaction(pending.data, pending.payload);
+          }}
+        />
+      )}
     </>
   );
 }
