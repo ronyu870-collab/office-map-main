@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 import { canViewLeaseTeamSubmissions } from '@/src/utils/accessControl';
-import { maskInactiveSubmitters } from '@/src/utils/leaseSubmitterPrivacy';
+import { annotateSubmitterActivity } from '@/src/utils/leaseSubmitterPrivacy';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
       try {
         const { data, error } = await timedSupabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
         if (error) {
-          console.warn('[team-submissions] 查询账号状态失败，将隐藏提交人身份:', { message: error.message });
+          console.warn('[team-submissions] 查询账号状态失败，将保留提交人姓名但无法判断账号状态:', { message: error.message });
           return null;
         }
         return new Set(
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
             .map((user) => user.id),
         );
       } catch (error) {
-        console.warn('[team-submissions] 查询账号状态异常，将隐藏提交人身份:', { message: errorMessage(error) });
+        console.warn('[team-submissions] 查询账号状态异常，将保留提交人姓名但无法判断账号状态:', { message: errorMessage(error) });
         return null;
       }
     })();
@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
       console.error('[team-submissions] 查询成交记录失败:', transactionsResult.error);
       return NextResponse.json({ error: '查询提交记录失败' }, { status: 500 });
     }
-    const submissions = maskInactiveSubmitters(
+    const submissions = annotateSubmitterActivity(
       transactionsResult.data ?? [],
       activeUserIds ?? new Set<string>(),
     );
@@ -144,11 +144,11 @@ export async function GET(req: NextRequest) {
     console.info('[team-submissions] 请求完成', {
       durationMs: Date.now() - startedAt,
       recordCount: submissions.length,
-      identityStatus: activeUserIds ? 'verified' : 'masked',
+      identityStatus: activeUserIds ? 'verified' : 'unverified',
     });
     return NextResponse.json({
       submissions,
-      submitterIdentityStatus: activeUserIds ? 'verified' : 'masked',
+      submitterIdentityStatus: activeUserIds ? 'verified' : 'unverified',
     });
   } catch (error) {
     const timedOut = isTimeoutError(error);
