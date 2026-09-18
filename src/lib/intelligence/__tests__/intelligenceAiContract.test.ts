@@ -25,9 +25,8 @@ describe('Intelligence AI integration contract', () => {
     const parseRoute = source('src/app/api/intelligence/parse-requirement/route.ts');
     const recommendRoute = source('src/app/api/intelligence/recommend/route.ts');
 
-    expect(context).toContain('auth.getUser(accessToken)');
-    expect(context).toContain(".from('user_roles')");
-    expect(context).toContain('isIntelligencePreviewEnabled(roleRow.role)');
+    expect(context).toContain('resolveEffectiveRequestIdentity(request, client)');
+    expect(context).toContain('isIntelligencePreviewEnabled(identity.effectiveRole)');
     expect(parseRoute).toContain('requireIntelligenceAccess(request)');
     expect(recommendRoute).toContain('requireIntelligenceAccess(request)');
     expect(parseRoute).toContain('RequirementParseInputSchema.safeParse');
