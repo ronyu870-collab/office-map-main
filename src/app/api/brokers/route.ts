@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,18 +24,11 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const authHeader = req.headers.get('authorization') ?? '';
-    const accessToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-
-    if (!accessToken) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
-
-    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-
-    if (authError || !caller) {
-      return NextResponse.json({ error: '无效的认证 Token' }, { status: 401 });
-    }
+    // Broker discovery is role-neutral, but an active simulation context still
+    // has to be valid. This prevents a stale or forged simulation header from
+    // silently falling back to the administrator identity.
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
 
     const [{ data, error }, { data: authUsers, error: authUsersError }] = await Promise.all([
       supabaseAdmin
