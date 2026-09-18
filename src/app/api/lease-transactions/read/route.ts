@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveLeaseReadAccess } from './access';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -53,11 +54,15 @@ export async function GET(req: NextRequest) {
     }
 
     const role = String(roleRow?.role ?? '').trim().toLowerCase();
-    if (role !== 'editor' && role !== 'admin') {
-      return NextResponse.json({ error: '当前角色无权读取租赁成交数据库' }, { status: 403 });
+    const params = req.nextUrl.searchParams;
+    const access = resolveLeaseReadAccess(role, params.get('record_source'));
+    if (!access.authorized) {
+      const error = access.denialReason === 'history'
+        ? '当前角色无权读取历史租赁成交'
+        : '当前角色无权读取租赁成交数据库';
+      return NextResponse.json({ error }, { status: 403 });
     }
 
-    const params = req.nextUrl.searchParams;
     const limit = clampLimit(params.get('limit'));
     const offsetRaw = Number(params.get('offset') ?? 0);
     const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
@@ -74,7 +79,6 @@ export async function GET(req: NextRequest) {
     const building = params.get('building')?.trim();
     const subMarket = params.get('sub_market')?.trim();
     const industry = params.get('industry')?.trim();
-    const source = params.get('record_source')?.trim();
     const yearFrom = parseOptionalNumber(params.get('year_from'));
     const yearTo = parseOptionalNumber(params.get('year_to'));
     const areaMin = parseOptionalNumber(params.get('area_min'));
@@ -89,7 +93,7 @@ export async function GET(req: NextRequest) {
     if (building) query = query.ilike('new_building', `%${building}%`);
     if (subMarket) query = query.eq('sub_market', subMarket);
     if (industry) query = query.eq('industry', industry);
-    if (source === 'live' || source === 'history') query = query.eq('record_source', source);
+    if (access.enforcedSource) query = query.eq('record_source', access.enforcedSource);
     if (yearFrom !== null) query = query.gte('transaction_year', yearFrom);
     if (yearTo !== null) query = query.lte('transaction_year', yearTo);
     if (areaMin !== null) query = query.gte('area_sqm', areaMin);
@@ -107,7 +111,16 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { records: data ?? [], count: count ?? 0, limit, offset },
+      {
+        records: data ?? [],
+        count: count ?? 0,
+        limit,
+        offset,
+        access: {
+          canReadHistory: access.canReadHistory,
+          effectiveSource: access.enforcedSource ?? 'all',
+        },
+      },
       { headers: { 'Cache-Control': 'private, max-age=30' } },
     );
   } catch (error) {
