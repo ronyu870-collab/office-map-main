@@ -4,6 +4,7 @@ import * as React from 'react'
 
 import { Badge, Button } from '@/src/components/ui'
 import { supabase } from '@/src/services/supabaseClient'
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders'
 
 type LeaseTeamAccess = {
   enabled: boolean
@@ -16,11 +17,11 @@ async function authFetch(path: string, options: RequestInit = {}) {
 
   const response = await fetch(path, {
     ...options,
-    headers: {
+    headers: withImpersonationHeaders({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
       ...(options.headers ?? {}),
-    },
+    }),
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.error ?? '操作失败')
