@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Check, Download, Loader2 } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { logAction } from '@/src/utils/audit';
 import {
   LEASE_EXPORT_COLUMNS,
@@ -43,7 +44,7 @@ export function AdminLeaseExportButton() {
       if (!token) throw new Error('登录状态异常，请重新登录');
 
       const response = await fetch('/api/lease-submission/export', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
         cache: 'no-store',
       });
       const body = await response.json().catch(() => ({})) as {
