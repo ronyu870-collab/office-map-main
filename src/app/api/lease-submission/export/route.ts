@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,30 +19,10 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const accessToken = (req.headers.get('authorization') ?? '')
-      .replace(/^Bearer\s+/i, '')
-      .trim();
-    if (!accessToken) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
-
-    const { data: { user: caller }, error: authError } =
-      await supabaseAdmin.auth.getUser(accessToken);
-    if (authError || !caller) {
-      return NextResponse.json({ error: '登录状态无效，请重新登录' }, { status: 401 });
-    }
-
-    const { data: callerProfile, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', caller.id)
-      .maybeSingle();
-
-    if (roleError) {
-      console.error('[lease-export] 查询管理员角色失败:', roleError);
-      return NextResponse.json({ error: '权限校验失败' }, { status: 500 });
-    }
-    if (callerProfile?.role !== 'admin') {
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
+    const { identity } = identityResult;
+    if (identity.effectiveRole !== 'admin') {
       return NextResponse.json({ error: '权限不足，仅管理员可导出成交数据' }, { status: 403 });
     }
 
