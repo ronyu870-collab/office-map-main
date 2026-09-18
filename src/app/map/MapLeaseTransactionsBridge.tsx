@@ -96,15 +96,15 @@ function decorateInfoWindow(root: ParentNode) {
   });
 }
 
-function fmtNumber(value: number | null, maximumFractionDigits = 1) {
-  return value == null
-    ? '—'
-    : value.toLocaleString('zh-CN', { maximumFractionDigits });
+function fmtNumber(value: number, maximumFractionDigits = 1) {
+  return value.toLocaleString('zh-CN', { maximumFractionDigits });
 }
 
 function periodLabel(row: LeaseRow) {
-  const year = row.transaction_year ?? '—';
-  return row.transaction_quarter ? `${year} ${row.transaction_quarter}` : String(year);
+  if (row.transaction_year == null) return '时间未记录';
+  return row.transaction_quarter
+    ? `${row.transaction_year} ${row.transaction_quarter}`
+    : String(row.transaction_year);
 }
 
 function sourceLabel(row: LeaseRow) {
@@ -124,22 +124,28 @@ function fullIndustry(row: LeaseRow) {
   if (row.industry && row.sub_industry && row.industry !== row.sub_industry) {
     return `${row.industry} / ${row.sub_industry}`;
   }
-  return row.sub_industry || row.industry || '—';
+  return row.sub_industry || row.industry || '未标注';
 }
 
-function DetailRow({
+function brokerLabel(row: LeaseRow) {
+  return [row.agency_company, row.agency_person].filter(Boolean).join(' · ');
+}
+
+function DetailItem({
   label,
   value,
-  multiline = false,
+  span = 1,
+  subdued = false,
 }: {
   label: string;
   value: React.ReactNode;
-  multiline?: boolean;
+  span?: 1 | 2;
+  subdued?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-start gap-3 py-1.5">
-      <div className="text-[11px] leading-5 text-[var(--cd-color-text-muted)]">{label}</div>
-      <div className={`text-[12px] leading-5 text-[var(--cd-color-text-primary)] ${multiline ? 'whitespace-pre-wrap break-words' : 'min-w-0 break-words'}`}>
+    <div className={span === 2 ? 'col-span-2 min-w-0' : 'min-w-0'}>
+      <div className="text-[11px] font-medium leading-4 text-[var(--cd-color-text-muted)]">{label}</div>
+      <div className={`mt-1 text-[12px] leading-5 ${subdued ? 'text-[var(--cd-color-text-secondary)]' : 'text-[var(--cd-color-text-primary)]'}`}>
         {value}
       </div>
     </div>
@@ -294,17 +300,15 @@ export function MapLeaseTransactionsBridge() {
   const count = payload?.count ?? 0;
   const records = payload?.records ?? [];
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const rangeStart = count === 0 ? 0 : page * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(count, page * PAGE_SIZE + records.length);
 
   return (
     <aside
       role="dialog"
       aria-modal="false"
       aria-label={`${context.buildingName || '当前楼宇'}关联成交`}
-      className="fixed bottom-4 right-4 top-[70px] z-[560] flex w-[420px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-lg border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-drawer)]"
+      className="fixed bottom-4 right-4 top-[70px] z-[560] flex w-[420px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-drawer)]"
     >
-      <header className="flex items-center justify-between gap-4 border-b border-[var(--cd-color-border)] px-4 py-3.5">
+      <header className="flex items-center justify-between gap-4 border-b border-[var(--cd-color-border)]/70 px-4 py-3.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Database className="h-4 w-4 shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
@@ -318,26 +322,24 @@ export function MapLeaseTransactionsBridge() {
           type="button"
           onClick={() => setContext(null)}
           aria-label="关闭关联成交"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--cd-color-text-secondary)] transition hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-focus)]"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </header>
 
-      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]/55 px-4">
+      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)]/60 bg-[var(--cd-color-surface-alt)]/35 px-4">
         <span className="text-[12px] leading-5 text-[var(--cd-color-text-secondary)]">
-          <strong className="font-semibold tabular-nums text-[var(--cd-color-text-primary)]">{count.toLocaleString('zh-CN')}</strong> 条关联成交
+          <strong className="font-semibold tabular-nums text-[var(--cd-color-text-primary)]">{count.toLocaleString('zh-CN')}</strong> 条成交
         </span>
-        <span className="text-[11px] leading-5 tabular-nums text-[var(--cd-color-text-muted)]">
-          {count > PAGE_SIZE ? `${rangeStart}–${rangeEnd}` : '按时间倒序'}
-        </span>
+        <span className="text-[11px] leading-5 text-[var(--cd-color-text-muted)]">最新优先</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
-          <div className="space-y-0 px-4 py-2" aria-label="正在读取关联成交">
+          <div className="px-4 py-2" aria-label="正在读取关联成交">
             {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="border-b border-[var(--cd-color-border)]/70 py-4 last:border-b-0">
+              <div key={index} className="border-b border-[var(--cd-color-border)]/40 py-3.5 last:border-b-0">
                 <div className="h-3.5 w-2/3 animate-pulse rounded bg-slate-200" />
                 <div className="mt-2.5 h-3 w-4/5 animate-pulse rounded bg-slate-100" />
                 <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
@@ -369,30 +371,28 @@ export function MapLeaseTransactionsBridge() {
           <div>
             {records.map(row => {
               const isExpanded = expandedReadId === row.read_id;
-              const descriptors = [
-                summaryIndustry(row),
-                row.demand_type,
-                leaseTermLabel(row.lease_term_months),
-                sourceLabel(row),
-              ].filter((value): value is string => Boolean(value));
+              const industry = summaryIndustry(row);
+              const leaseTerm = leaseTermLabel(row.lease_term_months);
+              const descriptors = [industry, row.demand_type, leaseTerm].filter((value): value is string => Boolean(value));
               const metrics = [
                 row.area_sqm == null ? null : `${fmtNumber(row.area_sqm, 0)}㎡`,
                 row.face_rent == null ? null : `表面 ¥${fmtNumber(row.face_rent)}/㎡/月`,
                 row.effective_rent == null ? null : `净有效 ¥${fmtNumber(row.effective_rent)}/㎡/月`,
               ].filter((value): value is string => Boolean(value));
+              const broker = brokerLabel(row);
 
               return (
-                <article key={row.read_id} className="border-b border-[var(--cd-color-border)]/70 last:border-b-0">
+                <article key={row.read_id} className="border-b border-[var(--cd-color-border)]/40 last:border-b-0">
                   <button
                     type="button"
                     aria-expanded={isExpanded}
                     onClick={() => setExpandedReadId(current => current === row.read_id ? null : row.read_id)}
-                    className="block w-full px-4 py-4 text-left transition hover:bg-[var(--cd-color-surface-alt)]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--cd-color-focus)]"
+                    className={`block w-full px-4 py-3.5 text-left transition-colors focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]/55 ${isExpanded ? 'bg-[var(--cd-color-surface-alt)]/28' : 'hover:bg-[var(--cd-color-surface-alt)]/35'}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 truncate text-[13px] font-semibold leading-5 text-[var(--cd-color-text-primary)]" title={row.company || '未标注公司'}>
+                          <div className="min-w-0 truncate text-[14px] font-semibold leading-5 text-[var(--cd-color-text-primary)]" title={row.company || '未标注公司'}>
                             {row.company || '未标注公司'}
                           </div>
                           <div className="shrink-0 text-[12px] leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">{periodLabel(row)}</div>
@@ -406,56 +406,71 @@ export function MapLeaseTransactionsBridge() {
                           )}
                         </div>
 
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">
-                          {descriptors.map((descriptor, index) => (
-                            <React.Fragment key={`${descriptor}-${index}`}>
-                              {index > 0 ? <span aria-hidden="true">·</span> : null}
-                              <span>{descriptor}</span>
-                            </React.Fragment>
-                          ))}
-                          {row.building_match_scope === 'project' ? (
-                            <>
-                              {descriptors.length > 0 ? <span aria-hidden="true">·</span> : null}
-                              <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-medium leading-4 text-amber-700">项目级</span>
-                            </>
-                          ) : null}
-                        </div>
+                        {(descriptors.length > 0 || row.building_match_scope === 'project') ? (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">
+                            {descriptors.map((descriptor, index) => (
+                              <React.Fragment key={`${descriptor}-${index}`}>
+                                {index > 0 ? <span aria-hidden="true">·</span> : null}
+                                <span>{descriptor}</span>
+                              </React.Fragment>
+                            ))}
+                            {row.building_match_scope === 'project' ? (
+                              <>
+                                {descriptors.length > 0 ? <span aria-hidden="true">·</span> : null}
+                                <span className="rounded-md border border-[var(--cd-color-border)]/80 px-1.5 py-0.5 font-medium leading-4 text-[var(--cd-color-text-secondary)]">项目级</span>
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
 
                       <ChevronDown
-                        className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--cd-color-text-muted)] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                        className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--cd-color-text-muted)] transition-transform duration-200 ease-out ${isExpanded ? 'rotate-180' : ''}`}
                         aria-hidden="true"
                       />
                     </div>
                   </button>
 
-                  {isExpanded ? (
-                    <div className="border-t border-[var(--cd-color-border)]/70 bg-[var(--cd-color-surface-alt)]/45 px-4 py-3">
-                      <DetailRow label="行业" value={fullIndustry(row)} />
-                      <DetailRow label="成交类型" value={row.demand_type || '—'} />
-                      <DetailRow label="租期" value={leaseTermLabel(row.lease_term_months) || '—'} />
-                      <DetailRow
-                        label="租金"
-                        value={
-                          <span className="flex flex-wrap gap-x-3 gap-y-1 tabular-nums">
-                            <span>表面 {row.face_rent == null ? '—' : `¥${fmtNumber(row.face_rent)}/㎡/月`}</span>
-                            <span>净有效 {row.effective_rent == null ? '—' : `¥${fmtNumber(row.effective_rent)}/㎡/月`}</span>
-                          </span>
-                        }
-                      />
-                      <DetailRow label="代理公司" value={row.agency_company || '—'} />
-                      <DetailRow label="经纪人" value={row.agency_person || '—'} />
-                      <DetailRow label="记录来源" value={sourceLabel(row)} />
-                      {row.building_match_scope === 'project' ? (
-                        <DetailRow
-                          label="关联精度"
-                          value="项目级关联：成交已确认属于该项目，但历史数据无法精确到当前具体塔楼。"
-                          multiline
-                        />
-                      ) : null}
-                      {row.remarks ? <DetailRow label="备注" value={row.remarks} multiline /> : null}
+                  <div
+                    className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+                    aria-hidden={!isExpanded}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="border-t border-[var(--cd-color-border)]/35 bg-[var(--cd-color-surface-alt)]/18 px-4 py-3">
+                        <div className="grid grid-cols-2 gap-x-5 gap-y-3">
+                          <DetailItem label="成交类型" value={row.demand_type || '未标注'} />
+                          <DetailItem label="租期" value={leaseTerm || '未记录'} />
+                          <DetailItem label="行业" value={fullIndustry(row)} span={2} subdued={!industry} />
+                          {(row.face_rent != null || row.effective_rent != null) ? (
+                            <DetailItem
+                              label="租金"
+                              span={2}
+                              value={
+                                <span className="flex flex-wrap gap-x-4 gap-y-1 tabular-nums">
+                                  {row.face_rent != null ? <span>表面 ¥{fmtNumber(row.face_rent)}/㎡/月</span> : null}
+                                  {row.effective_rent != null ? <span>净有效 ¥{fmtNumber(row.effective_rent)}/㎡/月</span> : null}
+                                </span>
+                              }
+                            />
+                          ) : (
+                            <DetailItem label="租金" value="未记录" span={2} subdued />
+                          )}
+                          {broker ? <DetailItem label="经纪信息" value={broker} span={2} /> : null}
+                          {row.remarks ? <DetailItem label="备注" value={<span className="whitespace-pre-wrap break-words">{row.remarks}</span>} span={2} /> : null}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-[var(--cd-color-border)]/30 pt-2.5 text-[11px] leading-4 text-[var(--cd-color-text-muted)]">
+                          <span>来源：{sourceLabel(row)}</span>
+                          {row.building_match_scope === 'project' ? (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span>项目级关联，历史记录无法精确到具体塔楼</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
-                  ) : null}
+                  </div>
                 </article>
               );
             })}
@@ -464,28 +479,28 @@ export function MapLeaseTransactionsBridge() {
       </div>
 
       {count > PAGE_SIZE ? (
-        <footer className="flex h-12 items-center justify-between border-t border-[var(--cd-color-border)] px-4">
-          <span className="text-[11px] leading-5 tabular-nums text-[var(--cd-color-text-muted)]">第 {page + 1} / {totalPages} 页</span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              aria-label="上一页关联成交"
-              disabled={loading || page <= 0}
-              onClick={() => setPage(current => Math.max(0, current - 1))}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--cd-color-border)] text-[var(--cd-color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-35 hover:not-disabled:bg-[var(--cd-color-surface-alt)]"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              aria-label="下一页关联成交"
-              disabled={loading || page + 1 >= totalPages}
-              onClick={() => setPage(current => Math.min(totalPages - 1, current + 1))}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--cd-color-border)] text-[var(--cd-color-text-secondary)] disabled:cursor-not-allowed disabled:opacity-35 hover:not-disabled:bg-[var(--cd-color-surface-alt)]"
-            >
-              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </div>
+        <footer className="flex h-11 items-center justify-center gap-2.5 border-t border-[var(--cd-color-border)]/55 px-4">
+          <button
+            type="button"
+            aria-label="上一页关联成交"
+            disabled={loading || page <= 0}
+            onClick={() => setPage(current => Math.max(0, current - 1))}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <span className="min-w-12 text-center text-[11px] leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            type="button"
+            aria-label="下一页关联成交"
+            disabled={loading || page + 1 >= totalPages}
+            onClick={() => setPage(current => Math.min(totalPages - 1, current + 1))}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
         </footer>
       ) : null}
     </aside>
