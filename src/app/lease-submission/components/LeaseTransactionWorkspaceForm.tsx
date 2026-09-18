@@ -713,8 +713,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   if (submittedRecord) {
     return (
       <>
-        <div className="fixed inset-0 z-[90] bg-slate-950/35" aria-hidden="true" />
-        <aside className="fixed inset-y-0 right-0 z-[95] flex w-full max-w-xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" aria-label="租赁成交填报结果">
+        <div className="fixed inset-0 z-[45] bg-slate-950/35" aria-hidden="true" />
+        <aside className="fixed inset-y-0 right-0 z-[var(--cd-z-drawer)] flex w-full max-w-xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" aria-label="租赁成交填报结果">
           <div className="flex items-center justify-between border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
             <h2 className="text-sm font-semibold text-slate-900">提交成功</h2>
             <button type="button" onClick={onClose} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)]" aria-label="返回记录列表"><X size={17} /></button>
@@ -744,8 +744,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
 
   return (
     <>
-      <div className="fixed inset-0 z-[90] bg-slate-950/35" onClick={onClose} aria-hidden="true" />
-      <aside className="fixed inset-y-0 right-0 z-[95] flex w-full max-w-3xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="lease-entry-title">
+      <div className="fixed inset-0 z-[45] bg-slate-950/35" onClick={onClose} aria-hidden="true" />
+      <aside className="fixed inset-y-0 right-0 z-[var(--cd-z-drawer)] flex w-full max-w-3xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="lease-entry-title">
         <div className="shrink-0 border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <h2 id="lease-entry-title" className="truncate text-sm font-semibold text-slate-900">{mode === 'edit' ? '编辑成交记录' : '新增成交记录'}</h2>
