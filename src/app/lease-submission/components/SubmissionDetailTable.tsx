@@ -2,11 +2,12 @@
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, FileText, Maximize2, Minimize2, ChevronDown, ChevronRight, Edit2 } from 'lucide-react';
+import { Building2, FileText, Maximize2, Minimize2, ChevronDown, ChevronRight, Edit2, History } from 'lucide-react';
 import type { LeaseTransaction } from '@/src/types/lease-transaction';
 import { MaskedCell } from '@/src/components/demo';
 import { useResponsiveColumns, calculateColumnWidths, type ColumnDef } from '@/src/hooks/useResponsiveColumns';
 import { AdminLeaseExportButton } from './AdminLeaseExportButton';
+import { LeaseTransactionHistoryDrawer } from './LeaseTransactionHistoryDrawer';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -233,7 +234,10 @@ export function SubmissionDetailTable({
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [editMode, setEditMode] = React.useState(false);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [historyRecord, setHistoryRecord] = React.useState<LeaseTransaction | null>(null);
   const PAGE_SIZE = 20;
+  const ACTION_COLUMN_WIDTH = 76;
 
   // 响应式列可见性
   const { visibleColumns, containerWidth } = useResponsiveColumns({
@@ -250,16 +254,16 @@ export function SubmissionDetailTable({
       if (col.width === 'flex') total += col.minWidth || 80;
       else total += col.width || 80;
     }
-    if (editMode) total += 48;
+    if (editMode) total += ACTION_COLUMN_WIDTH;
     return total;
   }, [visibleColumns, editMode]);
 
   // 计算列宽（像素值，用于 <colgroup>）
   // 基于 hook 跟踪的容器宽度分配弹性列空间，但列宽不低于 minWidth
   const columnWidths = React.useMemo(() => {
-    const usable = Math.max(containerWidth - 48 - (editMode ? 48 : 0), tableMinWidth - 48 - (editMode ? 48 : 0));
+    const usable = Math.max(containerWidth - 48 - (editMode ? ACTION_COLUMN_WIDTH : 0), tableMinWidth - 48 - (editMode ? ACTION_COLUMN_WIDTH : 0));
     return calculateColumnWidths(visibleColumns, usable);
-  }, [visibleColumns, editMode, containerWidth, tableMinWidth]);
+  }, [visibleColumns, editMode, containerWidth, tableMinWidth, ACTION_COLUMN_WIDTH]);
 
   // Escape 键退出全屏
   React.useEffect(() => {
@@ -422,7 +426,8 @@ export function SubmissionDetailTable({
     : 'rounded-lg border border-zinc-200 bg-white flex flex-col min-w-0 max-h-[75vh]';
 
   return (
-    <div className={outerClass}>
+    <>
+      <div className={outerClass}>
       {/* ── 工具栏 ── */}
       <div className={`shrink-0 border-b border-zinc-200 bg-white px-5 py-3 ${isFullscreen ? '' : 'rounded-t-2xl'}`}>
         <div className={`flex flex-col gap-2.5 ${isFullscreen ? '2xl:flex-row 2xl:items-center 2xl:gap-5' : ''}`}>
@@ -458,6 +463,17 @@ export function SubmissionDetailTable({
               >
                 <Edit2 size={13} />
                 {editMode ? '完成管理' : '管理记录'}
+              </button>
+            )}
+            {canManageTeamRecords && (
+              <button
+                type="button"
+                onClick={() => { setHistoryRecord(null); setHistoryOpen(true); }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium text-zinc-500 transition-colors hover:bg-zinc-100"
+                title="查看成交变更记录"
+              >
+                <History size={13} />
+                变更记录
               </button>
             )}
             {canManageTeamRecords && <AdminLeaseExportButton />}
@@ -602,7 +618,7 @@ export function SubmissionDetailTable({
             {columnWidths.map((w, i) => (
               <col key={visibleColumns[i]?.key ?? i} style={{ width: w }} />
             ))}
-            {editMode && <col style={{ width: 48 }} />}
+            {editMode && <col style={{ width: ACTION_COLUMN_WIDTH }} />}
           </colgroup>
 
           {/* 表头（sticky） */}
@@ -670,14 +686,24 @@ export function SubmissionDetailTable({
                       ))}
                       {editMode && (
                         <td className="border-b border-zinc-100 px-1 py-3 text-center">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onEdit?.(row); }}
-                            aria-label={`编辑${fmt(row.company)}的成交记录`}
-                            className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-blue-50 hover:text-[#003e7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
-                            title="编辑此记录"
-                          >
-                            <Edit2 size={14} />
-                          </button>
+                          <div className="flex items-center justify-center gap-0.5">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setHistoryRecord(row); setHistoryOpen(true); }}
+                              aria-label={`查看${fmt(row.company)}的变更记录`}
+                              className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-[#003e7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
+                              title="查看变更记录"
+                            >
+                              <History size={14} />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onEdit?.(row); }}
+                              aria-label={`编辑${fmt(row.company)}的成交记录`}
+                              className="rounded-md p-1.5 text-zinc-400 transition-colors hover:bg-blue-50 hover:text-[#003e7e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/30"
+                              title="编辑此记录"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -734,6 +760,14 @@ export function SubmissionDetailTable({
           </div>
         </div>
       )}
-    </div>
+      </div>
+      {canManageTeamRecords && (
+        <LeaseTransactionHistoryDrawer
+          open={historyOpen}
+          record={historyRecord}
+          onClose={() => { setHistoryOpen(false); setHistoryRecord(null); }}
+        />
+      )}
+    </>
   );
 }
