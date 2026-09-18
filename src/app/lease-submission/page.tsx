@@ -8,6 +8,7 @@ import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-re
 import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
 import { logAction } from '@/src/utils/audit';
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { canViewLeaseTeamSubmissions, isUserAdmin } from '@/src/utils/accessControl';
 import { isDemoMode } from '@/src/config/demoMode';
 import { retryAsync } from '@/src/utils/retryAsync';
@@ -226,7 +227,7 @@ export default function LeaseSubmissionPage() {
       if (!token) throw new Error('登录状态异常，请重新登录');
       const response = await fetch('/api/admin/transfer-submission', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: withImpersonationHeaders({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
         body: JSON.stringify({ submissionId: transferringRecord.id, targetUserId: target.user_id, targetUserName: target.name }),
       });
       const body = await response.json().catch(() => ({}));
