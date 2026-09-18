@@ -40,4 +40,11 @@ describe('lease history workbench presentation contract', () => {
     expect(layoutSource).toContain('if (inDatabase) return <>{children}</>;');
     expect(layoutSource).toContain('href="/lease-submission/history"');
   });
+
+  it('shows historical source controls only when the server grants admin history access', () => {
+    expect(source).toContain('const [canReadHistory, setCanReadHistory] = React.useState<boolean | null>(null);');
+    expect(source).toContain('setCanReadHistory(body?.access?.canReadHistory === true);');
+    expect(source).toContain('canReadHistory === true ? (');
+    expect(source).toContain("const effectiveSource: SourceFilter = canReadHistory === true ? appliedFilters.source : 'live';");
+  });
 });
