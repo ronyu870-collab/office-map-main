@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { AppHeader, Button, LoadingState } from '@/src/components/ui';
 
 type LeaseReadRecord = {
@@ -144,7 +145,7 @@ export default function LeaseHistoryPage() {
       if (queryFilters.areaMax) params.set('area_max', queryFilters.areaMax);
 
       const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {

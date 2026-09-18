@@ -5,6 +5,7 @@ import { Plus, Search } from 'lucide-react'
 
 import { Badge, Button, Dialog, EmptyState, ErrorState, Input, LoadingState } from '@/src/components/ui'
 import { supabase } from '@/src/services/supabaseClient'
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders'
 import { getUserRoleLabel } from '@/src/types/auth'
 import { LeaseTeamAccessControl } from '@/src/components/admin/LeaseTeamAccessControl'
 
@@ -119,11 +120,11 @@ async function authFetch(path: string, options: RequestInit = {}) {
   if (error || !session?.access_token) throw new Error('登录状态已失效，请重新登录后重试')
   const response = await fetch(path, {
     ...options,
-    headers: {
+    headers: withImpersonationHeaders({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${session.access_token}`,
       ...(options.headers ?? {}),
-    },
+    }),
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data.error ?? '操作失败')

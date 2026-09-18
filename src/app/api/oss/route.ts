@@ -3,6 +3,7 @@ import OSS from 'ali-oss';
 import crypto from 'crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ type VerifiedUser = {
   user: { id: string; email?: string };
   role: string;
   admin: SupabaseClient;
+  isImpersonating: boolean;
 };
 
 type DeleteStats = { total: number; success: number; failed: number };
@@ -54,30 +56,30 @@ async function verifyUser(request: Request, loadRole = true): Promise<VerifiedUs
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const { data: { user }, error: authError } = await admin.auth.getUser(accessToken);
-    if (authError || !user) return null;
 
-    // Read-only library listing only needs a validated user. Avoid adding a
-    // second Supabase round trip for user_roles when the role is not consumed.
+    // Read-only library listing is identical for every authenticated role, so it
+    // only needs real JWT validation. Role-sensitive management uses the shared
+    // effective-identity resolver below.
     if (!loadRole) {
+      const { data: { user }, error: authError } = await admin.auth.getUser(accessToken);
+      if (authError || !user) return null;
       return {
         user: { id: user.id, email: user.email },
         role: 'viewer',
         admin,
+        isImpersonating: false,
       };
     }
 
-    const { data: roleRow, error: roleError } = await admin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (roleError) return null;
+    const identityResult = await resolveEffectiveRequestIdentity(request, admin);
+    if ('response' in identityResult) return null;
+    const { identity } = identityResult;
 
     return {
-      user: { id: user.id, email: user.email },
-      role: roleRow?.role ? String(roleRow.role).trim().toLowerCase() : 'viewer',
+      user: { id: identity.caller.id, email: identity.caller.email },
+      role: identity.effectiveRole || 'viewer',
       admin,
+      isImpersonating: identity.isImpersonating,
     };
   } catch {
     return null;
@@ -100,6 +102,9 @@ async function requireManager(request: Request) {
   const verified = await verifyUser(request, true);
   if (!verified) {
     return { verified: null, response: NextResponse.json({ status: 'error', message: '未授权：请先登录' }, { status: 401 }) };
+  }
+  if (verified.isImpersonating) {
+    return { verified: null, response: NextResponse.json({ status: 'error', message: '用户模拟为只读模式，不能管理云盘' }, { status: 403 }) };
   }
   if (!canManage(verified.role)) {
     return { verified: null, response: NextResponse.json({ status: 'error', message: '权限不足：只有管理员可以执行此操作' }, { status: 403 }) };

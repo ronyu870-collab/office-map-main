@@ -14,7 +14,8 @@ describe('lease data entry authorization seams', () => {
 
   it('keeps server-side role enforcement and bounded requests on team submissions', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/app/api/lease-submission/team-submissions/route.ts'), 'utf8');
-    expect(source).toContain('canViewLeaseTeamSubmissions(callerProfile?.role)');
+    expect(source).toContain('resolveEffectiveRequestIdentity(req, supabaseAdmin)');
+    expect(source).toContain('canViewLeaseTeamSubmissions(identity.effectiveRole)');
     expect(source).toMatch(/status:\s*403/);
     expect(source).toMatch(/service role/i);
     expect(source).toContain('AbortSignal.timeout');
@@ -46,6 +47,7 @@ describe('lease data entry authorization seams', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/services/leaseTransactionSubmitService.ts'), 'utf8');
     expect(source).toContain('new AbortController()');
     expect(source).toContain('团队成交数据请求超时，请稍后重试');
+    expect(source).toContain('withImpersonationHeaders');
   });
 
   it('keeps session identity and owner/admin checks on record editing', () => {

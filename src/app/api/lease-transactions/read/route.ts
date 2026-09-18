@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveLeaseReadAccess } from './access';
+import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,30 +33,12 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const token = (req.headers.get('authorization') ?? '')
-      .replace(/^Bearer\s+/i, '')
-      .trim();
-    if (!token) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
+    const { identity } = identityResult;
 
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: '登录状态无效，请重新登录' }, { status: 401 });
-    }
-
-    const { data: roleRow, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle();
-    if (roleError) {
-      return NextResponse.json({ error: '权限校验失败' }, { status: 500 });
-    }
-
-    const role = String(roleRow?.role ?? '').trim().toLowerCase();
     const params = req.nextUrl.searchParams;
-    const access = resolveLeaseReadAccess(role, params.get('record_source'));
+    const access = resolveLeaseReadAccess(identity.effectiveRole, params.get('record_source'));
     if (!access.authorized) {
       const error = access.denialReason === 'history'
         ? '当前角色无权读取历史租赁成交'
@@ -119,6 +102,8 @@ export async function GET(req: NextRequest) {
         access: {
           canReadHistory: access.canReadHistory,
           effectiveSource: access.enforcedSource ?? 'all',
+          effectiveRole: identity.effectiveRole,
+          impersonating: identity.isImpersonating,
         },
       },
       { headers: { 'Cache-Control': 'private, no-store' } },

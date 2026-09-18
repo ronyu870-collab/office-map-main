@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
+import { denyImpersonatedMutation, resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -9,6 +10,7 @@ const SETTING_KEY = 'editor_can_view_lease_team_submissions'
 type AdminContext = {
   client: SupabaseClient
   caller: User
+  identity: EffectiveRequestIdentity
 }
 
 function createAdminClient() {
@@ -22,21 +24,13 @@ function createAdminClient() {
 
 async function requireAdmin(request: NextRequest): Promise<AdminContext | NextResponse> {
   const client = createAdminClient()
-  const accessToken = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
-  if (!accessToken) return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 })
-
-  const { data: { user: caller }, error: authError } = await client.auth.getUser(accessToken)
-  if (authError || !caller) return NextResponse.json({ error: '登录状态已失效' }, { status: 401 })
-
-  const { data: roleRow, error: roleError } = await client
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', caller.id)
-    .maybeSingle()
-  if (roleError || roleRow?.role !== 'admin') {
+  const identityResult = await resolveEffectiveRequestIdentity(request, client)
+  if ('response' in identityResult) return identityResult.response
+  const { identity } = identityResult
+  if (identity.effectiveRole !== 'admin') {
     return NextResponse.json({ error: '权限不足，仅管理员可执行此操作' }, { status: 403 })
   }
-  return { client, caller }
+  return { client, caller: identity.caller, identity }
 }
 
 function isAdminContext(value: AdminContext | NextResponse): value is AdminContext {
@@ -73,6 +67,8 @@ export async function PATCH(request: NextRequest) {
   try {
     const context = await requireAdmin(request)
     if (!isAdminContext(context)) return context
+    const impersonationBlock = denyImpersonatedMutation(context.identity)
+    if (impersonationBlock) return impersonationBlock
     const body = await request.json() as Record<string, unknown>
     if (typeof body.enabled !== 'boolean') {
       return NextResponse.json({ error: '缺少有效的开关状态' }, { status: 400 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,19 +18,12 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 验证调用方身份
-    const authHeader = req.headers.get('authorization') ?? '';
-    const accessToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-
-    if (!accessToken) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
-
-    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-
-    if (authError || !caller) {
-      return NextResponse.json({ error: '无效的认证 Token' }, { status: 401 });
-    }
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
+    const { identity } = identityResult;
+    const impersonationBlock = denyImpersonatedMutation(identity);
+    if (impersonationBlock) return impersonationBlock;
+    const caller = identity.caller;
 
     // 解析请求体
     const body = await req.json();
@@ -51,14 +45,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 检查权限：本人或 admin 可以赠与
-    const { data: roleRow } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', caller.id)
-      .single();
-
-    const isAdmin = roleRow?.role === 'admin';
-    if (submission.submitter_id !== caller.id && !isAdmin) {
+    const isAdmin = identity.effectiveRole === 'admin';
+    if (submission.submitter_id !== identity.effectiveUserId && !isAdmin) {
       return NextResponse.json({ error: '只能赠与自己提交的记录' }, { status: 403 });
     }
 

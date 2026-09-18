@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 
 import { clearSessionCache, getSessionFast } from '@/src/services/Auth';
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { supabase } from '@/src/services/supabaseClient';
 import { AppHeader, Button, Input, LoadingState, Panel } from '@/src/components/ui';
 
@@ -51,10 +52,10 @@ export default function SettingsPage() {
       if (!session?.access_token) throw new Error('登录状态已失效，请重新登录');
       const response = await fetch('/api/auth/complete-password-change', {
         method: 'POST',
-        headers: {
+        headers: withImpersonationHeaders({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
-        },
+        }),
         body: JSON.stringify({ password: newPassword }),
       });
       const result = await response.json().catch(() => ({}));

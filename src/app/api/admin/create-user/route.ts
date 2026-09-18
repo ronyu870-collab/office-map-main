@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePassword } from '@/src/utils/passwordPolicy';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,28 +33,15 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const authHeader = req.headers.get('authorization') ?? '';
-    const accessToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-
-    if (!accessToken) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
-
-    const { data: { user: caller }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-
-    if (authError || !caller) {
-      return NextResponse.json({ error: '无效的认证 Token' }, { status: 401 });
-    }
-
-    const { data: roleRow, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', caller.id)
-      .single();
-
-    if (roleError || !roleRow || roleRow.role !== 'admin') {
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
+    const { identity } = identityResult;
+    if (identity.effectiveRole !== 'admin') {
       return NextResponse.json({ error: '权限不足，仅管理员可执行此操作' }, { status: 403 });
     }
+    const impersonationBlock = denyImpersonatedMutation(identity);
+    if (impersonationBlock) return impersonationBlock;
+    const caller = identity.caller;
 
     const body = await req.json();
     const { email, password, chinese_name, full_name, role, phone, gender, title, internal_number, seq_no } = body;

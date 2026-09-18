@@ -100,8 +100,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, target_user_id, target_email } = body;
 
-    if (!action || !target_user_id) {
-      return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
+    if ((action !== 'impersonate_start' && action !== 'impersonate_end') || !target_user_id) {
+      return NextResponse.json({ error: '模拟操作参数无效' }, { status: 400 });
+    }
+
+    if (action === 'impersonate_start') {
+      const { data: targetProfile, error: targetError } = await supabaseAdmin
+        .from('user_roles')
+        .select('user_id')
+        .eq('user_id', target_user_id)
+        .maybeSingle();
+      if (targetError) {
+        return NextResponse.json({ error: '模拟用户校验失败' }, { status: 500 });
+      }
+      if (!targetProfile?.user_id) {
+        return NextResponse.json({ error: '被模拟用户不存在' }, { status: 404 });
+      }
     }
 
     const { error: insertError } = await supabaseAdmin

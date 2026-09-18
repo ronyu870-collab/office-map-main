@@ -109,7 +109,8 @@ describe('管理员租赁成交全量导出', () => {
 
   it('服务端只允许 admin，并分页读取全表，不继承团队页面的日期截断或 500 条上限', () => {
     const route = readFileSync('src/app/api/lease-submission/export/route.ts', 'utf8');
-    expect(route).toContain("callerProfile?.role !== 'admin'");
+    expect(route).toContain('resolveEffectiveRequestIdentity(req, supabaseAdmin)');
+    expect(route).toContain("identity.effectiveRole !== 'admin'");
     expect(route).toContain(".from('lease_transactions')");
     expect(route).toContain(".select('*')");
     expect(route).toContain('.range(from, from + PAGE_SIZE - 1)');
@@ -122,6 +123,7 @@ describe('管理员租赁成交全量导出', () => {
     const button = readFileSync('src/app/lease-submission/components/AdminLeaseExportButton.tsx', 'utf8');
     expect(table).toContain('{canManageTeamRecords && <AdminLeaseExportButton />}');
     expect(button).toContain("fetch('/api/lease-submission/export'");
+    expect(button).toContain('withImpersonationHeaders');
     expect(button).toContain("'导出数据'");
   });
 });

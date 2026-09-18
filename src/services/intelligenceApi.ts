@@ -1,3 +1,4 @@
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import type { RecommendationResponse } from '@/src/lib/intelligence/recommendationEngine';
 import type { RequirementParseResult } from '@/src/lib/intelligence/requirementSchema';
 
@@ -14,10 +15,10 @@ export async function parseIntelligenceRequirement(
 ): Promise<RequirementParseResult> {
   const response = await fetch('/api/intelligence/parse-requirement', {
     method: 'POST',
-    headers: {
+    headers: withImpersonationHeaders({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    },
+    }),
     body: JSON.stringify({ requirement }),
     cache: 'no-store',
   });
@@ -30,10 +31,10 @@ export async function recommendIntelligenceBuildings(
 ): Promise<RecommendationResponse> {
   const response = await fetch('/api/intelligence/recommend', {
     method: 'POST',
-    headers: {
+    headers: withImpersonationHeaders({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-    },
+    }),
     body: JSON.stringify({ requirement }),
     cache: 'no-store',
   });

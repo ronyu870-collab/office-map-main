@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 import { validatePassword } from '@/src/utils/passwordPolicy';
+import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,18 +18,12 @@ export async function POST(req: NextRequest) {
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    const accessToken = (req.headers.get('authorization') ?? '')
-      .replace(/^Bearer\s+/i, '')
-      .trim();
-    if (!accessToken) {
-      return NextResponse.json({ error: '未提供认证 Token' }, { status: 401 });
-    }
-
-    const { data: { user }, error: authError } =
-      await supabaseAdmin.auth.getUser(accessToken);
-    if (authError || !user) {
-      return NextResponse.json({ error: '登录状态已失效，请重新登录' }, { status: 401 });
-    }
+    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    if ('response' in identityResult) return identityResult.response;
+    const { identity } = identityResult;
+    const impersonationBlock = denyImpersonatedMutation(identity);
+    if (impersonationBlock) return impersonationBlock;
+    const user = identity.caller;
 
     const body = await req.json();
     const passwordError = validatePassword(body.password);
