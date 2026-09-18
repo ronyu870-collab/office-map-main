@@ -4,6 +4,7 @@ import * as React from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Database, X } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { ACTION_MODULES, type ActionModule } from '@/src/services/MapController';
 
 const NEARBY_COMPARE_HANDLER = '__colliers_analyzeCompetitors';
@@ -167,7 +168,7 @@ async function loadBuildingLeases(buildingId: string, page: number): Promise<Lea
     offset: String(page * PAGE_SIZE),
   });
   const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || '关联成交读取失败');
