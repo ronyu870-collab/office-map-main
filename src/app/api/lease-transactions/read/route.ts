@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
           effectiveSource: access.enforcedSource ?? 'all',
         },
       },
-      { headers: { 'Cache-Control': 'private, max-age=30' } },
+      { headers: { 'Cache-Control': 'private, no-store' } },
     );
   } catch (error) {
     console.error('[lease-read] unexpected error', error);
