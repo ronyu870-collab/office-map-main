@@ -223,7 +223,7 @@ export interface LeaseTransaction {
 
   /**
    * 提交者账号是否仍处于启用状态
-   * @description 团队视图使用；停用账号不会进入人员筛选
+   * @description 团队视图使用；仅标记账号状态，不隐藏历史提交者姓名
    */
   submitter_active?: boolean;
 
