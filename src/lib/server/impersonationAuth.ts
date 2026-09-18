@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
-export const IMPERSONATION_COOKIE = '__colliers_impersonation_target';
+export const IMPERSONATION_REQUEST_HEADER = 'x-colliers-impersonate-user';
 
 export type EffectiveRequestIdentity = {
   caller: User;
@@ -16,21 +16,6 @@ export type EffectiveRequestIdentity = {
 type IdentityResult =
   | { identity: EffectiveRequestIdentity }
   | { response: NextResponse };
-
-function readCookie(request: Request, name: string): string | null {
-  const raw = request.headers.get('cookie') ?? '';
-  for (const part of raw.split(';')) {
-    const [key, ...rest] = part.trim().split('=');
-    if (key !== name) continue;
-    const value = rest.join('=');
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-  }
-  return null;
-}
 
 function normalizedRole(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -62,7 +47,7 @@ export async function resolveEffectiveRequestIdentity(
   }
 
   const callerRole = normalizedRole(callerProfile?.role);
-  const targetUserId = readCookie(request, IMPERSONATION_COOKIE);
+  const targetUserId = request.headers.get(IMPERSONATION_REQUEST_HEADER)?.trim() || null;
 
   if (!targetUserId) {
     return {
