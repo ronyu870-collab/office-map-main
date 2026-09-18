@@ -189,6 +189,9 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "DB_UPDATE":
       return `数据库更新：${p.table ?? ''} 记录${p.changed_fields && typeof p.changed_fields === 'object' ? `（${Object.keys(p.changed_fields).length} 项字段）` : ''}`;
 
+    case "LEASE_TRANSACTION_UPDATE":
+      return `更新了租赁成交记录${p.change_count ? `（${p.change_count} 项字段）` : ''}`;
+
     case "DB_DELETE":
       return `数据库删除：${p.table ?? ''} 记录`;
 
@@ -292,6 +295,7 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   // 数据库触发器 → 蓝色
   DB_INSERT: { variant: "green", label: "DB新增", className: "bg-emerald-50 text-emerald-700 ring-emerald-100" },
   DB_UPDATE: { variant: "blue", label: "DB更新", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  LEASE_TRANSACTION_UPDATE: { variant: "blue", label: "成交变更", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   DB_DELETE: { variant: "red", label: "DB删除", className: "bg-red-50 text-red-700 ring-red-100" },
 
   // 通知 → 蓝色
