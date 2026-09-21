@@ -52,6 +52,7 @@ export default function DisplayOverridesPage() {
           .from('buildings')
           .select('id, name')
           .eq('is_active', true)
+          .eq('tracking_scope', 'tracked')
           .order('name'),
       ]);
 
