@@ -20,6 +20,7 @@ const BUILDING_COLS: ColDef[] = [
   { key: "location_lat", label: "纬度", type: "number", width: "w-28" },
   { key: "leed_certification", label: "LEED认证", type: "text", width: "w-24" },
   { key: "is_active", label: "启用状态", type: "boolean", width: "w-20" },
+  { key: "tracking_scope", label: "跟踪范围", type: "text", width: "w-24", readOnly: true },
   { key: "is_entered_market", label: "是否已入市", type: "boolean", width: "w-24" },
   { key: "notes", label: "备注", type: "textarea", width: "w-48" },
 ];
@@ -90,7 +91,7 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
 
       // 并行获取三张表（建筑全量，不限制 is_active）
       const [bRes, metrics, currentData] = await Promise.all([
-        supabase.from("buildings").select("id,name,former_names,completion_year,system_entry_date,submarket,grade,city,district,owner,property_management,contact_phone,location_lng,location_lat,leed_certification,leasable_area,is_active,is_entered_market,notes").limit(3000),
+        supabase.from("buildings").select("id,name,former_names,completion_year,system_entry_date,submarket,grade,city,district,owner,property_management,contact_phone,location_lng,location_lat,leed_certification,leasable_area,is_active,tracking_scope,is_entered_market,notes").limit(3000),
         fetchAll(() => supabase.from("building_metrics").select("*").order("record_year", { ascending: false }).order("record_quarter", { ascending: false })),
         fetchAll(() => supabase.from("building_current_data").select("*")),
       ]);
@@ -131,6 +132,7 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
           leed_certification: b.leed_certification,
           leasable_area: b.leasable_area,
           is_active: b.is_active,
+          tracking_scope: b.tracking_scope,
           is_entered_market: b.is_entered_market,
           notes: b.notes,
           // building_metrics 专属
@@ -183,6 +185,7 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
           leed_certification: b.leed_certification,
           leasable_area: b.leasable_area,
           is_active: b.is_active,
+          tracking_scope: b.tracking_scope,
           is_entered_market: b.is_entered_market,
           notes: b.notes,
           // building_metrics 专属 → null（动态无此数据）
@@ -240,6 +243,7 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
       { key: "leed_certification", label: "LEED认证", type: "text", width: "w-24", readOnly: true },
       { key: "leasable_area", label: "可租赁面积", type: "number", width: "w-24", readOnly: true },
       { key: "is_active", label: "启用状态", type: "boolean", width: "w-20", readOnly: true },
+      { key: "tracking_scope", label: "跟踪范围", type: "text", width: "w-24", readOnly: true },
       { key: "is_entered_market", label: "是否已入市", type: "boolean", width: "w-24", readOnly: true },
       { key: "notes", label: "备注", type: "textarea", width: "w-48", readOnly: true },
       // ── building_metrics 专属 ──
@@ -306,6 +310,7 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
             .from('buildings')
             .update({
               project_type: 'stock',
+              tracking_scope: 'tracked',
               is_active: true,
               is_entered_market: true,
             })
@@ -347,6 +352,7 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
             .from('buildings')
             .update({
               project_type: 'stock',
+              tracking_scope: 'tracked',
               is_active: true,
               is_entered_market: true,
             })
@@ -360,6 +366,22 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
         },
       },
     ],
+  },
+
+  // ── 1d. buildings（历史参考实体 reference）──────────────────────────────
+  {
+    table: "buildings",
+    label: "历史参考实体",
+    group: "项目基础信息",
+    emoji: "",
+    orderBy: "name",
+    filterField: "project_type",
+    filterValue: "reference",
+    cols: BUILDING_COLS,
+    hideAdd: true,
+    hideUpload: true,
+    hideTemplate: true,
+    hideRawExport: false,
   },
 
   // ── 2. building_metrics ───────────────────────────────────────────────────
