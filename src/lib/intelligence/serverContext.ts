@@ -53,6 +53,7 @@ export async function loadVocabularyAndPeriod(client: SupabaseClient) {
       .from('buildings')
       .select('district,submarket,grade')
       .eq('is_active', true)
+      .eq('tracking_scope', 'tracked')
       .limit(2000),
     client
       .from('building_metrics')
