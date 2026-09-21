@@ -496,6 +496,7 @@ export async function submitTransaction(
         .select("leasable_area")
         .ilike("name", cleanedBuildingName)
         .eq("is_active", true)
+        .eq("tracking_scope", "tracked")
         .limit(1)
         .maybeSingle();
 
@@ -993,6 +994,7 @@ export async function updateTransaction(
           .select("leasable_area")
           .ilike("name", buildingToCheck)
           .eq("is_active", true)
+          .eq("tracking_scope", "tracked")
           .limit(1)
           .maybeSingle();
 
