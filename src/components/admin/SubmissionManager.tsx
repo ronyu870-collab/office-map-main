@@ -137,6 +137,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         .from("buildings")
         .select("id", { count: "exact", head: true })
         .eq("is_active", true)
+        .eq("tracking_scope", "tracked")
         .eq("project_type", "stock"),
       supabase
         .from("future_supplies")
@@ -1522,6 +1523,7 @@ export function SubmissionManager() {
           .from("buildings")
           .select("id, name, grade, submarket, sort_order")
           .eq("is_active", true)
+          .eq("tracking_scope", "tracked")
           .limit(2000),
         supabase
           .from("user_roles")
@@ -1568,7 +1570,7 @@ export function SubmissionManager() {
     hideAdd: true,
     customFetch: async () => {
       const [buildingsRes, assignsRes] = await Promise.all([
-        supabase.from("buildings").select("id, name, grade, submarket").eq("is_active", true).limit(2000),
+        supabase.from("buildings").select("id, name, grade, submarket").eq("is_active", true).eq("tracking_scope", "tracked").limit(2000),
         supabase.from("building_assignments").select("*").limit(2000),
       ]);
       const assignMap = new Map<string, any>();
