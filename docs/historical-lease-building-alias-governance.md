@@ -107,46 +107,63 @@ Historical source remains:
 - 6,543 rows
 - 6,543 unique `source_uid`
 
-Canonical historical read result after v23:
+Canonical historical read result after v29:
 
-- exact operational building: 3,978 rows
-- operational project scope: 1,071 rows
-- reference-only canonical entity: 303 rows
-- total safely resolved identity: 5,352 / 6,543 = 81.80%
-- operational exact + project coverage: 5,049 / 6,543 = 77.17%
-- unmapped: 1,191 rows
+- exact operational building: 4,000 rows
+- operational project scope: 1,074 rows
+- reference-only canonical entity: 325 rows
+- total safely resolved identity: 5,399 / 6,543 = 82.52%
+- operational exact + project coverage: 5,074 / 6,543 = 77.55%
+- unmapped: 1,144 rows
 - source_uid-level exact overrides: 8 rows
 
 Building master:
 
 - tracked operational entities: 642
-- reference-only entities: 38
-- total canonical building entities: 680
-- reference-only quarterly assignments: 0
+- reference-only entities: 44
+- total canonical building entities: 686
+- reference-only entities remain excluded from operational map / quarterly assignment / recommendation surfaces
 
 Governance ledger:
 
-- `AUTO_VERIFIED`: 522 names / 2,061 source rows
-- `AUTO_VERIFIED_PROJECT`: 137 names / 1,071 source rows
+- `AUTO_VERIFIED`: 540 names / 2,105 source rows
+- `AUTO_VERIFIED_PROJECT`: 138 names / 1,074 source rows
 - `INVENTORY_GAP`: 0 names after v19 materialization
-- `NEEDS_REVIEW`: 924 names / 1,199 name-level source rows
+- `NEEDS_REVIEW`: 905 names / 1,152 name-level source rows
 
-v19 materialized the verified inventory-gap pool as 38 reference-only canonical entities and moved exactly 303 historical rows into `reference` scope.
+v19 materialized the first verified inventory-gap pool as reference-only canonical entities. v20-v23 then resolved deterministic single-candidate, externally verified, alias-family and parent-project cases without relaxing the identity standard.
 
-v20/v21 resolved the single-candidate pool using deterministic normalization, internal context and external evidence. v22 then propagated previously verified identity families into 50 additional aliases / 60 exact rows without creating new fuzzy identities.
+v24-v29 applied a stricter strong-evidence pass. A row was changed only when one of the following was true:
 
-v23 addressed the next highest-ROI parent-project bucket. Six parent labels covering 9 historical rows were promoted from `unmapped` to `project` scope:
+- an official / first-party / government source closed the entity identity by project name and address;
+- an existing tracked building was proven to be the same physical property under a historical/current name;
+- a historical label became exactly equal to an already verified alias after a controlled character-only normalization;
+- the source named a parent project whose tracked child buildings were known, in which case only `project` scope was asserted.
 
-- `远洋乐堤港` -> current tracked 一座 + 二座 project members;
-- `学清嘉创` -> A栋 + C栋;
-- `首钢园` -> five tracked North District subprojects;
-- `远洋国际中心一期` -> current tracked phase-one carrier, without claiming exact tower precision;
-- `融科中心` -> 融科资讯中心 A/B/C;
-- `融科咨讯中心` -> 融科资讯中心 A/B/C.
+Strong-evidence exact examples include:
 
-For `远洋乐堤港`, the project relation intentionally excludes one duplicate empty `远洋乐堤港一座` building row that has the same coordinates/name but no metrics, assignments, brochure data or leasable area. The active one-seat entity with business data plus 二座 are retained as the meaningful current project members.
+- `DRC外交公寓办公大楼 / DRC外交办公大楼 -> 亮马桥外交办公大楼`;
+- `国贸一期 -> 国贸写字楼1座`, propagated from the already verified `国贸1期` numeral-equivalent identity;
+- `中化大厦 -> 西城金茂中心`, established by the same official address `复兴门外大街A2号`;
+- `阳光保险金融中心 -> 阳光金融中心`, confirmed by Sunshine Insurance's own office address;
+- `雷格斯五矿中心 -> 五矿广场`, treating 雷格斯 as the operator prefix rather than a separate building;
+- `远洋国际中心2期 / 远洋国际中心2期E座 -> 远洋国际中心二期`;
+- `清华科技园Ｄ座 -> 清华科技园创新大厦`, where the only difference is fullwidth `Ｄ` vs ASCII `D`.
 
-The originally proposed seventh parent label, `中海大厦`, was deliberately **not** globally mapped. Its five historical rows span CBD, unknown and Other contexts, while the current name-based tower candidates are the Shijingshan `中海大厦B座` and `中海大厦C、D座`. A global alias would incorrectly attach CBD-era records to Shijingshan. The review ledger now records this as a deferred reused-parent-label case pending row-level evidence or a row-level project mapping mechanism.
+The strong-evidence pass also created six additional reference-only canonical entities that are verified physical projects but absent from the 642-building operational inventory:
+
+- `银河SOHO`
+- `建外SOHO`
+- `中关村SOHO`
+- `中国人寿金融中心`
+- `博彦科技大厦`
+- `金融街E9大厦`
+
+These entities receive stable canonical IDs for historical identity resolution but remain non-operational: they do not appear on the map, do not create quarterly collection obligations and are not eligible for normal recommendation/brochure workflows.
+
+`鼎好HD3` was corrected as the `DH3` project family and connected only at project scope to `鼎好DH3-A座` + `鼎好DH3-B/C座`; no tower was inferred.
+
+After v29, the deterministic character-equivalence scan was rerun using whitespace/punctuation removal, case normalization, 一/二/三/四期 <-> 1/2/3/4期 normalization and fullwidth digit/A-F conversion. It returned **0 remaining aliases / 0 rows** with a unique already-verified identity. Therefore the remaining 1,144 rows cannot be safely improved by another blind string-normalization pass. Further progress requires new entity evidence, project-level evidence or row-level contextual resolution.
 
 The read layer remains authoritative for row-level coverage.
 
@@ -179,8 +196,14 @@ Exact examples:
 - 卓著大厦 / 卓著金融中心 -> 卓著中心
 - 嘉里南楼 -> 嘉里中心
 - 汇京双子座东塔 / 汇京双子座西塔 / 双子座东塔 / 双子座西塔 -> 汇京双子座大厦
+- DRC外交公寓办公大楼 / DRC外交办公大楼 -> 亮马桥外交办公大楼
+- 中化大厦 -> 西城金茂中心
+- 阳光保险金融中心 -> 阳光金融中心
+- 雷格斯五矿中心 -> 五矿广场
+- 远洋国际中心2期 / 远洋国际中心2期E座 -> 远洋国际中心二期
+- 清华科技园Ｄ座 -> 清华科技园创新大厦
 
-Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列、兆泰国际中心系列，以及 v21 的复地金融中心、月坛金融中心、清华同方、电子城研发中心和 v23 的远洋乐堤港、学清嘉创、首钢园、远洋国际中心一期、融科中心、融科咨讯中心。
+Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列、兆泰国际中心系列，以及 v21 的复地金融中心、月坛金融中心、清华同方、电子城研发中心，v23 的远洋乐堤港、学清嘉创、首钢园、远洋国际中心一期、融科中心、融科咨讯中心，以及 v24 的鼎好HD3。
 
 ## Manual verification contract
 
