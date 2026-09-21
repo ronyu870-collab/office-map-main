@@ -160,7 +160,7 @@ export function IntelligenceWorkspace() {
         currentDataResult,
         latestMetricResult,
       ] = await Promise.all([
-        supabase.from('buildings').select('id', { count: 'exact', head: true }),
+        supabase.from('buildings').select('id', { count: 'exact', head: true }).eq('tracking_scope', 'tracked'),
         supabase.from('building_metrics').select('id', { count: 'exact', head: true }),
         supabase.from('lease_transactions').select('id', { count: 'exact', head: true }),
         supabase.from('lease_transactions').select('id', { count: 'exact', head: true }).not('lease_term_months', 'is', null),
