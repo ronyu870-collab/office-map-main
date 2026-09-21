@@ -387,6 +387,7 @@ async function fetchBuildingDicts(): Promise<{
   const { data } = await supabase
     .from("buildings")
     .select("id, name, submarket, grade, is_active, former_names")
+    .eq("tracking_scope", "tracked")
     .limit(2000);
   const GRADE_LABELS: Record<string, string> = {
     A: "甲级",
