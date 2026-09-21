@@ -130,7 +130,8 @@ export function DataDebugPanel() {
       const { data, error } = await supabase
         .from('buildings')
         .select('*, building_metrics(*)')
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('tracking_scope', 'tracked');
       if (error) { console.error('[DataDebug] fetch error:', error); setAllBuildings([]); setLoading(false); return; }
       const rows = Array.isArray(data) ? data : [];
       const buildings: BuildingWithMetrics[] = [];
