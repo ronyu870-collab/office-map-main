@@ -1803,6 +1803,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           .from("buildings")
           .select("*, building_metrics(*)")
           .eq("is_active", true)
+          .eq("tracking_scope", "tracked")
           .or("project_type.neq.future,project_type.is.null"),
         supabase
           .from("building_display_overrides")
