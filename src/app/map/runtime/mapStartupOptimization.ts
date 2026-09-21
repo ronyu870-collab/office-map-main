@@ -116,6 +116,7 @@ async function fetchSlimStartupData(
       .from('buildings')
       .select(BUILDING_STARTUP_SELECT)
       .eq('is_active', true)
+      .eq('tracking_scope', 'tracked')
       .or('project_type.neq.future,project_type.is.null')
       .order('record_year', { referencedTable: 'building_metrics', ascending: false })
       .order('record_quarter', { referencedTable: 'building_metrics', ascending: false })
