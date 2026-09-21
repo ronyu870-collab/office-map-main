@@ -107,14 +107,14 @@ Historical source remains:
 - 6,543 rows
 - 6,543 unique `source_uid`
 
-Canonical historical read result after v22:
+Canonical historical read result after v23:
 
 - exact operational building: 3,978 rows
-- operational project scope: 1,062 rows
+- operational project scope: 1,071 rows
 - reference-only canonical entity: 303 rows
-- total safely resolved identity: 5,343 / 6,543 = 81.66%
-- operational exact + project coverage: 5,040 / 6,543 = 77.03%
-- unmapped: 1,200 rows
+- total safely resolved identity: 5,352 / 6,543 = 81.80%
+- operational exact + project coverage: 5,049 / 6,543 = 77.17%
+- unmapped: 1,191 rows
 - source_uid-level exact overrides: 8 rows
 
 Building master:
@@ -127,28 +127,28 @@ Building master:
 Governance ledger:
 
 - `AUTO_VERIFIED`: 522 names / 2,061 source rows
-- `AUTO_VERIFIED_PROJECT`: 131 names / 1,062 source rows
+- `AUTO_VERIFIED_PROJECT`: 137 names / 1,071 source rows
 - `INVENTORY_GAP`: 0 names after v19 materialization
-- `NEEDS_REVIEW`: 930 names / 1,208 name-level source rows
+- `NEEDS_REVIEW`: 924 names / 1,199 name-level source rows
 
-v19 materialized the verified inventory-gap pool as 38 reference-only canonical entities and moved exactly 303 historical rows into `reference` scope without expanding the operational map inventory.
+v19 materialized the verified inventory-gap pool as 38 reference-only canonical entities and moved exactly 303 historical rows into `reference` scope.
 
-v20 handled the safest single-candidate cases: 15 historical aliases covering 17 rows were resolved by deterministic non-semantic normalization or unique shorthand + matching submarket evidence.
+v20/v21 resolved the single-candidate pool using deterministic normalization, internal context and external evidence. v22 then propagated previously verified identity families into 50 additional aliases / 60 exact rows without creating new fuzzy identities.
 
-v21 externally reviewed every remaining single-candidate alias. Of 45 aliases / 57 rows, 37 aliases / 49 rows were externally corroborated to exact current entities, 4 aliases / 4 rows were linked only at project scope, and 4 aliases / 4 rows remained unresolved.
+v23 addressed the next highest-ROI parent-project bucket. Six parent labels covering 9 historical rows were promoted from `unmapped` to `project` scope:
 
-v22 then propagated existing verified identity families into 50 additional historical aliases covering 60 rows. Every target had to satisfy all of the following before insertion:
+- `远洋乐堤港` -> current tracked 一座 + 二座 project members;
+- `学清嘉创` -> A栋 + C栋;
+- `首钢园` -> five tracked North District subprojects;
+- `远洋国际中心一期` -> current tracked phase-one carrier, without claiming exact tower precision;
+- `融科中心` -> 融科资讯中心 A/B/C;
+- `融科咨讯中心` -> 融科资讯中心 A/B/C.
 
-- the historical row was still `unmapped`;
-- the review row was still `NEEDS_REVIEW`;
-- the target was one unique tracked building;
-- no exact or project mapping already existed;
-- at least one previously verified alias or `former_names` seed from that same target building overlapped the historical string by a controlled prefix/suffix relationship;
-- the migration postcondition required all 60 source rows to become `exact` and zero to remain `unmapped`.
+For `远洋乐堤港`, the project relation intentionally excludes one duplicate empty `远洋乐堤港一座` building row that has the same coordinates/name but no metrics, assignments, brochure data or leasable area. The active one-seat entity with business data plus 二座 are retained as the meaningful current project members.
 
-This batch therefore reused already-proven identity rather than creating new fuzzy matches. Representative families include `WFC → WFC环球金融中心`, `UBP → UBP B18 / UBP中央大厦`, `嘉里 → 嘉里南楼`, `卓著 → 卓著大厦 / 卓著金融中心`, `国贸1 / 国贸二 → 国贸1期 / 国贸二期`, and `汇京双子座 → 东塔 / 西塔 variants`.
+The originally proposed seventh parent label, `中海大厦`, was deliberately **not** globally mapped. Its five historical rows span CBD, unknown and Other contexts, while the current name-based tower candidates are the Shijingshan `中海大厦B座` and `中海大厦C、D座`. A global alias would incorrectly attach CBD-era records to Shijingshan. The review ledger now records this as a deferred reused-parent-label case pending row-level evidence or a row-level project mapping mechanism.
 
-The alias-review row total is not the same as the read-layer unmapped total because one globally unresolved alias can have selected source_uids safely resolved by `lease_building_record_map`. The read layer is authoritative for row-level coverage.
+The read layer remains authoritative for row-level coverage.
 
 Current unified read count remains 6,876 = 333 live + 6,543 history, with 6,876 unique `read_id` values.
 
@@ -180,7 +180,7 @@ Exact examples:
 - 嘉里南楼 -> 嘉里中心
 - 汇京双子座东塔 / 汇京双子座西塔 / 双子座东塔 / 双子座西塔 -> 汇京双子座大厦
 
-Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列、兆泰国际中心系列，以及 v21 新增的复地金融中心、月坛金融中心、清华同方、电子城研发中心。
+Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列、兆泰国际中心系列，以及 v21 的复地金融中心、月坛金融中心、清华同方、电子城研发中心和 v23 的远洋乐堤港、学清嘉创、首钢园、远洋国际中心一期、融科中心、融科咨讯中心。
 
 ## Manual verification contract
 
