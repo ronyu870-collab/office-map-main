@@ -23,7 +23,7 @@ type BuildingContext = {
 type LeaseRow = {
   read_id: string;
   record_source: 'live' | 'history';
-  building_match_scope: 'exact' | 'project' | 'unmapped';
+  building_match_scope: 'exact' | 'project' | 'reference' | 'unmapped';
   company: string | null;
   industry: string | null;
   sub_industry: string | null;
