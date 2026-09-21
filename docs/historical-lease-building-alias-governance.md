@@ -9,13 +9,14 @@ The historical transaction source table is not rewritten during identity resolut
 ## Authoritative objects
 
 - `public.lease_transactions_history`: governed historical source records; identity resolution must not rewrite these rows.
-- `public.buildings`: current building/project inventory.
+- `public.buildings`: canonical building/project entity master. `tracking_scope='tracked'` identifies operational inventory; `tracking_scope='reference_only'` identifies canonical entities retained only for historical identity resolution.
+- `public.operational_buildings_v1`: authenticated operational read surface containing active tracked entities only; reference-only entities are excluded by construction.
 - `public.lease_building_name_map`: exact historical alias -> one current `building_id`.
 - `public.lease_building_project_map`: verified project/complex alias -> one or more current building members where project identity is certain but tower attribution is not.
 - `public.lease_building_record_map`: source_uid-level override used only for true same-name/multi-building exceptions that can be resolved from row context without polluting the global alias map.
 - `public.lease_building_alias_review`: governance ledger for historical aliases, candidates, evidence, inventory gaps and review state.
 - `public.buildings.former_names`: user-visible historical/legacy aliases confirmed for a current entity. In this system it is an identity/search field, not a legal/corporate-name-history field.
-- `public.lease_transactions_read_v1`: service-only canonical read model. For history it resolves identity in precedence order: record-level override -> exact alias -> project membership -> unmapped.
+- `public.lease_transactions_read_v1`: service-only canonical read model. For history it resolves identity in precedence order: record-level override -> exact/reference alias -> project membership -> unmapped.
 
 ## Resolution states and read precision
 
@@ -24,13 +25,14 @@ Alias review states:
 - `AUTO_VERIFIED`: deterministic exact mapping to one current building.
 - `MANUAL_VERIFIED`: exact mapping explicitly confirmed through human review.
 - `AUTO_VERIFIED_PROJECT`: deterministic project/complex association where exact tower attribution is not justified.
-- `INVENTORY_GAP`: external/current building identity is confirmed, but the current 642-building inventory has no safe canonical/former-name carrier.
+- `INVENTORY_GAP`: transitional governance state used when an external/current building identity is confirmed but no canonical carrier exists yet. v19 materialized the verified 2026-09-15 gap population into reference-only building entities, so no rows remain in this state after v19.
 - `NEEDS_REVIEW`: evidence is insufficient or genuinely ambiguous.
 
 The read layer exposes `building_match_scope`:
 
-- `exact`: one current building is safely known, including source_uid-level overrides.
-- `project`: the project/complex is known, but one exact current tower is not asserted.
+- `exact`: one operational tracked building is safely known, including source_uid-level overrides.
+- `project`: the operational project/complex is known, but one exact current tower is not asserted.
+- `reference`: one canonical physical entity is safely known, but it is reference-only and therefore excluded from the current map, quarterly collection, recommendations and brochure operations.
 - `unmapped`: no safe current association is available.
 
 ## Evidence hierarchy
@@ -74,9 +76,9 @@ A global alias map is not sufficient when the same historical label was reused f
 
 No global `平安金融中心 -> building_id` alias is created.
 
-## Inventory gaps
+## Inventory gaps and reference-only entities
 
-`INVENTORY_GAP` means the identity problem is understood but the current building inventory is incomplete. These rows are not candidates for forced nearest-neighbour matching.
+`INVENTORY_GAP` means the identity problem is understood but the canonical building master does not yet contain a safe entity. Such rows are never forced onto the nearest tracked building.
 
 The review ledger stores, when known:
 
@@ -86,39 +88,54 @@ The review ledger stores, when known:
 - `external_lng`
 - `evidence_snapshot`
 
-This makes the gap pool a structured input to future building-inventory expansion.
+v19 converted the verified gap pool into canonical reference-only entities instead of expanding the operational map inventory:
 
-Examples include 石榴中心、东方梅地亚中心、通泰大厦、方正国际大厦、金隅嘉华大厦（历史嘉华大厦）、京泰大厦、南新仓商务大厦、四惠大厦、大恒科技大厦、学院国际大厦、银网中心、国华投资大厦、中关村新兴产业联盟大厦、北京世茂大厦 and 国际财经中心.
+- 46 verified historical aliases
+- 38 canonical reference-only entities
+- 303 historical lease rows
+- `project_type='reference'`
+- `tracking_scope='reference_only'`
+- `is_active=false`
+- zero `building_assignments`
 
-## Production result — 2026-09-15
+Reference-only entities can carry a stable `building_id`, coordinates, district and aliases without becoming map markers or quarterly collection obligations. Promotion into the operational inventory is a separate onboarding action and must explicitly change the tracking scope after the normal building data is completed.
+
+## Production result — 2026-09-21
 
 Historical source remains:
 
 - 6,543 rows
 - 6,543 unique `source_uid`
 
-Canonical historical read result after v18:
+Canonical historical read result after v19:
 
-- exact: 3,852 rows
-- project: 1,058 rows
-- safely usable exact + project: 4,910 / 6,543 = 75.0%
-- unmapped: 1,633 rows
+- exact operational building: 3,852 rows
+- operational project scope: 1,058 rows
+- reference-only canonical entity: 303 rows
+- total safely resolved identity: 5,213 / 6,543 = 79.67%
+- operational exact + project coverage: 4,910 / 6,543 = 75.04%
+- unmapped: 1,330 rows
 - source_uid-level exact overrides: 8 rows
+
+Building master:
+
+- tracked operational entities: 642
+- reference-only entities: 38
+- total canonical building entities: 680
+- reference-only quarterly assignments: 0
 
 Governance ledger:
 
-- `AUTO_VERIFIED`: 374 names / 1,632 source rows
+- `AUTO_VERIFIED`: 420 names / 1,935 source rows
 - `AUTO_VERIFIED_PROJECT`: 127 names / 1,058 source rows
-- `INVENTORY_GAP`: 46 names / 303 source rows
+- `INVENTORY_GAP`: 0 names after materialization
 - `NEEDS_REVIEW`: 1,036 names / 1,338 name-level source rows
 
-v18 propagated only previously verified exact/project seeds through non-semantic formatting or suffix variants. It resolved 14 historical names covering 18 rows: 5 exact aliases covering 7 rows and 9 project aliases covering 11 rows.
-
-One intended v18 candidate, `金地中心 A`, was deliberately not resolved by the migration. Its configured seed `金地中心A` exists only in `lease_building_project_map`, while the exact-propagation branch reads only `lease_building_name_map`; therefore the row stayed `NEEDS_REVIEW` instead of being upgraded across precision levels. This is a safe no-op, not a partial or incorrect write.
+v19 deliberately did **not** register canonical names that were not themselves part of the verified gap-alias set. This prevents an unresolved row from becoming resolved merely because its text happens to equal the new reference entity's canonical name. The post-migration invariant is therefore exactly 303 `reference` rows and zero `NEEDS_REVIEW` rows leaking into reference scope.
 
 The alias-review row total is not the same as the read-layer unmapped total because one globally unresolved alias can have selected source_uids safely resolved by `lease_building_record_map`. The read layer is authoritative for row-level coverage.
 
-Current unified read count is 6,872 = 329 live + 6,543 history, with 6,872 unique `read_id` values.
+Current unified read count is 6,876 = 333 live + 6,543 history, with 6,876 unique `read_id` values.
 
 ## Examples of verified identity resolution
 
