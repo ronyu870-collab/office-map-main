@@ -107,14 +107,14 @@ Historical source remains:
 - 6,543 rows
 - 6,543 unique `source_uid`
 
-Canonical historical read result after v19:
+Canonical historical read result after v20/v21:
 
-- exact operational building: 3,852 rows
-- operational project scope: 1,058 rows
+- exact operational building: 3,918 rows
+- operational project scope: 1,062 rows
 - reference-only canonical entity: 303 rows
-- total safely resolved identity: 5,213 / 6,543 = 79.67%
-- operational exact + project coverage: 4,910 / 6,543 = 75.04%
-- unmapped: 1,330 rows
+- total safely resolved identity: 5,283 / 6,543 = 80.74%
+- operational exact + project coverage: 4,980 / 6,543 = 76.11%
+- unmapped: 1,260 rows
 - source_uid-level exact overrides: 8 rows
 
 Building master:
@@ -126,12 +126,24 @@ Building master:
 
 Governance ledger:
 
-- `AUTO_VERIFIED`: 420 names / 1,935 source rows
-- `AUTO_VERIFIED_PROJECT`: 127 names / 1,058 source rows
-- `INVENTORY_GAP`: 0 names after materialization
-- `NEEDS_REVIEW`: 1,036 names / 1,338 name-level source rows
+- `AUTO_VERIFIED`: 472 names / 2,001 source rows
+- `AUTO_VERIFIED_PROJECT`: 131 names / 1,062 source rows
+- `INVENTORY_GAP`: 0 names after v19 materialization
+- `NEEDS_REVIEW`: 980 names / 1,268 name-level source rows
 
-v19 deliberately did **not** register canonical names that were not themselves part of the verified gap-alias set. This prevents an unresolved row from becoming resolved merely because its text happens to equal the new reference entity's canonical name. The post-migration invariant is therefore exactly 303 `reference` rows and zero `NEEDS_REVIEW` rows leaking into reference scope.
+v19 materialized the verified inventory-gap pool as 38 reference-only canonical entities and moved exactly 303 historical rows into `reference` scope without expanding the operational map inventory.
+
+v20 then handled the safest single-candidate cases: 15 historical aliases covering 17 rows were resolved by deterministic non-semantic normalization or unique shorthand + matching submarket evidence. The rules include floor/month/location annotation removal, tower-token normalization and suffix normalization. Only meaningful shorthand aliases were added to `buildings.former_names`; noisy row annotations such as floors and months were not.
+
+v21 externally reviewed every remaining single-candidate alias. Of 45 aliases / 57 rows, 37 aliases / 49 rows were externally corroborated to exact current entities, 4 aliases / 4 rows were deliberately linked only at project scope, and 4 aliases / 4 rows remained unresolved. In particular:
+
+- `太平金融中心` was corrected away from the misleading `中国太平金融中心` candidate and resolved to `京汇大厦`;
+- `东升` was corrected from `东升大厦` to `东升科技园` using historical-tenant address evidence;
+- `清华同方`, `电子城研发中心`, `月坛金融中心` and `复地金融中心` remain project-scope associations because the historical name does not justify exact tower attribution;
+- `中海国际中心阜成门` had its previous same-name candidate explicitly rejected because the verified West Beijing entity is distinct from the tracked Chaoyang/Asian-Olympic entity;
+- `北辰`, `冠城` and `融汇国际` remain `NEEDS_REVIEW` because independent evidence is still insufficient or context remains conflicting.
+
+The single-candidate work therefore resolved 70 of the original 74 rows without relaxing the identity standard.
 
 The alias-review row total is not the same as the read-layer unmapped total because one globally unresolved alias can have selected source_uids safely resolved by `lease_building_record_map`. The read layer is authoritative for row-level coverage.
 
@@ -151,8 +163,14 @@ Exact examples:
 - 海航实业大厦 / 海航实业 -> 横琴人寿大厦
 - 盘古大厦 -> 钰珵大厦
 - PVG / 侨福 -> 北京侨福芳草地
+- 太平金融中心 / 京汇大厦（太平金融中心） -> 京汇大厦
+- 人寿大厦 -> 中国人寿大厦
+- 东升 / 东升科技园一期 / 东升科技园B座 / 东升科技园C-8 -> 东升科技园
+- 嘉里 / 嘉里中心北塔30F / 嘉里中心北塔8f -> 嘉里中心
+- 汉威国际广场三期 / 四期 / 西区2号 -> 汉威国际
+- 锐创国际 -> 锐创国际中心
 
-Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列 and 兆泰国际中心系列.
+Project-scope examples include 东方广场W1/W2/E3、鼎好、凯德汇新、诺金、融科资讯、骏豪中央广场、环贸中心/环球贸易中心、光华国际中心/远洋光华国际、远洋光华国际中心、月坛中心/金融街月坛中心/金融街月坛、中航技广场系列、兆泰国际中心系列，以及 v21 新增的复地金融中心、月坛金融中心、清华同方、电子城研发中心。
 
 ## Manual verification contract
 
