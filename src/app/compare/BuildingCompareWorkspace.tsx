@@ -128,7 +128,7 @@ function Workspace() {
       setLoading(true);
       setError(null);
       const [buildingResult, brochureResult, metricResult] = await Promise.all([
-        supabase.from('buildings').select('id, name, grade, submarket, district').order('name').limit(3000),
+        supabase.from('buildings').select('id, name, grade, submarket, district').eq('is_active', true).eq('tracking_scope', 'tracked').order('name').limit(3000),
         supabase.from('building_brochure_data').select('*').order('created_at', { ascending: false }).limit(3000),
         supabase.from('building_metrics')
           .select('building_id, record_year, record_quarter, created_at, total_area, asking_rent, management_fee, face_rent, rent_free_period, net_effective_rent, vacancy_rate, vacant_area')
