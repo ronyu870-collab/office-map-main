@@ -117,6 +117,7 @@ export function ProposalWorkspace() {
       const [buildingResult, metricResult, brochureResult] = await Promise.all([
         supabase.from('buildings')
           .select('id,name,grade,submarket,district')
+          .eq('tracking_scope', 'tracked')
           .in('id', ids),
         supabase.from('building_metrics')
           .select('building_id,record_year,record_quarter,created_at,net_effective_rent,asking_rent,vacancy_rate,management_fee,total_area')
