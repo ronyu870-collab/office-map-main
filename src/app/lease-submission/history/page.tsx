@@ -20,7 +20,7 @@ type LeaseReadRecord = {
   read_id: string;
   record_source: 'live' | 'history';
   building_id: string | null;
-  building_match_scope: 'exact' | 'project' | 'unmapped';
+  building_match_scope: 'exact' | 'project' | 'reference' | 'unmapped';
   related_building_ids: string[];
   company: string | null;
   industry: string | null;
@@ -80,6 +80,7 @@ function sourceLabel(source: SourceFilter | LeaseReadRecord['record_source']) {
 function associationLabel(scope: LeaseReadRecord['building_match_scope']) {
   if (scope === 'exact') return '精确到楼宇';
   if (scope === 'project') return '项目级';
+  if (scope === 'reference') return '历史参考实体';
   return '未关联';
 }
 
@@ -104,6 +105,8 @@ function BuildingMeta({ row }: { row: LeaseReadRecord }) {
       <span className="truncate">{row.sub_market || row.district || '区域未标注'}</span>
       {row.building_match_scope === 'project' ? (
         <span className="shrink-0 text-[var(--cd-color-brand)]">· 项目级</span>
+      ) : row.building_match_scope === 'reference' ? (
+        <span className="shrink-0 text-[var(--cd-color-text-secondary)]">· 历史参考</span>
       ) : row.building_match_scope === 'unmapped' ? (
         <span className="shrink-0 text-[var(--cd-color-warning)]">· 未关联</span>
       ) : null}
@@ -552,7 +555,11 @@ export default function LeaseHistoryPage() {
                 <div className="mt-1 text-[13px] text-[var(--cd-color-text-secondary)]">{selectedRecord.new_building || '未标注楼宇'}</div>
                 <div className={`mt-1 text-[10px] ${selectedRecord.building_match_scope === 'unmapped' ? 'text-[var(--cd-color-warning)]' : 'text-[var(--cd-color-text-muted)]'}`}>
                   {associationLabel(selectedRecord.building_match_scope)}
-                  {selectedRecord.building_match_scope === 'project' ? ' · 仅确认到项目，未指定具体塔楼' : ''}
+                  {selectedRecord.building_match_scope === 'project'
+                    ? ' · 仅确认到项目，未指定具体塔楼'
+                    : selectedRecord.building_match_scope === 'reference'
+                      ? ' · 已确认实体，仅用于历史成交关联，不参与当前运营跟踪'
+                      : ''}
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-x-4 border-t border-[var(--cd-color-border)]">
                   <DetailItem label="成交面积" value={`${fmtNumber(selectedRecord.area_sqm, 0)} ㎡`} numeric />
