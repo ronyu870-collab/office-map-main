@@ -17,6 +17,7 @@ export async function loadRecommendationUniverse(client: SupabaseClient): Promis
       .from('buildings')
       .select('id,name,grade,submarket,district')
       .eq('is_active', true)
+      .eq('tracking_scope', 'tracked')
       .order('name')
       .limit(3000),
     client
