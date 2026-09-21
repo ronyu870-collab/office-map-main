@@ -106,7 +106,7 @@ export async function getBuildings(params?: {
   // 关键修改：默认值改为 false，防止无经纬度的数据在 API 层被过滤
   const requirePosition = params?.requirePosition ?? false;
 
-  let q = supabase.from("buildings").select(select).eq("is_active", true);
+  let q = supabase\n    .from("buildings")\n    .select(select)\n    .eq("is_active", true)\n    .eq("tracking_scope", "tracked");
 
   // 🚨 修复：移除 ownerUser 过滤，因为 buildings 表中没有 owner_user 字段
   // 现在通过 building_assignments 表来控制用户权限
@@ -263,7 +263,7 @@ export async function getBuildingsWithMetrics(): Promise<any[]> {
         foreignTable: "building_metrics",
         ascending: false,
       })
-      .eq("is_active", true);
+      .eq("is_active", true)\n      .eq("tracking_scope", "tracked");
 
     if (error) {
       console.error("❌ [getBuildingsWithMetrics] 查询失败:", error);
