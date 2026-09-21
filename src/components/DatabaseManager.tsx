@@ -2342,6 +2342,7 @@ export function DatabaseManager() {
       .from("buildings")
       .select("id, name")
       .eq("is_active", true)
+      .eq("tracking_scope", "tracked")
       .then(({ data }) => {
         if (data) {
           const dict: BuildingDict = {};
