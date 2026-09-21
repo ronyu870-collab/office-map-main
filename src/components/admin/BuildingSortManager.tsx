@@ -49,6 +49,8 @@ export function BuildingSortManager() {
     const { data } = await supabase
       .from('buildings')
       .select('id, name, submarket, grade, sort_order')
+      .eq('is_active', true)
+      .eq('tracking_scope', 'tracked')
       .order('sort_order')
       .limit(2000)
     setBuildings(data ?? [])
