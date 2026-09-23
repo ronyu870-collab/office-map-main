@@ -379,6 +379,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
             ctrl.renderFutureMarkers(filteredSupplies, renderMode);
           }
         } catch (e) {
+          if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           console.error('[MapClient] future supply fetch/render failed', e);
           setFilteredFutureSupplies([]);
         }
