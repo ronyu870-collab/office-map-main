@@ -637,6 +637,10 @@ export function installMapVisualHierarchyV3(
 
   c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[]) => {
     const buildings = Array.isArray(input) ? input : [];
+    if (selectedId && !buildings.some(building => String(building?.id ?? '') === selectedId)) {
+      c.infoWindow?.close?.();
+      clearSelection();
+    }
     const signature = renderSignature(buildings, mode, groups);
     if (signature === lastSignature) {
       apply();
