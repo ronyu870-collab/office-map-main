@@ -364,6 +364,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private clusterer: any | null = null;
 
   private districtPolygons: any[] = [];
+  private _districtRenderVersion = 0;
+  private _subwayRenderVersion = 0;
   private subwayPolyline: any | null = null;
   private stationMarker: any | null = null;
   private radiusCircle: any | null = null;
@@ -1654,15 +1656,16 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
    */
   async drawDistrictBoundaries(districts: string[]) {
     if (!this.AMap || !this.map) return;
-    this.clearDistrictBoundaries();
+    const renderVersion = ++this._districtRenderVersion;
+    this._clearDistrictBoundariesNow();
     if (districts.length === 0) return;
 
     try {
-      // 从本地缓存加载数据
       const mapData = await this.loadLocalMapData();
+      if (this._destroyed || renderVersion !== this._districtRenderVersion) return;
 
       for (const districtName of districts) {
-        // 在本地数据中查找对应的行政区
+        if (renderVersion !== this._districtRenderVersion) return;
         const districtData = mapData.districts.find(
           (d) => d.name === districtName,
         );
@@ -1672,8 +1675,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           continue;
         }
 
-        // 绘制所有边界多边形
         for (const boundary of districtData.boundaries) {
+          if (renderVersion !== this._districtRenderVersion) return;
           const polygon = new this.AMap.Polygon({
             strokeWeight: 2,
             path: boundary,
@@ -1687,15 +1690,22 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
       }
     } catch (error) {
-      console.error("绘制行政区边界失败:", error);
+      if (renderVersion === this._districtRenderVersion) {
+        console.error("绘制行政区边界失败:", error);
+      }
     }
   }
 
-  clearDistrictBoundaries() {
+  private _clearDistrictBoundariesNow() {
     if (this.map && this.districtPolygons.length > 0) {
       this.map.remove(this.districtPolygons);
     }
     this.districtPolygons = [];
+  }
+
+  clearDistrictBoundaries() {
+    this._districtRenderVersion += 1;
+    this._clearDistrictBoundariesNow();
   }
 
   /**
@@ -1703,13 +1713,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
    */
   async fetchAndDrawSubwayLine(lineName: string): Promise<any[]> {
     if (!this.AMap || !this.map) return [];
-    this.clearSubwayElements();
+    const renderVersion = ++this._subwayRenderVersion;
+    this._clearSubwayElementsNow();
 
     try {
-      // 从本地缓存加载数据
       const mapData = await this.loadLocalMapData();
+      if (this._destroyed || renderVersion !== this._subwayRenderVersion) return [];
 
-      // 在本地数据中查找对应的地铁线路
       const subwayData = mapData.subways.find(
         (s) =>
           s.name === lineName ||
@@ -1721,8 +1731,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         console.warn(`未找到地铁线路数据: ${lineName}`);
         return [];
       }
+      if (renderVersion !== this._subwayRenderVersion) return [];
 
-      // 绘制地铁线路
       this.subwayPolyline = new this.AMap.Polyline({
         path: subwayData.path,
         strokeColor: "#e11d48",
@@ -1732,11 +1742,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       });
       this.map.add(this.subwayPolyline);
       this.map.setFitView([this.subwayPolyline]);
-
-      // 返回站点数据
       return subwayData.stations;
     } catch (error) {
-      console.error("绘制地铁线路失败:", error);
+      if (renderVersion === this._subwayRenderVersion) {
+        console.error("绘制地铁线路失败:", error);
+      }
       return [];
     }
   }
@@ -1768,7 +1778,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.map.setFitView([this.radiusCircle]);
   }
 
-  clearSubwayElements() {
+  private _clearSubwayElementsNow() {
     if (this.map) {
       if (this.subwayPolyline) this.map.remove(this.subwayPolyline);
       if (this.stationMarker) this.map.remove(this.stationMarker);
@@ -1777,6 +1787,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.subwayPolyline = null;
     this.stationMarker = null;
     this.radiusCircle = null;
+  }
+
+  clearSubwayElements() {
+    this._subwayRenderVersion += 1;
+    this._clearSubwayElementsNow();
   }
 
   calculateDistance(
@@ -1936,16 +1951,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       });
 
       marker.on("click", () => {
-        const containerDiv = document.createElement("div");
-        containerDiv.innerHTML = this.buildFutureSupplyInfoWindow(supply);
-
-        const info = new AMap.InfoWindow({
-          isCustom: false,
-          offset: new AMap.Pixel(0, -35),
-          autoMove: true,
-          content: containerDiv,
-        });
-        info.open(this.map, [lng, lat]);
+        this.openFutureSupplyInfoWindow(supply);
       });
 
       this.futureMarkers.push(marker);
@@ -1962,6 +1968,24 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       } catch (e) {}
     }
     this.futureMarkers = [];
+  }
+
+  openFutureSupplyInfoWindow(supply: any): void {
+    if (!this.map || !this.AMap || !supply) return;
+    const lng = toNullableFiniteNumber(supply.location_lng);
+    const lat = toNullableFiniteNumber(supply.location_lat);
+    if (lng === null || lat === null) return;
+
+    const containerDiv = document.createElement("div");
+    containerDiv.innerHTML = this.buildFutureSupplyInfoWindow(supply);
+    const info = new this.AMap.InfoWindow({
+      isCustom: false,
+      offset: new this.AMap.Pixel(0, -35),
+      autoMove: true,
+      content: containerDiv,
+    });
+    this.infoWindow = info;
+    info.open(this.map, [lng, lat]);
   }
 
   private buildFutureSupplyInfoWindow(supply: any): string {
@@ -2552,7 +2576,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     };
 
     return `
-      <div style="width:min(360px, calc(100vw - 72px)); max-width:360px; min-width:260px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
+      <div data-building-id="${building.id}" style="width:min(360px, calc(100vw - 72px)); max-width:360px; min-width:260px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
 
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
           <div title="${escapeHtml(name)}" style="font-size:16px; font-weight:900; color:#0f172a; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${this._mask(name)}</div>
@@ -2904,13 +2928,21 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       // 使全局缓存失效（下次 fetchMapData 会重新查询）
       this._cachedMapDataPromise = null;
 
-      // 更新 InfoWindow（如果当前打开的是这个楼宇）
+      // 更新 InfoWindow（如果当前打开的是这个楼宇）。AMap 当前传入的是 DOM 容器而非字符串。
       if (this.infoWindow && this.infoWindow.getVisible()) {
         const content = this.infoWindow.getContent();
-        if (typeof content === 'string' && content.includes(buildingId)) {
+        const contentElement = content instanceof HTMLElement ? content : null;
+        const rootBuildingId = contentElement?.firstElementChild?.getAttribute('data-building-id')
+          ?? contentElement?.getAttribute('data-building-id');
+        const matchesCurrentBuilding = typeof content === 'string'
+          ? content.includes(`data-building-id="${buildingId}"`)
+          : rootBuildingId === buildingId;
+
+        if (matchesCurrentBuilding) {
           const latestMetric = pickLatestMetric(building.metrics);
-          const newContent = this.buildInfoWindowContent(building, latestMetric);
-          this.infoWindow.setContent(newContent);
+          const containerDiv = document.createElement('div');
+          containerDiv.innerHTML = this.buildInfoWindowContent(building, latestMetric);
+          this.infoWindow.setContent(containerDiv);
         }
       }
     } catch (err) {
