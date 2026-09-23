@@ -62,6 +62,36 @@ export type ActiveFilterChip = {
   patch: Partial<SidebarFilterState>;
 };
 
+export function createDefaultFilterState(): SidebarFilterState {
+  return {
+    districts: [...MAP_DISTRICTS],
+    submarkets: [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY],
+    leeds: [...MAP_LEEDS],
+    projectTypes: ['甲级写字楼', '乙级写字楼', '产业园区'],
+    showBoundaries: false,
+    subwayLine: null,
+    subwayStation: null,
+    subwayDistance: 1000,
+    numericFilters: [],
+    showFutureSupply: false,
+    futureSupplyGrades: ['A', 'B', 'BP'],
+    futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
+  };
+}
+
+export function normalizeMapSubmarket(value: unknown): string {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const key = raw
+    .replace(/[\s·]/g, '')
+    .replace(/[—–－]/g, '-')
+    .replace(/[\/\\]/g, '-');
+  if (key === '望京酒仙桥' || key === '望京-酒仙桥') return '望京-酒仙桥';
+  if (key === '亦庄经济开发区' || key === '北京经济技术开发区' || key === '亦庄') return '亦庄';
+  if (key.startsWith('其他-') || key.startsWith('其他')) return '其他';
+  return raw;
+}
+
 const NUMERIC_FILTER_LABELS: Record<string, string> = {
   net_effective_rent: '净有效租金',
   vacancy_rate: '空置率',
