@@ -11,6 +11,7 @@ import { SubmissionGrid, ProgressRenderer, DateRenderer } from "./SubmissionGrid
 import type { TableConfig, DictBundle } from "./types";
 import type { ColDef as AgColDef } from 'ag-grid-community';
 import { Button } from '@/src/components/ui';
+import { logAction } from '@/src/utils/audit';
 
 const compactSelectClassName = 'h-[var(--cd-control-height-sm)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-xs outline-none transition-colors focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]';
 
@@ -479,10 +480,19 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     const dateNum = `${firstTs.getFullYear()}${String(firstTs.getMonth() + 1).padStart(2, '0')}${String(firstTs.getDate()).padStart(2, '0')}`;
     const timeNum = `${String(firstTs.getHours()).padStart(2, '0')}${String(firstTs.getMinutes()).padStart(2, '0')}`;
     const gradePart = session.gradeSummary ? `_${session.gradeSummary}` : '';
-    XLSX.writeFile(
-      wb,
-      `${dateNum}_${userName}_第${session.session_index}次_${timeNum}${gradePart}.xlsx`,
-    );
+    const filename = `${dateNum}_${userName}_第${session.session_index}次_${timeNum}${gradePart}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    logAction(undefined, 'EXPORT_DATA', {
+      export_type: 'quarterly_submission_session',
+      record_count: uniqueRows.length,
+      file_name: filename,
+      subject_user_id: userId,
+      subject_user_name: userName,
+      year,
+      quarter,
+      session_index: session.session_index,
+      target_name: filename,
+    });
   }
 
   const completionRate =
@@ -913,7 +923,17 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
       userId === "all"
         ? "全部"
         : (dicts.user_roles?.[userId] || userId).replace(/[\/\\:*?"<>|]/g, "_");
-    XLSX.writeFile(wb, `填报数据_${userLabel}_${year}Q${quarter}.xlsx`);
+    const filename = `填报数据_${userLabel}_${year}Q${quarter}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    logAction(undefined, 'EXPORT_DATA', {
+      export_type: 'quarterly_submissions',
+      record_count: exportRows.length,
+      file_name: filename,
+      subject_user_id: userId === 'all' ? null : userId,
+      year,
+      quarter,
+      target_name: filename,
+    });
   }
 
   const years = Array.from({ length: 5 }, (_, i) => dq.year - 2 + i);
@@ -1455,7 +1475,16 @@ function FutureSupplySubmissionsSection({ dicts }: { dicts: DictBundle }) {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "未来供应数据");
-    XLSX.writeFile(wb, `未来供应_${year}Q${quarter}.xlsx`);
+    const filename = `未来供应_${year}Q${quarter}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    logAction(undefined, 'EXPORT_DATA', {
+      export_type: 'future_supply_submissions',
+      record_count: exportRows.length,
+      file_name: filename,
+      year,
+      quarter,
+      target_name: filename,
+    });
   }
 
   return (
