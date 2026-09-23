@@ -24,6 +24,7 @@ import {
   type ProposalCandidateData,
 } from '@/src/lib/intelligence/proposalScoring';
 import { supabase } from '@/src/services/supabaseClient';
+import { logAction } from '@/src/utils/audit';
 
 type LoadedCandidate = ProposalCandidateData & {
   address: string | null;
@@ -236,7 +237,16 @@ export function ProposalWorkspace() {
             <h1 className="mt-2 text-xl font-semibold text-slate-900">客户候选方案</h1>
             <p className="mt-1 text-sm text-slate-500">系统先生成候选项目，业务人员审核候选和顺序后输出。匹配评分只使用现有可验证字段；未接入的实时销控信息不会参与自动判断。</p>
           </div>
-          <Button type="button" variant="secondary" onClick={() => window.print()} disabled={selectedCount === 0}>
+          <Button type="button" variant="secondary" onClick={() => {
+            logAction(session.user?.email, 'EXPORT_REPORT', {
+              report_name: clientName ? `客户候选方案 · ${clientName}` : '客户候选方案',
+              report_type: 'intelligence_proposal',
+              candidate_count: selectedCount,
+              export_method: 'browser_print_pdf',
+              target_name: clientName ? `客户候选方案 · ${clientName}` : '客户候选方案',
+            });
+            window.print();
+          }} disabled={selectedCount === 0}>
             <FileDown size={14} aria-hidden="true" /> 打印 / 导出 PDF
           </Button>
         </div>

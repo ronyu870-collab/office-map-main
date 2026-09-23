@@ -42,7 +42,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "EXPORT_TABLE":
       return `导出了「${p.tableName ?? p.table_name ?? "数据表"}」`;
     case "EXPORT_REPORT":
-      return `导出了报告：「${p.reportName ?? p.report_name ?? "未命名报告"}」`;
+      return `导出了报告：「${p.reportName ?? p.report_name ?? "未命名报告"}」${p.candidate_count !== undefined ? `（${p.candidate_count} 个候选项目）` : ''}`;
 
     // 公告
     case "UPDATE_NOTICE":
@@ -79,8 +79,10 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     // 地图
     case "ENTER_MODULE":
       return p.module ? `进入了「${p.module}」板块` : "进入了系统板块";
+    case "ACCESS_DENIED":
+      return `尝试访问无权限板块：「${p.module ?? "未知模块"}」`;
     case "VIEW_BUILDING":
-      return `查看了楼宇详情：「${p.buildingName ?? p.buildingId ?? "未知楼宇"}」`;
+      return `查看了楼宇详情：「${p.buildingName ?? p.building_name ?? p.buildingId ?? p.building_id ?? "未知楼宇"}」`;
     case "EXPORT_MAP_DATA":
       return "导出了地图数据";
     case "VIEW_BI_CHART": {
@@ -100,8 +102,10 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `在市场交流区发布了新消息${preview}`;
     }
 
-    case "SUBMIT_QUARTERLY_DATA":
-      return `提交了季度数据${p.buildingCount ? `（${p.buildingCount} 栋楼宇）` : ""}${p.year && p.quarter ? ` - ${p.year} Q${p.quarter}` : ""}`;
+    case "SUBMIT_QUARTERLY_DATA": {
+      const count = p.buildingCount ?? p.building_count ?? p.count;
+      return `提交了季度数据${count !== undefined ? `（${count} 条）` : ""}${p.year && p.quarter ? ` · ${p.year} Q${p.quarter}` : ""}`;
+    }
     case "SUBMIT_LEASE_TRANSACTION":
       return `提交了租赁成交记录${p.company ? `：「${p.company}」` : ""}${p.area ? ` ${p.area}㎡` : ""}`;
     case "DATA_INSERT":
@@ -118,8 +122,18 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `提交了 ${p.year ?? ''} Q${p.quarter ?? ''} 季度数据${p.buildingCount ? `（${p.buildingCount} 栋）` : ''}`;
     case "SUBMIT_LEASE":
       return "提交了租赁成交记录";
-    case "EXPORT_DATA":
-      return `导出了${p.exportType ?? '数据'}${p.recordCount ? `（${p.recordCount} 条）` : ''}`;
+    case "EXPORT_DATA": {
+      const label = p.table_label ?? p.dataset ?? p.export_type ?? p.exportType ?? '数据';
+      const count = p.record_count ?? p.recordCount ?? p.count;
+      const filename = p.file_name ?? p.filename;
+      return `导出了「${label}」${count !== undefined ? `（${count} 条）` : ''}${filename ? ` · ${filename}` : ''}`;
+    }
+    case "EXPORT_LEASE_TRANSACTIONS": {
+      const count = p.record_count ?? p.count;
+      return `导出了租赁成交数据${count !== undefined ? `（${count} 条）` : ''}${p.file_name ? ` · ${p.file_name}` : ''}`;
+    }
+    case "EXPORT_BACKUP":
+      return `下载了系统数据备份${p.table_count ? `（${p.table_count} 张表）` : ''}${p.file_name ? ` · ${p.file_name}` : ''}`;
     case "PAGE_VIEW":
       return `浏览了页面：${p.page ?? ''}`;
     case "CHANGE_PASSWORD":
@@ -130,7 +144,9 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "OSS_CREATE_FOLDER":
       return `创建了云盘文件夹：「${p.folderName ?? p.path ?? ""}」`;
     case "OSS_UPLOAD":
-      return `上传了文件到云盘：「${p.fileName ?? p.path ?? ""}」`;
+      return `上传了文件到云盘：「${p.fileName ?? p.file_name ?? p.path ?? ""}」`;
+    case "OSS_FILE_ACCESS":
+      return `打开 / 下载了研究资料：「${p.display_name ?? p.file_name ?? p.fileName ?? "未知文件"}」`;
     case "OSS_DELETE":
       return `删除了云盘文件：「${p.fileName ?? p.path ?? ""}」`;
     case "OSS_BATCH_DELETE":
@@ -154,13 +170,47 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return parts.length > 0 ? `地图筛选 — ${parts.join('；')}` : '清除了地图筛选条件';
     }
 
+    // AI / 反馈 / 权限
+    case "AI_REQUIREMENT_PARSE":
+      return `使用 AI 解析了客户需求${p.model ? `（${p.model}）` : ''}`;
+    case "AI_RECOMMENDATION":
+      return `生成了 AI 楼宇推荐${p.candidate_count !== undefined ? `（候选 ${p.candidate_count} 个${p.returned_count !== undefined ? `，返回 ${p.returned_count} 个` : ''}）` : ''}`;
+    case "SUBMIT_FEEDBACK":
+    case "FEEDBACK_SUBMITTED":
+      return `提交了问题反馈${p.category ? `（${p.category}）` : ''}`;
+    case "FEEDBACK_USER_REPLIED":
+      return "回复了问题反馈";
+    case "FEEDBACK_ADMIN_CREATED":
+      return `管理员创建了问题反馈${p.category ? `（${p.category}）` : ''}`;
+    case "FEEDBACK_ADMIN_REPLIED":
+      return `管理员回复了问题反馈${p.next_status ? `，状态：${p.next_status}` : ''}`;
+    case "FEEDBACK_STATUS_CHANGED":
+      return `更新了问题反馈状态${p.old_status || p.new_status ? `：${p.old_status ?? '—'} → ${p.new_status ?? '—'}` : p.status ? `：${p.status}` : p.next_status ? `：${p.next_status}` : ''}`;
+    case "UPDATE_LEASE_TEAM_ACCESS": {
+      const next = p.enabled_after ?? p.enabled;
+      const affected = p.affected_editor_count;
+      return `修改了租赁成交团队访问权限${next !== undefined ? `：${next ? '开启' : '关闭'}` : ''}${affected !== undefined ? `（影响 ${affected} 名 Editor）` : ''}`;
+    }
+
     // 系统
     case "CHANGE_SETTINGS":
       return `修改了系统设置${p.key ? `：${p.key}` : ""}`;
 
     // 数据操作（管理后台）
-    case "ADMIN_DATA_OPERATION":
-      return `数据操作：${p.operation ?? ''} ${p.table_label ?? p.table ?? ''}`;
+    case "ADMIN_DATA_OPERATION": {
+      const operationLabels: Record<string, string> = {
+        INSERT: '新增',
+        UPDATE: '更新',
+        DELETE: '删除',
+        BULK_INSERT: '批量新增',
+        BULK_UPSERT: '批量导入 / 更新',
+        EXPORT_EXCEL: '导出 Excel',
+      };
+      const operation = operationLabels[String(p.operation ?? '')] ?? String(p.operation ?? '操作');
+      const target = p.table_label ?? p.table ?? '后台数据';
+      const count = p.count ?? p.record_count;
+      return `${operation}了「${target}」${count !== undefined ? `（${count} 条）` : ''}`;
+    }
 
     // 转移填报
     case "TRANSFER_SUBMISSION":
@@ -216,6 +266,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 const BADGE_MAP: Record<string, BadgeStyle> = {
   // 导航 → 靛蓝
   ENTER_MODULE: { variant: "blue",    label: "进入板块", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" },
+  ACCESS_DENIED: { variant: "red", label: "拒绝访问", className: "bg-red-50 text-red-700 ring-red-100" },
 
   // 内容创建 → 翠绿
   POST_MESSAGE: { variant: "green",   label: "发布消息", className: "bg-emerald-50 text-emerald-700 ring-emerald-100" },
@@ -248,6 +299,8 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   EXPORT_CHART:  { variant: "purple", label: "导出图表", className: "bg-purple-50 text-purple-700 ring-purple-100" },
   EXPORT_TABLE:  { variant: "purple", label: "导出表格", className: "bg-purple-50 text-purple-700 ring-purple-100" },
   EXPORT_REPORT: { variant: "purple", label: "导出报告", className: "bg-purple-50 text-purple-700 ring-purple-100" },
+  EXPORT_LEASE_TRANSACTIONS: { variant: "purple", label: "导出成交", className: "bg-purple-50 text-purple-700 ring-purple-100" },
+  EXPORT_BACKUP: { variant: "red", label: "数据备份", className: "bg-red-50 text-red-700 ring-red-100" },
 
   // 文件 → 锌灰
   UPLOAD_FILE: { variant: "zinc", label: "上传", className: "bg-zinc-100 text-zinc-700 ring-zinc-200" },
@@ -306,9 +359,21 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   // 云盘操作 → 蓝色
   OSS_CREATE_FOLDER: { variant: "blue", label: "创建文件夹", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   OSS_UPLOAD: { variant: "green", label: "上传文件", className: "bg-green-50 text-green-700 ring-green-100" },
+  OSS_FILE_ACCESS: { variant: "purple", label: "资料访问", className: "bg-purple-50 text-purple-700 ring-purple-100" },
   OSS_DELETE: { variant: "red", label: "删除文件", className: "bg-red-50 text-red-700 ring-red-100" },
   OSS_BATCH_DELETE: { variant: "red", label: "批量删除", className: "bg-red-50 text-red-700 ring-red-100" },
   OSS_MOVE: { variant: "orange", label: "移动文件", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+
+  // AI / 反馈 / 权限
+  AI_REQUIREMENT_PARSE: { variant: "blue", label: "AI解析", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  AI_RECOMMENDATION: { variant: "blue", label: "AI推荐", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  SUBMIT_FEEDBACK: { variant: "green", label: "提交反馈", className: "bg-green-50 text-green-700 ring-green-100" },
+  FEEDBACK_SUBMITTED: { variant: "green", label: "提交反馈", className: "bg-green-50 text-green-700 ring-green-100" },
+  FEEDBACK_USER_REPLIED: { variant: "blue", label: "回复反馈", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  FEEDBACK_ADMIN_CREATED: { variant: "green", label: "创建反馈", className: "bg-green-50 text-green-700 ring-green-100" },
+  FEEDBACK_ADMIN_REPLIED: { variant: "blue", label: "回复反馈", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  FEEDBACK_STATUS_CHANGED: { variant: "orange", label: "反馈状态", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  UPDATE_LEASE_TEAM_ACCESS: { variant: "orange", label: "权限设置", className: "bg-orange-50 text-orange-700 ring-orange-100" },
 };
 
 const FALLBACK_BADGE: BadgeStyle = {

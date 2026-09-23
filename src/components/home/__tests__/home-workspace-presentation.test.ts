@@ -60,7 +60,7 @@ describe('Home workspace presentation contract', () => {
       'isModuleRestricted',
       'isDemoMode',
       'isIntelligencePreviewEnabled',
-      "'ENTER_MODULE'",
+      "'ACCESS_DENIED'",
       "'LOGOUT'",
       "href: '/map'",
       "href: '/intelligence'",
@@ -75,6 +75,7 @@ describe('Home workspace presentation contract', () => {
       expect(home).toContain(contract);
     }
 
+    expect(home).not.toContain("'ENTER_MODULE'");
     expect(home).not.toContain('UNDER_DEVELOPMENT_MODULES');
     expect(home).not.toContain('UnderDevelopmentModal');
     expect(home).not.toContain('judy.li@colliers.com');

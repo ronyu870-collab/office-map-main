@@ -103,7 +103,7 @@ describe('Home workspace behavior', () => {
     const lease = screen.getByRole('link', { name: '租赁成交填报 - 当前角色无权访问' });
     expect(lease).toHaveAttribute('aria-disabled', 'true');
     expect(fireEvent.click(lease)).toBe(false);
-    expect(state.logAction).toHaveBeenCalledWith('viewer@colliers.com', 'ENTER_MODULE', {
+    expect(state.logAction).toHaveBeenCalledWith('viewer@colliers.com', 'ACCESS_DENIED', {
       module: 'lease-submission',
       blocked: true,
       reason: 'restricted_module',

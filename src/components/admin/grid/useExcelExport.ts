@@ -60,9 +60,14 @@ export function useExcelExport(
 
     getSession().then(session => {
       const userId = session?.user?.email ?? session?.user?.id ?? 'admin'
-      logAction(userId, 'ADMIN_DATA_OPERATION', {
-        operation: 'EXPORT_EXCEL', table: config.table, table_label: config.label,
-        count: filtered.length, filename,
+      logAction(userId, 'EXPORT_DATA', {
+        export_type: 'admin_table',
+        table: config.table,
+        table_label: config.label,
+        record_count: filtered.length,
+        file_name: filename,
+        view_mode: viewMode,
+        target_name: filename,
       })
     })
   }, [config, dicts, filtered, viewMode, showToast])

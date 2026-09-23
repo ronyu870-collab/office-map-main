@@ -343,13 +343,26 @@ export function logAction(_userId: string | undefined, actionType: string, detai
     return;
   }
 
+  const detailText = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = details[key];
+      if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 500);
+      if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    }
+    return undefined;
+  };
+  const page = typeof window === 'undefined' ? undefined : window.location.pathname;
+
   logAuditEvent({
     action_type: actionType,
     details,
     request_source: 'frontend',
-    page_url: typeof window === 'undefined' ? undefined : window.location.pathname,
-    module: typeof window === 'undefined' ? undefined : window.location.pathname.split('/')[1] || 'home',
+    page_url: page,
+    module: detailText('module') || (page ? page.split('/')[1] || 'home' : undefined),
     user_agent: typeof navigator === 'undefined' ? undefined : navigator.userAgent.slice(0, 500),
+    target_table: detailText('target_table', 'targetTable', 'table'),
+    target_id: detailText('target_id', 'targetId', 'record_id', 'recordId', 'issue_id', 'building_id', 'buildingId'),
+    target_name: detailText('target_name', 'targetName', 'file_name', 'fileName', 'filename', 'report_name', 'reportName', 'table_label', 'building_name', 'buildingName', 'company'),
   });
 }
 

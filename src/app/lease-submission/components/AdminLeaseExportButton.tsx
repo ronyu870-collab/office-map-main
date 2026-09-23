@@ -65,10 +65,13 @@ export function AdminLeaseExportButton() {
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, '租赁成交');
-      XLSX.writeFile(workbook, leaseExportFileName(), { compression: true });
+      const filename = leaseExportFileName();
+      XLSX.writeFile(workbook, filename, { compression: true });
 
       logAction(session.user?.email || '未知用户', 'EXPORT_LEASE_TRANSACTIONS', {
-        count: records.length,
+        record_count: records.length,
+        file_name: filename,
+        target_name: filename,
       });
       setState('success');
       scheduleReset();
