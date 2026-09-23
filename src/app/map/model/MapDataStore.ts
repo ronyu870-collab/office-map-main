@@ -1,5 +1,6 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import type { BuildingWithMetrics } from '@/src/types';
+import { getConfiguredCompareGroups } from './mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
 export type MapRole = 'viewer' | 'editor' | 'admin' | string;
@@ -207,14 +208,7 @@ export class MapDataStore {
     const { filterState, compareGroups } = request;
     const keyword = request.keyword?.trim() ?? '';
 
-    // Preserve the existing comparison contract: compare groups operate on the
-    // complete fetched dataset and ignore the global filter state.
-    if (compareGroups.length > 0) {
-      return this.getRoleVisible(request.role).filter(building => {
-        if (!matchesKeyword(building, keyword)) return false;
-        return compareGroups.some(group => matchesCompareGroup(building, group));
-      });
-    }
+    const activeCompareGroups = getConfiguredCompareGroups(compareGroups);
 
     let candidateIds: Set<string> | null = null;
 
@@ -247,6 +241,9 @@ export class MapDataStore {
     return candidates.filter(building => {
       if (!matchesKeyword(building, keyword)) return false;
       if (!matchesNumericFilters(building, filterState)) return false;
+      if (activeCompareGroups.length > 0 && !activeCompareGroups.some(group => matchesCompareGroup(building, group))) {
+        return false;
+      }
 
       if (filterState.subwayStation && filterState.subwayDistance && request.calculateDistance) {
         const stationCenter = filterState.subwayStation?.center;

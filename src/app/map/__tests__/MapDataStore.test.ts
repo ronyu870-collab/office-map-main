@@ -116,31 +116,63 @@ describe('MapDataStore', () => {
     expect(result.map(item => item.id)).toEqual(['target']);
   });
 
-  it('keeps comparison groups inside the current role visibility boundary', () => {
+  it('intersects configured comparison groups with global filters and role visibility', () => {
     const store = new MapDataStore([
       building('a', { grade: 'A', district: '朝阳区', submarket: 'CBD' }),
+      building('a-finance', { grade: 'A', district: '西城区', submarket: '金融街' }),
       building('b', { grade: 'B', district: '西城区', submarket: '金融街' }),
     ]);
 
-    const filterState = defaultFilter();
-    filterState.districts = ['朝阳区'];
-    filterState.projectTypes = ['甲级写字楼'];
     const compareGroups = [
       {
         id: 'group-1',
-        name: '乙级金融街',
+        name: '金融街项目',
         color: '#000000',
         submarkets: ['金融街'],
-        grades: ['乙级'],
+        grades: [],
         districts: ['西城区'],
       },
     ];
 
-    const viewer = store.filter({ filterState, role: 'viewer', compareGroups });
-    const editor = store.filter({ filterState, role: 'editor', compareGroups });
+    const globalCbd = defaultFilter();
+    globalCbd.districts = ['朝阳区'];
+    globalCbd.submarkets = ['CBD'];
+    expect(store.filter({ filterState: globalCbd, role: 'editor', compareGroups })).toEqual([]);
 
-    expect(viewer.map(item => item.id)).toEqual([]);
-    expect(editor.map(item => item.id)).toEqual(['b']);
+    const globalFinance = defaultFilter();
+    globalFinance.districts = ['西城区'];
+    globalFinance.submarkets = ['金融街'];
+
+    const viewer = store.filter({ filterState: globalFinance, role: 'viewer', compareGroups });
+    const editor = store.filter({ filterState: globalFinance, role: 'editor', compareGroups });
+
+    expect(viewer.map(item => item.id)).toEqual(['a-finance']);
+    expect(editor.map(item => item.id)).toEqual(['a-finance', 'b']);
+  });
+
+  it('ignores empty comparison groups until the user configures a condition', () => {
+    const store = new MapDataStore([
+      building('a', { district: '朝阳区', submarket: 'CBD' }),
+      building('finance', { district: '西城区', submarket: '金融街' }),
+    ]);
+    const filterState = defaultFilter();
+    filterState.districts = ['朝阳区'];
+    filterState.submarkets = ['CBD'];
+
+    const result = store.filter({
+      filterState,
+      role: 'editor',
+      compareGroups: [{
+        id: 'empty',
+        name: '组1',
+        color: '#000000',
+        submarkets: [],
+        grades: [],
+        districts: [],
+      }],
+    });
+
+    expect(result.map(item => item.id)).toEqual(['a']);
   });
 
   it('searches project owner in addition to building name and submarket', () => {

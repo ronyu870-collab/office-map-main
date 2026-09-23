@@ -81,6 +81,7 @@ function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
     keyword: '',
     filterState: null,
     renderMode: 'default',
+    compareGroups: [],
     isFilterPanelOpen: false,
     isSupplyOpen: false,
     isListVisible: false,

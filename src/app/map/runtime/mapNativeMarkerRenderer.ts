@@ -190,8 +190,7 @@ function comparisonColor(building: any, groups?: any[]): string | undefined {
     const group = groups[index];
     if (
       group?.submarkets?.length > 0 &&
-      building.submarket &&
-      !group.submarkets.includes(building.submarket)
+      (!building.submarket || !group.submarkets.includes(building.submarket))
     ) continue;
     if (
       group?.grades?.length > 0 &&
@@ -199,8 +198,7 @@ function comparisonColor(building: any, groups?: any[]): string | undefined {
     ) continue;
     if (
       group?.districts?.length > 0 &&
-      building.district &&
-      !group.districts.includes(building.district)
+      (!building.district || !group.districts.includes(building.district))
     ) continue;
     if (typeof group?.color === 'string' && group.color) return group.color;
   }
@@ -289,7 +287,7 @@ function buildingVisual(
     }
   }
 
-  const groupColor = comparisonColor(building, groups);
+  const groupColor = mode === 'default' ? comparisonColor(building, groups) : undefined;
   if (groupColor) {
     background = groupColor;
     border = '#ffffff';
@@ -357,6 +355,7 @@ function renderSignature(
   mode: RenderMode,
   groups: any[] | undefined,
   objectTokens: WeakMap<object, number>,
+  metricCache: WeakMap<object, any | null>,
   nextToken: () => number,
 ): string {
   let hash = 2166136261;
@@ -374,7 +373,24 @@ function renderSignature(
       token = objectTokens.get(building) ?? nextToken();
       if (!objectTokens.has(building)) objectTokens.set(building, token);
     }
-    feed(`${building?.id ?? ''}:${token}|`);
+    const metric = latestMetric(building, metricCache);
+    feed([
+      building?.id ?? '',
+      token,
+      building?.name ?? '',
+      building?.grade ?? '',
+      building?.submarket ?? '',
+      building?.district ?? '',
+      building?.leed_certification ?? '',
+      building?.location_lng ?? '',
+      building?.location_lat ?? '',
+      metric?.record_year ?? '',
+      metric?.record_quarter ?? '',
+      metric?.net_effective_rent ?? '',
+      metric?.vacancy_rate ?? '',
+      metric?.total_area ?? '',
+      metric?.vacant_area ?? '',
+    ].join(':') + '|');
   }
   if (Array.isArray(groups)) {
     for (const group of groups) {
@@ -950,9 +966,16 @@ export function installNativeMarkerRenderer(
       mode,
       groups,
       objectTokens,
+      metricCache,
       () => tokenCounter++,
     );
-    if (signature === lastSignature || signature === pending?.signature) return;
+    if (signature === lastSignature) {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+      pending = null;
+      return;
+    }
+    if (signature === pending?.signature) return;
 
     pending = { buildings, mode, groups, signature };
     container.classList.add('map-marker-rendering');

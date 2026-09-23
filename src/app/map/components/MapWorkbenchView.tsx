@@ -51,6 +51,7 @@ type MapWorkbenchViewProps = {
   keyword: string;
   filterState: SidebarFilterState | null;
   renderMode: RenderMode;
+  compareGroups: CompareGroup[];
   isFilterPanelOpen: boolean;
   isSupplyOpen: boolean;
   isListVisible: boolean;
@@ -121,44 +122,61 @@ function IconButton({
   );
 }
 
-function MapLegend({ mode }: { mode: RenderMode }) {
-  const config = {
+type LegendItem = {
+  label: string;
+  className?: string;
+  style?: React.CSSProperties;
+};
+
+function MapLegend({ mode, compareGroups }: { mode: RenderMode; compareGroups: CompareGroup[] }) {
+  const metricConfig: Record<RenderMode, { title: string; items: LegendItem[] }> = {
     default: {
       title: '项目类型',
       items: [
-        { label: '甲级写字楼', className: 'bg-[#003e7e]' },
-        { label: '乙级 / 产业园', className: 'bg-[#64748b]' },
+        { label: '甲级写字楼', className: 'bg-[#245b78]' },
+        { label: '乙级写字楼', className: 'bg-[#4f7968]' },
+        { label: '产业园', className: 'bg-[#9b6948]' },
         { label: '未来供应', className: 'border border-slate-500 bg-white' },
       ],
     },
     rent: {
       title: '净有效租金（元/㎡/月）',
       items: [
-        { label: '<100', className: 'bg-[#4e8a72]' },
-        { label: '100–199', className: 'bg-[#b68a36]' },
-        { label: '200–299', className: 'bg-[#c26b3d]' },
-        { label: '≥300', className: 'bg-[#b45353]' },
+        { label: '<100', className: 'bg-[#4f7968]' },
+        { label: '100–199', className: 'bg-[#967a43]' },
+        { label: '200–299', className: 'bg-[#a56142]' },
+        { label: '≥300', className: 'bg-[#97515a]' },
       ],
     },
     vacancy: {
       title: '空置率',
       items: [
-        { label: '<10%', className: 'bg-[#4e8a72]' },
-        { label: '10–19%', className: 'bg-[#b68a36]' },
-        { label: '20–29%', className: 'bg-[#c26b3d]' },
-        { label: '≥30%', className: 'bg-[#b45353]' },
+        { label: '<10%', className: 'bg-[#4f7968]' },
+        { label: '10–19%', className: 'bg-[#967a43]' },
+        { label: '20–29%', className: 'bg-[#a56142]' },
+        { label: '≥30%', className: 'bg-[#97515a]' },
       ],
     },
     leed: {
       title: 'LEED 认证',
       items: [
-        { label: '未认证', className: 'border border-[#cbd5e1] bg-[#f8fafc]' },
-        { label: '白银', className: 'border border-[#94a3b8] bg-[#f1f5f9]' },
-        { label: '黄金', className: 'border border-[#d6a82a] bg-[#fef3c7]' },
-        { label: '铂金', className: 'border border-[#38bdf8] bg-[#e0f2fe]' },
+        { label: '未认证', className: 'border border-[#bdc6ce] bg-[#eef1f4]' },
+        { label: '白银', className: 'border border-[#9ca8b3] bg-[#e7ebef]' },
+        { label: '黄金', className: 'border border-[#b69a52] bg-[#eadfbd]' },
+        { label: '铂金', className: 'border border-[#68aebf] bg-[#d9edf3]' },
       ],
     },
-  }[mode];
+  };
+
+  const config: { title: string; items: LegendItem[] } = mode === 'default' && compareGroups.length > 0
+    ? {
+        title: '项目对比组',
+        items: compareGroups.map(group => ({
+          label: group.name,
+          style: { backgroundColor: group.color },
+        })),
+      }
+    : metricConfig[mode];
 
   return (
     <div className="pointer-events-none absolute bottom-[76px] left-4 z-[250] hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 shadow-[var(--cd-shadow-sm)] sm:block">
@@ -166,7 +184,7 @@ function MapLegend({ mode }: { mode: RenderMode }) {
       <div className="flex items-center gap-3">
         {config.items.map(item => (
           <div key={item.label} className="flex items-center gap-1.5 text-[10px] text-slate-500">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.className}`} aria-hidden="true" />
+            <span className={`h-2.5 w-2.5 rounded-full ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
             {item.label}
           </div>
         ))}
@@ -252,6 +270,7 @@ export function MapWorkbenchView({
   keyword,
   filterState,
   renderMode,
+  compareGroups,
   isFilterPanelOpen,
   isSupplyOpen,
   isListVisible,
@@ -283,7 +302,7 @@ export function MapWorkbenchView({
   onBuildingClick,
   onBuildingHover,
 }: MapWorkbenchViewProps) {
-  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword);
+  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
 
   const closeOpenWorkspaces = React.useCallback(() => {
@@ -387,6 +406,14 @@ export function MapWorkbenchView({
                     <span aria-hidden="true">×</span>
                   </button>
                 ))}
+                {compareGroups.length > 0 ? (
+                  <span className="flex max-w-[230px] shrink-0 items-center gap-1.5 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-1 text-[10px] text-[var(--cd-color-text-secondary)]">
+                    <span className="flex -space-x-1">
+                      {compareGroups.map(group => <span key={group.id} className="h-2.5 w-2.5 rounded-full border border-white" style={{ backgroundColor: group.color }} />)}
+                    </span>
+                    <span>项目对比组 {compareGroups.length}</span>
+                  </span>
+                ) : null}
                 {hasActiveFilters ? (
                   <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]">清空</button>
                 ) : null}
@@ -515,7 +542,7 @@ export function MapWorkbenchView({
           </div>
         ) : null}
 
-        {mapReady && !mapError ? <MapLegend mode={renderMode} /> : null}
+        {mapReady && !mapError ? <MapLegend mode={renderMode} compareGroups={compareGroups} /> : null}
         {mapReady && !mapError ? <MetricStrip stats={stats} /> : null}
 
         {intelligenceContext && mapReady && !mapError && !isFilterPanelOpen && !isSupplyOpen && !isListVisible ? <ProposalDraftBasket /> : null}

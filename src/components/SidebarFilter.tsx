@@ -239,9 +239,12 @@ export function SidebarFilter(props: SidebarFilterProps) {
     const command = props.filterCommand;
     if (!command) return;
     if (command.type === 'reset') {
-      // External command intentionally synchronizes the internal filter state.
+      // Top-level "清空" resets the complete map filtering workspace, including
+      // comparison groups, while the local global-filter reset remains scoped.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       reset();
+      setCompareGroups([]);
+      setOpenCompareGroups({});
       return;
     }
     if (command.patch) {

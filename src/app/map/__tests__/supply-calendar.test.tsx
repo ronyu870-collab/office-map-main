@@ -4,6 +4,8 @@ import {
   SUPPLY_CALENDAR_CATEGORIES,
   buildFutureSupplyCalendar,
   categorizeSupply,
+  createDefaultFilterState,
+  filterFutureSupplies,
   safeParseSupplyYear,
 } from '@/src/app/map/model/mapDomain';
 
@@ -64,4 +66,31 @@ describe('map supply calendar domain model', () => {
       expect(calendar.noDate).toEqual({ total: 1, office: 0, park: 1 });
     });
   });
+  describe('filterFutureSupplies', () => {
+    it('applies canonical location, keyword, grade, year and subway-distance constraints together', () => {
+      const state = createDefaultFilterState();
+      state.districts = ['朝阳区'];
+      state.submarkets = ['望京-酒仙桥'];
+      state.futureSupplyGrades = ['A'];
+      state.futureSupplyYears = ['2027'];
+      state.subwayStation = { center: [116.48, 39.99] };
+      state.subwayDistance = 1000;
+
+      const supplies = [
+        { id: 'match', name: '华润未来中心', owner: '华润置地', district: '朝阳区', submarket: '望京酒仙桥', grade: 'A ', launch_year: 2027, location_lng: 116.48, location_lat: 39.99 },
+        { id: 'far', name: '华润远端', owner: '华润置地', district: '朝阳区', submarket: '望京酒仙桥', grade: 'A', launch_year: 2027, location_lng: 116.60, location_lat: 40.10 },
+        { id: 'wrong-grade', name: '华润园区', owner: '华润置地', district: '朝阳区', submarket: '望京酒仙桥', grade: 'BP', launch_year: 2027, location_lng: 116.48, location_lat: 39.99 },
+      ];
+
+      const result = filterFutureSupplies(
+        supplies,
+        state,
+        '华润',
+        ([lng]) => (lng > 116.5 ? 5000 : 200),
+      );
+
+      expect(result.map(item => item.id)).toEqual(['match']);
+    });
+  });
+
 });

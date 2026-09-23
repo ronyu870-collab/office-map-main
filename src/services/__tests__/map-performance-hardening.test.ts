@@ -35,7 +35,7 @@ describe('Map performance hardening contracts', () => {
     const trendSource = controller.slice(trendStart, initStart);
 
     const runtimeImport = trendSource.indexOf('const trendRuntimePromise = import("./map/trendChartRuntime")');
-    const historyRequest = trendSource.indexOf('.from("building_metrics")');
+    const historyRequest = trendSource.indexOf('fetchBuildingTrendPayload(buildingId)');
 
     expect(runtimeImport).toBeGreaterThanOrEqual(0);
     expect(historyRequest).toBeGreaterThan(runtimeImport);

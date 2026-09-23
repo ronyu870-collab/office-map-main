@@ -1,7 +1,7 @@
 'use client';
 
 import type { MapController } from '@/src/services/MapController';
-import { supabase } from '@/src/services/supabaseClient';
+import { fetchMapBuildingPayload } from '@/src/services/mapDataClient';
 import type { BuildingMetric, BuildingWithMetrics } from '@/src/types';
 
 type DisplayOverride = {
@@ -18,35 +18,6 @@ type ControllerStartupInternals = {
   _displayOverridesCache?: Map<string, Map<string, DisplayOverride>>;
 };
 
-const BUILDING_STARTUP_SELECT = `
-  id,
-  name,
-  submarket,
-  grade,
-  city,
-  district,
-  location_lng,
-  location_lat,
-  completion_year,
-  leed_certification,
-  owner,
-  property_management,
-  contact_phone,
-  building_metrics (
-    id,
-    building_id,
-    total_area,
-    asking_rent,
-    management_fee,
-    face_rent,
-    rent_free_period,
-    net_effective_rent,
-    vacancy_rate,
-    vacant_area,
-    record_year,
-    record_quarter
-  )
-`;
 
 function toFiniteNumber(input: unknown): number {
   const n =
@@ -111,26 +82,10 @@ function transformBuildingRow(row: Record<string, unknown>): BuildingWithMetrics
 async function fetchSlimStartupData(
   internals: ControllerStartupInternals,
 ): Promise<BuildingWithMetrics[]> {
-  const [buildingsResult, overridesResult] = await Promise.all([
-    supabase
-      .from('buildings')
-      .select(BUILDING_STARTUP_SELECT)
-      .eq('is_active', true)
-      .eq('tracking_scope', 'tracked')
-      .or('project_type.neq.future,project_type.is.null')
-      .order('record_year', { referencedTable: 'building_metrics', ascending: false })
-      .order('record_quarter', { referencedTable: 'building_metrics', ascending: false })
-      .limit(1, { referencedTable: 'building_metrics' }),
-    supabase
-      .from('building_display_overrides')
-      .select('building_id, field_name, display_label, display_value'),
-  ]);
-
-  const { data, error } = buildingsResult;
-  if (error) throw new Error(`查询失败: ${error.message}`);
+  const payload = await fetchMapBuildingPayload('latest');
 
   const overrideCache = new Map<string, Map<string, DisplayOverride>>();
-  for (const override of overridesResult.data ?? []) {
+  for (const override of payload.displayOverrides) {
     if (!overrideCache.has(override.building_id)) {
       overrideCache.set(override.building_id, new Map());
     }
@@ -141,7 +96,7 @@ async function fetchSlimStartupData(
   }
   internals._displayOverridesCache = overrideCache;
 
-  const buildings = (Array.isArray(data) ? data : [])
+  const buildings = payload.buildings
     .map((row) => transformBuildingRow(row as Record<string, unknown>))
     .filter((building) => building.id !== '' && building.name !== '');
 

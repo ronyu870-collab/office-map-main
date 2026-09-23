@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 
 import { PageErrorBoundary } from '@/src/components/ErrorBoundary/PageErrorBoundary';
-import { supabase } from '@/src/services/supabaseClient';
+import { fetchComparePayload } from '@/src/services/mapDataClient';
 
 type Source = 'brochure' | 'metric' | 'building';
 type Kind = 'text' | 'number' | 'percent' | 'boolean' | 'date';
@@ -127,63 +127,64 @@ function Workspace() {
     void (async () => {
       setLoading(true);
       setError(null);
-      const [buildingResult, brochureResult, metricResult] = await Promise.all([
-        supabase.from('buildings').select('id, name, grade, submarket, district').eq('is_active', true).eq('tracking_scope', 'tracked').order('name').limit(3000),
-        supabase.from('building_brochure_data').select('*').order('created_at', { ascending: false }).limit(3000),
-        supabase.from('building_metrics')
-          .select('building_id, record_year, record_quarter, created_at, total_area, asking_rent, management_fee, face_rent, rent_free_period, net_effective_rent, vacancy_rate, vacant_area')
-          .order('record_year', { ascending: false }).order('record_quarter', { ascending: false }).order('created_at', { ascending: false }).limit(5000),
-      ]);
-      if (!active) return;
-      const firstError = buildingResult.error || brochureResult.error || metricResult.error;
-      if (firstError) {
-        setError(firstError.message || '楼宇对比数据加载失败');
-        setRows([]);
-        setLoading(false);
-        return;
-      }
+      try {
+        const payload = await fetchComparePayload();
+        if (!active) return;
 
-      const brochures = new Map<string, Record<string, unknown>>();
-      for (const raw of brochureResult.data || []) {
-        const record = raw as Record<string, unknown>;
-        const buildingId = typeof record.building_id === 'string' ? record.building_id : '';
-        if (buildingId && !brochures.has(buildingId)) brochures.set(buildingId, record);
-      }
-      const metrics = new Map<string, { values: Record<string, number | null>; period: string }>();
-      for (const item of metricResult.data || []) {
-        if (!item.building_id || metrics.has(item.building_id)) continue;
-        const values: Record<string, number | null> = {};
-        for (const key of ['total_area', 'asking_rent', 'management_fee', 'face_rent', 'rent_free_period', 'net_effective_rent', 'vacancy_rate', 'vacant_area']) {
-          values[key] = normalizeMetric(key, item[key as keyof typeof item]);
+        const brochures = new Map<string, Record<string, unknown>>();
+        for (const raw of payload.brochures) {
+          const record = raw as Record<string, unknown>;
+          const buildingId = typeof record.building_id === 'string' ? record.building_id : '';
+          if (buildingId && !brochures.has(buildingId)) brochures.set(buildingId, record);
         }
-        metrics.set(item.building_id, {
-          values,
-          period: item.record_year && item.record_quarter ? `${item.record_year} Q${item.record_quarter}` : '最新',
+
+        const nextRows: Row[] = payload.buildings.map((item: any) => {
+          const metricRows = Array.isArray(item.building_metrics) ? item.building_metrics : [];
+          const latestMetric = metricRows[0] as Record<string, unknown> | undefined;
+          const values: Record<string, number | null> = {};
+          for (const key of ['total_area', 'asking_rent', 'management_fee', 'face_rent', 'rent_free_period', 'net_effective_rent', 'vacancy_rate', 'vacant_area']) {
+            values[key] = normalizeMetric(key, latestMetric?.[key]);
+          }
+          const metricPeriod = latestMetric?.record_year && latestMetric?.record_quarter
+            ? `${latestMetric.record_year} Q${latestMetric.record_quarter}`
+            : latestMetric
+              ? '最新'
+              : null;
+
+          return {
+            id: item.id,
+            name: item.name || '未命名楼宇',
+            grade: item.grade || '',
+            submarket: item.submarket || '',
+            district: item.district || '',
+            brochure: brochures.get(item.id) || {},
+            metrics: values,
+            metricPeriod,
+          };
         });
+
+        nextRows.sort((a, b) => a.id === targetId ? -1 : b.id === targetId ? 1 : a.name.localeCompare(b.name, 'zh-CN'));
+        setRows(nextRows);
+        setSelected((previous) => {
+          const next = new Set<string>();
+          if (targetId && nextRows.some((row) => row.id === targetId)) next.add(targetId);
+          previous.forEach((id) => { if (nextRows.some((row) => row.id === id)) next.add(id); });
+          const target = nextRows.find((row) => row.id === targetId);
+          if (target && next.size <= 1) {
+            nextRows
+              .filter((row) => row.id !== targetId && (row.submarket === target.submarket || row.grade === target.grade))
+              .slice(0, 3)
+              .forEach((row) => next.add(row.id));
+          }
+          return next;
+        });
+      } catch (loadError) {
+        if (!active) return;
+        setRows([]);
+        setError(loadError instanceof Error ? loadError.message : '楼宇对比数据加载失败');
+      } finally {
+        if (active) setLoading(false);
       }
-      const nextRows: Row[] = (buildingResult.data || []).map((item) => ({
-        id: item.id,
-        name: item.name || '未命名楼宇',
-        grade: item.grade || '',
-        submarket: item.submarket || '',
-        district: item.district || '',
-        brochure: brochures.get(item.id) || {},
-        metrics: metrics.get(item.id)?.values || {},
-        metricPeriod: metrics.get(item.id)?.period || null,
-      }));
-      nextRows.sort((a, b) => a.id === targetId ? -1 : b.id === targetId ? 1 : a.name.localeCompare(b.name, 'zh-CN'));
-      setRows(nextRows);
-      setSelected((previous) => {
-        const next = new Set<string>();
-        if (targetId && nextRows.some((row) => row.id === targetId)) next.add(targetId);
-        previous.forEach((id) => { if (nextRows.some((row) => row.id === id)) next.add(id); });
-        const target = nextRows.find((row) => row.id === targetId);
-        if (target && next.size <= 1) {
-          nextRows.filter((row) => row.id !== targetId && (row.submarket === target.submarket || row.grade === target.grade)).slice(0, 3).forEach((row) => next.add(row.id));
-        }
-        return next;
-      });
-      setLoading(false);
     })();
     return () => { active = false; };
   }, [targetId]);

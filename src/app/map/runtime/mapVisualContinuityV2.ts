@@ -64,7 +64,7 @@ function groupColor(building: any, groups?: any[]): string | undefined {
   if (!Array.isArray(groups)) return undefined;
   for (let i = groups.length - 1; i >= 0; i -= 1) {
     const group = groups[i];
-    if (group?.submarkets?.length && building?.submarket && !group.submarkets.includes(building.submarket)) continue;
+    if (group?.submarkets?.length && (!building?.submarket || !group.submarkets.includes(building.submarket))) continue;
     const grade = String(building?.grade ?? '').toUpperCase();
     if (group?.grades?.length) {
       const match = group.grades.some((wanted: string) =>
@@ -74,7 +74,7 @@ function groupColor(building: any, groups?: any[]): string | undefined {
       );
       if (!match) continue;
     }
-    if (group?.districts?.length && building?.district && !group.districts.includes(building.district)) continue;
+    if (group?.districts?.length && (!building?.district || !group.districts.includes(building.district))) continue;
     if (typeof group?.color === 'string' && group.color) return group.color;
   }
   return undefined;
@@ -111,7 +111,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     else if (leed.includes('SILVER')) { background = '#e7ebef'; border = '#9ca8b3'; textColor = '#52606d'; text = 'S'; }
     else { background = '#eef1f4'; border = '#bdc6ce'; textColor = '#6f7c89'; text = 'N'; }
   }
-  const override = groupColor(building, groups);
+  const override = mode === 'default' ? groupColor(building, groups) : undefined;
   if (override) { background = override; border = '#ffffff'; textColor = '#ffffff'; }
   return { background, border, textColor, text, fontSize };
 }
@@ -155,8 +155,22 @@ function signature(buildings: any[], mode: RenderMode, groups?: any[]): string {
   let value = `${mode}|${buildings.length}|`;
   for (const b of buildings) {
     const metric = latestMetric(b);
-    value += `${b?.id ?? ''}:${b?.grade ?? ''}:${b?.submarket ?? ''}:${b?.leed_certification ?? ''}:` +
-      `${metric?.record_year ?? ''}:${metric?.record_quarter ?? ''}:${metric?.net_effective_rent ?? ''}:${metric?.vacancy_rate ?? ''}|`;
+    value += [
+      b?.id ?? '',
+      b?.name ?? '',
+      b?.grade ?? '',
+      b?.submarket ?? '',
+      b?.district ?? '',
+      b?.leed_certification ?? '',
+      b?.location_lng ?? '',
+      b?.location_lat ?? '',
+      metric?.record_year ?? '',
+      metric?.record_quarter ?? '',
+      metric?.net_effective_rent ?? '',
+      metric?.vacancy_rate ?? '',
+      metric?.total_area ?? '',
+      metric?.vacant_area ?? '',
+    ].join(':') + '|';
   }
   if (groups) for (const g of groups) value += `${g?.id ?? ''}:${g?.color ?? ''}:${(g?.submarkets ?? []).join(',')}:${(g?.grades ?? []).join(',')}:${(g?.districts ?? []).join(',')}|`;
   return value;
@@ -347,7 +361,14 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[]) => {
     const buildings = Array.isArray(input) ? input : [];
     const sig = signature(buildings, mode, groups);
-    if (sig === lastSignature) { apply(); return; }
+    if (sig === lastSignature) {
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+      }
+      apply();
+      return;
+    }
     if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     container.classList.add('map-marker-rendering');
     pendingFrame = requestAnimationFrame(() => {
