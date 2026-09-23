@@ -299,8 +299,8 @@ function getMarkerStyle(
     }
   }
 
-  // 对比组颜色覆盖：当有对比组匹配时，用组颜色替代默认颜色
-  if (comparisonGroupColor) {
+  // 对比组颜色只属于“项目”模式；租金 / 空置 / LEED 模式必须保持指标图例语义。
+  if (comparisonGroupColor && mode === "default") {
     bgColor = comparisonGroupColor;
     borderColor = "#ffffff";
     textColor = "#ffffff";
@@ -333,16 +333,14 @@ function findBuildingGroupColor(
     const g = groups[i];
     if (
       g.submarkets.length > 0 &&
-      building.submarket &&
-      !g.submarkets.includes(building.submarket)
+      (!building.submarket || !g.submarkets.includes(building.submarket))
     )
       continue;
     if (g.grades.length > 0 && !matchesGroupGrades(building.grade, g.grades))
       continue;
     if (
       g.districts.length > 0 &&
-      building.district &&
-      !g.districts.includes(building.district)
+      (!building.district || !g.districts.includes(building.district))
     )
       continue;
     return g.color;
@@ -375,6 +373,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private compCenterMarker: any | null = null;
   private compExitButton: HTMLDivElement | null = null;
   private _isClearingCompetitor = false;
+  private _competitorNavigationVersion = 0;
 
   // 🌟 CL-010: 周边项目对比状态
   private _compCenterPoint: [number, number] | null = null;
@@ -1000,8 +999,14 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       : competitors;
     this._renderDistanceMarkers(markersToRender);
 
+    const navigationVersion = ++this._competitorNavigationVersion;
     this.map.setFitView([this.compRadiusCircle]);
     setTimeout(() => {
+      if (
+        navigationVersion !== this._competitorNavigationVersion ||
+        this._compBuildingId !== buildingId ||
+        !this.map
+      ) return;
       if (this.map.getZoom() < 13.5) this.map.setZoom(13.6);
     }, 100);
 
@@ -1111,6 +1116,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   private clearCompetitorElements() {
+    this._competitorNavigationVersion += 1;
     if (this.map) {
       if (this.compRadiusCircle) this.map.remove(this.compRadiusCircle);
       if (this.compCenterMarker) this.map.remove(this.compCenterMarker);
