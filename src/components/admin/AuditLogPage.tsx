@@ -26,7 +26,7 @@ const MODULE_NAMES: Record<string, string> = { map:'楼宇地图', compare:'楼�
 
 const TRAIL_ACTIONS = [
   'PAGE_VIEW','ENTER_MODULE','MAP_FILTER','SEARCH','VIEW_BUILDING','VIEW_BI_CHART',
-  'OPEN_LEASE_FORM','LOOKUP_LEASE_COMPANY_HISTORY',
+  'OPEN_LEASE_FORM','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_USER_SUBMISSION',
 ];
 const DATABASE_ACTIONS = ['DB_INSERT','DB_UPDATE','DB_DELETE','LEASE_TRANSACTION_UPDATE'];
 const AUTH_ACTIONS = ['LOGIN','LOGIN_FAILED','LOGOUT'];
@@ -48,7 +48,7 @@ const BUSINESS_EXCLUDED_ACTIONS = Array.from(new Set([
   ...AUTH_ACTIONS,
 ]));
 const ACTION_TYPES = [
-  'ACCESS_DENIED','CHANGE_PASSWORD',
+  'ACCESS_DENIED','CHANGE_PASSWORD','CONFIG_CHANGE',
   'SUBMIT_QUARTERLY_DATA','SUBMIT_LEASE_TRANSACTION','TRANSFER_SUBMISSION',
   'POST_MESSAGE','UPDATE_NOTICE','DELETE_NOTICE',
   'EXPORT_DATA','EXPORT_LEASE_TRANSACTIONS','EXPORT_BACKUP','EXPORT_MAP_DATA',
@@ -69,6 +69,7 @@ const DETAIL_LABELS: Record<string,string> = {
   record_count:'记录数', count:'数量', table:'数据表', table_label:'业务对象', export_type:'导出类型',
   export_mode:'视图', view_mode:'视图', year:'年份', quarter:'季度', session_index:'提交批次',
   subject_user_name:'数据所属人', subject_user_id:'数据所属人 ID', company:'企业', building:'楼宇',
+  config_area:'配置区域', config_name:'配置项',
   building_name:'楼宇', module:'模块', reason:'原因', category:'分类', next_status:'状态', status:'状态',
   model:'模型', candidate_count:'候选数', operation:'操作', access_method:'访问方式', source:'入口',
   report_name:'报告', report_type:'报告类型', export_method:'导出方式', outcome:'结果', authority:'审计来源',

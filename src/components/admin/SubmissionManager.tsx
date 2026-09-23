@@ -101,7 +101,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
 
   async function handleSaveConfig() {
     setSaving(true);
-    await Promise.all([
+    const results = await Promise.all([
       supabase
         .from("app_settings")
         .upsert(
@@ -115,12 +115,33 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
           { onConflict: "key" },
         ),
     ]);
+    const saveError = results.find(result => result.error)?.error;
+    if (!saveError) {
+      logAction(undefined, 'CONFIG_CHANGE', {
+        config_area: 'quarterly_submission_period',
+        config_name: '当前季度填报周期',
+        year: cfgYear,
+        quarter: cfgQuarter,
+        target_name: `${cfgYear} Q${cfgQuarter} 季度填报周期`,
+      });
+    }
     setSaving(false);
   }
 
   React.useEffect(() => {
     void fetchData();
   }, [year, quarter]);
+
+  function previewUserSubmission(stat: UserStat) {
+    logAction(undefined, 'VIEW_USER_SUBMISSION', {
+      subject_user_id: stat.user_id,
+      subject_user_name: stat.user_name,
+      year,
+      quarter,
+      target_name: stat.user_name || stat.user_id,
+    });
+    window.open(`/update?as=${stat.user_id}`, "_blank", "noopener,noreferrer");
+  }
 
   async function fetchData() {
     setLoading(true);
@@ -709,9 +730,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                         </td>
                         <td className="px-4 py-3">
                           <button
-                            onClick={() =>
-                              window.open(`/update?as=${s.user_id}`, "_blank")
-                            }
+                            onClick={() => previewUserSubmission(s)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-[#003e7e] text-white hover:bg-[#002d5e] transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

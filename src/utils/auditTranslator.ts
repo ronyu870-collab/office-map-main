@@ -138,6 +138,8 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     }
     case "OPEN_LEASE_FORM":
       return p.mode === 'edit' ? `打开了租赁成交编辑表单` : `打开了租赁成交填报表单`;
+    case "VIEW_USER_SUBMISSION":
+      return `查看了${p.subject_user_name ? `「${p.subject_user_name}」` : '某用户'}的季度填报${periodLabel(p.year, p.quarter) ? ` · ${periodLabel(p.year, p.quarter)}` : ''}`;
     case "CHANGELOG_CREATE":
       return `新增了更新日志：「${p.title ?? ""}」${p.code ? `(${p.code})` : ""}`;
     case "CHANGELOG_UPDATE":
@@ -178,6 +180,9 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       const label = exportDataLabel(p);
       const count = p.record_count ?? p.recordCount ?? p.count;
       const filename = p.file_name ?? p.filename;
+      if (p.export_type === 'upload_template') {
+        return `下载了「${label}」导入模板${filename ? ` · ${filename}` : ''}`;
+      }
       return `导出了「${label}」${count !== undefined ? `（${count} 条）` : ''}${filename ? ` · ${filename}` : ''}`;
     }
     case "EXPORT_LEASE_TRANSACTIONS": {
@@ -251,6 +256,10 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     // 系统
     case "CHANGE_SETTINGS":
       return `修改了系统设置${p.key ? `：${p.key}` : ""}`;
+    case "CONFIG_CHANGE":
+      return p.config_area === 'quarterly_submission_period'
+        ? `修改了季度填报周期：${periodLabel(p.year, p.quarter) || '未指定'}`
+        : `修改了系统配置${p.config_name ? `：${p.config_name}` : ''}`;
 
     // 数据操作（管理后台）
     case "ADMIN_DATA_OPERATION": {
@@ -338,6 +347,7 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   EXPORT_MAP_DATA:{ variant: "purple", label: "导出地图", className: "bg-purple-50 text-purple-700 ring-purple-100" },
   VIEW_BI_CHART:{ variant: "blue",   label: "查看图表", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   OPEN_LEASE_FORM:{ variant: "orange", label: "租赁填报", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  VIEW_USER_SUBMISSION:{ variant: "blue", label: "查看填报", className: "bg-blue-50 text-blue-700 ring-blue-100" },
 
   // 写入 / 更新 → 橙色
   UPDATE_NOTICE:  { variant: "orange", label: "公告",   className: "bg-orange-50 text-orange-700 ring-orange-100" },
@@ -347,6 +357,7 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   DELETE_PROJECT: { variant: "red",    label: "删除",   className: "bg-red-50 text-red-700 ring-red-100" },
   IMPORT_DATA:    { variant: "orange", label: "导入",   className: "bg-orange-50 text-orange-700 ring-orange-100" },
   CHANGE_SETTINGS:{ variant: "orange", label: "设置",   className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  CONFIG_CHANGE:{ variant: "orange", label: "配置变更", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   CHANGELOG_CREATE:{ variant: "green", label: "新增日志", className: "bg-green-50 text-green-700 ring-green-100" },
   CHANGELOG_UPDATE:{ variant: "orange", label: "更新日志", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   CHANGELOG_DELETE:{ variant: "red",   label: "删除日志", className: "bg-red-50 text-red-700 ring-red-100" },

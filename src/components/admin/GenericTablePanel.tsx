@@ -858,7 +858,15 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
     ws['!cols'] = visibleWritable.map(() => ({ wch: 22 }))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '上传数据')
-    XLSX.writeFile(wb, `${config.label}_上传模板.xlsx`)
+    const filename = `${config.label}_上传模板.xlsx`
+    XLSX.writeFile(wb, filename)
+    logAction(undefined, 'EXPORT_DATA', {
+      export_type: 'upload_template',
+      table: config.table,
+      table_label: config.label,
+      file_name: filename,
+      target_name: filename,
+    })
   }
 
   const triggerUpload = () => { setImportErrors([]); fileInputRef.current?.click() }

@@ -23,6 +23,24 @@ describe('audit translator business semantics', () => {
     })).toContain('发起打印 / 导出报告');
   });
 
+  it('renders template downloads and sensitive admin reads as explicit business actions', () => {
+    expect(parseAuditLog('EXPORT_DATA', {
+      export_type: 'upload_template',
+      table_label: '楼书数据',
+      file_name: '楼书数据_上传模板.xlsx',
+    })).toBe('下载了「楼书数据」导入模板 · 楼书数据_上传模板.xlsx');
+    expect(parseAuditLog('VIEW_USER_SUBMISSION', {
+      subject_user_name: '测试用户',
+      year: 2026,
+      quarter: 3,
+    })).toBe('查看了「测试用户」的季度填报 · 2026 Q3');
+    expect(parseAuditLog('CONFIG_CHANGE', {
+      config_area: 'quarterly_submission_period',
+      year: 2026,
+      quarter: 3,
+    })).toBe('修改了季度填报周期：2026 Q3');
+  });
+
   it('renders standardized data exports with business label, count and filename', () => {
     const text = parseAuditLog('EXPORT_DATA', {
       table_label: '季度填报数据',
