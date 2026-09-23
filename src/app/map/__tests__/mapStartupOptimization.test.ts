@@ -1,25 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => {
-  const buildingsBuilder: Record<string, ReturnType<typeof vi.fn>> = {};
-  buildingsBuilder.select = vi.fn(() => buildingsBuilder);
-  buildingsBuilder.eq = vi.fn(() => buildingsBuilder);
-  buildingsBuilder.or = vi.fn(() => buildingsBuilder);
-  buildingsBuilder.order = vi.fn(() => buildingsBuilder);
-  buildingsBuilder.limit = vi.fn();
+const mocks = vi.hoisted(() => ({
+  fetchMapBuildingPayload: vi.fn(),
+}));
 
-  const overridesSelect = vi.fn();
-  const from = vi.fn((table: string) => {
-    if (table === 'buildings') return buildingsBuilder;
-    if (table === 'building_display_overrides') return { select: overridesSelect };
-    throw new Error(`unexpected table: ${table}`);
-  });
-
-  return { buildingsBuilder, overridesSelect, from };
-});
-
-vi.mock('@/src/services/supabaseClient', () => ({
-  supabase: { from: mocks.from },
+vi.mock('@/src/services/mapDataClient', () => ({
+  fetchMapBuildingPayload: mocks.fetchMapBuildingPayload,
 }));
 
 import type { MapController } from '@/src/services/MapController';
@@ -75,35 +61,24 @@ function createController() {
 describe('map startup optimization', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.buildingsBuilder.limit.mockResolvedValue({ data: [BUILDING_ROW], error: null });
-    mocks.overridesSelect.mockResolvedValue({
-      data: [{
+    mocks.fetchMapBuildingPayload.mockResolvedValue({
+      buildings: [BUILDING_ROW],
+      displayOverrides: [{
         building_id: 'building-1',
         field_name: 'grade',
         display_label: '等级',
         display_value: '甲级',
       }],
-      error: null,
     });
   });
 
-  it('requests only the latest embedded metric and hydrates controller caches', async () => {
+  it('requests the role-scoped latest-metric payload and hydrates controller caches', async () => {
     const { controller, raw, legacyFetch } = createController();
     const cleanup = installMapStartupOptimization(controller);
 
     const buildings = await raw.fetchMapData();
 
-    expect(mocks.buildingsBuilder.order).toHaveBeenNthCalledWith(1, 'record_year', {
-      referencedTable: 'building_metrics',
-      ascending: false,
-    });
-    expect(mocks.buildingsBuilder.order).toHaveBeenNthCalledWith(2, 'record_quarter', {
-      referencedTable: 'building_metrics',
-      ascending: false,
-    });
-    expect(mocks.buildingsBuilder.limit).toHaveBeenCalledWith(1, {
-      referencedTable: 'building_metrics',
-    });
+    expect(mocks.fetchMapBuildingPayload).toHaveBeenCalledWith('latest');
     expect(buildings).toHaveLength(1);
     expect(buildings[0].metrics).toHaveLength(1);
     expect(buildings[0].metrics[0].record_year).toBe(2026);
@@ -130,13 +105,10 @@ describe('map startup optimization', () => {
     cleanup();
   });
 
-  it('falls back to the legacy query when the slim query fails', async () => {
+  it('falls back to the controller read path when the optimized role-scoped request fails', async () => {
     const { controller, raw, legacyFetch } = createController();
     legacyFetch.mockResolvedValueOnce([{ id: 'legacy-building' }]);
-    mocks.buildingsBuilder.limit.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'embedded query unavailable' },
-    });
+    mocks.fetchMapBuildingPayload.mockRejectedValueOnce(new Error('role-scoped endpoint unavailable'));
     installMapStartupOptimization(controller);
 
     const buildings = await raw.fetchMapData();
