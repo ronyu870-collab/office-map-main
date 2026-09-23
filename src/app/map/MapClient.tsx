@@ -264,6 +264,22 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     setStats(computeStatsFromBuildings(allBuildings));
   }, [mapReady, allBuildings, filterState, districtLeedStats]);
 
+  // 地图显示模式与筛选面板状态必须解耦。首次进入地图时 filterState 为 null，
+  // 因此不能只依赖下面的筛选 effect 触发 marker 重建；否则按钮状态会切换，
+  // 但大气泡 / 小点 / 楼宇气泡仍停留在 default 配色。
+  React.useEffect(() => {
+    if (!mapReady || !controllerRef.current || allBuildings.length === 0 || filterState) return;
+    if (!initialRenderDone.current || competitorModeRef.current) return;
+
+    const ctrl = controllerRef.current;
+    ctrl.renderMarkers(
+      allBuildings,
+      renderMode,
+      districtLeedStats,
+      compareGroups.length > 0 ? compareGroups : undefined,
+    );
+  }, [mapReady, allBuildings, filterState, renderMode, districtLeedStats, compareGroups]);
+
   // 用户交互筛选后的过滤逻辑
   React.useEffect(() => {
     const scheduler = getFilterFrameScheduler();
