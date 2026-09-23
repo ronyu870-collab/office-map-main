@@ -5,7 +5,7 @@ import { supabase } from '@/src/services/supabaseClient';
 import { parseDeviceInfo } from '@/src/utils/deviceInfo';
 import { MaskedText } from '@/src/components/demo';
 
-interface UserOption { id: string; name: string; auditIds: string[] }
+interface UserOption { id: string; name: string; auditIds: string[]; role?: string }
 interface AuthAuditRow {
   id: string;
   created_at: string;
@@ -85,6 +85,7 @@ export function AuthAuditLogPanel({ userOptions, isDemo, refreshNonce = 0 }: { u
   const [error, setError] = React.useState('');
   const [page, setPage] = React.useState(0);
   const [filterUser, setFilterUser] = React.useState('ALL');
+  const [excludeAdmins, setExcludeAdmins] = React.useState(false);
   const [timeRange, setTimeRange] = React.useState('week');
 
   const load = React.useCallback(async (nextPage = page) => {
@@ -103,6 +104,7 @@ export function AuthAuditLogPanel({ userOptions, isDemo, refreshNonce = 0 }: { u
       p_from: from,
       p_user_id: userId,
       p_action: null,
+      p_exclude_admins: excludeAdmins && filterUser === 'ALL',
     });
     if (rpcError) {
       console.error('获取认证审计日志失败:', rpcError);
@@ -112,13 +114,14 @@ export function AuthAuditLogPanel({ userOptions, isDemo, refreshNonce = 0 }: { u
       setPage(nextPage);
     }
     setLoading(false);
-  }, [filterUser, page, timeRange, userOptions]);
+  }, [excludeAdmins, filterUser, page, timeRange, userOptions]);
 
-  React.useEffect(() => { void load(0); }, [filterUser, timeRange, refreshNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { void load(0); }, [excludeAdmins, filterUser, timeRange, refreshNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return <div className="flex min-h-0 flex-1 flex-col">
     <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-5 py-3">
-      <select aria-label="按登录用户筛选" value={filterUser} onChange={e => setFilterUser(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs"><option value="ALL">全部人员</option>{userOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+      <select aria-label="按登录用户筛选" value={filterUser} onChange={e => setFilterUser(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs"><option value="ALL">全部人员</option>{userOptions.map(option => <option key={option.id} value={option.id}>{option.name}{['admin','super_admin'].includes(String(option.role||'').toLowerCase())?'（管理员）':''}</option>)}</select>
+      <button type="button" onClick={() => setExcludeAdmins(value => !value)} disabled={filterUser !== 'ALL'} title={filterUser !== 'ALL' ? '已指定人员时无需排除管理员' : '从登录记录中排除管理员账号'} className={`rounded-md border px-2.5 py-1.5 text-xs transition ${excludeAdmins && filterUser === 'ALL' ? 'border-[#24478f] bg-blue-50 text-[#24478f]' : 'border-zinc-200 text-zinc-600'} disabled:cursor-not-allowed disabled:opacity-40`}>排除管理员</button>
       <div className="flex rounded-md border border-zinc-200 p-0.5">{[{ key:'today',label:'今日'},{key:'week',label:'近 7 天'},{key:'month',label:'本月'},{key:'all',label:'全部'}].map(item => <button key={item.key} type="button" onClick={() => setTimeRange(item.key)} className={`rounded px-2 py-1 text-[11px] ${timeRange === item.key ? 'bg-zinc-100 font-medium text-zinc-900' : 'text-zinc-500'}`}>{item.label}</button>)}</div>
       <span className="ml-auto text-[11px] text-zinc-400">Supabase Auth 权威来源</span>
     </div>
