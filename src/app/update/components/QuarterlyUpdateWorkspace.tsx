@@ -525,6 +525,8 @@ export function QuarterlyUpdateWorkspace() {
         tab: currentTab,
         year: submitYear,
         quarter: submitQuarter,
+        record_count: total,
+        target_name: `${submitYear} Q${submitQuarter} · ${currentTab} 季度填报`,
       });
       await syncDraftToServer(mergedDraft(), currentTab);
       setCompletionNotice({ total, regular: regularRows.length, future: futureRows.length });

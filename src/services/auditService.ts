@@ -84,10 +84,10 @@ export const auditMetricsInsert = (buildingId: string, buildingName: string, yea
 export const auditSubmitData = (year: number, quarter: number, buildingCount: number) => audit(ACTION_TYPES.SUBMIT_DATA, { year, quarter, building_count: buildingCount });
 export const auditExportData = (exportType: string, recordCount: number, filters?: unknown) => audit(ACTION_TYPES.EXPORT_DATA, { export_type: exportType, record_count: recordCount, filters });
 export const auditViewBuilding = (buildingId: string, buildingName: string) => audit(ACTION_TYPES.VIEW_BUILDING, { building_id: buildingId, building_name: buildingName });
-export const auditPageView = (page: string) => audit(ACTION_TYPES.PAGE_VIEW, { page });
+export const auditPageView = (page: string) => audit(ACTION_TYPES.PAGE_VIEW, { page }, { targetName: page });
 export const auditSearch = (keyword: string, module: string) => audit(ACTION_TYPES.SEARCH, { keyword, module });
-export const auditMapFilter = (filters: Record<string, unknown>) => audit(ACTION_TYPES.MAP_FILTER, { filters });
-export const auditEnterModule = (module: string) => audit(ACTION_TYPES.ENTER_MODULE, { module });
+export const auditMapFilter = (filters: Record<string, unknown>) => audit(ACTION_TYPES.MAP_FILTER, { filters }, { module: 'map', targetName: '地图筛选' });
+export const auditEnterModule = (module: string) => audit(ACTION_TYPES.ENTER_MODULE, { module }, { module, targetName: module });
 
 export const AuditService = {
   audit, auditSampled, setCurrentUser, clearCurrentUser,

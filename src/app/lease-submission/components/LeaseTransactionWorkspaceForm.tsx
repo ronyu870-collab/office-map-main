@@ -632,6 +632,9 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         district: data.district,
         year: data.transaction_year,
         quarter: data.transaction_quarter,
+        target_table: 'lease_transactions',
+        target_id: result.data.id,
+        target_name: `${data.company} · ${data.new_building}`,
       });
       persistRecentBuilding(data.new_building);
       setSubmittedRecord(result.data);

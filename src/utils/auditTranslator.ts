@@ -13,6 +13,50 @@ export interface BadgeStyle {
   className: string;
 }
 
+const MODULE_LABELS: Record<string, string> = {
+  home: '首页',
+  map: '楼宇地图',
+  compare: '楼宇对比',
+  update: '季度填报',
+  'lease-submission': '租赁成交',
+  oss: '研究资料库',
+  admin: '管理后台',
+  bi: '商业分析',
+  intelligence: '业务智能',
+  settings: '设置',
+  login: '登录页',
+};
+
+function moduleLabel(value: unknown): string {
+  const key = typeof value === 'string' ? value.trim() : '';
+  return MODULE_LABELS[key] || key || '未知模块';
+}
+
+function pageLabel(value: unknown): string {
+  const page = typeof value === 'string' ? value.trim() : '';
+  if (!page || page === '/') return '首页';
+  const module = page.split('/').filter(Boolean)[0] || 'home';
+  return MODULE_LABELS[module] || page;
+}
+
+function periodLabel(year: unknown, quarter: unknown): string {
+  if (!year && !quarter) return '';
+  const q = quarter == null ? '' : String(quarter).toUpperCase().startsWith('Q') ? String(quarter).toUpperCase() : `Q${quarter}`;
+  return [year, q].filter(Boolean).join(' ');
+}
+
+function exportDataLabel(payload: Record<string, any>): string {
+  if (payload.table_label) return String(payload.table_label);
+  const byType: Record<string, string> = {
+    quarterly_submission_session: '季度填报单次提交',
+    quarterly_submissions: '季度填报汇总',
+    future_supply_submissions: '未来供应数据',
+    admin_table: payload.table ? String(payload.table) : '后台数据',
+  };
+  const type = String(payload.export_type ?? payload.exportType ?? '');
+  return byType[type] || String(payload.dataset ?? payload.export_type ?? payload.exportType ?? '数据');
+}
+
 // ─── 翻译引擎 ────────────────────────────────────────────────────────────────
 
 /**
@@ -24,11 +68,11 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   switch (action) {
     // 搜索 / 查询
     case "SEARCH":
-      return `在「${p.module ?? "未知模块"}」板块搜索了关键词："${p.keyword ?? p.query ?? ""}"`;
+      return `在「${moduleLabel(p.module)}」搜索了关键词："${p.keyword ?? p.query ?? ""}"`;
     case "LOOKUP_LEASE_COMPANY_HISTORY":
       return `查询了企业历史成交：${p.company ?? '未提供企业名称'}${p.match_count !== undefined ? `（匹配 ${p.match_count} 条）` : ''}`;
     case "FILTER":
-      return `在「${p.module ?? "未知模块"}」板块应用了筛选条件`;
+      return `在「${moduleLabel(p.module)}」应用了筛选条件`;
 
     // 认证
     case "LOGIN":
@@ -41,8 +85,11 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `导出了「${p.chartName ?? p.chart_name ?? "图表"}」`;
     case "EXPORT_TABLE":
       return `导出了「${p.tableName ?? p.table_name ?? "数据表"}」`;
-    case "EXPORT_REPORT":
-      return `导出了报告：「${p.reportName ?? p.report_name ?? "未命名报告"}」${p.candidate_count !== undefined ? `（${p.candidate_count} 个候选项目）` : ''}`;
+    case "EXPORT_REPORT": {
+      const reportName = p.reportName ?? p.report_name ?? "未命名报告";
+      const verb = p.export_method === 'browser_print_pdf' ? '发起打印 / 导出报告' : '导出了报告';
+      return `${verb}：「${reportName}」${p.candidate_count !== undefined ? `（${p.candidate_count} 个候选项目）` : ''}`;
+    }
 
     // 公告
     case "UPDATE_NOTICE":
@@ -78,13 +125,13 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 
     // 地图
     case "ENTER_MODULE":
-      return p.module ? `进入了「${p.module}」板块` : "进入了系统板块";
+      return p.module ? `进入了「${moduleLabel(p.module)}」` : "进入了系统板块";
     case "ACCESS_DENIED":
       return `尝试访问无权限板块：「${p.module ?? "未知模块"}」`;
     case "VIEW_BUILDING":
       return `查看了楼宇详情：「${p.buildingName ?? p.building_name ?? p.buildingId ?? p.building_id ?? "未知楼宇"}」`;
     case "EXPORT_MAP_DATA":
-      return "导出了地图数据";
+      return `导出了地图数据${p.file_name ? ` · ${p.file_name}` : ''}`;
     case "VIEW_BI_CHART": {
       const tabName = p.tab === 'submarket' ? '子市场分析' : p.tab === 'pe' ? '私募板块' : p.tab === 'lease' ? '租赁成交分析' : p.tab ?? '';
       return `查看了商业分析图表：「${tabName}」`;
@@ -104,10 +151,15 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 
     case "SUBMIT_QUARTERLY_DATA": {
       const count = p.buildingCount ?? p.building_count ?? p.count;
-      return `提交了季度数据${count !== undefined ? `（${count} 条）` : ""}${p.year && p.quarter ? ` · ${p.year} Q${p.quarter}` : ""}`;
+      const period = periodLabel(p.year, p.quarter);
+      const category = p.tab ? ` · ${p.tab}` : '';
+      return `提交了季度数据${period ? ` · ${period}` : ''}${category}${count !== undefined ? `（${count} 条）` : ""}`;
     }
-    case "SUBMIT_LEASE_TRANSACTION":
-      return `提交了租赁成交记录${p.company ? `：「${p.company}」` : ""}${p.area ? ` ${p.area}㎡` : ""}`;
+    case "SUBMIT_LEASE_TRANSACTION": {
+      const object = [p.company, p.building].filter(Boolean).join(' · ');
+      const period = periodLabel(p.year, p.quarter);
+      return `提交了租赁成交${object ? `：「${object}」` : ''}${p.area ? ` · ${p.area}㎡` : ''}${period ? ` · ${period}` : ''}`;
+    }
     case "DATA_INSERT":
       return `新增了${p.table ?? '数据'}记录${p.recordName ? `：「${p.recordName}」` : ''}`;
     case "DATA_UPDATE":
@@ -123,7 +175,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "SUBMIT_LEASE":
       return "提交了租赁成交记录";
     case "EXPORT_DATA": {
-      const label = p.table_label ?? p.dataset ?? p.export_type ?? p.exportType ?? '数据';
+      const label = exportDataLabel(p);
       const count = p.record_count ?? p.recordCount ?? p.count;
       const filename = p.file_name ?? p.filename;
       return `导出了「${label}」${count !== undefined ? `（${count} 条）` : ''}${filename ? ` · ${filename}` : ''}`;
@@ -135,7 +187,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "EXPORT_BACKUP":
       return `下载了系统数据备份${p.table_count ? `（${p.table_count} 张表）` : ''}${p.file_name ? ` · ${p.file_name}` : ''}`;
     case "PAGE_VIEW":
-      return `浏览了页面：${p.page ?? ''}`;
+      return `浏览了「${pageLabel(p.page)}」页面`;
     case "CHANGE_PASSWORD":
       return p.success === false ? "修改密码失败" : "修改了登录密码";
     case "LOGIN_FAILED":
@@ -145,8 +197,12 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `创建了云盘文件夹：「${p.folderName ?? p.path ?? ""}」`;
     case "OSS_UPLOAD":
       return `上传了文件到云盘：「${p.fileName ?? p.file_name ?? p.path ?? ""}」`;
-    case "OSS_FILE_ACCESS":
-      return `打开 / 下载了研究资料：「${p.display_name ?? p.file_name ?? p.fileName ?? "未知文件"}」`;
+    case "OSS_FILE_ACCESS": {
+      const name = p.display_name ?? p.file_name ?? p.fileName ?? "未知文件";
+      if (p.access_method === 'download') return `下载了研究资料：「${name}」`;
+      if (p.access_method === 'preview') return `预览了研究资料：「${name}」`;
+      return `访问了研究资料：「${name}」`;
+    }
     case "OSS_DELETE":
       return `删除了云盘文件：「${p.fileName ?? p.path ?? ""}」`;
     case "OSS_BATCH_DELETE":

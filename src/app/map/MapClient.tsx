@@ -141,7 +141,39 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const lastFetchedLine = React.useRef<string | null>(null);
   const intelligenceAutoFitDoneRef = React.useRef(false);
   const intelligenceAuditDoneRef = React.useRef(false);
+  const filterAuditTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingFilterAuditRef = React.useRef<SidebarFilterState | null>(null);
   const [intelligenceCandidatesResolved, setIntelligenceCandidatesResolved] = React.useState(false);
+
+  const queueSettledFilterAudit = React.useCallback((state: SidebarFilterState) => {
+    pendingFilterAuditRef.current = state;
+    if (filterAuditTimerRef.current) window.clearTimeout(filterAuditTimerRef.current);
+    filterAuditTimerRef.current = window.setTimeout(() => {
+      const settled = pendingFilterAuditRef.current;
+      pendingFilterAuditRef.current = null;
+      filterAuditTimerRef.current = null;
+      if (!settled) return;
+      logAction(undefined, 'MAP_FILTER', {
+        filter: JSON.stringify(settled),
+        settled: true,
+        target_name: '地图筛选',
+      });
+    }, 900);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (filterAuditTimerRef.current) window.clearTimeout(filterAuditTimerRef.current);
+    const settled = pendingFilterAuditRef.current;
+    pendingFilterAuditRef.current = null;
+    if (settled) {
+      logAction(undefined, 'MAP_FILTER', {
+        filter: JSON.stringify(settled),
+        settled: true,
+        source: 'unmount_flush',
+        target_name: '地图筛选',
+      });
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!initialIntelligenceHandoff || intelligenceAuditDoneRef.current) return;
@@ -381,8 +413,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       return state;
     });
     if (isDefault && !hasOtherWorkspaceState) setIsListVisible(false);
-    logAction(appSession?.user?.email || '未知用户', 'MAP_FILTER', { filter: JSON.stringify(state) });
-  }, [activeCompareGroups.length, appSession?.user?.email, keyword]);
+    queueSettledFilterAudit(state);
+  }, [activeCompareGroups.length, keyword, queueSettledFilterAudit]);
 
   const handleCompareGroupsChange = React.useCallback((groups: CompareGroup[]) => {
     setCompareGroups(groups);
