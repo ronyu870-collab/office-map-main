@@ -355,6 +355,7 @@ function renderSignature(
   mode: RenderMode,
   groups: any[] | undefined,
   objectTokens: WeakMap<object, number>,
+  metricCache: WeakMap<object, any | null>,
   nextToken: () => number,
 ): string {
   let hash = 2166136261;
@@ -372,7 +373,7 @@ function renderSignature(
       token = objectTokens.get(building) ?? nextToken();
       if (!objectTokens.has(building)) objectTokens.set(building, token);
     }
-    const metric = latestMetric(building);
+    const metric = latestMetric(building, metricCache);
     feed([
       building?.id ?? '',
       token,
@@ -965,6 +966,7 @@ export function installNativeMarkerRenderer(
       mode,
       groups,
       objectTokens,
+      metricCache,
       () => tokenCounter++,
     );
     if (signature === lastSignature) {
