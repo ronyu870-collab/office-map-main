@@ -70,6 +70,13 @@ function intersectIds(current: Set<string> | null, next: Set<string>): Set<strin
   return result;
 }
 
+function matchesKeyword(building: BuildingWithMetrics, keyword: string): boolean {
+  const query = keyword.trim().toLocaleLowerCase();
+  if (!query) return true;
+  return [building.name, building.submarket, building.owner, building.property_management]
+    .some(value => String(value ?? '').toLocaleLowerCase().includes(query));
+}
+
 function matchesCompareGroup(building: BuildingWithMetrics, group: CompareGroup): boolean {
   if (group.submarkets.length > 0 && (!building.submarket || !group.submarkets.includes(building.submarket))) {
     return false;
@@ -203,8 +210,8 @@ export class MapDataStore {
     // Preserve the existing comparison contract: compare groups operate on the
     // complete fetched dataset and ignore the global filter state.
     if (compareGroups.length > 0) {
-      return this.buildings.filter(building => {
-        if (keyword && !(building.name?.includes(keyword) || building.submarket?.includes(keyword))) return false;
+      return this.getRoleVisible(request.role).filter(building => {
+        if (!matchesKeyword(building, keyword)) return false;
         return compareGroups.some(group => matchesCompareGroup(building, group));
       });
     }
@@ -238,7 +245,7 @@ export class MapDataStore {
       : roleVisibleBuildings;
 
     return candidates.filter(building => {
-      if (keyword && !(building.name?.includes(keyword) || building.submarket?.includes(keyword))) return false;
+      if (!matchesKeyword(building, keyword)) return false;
       if (!matchesNumericFilters(building, filterState)) return false;
 
       if (filterState.subwayStation && filterState.subwayDistance && request.calculateDistance) {
