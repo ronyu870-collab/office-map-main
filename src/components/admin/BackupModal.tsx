@@ -4,6 +4,7 @@ import { supabase } from '@/src/services/supabaseClient'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { Button, Dialog, Input } from '@/src/components/ui'
+import { logAction } from '@/src/utils/audit'
 
 const BACKUP_TABLES = [
   { table: 'buildings', label: '楼宇基础信息' },
@@ -112,7 +113,14 @@ export function BackupModal({ onClose }: BackupModalProps) {
       zip.file('备份说明.txt', info)
 
       const blob = await zip.generateAsync({ type: 'blob' })
-      saveAs(blob, `colliers-backup-${timestamp}.zip`)
+      const filename = `colliers-backup-${timestamp}.zip`
+      saveAs(blob, filename)
+      logAction(undefined, 'EXPORT_BACKUP', {
+        table_count: BACKUP_TABLES.length,
+        file_name: filename,
+        file_size_bytes: blob.size,
+        target_name: filename,
+      })
       setPhase('done')
     } catch (e: any) {
       setErrorMsg(e.message || '备份失败')
