@@ -96,7 +96,7 @@ const BUILDINGS = [
     owner: '华润置地',
     district: '朝阳区',
     submarket: 'CBD',
-    leed_certification: 'GOLD',
+    leed_certification: 'Gold',
     location_lng: 116.46,
     location_lat: 39.91,
     metrics: [
