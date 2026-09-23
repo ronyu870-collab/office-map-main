@@ -128,6 +128,7 @@ describe('MapClient render mode synchronization', () => {
         BUILDINGS,
         'default',
         expect.anything(),
+        undefined,
       );
     });
 
