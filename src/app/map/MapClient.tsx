@@ -3,7 +3,6 @@
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import type { SidebarFilterState, CompareGroup, SidebarFilterCommand } from '@/src/components/SidebarFilter';
-import { getSession } from '@/src/services/Auth';
 import { useAppSession } from '@/src/components/SessionProvider';
 import type { MapController } from '@/src/services/MapController';
 // 🌟 1. 引入日志工具
@@ -17,7 +16,9 @@ import {
   buildFutureSupplyCalendar,
   categorizeSupply,
   computeStatsFromBuildings,
+  createDefaultFilterState,
   isDefaultFilterState,
+  normalizeMapSubmarket,
   type MapStatsState,
   type RenderMode,
 } from './model/mapDomain';
@@ -137,7 +138,6 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   
   const [currentSubwayStations, setCurrentSubwayStations] = React.useState<any[]>([]);
   const lastFetchedLine = React.useRef<string | null>(null);
-  const initialRenderDone = React.useRef(false);
   const intelligenceAutoFitDoneRef = React.useRef(false);
   const intelligenceAuditDoneRef = React.useRef(false);
   const [intelligenceCandidatesResolved, setIntelligenceCandidatesResolved] = React.useState(false);
@@ -155,6 +155,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const [mapError, setMapError] = React.useState<string | null>(null);
   const [mapDataLoading, setMapDataLoading] = React.useState(false);
   const filterFrameSchedulerRef = React.useRef<LatestFrameScheduler | null>(null);
+  const futureSupplyRequestTokenRef = React.useRef(0);
+  const hoveredBuildingIdRef = React.useRef<string | null>(null);
 
   const getFilterFrameScheduler = React.useCallback(() => {
     if (!filterFrameSchedulerRef.current) {
@@ -249,41 +251,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
 
-  // 初始渲染：只执行一次，确保首次加载必定渲染
-  React.useEffect(() => {
-    if (!mapReady || !controllerRef.current || allBuildings.length === 0) return;
-    if (initialRenderDone.current) return;
-    initialRenderDone.current = true;
-    if (initialIntelligenceHandoff) return;
-    const ctrl = controllerRef.current;
-    ctrl.clearCompetitorElements();
-    ctrl.clearDistrictBoundaries();
-    ctrl.clearSubwayElements();
-    ctrl.renderMarkers(allBuildings, 'default', districtLeedStats);
-    setFilteredBuildings(allBuildings);
-    setStats(computeStatsFromBuildings(allBuildings));
-  }, [mapReady, allBuildings, filterState, districtLeedStats]);
-
-  // 地图显示模式与筛选面板状态必须解耦。首次进入地图时 filterState 为 null，
-  // 因此不能只依赖下面的筛选 effect 触发 marker 重建；否则按钮状态会切换，
-  // 但大气泡 / 小点 / 楼宇气泡仍停留在 default 配色。
-  React.useEffect(() => {
-    if (!mapReady || !controllerRef.current || allBuildings.length === 0 || filterState) return;
-    if (!initialRenderDone.current || competitorModeRef.current) return;
-
-    const ctrl = controllerRef.current;
-    ctrl.renderMarkers(
-      allBuildings,
-      renderMode,
-      districtLeedStats,
-      compareGroups.length > 0 ? compareGroups : undefined,
-    );
-  }, [mapReady, allBuildings, filterState, renderMode, districtLeedStats, compareGroups]);
-
   // 用户交互筛选后的过滤逻辑
   React.useEffect(() => {
     const scheduler = getFilterFrameScheduler();
-    if (!mapReady || !controllerRef.current || allBuildings.length === 0 || !filterState) {
+    const futureSupplyRequestToken = ++futureSupplyRequestTokenRef.current;
+    if (!mapReady || !controllerRef.current || allBuildings.length === 0) {
       scheduler.cancel();
       return;
     }
@@ -291,20 +263,20 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     scheduler.schedule(() => {
       const ctrl = controllerRef.current;
       if (!ctrl) return;
+      const activeFilterState = filterState ?? createDefaultFilterState();
 
-    // 清除竞品分析元素（重置时淡黄色圆圈消失）
-    ctrl.clearCompetitorElements();
+    if (competitorModeRef.current) ctrl.clearCompetitorElements();
 
-    if (filterState.showBoundaries) {
-      const distToDraw = filterState.districts?.length > 0 ? filterState.districts : MOCK_DISTRICTS;
+    if (activeFilterState.showBoundaries) {
+      const distToDraw = activeFilterState.districts?.length > 0 ? activeFilterState.districts : MOCK_DISTRICTS;
       ctrl.drawDistrictBoundaries(distToDraw);
     } else {
       ctrl.clearDistrictBoundaries();
     }
 
-    if (filterState.subwayLine) {
-      if (lastFetchedLine.current !== filterState.subwayLine) {
-         const lineToFetch = filterState.subwayLine;
+    if (activeFilterState.subwayLine) {
+      if (lastFetchedLine.current !== activeFilterState.subwayLine) {
+         const lineToFetch = activeFilterState.subwayLine;
          lastFetchedLine.current = lineToFetch;
          setCurrentSubwayStations(prev => prev.length > 0 ? [] : prev);
          ctrl.fetchAndDrawSubwayLine(lineToFetch).then((stations: any[]) => {
@@ -314,8 +286,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
            }
          });
       }
-      if (filterState.subwayStation && filterState.subwayDistance) {
-         ctrl.drawSubwayRadius(filterState.subwayStation, filterState.subwayDistance);
+      if (activeFilterState.subwayStation && activeFilterState.subwayDistance) {
+         ctrl.drawSubwayRadius(activeFilterState.subwayStation, activeFilterState.subwayDistance);
       } else {
          if (ctrl.radiusCircle) { ctrl.map.remove(ctrl.radiusCircle); ctrl.radiusCircle = null; }
          if (ctrl.stationMarker) { ctrl.map.remove(ctrl.stationMarker); ctrl.stationMarker = null; }
@@ -328,7 +300,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // ================ 核心过滤引擎 ================
     const filtered = mapDataStoreRef.current.filter({
-      filterState,
+      filterState: activeFilterState,
       compareGroups,
       keyword,
       role: userRoleRef.current,
@@ -353,46 +325,55 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     }
 
     // ================= 🌟 未来新增供应分支逻辑 (修复后) =================
-    if (filterState.showFutureSupply) {
+    if (activeFilterState.showFutureSupply) {
       void (async () => {
         try {
           const supplies = await ctrl.fetchFutureSupplies();
+          if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           let filteredSupplies = supplies;
 
-          // 给未来供应加上搜索词(keyword)的过滤
+          const selectedSubmarkets = new Set(activeFilterState.submarkets.map(normalizeMapSubmarket));
+          filteredSupplies = filteredSupplies.filter((s: any) => {
+            const district = String(s?.district ?? '').trim();
+            const submarket = normalizeMapSubmarket(s?.submarket);
+            return activeFilterState.districts.includes(district) && selectedSubmarkets.has(submarket);
+          });
+
           if (keyword) {
-            filteredSupplies = filteredSupplies.filter((s: any) => 
-              s.name?.includes(keyword) || s.submarket?.includes(keyword)
+            const query = keyword.trim().toLocaleLowerCase();
+            filteredSupplies = filteredSupplies.filter((s: any) =>
+              [s?.name, s?.submarket, s?.district, s?.owner]
+                .some(value => String(value ?? '').toLocaleLowerCase().includes(query))
             );
           }
           
           // 使用 futureSupplyGrades 细分选项过滤未来供应
-          if (filterState.futureSupplyGrades) {
-            if (filterState.futureSupplyGrades.length === 0) {
+          if (activeFilterState.futureSupplyGrades) {
+            if (activeFilterState.futureSupplyGrades.length === 0) {
               filteredSupplies = []; 
             } else {
               filteredSupplies = filteredSupplies.filter((s: any) => {
                 const sGrade = (s.grade || '').toUpperCase();
                 if (!sGrade) return false; 
-                if (filterState.futureSupplyGrades.includes('BP') && sGrade.includes('BP')) return true;
-                if (filterState.futureSupplyGrades.includes('A') && (sGrade.includes('A') || sGrade.includes('P')) && !sGrade.includes('BP')) return true;
-                if (filterState.futureSupplyGrades.includes('B') && sGrade.includes('B') && !sGrade.includes('BP')) return true;
+                if (activeFilterState.futureSupplyGrades.includes('BP') && sGrade.includes('BP')) return true;
+                if (activeFilterState.futureSupplyGrades.includes('A') && (sGrade.includes('A') || sGrade.includes('P')) && !sGrade.includes('BP')) return true;
+                if (activeFilterState.futureSupplyGrades.includes('B') && sGrade.includes('B') && !sGrade.includes('BP')) return true;
                 return false;
               });
             }
           }
           
           // CL-015: 年份筛选
-          if (filterState.futureSupplyYears && filterState.futureSupplyYears.length > 0) {
+          if (activeFilterState.futureSupplyYears && activeFilterState.futureSupplyYears.length > 0) {
             filteredSupplies = filteredSupplies.filter((s: any) => {
               const category = categorizeSupply(s);
-              return filterState.futureSupplyYears.includes(category);
+              return activeFilterState.futureSupplyYears.includes(category);
             });
-          } else if (filterState.futureSupplyYears) {
+          } else if (activeFilterState.futureSupplyYears) {
             filteredSupplies = [];
           }
 
-          // 🌟 新增：保存过滤后的未来供应数据到状态
+          if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           setFilteredFutureSupplies(filteredSupplies);
           if (!competitorModeRef.current) {
             ctrl.renderFutureMarkers(filteredSupplies, renderMode);
@@ -409,7 +390,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // 筛选只改变显示内容，不应移动用户正在查看的地图视野。
     // 当用户从任意筛选状态恢复为默认条件时，才回到初始大气泡总览。
-    const hasActiveFilters = !isDefaultFilterState(filterState);
+    const hasActiveFilters = !isDefaultFilterState(activeFilterState);
     if (!hasActiveFilters && hadActiveFiltersRef.current && !keyword) {
       ctrl.resetToDefaultView?.();
     }
@@ -425,26 +406,15 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   }, [filterState, keyword, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler]);
 
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
-    setUserHasInteracted(true);
+    const isDefault = isDefaultFilterState(state);
+    setUserHasInteracted(!isDefault);
     setFilterState(prev => {
       if (prev?.subwayLine !== state.subwayLine) setCurrentSubwayStations([]);
       return state;
     });
-    // 筛选全部清除时自动隐藏列表并重置交互状态
-    const hasAny =
-      state.districts.length > 0 ||
-      state.submarkets.length > 0 ||
-      state.leeds.length > 0 ||
-      state.projectTypes.length > 0 ||
-      state.subwayLine !== null ||
-      state.numericFilters.length > 0;
-    if (!hasAny) {
-      setIsListVisible(false);
-      setUserHasInteracted(false);
-      setFilterState(null);
-    }
-    logAction(undefined, 'MAP_FILTER', { filter: JSON.stringify(state) });
-  }, []);
+    if (isDefault) setIsListVisible(false);
+    logAction(appSession?.user?.email || '未知用户', 'MAP_FILTER', { filter: JSON.stringify(state) });
+  }, [appSession?.user?.email]);
 
   const handleCompareGroupsChange = React.useCallback((groups: CompareGroup[]) => {
     setCompareGroups(groups);
@@ -454,8 +424,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const handleBuildingHover = React.useCallback((buildingId: string | null) => {
     if (!controllerRef.current) return;
     const ctrl = controllerRef.current;
+    const previousId = hoveredBuildingIdRef.current;
+    if (previousId && previousId !== buildingId) ctrl.stopBounceMarker(previousId);
     if (buildingId) {
       ctrl.bounceMarker(buildingId);
+      hoveredBuildingIdRef.current = buildingId;
+    } else {
+      if (previousId) ctrl.stopBounceMarker(previousId);
+      hoveredBuildingIdRef.current = null;
     }
   }, []);
 
@@ -475,31 +451,32 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     // 地图平滑移动到楼宇位置并放大
     ctrl.map.setZoomAndCenter(16, [lng, lat], false, 500);
     
-    // 延迟打开信息窗口，等待地图移动完成
     setTimeout(() => {
-      ctrl.openBuildingInfoWindow(building.id);
+      if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
+      else ctrl.openBuildingInfoWindow(building.id);
     }, 600);
 
-    getSession().then(s => logAction(s?.user?.email || '未知用户', 'VIEW_BUILDING', { buildingId: building.id, buildingName: building.name })).catch(() => {});
-  }, [mapReady]);
+    logAction(appSession?.user?.email || '未知用户', 'VIEW_BUILDING', {
+      buildingId: building.id,
+      buildingName: building.name,
+      dataType: building._dataType || 'existing',
+    });
+  }, [appSession?.user?.email, mapReady]);
 
   // 🌟 2. 抽离出的地图搜索处理函数及埋点逻辑
-  const handleSearch = async (val: string) => {
+  const handleSearch = (val: string) => {
     const trimmed = val.trim();
     setKeyword(trimmed);
     if (trimmed) setUserHasInteracted(true);
-    
-    if (trimmed !== '') {
-      try {
-        const session = await getSession();
-        const userEmail = session?.user?.email || '未知用户';
-        // 记录搜索行为到数据库
-        logAction(userEmail, 'SEARCH', { keyword: trimmed, module: 'map' });
-      } catch (e) {
-        // 静默处理错误，不影响用户正常使用
-      }
+    if (trimmed) {
+      logAction(appSession?.user?.email || '未知用户', 'SEARCH', { keyword: trimmed, module: 'map' });
     }
   };
+
+  const handleRenderModeChange = React.useCallback((mode: RenderMode) => {
+    if (competitorBuildings !== null) controllerRef.current?.clearCompetitorElements?.();
+    setRenderMode(mode);
+  }, [competitorBuildings]);
 
   // 新增：一键导出地图数据
   const handleExportMapData = async () => {
@@ -513,7 +490,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       const { downloadAmapData } = await import('@/src/utils/exportMapData');
       const AMap = (window as any).AMap;
       await downloadAmapData(controllerRef.current.getMapInstance(), AMap);
-      getSession().then(s => logAction(s?.user?.email || '未知用户', 'EXPORT_MAP_DATA', {})).catch(() => {});
+      logAction(appSession?.user?.email || '未知用户', 'EXPORT_MAP_DATA', {});
       alert('✅ 数据导出成功！请将下载的 beijing_map_data.json 文件放到 public/data/ 目录下');
     } catch (error) {
       console.error('导出失败:', error);
@@ -533,6 +510,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         futureSuppliesCount={futureSupplies.length}
         activeFilterChips={activeFilterChips}
         keyword={keyword}
+        filterState={filterState}
         renderMode={renderMode}
         isFilterPanelOpen={isFilterPanelOpen}
         isSupplyOpen={isSupplyOpen}
@@ -560,7 +538,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         onSearch={handleSearch}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
         onResetFilters={() => issueFilterCommand('reset')}
-        onRenderModeChange={setRenderMode}
+        onRenderModeChange={handleRenderModeChange}
         onOpenList={() => setIsListVisible(true)}
         onCloseList={() => setIsListVisible(false)}
         onRetryMap={() => {
@@ -582,7 +560,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
           onSave={async () => {
             if (controllerRef.current) {
               try {
-                await controllerRef.current.refreshBuildingData(editingBuilding.id);
+                const controller = controllerRef.current;
+                await controller.refreshBuildingData(editingBuilding.id);
+                await loadMapData(controller);
               } catch (err) {
                 console.error('刷新地图数据失败:', err);
               }
