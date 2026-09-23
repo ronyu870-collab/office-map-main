@@ -190,20 +190,42 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
     setTypeFilter('all');
   };
 
-  const openLibraryFile = React.useCallback((item: ResearchLibraryItem, source: string) => {
-    if (item.type !== 'file' || !item.url) return;
-    logAction(userEmail, 'OSS_FILE_ACCESS', {
-      file_name: item.name,
-      display_name: itemDisplayName(item),
-      file_type: classifyLibraryItem(item),
-      folder: currentPrefix || '/',
-      size: item.size || null,
-      access_method: 'open_or_download',
-      source,
-      target_name: itemDisplayName(item),
-    });
-    window.open(item.url, '_blank', 'noopener,noreferrer');
-  }, [currentPrefix, userEmail]);
+  const openLibraryFile = React.useCallback((item: ResearchLibraryItem, accessMethod: 'preview' | 'download', source: string) => {
+    if (item.type !== 'file') return;
+
+    const popup = window.open('about:blank', '_blank');
+    if (!popup) {
+      setNotice({ tone: 'warning', text: '浏览器拦截了新窗口，请允许弹窗后重试。' });
+      return;
+    }
+    popup.opener = null;
+
+    void (async () => {
+      try {
+        const headers = await authHeaders();
+        const response = await fetch('/api/oss?action=access', {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_name: item.name,
+            display_name: itemDisplayName(item),
+            file_type: classifyLibraryItem(item),
+            file_size_bytes: item.sizeBytes ?? null,
+            access_method: accessMethod,
+            source,
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.status !== 'success' || typeof result.url !== 'string') {
+          throw new Error(result.message || '资料访问失败');
+        }
+        popup.location.replace(result.url);
+      } catch (error) {
+        popup.close();
+        setNotice({ tone: 'error', text: error instanceof Error ? error.message : '资料访问失败' });
+      }
+    })();
+  }, []);
 
   const toggleSelected = (name: string) => {
     setSelectedItems((current) => {
@@ -447,11 +469,11 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white md:block">
             <table className="w-full table-fixed text-left text-xs">
               <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-[10px] font-semibold text-slate-500"><tr>{canManage ? <th className="w-10 px-3 py-2.5"><input type="checkbox" aria-label="全选" checked={visibleItems.length > 0 && visibleItems.every((item) => selectedItems.has(item.name))} onChange={() => setSelectedItems((current) => visibleItems.every((item) => current.has(item.name)) ? new Set() : new Set(visibleItems.map((item) => item.name)))} /></th> : null}<th className="px-3 py-2.5">名称</th><th className="w-28 px-3 py-2.5">类型</th><th className="w-28 px-3 py-2.5">大小</th><th className="w-32 px-3 py-2.5">修改时间</th><th className="w-52 px-3 py-2.5 text-right">操作</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">{visibleItems.map((item) => <tr key={item.name} className="transition-colors hover:bg-slate-50/80">{canManage ? <td className="px-3 py-2.5"><input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /></td> : null}<td className="min-w-0 px-3 py-2.5"><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : openLibraryFile(item, 'name')} className="flex max-w-full items-center gap-2 font-medium text-slate-800 transition hover:text-[var(--cd-color-brand)]"><span className="shrink-0 text-slate-400">{item.type === 'folder' ? <Folder size={15} /> : <File size={15} />}</span><span className="truncate" title={itemDisplayName(item)}>{itemDisplayName(item)}</span></button></td><td className="px-3 py-2.5 text-slate-500">{typeLabel(item)}</td><td className="px-3 py-2.5 tabular-nums text-slate-500">{item.type === 'folder' ? '—' : item.size || '—'}</td><td className="px-3 py-2.5 text-slate-500">{formatDate(item.lastModified)}</td><td className="px-3 py-2.5 text-right"><div className="flex justify-end gap-1">{item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openLibraryFile(item, 'action')}><Download size={13} />打开或下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></td></tr>)}</tbody>
+              <tbody className="divide-y divide-slate-100">{visibleItems.map((item) => <tr key={item.name} className="transition-colors hover:bg-slate-50/80">{canManage ? <td className="px-3 py-2.5"><input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /></td> : null}<td className="min-w-0 px-3 py-2.5"><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : openLibraryFile(item, 'preview', 'name')} className="flex max-w-full items-center gap-2 font-medium text-slate-800 transition hover:text-[var(--cd-color-brand)]"><span className="shrink-0 text-slate-400">{item.type === 'folder' ? <Folder size={15} /> : <File size={15} />}</span><span className="truncate" title={itemDisplayName(item)}>{itemDisplayName(item)}</span></button></td><td className="px-3 py-2.5 text-slate-500">{typeLabel(item)}</td><td className="px-3 py-2.5 tabular-nums text-slate-500">{item.type === 'folder' ? '—' : item.size || '—'}</td><td className="px-3 py-2.5 text-slate-500">{formatDate(item.lastModified)}</td><td className="px-3 py-2.5 text-right"><div className="flex justify-end gap-1">{item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openLibraryFile(item, 'download', 'download_button')}><Download size={13} />下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="ghost" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></td></tr>)}</tbody>
             </table>
           </div>
 
-          <div className="divide-y divide-slate-100 overflow-hidden rounded-md border border-slate-200 bg-white md:hidden">{visibleItems.map((item) => <div key={item.name} className="p-3"><div className="flex items-start gap-2"><span className="mt-0.5 shrink-0 text-slate-400">{item.type === 'folder' ? <Folder size={16} /> : <File size={16} />}</span><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : openLibraryFile(item, 'name')} className="min-w-0 flex-1 text-left"><div className="break-words text-xs font-semibold text-slate-800">{itemDisplayName(item)}</div><div className="mt-1 text-[10px] text-slate-400">{typeLabel(item)} · {item.type === 'folder' ? '文件夹' : item.size || '—'} · {formatDate(item.lastModified)}</div></button>{canManage ? <input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /> : null}</div><div className="mt-2 flex flex-wrap justify-end gap-1">{item.type === 'file' ? <Button variant="secondary" size="sm" onClick={() => openLibraryFile(item, 'action')}><Download size={13} />打开或下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="secondary" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></div>)}</div>
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-md border border-slate-200 bg-white md:hidden">{visibleItems.map((item) => <div key={item.name} className="p-3"><div className="flex items-start gap-2"><span className="mt-0.5 shrink-0 text-slate-400">{item.type === 'folder' ? <Folder size={16} /> : <File size={16} />}</span><button type="button" onClick={() => item.type === 'folder' ? void loadReports(item.name) : openLibraryFile(item, 'preview', 'name')} className="min-w-0 flex-1 text-left"><div className="break-words text-xs font-semibold text-slate-800">{itemDisplayName(item)}</div><div className="mt-1 text-[10px] text-slate-400">{typeLabel(item)} · {item.type === 'folder' ? '文件夹' : item.size || '—'} · {formatDate(item.lastModified)}</div></button>{canManage ? <input type="checkbox" aria-label={`选择 ${itemDisplayName(item)}`} checked={selectedItems.has(item.name)} onChange={() => toggleSelected(item.name)} /> : null}</div><div className="mt-2 flex flex-wrap justify-end gap-1">{item.type === 'file' ? <Button variant="secondary" size="sm" onClick={() => openLibraryFile(item, 'download', 'download_button')}><Download size={13} />下载</Button> : null}{canManage && item.type === 'file' ? <Button variant="secondary" size="sm" onClick={() => openRename(item)}><Edit2 size={13} />重命名</Button> : null}{canManage ? <Button variant="ghost" size="sm" className="text-rose-600" onClick={() => openDelete(item)}><Trash2 size={13} />删除</Button> : null}</div></div>)}</div>
         </>}
       </div>
 

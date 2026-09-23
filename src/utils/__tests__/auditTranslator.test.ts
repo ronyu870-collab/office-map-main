@@ -3,10 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { getLogBadgeStyle, parseAuditLog } from '@/src/utils/auditTranslator';
 
 describe('audit translator business semantics', () => {
-  it('renders research-library file access with the accessed file name', () => {
+  it('renders research-library preview/download with the accessed file name', () => {
     expect(parseAuditLog('OSS_FILE_ACCESS', {
       display_name: '2026Q3 北京写字楼市场报告.pdf',
-    })).toContain('2026Q3 北京写字楼市场报告.pdf');
+      access_method: 'download',
+    })).toBe('下载了研究资料：「2026Q3 北京写字楼市场报告.pdf」');
+    expect(parseAuditLog('OSS_FILE_ACCESS', {
+      display_name: '2026Q3 北京写字楼市场报告.pdf',
+      access_method: 'preview',
+    })).toBe('预览了研究资料：「2026Q3 北京写字楼市场报告.pdf」');
+  });
+
+  it('renders page/module names and print-dialog reports as business language', () => {
+    expect(parseAuditLog('PAGE_VIEW', { page: '/compare' })).toBe('浏览了「楼宇对比」页面');
+    expect(parseAuditLog('ENTER_MODULE', { module: 'map' })).toBe('进入了「楼宇地图」');
+    expect(parseAuditLog('EXPORT_REPORT', {
+      report_name: '客户候选方案 · ACME',
+      export_method: 'browser_print_pdf',
+    })).toContain('发起打印 / 导出报告');
   });
 
   it('renders standardized data exports with business label, count and filename', () => {

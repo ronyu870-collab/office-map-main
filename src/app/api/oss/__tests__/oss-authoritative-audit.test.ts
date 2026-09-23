@@ -18,6 +18,7 @@ describe('OSS authoritative audit contract', () => {
     expect(route).toContain("await writeOssAudit(verified, 'OSS_CREATE_FOLDER'");
     expect(route).toContain("await writeOssAudit(verified, 'OSS_DELETE'");
     expect(route).toContain("await writeOssAudit(verified, 'OSS_MOVE'");
+    expect(route).toContain("await writeOssAudit(verified, 'OSS_FILE_ACCESS'");
   });
 
   it('records real partial stats for recursive folder mutations', () => {
@@ -32,6 +33,15 @@ describe('OSS authoritative audit contract', () => {
     expect(route).toContain("const message = '新文件已创建，但旧文件未能删除'");
     expect(route).toContain("outcome: 'partial'");
     expect(route).toContain("}, 'oss/move-file-delete-source', oldKey)");
+  });
+
+  it('issues file URLs through the authenticated server audit path and distinguishes preview from download', () => {
+    expect(route).toContain("if (action === 'access')");
+    expect(route).toContain("accessMethod === 'download'");
+    expect(route).toContain("'content-disposition'");
+    expect(manager).toContain("fetch('/api/oss?action=access'");
+    expect(manager).toContain("'preview' | 'download'");
+    expect(manager).not.toContain("logAction(userEmail, 'OSS_FILE_ACCESS'");
   });
 
   it('keeps direct browser upload and aggregate batch audit while removing duplicate item mutation events', () => {

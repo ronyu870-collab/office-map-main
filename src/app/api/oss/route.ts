@@ -114,7 +114,7 @@ async function requireManager(request: Request) {
 
 async function writeOssAudit(
   verified: VerifiedUser,
-  actionType: 'OSS_CREATE_FOLDER' | 'OSS_DELETE' | 'OSS_MOVE',
+  actionType: 'OSS_CREATE_FOLDER' | 'OSS_DELETE' | 'OSS_MOVE' | 'OSS_FILE_ACCESS',
   details: Record<string, unknown> & { outcome: OssAuditOutcome },
   context: string,
   targetName?: string,
@@ -328,6 +328,52 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
   const requestMode: OssRequestMode = searchParams.get('batch') === '1' ? 'batch' : 'single';
+
+  if (action === 'access') {
+    const auth = await requireUser(request);
+    if (auth.response) return auth.response;
+    const verified = auth.verified;
+    if (!verified) return NextResponse.json({ status: 'error', message: '未授权：请先登录' }, { status: 401 });
+
+    try {
+      const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+      const fileKey = typeof body.file_name === 'string' ? body.file_name.trim() : '';
+      if (!fileKey || fileKey.endsWith('/')) {
+        return NextResponse.json({ status: 'error', message: '缺少有效文件路径' }, { status: 400 });
+      }
+
+      const accessMethod = body.access_method === 'download' ? 'download' : 'preview';
+      const source = typeof body.source === 'string' ? body.source.slice(0, 80) : 'library';
+      const displayName = typeof body.display_name === 'string' && body.display_name.trim()
+        ? body.display_name.trim().slice(0, 500)
+        : fileKey.split('/').filter(Boolean).pop() || fileKey;
+      const folder = fileKey.includes('/') ? fileKey.slice(0, fileKey.lastIndexOf('/') + 1) : '/';
+      const client = getOSSClient();
+      const urlOptions: Record<string, unknown> = { expires: 300 };
+      if (accessMethod === 'download') {
+        urlOptions.response = {
+          'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(displayName)}`,
+        };
+      }
+      const url = client.signatureUrl(fileKey, urlOptions);
+
+      await writeOssAudit(verified, 'OSS_FILE_ACCESS', {
+        file_name: fileKey,
+        display_name: displayName,
+        folder,
+        file_type: typeof body.file_type === 'string' ? body.file_type : undefined,
+        file_size_bytes: typeof body.file_size_bytes === 'number' ? body.file_size_bytes : undefined,
+        access_method: accessMethod,
+        source,
+        outcome: 'success',
+      }, 'oss/file-access', displayName);
+
+      return NextResponse.json({ status: 'success', url });
+    } catch (error) {
+      return NextResponse.json({ status: 'error', message: errorMessage(error) }, { status: 500 });
+    }
+  }
+
   const auth = await requireManager(request);
   if (auth.response) return auth.response;
   const verified = auth.verified;
