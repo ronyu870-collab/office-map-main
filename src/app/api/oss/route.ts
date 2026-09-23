@@ -284,7 +284,7 @@ export async function GET(request: Request) {
     }
 
     if (action === 'get-list') {
-      // 列表本身包含一小时有效的签名下载 URL，因此读取也必须验证登录态。
+      // 列表只返回对象元数据；实际预览/下载 URL 由 access 接口按次签发并完成服务端审计。
       const auth = await requireUser(request);
       if (auth.response) return auth.response;
 
@@ -307,7 +307,6 @@ export async function GET(request: Request) {
           sizeBytes: object.size,
           lastModified: object.lastModified,
           type: 'file' as const,
-          url: client.signatureUrl(object.name, { expires: 3600 }),
         }));
 
       return NextResponse.json({

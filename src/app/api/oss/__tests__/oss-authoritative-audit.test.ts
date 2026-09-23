@@ -42,6 +42,7 @@ describe('OSS authoritative audit contract', () => {
     expect(manager).toContain("fetch('/api/oss?action=access'");
     expect(manager).toContain("'preview' | 'download'");
     expect(manager).not.toContain("logAction(userEmail, 'OSS_FILE_ACCESS'");
+    expect(route).not.toContain("url: client.signatureUrl(object.name");
   });
 
   it('keeps direct browser upload and aggregate batch audit while removing duplicate item mutation events', () => {
