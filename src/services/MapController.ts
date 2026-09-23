@@ -7,6 +7,7 @@
 import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
+import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
@@ -677,14 +678,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         // 用户已明确打开 Trend：让图表运行时和历史数据请求并行，消除串行 waterfall。
         // 仍然保持在 Trend 点击之后才加载，因此不会进入 Map 首屏 bundle。
         const trendRuntimePromise = import("./map/trendChartRuntime");
-        // 获取数据：最新季度 + 前面年份的Q4，最近6年
-        supabase
-          .from("building_metrics")
-          .select("record_year, record_quarter, net_effective_rent, vacancy_rate")
-          .eq("building_id", buildingId)
-          .order("record_year", { ascending: false })
-          .order("record_quarter", { ascending: false })
-          .then(({ data }) => {
+        // 获取数据：最新季度 + 前面年份的Q4，最近6年。通过服务端权限边界读取，
+        // 使真实 viewer 与管理员模拟 viewer 使用完全相同的数据范围。
+        fetchBuildingTrendPayload(buildingId)
+          .then((data) => {
             // 竞态保护：如果用户已切换到其他楼宇，跳过渲染
             if (trend.buildingId !== buildingId) return;
             if (!data?.length) {
@@ -754,6 +751,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 chartDom.innerHTML =
                   '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">趋势图加载失败，请稍后重试</div>';
               });
+          })
+          .catch((error) => {
+            if (trend.buildingId !== buildingId || panel.style.display === "none") return;
+            console.error("[MapController] 历史趋势读取失败:", error);
+            chartDom.innerHTML =
+              '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">历史数据读取失败，请稍后重试</div>';
           });
       };
     }
@@ -1813,87 +1816,56 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   async fetchMapData(): Promise<BuildingWithMetrics[]> {
     if (this._cachedMapDataPromise) return this._cachedMapDataPromise;
     this._cachedMapDataPromise = (async () => {
-      const [buildingsResult, overridesResult] = await Promise.all([
-        supabase
-          .from("buildings")
-          .select("*, building_metrics(*)")
-          .eq("is_active", true)
-          .eq("tracking_scope", "tracked")
-          .or("project_type.neq.future,project_type.is.null"),
-        supabase
-          .from("building_display_overrides")
-          .select("building_id, field_name, display_label, display_value"),
-      ]);
+      const payload = await fetchMapBuildingPayload("all");
 
-      const { data, error } = buildingsResult;
-      if (error) {
-        console.error("[MapController] buildings 查询失败:", error);
-        throw new Error(`查询失败: ${error.message}`);
-      }
-
-      if (overridesResult.data) {
-        this._displayOverridesCache = new Map();
-        for (const override of overridesResult.data) {
-          if (!this._displayOverridesCache.has(override.building_id)) {
-            this._displayOverridesCache.set(override.building_id, new Map());
-          }
-          this._displayOverridesCache.get(override.building_id)!.set(
-            override.field_name,
-            { display_label: override.display_label, display_value: override.display_value }
-          );
+      this._displayOverridesCache = new Map();
+      for (const override of payload.displayOverrides) {
+        if (!this._displayOverridesCache.has(override.building_id)) {
+          this._displayOverridesCache.set(override.building_id, new Map());
         }
-        console.log(`[MapController] 加载 ${overridesResult.data.length} 条显示覆盖规则`);
+        this._displayOverridesCache.get(override.building_id)!.set(
+          override.field_name,
+          { display_label: override.display_label, display_value: override.display_value },
+        );
       }
 
-      const rows = Array.isArray(data) ? data : [];
-      console.log(`[MapController] Supabase 返回 ${rows.length} 条 buildings 记录`);
+      const rows = Array.isArray(payload.buildings) ? payload.buildings : [];
       const buildings: BuildingWithMetrics[] = [];
       let skippedNoCoords = 0;
-      for (const r of rows) {
-        const building = transformBuildingRow(r as Record<string, unknown>);
-        if (building.location_lng === null || building.location_lat === null) {
-          skippedNoCoords++;
-        }
+      for (const row of rows) {
+        const building = transformBuildingRow(row as Record<string, unknown>);
+        if (building.location_lng === null || building.location_lat === null) skippedNoCoords += 1;
         buildings.push(building);
       }
+
       this._allBuildingsCache = buildings.filter(
-        (b) => b.id !== "" && b.name !== "",
+        building => building.id !== "" && building.name !== "",
       );
       console.log(
-        `[MapController] 数据加载: ${this._allBuildingsCache.length} 条建筑, 其中 ${skippedNoCoords} 条无坐标`,
+        `[MapController] 角色范围数据加载: ${this._allBuildingsCache.length} 条建筑, 其中 ${skippedNoCoords} 条无坐标`,
       );
       return this._allBuildingsCache;
     })();
+
     try {
       const buildings = await this._cachedMapDataPromise;
-      // 空结果可能来自认证刚刷新或短暂的 Data API 异常，不能永久缓存。
-      // 保留正常结果缓存，同时允许调用方对异常空结果重新请求。
       if (buildings.length === 0) this._cachedMapDataPromise = null;
       return buildings;
-    } catch (e) {
+    } catch (error) {
       this._cachedMapDataPromise = null;
-      throw e;
+      throw error;
     }
   }
 
   async fetchFutureSupplies(): Promise<any[]> {
-    if (this._cachedFutureSuppliesPromise)
-      return this._cachedFutureSuppliesPromise;
-
-    this._cachedFutureSuppliesPromise = (async () => {
-      const { data, error } = await supabase
-        .from("future_supplies")
-        .select("*")
-        .limit(1000);
-      if (error) throw new Error(`未来供应查询失败: ${error.message}`);
-      return data || [];
-    })();
+    if (this._cachedFutureSuppliesPromise) return this._cachedFutureSuppliesPromise;
+    this._cachedFutureSuppliesPromise = fetchFutureSupplyPayload();
 
     try {
       return await this._cachedFutureSuppliesPromise;
-    } catch (e) {
+    } catch (error) {
       this._cachedFutureSuppliesPromise = null;
-      throw e;
+      throw error;
     }
   }
 
