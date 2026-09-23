@@ -133,8 +133,13 @@ export function SidebarFilter(props: SidebarFilterProps) {
     futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
   }));
 
-  // 当 props 的可选项列表变化时，将新增的选项自动加入已选列表
+  // 当 props 的可选项列表变化时，将新增选项补入；首次挂载必须保留 initialState 的部分选择。
+  const optionsSyncInitializedRef = React.useRef(false);
   React.useEffect(() => {
+    if (!optionsSyncInitializedRef.current) {
+      optionsSyncInitializedRef.current = true;
+      return;
+    }
     setState(prev => {
       const nextDistricts = uniqStrings([...prev.districts, ...districts]);
       const nextSubmarkets = uniqStrings([...prev.submarkets, ...allSubmarkets]);
@@ -227,7 +232,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
       futureSupplyGrades: ['A', 'B', 'BP'],
       futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
     });
-  }, [districts, allSubmarkets]);
+  }, [districts, allSubmarkets, leeds]);
 
   // 允许地图页的已生效条件标签触发单项删除或整体清空，筛选逻辑仍由本组件统一维护。
   React.useEffect(() => {
