@@ -28,7 +28,7 @@ describe('Intelligence → Map handoff contract', () => {
     expect(mapClient).toContain("type: 'patch'");
     expect(mapClient).toContain('intelligenceAutoFitDoneRef');
     expect(mapClient).toContain('intelligenceCandidatesResolved');
-    expect(mapClient).toContain('if (initialIntelligenceHandoff) return;');
+    expect(mapClient).toContain('filterState ?? createDefaultFilterState()');
     expect(mapClient).toContain('ctrl.fitToBuildings(filtered)');
     expect(mapClient).toContain("source: 'intelligence'");
   });
