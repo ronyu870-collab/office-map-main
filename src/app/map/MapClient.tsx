@@ -141,7 +141,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const lastFetchedLine = React.useRef<string | null>(null);
   const intelligenceAutoFitDoneRef = React.useRef(false);
   const intelligenceAuditDoneRef = React.useRef(false);
-  const filterAuditTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filterAuditTimerRef = React.useRef<number | null>(null);
   const pendingFilterAuditRef = React.useRef<SidebarFilterState | null>(null);
   const [intelligenceCandidatesResolved, setIntelligenceCandidatesResolved] = React.useState(false);
 

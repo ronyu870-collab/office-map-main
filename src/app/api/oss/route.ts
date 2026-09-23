@@ -349,7 +349,7 @@ export async function POST(request: Request) {
         : fileKey.split('/').filter(Boolean).pop() || fileKey;
       const folder = fileKey.includes('/') ? fileKey.slice(0, fileKey.lastIndexOf('/') + 1) : '/';
       const client = getOSSClient();
-      const urlOptions: Record<string, unknown> = { expires: 300 };
+      const urlOptions: any = { expires: 300 };
       if (accessMethod === 'download') {
         urlOptions.response = {
           'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(displayName)}`,
