@@ -168,7 +168,7 @@ function MapLegend({ mode, compareGroups }: { mode: RenderMode; compareGroups: C
     },
   };
 
-  const config = mode === 'default' && compareGroups.length > 0
+  const config: { title: string; items: LegendItem[] } = mode === 'default' && compareGroups.length > 0
     ? {
         title: '项目对比组',
         items: compareGroups.map(group => ({
