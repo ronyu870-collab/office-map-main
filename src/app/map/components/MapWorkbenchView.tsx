@@ -49,6 +49,7 @@ type MapWorkbenchViewProps = {
   futureSuppliesCount: number;
   activeFilterChips: ActiveFilterChip[];
   keyword: string;
+  filterState: SidebarFilterState | null;
   renderMode: RenderMode;
   isFilterPanelOpen: boolean;
   isSupplyOpen: boolean;
@@ -249,6 +250,7 @@ export function MapWorkbenchView({
   futureSuppliesCount,
   activeFilterChips,
   keyword,
+  filterState,
   renderMode,
   isFilterPanelOpen,
   isSupplyOpen,
@@ -441,37 +443,41 @@ export function MapWorkbenchView({
           ))}
         </div>
 
-        {isFilterPanelOpen ? (
-          <div className="absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]">
-            <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
-              <div className="text-sm font-semibold text-slate-900">市场筛选</div>
-              <button
-                type="button"
-                onClick={() => onFilterPanelOpenChange(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
-                aria-label="关闭筛选"
-              >
-                <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              <SidebarFilter
-                embedded
-                defaultExpanded
-                title="全局筛选"
-                districts={MAP_DISTRICTS}
-                submarkets={MAP_SUBMARKETS}
-                submarketsSecondary={MAP_SUBMARKETS_SECONDARY}
-                leeds={MAP_LEEDS}
-                subwayLines={MAP_SUBWAYS}
-                availableStations={currentSubwayStations}
-                onFilterChange={onFilterChange}
-                onCompareGroupsChange={onCompareGroupsChange}
-                filterCommand={filterCommand}
-              />
-            </div>
+        <div
+          aria-hidden={!isFilterPanelOpen}
+          className={isFilterPanelOpen
+            ? 'absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'
+            : 'hidden'}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
+            <div className="text-sm font-semibold text-slate-900">市场筛选</div>
+            <button
+              type="button"
+              onClick={() => onFilterPanelOpenChange(false)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
+              aria-label="关闭筛选"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
           </div>
-        ) : null}
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <SidebarFilter
+              embedded
+              defaultExpanded
+              title="全局筛选"
+              districts={MAP_DISTRICTS}
+              submarkets={MAP_SUBMARKETS}
+              submarketsSecondary={MAP_SUBMARKETS_SECONDARY}
+              leeds={MAP_LEEDS}
+              subwayLines={MAP_SUBWAYS}
+              availableStations={currentSubwayStations}
+              initialState={filterState ?? undefined}
+              onFilterChange={onFilterChange}
+              onCompareGroupsChange={onCompareGroupsChange}
+              filterCommand={filterCommand}
+            />
+          </div>
+        </div>
 
         {isSupplyOpen ? (
           <SupplyPanel
