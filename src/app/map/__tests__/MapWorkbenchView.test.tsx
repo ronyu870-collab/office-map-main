@@ -79,6 +79,7 @@ function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
     futureSuppliesCount: 0,
     activeFilterChips: [],
     keyword: '',
+    filterState: null,
     renderMode: 'default',
     isFilterPanelOpen: false,
     isSupplyOpen: false,
@@ -108,7 +109,9 @@ describe('MapWorkbenchView', () => {
 
     expect(document.getElementById('map-container')).toBeInTheDocument();
     expect(screen.getByText('北京办公楼市场地图')).toBeInTheDocument();
-    expect(screen.queryByTestId('sidebar-filter')).not.toBeInTheDocument();
+    const sidebar = screen.getByTestId('sidebar-filter');
+    expect(sidebar).toBeInTheDocument();
+    expect(sidebar.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
   it('routes visual commands through callbacks instead of owning map behavior', () => {
@@ -141,6 +144,7 @@ describe('MapWorkbenchView', () => {
       embedded: true,
       defaultExpanded: true,
       title: '全局筛选',
+      initialState: undefined,
     });
   });
 
