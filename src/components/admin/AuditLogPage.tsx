@@ -158,7 +158,7 @@ export function AuditLogPage() {
       query=query.or(HIGH_RISK_FILTER);
     } else {
       for (const action of BUSINESS_EXCLUDED_ACTIONS) query=query.neq('action_type',action);
-      query=query.neq('request_source','database_trigger');
+      query=query.or('request_source.neq.database_trigger,request_source.is.null');
     }
 
     if(filterUser!=='ALL'){
