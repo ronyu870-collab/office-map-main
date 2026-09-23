@@ -116,7 +116,7 @@ describe('MapDataStore', () => {
     expect(result.map(item => item.id)).toEqual(['target']);
   });
 
-  it('preserves comparison mode semantics by ignoring global filters and using the fetched full dataset', () => {
+  it('keeps comparison groups inside the current role visibility boundary', () => {
     const store = new MapDataStore([
       building('a', { grade: 'A', district: '朝阳区', submarket: 'CBD' }),
       building('b', { grade: 'B', district: '西城区', submarket: '金融街' }),
@@ -125,23 +125,37 @@ describe('MapDataStore', () => {
     const filterState = defaultFilter();
     filterState.districts = ['朝阳区'];
     filterState.projectTypes = ['甲级写字楼'];
+    const compareGroups = [
+      {
+        id: 'group-1',
+        name: '乙级金融街',
+        color: '#000000',
+        submarkets: ['金融街'],
+        grades: ['乙级'],
+        districts: ['西城区'],
+      },
+    ];
+
+    const viewer = store.filter({ filterState, role: 'viewer', compareGroups });
+    const editor = store.filter({ filterState, role: 'editor', compareGroups });
+
+    expect(viewer.map(item => item.id)).toEqual([]);
+    expect(editor.map(item => item.id)).toEqual(['b']);
+  });
+
+  it('searches project owner in addition to building name and submarket', () => {
+    const ownerTarget = building('owner-target', { name: '普通项目', owner: '华润置地' });
+    const other = building('other', { name: '另一项目', owner: '其他业主' });
+    const store = new MapDataStore([ownerTarget, other]);
 
     const result = store.filter({
-      filterState,
-      role: 'viewer',
-      compareGroups: [
-        {
-          id: 'group-1',
-          name: '乙级金融街',
-          color: '#000000',
-          submarkets: ['金融街'],
-          grades: ['乙级'],
-          districts: ['西城区'],
-        },
-      ],
+      filterState: defaultFilter(),
+      compareGroups: [],
+      role: 'editor',
+      keyword: '华润',
     });
 
-    expect(result.map(item => item.id)).toEqual(['b']);
+    expect(result.map(item => item.id)).toEqual(['owner-target']);
   });
 
   it('delegates subway distance math without coupling the store to AMap', () => {
