@@ -32,7 +32,7 @@ const DATABASE_ACTIONS = ['DB_INSERT','DB_UPDATE','DB_DELETE','LEASE_TRANSACTION
 const AUTH_ACTIONS = ['LOGIN','LOGIN_FAILED','LOGOUT'];
 const FILE_ACTIONS = [
   'OSS_FILE_ACCESS','OSS_UPLOAD','OSS_DELETE','OSS_BATCH_DELETE','OSS_CREATE_FOLDER','OSS_MOVE',
-  'EXPORT_DATA','EXPORT_LEASE_TRANSACTIONS','EXPORT_BACKUP','EXPORT_MAP_DATA',
+  'EXPORT_DATA','EXPORT_LEASE_TRANSACTIONS','EXPORT_BACKUP','EXPORT_MAP_DATA','EXPORT_REPORT','EXPORT_TABLE','EXPORT_CHART',
   'EXPORT_CHART','EXPORT_TABLE','EXPORT_REPORT','UPLOAD_FILE','DELETE_FILE','IMPORT_DATA',
 ];
 const HIGH_RISK_ACTIONS = [
@@ -71,6 +71,7 @@ const DETAIL_LABELS: Record<string,string> = {
   subject_user_name:'数据所属人', subject_user_id:'数据所属人 ID', company:'企业', building:'楼宇',
   building_name:'楼宇', module:'模块', reason:'原因', category:'分类', next_status:'状态', status:'状态',
   model:'模型', candidate_count:'候选数', operation:'操作', access_method:'访问方式', source:'入口',
+  report_name:'报告', report_type:'报告类型', export_method:'导出方式',
   size:'文件大小', file_size_bytes:'文件大小（字节）', table_count:'数据表数量', blocked:'是否被阻止',
 };
 
@@ -142,7 +143,7 @@ export function AuditLogPage() {
   useEffect(() => { try { queueMicrotask(() => setIsDemo(Boolean(sessionStorage.getItem('__impersonation_state')))); } catch {} },[]);
   useEffect(() => { supabase.from('user_roles').select('user_id,email,chinese_name,full_name,role').then(({data}) => { if (!data) return; setUserOptions(data.flatMap(user => { const id=user.user_id||user.email; if(!id) return []; const candidate=user.chinese_name||user.full_name||user.email||user.user_id; return [{id:String(user.user_id || id),name:isReadableText(candidate)?candidate.trim():'未命名用户',auditIds:[user.user_id,user.email].filter(Boolean).map(String),role:user.role||undefined}]; }).sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'))); }); },[]);
   const userNames = useMemo(() => new Map(userOptions.flatMap(option => option.auditIds.map(id => [id,option.name] as const))),[userOptions]);
-  const adminAuditIds = useMemo(() => Array.from(new Set(userOptions.filter(option => option.role === 'admin').flatMap(option => option.auditIds))),[userOptions]);
+  const adminAuditIds = useMemo(() => Array.from(new Set(userOptions.filter(option => ['admin','super_admin'].includes(String(option.role || '').toLowerCase())).flatMap(option => option.auditIds))),[userOptions]);
 
   const applyFilters = useCallback((query:any, tab:AppAuditTab = logTab === 'auth' ? 'user' : logTab) => {
     if(tab==='admin') {
