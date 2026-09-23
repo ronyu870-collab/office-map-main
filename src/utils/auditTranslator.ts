@@ -35,8 +35,8 @@ function moduleLabel(value: unknown): string {
 function pageLabel(value: unknown): string {
   const page = typeof value === 'string' ? value.trim() : '';
   if (!page || page === '/') return '首页';
-  const module = page.split('/').filter(Boolean)[0] || 'home';
-  return MODULE_LABELS[module] || page;
+  const moduleKey = page.split('/').filter(Boolean)[0] || 'home';
+  return MODULE_LABELS[moduleKey] || page;
 }
 
 function periodLabel(year: unknown, quarter: unknown): string {
