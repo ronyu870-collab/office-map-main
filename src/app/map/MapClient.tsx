@@ -14,11 +14,11 @@ import {
   buildActiveFilterChips,
   buildDistrictLeedStats,
   buildFutureSupplyCalendar,
-  categorizeSupply,
   computeStatsFromBuildings,
   createDefaultFilterState,
+  filterFutureSupplies,
+  getConfiguredCompareGroups,
   isDefaultFilterState,
-  normalizeMapSubmarket,
   type MapStatsState,
   type RenderMode,
 } from './model/mapDomain';
@@ -51,6 +51,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     ? { id: 1, type: 'patch', patch: initialIntelligenceHandoff.filterState }
     : null);
   const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>([]);
+  const activeCompareGroups = React.useMemo(() => getConfiguredCompareGroups(compareGroups), [compareGroups]);
   const mapDataStoreRef = React.useRef(new MapDataStore());
 
   // 管理员编辑楼宇指标数据弹窗状态
@@ -157,6 +158,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const filterFrameSchedulerRef = React.useRef<LatestFrameScheduler | null>(null);
   const futureSupplyRequestTokenRef = React.useRef(0);
   const hoveredBuildingIdRef = React.useRef<string | null>(null);
+  const listNavigationTokenRef = React.useRef(0);
 
   const getFilterFrameScheduler = React.useCallback(() => {
     if (!filterFrameSchedulerRef.current) {
@@ -240,7 +242,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   React.useEffect(() => {
     if (prevCompetitorRef.current !== null && competitorBuildings === null && controllerRef.current && mapReady) {
       const ctrl = controllerRef.current;
-      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, compareGroups.length > 0 ? compareGroups : undefined);
+      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined);
       if (filteredFutureSupplies.length > 0) {
         ctrl.renderFutureMarkers(filteredFutureSupplies, renderMode);
       }
@@ -315,7 +317,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
-      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, compareGroups.length > 0 ? compareGroups : undefined);
+      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined);
     }
     setStats(computeStatsFromBuildings(filtered));
 
@@ -330,48 +332,12 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         try {
           const supplies = await ctrl.fetchFutureSupplies();
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
-          let filteredSupplies = supplies;
-
-          const selectedSubmarkets = new Set(activeFilterState.submarkets.map(normalizeMapSubmarket));
-          filteredSupplies = filteredSupplies.filter((s: any) => {
-            const district = String(s?.district ?? '').trim();
-            const submarket = normalizeMapSubmarket(s?.submarket);
-            return activeFilterState.districts.includes(district) && selectedSubmarkets.has(submarket);
-          });
-
-          if (keyword) {
-            const query = keyword.trim().toLocaleLowerCase();
-            filteredSupplies = filteredSupplies.filter((s: any) =>
-              [s?.name, s?.submarket, s?.district, s?.owner]
-                .some(value => String(value ?? '').toLocaleLowerCase().includes(query))
-            );
-          }
-          
-          // 使用 futureSupplyGrades 细分选项过滤未来供应
-          if (activeFilterState.futureSupplyGrades) {
-            if (activeFilterState.futureSupplyGrades.length === 0) {
-              filteredSupplies = []; 
-            } else {
-              filteredSupplies = filteredSupplies.filter((s: any) => {
-                const sGrade = (s.grade || '').toUpperCase();
-                if (!sGrade) return false; 
-                if (activeFilterState.futureSupplyGrades.includes('BP') && sGrade.includes('BP')) return true;
-                if (activeFilterState.futureSupplyGrades.includes('A') && (sGrade.includes('A') || sGrade.includes('P')) && !sGrade.includes('BP')) return true;
-                if (activeFilterState.futureSupplyGrades.includes('B') && sGrade.includes('B') && !sGrade.includes('BP')) return true;
-                return false;
-              });
-            }
-          }
-          
-          // CL-015: 年份筛选
-          if (activeFilterState.futureSupplyYears && activeFilterState.futureSupplyYears.length > 0) {
-            filteredSupplies = filteredSupplies.filter((s: any) => {
-              const category = categorizeSupply(s);
-              return activeFilterState.futureSupplyYears.includes(category);
-            });
-          } else if (activeFilterState.futureSupplyYears) {
-            filteredSupplies = [];
-          }
+          const filteredSupplies = filterFutureSupplies(
+            supplies,
+            activeFilterState,
+            keyword,
+            (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
+          );
 
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           setFilteredFutureSupplies(filteredSupplies);
@@ -419,7 +385,12 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
   const handleCompareGroupsChange = React.useCallback((groups: CompareGroup[]) => {
     setCompareGroups(groups);
-  }, []);
+    const hasCompareGroups = getConfiguredCompareGroups(groups).length > 0;
+    const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
+    const hasSearch = Boolean(keyword.trim());
+    setUserHasInteracted(hasCompareGroups || hasGlobalFilters || hasSearch);
+    if (!hasCompareGroups && !hasGlobalFilters && !hasSearch) setIsListVisible(false);
+  }, [filterState, keyword]);
 
   // 🌟 CL-013: 悬停联动 — 卡片悬停时地图 marker 弹跳
   const handleBuildingHover = React.useCallback((buildingId: string | null) => {
@@ -449,10 +420,12 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       return;
     }
     
-    // 地图平滑移动到楼宇位置并放大
+    // 地图平滑移动到楼宇位置并放大。连续点击时只允许最后一次导航打开弹窗。
+    const navigationToken = ++listNavigationTokenRef.current;
     ctrl.map.setZoomAndCenter(16, [lng, lat], false, 500);
     
     setTimeout(() => {
+      if (navigationToken !== listNavigationTokenRef.current || controllerRef.current !== ctrl) return;
       if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
       else ctrl.openBuildingInfoWindow(building.id);
     }, 600);
@@ -478,6 +451,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     if (competitorBuildings !== null) controllerRef.current?.clearCompetitorElements?.();
     setRenderMode(mode);
   }, [competitorBuildings]);
+
+  const handleResetAllFilters = React.useCallback(() => {
+    setKeyword('');
+    issueFilterCommand('reset');
+  }, [issueFilterCommand]);
 
   // 新增：一键导出地图数据
   const handleExportMapData = async () => {
@@ -513,10 +491,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         keyword={keyword}
         filterState={filterState}
         renderMode={renderMode}
+        compareGroups={activeCompareGroups}
         isFilterPanelOpen={isFilterPanelOpen}
         isSupplyOpen={isSupplyOpen}
         isListVisible={isListVisible}
-        canOpenList={userHasInteracted || Boolean(keyword)}
+        canOpenList={userHasInteracted || Boolean(keyword) || activeCompareGroups.length > 0}
         currentSubwayStations={currentSubwayStations}
         filterCommand={filterCommand}
         mapReady={mapReady}
@@ -538,7 +517,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         onKeywordChange={setKeyword}
         onSearch={handleSearch}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
-        onResetFilters={() => issueFilterCommand('reset')}
+        onResetFilters={handleResetAllFilters}
         onRenderModeChange={handleRenderModeChange}
         onOpenList={() => setIsListVisible(true)}
         onCloseList={() => setIsListVisible(false)}
