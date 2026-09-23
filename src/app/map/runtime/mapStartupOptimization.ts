@@ -18,35 +18,6 @@ type ControllerStartupInternals = {
   _displayOverridesCache?: Map<string, Map<string, DisplayOverride>>;
 };
 
-const BUILDING_STARTUP_SELECT = `
-  id,
-  name,
-  submarket,
-  grade,
-  city,
-  district,
-  location_lng,
-  location_lat,
-  completion_year,
-  leed_certification,
-  owner,
-  property_management,
-  contact_phone,
-  building_metrics (
-    id,
-    building_id,
-    total_area,
-    asking_rent,
-    management_fee,
-    face_rent,
-    rent_free_period,
-    net_effective_rent,
-    vacancy_rate,
-    vacant_area,
-    record_year,
-    record_quarter
-  )
-`;
 
 function toFiniteNumber(input: unknown): number {
   const n =
