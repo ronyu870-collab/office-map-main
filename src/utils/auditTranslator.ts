@@ -42,7 +42,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "EXPORT_TABLE":
       return `导出了「${p.tableName ?? p.table_name ?? "数据表"}」`;
     case "EXPORT_REPORT":
-      return `导出了报告：「${p.reportName ?? p.report_name ?? "未命名报告"}」`;
+      return `导出了报告：「${p.reportName ?? p.report_name ?? "未命名报告"}」${p.candidate_count !== undefined ? `（${p.candidate_count} 个候选项目）` : ''}`;
 
     // 公告
     case "UPDATE_NOTICE":
@@ -102,8 +102,10 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `在市场交流区发布了新消息${preview}`;
     }
 
-    case "SUBMIT_QUARTERLY_DATA":
-      return `提交了季度数据${p.buildingCount ? `（${p.buildingCount} 栋楼宇）` : ""}${p.year && p.quarter ? ` - ${p.year} Q${p.quarter}` : ""}`;
+    case "SUBMIT_QUARTERLY_DATA": {
+      const count = p.buildingCount ?? p.building_count ?? p.count;
+      return `提交了季度数据${count !== undefined ? `（${count} 条）` : ""}${p.year && p.quarter ? ` · ${p.year} Q${p.quarter}` : ""}`;
+    }
     case "SUBMIT_LEASE_TRANSACTION":
       return `提交了租赁成交记录${p.company ? `：「${p.company}」` : ""}${p.area ? ` ${p.area}㎡` : ""}`;
     case "DATA_INSERT":
@@ -172,7 +174,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "AI_REQUIREMENT_PARSE":
       return `使用 AI 解析了客户需求${p.model ? `（${p.model}）` : ''}`;
     case "AI_RECOMMENDATION":
-      return `生成了 AI 楼宇推荐${p.candidate_count !== undefined ? `（候选 ${p.candidate_count} 个）` : ''}`;
+      return `生成了 AI 楼宇推荐${p.candidate_count !== undefined ? `（候选 ${p.candidate_count} 个${p.returned_count !== undefined ? `，返回 ${p.returned_count} 个` : ''}）` : ''}`;
     case "SUBMIT_FEEDBACK":
     case "FEEDBACK_SUBMITTED":
       return `提交了问题反馈${p.category ? `（${p.category}）` : ''}`;
@@ -183,9 +185,12 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
     case "FEEDBACK_ADMIN_REPLIED":
       return `管理员回复了问题反馈${p.next_status ? `，状态：${p.next_status}` : ''}`;
     case "FEEDBACK_STATUS_CHANGED":
-      return `更新了问题反馈状态${p.status ? `：${p.status}` : p.next_status ? `：${p.next_status}` : ''}`;
-    case "UPDATE_LEASE_TEAM_ACCESS":
-      return `修改了租赁成交团队访问权限${p.enabled !== undefined ? `：${p.enabled ? '开启' : '关闭'}` : ''}`;
+      return `更新了问题反馈状态${p.old_status || p.new_status ? `：${p.old_status ?? '—'} → ${p.new_status ?? '—'}` : p.status ? `：${p.status}` : p.next_status ? `：${p.next_status}` : ''}`;
+    case "UPDATE_LEASE_TEAM_ACCESS": {
+      const next = p.enabled_after ?? p.enabled;
+      const affected = p.affected_editor_count;
+      return `修改了租赁成交团队访问权限${next !== undefined ? `：${next ? '开启' : '关闭'}` : ''}${affected !== undefined ? `（影响 ${affected} 名 Editor）` : ''}`;
+    }
 
     // 系统
     case "CHANGE_SETTINGS":
