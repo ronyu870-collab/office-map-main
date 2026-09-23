@@ -360,9 +360,9 @@ export function logAction(_userId: string | undefined, actionType: string, detai
     page_url: page,
     module: detailText('module') || (page ? page.split('/')[1] || 'home' : undefined),
     user_agent: typeof navigator === 'undefined' ? undefined : navigator.userAgent.slice(0, 500),
-    target_table: detailText('target_table', 'table'),
-    target_id: detailText('target_id', 'record_id', 'recordId', 'issue_id'),
-    target_name: detailText('target_name', 'file_name', 'filename', 'report_name', 'table_label', 'building_name', 'company'),
+    target_table: detailText('target_table', 'targetTable', 'table'),
+    target_id: detailText('target_id', 'targetId', 'record_id', 'recordId', 'issue_id', 'building_id', 'buildingId'),
+    target_name: detailText('target_name', 'targetName', 'file_name', 'fileName', 'filename', 'report_name', 'reportName', 'table_label', 'building_name', 'buildingName', 'company'),
   });
 }
 
