@@ -370,13 +370,14 @@ export function HomeWorkspace() {
       ? canSeeAdminWorkspace
       : canAccessModule(workspace.module, activeRole);
 
-    if (activeSession.user.email) {
-      const details: Record<string, unknown> = { module: workspace.module, blocked: !canAccess };
-      if (restricted && activeRole !== 'admin') details.reason = 'restricted_module';
-      logAction(activeSession.user.email, 'ENTER_MODULE', details);
+    if (!canAccess) {
+      event.preventDefault();
+      if (activeSession.user.email) {
+        const details: Record<string, unknown> = { module: workspace.module, blocked: true };
+        if (restricted && activeRole !== 'admin') details.reason = 'restricted_module';
+        logAction(activeSession.user.email, 'ACCESS_DENIED', details);
+      }
     }
-
-    if (!canAccess) event.preventDefault();
   }
 
   const MapIcon = MAP_WORKSPACE.icon;
