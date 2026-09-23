@@ -1531,13 +1531,14 @@ function TablePanel({
     // 记录审计日志
     getSession().then((session) => {
       const userId = session?.user?.email ?? session?.user?.id ?? "admin";
-      logAction(userId, "ADMIN_DATA_OPERATION", {
-        operation: "EXPORT_EXCEL",
+      logAction(userId, "EXPORT_DATA", {
+        export_type: "admin_table",
         table: config.table,
         table_label: config.label,
         export_mode: mode,
-        count: exportRows.length,
-        filename,
+        record_count: exportRows.length,
+        file_name: filename,
+        target_name: filename,
       });
     });
   };
