@@ -248,7 +248,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       }
     }
     prevCompetitorRef.current = competitorBuildings;
-  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, mapReady]);
+  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady]);
 
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
@@ -374,14 +374,15 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
     const isDefault = isDefaultFilterState(state);
-    setUserHasInteracted(!isDefault);
+    const hasOtherWorkspaceState = activeCompareGroups.length > 0 || Boolean(keyword.trim());
+    setUserHasInteracted(!isDefault || hasOtherWorkspaceState);
     setFilterState(prev => {
       if (prev?.subwayLine !== state.subwayLine) setCurrentSubwayStations([]);
       return state;
     });
-    if (isDefault) setIsListVisible(false);
+    if (isDefault && !hasOtherWorkspaceState) setIsListVisible(false);
     logAction(appSession?.user?.email || '未知用户', 'MAP_FILTER', { filter: JSON.stringify(state) });
-  }, [appSession?.user?.email]);
+  }, [activeCompareGroups.length, appSession?.user?.email, keyword]);
 
   const handleCompareGroupsChange = React.useCallback((groups: CompareGroup[]) => {
     setCompareGroups(groups);
@@ -441,7 +442,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const handleSearch = (val: string) => {
     const trimmed = val.trim();
     setKeyword(trimmed);
-    if (trimmed) setUserHasInteracted(true);
+    const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
+    const hasCompareGroups = activeCompareGroups.length > 0;
+    setUserHasInteracted(Boolean(trimmed) || hasGlobalFilters || hasCompareGroups);
+    if (!trimmed && !hasGlobalFilters && !hasCompareGroups) setIsListVisible(false);
     if (trimmed) {
       logAction(appSession?.user?.email || '未知用户', 'SEARCH', { keyword: trimmed, module: 'map' });
     }
