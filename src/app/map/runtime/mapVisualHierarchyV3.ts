@@ -95,9 +95,9 @@ function groupColor(building: any, groups?: any[]): string | undefined {
   if (!Array.isArray(groups)) return undefined;
   for (let index = groups.length - 1; index >= 0; index -= 1) {
     const group = groups[index];
-    if (group?.submarkets?.length && building?.submarket && !group.submarkets.includes(building.submarket)) continue;
+    if (group?.submarkets?.length && (!building?.submarket || !group.submarkets.includes(building.submarket))) continue;
     if (group?.grades?.length && !matchesGroupGrades(building?.grade, group.grades)) continue;
-    if (group?.districts?.length && building?.district && !group.districts.includes(building.district)) continue;
+    if (group?.districts?.length && (!building?.district || !group.districts.includes(building.district))) continue;
     if (typeof group?.color === 'string' && group.color) return group.color;
   }
   return undefined;
@@ -152,7 +152,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     }
   }
 
-  const override = groupColor(building, groups);
+  const override = mode === 'default' ? groupColor(building, groups) : undefined;
   if (override) {
     background = override;
     border = '#ffffff';
@@ -231,8 +231,22 @@ function renderSignature(buildings: any[], mode: RenderMode, groups?: any[]): st
   let value = `${mode}|${buildings.length}|`;
   for (const building of buildings) {
     const metric = latestMetric(building);
-    value += `${building?.id ?? ''}:${building?.grade ?? ''}:${building?.submarket ?? ''}:${building?.leed_certification ?? ''}:` +
-      `${metric?.record_year ?? ''}:${metric?.record_quarter ?? ''}:${metric?.net_effective_rent ?? ''}:${metric?.vacancy_rate ?? ''}|`;
+    value += [
+      building?.id ?? '',
+      building?.name ?? '',
+      building?.grade ?? '',
+      building?.submarket ?? '',
+      building?.district ?? '',
+      building?.leed_certification ?? '',
+      building?.location_lng ?? '',
+      building?.location_lat ?? '',
+      metric?.record_year ?? '',
+      metric?.record_quarter ?? '',
+      metric?.net_effective_rent ?? '',
+      metric?.vacancy_rate ?? '',
+      metric?.total_area ?? '',
+      metric?.vacant_area ?? '',
+    ].join(':') + '|';
   }
   if (Array.isArray(groups)) {
     for (const group of groups) {
@@ -643,6 +657,10 @@ export function installMapVisualHierarchyV3(
     }
     const signature = renderSignature(buildings, mode, groups);
     if (signature === lastSignature) {
+      if (pendingFrame !== null) {
+        cancelAnimationFrame(pendingFrame);
+        pendingFrame = null;
+      }
       apply();
       return;
     }
