@@ -68,10 +68,21 @@ vi.mock('@/src/app/map/components/MapLoadingShell', () => ({
 }));
 
 vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
-  MapWorkbenchView: ({ onRenderModeChange }: { onRenderModeChange: (mode: 'rent') => void }) => (
-    <button type="button" onClick={() => onRenderModeChange('rent')}>
-      switch-to-rent
-    </button>
+  MapWorkbenchView: ({
+    onRenderModeChange,
+    onSearch,
+  }: {
+    onRenderModeChange: (mode: 'rent') => void;
+    onSearch: (value: string) => void;
+  }) => (
+    <>
+      <button type="button" onClick={() => onRenderModeChange('rent')}>
+        switch-to-rent
+      </button>
+      <button type="button" onClick={() => onSearch('华润')}>
+        search-owner
+      </button>
+    </>
   ),
 }));
 
@@ -82,6 +93,7 @@ const BUILDINGS = [
     id: 'building-1',
     name: '测试项目',
     grade: 'A',
+    owner: '华润置地',
     district: '朝阳区',
     submarket: 'CBD',
     leed_certification: 'GOLD',
@@ -125,6 +137,35 @@ describe('MapClient render mode synchronization', () => {
       expect(controller.renderMarkers).toHaveBeenLastCalledWith(
         BUILDINGS,
         'rent',
+        expect.anything(),
+        undefined,
+      );
+    });
+  });
+
+
+  it('applies search before any filter state has been created', async () => {
+    const otherBuilding = {
+      ...BUILDINGS[0],
+      id: 'building-2',
+      name: '其他项目',
+      owner: '其他业主',
+      location_lng: 116.48,
+    };
+    controller.fetchMapData.mockResolvedValueOnce([...BUILDINGS, otherBuilding]);
+
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+
+    await waitFor(() => {
+      expect(controller.renderMarkers).toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'search-owner' }));
+
+    await waitFor(() => {
+      expect(controller.renderMarkers).toHaveBeenLastCalledWith(
+        BUILDINGS,
+        'default',
         expect.anything(),
         undefined,
       );
