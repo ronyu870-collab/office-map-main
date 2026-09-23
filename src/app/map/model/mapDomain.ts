@@ -1,4 +1,4 @@
-import type { SidebarFilterState } from '@/src/components/SidebarFilter';
+import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
@@ -90,6 +90,58 @@ export function normalizeMapSubmarket(value: unknown): string {
   if (key === '亦庄经济开发区' || key === '北京经济技术开发区' || key === '亦庄') return '亦庄';
   if (key.startsWith('其他-') || key.startsWith('其他')) return '其他';
   return raw;
+}
+
+
+export function isCompareGroupConfigured(group: CompareGroup): boolean {
+  return group.submarkets.length > 0 || group.grades.length > 0 || group.districts.length > 0;
+}
+
+export function getConfiguredCompareGroups(groups: CompareGroup[]): CompareGroup[] {
+  return groups.filter(isCompareGroupConfigured);
+}
+
+export function filterFutureSupplies(
+  supplies: Array<Record<string, any>>,
+  filterState: SidebarFilterState,
+  keyword: string,
+  calculateDistance?: (buildingPoint: [number, number], stationPoint: [number, number]) => number,
+): Array<Record<string, any>> {
+  const selectedSubmarkets = new Set(filterState.submarkets.map(normalizeMapSubmarket));
+  const query = keyword.trim().toLocaleLowerCase();
+
+  return supplies.filter((supply) => {
+    const district = String(supply?.district ?? '').trim();
+    const submarket = normalizeMapSubmarket(supply?.submarket);
+    if (!filterState.districts.includes(district) || !selectedSubmarkets.has(submarket)) return false;
+
+    if (query && ![supply?.name, supply?.submarket, supply?.district, supply?.owner]
+      .some(value => String(value ?? '').toLocaleLowerCase().includes(query))) {
+      return false;
+    }
+
+    const grade = String(supply?.grade ?? '').trim().toUpperCase();
+    if (filterState.futureSupplyGrades.length === 0) return false;
+    const gradeMatches =
+      (filterState.futureSupplyGrades.includes('BP') && grade.includes('BP'))
+      || (filterState.futureSupplyGrades.includes('A') && (grade.includes('A') || grade.includes('P')) && !grade.includes('BP'))
+      || (filterState.futureSupplyGrades.includes('B') && grade.includes('B') && !grade.includes('BP'));
+    if (!gradeMatches) return false;
+
+    if (filterState.futureSupplyYears.length === 0) return false;
+    if (!filterState.futureSupplyYears.includes(categorizeSupply(supply))) return false;
+
+    if (filterState.subwayStation && filterState.subwayDistance && calculateDistance) {
+      const stationCenter = filterState.subwayStation?.center;
+      const lng = Number(supply?.location_lng);
+      const lat = Number(supply?.location_lat);
+      if (!Array.isArray(stationCenter) || !Number.isFinite(lng) || !Number.isFinite(lat)) return false;
+      const distance = calculateDistance([lng, lat], stationCenter as [number, number]);
+      if (distance > filterState.subwayDistance) return false;
+    }
+
+    return true;
+  });
 }
 
 const NUMERIC_FILTER_LABELS: Record<string, string> = {
