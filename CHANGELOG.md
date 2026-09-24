@@ -1,3 +1,38 @@
+## 2026-09-24 — Viewer read-only Editor parity
+
+### Area
+Authorization / Map / Quarterly Update / Lease Submission / Supabase RLS
+
+### What changed
+
+- Redefined `viewer` as the read-only twin of `editor`: both roles now share the same business workspace entry points and business read scope.
+- Removed the A/P-only Viewer inventory restriction from the Map server boundary, client data store, and database RLS so Viewer can read the same tracked building grades and associated building data as Editor.
+- Opened Lease Submission to Viewer for research/read workflows, including the same team live-transaction summary scope as Editor when the existing team-read switch is enabled.
+- Opened Quarterly Update to Viewer in explicit read-only mode while retaining the existing per-user assignment/read semantics.
+- Added the canonical `canWriteBusinessData` capability: only `editor` and `admin` may mutate business data; Viewer write controls are removed/disabled in Lease and Quarterly workspaces.
+- Added database-level write guards for lease transactions, lease drafts, quarterly submissions, quarterly drafts, and future-supply submissions so direct Data API calls cannot bypass the Viewer read-only contract.
+- Added a server-side write guard to the service-role lease-transfer endpoint because service-role operations bypass RLS.
+- Kept Admin-only capabilities, historical lease visibility, Research Library management, account/security operations, collaboration messages, and user feedback semantics unchanged.
+
+### Why
+
+Viewer had evolved into a partially hidden role rather than a true read-only role: it could not see B/BP inventory, could not enter Lease Submission, and could not enter Quarterly Update, while several underlying RLS policies still allowed self-owned writes. The intended contract is simpler and safer: Viewer sees what Editor sees, but cannot mutate business databases.
+
+### Impact
+
+- Viewer and Editor now have the same role-level business visibility.
+- Viewer has no supported business INSERT / UPDATE / DELETE path through UI controls, normal Supabase Data API writes, or the service-role lease-transfer endpoint.
+- Editor write workflows remain unchanged; Admin keeps management privileges.
+- Unknown/missing roles continue to fail closed.
+
+### Verification
+
+- Regression coverage now locks Map read parity, business-workspace access parity, Viewer read-only controls, RLS write denial contracts, and service-role transfer denial.
+- Production RLS migration: `20260924142000_viewer_readonly_editor_parity.sql`.
+- Vercel Preview and production verification are required before this change is considered complete.
+
+---
+
 ## 2026-09-16 — Map 关联成交 panel
 
 ### Area
