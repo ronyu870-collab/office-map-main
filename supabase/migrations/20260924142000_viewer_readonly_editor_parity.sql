@@ -270,4 +270,88 @@ with check (
   and private.is_current_submission_period(record_year, record_quarter)
 );
 
+-- This RPC is SECURITY DEFINER and therefore bypasses update_drafts RLS.
+-- Keep it callable for Editor/Admin clients, but enforce the application role
+-- inside the function before any INSERT/UPDATE occurs.
+create or replace function public.save_quarterly_draft(
+  p_user_id uuid,
+  p_user_name text,
+  p_year integer,
+  p_quarter integer,
+  p_tab text,
+  p_draft_data jsonb,
+  p_expected_revision bigint default 0
+)
+returns table(revision bigint, updated_at timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  v_existing public.update_drafts%rowtype;
+  v_now timestamptz := now();
+begin
+  if auth.uid() is null or p_user_id is distinct from auth.uid() then
+    raise exception using message = 'draft_owner_mismatch', errcode = '42501';
+  end if;
+  if not private.can_write_business_data() then
+    raise exception using message = 'business_write_forbidden', errcode = '42501';
+  end if;
+  if p_tab not in ('GradeA', 'GradeB', 'BP') then
+    raise exception using message = 'invalid_draft_tab', errcode = '22023';
+  end if;
+  if not private.is_current_submission_period(p_year, p_quarter) then
+    raise exception using message = 'submission_period_changed', errcode = '22023';
+  end if;
+
+  select * into v_existing
+  from public.update_drafts d
+  where d.user_id = p_user_id
+    and d.record_year = p_year
+    and d.record_quarter = p_quarter
+    and d.tab = p_tab
+  for update;
+
+  if not found then
+    if coalesce(p_expected_revision, 0) <> 0 then
+      raise exception using message = 'draft_revision_conflict', errcode = '40001';
+    end if;
+
+    insert into public.update_drafts (
+      user_id, user_name, record_year, record_quarter, tab, draft_data, revision, updated_at
+    ) values (
+      p_user_id,
+      coalesce(nullif(trim(p_user_name), ''), p_user_id::text),
+      p_year,
+      p_quarter,
+      p_tab,
+      coalesce(p_draft_data, '{}'::jsonb),
+      1,
+      v_now
+    )
+    returning public.update_drafts.revision, public.update_drafts.updated_at
+      into revision, updated_at;
+    return next;
+    return;
+  end if;
+
+  if coalesce(p_expected_revision, 0) <> v_existing.revision then
+    raise exception using message = 'draft_revision_conflict', errcode = '40001';
+  end if;
+
+  update public.update_drafts d
+  set user_name = coalesce(nullif(trim(p_user_name), ''), d.user_name),
+      draft_data = coalesce(p_draft_data, '{}'::jsonb),
+      revision = d.revision + 1,
+      updated_at = v_now
+  where d.id = v_existing.id
+  returning d.revision, d.updated_at into revision, updated_at;
+
+  return next;
+end;
+$function$;
+
+revoke all on function public.save_quarterly_draft(uuid, text, integer, integer, text, jsonb, bigint) from public, anon;
+grant execute on function public.save_quarterly_draft(uuid, text, integer, integer, text, jsonb, bigint) to authenticated, service_role;
+
 commit;
