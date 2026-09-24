@@ -193,11 +193,11 @@ export class MapDataStore {
   }
 
   getRoleVisible(role: MapRole = 'viewer'): BuildingWithMetrics[] {
-    if (role === 'admin' || role === 'editor') return this.buildings;
-    return this.buildings.filter(building => {
-      const grade = String(building.grade || '').toUpperCase();
-      return grade === 'A' || grade === 'P';
-    });
+    const normalized = String(role).trim().toLowerCase();
+    if (normalized === 'viewer' || normalized === 'editor' || normalized === 'admin') {
+      return this.buildings;
+    }
+    return [];
   }
 
   getIndexSnapshot() {
