@@ -1,16 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { isModuleRestricted, isUserAdmin, canAccessModule } from '@/src/utils/accessControl';
+import { isModuleRestricted, isUserAdmin, canAccessModule, canWriteBusinessData } from '@/src/utils/accessControl';
 
 describe('访问控制逻辑', () => {
   describe('isModuleRestricted', () => {
-    it('以真实路由标识识别租赁成交填报模块', () => {
-      expect(isModuleRestricted('lease-submission')).toBe(true);
-      expect(isModuleRestricted('deals')).toBe(false);
-    });
-
-    it('正确识别非受限模块', () => {
-      expect(isModuleRestricted('map')).toBe(false);
+    it('业务工作区不再通过角色隐藏读取入口', () => {
+      expect(isModuleRestricted('lease-submission')).toBe(false);
       expect(isModuleRestricted('update')).toBe(false);
+      expect(isModuleRestricted('map')).toBe(false);
       expect(isModuleRestricted('oss')).toBe(false);
     });
   });
@@ -27,16 +23,13 @@ describe('访问控制逻辑', () => {
   });
 
   describe('canAccessModule', () => {
-    it('editor/admin 可以进入租赁成交填报，viewer 不可以', () => {
-      expect(canAccessModule('lease-submission', 'admin')).toBe(true);
-      expect(canAccessModule('lease-submission', 'editor')).toBe(true);
-      expect(canAccessModule('lease-submission', 'viewer')).toBe(false);
-    });
-
-    it('合法角色可以进入普通模块', () => {
-      expect(canAccessModule('map', 'viewer')).toBe(true);
-      expect(canAccessModule('update', 'editor')).toBe(true);
-      expect(canAccessModule('oss', 'admin')).toBe(true);
+    it('viewer/editor/admin 都可以进入业务读取工作区', () => {
+      for (const role of ['viewer', 'editor', 'admin'] as const) {
+        expect(canAccessModule('lease-submission', role)).toBe(true);
+        expect(canAccessModule('update', role)).toBe(true);
+        expect(canAccessModule('map', role)).toBe(true);
+        expect(canAccessModule('oss', role)).toBe(true);
+      }
     });
 
     it('缺失或未知角色采用 fail-closed', () => {
@@ -44,6 +37,15 @@ describe('访问控制逻辑', () => {
       expect(canAccessModule('map', undefined)).toBe(false);
       expect(canAccessModule('map', 'executive')).toBe(false);
       expect(canAccessModule('lease-submission', '')).toBe(false);
+    });
+  });
+
+  describe('business write capability', () => {
+    it('viewer 只读，editor/admin 可写业务数据', () => {
+      expect(canWriteBusinessData('viewer')).toBe(false);
+      expect(canWriteBusinessData('editor')).toBe(true);
+      expect(canWriteBusinessData('admin')).toBe(true);
+      expect(canWriteBusinessData('unknown')).toBe(false);
     });
   });
 });
