@@ -11,8 +11,15 @@ export function isUserAdmin(role: string | null | undefined): boolean {
   return parseUserRole(role) === 'admin';
 }
 
-/** 租赁成交团队汇总仅向可参与数据录入的内部角色开放。 */
+/** 租赁成交团队汇总对全部合法应用角色可读。 */
 export function canViewLeaseTeamSubmissions(
+  role: string | null | undefined,
+): boolean {
+  return parseUserRole(role) !== null;
+}
+
+/** viewer 与 editor 读取范围一致；只有 editor/admin 可以写业务数据。 */
+export function canWriteBusinessData(
   role: string | null | undefined,
 ): boolean {
   const parsedRole = parseUserRole(role);
