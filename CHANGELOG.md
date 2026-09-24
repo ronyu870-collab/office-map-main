@@ -11,6 +11,7 @@ Authorization / Map / Quarterly Update / Lease Submission / Supabase RLS
 - Opened Quarterly Update to Viewer in explicit read-only mode while retaining the existing per-user assignment/read semantics.
 - Added the canonical `canWriteBusinessData` capability: only `editor` and `admin` may mutate business data; Viewer write controls are removed/disabled in Lease and Quarterly workspaces.
 - Added database-level write guards for lease transactions, lease drafts, quarterly submissions, quarterly drafts, and future-supply submissions so direct Data API calls cannot bypass the Viewer read-only contract.
+- Hardened the `save_quarterly_draft` SECURITY DEFINER RPC with the same Editor/Admin write-role check because that RPC bypasses table RLS.
 - Added a server-side write guard to the service-role lease-transfer endpoint because service-role operations bypass RLS.
 - Kept Admin-only capabilities, historical lease visibility, Research Library management, account/security operations, collaboration messages, and user feedback semantics unchanged.
 
