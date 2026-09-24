@@ -64,6 +64,13 @@ describe('lease data entry authorization seams', () => {
     expect(migration).toContain('business writers insert own quarterly submissions');
   });
 
+  it('blocks viewer on service-role transfer mutations that bypass RLS', () => {
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/app/api/admin/transfer-submission/route.ts'), 'utf8');
+    expect(source).toContain('canWriteBusinessData(identity.effectiveRole)');
+    expect(source).toContain("当前账号为只读模式，不能转交成交记录");
+    expect(source).toContain('denyImpersonatedMutation(identity)');
+  });
+
   it('bounds the browser request for team submissions', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/services/leaseTransactionSubmitService.ts'), 'utf8');
     expect(source).toContain('new AbortController()');
