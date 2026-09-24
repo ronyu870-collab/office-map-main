@@ -9,7 +9,7 @@ import type { Session, User } from '@supabase/supabase-js';
  * 应用唯一合法角色集合。
  *
  * 数据库 public.user_roles.role 的约束与这里保持一致：
- * - viewer: 只读用户，数据范围受 RLS 限制
+ * - viewer: 只读用户，读取范围与 editor 保持一致，但不允许业务数据写入
  * - editor: 业务编辑/填报用户
  * - admin: 管理员
  */
