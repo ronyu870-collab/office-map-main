@@ -28,5 +28,7 @@ describe('quarterly viewer read-only parity', () => {
     expect(migration).toContain('business writers create own update drafts');
     expect(migration).toContain('business writers update own update drafts');
     expect(migration).toContain('business writers insert own future submissions');
+    expect(migration).toContain('create or replace function public.save_quarterly_draft');
+    expect(migration).toContain("message = 'business_write_forbidden'");
   });
 });
