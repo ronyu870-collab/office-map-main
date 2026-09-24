@@ -69,14 +69,10 @@ function createAdminClient(): SupabaseClient | null {
   });
 }
 
-function canSeeExtendedInventory(role: UserRole): boolean {
-  return role === 'editor' || role === 'admin';
-}
-
-function rowVisibleForRole(row: Row, role: UserRole): boolean {
-  if (canSeeExtendedInventory(role)) return true;
-  const grade = String(row?.grade ?? '').trim().toUpperCase();
-  return grade === 'A' || grade === 'P';
+function rowVisibleForRole(_row: Row, role: UserRole): boolean {
+  // All canonical application roles share the same read scope. The caller has
+  // already been normalized through parseUserRole, so unknown roles fail closed.
+  return role === 'viewer' || role === 'editor' || role === 'admin';
 }
 
 function filterRowsForRole(rows: Row[] | null | undefined, role: UserRole): Row[] {
