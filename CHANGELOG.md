@@ -1,3 +1,23 @@
+## 2026-09-27 — Viewer / Editor parity full-system audit
+
+### Area
+Authorization / UI routes / APIs / Supabase RLS / production verification
+
+### What changed
+
+- Added a single regression contract that keeps Viewer and Editor aligned across business workspace entry, Intelligence preview, live lease reads, team-submission reads, Map inventory visibility and Quarterly workspace access.
+- Kept the only intentional role difference explicit: `viewer` cannot write business data, while `editor` can.
+- Revoked stale INSERT / UPDATE / DELETE / TRUNCATE / REFERENCES / TRIGGER grants from `view_latest_quarterly_submissions`; the view is read-only and now exposes only SELECT to authenticated users.
+
+### Production verification
+
+- Same-user role-switch test: 30 / 30 authenticated-readable tables and views returned identical results when the exact same user identity was changed from Editor to Viewer inside a rollback transaction.
+- Viewer mutation probes were blocked for lease insert/update/delete, lease draft insert, quarterly submission insert, quarterly draft update/RPC, future-supply submission insert and direct quarterly-view update.
+- Matching Editor probes were allowed for every supported business write path; all probes were rolled back.
+- Production deployment before this audit was already on `db86c27602974f37d5dce3ff97a5d672cfe9a4b0`; this change only hardens the redundant view grants and adds regression coverage.
+
+---
+
 ## 2026-09-24 — Viewer read-only Editor parity
 
 ### Area
