@@ -14,5 +14,7 @@ export function canAccessAdminConsole(params: {
   impersonationActive?: boolean;
 }): boolean {
   if (params.impersonationActive) return false;
-  return Boolean(params.isDemo) || isAdminRole(params.role);
+  // Demo presentation state is never an authorization boundary.
+  // Only the canonical admin role may enter the admin console.
+  return isAdminRole(params.role);
 }

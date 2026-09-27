@@ -9,7 +9,6 @@ import { getSessionFast } from '@/src/services/Auth';
 import { isUserAdmin } from '@/src/utils/accessControl';
 import { ComponentErrorBoundary } from '@/src/components/ErrorBoundary/ComponentErrorBoundary';
 import { TeamSubmissionMonitor } from '../components/TeamSubmissionMonitor';
-import { isDemoMode } from '@/src/config/demoMode';
 import { AppHeader, LoadingState } from '@/src/components/ui';
 
 /**
@@ -44,8 +43,7 @@ export default function TeamMonitoringPage() {
         const role = session.role ?? '';
         setUserRole(role);
 
-        const isDemo = isDemoMode(session.user?.email);
-        if (!isUserAdmin(role) && !isDemo) {
+        if (!isUserAdmin(role)) {
           router.replace('/');
           return;
         }

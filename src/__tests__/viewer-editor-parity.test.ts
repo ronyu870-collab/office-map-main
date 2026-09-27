@@ -10,6 +10,8 @@ import {
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import { resolveLeaseReadAccess } from '@/src/app/api/lease-transactions/read/access';
 import { MapDataStore } from '@/src/app/map/model/MapDataStore';
+import { canAccessAdminConsole } from '@/src/utils/adminAccess';
+import { isDemoMode } from '@/src/config/demoMode';
 
 describe('viewer/editor parity contract', () => {
   it('keeps all non-admin business workspace entry permissions identical', () => {
@@ -21,6 +23,12 @@ describe('viewer/editor parity contract', () => {
 
   it('keeps intelligence preview visibility identical for viewer and editor', () => {
     expect(isIntelligencePreviewEnabled('viewer')).toBe(isIntelligencePreviewEnabled('editor'));
+  });
+
+  it('does not let demo presentation state break Viewer/Editor parity', () => {
+    expect(isDemoMode('demo@colliers.com')).toBe(false);
+    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true })).toBe(false);
+    expect(canAccessAdminConsole({ role: 'editor', isDemo: true })).toBe(false);
   });
 
   it('keeps live lease read authorization identical while denying history to both', () => {
@@ -75,6 +83,21 @@ describe('viewer/editor parity contract', () => {
       'utf8',
     );
     expect(source).toContain('canWriteBusinessData(identity.effectiveRole)');
+  });
+
+  it('keeps team monitoring admin-only for both viewer and editor', () => {
+    const page = fs.readFileSync(
+      path.join(process.cwd(), 'src/app/lease-submission/page.tsx'),
+      'utf8',
+    );
+    const monitoring = fs.readFileSync(
+      path.join(process.cwd(), 'src/app/lease-submission/monitoring/page.tsx'),
+      'utf8',
+    );
+    expect(page).toContain('{admin && <Link href="/lease-submission/monitoring"');
+    expect(page).not.toContain('isDemoMode(userEmail)');
+    expect(monitoring).toContain('if (!isUserAdmin(role))');
+    expect(monitoring).not.toContain('isDemoMode');
   });
 
   it('keeps the latest-quarterly view explicitly read-only for authenticated users', () => {

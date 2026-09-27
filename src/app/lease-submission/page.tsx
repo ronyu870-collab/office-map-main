@@ -10,7 +10,6 @@ import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress }
 import { logAction } from '@/src/utils/audit';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { canViewLeaseTeamSubmissions, canWriteBusinessData, isUserAdmin } from '@/src/utils/accessControl';
-import { isDemoMode } from '@/src/config/demoMode';
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
@@ -98,7 +97,6 @@ export default function LeaseSubmissionPage() {
   const [userId, setUserId] = React.useState('');
   const [userName, setUserName] = React.useState('');
   const [userRole, setUserRole] = React.useState('');
-  const [userEmail, setUserEmail] = React.useState('');
   const [progress, setProgress] = React.useState<WeeklyProgress | null>(null);
   const [submissions, setSubmissions] = React.useState<LeaseTransaction[]>([]);
   const [teamSubmissions, setTeamSubmissions] = React.useState<LeaseTransaction[]>([]);
@@ -179,7 +177,6 @@ export default function LeaseSubmissionPage() {
         setUserId(uid);
         setUserName(session.displayName ?? '');
         setUserRole(role);
-        setUserEmail(session.user.email ?? '');
         setReady(true);
         void loadTeamData(role);
         await loadCoreData(uid);
@@ -268,7 +265,7 @@ export default function LeaseSubmissionPage() {
           homeHref="/"
           actions={(
             <>
-              {(admin || isDemoMode(userEmail)) && <Link href="/lease-submission/monitoring" className="hidden h-8 items-center rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] sm:inline-flex">团队监控</Link>}
+              {admin && <Link href="/lease-submission/monitoring" className="hidden h-8 items-center rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] sm:inline-flex">团队监控</Link>}
               {canWrite ? <Button type="button" size="sm" onClick={openCreate}><Plus size={13} />新增成交</Button> : <span className="text-[11px] font-medium text-slate-400">只读模式</span>}
             </>
           )}

@@ -16,12 +16,12 @@ const items: ResearchLibraryItem[] = [
 ];
 
 describe('Admin 2.0 authorization policy', () => {
-  it('authorizes the console for canonical admin or explicit demo mode only', () => {
+  it('authorizes the console only for the canonical admin role', () => {
     expect(canAccessAdminConsole({ role: 'admin' })).toBe(true);
     expect(canAccessAdminConsole({ role: 'editor' })).toBe(false);
     expect(canAccessAdminConsole({ role: 'viewer' })).toBe(false);
     expect(canAccessAdminConsole({ role: null })).toBe(false);
-    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true })).toBe(true);
+    expect(canAccessAdminConsole({ role: 'viewer', isDemo: true })).toBe(false);
   });
 
   it('blocks admin entry while impersonating', () => {

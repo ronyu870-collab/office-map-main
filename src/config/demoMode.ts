@@ -1,14 +1,14 @@
 /**
  * Demo 模式配置
  *
- * 用途：面试演示时，对敏感数据做视觉脱敏
- * 删除时机：找到实习后，删除此文件 + src/components/demo/ 目录即可
+ * 用途：可选的演示脱敏层。
+ *
+ * 权限原则：Demo Mode 只能改变展示方式，不能扩大或缩小 Viewer/Editor 的功能权限。
+ * 当前生产 Viewer 必须保持与 Editor 相同的读取体验，因此默认不配置任何 demo 账号。
  */
 
 // 在此添加需要打码的 demo 账号邮箱
-export const DEMO_ACCOUNTS: string[] = [
-  'demo@colliers.com',
-]
+export const DEMO_ACCOUNTS: string[] = []
 
 // 脱敏样式：'blur' | 'blackbar' | 'asterisk'
 export const MASK_STYLE: 'blur' | 'blackbar' | 'asterisk' = 'blur'
