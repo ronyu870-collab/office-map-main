@@ -1,3 +1,28 @@
+## 2026-09-27 — Remove Demo-mode Viewer parity exception
+
+### Area
+Viewer/Editor parity / Demo mode / Admin authorization / Lease monitoring / Map masking
+
+### What changed
+
+- Removed the hard-coded `demo@colliers.com` Demo Mode assignment so the production Viewer account no longer receives masked building, owner, property-management or lease-company text.
+- Removed Demo Mode as an authorization bypass for the Admin console; only the canonical `admin` role can enter System Administration.
+- Removed Demo Mode as an authorization bypass for Lease team monitoring; Viewer and Editor are both denied that Admin-only page and entry point.
+- Added regression coverage proving Demo presentation state cannot change Viewer/Editor authorization.
+
+### Why
+
+The production database currently has one Viewer account and it is `demo@colliers.com`. The old Demo Mode therefore made the real Viewer behave differently from Editor in both directions: it masked business data while also exposing Admin-only navigation. That violated the intended contract that Viewer is exactly the read-only twin of Editor.
+
+### Verification target
+
+- Viewer and Editor must retain identical read visibility across business workspaces and database reads.
+- Viewer remains unable to perform business writes.
+- Admin-only surfaces remain unavailable to both Viewer and Editor.
+- Demo presentation state must never act as an authorization boundary.
+
+---
+
 ## 2026-09-27 — Viewer / Editor parity full-system audit
 
 ### Area
