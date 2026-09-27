@@ -12,16 +12,9 @@ export type RestrictedModule = {
 };
 
 /**
- * 租赁成交填报属于 broker 工作流，因此 editor 与 admin 可访问。
- * viewer 仅承担受限只读场景，不应进入成交填报工作区。
+ * viewer 与 editor 共享相同的业务读取入口。
  *
- * 注意：旧配置使用 `deals` / `/deals`，与实际路由和 NAV_MODULES 不一致，
- * 导致限制实际上没有应用到 `/lease-submission`。这里以真实产品路由为唯一契约。
+ * 业务写权限不再通过“禁止进入模块”实现，而是在页面只读状态、服务端 API
+ * 与 Supabase RLS 三层分别收口。系统管理仍由独立的 admin guard 控制。
  */
-export const RESTRICTED_MODULES: readonly RestrictedModule[] = [
-  {
-    module: 'lease-submission',
-    href: '/lease-submission',
-    allowedRoles: ['editor', 'admin'],
-  },
-];
+export const RESTRICTED_MODULES: readonly RestrictedModule[] = [];

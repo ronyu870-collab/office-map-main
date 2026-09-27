@@ -9,7 +9,7 @@ import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
 import { logAction } from '@/src/utils/audit';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
-import { canViewLeaseTeamSubmissions, isUserAdmin } from '@/src/utils/accessControl';
+import { canViewLeaseTeamSubmissions, canWriteBusinessData, isUserAdmin } from '@/src/utils/accessControl';
 import { isDemoMode } from '@/src/config/demoMode';
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
@@ -19,7 +19,7 @@ import { SubmissionDetailTable } from './components/SubmissionDetailTable';
 import type { LeaseTransaction, WeeklyProgress } from '@/src/types/lease-transaction';
 import { AppHeader, Badge, Button, Dialog, LoadingState } from '@/src/components/ui';
 
-const TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向编辑用户开放';
+const TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向普通业务用户开放';
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
@@ -28,11 +28,12 @@ function errorMessage(error: unknown) {
 interface HistoryProps {
   items: LeaseTransaction[];
   userName: string;
+  canWrite: boolean;
   onEdit: (record: LeaseTransaction) => void;
   onTransfer: (record: LeaseTransaction) => void;
 }
 
-function MySubmissionTable({ items, userName, onEdit, onTransfer }: HistoryProps) {
+function MySubmissionTable({ items, userName, canWrite, onEdit, onTransfer }: HistoryProps) {
   const [page, setPage] = React.useState(1);
   const pageSize = 12;
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -75,10 +76,12 @@ function MySubmissionTable({ items, userName, onEdit, onTransfer }: HistoryProps
                 <td className="px-3 py-2.5 text-center text-slate-600">{item.transaction_quarter || '-'}</td>
                 <td className="px-3 py-2.5 text-center text-slate-400">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td>
                 <td className="px-3 py-2.5 text-center">
-                  <div className="inline-flex gap-1.5">
-                    <button type="button" onClick={() => onEdit(item)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#003e7e] transition hover:border-[#003e7e]/25 hover:bg-[#003e7e]/5"><Edit2 size={11} /> 编辑</button>
-                    <button type="button" onClick={() => onTransfer(item)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-50"><Gift size={11} /> 转交</button>
-                  </div>
+                  {canWrite ? (
+                    <div className="inline-flex gap-1.5">
+                      <button type="button" onClick={() => onEdit(item)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-[#003e7e] transition hover:border-[#003e7e]/25 hover:bg-[#003e7e]/5"><Edit2 size={11} /> 编辑</button>
+                      <button type="button" onClick={() => onTransfer(item)} className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-emerald-700 transition hover:border-emerald-200 hover:bg-emerald-50"><Gift size={11} /> 转交</button>
+                    </div>
+                  ) : <span className="text-[10px] font-medium text-slate-400">只读</span>}
                 </td>
               </tr>
             ))}</tbody>
@@ -113,6 +116,7 @@ export default function LeaseSubmissionPage() {
   const [selectedBrokerId, setSelectedBrokerId] = React.useState('');
   const [transferring, setTransferring] = React.useState(false);
   const [transferError, setTransferError] = React.useState<string | null>(null);
+  const canWrite = canWriteBusinessData(userRole);
 
   const loadCoreData = React.useCallback(async (uid: string) => {
     setCoreLoading(true);
@@ -195,18 +199,21 @@ export default function LeaseSubmissionPage() {
   }, [loadCoreData, loadTeamData, userId, userRole]);
 
   const openCreate = () => {
+    if (!canWrite) return;
     setEditingRecord(null);
     setShowForm(true);
     void getSessionFast().then((session) => logAction(session?.user?.email || '未知用户', 'OPEN_LEASE_FORM', { mode: 'new' })).catch(() => {});
   };
 
   const openEdit = (record: LeaseTransaction) => {
+    if (!canWrite) return;
     setEditingRecord(record);
     setShowForm(true);
     void getSessionFast().then((session) => logAction(session?.user?.email || '未知用户', 'OPEN_LEASE_FORM', { mode: 'edit', recordId: record.id })).catch(() => {});
   };
 
   const openTransfer = async (record: LeaseTransaction) => {
+    if (!canWrite) return;
     setTransferringRecord(record);
     setSelectedBrokerId('');
     setTransferError(null);
@@ -216,7 +223,7 @@ export default function LeaseSubmissionPage() {
   };
 
   const confirmTransfer = async () => {
-    if (!transferringRecord || !selectedBrokerId) return;
+    if (!canWrite || !transferringRecord || !selectedBrokerId) return;
     const target = brokers.find((broker) => broker.user_id === selectedBrokerId);
     if (!target) return;
     setTransferring(true);
@@ -262,7 +269,7 @@ export default function LeaseSubmissionPage() {
           actions={(
             <>
               {(admin || isDemoMode(userEmail)) && <Link href="/lease-submission/monitoring" className="hidden h-8 items-center rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] sm:inline-flex">团队监控</Link>}
-              <Button type="button" size="sm" onClick={openCreate}><Plus size={13} />新增成交</Button>
+              {canWrite ? <Button type="button" size="sm" onClick={openCreate}><Plus size={13} />新增成交</Button> : <span className="text-[11px] font-medium text-slate-400">只读模式</span>}
             </>
           )}
         />
@@ -291,14 +298,14 @@ export default function LeaseSubmissionPage() {
 
         {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
 
-        <MySubmissionTable items={submissions} userName={userName} onEdit={openEdit} onTransfer={openTransfer} />
+        <MySubmissionTable items={submissions} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
 
         {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
       </main>
 
-      <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} />
+      {canWrite ? <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} /> : null}
 
-      {transferringRecord && (
+      {canWrite && transferringRecord && (
         <Dialog
           open
           onOpenChange={(open) => { if (!open && !transferring) setTransferringRecord(null) }}

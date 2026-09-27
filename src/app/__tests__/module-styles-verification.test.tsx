@@ -2,28 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { getModuleStyles, getAccessibilityProps } from '@/src/utils/accessControl';
 
 describe('模块权限样式与可访问性', () => {
-  it('viewer 访问 lease-submission 时显示禁用状态', () => {
-    const styles = getModuleStyles('lease-submission', 'viewer');
-    const props = getAccessibilityProps('lease-submission', '租赁成交填报', 'viewer');
+  it('viewer 与 editor 都可以访问 lease-submission', () => {
+    for (const role of ['viewer', 'editor'] as const) {
+      const styles = getModuleStyles('lease-submission', role);
+      const props = getAccessibilityProps('lease-submission', '租赁成交填报', role);
 
-    expect(styles.cardClass).toContain('bg-zinc-100');
-    expect(styles.cardClass).toContain('cursor-not-allowed');
-    expect(styles.cardClass).not.toContain('hover:-translate-y-0.5');
-    expect(styles.iconClass).toContain('text-zinc-400');
-    expect(styles.textClass).toContain('text-zinc-400');
-    expect(props['aria-disabled']).toBe('true');
-    expect(props['aria-label']).toBe('租赁成交填报 - 当前角色无权访问');
-  });
-
-  it('editor 可以访问 lease-submission', () => {
-    const styles = getModuleStyles('lease-submission', 'editor');
-    const props = getAccessibilityProps('lease-submission', '租赁成交填报', 'editor');
-
-    expect(styles.cardClass).toContain('bg-white');
-    expect(styles.cardClass).toContain('hover:-translate-y-0.5');
-    expect(styles.iconClass).toContain('group-hover:text-primary');
-    expect(styles.textClass).toContain('group-hover:text-primary');
-    expect(props['aria-disabled']).toBeUndefined();
+      expect(styles.cardClass).toContain('bg-white');
+      expect(styles.cardClass).toContain('hover:-translate-y-0.5');
+      expect(styles.iconClass).toContain('group-hover:text-primary');
+      expect(styles.textClass).toContain('group-hover:text-primary');
+      expect(props['aria-disabled']).toBeUndefined();
+    }
   });
 
   it('admin 可以访问 lease-submission', () => {

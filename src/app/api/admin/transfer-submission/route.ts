@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { canWriteBusinessData } from '@/src/utils/accessControl';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,9 @@ export async function POST(req: NextRequest) {
     const { identity } = identityResult;
     const impersonationBlock = denyImpersonatedMutation(identity);
     if (impersonationBlock) return impersonationBlock;
+    if (!canWriteBusinessData(identity.effectiveRole)) {
+      return NextResponse.json({ error: '当前账号为只读模式，不能转交成交记录' }, { status: 403 });
+    }
     const caller = identity.caller;
 
     // 解析请求体

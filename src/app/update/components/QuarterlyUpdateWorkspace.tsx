@@ -8,6 +8,7 @@ import { AlertTriangle, CheckCircle2, Database, RotateCcw, Save } from 'lucide-r
 import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
+import { canWriteBusinessData } from '@/src/utils/accessControl';
 import { useBuildings } from '@/src/hooks/useBuildings';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { handleDataFetchError } from '@/src/utils/errorHandler';
@@ -134,6 +135,7 @@ export function QuarterlyUpdateWorkspace() {
 
   const [ready, setReady] = React.useState(false);
   const [currentUser, setCurrentUser] = React.useState<any>(null);
+  const [userRole, setUserRole] = React.useState('viewer');
   const [matchName, setMatchName] = React.useState('');
   const [draftUserName, setDraftUserName] = React.useState('');
   const [isPreview, setIsPreview] = React.useState(false);
@@ -244,10 +246,12 @@ export function QuarterlyUpdateWorkspace() {
         setDraftUserName(name);
 
         const { data: roleRow } = await supabase.from('user_roles').select('role').eq('user_id', user.id).single();
-        if (roleRow?.role !== 'admin' && roleRow?.role !== 'editor') {
+        const role = roleRow?.role ?? '';
+        if (!['viewer', 'editor', 'admin'].includes(role)) {
           router.replace('/');
           return;
         }
+        setUserRole(role);
 
         let assignmentUserId = user.id;
         if (previewAsUserId && roleRow?.role === 'admin') {
@@ -381,7 +385,7 @@ export function QuarterlyUpdateWorkspace() {
   }, [draftUserName, myBuildings.length, currentTab, fetchDraftFromServer]);
 
   const syncDraftToServer = React.useCallback(async (draft: Record<string, any>, tab: string) => {
-    if (!draftUserName || isPreview || isImpersonating) return false;
+    if (!draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false;
     setSaveState('saving');
     setSaveMessage('正在同步云端草稿');
     try {
@@ -401,7 +405,7 @@ export function QuarterlyUpdateWorkspace() {
       setSaveMessage(error?.message || '云端草稿保存失败；当前页面仍保留本地修改');
       return false;
     }
-  }, [draftUserName, isPreview, isImpersonating]);
+  }, [draftUserName, userRole, isPreview, isImpersonating]);
 
   const mergedDraft = React.useCallback(() => ({ ...draftData, __futureSupply__: futureSupplyDrafts }), [draftData, futureSupplyDrafts]);
 
@@ -474,9 +478,13 @@ export function QuarterlyUpdateWorkspace() {
   const completedCount = filteredBuildings.filter((building: any) => isQuarterlyRowComplete(rowState(building))).length;
   const exceptionCount = filteredBuildings.filter((building: any) => getQuarterlyRowIssues(rowState(building), totalAreaFor(building)).length > 0).length;
   const incompleteBuildings = filteredBuildings.filter((building: any) => !isQuarterlyRowComplete(rowState(building)));
-  const readOnly = isPreview || isImpersonating;
+  const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating;
 
   const executeSubmit = async () => {
+    if (readOnly) {
+      setSubmitError('当前账号为只读模式，不能写入季度业务数据。');
+      return;
+    }
     setShowIncompleteDialog(false);
     setSubmitting(true);
     setSubmitError(null);
@@ -544,6 +552,7 @@ export function QuarterlyUpdateWorkspace() {
   };
 
   const submitData = async () => {
+    if (readOnly) return;
     await syncDraftToServer(mergedDraft(), currentTab);
     if (incompleteBuildings.length > 0) {
       setShowIncompleteDialog(true);
@@ -743,7 +752,7 @@ export function QuarterlyUpdateWorkspace() {
           <DataEntryToolbar leading={<div className="flex items-center gap-2 text-[10px] text-zinc-500"><Database size={12} /><span>30 秒自动同步云草稿；提交成功后保留草稿作为下一轮编辑基础。</span></div>}>
             {!readOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> 保存草稿</button>}
             {!readOnly && <button type="button" onClick={() => { void submitData(); }} disabled={submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? '提交中…' : '提交当前分类'}</button>}
-            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{isImpersonating ? '模拟模式不可写入' : '预览模式不可写入'}</span>}
+            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{userRole === 'viewer' ? '查看用户为只读模式' : isImpersonating ? '模拟模式不可写入' : '预览模式不可写入'}</span>}
           </DataEntryToolbar>
         </div>
       </main>

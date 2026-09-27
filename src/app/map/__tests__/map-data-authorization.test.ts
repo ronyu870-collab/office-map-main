@@ -19,7 +19,7 @@ describe('map data authorization boundary', () => {
     expect(route).toContain("mode === 'compare'");
     expect(route).toContain("mode === 'trend'");
     expect(route).toContain(".or('project_type.neq.future,project_type.is.null')");
-    expect(route).toContain("grade === 'A' || grade === 'P'");
+    expect(route).toContain("role === 'viewer' || role === 'editor' || role === 'admin'");
 
     expect(client).toContain('withImpersonationHeaders');
     expect(controller).toContain('fetchMapBuildingPayload("all")');
@@ -34,14 +34,16 @@ describe('map data authorization boundary', () => {
   });
 
   it('keeps the database RLS contract aligned with the server role boundary', () => {
-    const migration = source('supabase/migrations/20260923133000_harden_map_read_boundaries.sql');
+    const migration = source('supabase/migrations/20260927045505_viewer_readonly_editor_parity.sql');
 
     expect(migration).toContain('private.map_can_view_extended_inventory()');
     expect(migration).toContain('private.map_building_visible');
+    expect(migration).toContain("r.role in ('viewer', 'editor', 'admin')");
     expect(migration).toContain('role scoped read buildings');
     expect(migration).toContain('role scoped read building metrics');
     expect(migration).toContain('role scoped read building brochure data');
     expect(migration).toContain('role scoped read future supplies');
-    expect(migration).toContain("upper(trim(coalesce(grade, ''))) in ('A', 'P')");
+    expect(migration).toContain('private.can_write_business_data()');
+    expect(migration).toContain("r.role in ('editor', 'admin')");
   });
 });

@@ -219,7 +219,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         throw new Error('服务器没有返回楼宇数据');
       }
 
-      // admin/editor 可见所有等级，viewer 只看 A/P。索引在数据进入工作区时只构建一次。
+      // viewer/editor/admin 读取同一楼宇范围；角色差异只体现在业务写权限。索引只构建一次。
       const role = userRoleRef.current;
       mapDataStoreRef.current.replaceBuildings(buildings);
       const visible = mapDataStoreRef.current.getRoleVisible(role);

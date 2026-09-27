@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
     }
 
     const canAccessTeamSubmissions = callerRole === 'admin'
-      || (callerRole === 'editor' && accessSetting?.boolean_value === true);
+      || ((callerRole === 'editor' || callerRole === 'viewer') && accessSetting?.boolean_value === true);
 
     if (req.nextUrl.searchParams.get('access') === '1') {
       return NextResponse.json(
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
 
     if (!canViewLeaseTeamSubmissions(identity.effectiveRole) || !canAccessTeamSubmissions) {
       return NextResponse.json(
-        { error: '团队成交汇总当前未向编辑用户开放', code: 'LEASE_TEAM_ACCESS_DISABLED' },
+        { error: '团队成交汇总当前未向普通业务用户开放', code: 'LEASE_TEAM_ACCESS_DISABLED' },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
       );
     }

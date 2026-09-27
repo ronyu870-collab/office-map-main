@@ -96,18 +96,18 @@ describe('Home workspace behavior', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('prevents a disabled workspace from navigating and audits the blocked activation', () => {
+  it('lets a viewer enter the same business read workspaces as an editor', () => {
     setSession('viewer');
     render(<HomeWorkspace />);
 
-    const lease = screen.getByRole('link', { name: '租赁成交填报 - 当前角色无权访问' });
-    expect(lease).toHaveAttribute('aria-disabled', 'true');
-    expect(fireEvent.click(lease)).toBe(false);
-    expect(state.logAction).toHaveBeenCalledWith('viewer@colliers.com', 'ACCESS_DENIED', {
-      module: 'lease-submission',
-      blocked: true,
-      reason: 'restricted_module',
-    });
+    const lease = screen.getByRole('link', { name: '租赁成交填报' });
+    expect(lease).not.toHaveAttribute('aria-disabled');
+    expect(fireEvent.click(lease)).toBe(true);
+    expect(state.logAction).not.toHaveBeenCalledWith(
+      'viewer@colliers.com',
+      'ACCESS_DENIED',
+      expect.anything(),
+    );
   });
 
   it('does not expose the admin entry while impersonating', () => {

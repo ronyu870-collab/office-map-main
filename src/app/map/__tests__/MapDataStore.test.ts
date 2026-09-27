@@ -81,7 +81,7 @@ describe('MapDataStore', () => {
     const viewer = store.filter({ filterState: defaultFilter(), compareGroups: [], role: 'viewer' });
     const editor = store.filter({ filterState: defaultFilter(), compareGroups: [], role: 'editor' });
 
-    expect(viewer.map(item => item.id)).toEqual(['a', 'p']);
+    expect(viewer.map(item => item.id)).toEqual(['a', 'p', 'b', 'bp']);
     expect(editor.map(item => item.id)).toEqual(['a', 'p', 'b', 'bp']);
   });
 
@@ -146,7 +146,7 @@ describe('MapDataStore', () => {
     const viewer = store.filter({ filterState: globalFinance, role: 'viewer', compareGroups });
     const editor = store.filter({ filterState: globalFinance, role: 'editor', compareGroups });
 
-    expect(viewer.map(item => item.id)).toEqual(['a-finance']);
+    expect(viewer.map(item => item.id)).toEqual(['a-finance', 'b']);
     expect(editor.map(item => item.id)).toEqual(['a-finance', 'b']);
   });
 
