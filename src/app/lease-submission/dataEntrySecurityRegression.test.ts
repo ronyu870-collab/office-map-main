@@ -26,12 +26,16 @@ describe('lease data entry authorization seams', () => {
     expect(source).toContain('maxDuration = 30');
   });
 
-  it('loads team submissions without a separate access probe', () => {
-    const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
-    expect(source).not.toContain('getLeaseTeamAccess');
-    expect(source).toContain('canViewLeaseTeamSubmissions(role)');
-    expect(source).toContain('getAllSubmissions(role)');
-    expect(source).toContain("TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向普通业务用户开放'");
+  it('loads team submissions for every canonical role without a global enable/disable switch', () => {
+    const page = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
+    const route = fs.readFileSync(path.join(process.cwd(), 'src/app/api/lease-submission/team-submissions/route.ts'), 'utf8');
+    expect(page).not.toContain('getLeaseTeamAccess');
+    expect(page).not.toContain('TEAM_ACCESS_DISABLED_MESSAGE');
+    expect(page).toContain('canViewLeaseTeamSubmissions(role)');
+    expect(page).toContain('getAllSubmissions(role)');
+    expect(route).toContain('const canAccessTeamSubmissions = canViewLeaseTeamSubmissions(identity.effectiveRole)');
+    expect(route).not.toContain('editor_can_view_lease_team_submissions');
+    expect(route).not.toContain("from('system_settings')");
   });
 
   it('keeps core workspace readiness independent from team loading', () => {
