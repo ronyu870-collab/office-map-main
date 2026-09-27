@@ -49,20 +49,9 @@ export async function GET(req: NextRequest) {
 
     // This endpoint uses the service role and therefore bypasses RLS. Authorization
     // must be checked against the effective (possibly impersonated) role before any
-    // team-wide data is queried.
-    const callerRole = identity.effectiveRole;
-    const { data: accessSetting, error: settingError } = await supabaseAdmin
-      .from('system_settings')
-      .select('boolean_value')
-      .eq('key', 'editor_can_view_lease_team_submissions')
-      .maybeSingle();
-    if (settingError) {
-      console.error('[team-submissions] 查询团队成交开关失败:', settingError);
-      return NextResponse.json({ error: '权限设置读取失败' }, { status: 500 });
-    }
-
-    const canAccessTeamSubmissions = callerRole === 'admin'
-      || ((callerRole === 'editor' || callerRole === 'viewer') && accessSetting?.boolean_value === true);
+    // team-wide data is queried. Viewer and Editor intentionally share the same
+    // live-team read scope; their only role difference is business write capability.
+    const canAccessTeamSubmissions = canViewLeaseTeamSubmissions(identity.effectiveRole);
 
     if (req.nextUrl.searchParams.get('access') === '1') {
       return NextResponse.json(
@@ -71,9 +60,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (!canViewLeaseTeamSubmissions(identity.effectiveRole) || !canAccessTeamSubmissions) {
+    if (!canAccessTeamSubmissions) {
       return NextResponse.json(
-        { error: '团队成交汇总当前未向普通业务用户开放', code: 'LEASE_TEAM_ACCESS_DISABLED' },
+        { error: '当前角色无权查看团队成交汇总', code: 'LEASE_TEAM_ACCESS_DENIED' },
         { status: 403, headers: { 'Cache-Control': 'no-store' } },
       );
     }
