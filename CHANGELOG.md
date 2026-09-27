@@ -29,7 +29,7 @@ Viewer had evolved into a partially hidden role rather than a true read-only rol
 ### Verification
 
 - Regression coverage now locks Map read parity, business-workspace access parity, Viewer read-only controls, RLS write denial contracts, and service-role transfer denial.
-- Production RLS migration: `20260924142000_viewer_readonly_editor_parity.sql`.
+- Production RLS migration: `20260927045505_viewer_readonly_editor_parity.sql`.
 - Vercel Preview and production verification are required before this change is considered complete.
 
 ---
