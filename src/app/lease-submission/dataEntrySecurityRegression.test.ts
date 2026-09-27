@@ -56,7 +56,7 @@ describe('lease data entry authorization seams', () => {
   });
 
   it('keeps database write authorization below the UI boundary', () => {
-    const migration = fs.readFileSync(path.join(process.cwd(), 'supabase/migrations/20260924142000_viewer_readonly_editor_parity.sql'), 'utf8');
+    const migration = fs.readFileSync(path.join(process.cwd(), 'supabase/migrations/20260927045505_viewer_readonly_editor_parity.sql'), 'utf8');
     expect(migration).toContain('private.can_write_business_data()');
     expect(migration).toContain("r.role in ('editor', 'admin')");
     expect(migration).toContain('business writers insert own lease transactions');
