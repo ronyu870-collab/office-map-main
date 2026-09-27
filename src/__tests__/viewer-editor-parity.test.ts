@@ -76,4 +76,16 @@ describe('viewer/editor parity contract', () => {
     );
     expect(source).toContain('canWriteBusinessData(identity.effectiveRole)');
   });
+
+  it('keeps the latest-quarterly view explicitly read-only for authenticated users', () => {
+    const migration = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'supabase/migrations/20260927052024_revoke_quarterly_latest_view_write_grants.sql',
+      ),
+      'utf8',
+    );
+    expect(migration).toContain('revoke insert, update, delete, truncate, references, trigger');
+    expect(migration).toContain('grant select on table public.view_latest_quarterly_submissions');
+  });
 });
