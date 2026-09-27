@@ -18,7 +18,7 @@ describe('quarterly viewer read-only parity', () => {
 
   it('enforces viewer write denial in RLS rather than relying on disabled inputs', () => {
     const migration = fs.readFileSync(
-      path.join(process.cwd(), 'supabase/migrations/20260924142000_viewer_readonly_editor_parity.sql'),
+      path.join(process.cwd(), 'supabase/migrations/20260927045505_viewer_readonly_editor_parity.sql'),
       'utf8',
     );
 
