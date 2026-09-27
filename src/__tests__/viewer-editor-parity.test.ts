@@ -67,14 +67,36 @@ describe('viewer/editor parity contract', () => {
     );
   });
 
-  it('keeps the service-role team API symmetric for viewer/editor reads', () => {
+  it('keeps the service-role team API permanently open to viewer/editor reads', () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), 'src/app/api/lease-submission/team-submissions/route.ts'),
       'utf8',
     );
     expect(source).toContain(
-      "(callerRole === 'editor' || callerRole === 'viewer') && accessSetting?.boolean_value === true",
+      'const canAccessTeamSubmissions = canViewLeaseTeamSubmissions(identity.effectiveRole)',
     );
+    expect(source).not.toContain('editor_can_view_lease_team_submissions');
+    expect(source).not.toContain("from('system_settings')");
+  });
+
+  it('removes the obsolete global team-read switch from Admin and RLS', () => {
+    expect(fs.existsSync(
+      path.join(process.cwd(), 'src/components/admin/LeaseTeamAccessControl.tsx'),
+    )).toBe(false);
+    expect(fs.existsSync(
+      path.join(process.cwd(), 'src/app/api/admin/lease-team-access/route.ts'),
+    )).toBe(false);
+
+    const migration = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        'supabase/migrations/20260927073100_remove_lease_team_access_switch.sql',
+      ),
+      'utf8',
+    );
+    expect(migration).toContain("r.role in ('viewer', 'editor', 'admin')");
+    expect(migration).toContain('drop table if exists public.system_settings');
+    expect(migration).not.toContain('editor_can_view_lease_team_submissions');
   });
 
   it('keeps service-role mutations explicitly blocked for viewer', () => {
