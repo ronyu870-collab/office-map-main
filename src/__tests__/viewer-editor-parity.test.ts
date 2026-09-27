@@ -90,7 +90,7 @@ describe('viewer/editor parity contract', () => {
     const migration = fs.readFileSync(
       path.join(
         process.cwd(),
-        'supabase/migrations/20260927073100_remove_lease_team_access_switch.sql',
+        'supabase/migrations/20260927074605_remove_lease_team_access_switch.sql',
       ),
       'utf8',
     );
