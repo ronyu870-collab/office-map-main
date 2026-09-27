@@ -34,7 +34,7 @@ describe('map data authorization boundary', () => {
   });
 
   it('keeps the database RLS contract aligned with the server role boundary', () => {
-    const migration = source('supabase/migrations/20260924142000_viewer_readonly_editor_parity.sql');
+    const migration = source('supabase/migrations/20260927045505_viewer_readonly_editor_parity.sql');
 
     expect(migration).toContain('private.map_can_view_extended_inventory()');
     expect(migration).toContain('private.map_building_visible');
