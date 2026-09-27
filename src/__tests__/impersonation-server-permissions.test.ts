@@ -46,7 +46,7 @@ describe('server-side impersonation permission inheritance', () => {
     expect(leaseRead).toContain('resolveLeaseReadAccess(identity.effectiveRole');
     expect(submissions).toContain("identity.effectiveRole === 'admin'");
     expect(submissions).toContain("query.eq('submitter_id', identity.effectiveUserId)");
-    expect(teamSubmissions).toContain('const callerRole = identity.effectiveRole');
+    expect(teamSubmissions).toContain('canViewLeaseTeamSubmissions(identity.effectiveRole)');
     expect(leaseExport).toContain("identity.effectiveRole !== 'admin'");
     expect(brokers).toContain('resolveEffectiveRequestIdentity(req, supabaseAdmin)');
     expect(intelligence).toContain('isIntelligencePreviewEnabled(identity.effectiveRole)');
