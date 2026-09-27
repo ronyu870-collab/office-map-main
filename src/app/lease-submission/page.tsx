@@ -18,8 +18,6 @@ import { SubmissionDetailTable } from './components/SubmissionDetailTable';
 import type { LeaseTransaction, WeeklyProgress } from '@/src/types/lease-transaction';
 import { AppHeader, Badge, Button, Dialog, LoadingState } from '@/src/components/ui';
 
-const TEAM_ACCESS_DISABLED_MESSAGE = '团队成交汇总当前未向普通业务用户开放';
-
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
 }
@@ -151,15 +149,8 @@ export default function LeaseSubmissionPage() {
       const nextTeamSubmissions = await retryAsync(() => getAllSubmissions(role), { attempts: 1 });
       setTeamSubmissions(nextTeamSubmissions);
     } catch (teamLoadError) {
-      const message = errorMessage(teamLoadError);
-      if (message === TEAM_ACCESS_DISABLED_MESSAGE) {
-        setTeamAccessEnabled(false);
-        setTeamSubmissions([]);
-        setTeamError(null);
-      } else {
-        setTeamAccessEnabled(true);
-        setTeamError(message);
-      }
+      setTeamAccessEnabled(true);
+      setTeamError(errorMessage(teamLoadError));
     } finally {
       setTeamLoading(false);
     }

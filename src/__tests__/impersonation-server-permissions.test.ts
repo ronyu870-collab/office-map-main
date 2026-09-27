@@ -46,7 +46,7 @@ describe('server-side impersonation permission inheritance', () => {
     expect(leaseRead).toContain('resolveLeaseReadAccess(identity.effectiveRole');
     expect(submissions).toContain("identity.effectiveRole === 'admin'");
     expect(submissions).toContain("query.eq('submitter_id', identity.effectiveUserId)");
-    expect(teamSubmissions).toContain('const callerRole = identity.effectiveRole');
+    expect(teamSubmissions).toContain('canViewLeaseTeamSubmissions(identity.effectiveRole)');
     expect(leaseExport).toContain("identity.effectiveRole !== 'admin'");
     expect(brokers).toContain('resolveEffectiveRequestIdentity(req, supabaseAdmin)');
     expect(intelligence).toContain('isIntelligencePreviewEnabled(identity.effectiveRole)');
@@ -55,7 +55,6 @@ describe('server-side impersonation permission inheritance', () => {
   it('prevents the real admin JWT from mutating privileged data while simulation is active', () => {
     const helper = source('src/lib/server/impersonationAuth.ts');
     const adminUsers = source('src/app/api/admin/users/route.ts');
-    const leaseSettings = source('src/app/api/admin/lease-team-access/route.ts');
     const transfer = source('src/app/api/admin/transfer-submission/route.ts');
     const createUser = source('src/app/api/admin/create-user/route.ts');
     const resetPassword = source('src/app/api/admin/reset-password/route.ts');
@@ -63,7 +62,7 @@ describe('server-side impersonation permission inheritance', () => {
     const oss = source('src/app/api/oss/route.ts');
 
     expect(helper).toContain('denyImpersonatedMutation');
-    for (const route of [adminUsers, leaseSettings, transfer, createUser, resetPassword, passwordChange]) {
+    for (const route of [adminUsers, transfer, createUser, resetPassword, passwordChange]) {
       expect(route).toContain('denyImpersonatedMutation');
     }
     expect(oss).toContain('verified.isImpersonating');

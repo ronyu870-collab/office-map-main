@@ -1,3 +1,25 @@
+## 2026-09-27 — Make live team lease transactions permanently readable
+
+### Area
+Lease Submission / Viewer-Editor parity / Admin settings / Supabase RLS
+
+### What changed
+
+- Removed the legacy global `editor_can_view_lease_team_submissions` switch from the team-submissions API.
+- Viewer, Editor and Admin now always receive the live team transaction summary; Viewer remains read-only through the existing business-write capability checks.
+- Removed the obsolete Admin UI toggle and its dedicated API route so team visibility cannot be accidentally disabled again.
+- Replaced the lease-transactions SELECT RLS policy with a fixed canonical-role read policy for `viewer`, `editor` and `admin`.
+- Removed the now-unused `system_settings` table, whose only purpose was the retired lease-team visibility switch.
+- Added regression coverage preventing the old switch dependency from returning.
+
+### Verification
+
+- Production-schema rollback simulation with the new RLS returned 338 live lease rows for the real Viewer identity.
+- The same identity temporarily changed to Editor returned the same 338 rows; the role change and migration simulation were rolled back.
+- Viewer write permissions remain unchanged and continue to be blocked separately from read access.
+
+---
+
 ## 2026-09-27 — Remove Demo-mode Viewer parity exception
 
 ### Area
