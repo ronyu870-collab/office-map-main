@@ -19,6 +19,7 @@ describe('quarterly period safety', () => {
     expect(manager).toContain("supabase.rpc('set_current_submission_period'");
     expect(manager).toContain('.eq("record_year", year)');
     expect(manager).toContain('.eq("record_quarter", quarter)');
+    expect(manager).toContain('.eq("is_entered_market", false)');
   });
 
   it('keeps future-supply drafts stable across assignment-id rollover', () => {
@@ -26,6 +27,7 @@ describe('quarterly period safety', () => {
 
     expect(workspace).toContain('futureSupplyDrafts[building.id] || futureSupplyDrafts[building._assignmentId]');
     expect(workspace).toContain('updateFutureField(building.id, building._assignmentId');
+    expect(workspace).toContain(".eq('is_entered_market', false)");
   });
 
   it('uses a strictly previous-period building metric as the reference', () => {
@@ -45,5 +47,9 @@ describe('quarterly period safety', () => {
     expect(migration).toContain('create or replace function public.submit_quarterly_batch');
     expect(migration).toContain('insert into public.quarterly_submissions');
     expect(migration).toContain('insert into public.future_supply_submissions');
+
+    const lifecycleMigration = source('supabase/migrations/20260928020602_reconcile_entered_market_future_supplies.sql');
+    expect(lifecycleMigration).toContain('is_entered_market = true');
+    expect(lifecycleMigration).toContain('coalesce(fs.is_entered_market, false) = false');
   });
 });
