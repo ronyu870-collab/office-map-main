@@ -55,5 +55,11 @@ describe('quarterly period safety', () => {
     const quarterGuardMigration = source('supabase/migrations/20260928021119_guard_future_supply_launch_quarter_values.sql');
     expect(quarterGuardMigration).toContain("launch_quarter in ('Q1','Q2','Q3','Q4','H1','H2')");
     expect(quarterGuardMigration).toContain('not valid');
+
+    const finalGuardMigration = source('supabase/migrations/20260928021409_finalize_quarter_guard_and_quarterly_indexes.sql');
+    expect(finalGuardMigration).toContain('validate constraint future_supplies_launch_quarter_valid');
+    expect(finalGuardMigration).toContain('quarterly_submissions_building_idx');
+    expect(finalGuardMigration).toContain('future_supply_submissions_future_supply_idx');
+    expect(finalGuardMigration).toContain('future_supply_submissions_user_idx');
   });
 });
