@@ -51,5 +51,9 @@ describe('quarterly period safety', () => {
     const lifecycleMigration = source('supabase/migrations/20260928020602_reconcile_entered_market_future_supplies.sql');
     expect(lifecycleMigration).toContain('is_entered_market = true');
     expect(lifecycleMigration).toContain('coalesce(fs.is_entered_market, false) = false');
+
+    const quarterGuardMigration = source('supabase/migrations/20260928021119_guard_future_supply_launch_quarter_values.sql');
+    expect(quarterGuardMigration).toContain("launch_quarter in ('Q1','Q2','Q3','Q4','H1','H2')");
+    expect(quarterGuardMigration).toContain('not valid');
   });
 });
