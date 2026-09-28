@@ -161,7 +161,8 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         .eq("project_type", "stock"),
       supabase
         .from("future_supplies")
-        .select("id", { count: "exact", head: true }),
+        .select("id", { count: "exact" })
+        .eq("is_entered_market", false),
       supabase
         .from("building_assignments")
         .select("building_id")
@@ -190,16 +191,21 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
 
     setTotalBuildings(buildingsCount.count || 0);
     setFutureTotal(futureSuppliesCount.count || 0);
+    const activeFutureSupplyIds = new Set<string>(
+      (futureSuppliesCount.data || []).map((row) => row.id),
+    );
 
     // 存量楼宇分配去重
     const assignedSet = new Set<string>();
     for (const r of assignsData.data || []) assignedSet.add(r.building_id);
     setTotalAssigned(assignedSet.size);
 
-    // 未来供应分配去重
+    // 未来供应分配去重：只统计尚未进入存量市场的项目。
     const futureAssignedSet = new Set<string>();
-    for (const r of futureAssignsData.data || [])
-      futureAssignedSet.add(r.future_supply_id);
+    for (const r of futureAssignsData.data || []) {
+      if (activeFutureSupplyIds.has(r.future_supply_id))
+        futureAssignedSet.add(r.future_supply_id);
+    }
     setFutureAssigned(futureAssignedSet.size);
 
     // 存量楼宇填报去重（RPC 已在数据库端去重，直接读取）
@@ -208,10 +214,12 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     for (const r of subsRpcData) submittedSet.add(r.building_id);
     setTotalSubmitted(submittedSet.size);
 
-    // 未来供应填报去重
+    // 未来供应填报去重：已转存量项目仅保留历史，不计入当前未来供应进度。
     const futureSubmittedSet = new Set<string>();
-    for (const r of futureSubsData.data || [])
-      futureSubmittedSet.add(r.future_supply_id);
+    for (const r of futureSubsData.data || []) {
+      if (activeFutureSupplyIds.has(r.future_supply_id))
+        futureSubmittedSet.add(r.future_supply_id);
+    }
     setFutureSubmitted(futureSubmittedSet.size);
 
     const users = usersRes.data || [];
