@@ -101,22 +101,12 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
 
   async function handleSaveConfig() {
     setSaving(true);
-    const results = await Promise.all([
-      supabase
-        .from("app_settings")
-        .upsert(
-          { key: "current_submission_year", value: String(cfgYear) },
-          { onConflict: "key" },
-        ),
-      supabase
-        .from("app_settings")
-        .upsert(
-          { key: "current_submission_quarter", value: String(cfgQuarter) },
-          { onConflict: "key" },
-        ),
-    ]);
-    const saveError = results.find(result => result.error)?.error;
-    if (!saveError) {
+    try {
+      const { error } = await supabase.rpc('set_current_submission_period', {
+        p_year: cfgYear,
+        p_quarter: cfgQuarter,
+      });
+      if (error) throw error;
       logAction(undefined, 'CONFIG_CHANGE', {
         config_area: 'quarterly_submission_period',
         config_name: '当前季度填报周期',
@@ -124,8 +114,16 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         quarter: cfgQuarter,
         target_name: `${cfgYear} Q${cfgQuarter} 季度填报周期`,
       });
+      setYear(cfgYear);
+      setQuarter(cfgQuarter);
+    } catch (error: any) {
+      console.error('[SubmissionManager] failed to update submission period', error);
+      alert(error?.message?.includes('submission_period_cannot_move_backward')
+        ? '为避免误覆盖草稿，当前填报周期不允许直接向过去回退。'
+        : `切换填报周期失败：${error?.message || '未知错误'}`);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   React.useEffect(() => {
@@ -175,7 +173,9 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       }),
       supabase
         .from("future_supply_assignments")
-        .select("future_supply_id"),
+        .select("future_supply_id")
+        .eq("record_year", year)
+        .eq("record_quarter", quarter),
       supabase
         .from("future_supply_submissions")
         .select("future_supply_id")
