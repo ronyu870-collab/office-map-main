@@ -329,7 +329,8 @@ export function QuarterlyUpdateWorkspace() {
               const { data: supplies } = await supabase
                 .from('future_supplies')
                 .select('id,name,submarket,grade,owner,total_area,district')
-                .in('id', idsToLoad);
+                .in('id', idsToLoad)
+                .eq('is_entered_market', false);
               const supplyMap: Record<string, any> = {};
               for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
               setFutureSupplyData(supplyMap);
