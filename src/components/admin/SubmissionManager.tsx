@@ -162,7 +162,9 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       supabase
         .from("future_supplies")
         .select("id", { count: "exact" })
-        .eq("is_entered_market", false),
+        .eq("is_entered_market", false)
+        .eq("launch_year", String(year))
+        .eq("launch_quarter", `Q${quarter}`),
       supabase
         .from("building_assignments")
         .select("building_id")
