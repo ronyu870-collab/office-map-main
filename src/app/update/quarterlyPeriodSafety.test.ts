@@ -21,6 +21,8 @@ describe('quarterly period safety', () => {
     expect(manager).toContain('.eq("record_quarter", quarter)');
     expect(manager).toContain('.eq("is_entered_market", false)');
     expect(manager).toContain('.eq("project_type", "stock")');
+    expect(manager).toContain('.eq("launch_year", String(year))');
+    expect(manager).toContain('.eq("launch_quarter", `Q${quarter}`)');
   });
 
   it('keeps future-supply drafts stable across assignment-id rollover', () => {
