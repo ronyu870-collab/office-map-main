@@ -12,7 +12,7 @@ describe('quarterly viewer read-only parity', () => {
     expect(source).toContain("!['viewer', 'editor', 'admin'].includes(role)");
     expect(source).toContain('setUserRole(role)');
     expect(source).toContain('const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating');
-    expect(source).toContain("if (!draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false");
+    expect(source).toContain("if (!draftUserId || !draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false");
     expect(source).toContain("setSubmitError('当前账号为只读模式，不能写入季度业务数据。')");
   });
 
