@@ -138,6 +138,8 @@ export function QuarterlyUpdateWorkspace() {
   const [userRole, setUserRole] = React.useState('viewer');
   const [matchName, setMatchName] = React.useState('');
   const [draftUserName, setDraftUserName] = React.useState('');
+  const [draftUserId, setDraftUserId] = React.useState('');
+  const [draftRevision, setDraftRevision] = React.useState(0);
   const [isPreview, setIsPreview] = React.useState(false);
   const [previewUserName, setPreviewUserName] = React.useState('');
   const [currentTab, setCurrentTab] = React.useState('GradeA');
@@ -177,7 +179,10 @@ export function QuarterlyUpdateWorkspace() {
       .filter((building: any) => idSet.has(building.id))
       .map((building: any) => {
         const copy: any = { ...building };
-        const reference = (metricsMap[building.id] ?? [])[0] ?? null;
+        const reference = (metricsMap[building.id] ?? []).find((metric: any) => (
+          metric.record_year < submitYear
+          || (metric.record_year === submitYear && metric.record_quarter < submitQuarter)
+        )) ?? null;
         copy._referenceData = reference;
         if (reference) {
           copy['上季度租金报价'] = reference.asking_rent;
@@ -224,7 +229,7 @@ export function QuarterlyUpdateWorkspace() {
       });
     }
     return result;
-  }, [protectedBuildings, assignedBuildingIds, metricsMap, futureSupplyAssignments, futureSupplyData]);
+  }, [protectedBuildings, assignedBuildingIds, metricsMap, futureSupplyAssignments, futureSupplyData, submitYear, submitQuarter]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -244,6 +249,7 @@ export function QuarterlyUpdateWorkspace() {
         const name = (user.user_metadata?.full_name as string) || user.email?.split('@')[0] || '未知用户';
         setMatchName(name);
         setDraftUserName(name);
+        setDraftUserId(user.id);
 
         const { data: roleRow } = await supabase.from('user_roles').select('role').eq('user_id', user.id).single();
         const role = roleRow?.role ?? '';
@@ -257,6 +263,7 @@ export function QuarterlyUpdateWorkspace() {
         if (previewAsUserId && roleRow?.role === 'admin') {
           setIsPreview(true);
           assignmentUserId = previewAsUserId;
+          setDraftUserId(previewAsUserId);
           const { data: previewUser } = await supabase
             .from('user_roles')
             .select('chinese_name, full_name, email')
@@ -274,7 +281,7 @@ export function QuarterlyUpdateWorkspace() {
         }, { attempts: 3, baseDelayMs: 250 });
         if (cancelled) return;
         const ids = assignments.map((assignment: any) => assignment.building_id as string);
-        setAssignedBuildingIds((previous) => previous && previous.length > 0 && ids.length === 0 ? previous : ids);
+        setAssignedBuildingIds(ids);
 
         if (ids.length > 0) {
           try {
@@ -314,16 +321,19 @@ export function QuarterlyUpdateWorkspace() {
             .eq('user_id', assignmentUserId)
             .eq('record_year', effectiveYear)
             .eq('record_quarter', effectiveQuarter);
-          if (!supplyError && supplyAssignments?.length) {
-            setFutureSupplyAssignments(supplyAssignments);
-            const idsToLoad = supplyAssignments.map((assignment) => assignment.future_supply_id);
-            const { data: supplies } = await supabase
-              .from('future_supplies')
-              .select('id,name,submarket,grade,owner,total_area,district')
-              .in('id', idsToLoad);
-            const supplyMap: Record<string, any> = {};
-            for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
-            setFutureSupplyData(supplyMap);
+          if (!supplyError) {
+            setFutureSupplyAssignments(supplyAssignments ?? []);
+            setFutureSupplyData({});
+            if (supplyAssignments?.length) {
+              const idsToLoad = supplyAssignments.map((assignment) => assignment.future_supply_id);
+              const { data: supplies } = await supabase
+                .from('future_supplies')
+                .select('id,name,submarket,grade,owner,total_area,district')
+                .in('id', idsToLoad);
+              const supplyMap: Record<string, any> = {};
+              for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
+              setFutureSupplyData(supplyMap);
+            }
           }
         } catch (error) {
           console.warn('[QuarterlyUpdate] future supply unavailable; continuing with regular assignments', error);
@@ -342,20 +352,20 @@ export function QuarterlyUpdateWorkspace() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentsRetryKey, previewAsUserId, router]);
 
-  const fetchDraftFromServer = React.useCallback(async (userName: string, tab: string) => {
+  const fetchDraftFromServer = React.useCallback(async (userId: string, tab: string) => {
     try {
       setSaveState('saving');
       setSaveMessage('正在加载云端草稿');
       const { data, error } = await supabase
         .from('update_drafts')
-        .select('draft_data,updated_at')
-        .eq('user_name', userName)
+        .select('draft_data,updated_at,revision,record_year,record_quarter')
+        .eq('user_id', userId)
         .eq('tab', tab)
         .single();
       if (error) {
-        // Preserve legacy degradation: a missing/unreadable draft never hides assigned projects.
         setDraftData({});
         setFutureSupplyDrafts({});
+        setDraftRevision(0);
         setSaveState('idle');
         setSaveMessage('暂无云端草稿');
         return;
@@ -368,6 +378,7 @@ export function QuarterlyUpdateWorkspace() {
         setDraftData({});
         setFutureSupplyDrafts({});
       }
+      setDraftRevision(Number(data?.revision ?? 0));
       setLastSavedAt(data?.updated_at ? new Date(data.updated_at) : null);
       setSaveState('saved');
       setSaveMessage('已加载云端草稿');
@@ -375,37 +386,50 @@ export function QuarterlyUpdateWorkspace() {
       console.warn('[QuarterlyUpdate] draft read failed; continuing with empty draft', error);
       setDraftData({});
       setFutureSupplyDrafts({});
+      setDraftRevision(0);
       setSaveState('idle');
       setSaveMessage('云端草稿暂不可用，当前修改保留在本地');
     }
   }, []);
 
   React.useEffect(() => {
-    if (draftUserName && myBuildings.length > 0) void fetchDraftFromServer(draftUserName, currentTab);
-  }, [draftUserName, myBuildings.length, currentTab, fetchDraftFromServer]);
+    if (draftUserId && myBuildings.length > 0) void fetchDraftFromServer(draftUserId, currentTab);
+  }, [draftUserId, myBuildings.length, currentTab, fetchDraftFromServer]);
 
   const syncDraftToServer = React.useCallback(async (draft: Record<string, any>, tab: string) => {
-    if (!draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false;
+    if (!draftUserId || !draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false;
     setSaveState('saving');
     setSaveMessage('正在同步云端草稿');
     try {
-      const timestamp = new Date();
-      const { error } = await supabase.from('update_drafts').upsert(
-        { user_name: draftUserName, tab, draft_data: draft, updated_at: timestamp.toISOString() },
-        { onConflict: 'user_name,tab' },
-      );
+      const { data, error } = await supabase.rpc('save_quarterly_draft', {
+        p_user_id: draftUserId,
+        p_user_name: draftUserName,
+        p_year: submitYear,
+        p_quarter: submitQuarter,
+        p_tab: tab,
+        p_draft_data: draft,
+        p_expected_revision: draftRevision,
+      });
       if (error) throw error;
-      setLastSavedAt(timestamp);
+      const saved = Array.isArray(data) ? data[0] : data;
+      const nextRevision = Number(saved?.revision ?? draftRevision + 1);
+      const savedAt = saved?.updated_at ? new Date(saved.updated_at) : new Date();
+      setDraftRevision(nextRevision);
+      setLastSavedAt(savedAt);
       setSaveState('saved');
       setSaveMessage('更改已同步至云端草稿');
       return true;
     } catch (error: any) {
       console.error('[QuarterlyUpdate] draft sync failed', error);
       setSaveState('error');
-      setSaveMessage(error?.message || '云端草稿保存失败；当前页面仍保留本地修改');
+      setSaveMessage(
+        error?.message?.includes('draft_revision_conflict')
+          ? '草稿已被其他窗口更新，请刷新页面后继续'
+          : error?.message || '云端草稿保存失败；当前页面仍保留本地修改',
+      );
       return false;
     }
-  }, [draftUserName, userRole, isPreview, isImpersonating]);
+  }, [draftUserId, draftUserName, draftRevision, submitYear, submitQuarter, userRole, isPreview, isImpersonating]);
 
   const mergedDraft = React.useCallback(() => ({ ...draftData, __futureSupply__: futureSupplyDrafts }), [draftData, futureSupplyDrafts]);
 
@@ -447,11 +471,19 @@ export function QuarterlyUpdateWorkspace() {
     markUnsaved();
   };
 
-  const updateFutureField = (assignmentId: string, field: string, value: string) => {
-    setFutureSupplyDrafts((previous) => ({
-      ...previous,
-      [assignmentId]: { ...(previous[assignmentId] || {}), [field]: value },
-    }));
+  const updateFutureField = (futureSupplyId: string, legacyAssignmentId: string, field: string, value: string) => {
+    setFutureSupplyDrafts((previous) => {
+      const next = {
+        ...previous,
+        [futureSupplyId]: {
+          ...(previous[legacyAssignmentId] || {}),
+          ...(previous[futureSupplyId] || {}),
+          [field]: value,
+        },
+      };
+      if (legacyAssignmentId && legacyAssignmentId !== futureSupplyId) delete next[legacyAssignmentId];
+      return next;
+    });
     markUnsaved();
   };
 
@@ -469,7 +501,7 @@ export function QuarterlyUpdateWorkspace() {
 
   const filteredBuildings = myBuildings.filter((building: any) => building._category === currentTab);
   const rowState = (building: any) => building._isFutureSupply
-    ? futureSupplyDrafts[building._assignmentId] || {}
+    ? futureSupplyDrafts[building.id] || futureSupplyDrafts[building._assignmentId] || {}
     : draftData[building.id] || {};
   const totalAreaFor = (building: any) => building._isFutureSupply
     ? safeNum(building.total_area) || 1
@@ -518,13 +550,21 @@ export function QuarterlyUpdateWorkspace() {
     }
 
     try {
-      if (regularRows.length) {
-        const { error } = await supabase.from('quarterly_submissions').insert(regularRows);
-        if (error) throw error;
-      }
-      if (futureRows.length) {
-        const { error } = await supabase.from('future_supply_submissions').insert(futureRows);
-        if (error) throw error;
+      if (!currentUser?.id) throw new Error('当前登录用户信息缺失，请刷新后重试。');
+      const { data: submitResult, error: submitRpcError } = await supabase.rpc('submit_quarterly_batch', {
+        p_user_id: currentUser.id,
+        p_user_name: matchName,
+        p_year: submitYear,
+        p_quarter: submitQuarter,
+        p_tab: currentTab,
+        p_regular_rows: regularRows,
+        p_future_rows: futureRows,
+      });
+      if (submitRpcError) throw submitRpcError;
+      const submitted = Array.isArray(submitResult) ? submitResult[0] : submitResult;
+      if (Number(submitted?.regular_count ?? regularRows.length) !== regularRows.length
+        || Number(submitted?.future_count ?? futureRows.length) !== futureRows.length) {
+        throw new Error('提交数量校验失败，请联系管理员核查。');
       }
       logAction(currentUser?.email, 'SUBMIT_QUARTERLY_DATA', {
         count: total,
@@ -698,7 +738,7 @@ export function QuarterlyUpdateWorkspace() {
                   const rentDelta = !isFuture && net > 0 && lastNet > 0 ? ((net - lastNet) / lastNet) * 100 : null;
                   const areaDelta = draft.qVacArea !== undefined && draft.qVacArea !== '' && !isFuture ? Math.round(vacant - lastVacant) : null;
                   const vacancy = draft.qVacArea !== undefined && draft.qVacArea !== '' ? (vacant / totalArea) * 100 : null;
-                  const change = (field: string, value: string) => isFuture ? updateFutureField(building._assignmentId, field, value) : updateRegularField(building.id, field, value);
+                  const change = (field: string, value: string) => isFuture ? updateFutureField(building.id, building._assignmentId, field, value) : updateRegularField(building.id, field, value);
                   const defaultOwner = isFuture ? '' : String(getVal(building, ['业主', 'Landlord']) || '');
                   const defaultPm = isFuture ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || '');
 
@@ -734,7 +774,7 @@ export function QuarterlyUpdateWorkspace() {
               const totalArea = totalAreaFor(building);
               const issues = getQuarterlyRowIssues(draft, totalArea);
               const issueFor = (field: string) => issues.find((issue) => issue.field === field)?.message;
-              const change = (field: string, value: string) => building._isFutureSupply ? updateFutureField(building._assignmentId, field, value) : updateRegularField(building.id, field, value);
+              const change = (field: string, value: string) => building._isFutureSupply ? updateFutureField(building.id, building._assignmentId, field, value) : updateRegularField(building.id, field, value);
               const name = building._isFutureSupply ? building.name : getVal(building, ['写字楼名称', 'name']) || '-';
               return (
                 <section key={`${building.id}-${index}`} className="border-b border-zinc-200 p-3">
