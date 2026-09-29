@@ -158,6 +158,8 @@ export function QuarterlyUpdateWorkspace() {
   const [saveState, setSaveState] = React.useState<SaveState>('idle');
   const [saveMessage, setSaveMessage] = React.useState('云端草稿已启用');
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
+  const draftRevisionRef = React.useRef(0);
+  const draftSyncInFlightRef = React.useRef<Promise<boolean> | null>(null);
 
   const now = React.useMemo(() => new Date(), []);
   const [submitYear, setSubmitYear] = React.useState(now.getFullYear());
@@ -366,6 +368,7 @@ export function QuarterlyUpdateWorkspace() {
       if (error) {
         setDraftData({});
         setFutureSupplyDrafts({});
+        draftRevisionRef.current = 0;
         setDraftRevision(0);
         setSaveState('idle');
         setSaveMessage('暂无云端草稿');
@@ -379,7 +382,9 @@ export function QuarterlyUpdateWorkspace() {
         setDraftData({});
         setFutureSupplyDrafts({});
       }
-      setDraftRevision(Number(data?.revision ?? 0));
+      const serverRevision = Number(data?.revision ?? 0);
+      draftRevisionRef.current = serverRevision;
+      setDraftRevision(serverRevision);
       setLastSavedAt(data?.updated_at ? new Date(data.updated_at) : null);
       setSaveState('saved');
       setSaveMessage('已加载云端草稿');
@@ -387,6 +392,7 @@ export function QuarterlyUpdateWorkspace() {
       console.warn('[QuarterlyUpdate] draft read failed; continuing with empty draft', error);
       setDraftData({});
       setFutureSupplyDrafts({});
+      draftRevisionRef.current = 0;
       setDraftRevision(0);
       setSaveState('idle');
       setSaveMessage('云端草稿暂不可用，当前修改保留在本地');
@@ -399,38 +405,55 @@ export function QuarterlyUpdateWorkspace() {
 
   const syncDraftToServer = React.useCallback(async (draft: Record<string, any>, tab: string) => {
     if (!draftUserId || !draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false;
-    setSaveState('saving');
-    setSaveMessage('正在同步云端草稿');
+
+    // 同一页面只允许一个草稿写请求在飞，避免自动保存、手动保存、切换 Tab、
+    // 提交前保存互相并发，携带同一个 expected_revision 制造自冲突。
+    if (draftSyncInFlightRef.current) return draftSyncInFlightRef.current;
+
+    const operation = (async () => {
+      setSaveState('saving');
+      setSaveMessage('正在同步云端草稿');
+      try {
+        const expectedRevision = draftRevisionRef.current;
+        const { data, error } = await supabase.rpc('save_quarterly_draft', {
+          p_user_id: draftUserId,
+          p_user_name: draftUserName,
+          p_year: submitYear,
+          p_quarter: submitQuarter,
+          p_tab: tab,
+          p_draft_data: draft,
+          p_expected_revision: expectedRevision,
+        });
+        if (error) throw error;
+        const saved = Array.isArray(data) ? data[0] : data;
+        if (!saved?.revision) throw new Error('草稿保存未返回有效 revision，请刷新页面后重试');
+        const nextRevision = Number(saved.revision);
+        const savedAt = saved?.updated_at ? new Date(saved.updated_at) : new Date();
+        draftRevisionRef.current = nextRevision;
+        setDraftRevision(nextRevision);
+        setLastSavedAt(savedAt);
+        setSaveState('saved');
+        setSaveMessage('更改已同步至云端草稿');
+        return true;
+      } catch (error: any) {
+        console.error('[QuarterlyUpdate] draft sync failed', error);
+        setSaveState('error');
+        setSaveMessage(
+          error?.message?.includes('draft_revision_conflict')
+            ? '草稿已被其他窗口更新，请刷新页面后继续'
+            : error?.message || '云端草稿保存失败；当前页面仍保留本地修改',
+        );
+        return false;
+      }
+    })();
+
+    draftSyncInFlightRef.current = operation;
     try {
-      const { data, error } = await supabase.rpc('save_quarterly_draft', {
-        p_user_id: draftUserId,
-        p_user_name: draftUserName,
-        p_year: submitYear,
-        p_quarter: submitQuarter,
-        p_tab: tab,
-        p_draft_data: draft,
-        p_expected_revision: draftRevision,
-      });
-      if (error) throw error;
-      const saved = Array.isArray(data) ? data[0] : data;
-      const nextRevision = Number(saved?.revision ?? draftRevision + 1);
-      const savedAt = saved?.updated_at ? new Date(saved.updated_at) : new Date();
-      setDraftRevision(nextRevision);
-      setLastSavedAt(savedAt);
-      setSaveState('saved');
-      setSaveMessage('更改已同步至云端草稿');
-      return true;
-    } catch (error: any) {
-      console.error('[QuarterlyUpdate] draft sync failed', error);
-      setSaveState('error');
-      setSaveMessage(
-        error?.message?.includes('draft_revision_conflict')
-          ? '草稿已被其他窗口更新，请刷新页面后继续'
-          : error?.message || '云端草稿保存失败；当前页面仍保留本地修改',
-      );
-      return false;
+      return await operation;
+    } finally {
+      if (draftSyncInFlightRef.current === operation) draftSyncInFlightRef.current = null;
     }
-  }, [draftUserId, draftUserName, draftRevision, submitYear, submitQuarter, userRole, isPreview, isImpersonating]);
+  }, [draftUserId, draftUserName, submitYear, submitQuarter, userRole, isPreview, isImpersonating]);
 
   const mergedDraft = React.useCallback(() => ({ ...draftData, __futureSupply__: futureSupplyDrafts }), [draftData, futureSupplyDrafts]);
 
