@@ -89,7 +89,8 @@ function readSessionCache(): AuthSessionResult | null {
 /** 一次查询同时拿 role + 姓名，避免两次请求 */
 async function fetchUserProfile(
   userId: string,
-  emailFallback: string
+  emailFallback: string,
+  options: { failOnQueryError?: boolean } = {},
 ): Promise<{ role: string; displayName: string; sessionId: string; phone?: string | null }> {
   const { data, error } = await supabase
     .from('user_roles')
@@ -98,6 +99,9 @@ async function fetchUserProfile(
     .maybeSingle();
 
   if (error) {
+    if (options.failOnQueryError) {
+      throw new Error(`user_roles 查询失败 [${error.code || 'UNKNOWN'}]: ${error.message}`);
+    }
     return {
       role: DEFAULT_APP_ROLE,
       displayName: emailFallback.split('@')[0],
@@ -139,10 +143,25 @@ export async function signInWithPassword(params: {
 
   const userId = data.user.id;
   const userEmail = data.user.email ?? '';
-  const profile = await fetchUserProfile(userId, userEmail);
+  let profile: Awaited<ReturnType<typeof fetchUserProfile>>;
+  try {
+    profile = await fetchUserProfile(userId, userEmail, { failOnQueryError: true });
+  } catch (profileError) {
+    try {
+      const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' });
+      if (localSignOutError) {
+        console.error('[auth] 清理本地会话失败:', localSignOutError.message);
+      }
+    } catch (signOutError) {
+      console.error('[auth] 清理本地会话异常:', signOutError);
+    }
+    clearSessionCache();
+    console.error('[auth] 登录后读取 user_roles 失败:', profileError);
+    throw new Error('登录验证已通过，但系统数据服务暂时不可用。请稍后重试，无需重置密码。');
+  }
 
   // 邮箱和密码由 Supabase Auth 校验；手机号作为本系统的第三项登录凭据，必须与用户档案严格一致。
-  // 资料查询失败或手机号不匹配时立即销毁刚建立的本地会话，绝不通过登录流程反向覆盖手机号。
+  // 资料查询失败会在上一步明确报系统服务异常；只有手机号不匹配才归类为凭据错误。
   if (profile.phone === undefined || profile.phone !== phone) {
     await supabase.auth.signOut({ scope: 'local' });
     clearSessionCache();
