@@ -43,7 +43,7 @@ describe('Product language continuity', () => {
 
   it('keeps quarterly table structure and workflow states in Chinese', () => {
     const workspace = source('src/app/update/components/QuarterlyUpdateWorkspace.tsx');
-    for (const label of ['甲级', '乙级', '产业园', '项目概况', '上季度参考', '本季度填报', '净有效租金', '空置面积', '租金变化', '面积变化', '提交成功']) {
+    for (const label of ['甲级', '乙级', '产业园', '项目概况', '历史参考', '本季度填报', '净有效租金', '空置面积', '租金变化', '面积变化', '提交成功']) {
       expect(workspace).toContain(label);
     }
     for (const legacy of ['Grade A', 'Grade B', 'Business Park', 'Submission succeeded', 'Project context', 'Previous quarter reference', 'Current quarter entry', 'Owner / PM', 'Total area', 'Rent Δ', 'Area Δ']) {
@@ -62,3 +62,4 @@ describe('Product language continuity', () => {
     expect(combined).not.toContain('entry.message || entry.status');
   });
 });
+

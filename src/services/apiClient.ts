@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { withImpersonationHeaders } from "./impersonationHeaders";
+import { readPagedRows } from "../utils/readPagedRows";
 import type { NumericLike } from "../utils/calculations";
 
 /**
@@ -106,43 +107,16 @@ export async function getBuildings(params?: {
   // 关键修改：默认值改为 false，防止无经纬度的数据在 API 层被过滤
   const requirePosition = params?.requirePosition ?? false;
 
-  let q = supabase
-    .from("buildings")
-    .select(select)
-    .eq("is_active", true)
-    .eq("tracking_scope", "tracked");
-
-  // 🚨 修复：移除 ownerUser 过滤，因为 buildings 表中没有 owner_user 字段
-  // 现在通过 building_assignments 表来控制用户权限
   if (params?.ownerUser) {
-    console.warn(
-      "🚨 [getBuildings] ⚠️ ownerUser 参数已废弃，请使用 building_assignments 表控制权限",
-    );
+    console.warn("[getBuildings] ownerUser is deprecated; assignments define ownership");
   }
+  const data = await readPagedRows<Record<string, any>>((from, to) => {
+    let query = supabase.from("buildings").select(select)
+      .eq("is_active", true).eq("tracking_scope", "tracked");
+    if (requirePosition) query = query.not("location_lng", "is", null).not("location_lat", "is", null);
+    return query.order("id").range(from, to);
+  });
 
-  if (requirePosition) {
-    q = q.not("location_lng", "is", null).not("location_lat", "is", null);
-  }
-
-  const { data, error } = await q;
-  console.log(
-    "🚨 [getBuildings] 完成, 错误:",
-    error ? "是" : "否",
-    ", 数据:",
-    data ? `${data.length}条` : "null",
-  );
-  if (error) {
-    console.error("🚨 [getBuildings] 错误详情:", error);
-    console.error("   - message:", error.message);
-    console.error("   - code:", error.code);
-  }
-  assertNoError(error as any, "getBuildings 查询失败");
-  if (!data) {
-    console.log("🚨 [getBuildings] 返回空数组");
-    return [];
-  }
-
-  console.log("🚨 [getBuildings] 开始映射数据...");
   const result = data.map((b: any) => ({
     id: b.id,
     name: b.name,
@@ -451,3 +425,4 @@ export function createApiClient() {
  * 全局 API 客户端实例
  */
 export const apiClient = createApiClient();
+

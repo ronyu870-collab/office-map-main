@@ -1,3 +1,21 @@
+## 2026-10-09 — Real PostgreSQL concurrency release gate
+
+- Add a disposable official PostgreSQL 17.6 GitHub Actions service and a separate-connection regression runner using the existing lockfile-pinned pg 8.20.0 dependency. No production credentials or arbitrary database URLs are accepted.
+- Verify expansion lock-timeout rollback, baseline/trigger boundaries around queued legacy updates and deletions, archive-failure atomicity, legacy/v2 and v2/v2 revision collisions, concurrent submission idempotency, and replay after connection loss following commit.
+- Verify B aborts on in-flight v2 work and explicitly demonstrate that B cannot cancel an already-running legacy setter. Phase C is not automatically applied by this runner; live session/transaction drain remains an operator prerequisite.
+- Verification before publication: JavaScript syntax and independent review. The real database run is performed by CI on the exact PR head, alongside the existing type/lint/unit/isolated SQL/build checks. This is a schema-reconciled synthetic fixture, not full production migration-chain replay or proof that browser tabs have no unsaved input.
+
+## 2026-10-08 — Quarterly entry and monitoring reliability
+
+- Preserve broker edits through failed reads/saves, concurrent typing, category changes and browser restarts using scoped recovery copies, a revision-aware serialized save queue, stable autosave/backoff and explicit conflict resolution. Keep historical drafts and formal records distinct; restoration is explicit and backed up.
+- Require configured-period and assignment readiness, preserve zero/null values and visible owner/PM fields, remove fabricated area denominators, show actual historical reference periods, and improve mobile editing parity. Invalid numeric bounds are blocked; partial records remain supported under the documented 36-month rent model.
+- Prepare a staged additive rollout: expansion preserves all three legacy RPC definitions, adds append-only draft history and versioned save/submit/rollover RPCs, and uses an exact revision/period-bound confirmation marker. Archive installation is last with bounded lock/statement timeouts. Separate operator-only freeze and post-drain cutover scripts prevent silently tightening already-open legacy clients. v2 adds idempotency, assignment/category/numeric guards and exact-ID provenance; legacy guard cutover remains explicit.
+- Repair administrator pagination, scoped async reads/exports, configured-period defaults and remount behavior, UUID/future draft rendering, current audit-event reads and truthful current-assignment/all-role record-coverage semantics. Unknown historical provenance remains explicit.
+- Correct a pre-existing health-query Supabase retry-option type error without changing its one-probe behavior.
+- Verification: synthetic behavioral/component and isolated PostgreSQL regressions added; full audit/type/lint/test checks run. Production build and real Chromium execution are constrained by the local sandbox (network-interface/socket restrictions), not reported as passes. Final counts and release gates are recorded in `docs/quarterly-reliability-release.md` and the pull request.
+- Add a per-account/browser/release editing acknowledgement and persistent original-draft preview with explicit restore; this is a product guard, not evidence that old tabs have no unsaved input.
+- Follow-up: normal-runner CI for the exact published commit; verified schema/lock behavior, approved configuration freeze and coordinated old-client drain before the relevant production stages. No production database writes, historical data repair, migration application, or deployment were performed as part of local verification.
+
 ## 2026-09-27 — Make live team lease transactions permanently readable
 
 ### Area

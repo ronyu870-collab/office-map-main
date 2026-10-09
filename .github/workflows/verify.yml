@@ -20,6 +20,20 @@ jobs:
     name: Typecheck, lint, test and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
       - name: Checkout repository
@@ -50,5 +64,17 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Isolated quarterly SQL regressions
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/quarterly-db-tests" --no-save --ignore-scripts @electric-sql/pglite@0.3.14
+          PGLITE_MODULE="$RUNNER_TEMP/quarterly-db-tests/node_modules/@electric-sql/pglite/dist/index.js" node supabase/tests/quarterly-reliability/run.mjs
+
+      - name: Real PostgreSQL 17 concurrent quarterly regressions
+        run: node supabase/tests/quarterly-reliability/concurrency.mjs
+        env:
+          QUARTERLY_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Production build
         run: npm run build
+

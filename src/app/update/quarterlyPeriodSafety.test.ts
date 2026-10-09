@@ -11,18 +11,18 @@ describe('quarterly period safety', () => {
     const workspace = source('src/app/update/components/QuarterlyUpdateWorkspace.tsx');
     const manager = source('src/components/admin/SubmissionManager.tsx');
 
-    expect(workspace).toContain("supabase.rpc('save_quarterly_draft'");
-    expect(workspace).toContain("supabase.rpc('submit_quarterly_batch'");
+    expect(workspace).toContain("supabase.rpc('save_quarterly_draft_v2'");
+    expect(workspace).toContain("supabase.rpc('submit_quarterly_batch_v2'");
     expect(workspace).not.toContain("from('quarterly_submissions').insert(");
     expect(workspace).not.toContain("from('future_supply_submissions').insert(");
 
-    expect(manager).toContain("supabase.rpc('set_current_submission_period'");
-    expect(manager).toContain('.eq("record_year", year)');
-    expect(manager).toContain('.eq("record_quarter", quarter)');
-    expect(manager).toContain('.eq("is_entered_market", false)');
-    expect(manager).toContain('.eq("project_type", "stock")');
-    expect(manager).toContain('.eq("launch_year", String(year))');
-    expect(manager).toContain('.eq("launch_quarter", `Q${quarter}`)');
+    expect(manager).toContain("supabase.rpc('set_current_submission_period_v2'");
+    expect(manager).toMatch(/\.eq\(['"]record_year['"], year\)/);
+    expect(manager).toMatch(/\.eq\(['"]record_quarter['"], quarter\)/);
+    expect(manager).toMatch(/\.eq\(['"]is_entered_market['"], false\)/);
+    expect(manager).toMatch(/\.eq\(['"]project_type['"], ['"]stock['"]\)/);
+    expect(manager).toMatch(/\.eq\(['"]launch_year['"], String\(year\)\)/);
+    expect(manager).toMatch(/\.eq\(['"]launch_quarter['"], `Q\$\{quarter\}`\)/);
   });
 
   it('keeps future-supply drafts stable across assignment-id rollover', () => {
@@ -66,3 +66,4 @@ describe('quarterly period safety', () => {
     expect(finalGuardMigration).toContain('future_supply_submissions_user_idx');
   });
 });
+

@@ -12,8 +12,8 @@ describe('quarterly viewer read-only parity', () => {
     expect(source).toContain("!['viewer', 'editor', 'admin'].includes(role)");
     expect(source).toContain('setUserRole(role)');
     expect(source).toContain('const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating');
-    expect(source).toContain("if (!draftUserId || !draftUserName || !canWriteBusinessData(userRole) || isPreview || isImpersonating) return false");
-    expect(source).toContain("setSubmitError('当前账号为只读模式，不能写入季度业务数据。')");
+    expect(source).toContain("if (!periodReady || !editingAcknowledged || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return false");
+    expect(source).toContain("if (readOnly || submissionLock.current) return");
   });
 
   it('enforces viewer write denial in RLS rather than relying on disabled inputs', () => {
@@ -32,3 +32,4 @@ describe('quarterly viewer read-only parity', () => {
     expect(migration).toContain("message = 'business_write_forbidden'");
   });
 });
+
