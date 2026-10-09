@@ -147,7 +147,7 @@ export class QuarterlyDraftStore {
       try {
         const remote = await this.transport.read();
         if (generation !== this.generation) return;
-        if (remote && (!Number.isSafeInteger(remote.revision) || remote.revision < 1 || !Number.isFinite(Date.parse(remote.updatedAt)))) throw new Error('invalid_remote_revision');
+        if (remote && (!Number.isSafeInteger(remote.revision) || remote.revision < 0 || !Number.isFinite(Date.parse(remote.updatedAt)))) throw new Error('invalid_remote_revision');
         const edited = this.snapshot.dirty || this.editVersion !== startedAtVersion;
         if (remote && !isCurrentDraft(remote, this.identity)) {
           const referenceKey = `${this.key}:reference:${remote.year}:Q${remote.quarter}:r${remote.revision}`;
@@ -236,3 +236,4 @@ export class QuarterlyDraftStore {
     try { this.storage?.removeItem(this.key); return true; } catch { return false; }
   }
 }
+

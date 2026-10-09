@@ -400,4 +400,37 @@ describe('QuarterlyDraftStore recovery and concurrency', () => {
     expect(store.getSnapshot()).toMatchObject({ dirty: false, revision: 4, payload: payload('new work') });
   });
 
+  it('loads a revision-zero legacy draft as reference, then explicitly restores and saves with revision zero', async () => {
+    const { storage } = memoryStorage(); const api = transport();
+    const legacy = { ...remote('legacy zero', 0), periodConfirmed: false };
+    api.read.mockResolvedValue(legacy);
+    const store = new QuarterlyDraftStore(identity, api, storage);
+    await store.load();
+    expect(store.getSnapshot()).toMatchObject({ loaded: true, revision: 0, historical: legacy, error: null, dirty: false });
+    expect(store.getSnapshot().payload).toEqual({ regular: {}, future: {} });
+    expect(JSON.parse(storage.getItem(`${draftCacheKey(identity)}:reference:2026:Q4:r0`)!).value).toEqual(legacy);
+    expect(api.save).not.toHaveBeenCalled();
+    const restarted = new QuarterlyDraftStore(identity, api, storage); await restarted.load();
+    expect(restarted.getSnapshot()).toMatchObject({ loaded: true, revision: 0, historical: legacy, error: null });
+    expect(restarted.replaceFromFormal(legacy.payload)).toBe(true);
+    expect(await restarted.flush()).toBe(true);
+    expect(api.save).toHaveBeenCalledExactlyOnceWith(legacy.payload, 0);
+    api.read.mockResolvedValue(remote('legacy zero', 1));
+    const saved = new QuarterlyDraftStore(identity, api, storage); await saved.load();
+    expect(saved.getSnapshot()).toMatchObject({ loaded: true, revision: 1, payload: legacy.payload, dirty: false, error: null });
+    expect(JSON.parse(storage.getItem(`${draftCacheKey(identity)}:reference:2026:Q4:r0`)!).value).toEqual(legacy);
+  });
+
+  it.each([-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('rejects invalid remote revision %s without losing local edits', async (revision) => {
+    const api = transport(); const { storage } = memoryStorage();
+    api.read.mockResolvedValue({ ...remote('invalid server', revision), periodConfirmed: false });
+    const store = new QuarterlyDraftStore(identity, api, storage); edit(store, 'unsynced');
+    await store.load();
+    expect(store.getSnapshot()).toMatchObject({ loaded: false, dirty: true, payload: payload('unsynced') });
+    expect(store.getSnapshot().error).toContain('云端草稿读取失败');
+    expect(await store.flush()).toBe(false);
+    expect(api.save).not.toHaveBeenCalled();
+  });
+
 });
+
