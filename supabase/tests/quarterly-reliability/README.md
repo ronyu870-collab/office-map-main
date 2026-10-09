@@ -86,3 +86,21 @@ applies C. This tests the catalog-reconciled synthetic schema under real Postgre
 concurrency; it is not the entire production migration chain or production load.
 
 Lock semantics are grounded in the [PostgreSQL 17 locking documentation](https://www.postgresql.org/docs/17/explicit-locking.html).
+
+## Identity-sequence privilege regression
+
+The fixture deliberately grants all privileges on new public-schema sequences to
+anon, authenticated and service_role before expansion. The separate migration
+`20261009020453_restrict_quarterly_history_sequence_client_privileges.sql` revokes
+client access to the history identity sequence. PGlite runs this exact migration
+and `sequence-privileges.sql` immediately after expansion, before the existing
+save/submission regressions. The real PostgreSQL case first proves the assertions
+fail without the repair, then verifies direct SELECT, nextval and setval denial
+for both client roles. It checks unchanged rows and legacy RPC definitions across
+the privilege change, followed by successful legacy and v2 saves with retained
+archive snapshots and increasing history IDs.
+
+The sequence case additionally revokes authenticated USAGE on private. Other
+synthetic reader tests retain that fixture grant for direct helper assertions;
+this distinction is explicit and is not full production privilege parity.
+No test connects to production or reapplies an already recorded live migration.

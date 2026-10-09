@@ -1,3 +1,9 @@
+## 2026-10-09 — Restrict quarterly history identity-sequence privileges
+
+- Track the exact separately approved production migration `20261009020453_restrict_quarterly_history_sequence_client_privileges.sql`. Revoke direct sequence privileges from PUBLIC, anon and authenticated while retaining the owner-definer archive path and service-role access. This migration does not modify business rows, history rows, table grants, RPC bodies or sequence values.
+- Reproduce broad default sequence grants in the synthetic fixture. Run explicit privilege assertions after the repair in the PGlite suite and a real PostgreSQL negative control before the repair, then verify direct sequence SELECT/nextval/setval are denied and legitimate legacy/v2 saves still archive under a role without private-schema USAGE.
+- Existing SQL/component tests and the real PostgreSQL CI gate remain required. The fixture models the relevant privilege boundary, not every production grant. Repository verification does not reapply the production migration.
+
 ## 2026-10-09 — Real PostgreSQL concurrency release gate
 
 - Add a disposable official PostgreSQL 17.6 GitHub Actions service and a separate-connection regression runner using the existing lockfile-pinned pg 8.20.0 dependency. No production credentials or arbitrary database URLs are accepted.

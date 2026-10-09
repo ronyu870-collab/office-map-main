@@ -8,6 +8,8 @@ const paths = [
   '../../migrations/20260928020602_reconcile_entered_market_future_supplies.sql',
   './compatibility-before.sql',
   '../../migrations/20261008075610_preserve_quarterly_drafts_and_idempotent_submission.sql',
+  '../../migrations/20261009020453_restrict_quarterly_history_sequence_client_privileges.sql',
+  './sequence-privileges.sql',
   './compatibility-expansion.sql',
   './regression.sql',
   './validation.sql',

@@ -21,6 +21,8 @@ const setterEnd = latestSource.lastIndexOf('commit;');
 assert.ok(setterStart >= 0 && setterEnd > setterStart);
 const oldSetter = latestSource.slice(setterStart, setterEnd);
 const expansion = await sqlFile('../../migrations/20261008075610_preserve_quarterly_drafts_and_idempotent_submission.sql');
+const sequenceHardening = await sqlFile('../../migrations/20261009020453_restrict_quarterly_history_sequence_client_privileges.sql');
+const sequencePrivileges = await sqlFile('./sequence-privileges.sql');
 const freeze = await sqlFile('../../../docs/quarterly-rollout/02_freeze_quarter_configuration.sql');
 const allClients = new Set();
 const reports = [];
@@ -91,6 +93,44 @@ async function test(name, run) {
 }
 
 try {
+  await test('history sequence clients lose direct access while owner-definer legacy and v2 archives continue', async ({ setup, connect }) => {
+    await setup.query(expansion);
+    const beforeLegacy = await legacyHashes(setup);
+    const beforeHistory = (await setup.query('SELECT * FROM public.quarterly_draft_history ORDER BY id')).rows;
+    const beforeDrafts = (await setup.query('SELECT * FROM public.update_drafts ORDER BY id')).rows;
+    // Negative control: broad defaults reproduce the production finding. The
+    // exact privilege assertions must fail before the separate repair runs.
+    await assert.rejects(setup.query(sequencePrivileges), (e) => e.code === 'P0004' && e.message.includes('history sequence'));
+    await setup.query(sequenceHardening);
+    await setup.query(sequencePrivileges);
+    assert.deepEqual((await setup.query('SELECT * FROM public.quarterly_draft_history ORDER BY id')).rows, beforeHistory);
+    assert.deepEqual((await setup.query('SELECT * FROM public.update_drafts ORDER BY id')).rows, beforeDrafts);
+    assert.deepEqual(await legacyHashes(setup), beforeLegacy);
+    await setup.query('REVOKE USAGE ON SCHEMA private FROM authenticated');
+    assert.equal((await setup.query("SELECT has_schema_privilege('authenticated', 'private', 'USAGE') AS allowed")).rows[0].allowed, false);
+    for (const role of ['anon', 'authenticated']) {
+      const caller = await connect(`sequence-${role}`);
+      await caller.query(`SET ROLE ${role}`);
+      for (const sql of [
+        'SELECT last_value FROM public.quarterly_draft_history_id_seq',
+        "SELECT nextval('public.quarterly_draft_history_id_seq')",
+        "SELECT setval('public.quarterly_draft_history_id_seq', 1)",
+      ]) await assert.rejects(caller.query(sql), (e) => e.code === '42501');
+    }
+    const writer = await connect('sequence-protected-save', true);
+    await save(writer, { phase: 'legacy-after-sequence-revoke' }, 1, 'GradeA', true);
+    await save(writer, { phase: 'v2-after-sequence-revoke' }, 2);
+    const rows = (await setup.query('SELECT id,event,snapshot FROM public.quarterly_draft_history ORDER BY id')).rows;
+    assert.deepEqual(rows.map((r) => r.event), ['baseline', 'UPDATE', 'UPDATE']);
+    assert.deepEqual(rows[1].snapshot.draft_data, { old: 42 });
+    assert.deepEqual(rows[2].snapshot.draft_data, { phase: 'legacy-after-sequence-revoke' });
+    assert.ok(BigInt(rows[0].id) < BigInt(rows[1].id) && BigInt(rows[1].id) < BigInt(rows[2].id));
+    const current = (await setup.query('SELECT revision,draft_data FROM public.update_drafts')).rows[0];
+    assert.equal(Number(current.revision), 3);
+    assert.equal(current.draft_data.phase, 'v2-after-sequence-revoke');
+    await setup.query(sequencePrivileges);
+  });
+
   await test('A lock contention aborts all expansion objects without affecting the broker transaction', async ({ setup, connect }) => {
     const before = await legacyHashes(setup);
     const writer = await connect('held-legacy-save', true);
