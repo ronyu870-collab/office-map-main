@@ -782,20 +782,17 @@ export function QuarterlyUpdateWorkspace() {
         {formalError && <div role="alert" className="mt-1 text-rose-700">{formalError} <button type="button" className="underline" onClick={() => setFormalRefresh((value) => value + 1)}>重新读取正式记录</button></div>}
         {draftSnapshot.error && <div role="alert" className="mt-1 text-rose-700">{draftSnapshot.error}</div>}
         {draftSnapshot.localError && !isPreview && !isImpersonating && <div role="alert" className="mt-1 text-rose-700">{draftSnapshot.localError}</div>}
-        {legacyReference && (referenceChoice ? <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-500" role="status" aria-label="原草稿快捷入口">
-          <span>{referenceChoice === 'restored' ? '原草稿已载入供核对' : canRememberReferenceChoice ? '本季度已忽略这份原草稿 · 当前输入未改变' : '原草稿提示已收起'} · 原件仍保留</span>
-          <button type="button" className="text-zinc-700 underline" onClick={() => setShowRecovery(true)}>查看原草稿</button>
-          {referenceDisplayKey && referenceChoiceStorageFailed[referenceDisplayKey] && <span>仅在本页收起，浏览器未能记住选择</span>}
-        </div> : <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-zinc-700" role="status" aria-label="原草稿参考提示">
+        {legacyReference && !referenceChoice && <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-zinc-700" role="status" aria-label="原草稿参考提示">
           <strong>已有草稿已保留，来源待核实</strong>：共 {Object.keys(legacyReference.payload.regular).length + Object.keys(legacyReference.payload.future).length} 个项目条目；原标记 {legacyReference.year} Q{legacyReference.quarter}；原稿保存时间 {legacyReference.updatedAt}
           <p className="mt-1">保存时间不代表数据所属季度。可选择载入后逐项核对，或本季度不使用；原件仍可从恢复入口查看。</p>
           <div className="mt-1 text-[11px]">{[...Object.entries(legacyReference.payload.regular), ...Object.entries(legacyReference.payload.future)].slice(0, 3).map(([id, row]) => <div key={id}>{myBuildings.find((building) => building.id === id || building._assignmentId === id)?.name ?? id}：报价 {row.qQuote ?? '未填'}，表面租金 {row.qFace ?? '未填'}，空置面积 {row.qVacArea ?? '未填'}</div>)}</div>
           <div className="mt-2 flex flex-wrap items-center gap-3"><button type="button" className="underline" onClick={() => setShowRecovery(true)}>查看全部原草稿</button>{!readOnly && <button type="button" className="rounded border border-zinc-300 bg-white px-2 py-1 font-semibold" onClick={restoreLegacyDraft}>载入原草稿到编辑区供核对</button>}<button type="button" className="underline" disabled={!referenceDisplayKey || submitting} onClick={() => rememberReferenceChoice('ignored')}>{canRememberReferenceChoice ? '本季度不使用这份草稿' : '收起草稿提示'}</button></div>
           <p className="mt-1 text-[11px] text-zinc-500">不使用只收起这份参考，不清空当前输入、不删除原稿，也不会保存或提交数据。</p>
-        </div>)}
+        </div>}
         {attemptState.error && <div role="alert" className="mt-1 text-rose-700">{attemptState.error}</div>}
         {attemptState.attempt?.hasPending() && <div role="alert" className="mt-1 text-amber-800">有一笔提交尚未确认。重试将核验原请求；之后新增的编辑需另行提交。</div>}
         {showRecovery && <div className="mt-2 max-h-72 overflow-auto rounded border border-zinc-200 p-3">
+          {referenceChoice && referenceDisplayKey && referenceChoiceStorageFailed[referenceDisplayKey] && <p role="status" className="mb-2 text-amber-800">仅在本页收起，浏览器未能记住选择</p>}
           <p className="mb-2">本季度正式记录与草稿分别保存。正式记录可能包含历史恢复内容，请核对季度归属后继续编辑。</p>{provenanceError && <p role="alert" className="mb-2 text-amber-800">{provenanceError}</p>}
           {!readOnly && <button type="button" className="mb-2 rounded border px-2 py-1" disabled={!draftSnapshot.loaded || Boolean(draftSnapshot.conflict || draftSnapshot.remoteMissing) || !formalRows.length} onClick={restoreFormalRows}>载入本分类正式记录供编辑</button>}
           <table className="w-full min-w-[700px] text-left text-xs">
