@@ -2,6 +2,9 @@
 create role anon;
 create role authenticated;
 create role service_role;
+-- Reproduce the target owner's broad default sequence grants before expansion.
+-- Table-level revokes do not revoke privileges on a separately created identity sequence.
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 create schema auth;
 create schema private;
 create function auth.uid() returns uuid language sql stable as $$
@@ -34,7 +37,8 @@ create table public.user_roles(
   role text not null default 'viewer' check (role in ('viewer', 'editor', 'admin'))
 );
 insert into public.user_roles(user_id, role) select id, 'editor' from auth.users;
--- Existing base schema already gives authenticated roles private-schema usage.
+-- Synthetic reader assertions use private helpers directly. This is not a claim
+-- of production schema-USAGE parity; the sequence case revokes this grant.
 grant usage on schema private to authenticated;
 create table public.buildings(id uuid primary key, grade text);
 create table public.future_supplies(id uuid primary key, is_entered_market boolean, grade text default 'A');
