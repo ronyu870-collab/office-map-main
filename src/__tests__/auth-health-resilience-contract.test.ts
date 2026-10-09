@@ -20,9 +20,10 @@ describe('login and health resilience contract', () => {
     const health = source('src/app/api/health/route.ts');
 
     expect(health).toContain('/auth/v1/health');
-    expect(health).toContain("db: { retry: false }");
+    expect(health).toContain(".retry(false)");
     expect(health).toContain(".from('user_roles')");
     expect(health).toContain("'Cache-Control': 'no-store, max-age=0'");
     expect(health).not.toContain('supabase.auth.getSession()');
   });
 });
+

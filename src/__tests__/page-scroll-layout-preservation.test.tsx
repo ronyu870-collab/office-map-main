@@ -196,6 +196,10 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       for (const method of ['select', 'eq', 'in', 'order', 'limit', 'gte', 'lte', 'not', 'neq', 'ilike']) {
         query[method] = vi.fn(() => query);
       }
+      query.range = vi.fn((from: number, to: number) => {
+        query.data = Array.isArray(data) ? data.slice(from, to + 1) : data;
+        return query;
+      });
       query.single = vi.fn(async () => ({ data, error: null }));
       query.maybeSingle = vi.fn(async () => ({ data, error: null }));
       return query;
@@ -207,6 +211,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
     supabaseMocks.from.mockImplementation((table: string) => {
       if (table === 'user_roles') return roleQuery;
       if (table === 'building_assignments') return assignmentQuery;
+      if (table === 'app_settings') return makeQuery([{ key: 'current_submission_year', value: '2026' }, { key: 'current_submission_quarter', value: '3' }]);
       return emptyQuery;
     });
 
@@ -663,3 +668,4 @@ describe('Preservation Test Summary', () => {
     expect(true).toBe(true);
   });
 });
+

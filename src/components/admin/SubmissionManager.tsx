@@ -7,10 +7,12 @@ import { GenericTablePanel } from "./GenericTablePanel";
 import { ASSIGNMENTS_CONFIG, FUTURE_SUPPLY_ASSIGNMENTS_CONFIG } from "./tableConfigs";
 import { BuildingSortManager } from "./BuildingSortManager";
 import { MaskedText } from "@/src/components/demo";
-import { SubmissionGrid, ProgressRenderer, DateRenderer } from "./SubmissionGrid";
+import { SubmissionGrid, DateRenderer } from "./SubmissionGrid";
 import type { TableConfig, DictBundle } from "./types";
 import type { ColDef as AgColDef } from 'ag-grid-community';
 import { Button } from '@/src/components/ui';
+import { fetchAllSubmissionPages, submissionPageResult, draftEntries, draftProjectLabel, summarizeAdminDraft } from './submissionReliability';
+import { useSubmissionRead, useSubmissionPeriod } from './useSubmissionRead';
 import { logAction } from '@/src/utils/audit';
 
 const compactSelectClassName = 'h-[var(--cd-control-height-sm)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-xs outline-none transition-colors focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]';
@@ -30,6 +32,10 @@ const GRADE_LABELS: Record<string, string> = { P: '超甲级', A: '甲级', B: '
 const GRADE_LABEL_TO_CODE: Record<string, string> = { '甲级': 'A', '乙级': 'B', '产业园': 'BP', '超甲级': 'P', '超甲级(Premium)': 'P' };
 function resolveGradeCode(raw: string): string {
   return GRADE_LABEL_TO_CODE[raw] ?? raw;
+}
+
+function ReadError({ message, retry }: { message: string; retry: () => void }) {
+  return <div role="alert" className="my-2 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">读取失败：{message} <button type="button" className="underline" onClick={retry}>重试</button></div>;
 }
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -61,18 +67,9 @@ interface UploadSession {
   gradeSummary: string;
 }
 
-function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
+function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; period: ReturnType<typeof useSubmissionPeriod> }) {
   const dq = getCurrentQuarter();
-  const [year, setYear] = React.useState(dq.year);
-  const [quarter, setQuarter] = React.useState(dq.quarter);
-  const [totalBuildings, setTotalBuildings] = React.useState(0);
-  const [totalAssigned, setTotalAssigned] = React.useState(0);
-  const [totalSubmitted, setTotalSubmitted] = React.useState(0);
-  const [futureTotal, setFutureTotal] = React.useState(0);
-  const [futureAssigned, setFutureAssigned] = React.useState(0);
-  const [futureSubmitted, setFutureSubmitted] = React.useState(0);
-  const [stats, setStats] = React.useState<UserStat[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const { year, quarter, setYear, setQuarter, configured } = period;
   const [cfgYear, setCfgYear] = React.useState(dq.year);
   const [cfgQuarter, setCfgQuarter] = React.useState(dq.quarter);
   const [saving, setSaving] = React.useState(false);
@@ -83,26 +80,23 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
   const [expandedLoading, setExpandedLoading] = React.useState(false);
 
   React.useEffect(() => {
-    void (async () => {
-      const { data } = await supabase
-        .from("app_settings")
-        .select("key, value")
-        .in("key", ["current_submission_year", "current_submission_quarter"]);
-      if (data) {
-        for (const row of data) {
-          if (row.key === "current_submission_year")
-            setCfgYear(Number(row.value));
-          if (row.key === "current_submission_quarter")
-            setCfgQuarter(Number(row.value));
-        }
-      }
-    })();
-  }, []);
+    if (configured.data) { setCfgYear(configured.data.year); setCfgQuarter(configured.data.quarter); }
+  }, [configured.data]);
+
+  const rollout = useSubmissionRead('quarterly-rollout-status', async () => {
+    const { data, error } = await supabase.rpc('get_quarterly_rollout_status');
+    if (error) throw error;
+    const status = Array.isArray(data) ? data[0] : data;
+    if (typeof status?.quarter_configuration_frozen !== 'boolean') throw new Error('无法确认季度切换是否开放');
+    return status as { quarter_configuration_frozen: boolean };
+  });
+  const quarterChangesBlocked = rollout.loading || Boolean(rollout.error) || rollout.data?.quarter_configuration_frozen !== false;
 
   async function handleSaveConfig() {
+    if (quarterChangesBlocked) return;
     setSaving(true);
     try {
-      const { error } = await supabase.rpc('set_current_submission_period', {
+      const { error } = await supabase.rpc('set_current_submission_period_v2', {
         p_year: cfgYear,
         p_quarter: cfgQuarter,
       });
@@ -116,9 +110,13 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       });
       setYear(cfgYear);
       setQuarter(cfgQuarter);
+      configured.reload();
     } catch (error: any) {
       console.error('[SubmissionManager] failed to update submission period', error);
-      alert(error?.message?.includes('submission_period_cannot_move_backward')
+      if (error?.message?.includes('quarter_configuration_frozen')) rollout.reload();
+      alert(error?.message?.includes('quarter_configuration_frozen')
+        ? '版本切换保护期间，季度配置暂时冻结。草稿保存和提交不受影响。'
+        : error?.message?.includes('submission_period_cannot_move_backward')
         ? '为避免误覆盖草稿，当前填报周期不允许直接向过去回退。'
         : `切换填报周期失败：${error?.message || '未知错误'}`);
     } finally {
@@ -126,23 +124,30 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     }
   }
 
-  React.useEffect(() => {
-    void fetchData();
-  }, [year, quarter]);
+  const progressKey = `${year}:Q${quarter}`;
+  const progress = useSubmissionRead(progressKey, fetchData);
+  const { totalBuildings = 0, totalAssigned = 0, totalSubmitted = 0, futureTotal = 0, futureAssigned = 0, futureSubmitted = 0, stats = [] } = progress.data || {};
+  const loading = progress.loading;
+  const sessionRequest = React.useRef(0);
+  const [expandedKey, setExpandedKey] = React.useState('');
+  const [expandedError, setExpandedError] = React.useState('');
+  const [downloading, setDownloading] = React.useState(false);
+  React.useEffect(() => { sessionRequest.current += 1; setExpandedUser(null); setExpandedSessions([]); setExpandedError(''); return () => { sessionRequest.current += 1; }; }, [year, quarter]);
 
   function previewUserSubmission(stat: UserStat) {
     logAction(undefined, 'VIEW_USER_SUBMISSION', {
       subject_user_id: stat.user_id,
       subject_user_name: stat.user_name,
-      year,
-      quarter,
+      year: configured.data?.year ?? null,
+      quarter: configured.data?.quarter ?? null,
+      selected_statistics_year: year,
+      selected_statistics_quarter: quarter,
       target_name: stat.user_name || stat.user_id,
     });
     window.open(`/update?as=${stat.user_id}`, "_blank", "noopener,noreferrer");
   }
 
   async function fetchData() {
-    setLoading(true);
     const [
       buildingsCount,
       futureSuppliesCount,
@@ -153,54 +158,23 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       usersRes,
       allAssignsRes,
     ] = await Promise.all([
-      supabase
-        .from("buildings")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .eq("tracking_scope", "tracked")
-        .eq("project_type", "stock"),
-      supabase
-        .from("future_supplies")
-        .select("id", { count: "exact" })
-        .eq("is_entered_market", false)
-        .eq("launch_year", String(year))
-        .eq("launch_quarter", `Q${quarter}`),
-      supabase
-        .from("building_assignments")
-        .select("building_id")
-        .neq("user_id", ""),
-      // 数据库端去重，避免 1106 行被 PostgREST 1000 行上限截断
-      supabase.rpc("get_quarterly_submission_summary", {
-        p_year: year,
-        p_quarter: quarter,
-      }),
-      supabase
-        .from("future_supply_assignments")
-        .select("future_supply_id")
-        .eq("record_year", year)
-        .eq("record_quarter", quarter),
-      supabase
-        .from("future_supply_submissions")
-        .select("future_supply_id")
-        .eq("record_year", year)
-        .eq("record_quarter", quarter),
-      supabase.from("user_roles").select("user_id, chinese_name, full_name"),
-      supabase
-        .from("building_assignments")
-        .select("user_id, building_id")
-        .neq("user_id", ""),
+      submissionPageResult((from, to) => supabase.from('buildings').select('id').eq('is_active', true).eq('tracking_scope', 'tracked').eq('project_type', 'stock').order('id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('future_supplies').select('id').eq('is_entered_market', false).eq('launch_year', String(year)).eq('launch_quarter', `Q${quarter}`).order('id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('building_assignments').select('building_id').neq('user_id', '').order('id').range(from, to)),
+      submissionPageResult((from, to) => supabase.rpc('get_quarterly_submission_summary', { p_year: year, p_quarter: quarter }).order('building_id').order('user_id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('future_supply_assignments').select('future_supply_id').eq('record_year', year).eq('record_quarter', quarter).order('id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('future_supply_submissions').select('future_supply_id').eq('record_year', year).eq('record_quarter', quarter).order('id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('user_roles').select('user_id, chinese_name, full_name').order('user_id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('building_assignments').select('user_id, building_id').neq('user_id', '').order('id').range(from, to)),
     ]);
 
-    setTotalBuildings(buildingsCount.count || 0);
-    setFutureTotal(futureSuppliesCount.count || 0);
-    const activeFutureSupplyIds = new Set<string>(
-      (futureSuppliesCount.data || []).map((row) => row.id),
-    );
+    const activeBuildingIds = new Set(buildingsCount.data.map(row => row.id));
+    const activeFutureSupplyIds = new Set<string>((futureSuppliesCount.data || []).map((row) => row.id));
 
     // 存量楼宇分配去重
     const assignedSet = new Set<string>();
-    for (const r of assignsData.data || []) assignedSet.add(r.building_id);
-    setTotalAssigned(assignedSet.size);
+    for (const r of assignsData.data || []) { if (activeBuildingIds.has(r.building_id)) assignedSet.add(r.building_id); }
+
 
     // 未来供应分配去重：只统计尚未进入存量市场的项目。
     const futureAssignedSet = new Set<string>();
@@ -208,21 +182,21 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       if (activeFutureSupplyIds.has(r.future_supply_id))
         futureAssignedSet.add(r.future_supply_id);
     }
-    setFutureAssigned(futureAssignedSet.size);
+
 
     // 存量楼宇填报去重（RPC 已在数据库端去重，直接读取）
     const submittedSet = new Set<string>();
     const subsRpcData = (subsRpc.data || []) as { user_id: string; building_id: string; created_at: string }[];
-    for (const r of subsRpcData) submittedSet.add(r.building_id);
-    setTotalSubmitted(submittedSet.size);
+    for (const r of subsRpcData) if (assignedSet.has(r.building_id)) submittedSet.add(r.building_id);
+
 
     // 未来供应填报去重：已转存量项目仅保留历史，不计入当前未来供应进度。
     const futureSubmittedSet = new Set<string>();
     for (const r of futureSubsData.data || []) {
-      if (activeFutureSupplyIds.has(r.future_supply_id))
+      if (futureAssignedSet.has(r.future_supply_id))
         futureSubmittedSet.add(r.future_supply_id);
     }
-    setFutureSubmitted(futureSubmittedSet.size);
+
 
     const users = usersRes.data || [];
     const assigns = allAssignsRes.data || [];
@@ -246,18 +220,17 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     }
     for (const a of assigns) {
       const entry = userMap.get(a.user_id);
-      if (entry) entry.assigned.add(a.building_id);
+      if (entry && activeBuildingIds.has(a.building_id)) entry.assigned.add(a.building_id);
     }
     for (const s of subsRpcData) {
       const entry = userMap.get(s.user_id);
-      if (entry) {
+      if (entry && entry.assigned.has(s.building_id)) {
         entry.submitted.add(s.building_id);
         if (!entry.last || s.created_at > entry.last) entry.last = s.created_at;
       }
     }
 
-    setStats(
-      Array.from(userMap.entries())
+    const stats: UserStat[] = Array.from(userMap.entries())
         .map(([uid, s]) => ({
           user_id: uid,
           user_name: s.name,
@@ -266,25 +239,21 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
           assigned_buildings: s.assigned.size,
         }))
         .filter((s) => s.assigned_buildings > 0)
-        .sort((a, b) => a.user_name.localeCompare(b.user_name)),
-    );
-    setLoading(false);
+        .sort((a, b) => a.user_name.localeCompare(b.user_name));
+    return { totalBuildings: buildingsCount.count, futureTotal: futureSuppliesCount.count, totalAssigned: assignedSet.size, futureAssigned: futureAssignedSet.size, totalSubmitted: submittedSet.size, futureSubmitted: futureSubmittedSet.size, stats };
   }
 
-  async function handleExpandUser(userId: string) {
-    if (expandedUser === userId) {
-      setExpandedUser(null);
-      return;
-    }
+  async function handleExpandUser(userId: string, force = false) {
+    const request = ++sessionRequest.current;
+    if (!force && expandedUser === userId) { setExpandedUser(null); return; }
     setExpandedUser(userId);
+    setExpandedKey(progressKey);
+    setExpandedSessions([]);
+    setExpandedError('');
     setExpandedLoading(true);
-    const { data } = await supabase
-      .from("quarterly_submissions")
-      .select("created_at, building_id")
-      .eq("record_year", year)
-      .eq("record_quarter", quarter)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+    try {
+      const data = await fetchAllSubmissionPages<any>((from, to) => supabase.from('quarterly_submissions').select('created_at, building_id').eq('record_year', year).eq('record_quarter', quarter).eq('user_id', userId).order('created_at', { ascending: false }).order('id').range(from, to));
+      if (request !== sessionRequest.current) return;
 
     // 按精确时间戳分组 —— 同一批提交的楼宇共享同一个 created_at
     const tsMap = new Map<string, Set<string>>();
@@ -318,7 +287,9 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     });
 
     setExpandedSessions(sessions);
-    setExpandedLoading(false);
+    } catch (error) {
+      if (request === sessionRequest.current) setExpandedError(error instanceof Error ? error.message : '上传记录读取失败');
+    } finally { if (request === sessionRequest.current) setExpandedLoading(false); }
   }
 
   function buildSession(
@@ -353,32 +324,14 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     userName: string,
     session: UploadSession,
   ) {
-    const { data } = await supabase
-      .from("quarterly_submissions")
-      .select("*")
-      .eq("record_year", year)
-      .eq("record_quarter", quarter)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true });
-
-    if (!data || data.length === 0) {
-      alert("无数据");
-      return;
-    }
-
-    // 用 session 的 timestamps 精确过滤（不按日期，避免同一天多次提交混淆）
-    const tsSet = new Set(session.timestamps);
-    const tsMin = Math.min(...session.timestamps.map(t => new Date(t).getTime()));
-    const tsMax = Math.max(...session.timestamps.map(t => new Date(t).getTime()));
-
-    // 先精确匹配 timestamps，如果匹配不到则回退到时间范围（处理毫秒精度差异）
-    let filtered = data.filter(r => tsSet.has(r.created_at));
-    if (filtered.length === 0) {
-      filtered = data.filter(r => {
-        const t = new Date(r.created_at).getTime();
-        return t >= tsMin - 1000 && t <= tsMax + 1000;
-      });
-    }
+    const request = sessionRequest.current;
+    if (downloading || expandedKey !== progressKey || expandedUser !== userId) return;
+    setDownloading(true);
+    try {
+    const data = await fetchAllSubmissionPages<any>((from, to) => supabase.from('quarterly_submissions').select('*').eq('record_year', year).eq('record_quarter', quarter).eq('user_id', userId).in('created_at', session.timestamps).order('created_at').order('id').range(from, to));
+    if (request !== sessionRequest.current) return;
+    if (!data.length) throw new Error('该批次无可下载记录，请重新加载上传记录');
+    const filtered = data;
 
     // 同一 session 内按 building_id 去重（保留最后一条）
     const deduped = new Map<string, typeof filtered[0]>();
@@ -386,20 +339,6 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       deduped.set(r.building_id, r);
     }
     const uniqueRows = Array.from(deduped.values());
-
-    // 调试：打印排序前的字典状态
-    console.group('🔽 下载排序调试');
-    console.log('dicts.building_grades 条数:', Object.keys(dicts.building_grades || {}).length);
-    console.log('dicts.building_submarkets 条数:', Object.keys(dicts.building_submarkets || {}).length);
-    console.log('dicts.building_sort_orders 条数:', Object.keys(dicts.building_sort_orders || {}).length);
-    for (const r of uniqueRows) {
-      const g = dicts.building_grades?.[r.building_id];
-      const sm = dicts.building_submarkets?.[r.building_id];
-      const so = dicts.building_sort_orders?.[r.building_id];
-      const name = dicts.buildings?.[r.building_id] || r.building_id;
-      console.log(`  ${name}: grade=${g ?? '❌MISSING'} → code=${resolveGradeCode(g ?? '')}, submarket=${sm ?? '❌MISSING'}, sort_order=${so ?? '❌MISSING'}`);
-    }
-    console.groupEnd();
 
     // 按等级分组 → 子市场顺序 → sort_order 排序
     // P(超甲) 合并进 A(甲级)，按相同规则排序
@@ -428,15 +367,6 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       const soB = Number(dicts.building_sort_orders?.[b.building_id] ?? 0);
       return soA - soB;
     });
-
-    // 调试：打印排序后的顺序
-    console.log('🔽 排序后顺序:', uniqueRows.map((r, i) => {
-      const name = dicts.buildings?.[r.building_id] || r.building_id;
-      const g = resolveGradeCode(dicts.building_grades?.[r.building_id] ?? '');
-      const sm = dicts.building_submarkets?.[r.building_id] ?? '';
-      const so = dicts.building_sort_orders?.[r.building_id] ?? '';
-      return `${i + 1}. ${name} [${g}/${sm}/${so}]`;
-    }));
 
     // 构建 Excel 行：按等级分组，组间插入分隔行
     const excelRows: Record<string, any>[] = [];
@@ -511,7 +441,8 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
     const dateNum = `${firstTs.getFullYear()}${String(firstTs.getMonth() + 1).padStart(2, '0')}${String(firstTs.getDate()).padStart(2, '0')}`;
     const timeNum = `${String(firstTs.getHours()).padStart(2, '0')}${String(firstTs.getMinutes()).padStart(2, '0')}`;
     const gradePart = session.gradeSummary ? `_${session.gradeSummary}` : '';
-    const filename = `${dateNum}_${userName}_第${session.session_index}次_${timeNum}${gradePart}.xlsx`;
+    const safeUserName = userName.replace(/[\/\\:*?"<>|]/g, "_");
+    const filename = `${year}Q${quarter}_${dateNum}_${safeUserName}_第${session.session_index}次_${timeNum}${gradePart}.xlsx`;
     XLSX.writeFile(wb, filename);
     logAction(undefined, 'EXPORT_DATA', {
       export_type: 'quarterly_submission_session',
@@ -524,16 +455,21 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
       session_index: session.session_index,
       target_name: filename,
     });
+    } catch (error) { if (request === sessionRequest.current) alert(`下载失败：${error instanceof Error ? error.message : '未知错误'}`); }
+    finally { setDownloading(false); }
   }
 
   const completionRate =
     totalAssigned > 0 ? Math.round((totalSubmitted / totalAssigned) * 100) : 0;
   const pending = Math.max(0, totalAssigned - totalSubmitted);
   const unassigned = Math.max(0, totalBuildings - totalAssigned);
-  const years = Array.from({ length: 5 }, (_, i) => dq.year - 2 + i);
+  const years = [...new Set([...Array.from({ length: 5 }, (_, i) => dq.year - 2 + i), year, configured.data?.year ?? year])].sort();
 
   return (
     <div className="flex flex-col h-full min-h-0 overflow-auto">
+      {configured.error && <ReadError message={`默认季度加载失败：${configured.error}；当前使用所选季度`} retry={configured.reload} />}
+      {rollout.error && <ReadError message={`季度切换状态读取失败，暂不允许切换：${rollout.error}`} retry={rollout.reload} />}
+      {rollout.data?.quarter_configuration_frozen && <div role="status" className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">版本切换保护中：季度配置暂时冻结，普通草稿保存和提交不受此冻结影响。<button type="button" className="ml-2 underline" onClick={rollout.reload}>重新读取切换状态</button></div>}
       {/* 当前填报季度设置 */}
       <div className="mb-4 flex shrink-0 items-center gap-3 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-3">
         <span className="text-xs font-semibold text-[var(--cd-color-brand)]">
@@ -544,7 +480,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
           onChange={(e) => setCfgYear(Number(e.target.value))}
           className={compactSelectClassName}
         >
-          {[dq.year - 1, dq.year, dq.year + 1].map((y) => (
+          {[...new Set([dq.year - 1, dq.year, dq.year + 1, cfgYear])].sort().map((y) => (
             <option key={y} value={y}>
               {y}年
             </option>
@@ -561,7 +497,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
             </option>
           ))}
         </select>
-        <Button size="sm" onClick={handleSaveConfig} disabled={saving}>
+        <Button size="sm" onClick={handleSaveConfig} disabled={saving || configured.loading || !!configured.error || quarterChangesBlocked}>
           {saving ? "保存中..." : "保存"}
         </Button>
         <span className="ml-2 text-xs text-[var(--cd-color-text-secondary)]">
@@ -596,12 +532,13 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
         </select>
       </div>
 
-      {loading ? (
+      {progress.error ? <ReadError message={progress.error} retry={progress.reload} /> : loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
         </div>
       ) : (
         <>
+          <p className="mb-3 text-xs text-zinc-500">按当前分配责任统计全部用户（含管理员）；历史季度不代表当时分配。概览按楼宇统计任意提交者的记录，用户明细仅统计该用户当前负责楼宇上的本人记录。记录覆盖率仅表示存在季度记录，不等于字段完整、有效或本季度重新填写；原始多版本保留为提交历史。旧记录未提供可靠录入来源，无法据此区分导入、沿用或本季新填。</p>
           {/* 进度卡片 */}
           <div className="shrink-0 grid grid-cols-5 gap-4 mb-6">
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -616,7 +553,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
             </div>
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
               <p className="text-xs text-emerald-600 mb-1">
-                {year}Q{quarter} 已填报
+                {year}Q{quarter} 有记录
               </p>
               <p className="text-2xl font-bold text-emerald-700">
                 {totalSubmitted}
@@ -624,12 +561,12 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
               <p className="text-xs text-amber-600 mb-1">
-                {year}Q{quarter} 未填报
+                {year}Q{quarter} 无记录
               </p>
               <p className="text-2xl font-bold text-amber-700">{pending}</p>
             </div>
             <div className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
-              <p className="mb-1 text-xs text-[var(--cd-color-text-secondary)]">完成率</p>
+              <p className="mb-1 text-xs text-[var(--cd-color-text-secondary)]">记录覆盖率</p>
               <p className="text-2xl font-bold text-[var(--cd-color-brand)]">
                 {completionRate}%
               </p>
@@ -652,7 +589,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                   <b className="text-[var(--cd-color-text-primary)]">{futureAssigned}</b>
                 </span>
                 <span>
-                  {year}Q{quarter} 已填报{" "}
+                  {year}Q{quarter} 有记录{" "}
                   <b className="text-[var(--cd-color-text-primary)]">{futureSubmitted}</b>
                 </span>
               </div>
@@ -670,8 +607,8 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                   <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">
                     {year}Q{quarter} 已提交
                   </th>
-                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">完成率</th>
-                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">最近提交</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">记录覆盖率</th>
+                  <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">最近正式提交</th>
                   <th className="bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500">操作</th>
                 </tr>
               </thead>
@@ -683,12 +620,13 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                           (s.total_submissions / s.assigned_buildings) * 100,
                         )
                       : 0;
-                  const isExpanded = expandedUser === s.user_id;
+                  const isExpanded = expandedUser === s.user_id && expandedKey === progressKey;
                   return (
                     <React.Fragment key={s.user_id}>
                       <tr className="hover:bg-zinc-50 transition-colors">
                         <td className="px-4 py-3">
                           <button
+                            aria-label={`查看 ${s.user_name} 的上传记录`}
                             onClick={() => void handleExpandUser(s.user_id)}
                             className="text-zinc-400 hover:text-zinc-600 transition-transform"
                             style={{
@@ -747,14 +685,14 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
-                            预览
+                            预览当前填报页
                           </button>
                         </td>
                       </tr>
                       {isExpanded && (
                         <tr>
                           <td colSpan={7} className="bg-gradient-to-r from-zinc-50 to-zinc-100/50 px-6 py-4 border-t border-zinc-200">
-                            {expandedLoading ? (
+                            {expandedError ? <ReadError message={expandedError} retry={() => void handleExpandUser(s.user_id, true)} /> : expandedLoading ? (
                               <div className="flex items-center gap-2 text-xs text-zinc-400 py-2">
                                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-500" />
                                 加载中...
@@ -772,6 +710,7 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
                                 <div className="flex flex-wrap gap-2">
                                   {expandedSessions.map((ses, idx) => (
                                     <button
+                                      disabled={downloading}
                                       key={idx}
                                       onClick={() =>
                                         void handleDownloadSession(
@@ -820,16 +759,26 @@ function SubmissionProgressSection({ dicts }: { dicts: DictBundle }) {
 
 // ─── 填报数据（提交数据 + 操作日志，按季度/用户筛选）──────────────────────────
 
-function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
+function SubmissionDataSection({ dicts, period }: { dicts: DictBundle; period: ReturnType<typeof useSubmissionPeriod> }) {
   const dq = getCurrentQuarter();
-  const [year, setYear] = React.useState(dq.year);
-  const [quarter, setQuarter] = React.useState(dq.quarter);
+  const { year, quarter, setYear, setQuarter, configured } = period;
   const [userId, setUserId] = React.useState("all");
-  const [rows, setRows] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
   const [showLog, setShowLog] = React.useState(false);
-  const [logRows, setLogRows] = React.useState<any[]>([]);
-  const [logLoading, setLogLoading] = React.useState(false);
+  const requestKey = `${year}:Q${quarter}:${userId}`;
+  const result = useSubmissionRead(requestKey, () => fetchAllSubmissionPages<any>((from, to) => {
+    let query = supabase.from('quarterly_submissions').select('*').eq('record_year', year).eq('record_quarter', quarter).order('created_at', { ascending: false }).order('id');
+    if (userId !== 'all') query = query.eq('user_id', userId);
+    return query.range(from, to);
+  }));
+  const rows = result.data || [];
+  const loading = result.loading;
+  const logs = useSubmissionRead(requestKey, () => fetchAllSubmissionPages<any>((from, to) => {
+    let query = supabase.from('audit_logs').select('*').eq('action_type', 'SUBMIT_QUARTERLY_DATA').eq('details->>year', String(year)).eq('details->>quarter', String(quarter)).order('occurred_at', { ascending: false }).order('id');
+    if (userId !== 'all') query = query.eq('user_id', userId);
+    return query.range(from, to);
+  }), showLog);
+  const logRows = logs.data || [];
+  const logLoading = logs.loading;
 
   // AG Grid 列定义
   const dataColumns = React.useMemo<AgColDef[]>(() => [
@@ -850,60 +799,12 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
     { headerName: '提交时间', field: 'created_at', width: 160, cellRenderer: DateRenderer },
   ], [dicts]);
 
-  React.useEffect(() => {
-    void fetchData();
-  }, [year, quarter, userId]);
-
-  async function fetchData() {
-    setLoading(true);
-    let q = supabase
-      .from("quarterly_submissions")
-      .select("*")
-      .eq("record_year", year)
-      .eq("record_quarter", quarter)
-      .order("created_at", { ascending: false })
-      .limit(2000);
-    if (userId !== "all") q = q.eq("user_id", userId);
-    const { data } = await q;
-    setRows(data || []);
-    setLoading(false);
-  }
-
-  async function fetchLog() {
-    if (showLog) {
-      setShowLog(false);
-      return;
-    }
-    setShowLog(true);
-    if (logRows.length > 0) return;
-    setLogLoading(true);
-    let q = supabase
-      .from("quarterly_updates")
-      .select("*")
-      .eq("tab", `${year}Q${quarter}`)
-      .order("created_at", { ascending: false })
-      .limit(500);
-    const { data } = await q;
-    setLogRows(data || []);
-    setLogLoading(false);
-  }
-
   function handleExport() {
+    if (loading || result.error) return;
     if (rows.length === 0) {
       alert("当前筛选无数据");
       return;
     }
-    // 调试
-    console.group('🔽 导出排序调试');
-    for (const r of rows) {
-      const name = dicts.buildings?.[r.building_id] || r.building_id;
-      const g = dicts.building_grades?.[r.building_id];
-      const sm = dicts.building_submarkets?.[r.building_id];
-      const so = dicts.building_sort_orders?.[r.building_id];
-      console.log(`  ${name}: grade=${g ?? '❌'} sm=${sm ?? '❌'} so=${so ?? '❌'}`);
-    }
-    console.groupEnd();
-
     // 按等级分组 → 子市场顺序 → sort_order 排序
     const sorted = [...rows].sort((a, b) => {
       const gA = resolveGradeCode(dicts.building_grades?.[a.building_id] ?? '');
@@ -965,7 +866,7 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
     });
   }
 
-  const years = Array.from({ length: 5 }, (_, i) => dq.year - 2 + i);
+  const years = [...new Set([...Array.from({ length: 5 }, (_, i) => dq.year - 2 + i), year, configured.data?.year ?? year])].sort();
   const userOptions = React.useMemo(() => {
     const list = Object.entries(dicts.user_roles || {}).map(([id, name]) => ({
       id,
@@ -1022,10 +923,10 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
         </div>
 
         <span className="ml-auto text-xs text-zinc-400">
-          {rows.length} 条记录
+          {loading ? "加载中…" : result.error ? "记录数量未知" : `${rows.length} 条记录`}
         </span>
 
-        <Button size="sm" variant="secondary" onClick={handleExport}>
+        <Button size="sm" variant="secondary" onClick={handleExport} disabled={loading || !!result.error || !rows.length}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="12"
@@ -1043,20 +944,23 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
         </Button>
 
         <button
-          onClick={() => void fetchLog()}
+          onClick={() => setShowLog(value => !value)}
           className={`text-xs px-3 py-1.5 rounded-lg border transition ${showLog ? "bg-zinc-100 border-zinc-400 text-zinc-700" : "border-zinc-300 text-zinc-500 hover:bg-zinc-50"}`}
         >
           {showLog ? "收起操作日志" : "操作日志"}
         </button>
       </div>
 
+      {configured.error && <ReadError message={`默认季度加载失败：${configured.error}；当前使用所选季度`} retry={configured.reload} />}
+      {result.error && <ReadError message={result.error} retry={result.reload} />}
+      <p className="mb-2 text-xs text-zinc-500">以下为全部历史提交版本，并非去重项目数；记录本身不证明本季度重新填写或字段有效。</p>
       {/* 数据表 - AG Grid */}
       <div className="min-h-0 flex-1 overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
         <SubmissionGrid
           columns={dataColumns}
           data={rows}
           loading={loading}
-          emptyMessage="当前筛选条件下没有提交记录"
+          emptyMessage={result.error ? "数据读取失败，不能判断是否存在提交记录" : "当前筛选条件下没有提交记录"}
         />
       </div>
 
@@ -1064,16 +968,16 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
       {showLog && (
         <div className="shrink-0 mt-3 rounded-lg border border-zinc-200 bg-zinc-50/50 overflow-hidden">
           <div className="px-4 py-2.5 bg-zinc-100 text-xs font-semibold text-zinc-600 border-b border-zinc-200">
-            操作日志（{year}Q{quarter}）
+            当前提交操作日志（{year}Q{quarter}；已应用用户筛选）
           </div>
           <div className="max-h-60 overflow-auto">
-            {logLoading ? (
+            {logs.error ? <ReadError message={logs.error} retry={logs.reload} /> : logLoading ? (
               <div className="flex items-center justify-center py-6">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
               </div>
             ) : logRows.length === 0 ? (
               <div className="text-center py-6 text-xs text-zinc-400">
-                暂无操作记录
+                暂无当前提交操作记录（不包含旧版 quarterly_updates；日志缺失不代表未提交）
               </div>
             ) : (
               <table className="w-full text-xs text-left">
@@ -1087,25 +991,17 @@ function SubmissionDataSection({ dicts }: { dicts: DictBundle }) {
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
                   {logRows.map((r, i) => {
-                    const payload = r.payload || {};
-                    const summary =
-                      [
-                        payload.qQuote && `报价:${payload.qQuote}`,
-                        payload.qFace && `面租:${payload.qFace}`,
-                        payload.qFree && `免租:${payload.qFree}`,
-                        payload.qVacArea && `空置:${payload.qVacArea}`,
-                      ]
-                        .filter(Boolean)
-                        .join(" / ") || "-";
+                    const payload = r.details || {};
+                    const summary = `提交 ${payload.record_count ?? payload.count ?? '-'} 项 · ${payload.tab ?? '-'} · ${r.action_type}`;
                     return (
                       <tr key={r.id || i} className="hover:bg-zinc-50">
                         <td className="px-3 py-1.5 text-zinc-500">
-                          {new Date(r.created_at).toLocaleString("zh-CN", {
+                          {new Date(r.occurred_at).toLocaleString("zh-CN", {
                             hour12: false,
                           })}
                         </td>
-                        <td className="px-3 py-1.5">{r.user_name || "-"}</td>
-                        <td className="px-3 py-1.5">{r.project_name || "-"}</td>
+                        <td className="px-3 py-1.5">{dicts.user_roles?.[r.user_id] || r.user_name || r.user_id || "-"}</td>
+                        <td className="px-3 py-1.5">{payload.target_name || "批次事件"}</td>
                         <td className="px-3 py-1.5 text-zinc-500">{summary}</td>
                       </tr>
                     );
@@ -1129,68 +1025,24 @@ const TAB_LABELS: Record<string, string> = {
 };
 
 interface DraftRow {
-  id: number;
+  id: string;
+  user_id?: string;
+  record_year?: number;
+  record_quarter?: number;
+  revision?: number;
   user_name: string;
   tab: string;
-  draft_data: Record<string, Record<string, string>>;
+  draft_data: unknown;
   updated_at: string;
 }
 
 function DraftSection({ dicts }: { dicts: DictBundle }) {
-  const [rows, setRows] = React.useState<DraftRow[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [tabFilter, setTabFilter] = React.useState("all");
-  const [expandedId, setExpandedId] = React.useState<number | null>(null);
-
-  React.useEffect(() => {
-    void fetchData();
-  }, []);
-
-  async function fetchData() {
-    setLoading(true);
-    const { data } = await supabase
-      .from("update_drafts")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .limit(500);
-    setRows((data || []) as DraftRow[]);
-    setLoading(false);
-  }
-
-  function summarizeDraft(draft: Record<string, Record<string, string>>): {
-    buildings: number;
-    fields: string;
-  } {
-    if (!draft || typeof draft !== "object")
-      return { buildings: 0, fields: "-" };
-    const entries = Object.entries(draft).filter(
-      ([, v]) =>
-        v &&
-        typeof v === "object" &&
-        Object.values(v).some((val) => val && val !== ""),
-    );
-    if (entries.length === 0) return { buildings: 0, fields: "-" };
-    const FIELD_LABELS: Record<string, string> = {
-      qQuote: "报价",
-      qProp: "物业费",
-      qFace: "面租",
-      qFree: "免租期",
-      qVacArea: "空置面积",
-      qOwner: "业主",
-      qPropMan: "物业",
-      qRemark: "备注",
-    };
-    const allFields = new Set<string>();
-    for (const [, v] of entries) {
-      for (const [k, val] of Object.entries(v)) {
-        if (val && val !== "") allFields.add(FIELD_LABELS[k] || k);
-      }
-    }
-    return {
-      buildings: entries.length,
-      fields: Array.from(allFields).join("、"),
-    };
-  }
+  const drafts = useSubmissionRead('drafts', () => fetchAllSubmissionPages<DraftRow>((from, to) => supabase.from('update_drafts').select('*').order('updated_at', { ascending: false }).order('id').range(from, to)));
+  const rows = drafts.data || [];
+  const loading = drafts.loading;
+  const [tabFilter, setTabFilter] = React.useState('all');
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const summarizeDraft = summarizeAdminDraft;
 
   const filtered =
     tabFilter === "all" ? rows : rows.filter((r) => r.tab === tabFilter);
@@ -1220,23 +1072,24 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
           </button>
         ))}
         <span className="ml-auto text-xs text-zinc-400">
-          {nonEmpty.length} 条有数据 / {empty.length} 条为空
+          {loading ? "加载中…" : drafts.error ? "草稿数量未知" : `${nonEmpty.length} 条有数据 / ${empty.length} 条为空`}
         </span>
         <button
-          onClick={() => void fetchData()}
+          onClick={drafts.reload}
           className="text-xs border border-zinc-200 text-zinc-500 px-3 py-1.5 rounded-lg hover:bg-zinc-50"
         >
           刷新
         </button>
       </div>
 
+      {drafts.error && <ReadError message={drafts.error} retry={drafts.reload} />}
       {/* 有数据的草稿 */}
       <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-zinc-200">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : drafts.error ? <p className="p-4 text-sm text-red-700">无法判断草稿状态，请重试</p> : filtered.length === 0 ? (
           <div className="text-center py-12 text-sm text-zinc-400">
             暂无草稿
           </div>
@@ -1282,10 +1135,10 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
                           </svg>
                         </button>
                       </td>
-                      <td className="px-4 py-2 font-medium">{r.user_name}</td>
+                      <td className="px-4 py-2 font-medium">{dicts.user_roles?.[r.user_id || ""] || r.user_name || r.user_id || "未知用户"}</td>
                       <td className="px-4 py-2">
                         <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-surface-alt)] px-2 py-0.5 text-xs font-medium text-[var(--cd-color-text-secondary)]">
-                          {r.tab}
+                          {TAB_LABELS[r.tab] || r.tab} · {r.record_year ?? "未知年份"} Q{r.record_quarter ?? "?"} · 版本 {r.revision ?? "未知"}
                         </span>
                       </td>
                       <td className="px-4 py-2">
@@ -1312,7 +1165,7 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
                             <thead className="bg-zinc-50">
                               <tr>
                                 <th className="px-3 py-1.5 text-left font-medium">
-                                  楼宇序号
+                                  项目（存量 / 未来供应）
                                 </th>
                                 <th className="px-3 py-1.5 text-left font-medium">
                                   报价
@@ -1341,49 +1194,42 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100">
-                              {Object.entries(r.draft_data)
-                                .filter(
-                                  ([, v]) =>
-                                    v &&
-                                    typeof v === "object" &&
-                                    Object.values(v).some(
-                                      (val) => val && val !== "",
-                                    ),
-                                )
-                                .map(([idx, v]) => (
-                                  <tr key={idx} className="hover:bg-zinc-50">
+                              {draftEntries(r.draft_data).map((entry) => {
+                                const v = entry.values;
+                                return (
+                                  <tr key={`${entry.kind}:${entry.id}`} className="hover:bg-zinc-50">
                                     <td className="px-3 py-1.5 text-zinc-400">
-                                      #{Number(idx) + 1}
+                                      {draftProjectLabel(entry, dicts.buildings, dicts.future_supplies)}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qQuote || "-"}
+                                      {String(v.qQuote ?? "-")}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qProp || "-"}
+                                      {String(v.qProp ?? "-")}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qFace || "-"}
+                                      {String(v.qFace ?? "-")}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qFree || "-"}
+                                      {String(v.qFree ?? "-")}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qVacArea || "-"}
+                                      {String(v.qVacArea ?? "-")}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qOwner || "-"}
+                                      {String(v.qOwner ?? "-")}
                                     </td>
                                     <td className="px-3 py-1.5">
-                                      {v.qPropMan || "-"}
+                                      {String(v.qPropMan ?? "-")}
                                     </td>
                                     <td
                                       className="px-3 py-1.5 max-w-[120px] truncate"
-                                      title={v.qRemark || ""}
+                                      title={String(v.qRemark ?? "")}
                                     >
-                                      {v.qRemark || "-"}
+                                      {String(v.qRemark ?? "-")}
                                     </td>
                                   </tr>
-                                ))}
+                                ); })}
                             </tbody>
                           </table>
                         </td>
@@ -1410,10 +1256,10 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
                             className="flex items-center gap-4 py-1"
                           >
                             <span className="font-medium text-zinc-600">
-                              {dicts.user_roles?.[r.user_name] || r.user_name}
+                              {dicts.user_roles?.[r.user_id || ""] || r.user_name || r.user_id || "未知用户"}
                             </span>
                             <span className="px-2 py-0.5 text-[10px] rounded bg-zinc-100 text-zinc-500">
-                              {TAB_LABELS[r.tab] || r.tab}
+                              {TAB_LABELS[r.tab] || r.tab} · {r.record_year ?? "未知年份"} Q{r.record_quarter ?? "?"} · 版本 {r.revision ?? "未知"}
                             </span>
                             <span className="text-zinc-400">
                               {new Date(r.updated_at).toLocaleString("zh-CN", {
@@ -1437,12 +1283,12 @@ function DraftSection({ dicts }: { dicts: DictBundle }) {
 
 // ─── 未来供应提交数据 ────────────────────────────────────────────────────────
 
-function FutureSupplySubmissionsSection({ dicts }: { dicts: DictBundle }) {
+function FutureSupplySubmissionsSection({ dicts, period }: { dicts: DictBundle; period: ReturnType<typeof useSubmissionPeriod> }) {
   const dq = getCurrentQuarter();
-  const [year, setYear] = React.useState(dq.year);
-  const [quarter, setQuarter] = React.useState(dq.quarter);
-  const [rows, setRows] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const { year, quarter, setYear, setQuarter, configured } = period;
+  const result = useSubmissionRead(`${year}:Q${quarter}`, () => fetchAllSubmissionPages<any>((from, to) => supabase.from('future_supply_submissions').select('*').eq('record_year', year).eq('record_quarter', quarter).order('created_at', { ascending: false }).order('id').range(from, to)));
+  const rows = result.data || [];
+  const loading = result.loading;
 
   // AG Grid 列定义
   const futureSupplyColumns = React.useMemo<AgColDef[]>(() => [
@@ -1461,27 +1307,10 @@ function FutureSupplySubmissionsSection({ dicts }: { dicts: DictBundle }) {
     { headerName: '提交时间', field: 'created_at', width: 160, cellRenderer: DateRenderer },
   ], [dicts]);
 
-  React.useEffect(() => {
-    void fetchData();
-  }, [year, quarter]);
-
-  async function fetchData() {
-    setLoading(true);
-    const { data } = await supabase
-      .from("future_supply_submissions")
-      .select("*")
-      .eq("record_year", year)
-      .eq("record_quarter", quarter)
-      .order("created_at", { ascending: false })
-      .limit(500);
-    setRows(data || []);
-    setLoading(false);
-  }
-
-  const years = Array.from({ length: 5 }, (_, i) => dq.year - 2 + i);
+  const years = [...new Set([...Array.from({ length: 5 }, (_, i) => dq.year - 2 + i), year, configured.data?.year ?? year])].sort();
 
   function handleExport() {
-    if (rows.length === 0) return;
+    if (loading || result.error || rows.length === 0) return;
     const exportRows = rows.map((r) => ({
       项目名称: dicts.future_supplies?.[r.future_supply_id] || r.future_supply_id,
       提交人: dicts.user_roles?.[r.user_id] || r.user_name || "-",
@@ -1527,8 +1356,8 @@ function FutureSupplySubmissionsSection({ dicts }: { dicts: DictBundle }) {
         <select value={quarter} onChange={(e) => setQuarter(Number(e.target.value))} className="rounded border border-zinc-300 px-2 py-1 text-xs">
           {[1, 2, 3, 4].map((q) => <option key={q} value={q}>Q{q}</option>)}
         </select>
-        <span className="text-xs text-zinc-400">{rows.length} 条记录</span>
-        {rows.length > 0 && (
+        <span className="text-xs text-zinc-400">{loading ? "加载中…" : result.error ? "记录数量未知" : `${rows.length} 条记录`}</span>
+        {!loading && !result.error && rows.length > 0 && (
           <button onClick={handleExport} className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-zinc-200 bg-white text-xs font-medium hover:bg-zinc-50 hover:border-[#003e7e] transition">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -1540,13 +1369,15 @@ function FutureSupplySubmissionsSection({ dicts }: { dicts: DictBundle }) {
         )}
       </div>
 
+      {configured.error && <ReadError message={`默认季度加载失败：${configured.error}；当前使用所选季度`} retry={configured.reload} />}
+      {result.error && <ReadError message={result.error} retry={result.reload} />}
       {/* 数据表 */}
       <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-zinc-200">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
           </div>
-        ) : rows.length === 0 ? (
+        ) : result.error ? <p className="p-4 text-sm text-red-700">无法判断提交状态，请重试</p> : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
             <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
@@ -1568,29 +1399,16 @@ function FutureSupplySubmissionsSection({ dicts }: { dicts: DictBundle }) {
 // ─── 主组件 ───────────────────────────────────────────────────────────────────
 
 export function SubmissionManager() {
+  const period = useSubmissionPeriod();
   const [subTab, setSubTab] = React.useState<
     "assign" | "future-supply" | "progress" | "data" | "drafts" | "sort"
   >("assign");
-  const [dicts, setDicts] = React.useState<DictBundle>({});
-  const [refreshKey, setRefreshKey] = React.useState(0);
-
-  React.useEffect(() => {
-    void (async () => {
+  const [refreshKey] = React.useState(0);
+  const dictionaries = useSubmissionRead<DictBundle>('submission-dictionaries', async () => {
       const [buildings, users, futureSupplies] = await Promise.all([
-        supabase
-          .from("buildings")
-          .select("id, name, grade, submarket, sort_order")
-          .eq("is_active", true)
-          .eq("tracking_scope", "tracked")
-          .limit(2000),
-        supabase
-          .from("user_roles")
-          .select("user_id, chinese_name, full_name")
-          .limit(2000),
-        supabase
-          .from("future_supplies")
-          .select("id, name")
-          .limit(2000),
+        submissionPageResult((from, to) => supabase.from('buildings').select('id, name, grade, submarket, sort_order').order('id').range(from, to)),
+        submissionPageResult((from, to) => supabase.from('user_roles').select('user_id, chinese_name, full_name').order('user_id').range(from, to)),
+        submissionPageResult((from, to) => supabase.from('future_supplies').select('id, name').order('id').range(from, to)),
       ]);
       const buildingDict: Record<string, string> = {};
       const gradeDict: Record<string, string> = {};
@@ -1612,24 +1430,24 @@ export function SubmissionManager() {
       if (futureSupplies.data)
         for (const r of futureSupplies.data)
           futureSupplyDict[r.id] = r.name;
-      setDicts({
+      return {
         buildings: buildingDict,
         user_roles: userDict,
         building_grades: gradeDict,
         building_submarkets: submarketDict,
         building_sort_orders: sortOrderDict,
         future_supplies: futureSupplyDict,
-      });
-    })();
-  }, []);
+      };
+  });
+  const dicts = dictionaries.data || {};
 
   const assignmentConfig: TableConfig = {
     ...ASSIGNMENTS_CONFIG,
     hideAdd: true,
     customFetch: async () => {
       const [buildingsRes, assignsRes] = await Promise.all([
-        supabase.from("buildings").select("id, name, grade, submarket").eq("is_active", true).eq("tracking_scope", "tracked").eq("project_type", "stock").limit(2000),
-        supabase.from("building_assignments").select("*").limit(2000),
+        submissionPageResult((from, to) => supabase.from("buildings").select("id, name, grade, submarket").eq("is_active", true).eq("tracking_scope", "tracked").eq("project_type", "stock").order("id").range(from, to)),
+        submissionPageResult((from, to) => supabase.from("building_assignments").select("*").order("id").range(from, to)),
       ]);
       const assignMap = new Map<string, any>();
       for (const a of assignsRes.data || []) assignMap.set(a.building_id, a);
@@ -1666,6 +1484,7 @@ export function SubmissionManager() {
 
   const futureSupplyAssignmentConfig: TableConfig = {
     ...FUTURE_SUPPLY_ASSIGNMENTS_CONFIG,
+    customFetch: () => fetchAllSubmissionPages((from, to) => supabase.from("future_supply_assignments").select("*").order("created_at", { ascending: false }).order("id").range(from, to)),
     beforeSave: (row) => ({
       ...row,
       user_name: dicts.user_roles?.[row.user_id] || row.user_name,
@@ -1702,6 +1521,7 @@ export function SubmissionManager() {
         </div>
       </div>
 
+      {dictionaries.error && <ReadError message={`名称字典加载失败：${dictionaries.error}`} retry={dictionaries.reload} />}
       {/* 内容区 */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden w-full">
         {subTab === "assign" && (
@@ -1723,18 +1543,18 @@ export function SubmissionManager() {
               />
             </div>
             <div className="min-h-[400px] overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-              <FutureSupplySubmissionsSection dicts={dicts} />
+              <FutureSupplySubmissionsSection dicts={dicts} period={period} />
             </div>
           </div>
         )}
         {subTab === "progress" && (
           <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
-            <SubmissionProgressSection dicts={dicts} />
+            <SubmissionProgressSection dicts={dicts} period={period} />
           </div>
         )}
         {subTab === "data" && (
           <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
-            <SubmissionDataSection dicts={dicts} />
+            <SubmissionDataSection dicts={dicts} period={period} />
           </div>
         )}
         {subTab === "drafts" && (
@@ -1751,3 +1571,4 @@ export function SubmissionManager() {
     </div>
   );
 }
+

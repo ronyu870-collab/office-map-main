@@ -50,5 +50,12 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Isolated quarterly SQL regressions
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/quarterly-db-tests" --no-save --ignore-scripts @electric-sql/pglite@0.3.14
+          PGLITE_MODULE="$RUNNER_TEMP/quarterly-db-tests/node_modules/@electric-sql/pglite/dist/index.js" node supabase/tests/quarterly-reliability/run.mjs
+
       - name: Production build
         run: npm run build
+

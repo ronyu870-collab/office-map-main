@@ -35,14 +35,14 @@ async function checkDataApi(
     // 这样故障能尽快暴露，也避免健康检查在连接池紧张时进一步放大压力。
     const supabase = createClient(supabaseUrl, supabaseSecretKey, {
       auth: { persistSession: false, autoRefreshToken: false },
-      db: { retry: false },
     });
 
     // 登录成功后必须读取 user_roles 做手机号/角色校验，所以健康检查直接覆盖登录关键路径。
     const { error } = await supabase
       .from('user_roles')
       .select('user_id')
-      .limit(1);
+      .limit(1)
+      .retry(false);
 
     const latencyMs = Date.now() - startedAt;
     if (error) {
@@ -145,3 +145,4 @@ export async function GET() {
     allHealthy ? 200 : 503,
   );
 }
+

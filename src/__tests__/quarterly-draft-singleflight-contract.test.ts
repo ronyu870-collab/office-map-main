@@ -7,13 +7,15 @@ const source = fs.readFileSync(
   'utf8',
 );
 
-describe('quarterly draft single-flight contract', () => {
-  it('serializes draft writes and uses a synchronous revision ref', () => {
-    expect(source).toContain('draftRevisionRef = React.useRef(0)');
-    expect(source).toContain('draftSyncInFlightRef = React.useRef<Promise<boolean> | null>(null)');
-    expect(source).toContain('if (draftSyncInFlightRef.current) return draftSyncInFlightRef.current');
-    expect(source).toContain('const expectedRevision = draftRevisionRef.current');
-    expect(source).toContain('draftRevisionRef.current = nextRevision');
+const store = fs.readFileSync(path.join(process.cwd(), 'src/app/update/quarterlyDraftStore.ts'), 'utf8');
+
+describe('quarterly draft serialized revision contract', () => {
+  it('drains newer edits after each acknowledgement instead of dropping their payload', () => {
+    expect(store).toContain('if (this.inFlight) return this.inFlight');
+    expect(store).toContain('while (this.snapshot.dirty)');
+    expect(store).toContain('const expectedRevision = this.snapshot.revision');
+    expect(store).toContain('dirty: this.editVersion !== version');
+    expect(source).toContain('p_expected_revision: expectedRevision');
     expect(source).not.toContain('p_expected_revision: draftRevision,');
   });
 });
