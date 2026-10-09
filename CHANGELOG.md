@@ -1,3 +1,10 @@
+## 2026-10-09 — Real PostgreSQL concurrency release gate
+
+- Add a disposable official PostgreSQL 17.6 GitHub Actions service and a separate-connection regression runner using the existing lockfile-pinned pg 8.20.0 dependency. No production credentials or arbitrary database URLs are accepted.
+- Verify expansion lock-timeout rollback, baseline/trigger boundaries around queued legacy updates and deletions, archive-failure atomicity, legacy/v2 and v2/v2 revision collisions, concurrent submission idempotency, and replay after connection loss following commit.
+- Verify B aborts on in-flight v2 work and explicitly demonstrate that B cannot cancel an already-running legacy setter. Phase C is not automatically applied by this runner; live session/transaction drain remains an operator prerequisite.
+- Verification before publication: JavaScript syntax and independent review. The real database run is performed by CI on the exact PR head, alongside the existing type/lint/unit/isolated SQL/build checks. This is a schema-reconciled synthetic fixture, not full production migration-chain replay or proof that browser tabs have no unsaved input.
+
 ## 2026-10-08 — Quarterly entry and monitoring reliability
 
 - Preserve broker edits through failed reads/saves, concurrent typing, category changes and browser restarts using scoped recovery copies, a revision-aware serialized save queue, stable autosave/backoff and explicit conflict resolution. Keep historical drafts and formal records distinct; restoration is explicit and backed up.

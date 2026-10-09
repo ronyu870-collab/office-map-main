@@ -59,3 +59,30 @@ catalog evidence is not copied into the repository or fixture.
 or deleted accounts while retaining their old simulated token identity. Retained
 history/provenance are not deleted; cross-owner and anonymous-helper denial remain
 in force. Only the two new evidence-table SELECT policies receive this boundary.
+
+## Real PostgreSQL 17 multi-connection gate
+
+The Verify workflow starts the official `postgres:17.6` service and runs
+`node supabase/tests/quarterly-reliability/concurrency.mjs`. It uses the existing
+lockfile-pinned `pg` 8.20.0 development dependency. The script refuses non-CI
+execution and connects only to 127.0.0.1 at the Actions-assigned service port,
+with a fixed synthetic-only password. It accepts no database URL or production
+credentials. Each case gets a uniquely named synthetic database, closed and
+removed at the end; production services are never contacted.
+
+The tests observe actual `pg_locks` waiters on independent connections rather
+than relying on timing sleeps to manufacture ordering. Cases cover A rollback
+under contention, a committed baseline followed by queued legacy update/delete,
+archive-write failure aborting the business mutation, first-save and existing-row
+revision races, same-owner old/new save races, concurrent duplicate submissions,
+and a real connection closed after COMMIT but before query completion followed
+by safe replay. B contention and the pre-existing legacy-setter race are covered.
+
+The legacy-setter race is an expected demonstration of a remaining operational
+gate: an already-running old function can finish after B replaces its definition.
+A passing suite therefore does **not** waive the pre-B drain requirement, old
+browser/session acknowledgement, or separate approval for C. The runner never
+applies C. This tests the catalog-reconciled synthetic schema under real PostgreSQL
+concurrency; it is not the entire production migration chain or production load.
+
+Lock semantics are grounded in the [PostgreSQL 17 locking documentation](https://www.postgresql.org/docs/17/explicit-locking.html).
