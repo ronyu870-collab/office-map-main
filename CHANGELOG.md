@@ -1,3 +1,9 @@
+## 2026-10-09 — Remove dismissed draft notices from the compact quarterly workspace
+
+- After successful original-draft restoration or choosing not to use the reference, render no legacy notice row, wrapper or spacing. This applies to Grade A, Grade B and business parks; the existing records/recovery toggle remains the access point for the preserved original.
+- Keep source-version-scoped preferences, unhandled-reference notices, storage-failure visibility inside recovery, the old-client editing acknowledgement and malformed-draft quarantine unchanged. No draft payload, assignment filtering, save/submit behavior or production data is changed.
+- Add mounted regressions across all three categories for restore, ignore, navigation/reload, absence of residual layout elements and access to retained originals through the existing recovery controls. Verification: all 651 tests across 100 files passed with audit coverage, typecheck and lint (no errors, existing warnings) under no-egress synthetic configuration. Six pre-fix negative controls fail across all three categories; independent review approved the JSX-only scope. Production compilation passed; final page-data collection encountered the existing local sandbox network-interface restriction. Exact-head Verify remains the release gate.
+
 ## 2026-10-09 — Preserve quarterly recovery at read-only and malformed-data boundaries
 
 - Inspect every account-scoped submission pointer and immutable request record before recovery cleanup. Pending requests, malformed records and unknown namespaces fail closed without deleting anything; recheck after confirmation in case another window created a pending request. Other accounts remain outside the cleanup scope.
