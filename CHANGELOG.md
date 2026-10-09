@@ -1,3 +1,9 @@
+## 2026-10-09 — Read legacy quarterly drafts with revision zero
+
+- Accept zero as a valid persisted draft revision, matching the legacy database default. Previously the new reader rejected these rows as a cloud-read failure, blocking recovery and saving for affected accounts.
+- Keep unconfirmed legacy content in the existing preserved-reference flow. Loading does not promote it into current-quarter work or write business data; restoration remains explicit and the first v2 save uses the exact expected revision zero. No database, access-control or migration change is required.
+- Add synthetic store and mounted owner/admin-preview regressions for zero-revision reads, reference preservation, restart, explicit restore and save. Negative, fractional, non-finite and unsafe revisions remain rejected. Negative control reproduces the read failure with the old guard; the fixed focused suite passes 57 tests. Exact-head repository Verify remains the release gate.
+
 ## 2026-10-09 — Restrict quarterly history identity-sequence privileges
 
 - Track the exact separately approved production migration `20261009020453_restrict_quarterly_history_sequence_client_privileges.sql`. Revoke direct sequence privileges from PUBLIC, anon and authenticated while retaining the owner-definer archive path and service-role access. This migration does not modify business rows, history rows, table grants, RPC bodies or sequence values.
@@ -1296,3 +1302,4 @@ Git commit titles are too compressed to serve as product memory. A persistent re
 - P0: tighten authentication and authorization boundaries.
 - P0: generate and adopt typed Supabase database definitions.
 - P0: remove excessive debug logging and sensitive diagnostic output.
+

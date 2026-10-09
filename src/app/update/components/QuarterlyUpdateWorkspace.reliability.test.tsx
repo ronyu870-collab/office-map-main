@@ -290,4 +290,30 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     expect(window.localStorage.getItem('quarterly-client-ack:20261008-v2:synthetic-other-account')).toBeNull();
   });
 
+  it.each(['owner', 'preview'] as const)('shows a revision-zero legacy draft without a read failure in %s mode', async (mode) => {
+    if (mode === 'preview') { state.role = 'admin'; state.preview = 'synthetic-preview'; }
+    window.localStorage.clear();
+    const legacy = draft('321');
+    legacy.data.revision = 0;
+    delete (legacy.data.draft_data as Record<string, unknown>).__quarterly_meta__;
+    state.draftRead.mockResolvedValue(legacy);
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    await screen.findByText('已有草稿已保留，来源待核实');
+    expect(screen.queryByText('云端草稿读取失败；已保留本页及本机副本，重试读取后才能同步。')).not.toBeInTheDocument();
+    expect(quoteInputs().every((input) => input.value === '' && input.readOnly)).toBe(true);
+    expect(state.rpc).not.toHaveBeenCalled();
+    expect(state.reads.filter((read) => read.table === 'update_drafts').every((read) => read.filters.user_id === (mode === 'preview' ? 'synthetic-preview' : state.userId))).toBe(true);
+    if (mode === 'preview') {
+      expect(screen.queryByRole('button', { name: '载入原草稿到编辑区供核对' })).not.toBeInTheDocument();
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: '我已保存并关闭其他旧版编辑页面，启用本页编辑' }));
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      fireEvent.click(await screen.findByRole('button', { name: '载入原草稿到编辑区供核对' }));
+      expect(quoteInputs().every((input) => input.value === '321')).toBe(true);
+      fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
+      await waitFor(() => expect(state.rpc).toHaveBeenCalledWith('save_quarterly_draft_v2', expect.objectContaining({ p_user_id: state.userId, p_expected_revision: 0 })));
+    }
+  });
+
 });
+
