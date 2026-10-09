@@ -12,7 +12,7 @@ export interface QuarterlyBatch {
 export interface SubmissionReceipt { regular_count: number; future_count: number; submitted_at: string }
 interface Attempt { requestId: string; batch: QuarterlyBatch; receipt?: SubmissionReceipt; rejected?: { code: string; message: string } }
 
-function definitelyRejected(error: unknown): error is { code: string; message: string } {
+export function isDefiniteSubmissionRejection(error: unknown): error is { code: string; message: string } {
   const value = error as { code?: string; message?: string };
   if (value?.code === '42501' && /^(regular|future)_submission_assignment_or_category_mismatch$/.test(value.message ?? '')) return true;
   return value?.code === '22023' && /^(invalid_submission_(numeric|numeric_range|payload|row|row_id|tab|period)|duplicate_submission_row|vacant_area_exceeds_total|regular_submission_assignment_or_category_mismatch|future_submission_assignment_or_category_mismatch|submission_period_changed)(:|$)/.test(value.message ?? '');
@@ -78,7 +78,7 @@ export class QuarterlySubmissionAttempt {
         // Only an explicit known SQL validation error proves this transaction
         // rolled back. Timeouts, malformed receipts and authorization errors
         // remain unresolved and must keep the original key.
-        if (definitelyRejected(error)) {
+        if (isDefiniteSubmissionRejection(error)) {
           attempt.rejected = { code: error.code, message: error.message };
           try { this.persist(attempt); } catch { /* fail closed on restart */ }
         }
@@ -93,3 +93,4 @@ export class QuarterlySubmissionAttempt {
     return this.inFlight;
   }
 }
+

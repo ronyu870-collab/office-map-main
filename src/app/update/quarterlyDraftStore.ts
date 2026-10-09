@@ -20,6 +20,7 @@ export interface DraftSnapshot {
   localError: string | null;
   updatedAt: string | null;
   retryCount: number;
+  quarantined?: { raw: unknown };
 }
 interface CachedDraft {
   version: 1;
@@ -51,11 +52,27 @@ export function isCurrentDraft(remote: RemoteDraft, identity: DraftIdentity): bo
     && remote.periodConfirmed === true && Number.isFinite(Date.parse(remote.updatedAt));
 }
 
+export class InvalidDraftPayloadError extends Error {
+  constructor(readonly raw: unknown) { super('invalid_draft_payload'); }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function validRows(value: unknown): boolean {
+  return isRecord(value) && Object.values(value).every((row) => isRecord(row)
+    && Object.values(row).every((field) => field == null || typeof field === 'string'
+      || (typeof field === 'number' && Number.isFinite(field))));
+}
 export function unpackDraft(value: unknown): DraftPayload {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return EMPTY();
-  const { __futureSupply__ } = value as Record<string, unknown>;
-  const regular = Object.fromEntries(Object.entries(value).filter(([key]) => key !== '__futureSupply__' && key !== '__quarterly_meta__')) as Record<string, QuarterlyDraftRow>;
-  return { regular, future: __futureSupply__ && typeof __futureSupply__ === 'object' && !Array.isArray(__futureSupply__) ? __futureSupply__ as Record<string, QuarterlyDraftRow> : {} };
+  if (value == null) return EMPTY();
+  if (!isRecord(value)) throw new InvalidDraftPayloadError(value);
+  const { __futureSupply__ } = value;
+  const regular = Object.fromEntries(Object.entries(value).filter(([key]) => key !== '__futureSupply__' && key !== '__quarterly_meta__'));
+  // Legacy null future maps represent no future entries; row values never do.
+  const future = __futureSupply__ == null ? {} : __futureSupply__;
+  if (!validRows(regular) || !validRows(future)) throw new InvalidDraftPayloadError(value);
+  return { regular: regular as DraftPayload['regular'], future: future as DraftPayload['future'] };
 }
 export const packDraft = (payload: DraftPayload) => ({ ...payload.regular, __futureSupply__: payload.future });
 
@@ -80,7 +97,7 @@ export class QuarterlyDraftStore {
       this.lastPersisted = raw ?? null;
       if (raw) {
         const cached = JSON.parse(raw) as CachedDraft;
-        if (cached.version !== 1 || draftCacheKey(cached.identity) !== this.key || !cached.payload?.regular || !cached.payload?.future || !Number.isSafeInteger(cached.revision)) throw new Error('invalid_cache');
+        if (cached.version !== 1 || draftCacheKey(cached.identity) !== this.key || !validRows(cached.payload?.regular) || !validRows(cached.payload?.future) || !Number.isSafeInteger(cached.revision)) throw new Error('invalid_cache');
         // Only acknowledged copies expire. Unsynced work never expires silently.
         if (!cached.dirty && Date.now() - cached.cachedAt > 30 * 86400_000) storage?.removeItem(this.key);
         else this.snapshot = { ...this.snapshot, payload: cached.payload, revision: cached.revision, dirty: cached.dirty, updatedAt: cached.updatedAt };
@@ -96,6 +113,11 @@ export class QuarterlyDraftStore {
   private publish(patch: Partial<DraftSnapshot>) {
     this.snapshot = { ...this.snapshot, ...patch };
     this.listeners.forEach((listener) => listener());
+  }
+  private quarantine(error: unknown): boolean {
+    if (!(error instanceof InvalidDraftPayloadError)) return false;
+    this.publish({ loaded: false, saving: false, quarantined: { raw: error.raw }, error: '云端草稿格式异常，原始内容已隔离保留；请导出并联系管理员，修复后重试读取。' });
+    return true;
   }
   private persist() {
     if (!this.storage) return;
@@ -124,6 +146,7 @@ export class QuarterlyDraftStore {
     }
   }
   edit(kind: 'regular' | 'future', id: string, field: string, value: string, legacyId?: string) {
+    if (this.snapshot.quarantined) return;
     const rows = this.snapshot.payload[kind];
     const nextRows = { ...rows, [id]: { ...(legacyId ? rows[legacyId] : {}), ...rows[id], [field]: value } };
     if (legacyId && legacyId !== id) delete nextRows[legacyId];
@@ -133,6 +156,7 @@ export class QuarterlyDraftStore {
     this.persist();
   }
   replaceFromFormal(payload: DraftPayload) {
+    if (this.snapshot.quarantined) return false;
     if (!this.preserveVersion('before-formal-restore', this.snapshot.payload)) return false;
     this.editVersion++;
     this.publish({ payload: copy(payload), dirty: true });
@@ -148,6 +172,7 @@ export class QuarterlyDraftStore {
         const remote = await this.transport.read();
         if (generation !== this.generation) return;
         if (remote && (!Number.isSafeInteger(remote.revision) || remote.revision < 0 || !Number.isFinite(Date.parse(remote.updatedAt)))) throw new Error('invalid_remote_revision');
+        this.publish({ quarantined: undefined });
         const edited = this.snapshot.dirty || this.editVersion !== startedAtVersion;
         if (remote && !isCurrentDraft(remote, this.identity)) {
           const referenceKey = `${this.key}:reference:${remote.year}:Q${remote.quarter}:r${remote.revision}`;
@@ -171,7 +196,8 @@ export class QuarterlyDraftStore {
           this.publish({ payload: remote?.payload ?? EMPTY(), revision: remote?.revision ?? 0, loaded: true, conflict: null, remoteMissing: false, error: null, updatedAt: remote?.updatedAt ?? null });
         }
         this.persist();
-      } catch {
+      } catch (error) {
+        if (this.quarantine(error)) return;
         this.publish({ error: '云端草稿读取失败；已保留本页及本机副本，重试读取后才能同步。', retryCount: this.snapshot.retryCount + 1 });
       } finally { this.loading = null; }
     })();
@@ -183,9 +209,12 @@ export class QuarterlyDraftStore {
     return this.inFlight;
   };
   private async drain(): Promise<boolean> {
+    if (this.snapshot.quarantined) return false;
     if (!this.snapshot.loaded) await this.load();
-    if (!this.snapshot.loaded || this.snapshot.conflict || this.snapshot.remoteMissing || (this.snapshot.error && !this.snapshot.dirty)) return false;
+    if (this.snapshot.quarantined || !this.snapshot.loaded || this.snapshot.conflict || this.snapshot.remoteMissing || (this.snapshot.error && !this.snapshot.dirty)) return false;
     while (this.snapshot.dirty) {
+      // A concurrent explicit read may quarantine a malformed remote while a save awaits its receipt.
+      if (this.snapshot.quarantined) return false;
       const version = this.editVersion;
       const payload = copy(this.snapshot.payload);
       const expectedRevision = this.snapshot.revision;
@@ -206,21 +235,26 @@ export class QuarterlyDraftStore {
             continue;
           }
           if ((remote?.revision ?? 0) !== expectedRevision) this.publish({ conflict: remote, remoteMissing: remote === null, error: '云端存在其他版本；本地修改已保留，请核对冲突。' });
-        } catch { /* Offline: keep the known revision and all local edits. */ }
+        } catch (readError) {
+          if (this.quarantine(readError)) return false;
+          // Offline: keep the known revision and all local edits.
+        }
         const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? '');
         this.publish({ saving: false, error: this.snapshot.error ?? (message.includes('submission_period_changed') ? '填报季度已变化；修改已保留，请重新打开本季度任务。' : '云端保存失败；修改已保留，将自动重试。'), retryCount: this.snapshot.retryCount + 1 });
         return false;
       }
     }
+    if (this.snapshot.quarantined) return false;
     this.publish({ saving: false, error: null });
     return true;
   }
   async resolveConflict(choice: 'local' | 'remote'): Promise<boolean> {
     // Re-read immediately: another writer may have edited since the dialog opened.
     const previouslyShown = this.snapshot.conflict;
-    if (!previouslyShown && !this.snapshot.remoteMissing) return false;
+    if (this.snapshot.quarantined || (!previouslyShown && !this.snapshot.remoteMissing)) return false;
     let remote: RemoteDraft | null;
-    try { remote = await this.transport.read(); } catch { return false; }
+    try { remote = await this.transport.read(); } catch (error) { this.quarantine(error); return false; }
+    if (this.snapshot.quarantined) return false;
     if ((remote?.revision ?? 0) !== (previouslyShown?.revision ?? 0)) {
       this.publish({ conflict: remote, remoteMissing: remote === null, error: '云端版本再次变化，请重新核对。' });
       return false;
@@ -232,7 +266,7 @@ export class QuarterlyDraftStore {
     return true;
   }
   clearAcknowledgedLocalCopy(): boolean {
-    if (this.snapshot.dirty || this.snapshot.saving || this.snapshot.conflict || this.snapshot.remoteMissing) return false;
+    if (this.snapshot.quarantined || this.snapshot.dirty || this.snapshot.saving || this.snapshot.conflict || this.snapshot.remoteMissing) return false;
     try { this.storage?.removeItem(this.key); return true; } catch { return false; }
   }
 }

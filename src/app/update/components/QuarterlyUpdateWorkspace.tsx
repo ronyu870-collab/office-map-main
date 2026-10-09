@@ -25,6 +25,8 @@ import {
 } from '../quarterlyDataEntry';
 
 import { QuarterlyDraftStore, packDraft, unpackDraft, hasConfirmedDraftPeriod, type DraftPayload, type DraftStorage } from '../quarterlyDraftStore';
+import { inspectAccountRecovery } from '../quarterlyRecoveryCleanup';
+import { legacyReferencePreferenceKey, readLegacyReferencePreference, writeLegacyReferencePreference, type LegacyReferenceDisposition } from '../quarterlyLegacyReferencePreference';
 import { readQuarterlyPages } from '../quarterlyReadPages';
 import { QuarterlySubmissionAttempt, type QuarterlyBatch, type SubmissionReceipt } from '../quarterlySubmissionAttempt';
 
@@ -157,6 +159,8 @@ export function QuarterlyUpdateWorkspace() {
   const [submitError, setSubmitError] = React.useState<string | null>(null);
   const [completionNotice, setCompletionNotice] = React.useState<CompletionNotice | null>(null);
   const [periodReady, setPeriodReady] = React.useState(false);
+  const [resolvedPreviewQuery, setResolvedPreviewQuery] = React.useState<string | null | undefined>(undefined);
+  const scopeReady = resolvedPreviewQuery === previewAsUserId;
   const [formalRows, setFormalRows] = React.useState<Array<Record<string, any>>>([]);
   const [formalError, setFormalError] = React.useState<string | null>(null);
   const [formalLoading, setFormalLoading] = React.useState(true);
@@ -244,6 +248,21 @@ export function QuarterlyUpdateWorkspace() {
     let cancelled = false;
     setAssignmentsError(null);
     setPeriodReady(false);
+    setResolvedPreviewQuery(undefined);
+    setDraftUserId('');
+    setDraftUserName('');
+    setIsPreview(false);
+    setPreviewUserName('');
+    setAssignedBuildingIds(null);
+    setMetricsMap({});
+    setFutureSupplyAssignments([]);
+    setFutureSupplyData({});
+    setFormalRows([]);
+    setFormalProvenance({});
+    setCompletionNotice(null);
+    setSubmitError(null);
+    setShowRecovery(false);
+    setShowIncompleteDialog(false);
     setReady(true);
 
     void (async () => {
@@ -353,7 +372,7 @@ export function QuarterlyUpdateWorkspace() {
               setFutureSupplyData(supplyMap);
             }
           }
-          if (!cancelled) setPeriodReady(true);
+          if (!cancelled) { setResolvedPreviewQuery(previewAsUserId); setPeriodReady(true); }
         } catch (error) {
           if (!cancelled) setAssignmentsError('季度或未来供应任务读取失败，请重试，避免遗漏项目。');
           console.warn('[QuarterlyUpdate] period or future supply unavailable', error);
@@ -429,6 +448,23 @@ export function QuarterlyUpdateWorkspace() {
     return store;
   }, [currentTab, draftUserId, draftUserName, isImpersonating, isPreview, storage, submitQuarter, submitYear, userRole]);
   const draftSnapshot = React.useSyncExternalStore(draftStore.subscribe, draftStore.getSnapshot, draftStore.getSnapshot);
+  const legacyReference = draftSnapshot.quarantined ? null : draftSnapshot.historical;
+  const referencePreferenceKey = legacyReference ? legacyReferencePreferenceKey(draftStore.identity, legacyReference) : null;
+  // Ignoring a reference is a display choice, independent of the old-tab editing acknowledgement.
+  const canRememberReferenceChoice = scopeReady && periodReady && currentUser?.id === draftUserId && canWriteBusinessData(userRole) && !isPreview && !isImpersonating;
+  const referenceDisplayKey = referencePreferenceKey ? JSON.stringify([referencePreferenceKey, canRememberReferenceChoice]) : null;
+  const [referenceChoices, setReferenceChoices] = React.useState<Record<string, LegacyReferenceDisposition>>({});
+  const [referenceChoiceStorageFailed, setReferenceChoiceStorageFailed] = React.useState<Record<string, boolean>>({});
+  const savedReferenceChoice = React.useMemo(() => canRememberReferenceChoice
+    ? readLegacyReferencePreference(storage, referencePreferenceKey) : null, [canRememberReferenceChoice, referencePreferenceKey, storage]);
+  const referenceChoice = referenceDisplayKey ? referenceChoices[referenceDisplayKey] ?? savedReferenceChoice : null;
+  const rememberReferenceChoice = (disposition: LegacyReferenceDisposition) => {
+    if (!scopeReady || !referenceDisplayKey || draftSnapshot.quarantined || submitting) return;
+    setReferenceChoices((choices) => ({ ...choices, [referenceDisplayKey]: disposition }));
+    const storageFailed = canRememberReferenceChoice && !writeLegacyReferencePreference(storage, referencePreferenceKey, disposition);
+    setReferenceChoiceStorageFailed((failures) => ({ ...failures, [referenceDisplayKey]: storageFailed }));
+    setShowRecovery(false);
+  };
   const draftData = draftSnapshot.payload.regular;
   const futureSupplyDrafts = draftSnapshot.payload.future;
   const saveState = submitting ? 'submitting' : draftSnapshot.error ? 'error' : draftSnapshot.saving ? 'saving' : draftSnapshot.dirty ? 'unsaved' : draftSnapshot.updatedAt ? 'saved' : 'idle';
@@ -436,21 +472,22 @@ export function QuarterlyUpdateWorkspace() {
   const lastSavedAt = draftSnapshot.updatedAt;
 
   React.useEffect(() => {
-    if (draftUserId && periodReady) void draftStore.load();
-  }, [draftStore, draftUserId, periodReady]);
+    if (draftUserId && periodReady && scopeReady) void draftStore.load();
+  }, [draftStore, draftUserId, periodReady, scopeReady]);
 
   const manualSave = React.useCallback(async () => {
+    if (!scopeReady) return false;
     if (!periodReady || !editingAcknowledged || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return false;
     return draftStore.flush();
-  }, [draftStore, editingAcknowledged, isImpersonating, isPreview, periodReady, userRole]);
+  }, [draftStore, editingAcknowledged, isImpersonating, isPreview, periodReady, scopeReady, userRole]);
 
   React.useEffect(() => {
-    if (!periodReady || !editingAcknowledged || !draftUserId || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return;
+    if (!scopeReady || !periodReady || !editingAcknowledged || !draftUserId || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return;
     let nextAttemptAt = Date.now() + 2_000;
     let stopped = false;
     const retry = async (online = false) => {
       const snapshot = draftStore.getSnapshot();
-      if (stopped || navigator.onLine === false || snapshot.saving || snapshot.conflict || snapshot.remoteMissing || (!snapshot.dirty && !snapshot.error)) return;
+      if (stopped || navigator.onLine === false || snapshot.quarantined || snapshot.saving || snapshot.conflict || snapshot.remoteMissing || (!snapshot.dirty && !snapshot.error)) return;
       if (!online && Date.now() < nextAttemptAt) return;
       await manualSave();
       const failures = draftStore.getSnapshot().retryCount;
@@ -461,7 +498,7 @@ export function QuarterlyUpdateWorkspace() {
     const online = () => { void retry(true); };
     window.addEventListener('online', online);
     return () => { stopped = true; window.clearInterval(timer); window.removeEventListener('online', online); };
-  }, [draftStore, draftUserId, editingAcknowledged, isImpersonating, isPreview, manualSave, periodReady, userRole]);
+  }, [draftStore, draftUserId, editingAcknowledged, isImpersonating, isPreview, manualSave, periodReady, scopeReady, userRole]);
 
   React.useEffect(() => {
     const hasUnsaved = () => Array.from(stores.current.values()).some((store) => store.getSnapshot().dirty || store.getSnapshot().saving);
@@ -480,7 +517,10 @@ export function QuarterlyUpdateWorkspace() {
     if (nextTab === currentTab || tabSwitchLock.current || submissionLock.current) return;
     tabSwitchLock.current = true;
     try {
-      if ((draftStore.getSnapshot().dirty || draftStore.getSnapshot().saving) && !await manualSave()) return;
+      // Read-only navigation must not require a write the user cannot perform.
+      // Each category keeps its scoped controller and durable recovery copy.
+      const canSave = periodReady && editingAcknowledged && !isPreview && !isImpersonating && canWriteBusinessData(userRole) && !draftSnapshot.quarantined;
+      if (canSave && (draftStore.getSnapshot().dirty || draftStore.getSnapshot().saving) && !await manualSave()) return;
       setCurrentTab(nextTab);
       setCompletionNotice(null);
       setSubmitError(null);
@@ -488,12 +528,12 @@ export function QuarterlyUpdateWorkspace() {
   };
 
   const updateRegularField = (buildingId: string, field: string, value: string) => {
-    if (submissionLock.current || !editingAcknowledged) return;
+    if (readOnly || submissionLock.current) return;
     draftStore.edit('regular', buildingId, field, value);
     setCompletionNotice(null);
   };
   const updateFutureField = (futureSupplyId: string, legacyAssignmentId: string, field: string, value: string) => {
-    if (submissionLock.current || !editingAcknowledged) return;
+    if (readOnly || submissionLock.current) return;
     draftStore.edit('future', futureSupplyId, field, value, legacyAssignmentId);
     setCompletionNotice(null);
   };
@@ -569,7 +609,7 @@ export function QuarterlyUpdateWorkspace() {
   const completedCount = filteredBuildings.filter((building: any) => isQuarterlyRowComplete(rowState(building))).length;
   const exceptionCount = filteredBuildings.filter((building: any) => getQuarterlyRowIssues(rowState(building), totalAreaFor(building)).length > 0).length;
   const incompleteBuildings = filteredBuildings.filter((building: any) => !isQuarterlyRowComplete(rowState(building)));
-  const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating || !periodReady || !editingAcknowledged || submitting;
+  const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating || !periodReady || !editingAcknowledged || submitting || !scopeReady || Boolean(draftSnapshot.quarantined);
 
   const attemptState = React.useMemo(() => {
     try { return { attempt: new QuarterlySubmissionAttempt(draftStore.identity, isPreview || isImpersonating ? null : storage), error: null }; }
@@ -627,6 +667,7 @@ export function QuarterlyUpdateWorkspace() {
     const original = draftStore.getSnapshot().historical;
     if (readOnly || !original || !window.confirm(`原草稿标记为 ${original.year} Q${original.quarter}，其来源仍待核实。载入后请逐项核对；不会自动提交，已有本地内容将另存恢复版本。继续？`)) return;
     if (!draftStore.replaceFromFormal(original.payload)) setSubmitError('恢复版本无法保存；请先导出当前草稿。');
+    else rememberReferenceChoice('restored');
   };
 
   const restoreFormalRows = () => {
@@ -678,7 +719,7 @@ export function QuarterlyUpdateWorkspace() {
     );
   }
 
-  if (!ready || !periodReady || protectedBuildings === undefined || assignedBuildingIds === null) {
+  if (!ready || !periodReady || !scopeReady || protectedBuildings === undefined || assignedBuildingIds === null) {
     return <QuarterlyStateShell><LoadingState rows={0} label="正在加载季度填报任务" /></QuarterlyStateShell>;
   }
 
@@ -697,7 +738,7 @@ export function QuarterlyUpdateWorkspace() {
           title={<span className="flex items-center gap-2">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{readOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
           status={<span className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">{isPreview ? `管理员预览 · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</span>}
           homeHref="/"
-          actions={<SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { void manualSave(); }} />}
+          actions={<SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { if (draftSnapshot.quarantined) void draftStore.load(); else void manualSave(); }} />}
         />
         {isPreview && <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">管理员预览模式：正在查看 {previewUserName} 的分配与草稿，不允许写入。</div>}
       </header>
@@ -741,12 +782,17 @@ export function QuarterlyUpdateWorkspace() {
         {formalError && <div role="alert" className="mt-1 text-rose-700">{formalError} <button type="button" className="underline" onClick={() => setFormalRefresh((value) => value + 1)}>重新读取正式记录</button></div>}
         {draftSnapshot.error && <div role="alert" className="mt-1 text-rose-700">{draftSnapshot.error}</div>}
         {draftSnapshot.localError && !isPreview && !isImpersonating && <div role="alert" className="mt-1 text-rose-700">{draftSnapshot.localError}</div>}
-        {draftSnapshot.historical && <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900" role="status">
-          <strong>已有草稿已保留，来源待核实</strong>：共 {Object.keys(draftSnapshot.historical.payload.regular).length + Object.keys(draftSnapshot.historical.payload.future).length} 个项目条目；原标记 {draftSnapshot.historical.year} Q{draftSnapshot.historical.quarter}；更新时间 {draftSnapshot.historical.updatedAt}
-          <p className="mt-1">这些条目不会自动作为本季度填报或自动提交。请预览后选择载入，逐项核对。</p>
-          <div className="mt-1 text-[11px]">{[...Object.entries(draftSnapshot.historical.payload.regular), ...Object.entries(draftSnapshot.historical.payload.future)].slice(0, 3).map(([id, row]) => <div key={id}>{myBuildings.find((building) => building.id === id || building._assignmentId === id)?.name ?? id}：报价 {row.qQuote ?? '未填'}，表面租金 {row.qFace ?? '未填'}，空置面积 {row.qVacArea ?? '未填'}</div>)}</div>
-          <div className="mt-2 flex flex-wrap gap-3"><button type="button" className="underline" onClick={() => setShowRecovery(true)}>查看全部原草稿</button>{!readOnly && <button type="button" className="rounded border border-amber-400 bg-white px-2 py-1 font-semibold" onClick={restoreLegacyDraft}>载入原草稿到编辑区供核对</button>}</div>
-        </div>}
+        {legacyReference && (referenceChoice ? <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-500" role="status" aria-label="原草稿快捷入口">
+          <span>{referenceChoice === 'restored' ? '原草稿已载入供核对' : canRememberReferenceChoice ? '本季度已忽略这份原草稿 · 当前输入未改变' : '原草稿提示已收起'} · 原件仍保留</span>
+          <button type="button" className="text-zinc-700 underline" onClick={() => setShowRecovery(true)}>查看原草稿</button>
+          {referenceDisplayKey && referenceChoiceStorageFailed[referenceDisplayKey] && <span>仅在本页收起，浏览器未能记住选择</span>}
+        </div> : <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-zinc-700" role="status" aria-label="原草稿参考提示">
+          <strong>已有草稿已保留，来源待核实</strong>：共 {Object.keys(legacyReference.payload.regular).length + Object.keys(legacyReference.payload.future).length} 个项目条目；原标记 {legacyReference.year} Q{legacyReference.quarter}；原稿保存时间 {legacyReference.updatedAt}
+          <p className="mt-1">保存时间不代表数据所属季度。可选择载入后逐项核对，或本季度不使用；原件仍可从恢复入口查看。</p>
+          <div className="mt-1 text-[11px]">{[...Object.entries(legacyReference.payload.regular), ...Object.entries(legacyReference.payload.future)].slice(0, 3).map(([id, row]) => <div key={id}>{myBuildings.find((building) => building.id === id || building._assignmentId === id)?.name ?? id}：报价 {row.qQuote ?? '未填'}，表面租金 {row.qFace ?? '未填'}，空置面积 {row.qVacArea ?? '未填'}</div>)}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-3"><button type="button" className="underline" onClick={() => setShowRecovery(true)}>查看全部原草稿</button>{!readOnly && <button type="button" className="rounded border border-zinc-300 bg-white px-2 py-1 font-semibold" onClick={restoreLegacyDraft}>载入原草稿到编辑区供核对</button>}<button type="button" className="underline" disabled={!referenceDisplayKey || submitting} onClick={() => rememberReferenceChoice('ignored')}>{canRememberReferenceChoice ? '本季度不使用这份草稿' : '收起草稿提示'}</button></div>
+          <p className="mt-1 text-[11px] text-zinc-500">不使用只收起这份参考，不清空当前输入、不删除原稿，也不会保存或提交数据。</p>
+        </div>)}
         {attemptState.error && <div role="alert" className="mt-1 text-rose-700">{attemptState.error}</div>}
         {attemptState.attempt?.hasPending() && <div role="alert" className="mt-1 text-amber-800">有一笔提交尚未确认。重试将核验原请求；之后新增的编辑需另行提交。</div>}
         {showRecovery && <div className="mt-2 max-h-72 overflow-auto rounded border border-zinc-200 p-3">
@@ -761,7 +807,8 @@ export function QuarterlyUpdateWorkspace() {
               <td className="p-1">{formalProvenance[`${row.building_id ? 'regular' : 'future'}:${row.id}`] === 'user_confirmed_submission' ? '新流程用户提交（非独立核验）' : '来源未确认'}</td>
             </tr>)}</tbody>
           </table>
-          {draftSnapshot.historical && <details open className="mt-3"><summary>原有草稿 {draftSnapshot.historical.year} Q{draftSnapshot.historical.quarter}（来源待核实）</summary><pre className="whitespace-pre-wrap text-xs">{JSON.stringify(packDraft(draftSnapshot.historical.payload), null, 2)}</pre></details>}
+          {draftSnapshot.quarantined && <details open className="mt-3"><summary>格式异常的原始草稿（已隔离，未覆盖）</summary><pre className="whitespace-pre-wrap text-xs">{JSON.stringify(draftSnapshot.quarantined.raw, null, 2)}</pre></details>}
+          {draftSnapshot.historical && <details open className="mt-3"><summary>原有草稿 {draftSnapshot.historical.year} Q{draftSnapshot.historical.quarter}（来源待核实）</summary><p className="my-1 text-zinc-500">原稿保存时间：{draftSnapshot.historical.updatedAt}。保存时间不代表数据所属季度。</p>{referenceChoice && !readOnly && <button type="button" className="my-1 rounded border px-2 py-1" onClick={restoreLegacyDraft}>载入原草稿到编辑区供核对</button>}{referenceChoice && canRememberReferenceChoice && <button type="button" className="ml-3 underline" disabled={submitting || Boolean(draftSnapshot.quarantined)} onClick={() => rememberReferenceChoice('ignored')}>本季度不使用这份草稿</button>}<p className="my-1 text-zinc-500">不使用只收起参考，当前输入保持不变，原稿仍保留。</p><pre className="whitespace-pre-wrap text-xs">{JSON.stringify(packDraft(draftSnapshot.historical.payload), null, 2)}</pre></details>}
           {!isPreview && !isImpersonating && <p className="mt-3 text-zinc-500">恢复副本按账号、季度、分类和项目区分，保存在此浏览器；共用设备请先保存云端再清除本机副本。未同步修改和冲突恢复版本不会自动删除；已同步副本超过 30 天后再次读取时清除。</p>}
           {!readOnly && <button type="button" className="mt-2 underline" disabled={draftSnapshot.dirty || draftSnapshot.saving || Boolean(draftSnapshot.conflict || draftSnapshot.remoteMissing)} onClick={() => {
             if (window.confirm('仅清除此分类已同步的本机当前副本；云端草稿与恢复历史不受影响。继续？')) draftStore.clearAcknowledgedLocalCopy();
@@ -769,15 +816,15 @@ export function QuarterlyUpdateWorkspace() {
           {!readOnly && <button type="button" className="ml-3 mt-2 underline" onClick={() => {
             if (Array.from(stores.current.values()).some((store) => store.getSnapshot().dirty || store.getSnapshot().saving)) { setSubmitError('仍有未同步修改，请先保存或导出，不能清除恢复副本。'); return; }
             try {
-              const prefix = `quarterly-draft:v1:${encodeURIComponent(draftUserId)}:`;
-              const keys = Object.keys(window.localStorage).filter((key) => key.startsWith(prefix));
-              const unsafe = keys.some((key) => {
-                const item = JSON.parse(window.localStorage.getItem(key) ?? '{}');
-                return item.dirty || (key.endsWith(':submission') && item.requestId && !item.receipt);
-              });
-              if (unsafe) { setSubmitError('有其他季度/分类的未同步修改或未确认提交，请先导出并处理，不能清除。'); return; }
+              const inspection = inspectAccountRecovery(window.localStorage, draftUserId);
+              if (inspection.status === 'invalid') { setSubmitError('无法确认本机恢复副本状态，未执行清除。请先导出并检查异常副本。'); return; }
+              if (inspection.status === 'pending') { setSubmitError('有其他季度/分类的未同步修改或未确认提交，请先导出并处理，不能清除。'); return; }
+              const keys = inspection.keys;
               if (!window.confirm('将删除此账号在本机的当前副本及全部冲突恢复历史（不可撤销）。云端记录不受影响。请先导出，确定清除？')) return;
-              keys.forEach((key) => window.localStorage.removeItem(key));
+              // A different window can create a pending request while confirmation is open.
+              const confirmed = inspectAccountRecovery(window.localStorage, draftUserId);
+              if (confirmed.status !== 'safe') { setSubmitError('本机恢复副本状态已变化，未执行清除；请重新检查并导出。'); return; }
+              keys.filter((key) => confirmed.keys.includes(key)).forEach((key) => window.localStorage.removeItem(key));
             } catch { setSubmitError('无法确认本机恢复副本状态，未执行清除。'); }
           }}>清除此账号本机恢复历史</button>}
         </div>}
@@ -947,4 +994,5 @@ export function QuarterlyUpdateWorkspace() {
     </div>
   );
 }
+
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  QuarterlyDraftStore, draftCacheKey, hasConfirmedDraftPeriod, unpackDraft, packDraft, type DraftIdentity, type DraftPayload,
+  QuarterlyDraftStore, InvalidDraftPayloadError, draftCacheKey, hasConfirmedDraftPeriod, unpackDraft, packDraft, type DraftIdentity, type DraftPayload,
   type DraftStorage, type DraftTransport, type RemoteDraft,
 } from './quarterlyDraftStore';
 
@@ -434,3 +434,95 @@ describe('QuarterlyDraftStore recovery and concurrency', () => {
 
 });
 
+
+describe('malformed draft quarantine', () => {
+  const malformed = { 'synthetic-building': null, __quarterly_meta__: { version: 2, revision: 0 } };
+  it('retains raw remote JSON and local edits, blocks every write path, and recovers after explicit valid reload', async () => {
+    const { storage } = memoryStorage(); const api = transport();
+    const store = new QuarterlyDraftStore(identity, api, storage);
+    await store.load(); edit(store, 'local retained');
+    const cached = storage.getItem(draftCacheKey(identity));
+    api.read.mockRejectedValue(new InvalidDraftPayloadError(malformed));
+    await store.load();
+    expect(store.getSnapshot()).toMatchObject({ loaded: false, dirty: true, quarantined: { raw: malformed }, payload: payload('local retained') });
+    expect(storage.getItem(draftCacheKey(identity))).toBe(cached);
+    edit(store, 'must not replace');
+    expect(store.replaceFromFormal(payload('must not restore'))).toBe(false);
+    expect(await store.flush()).toBe(false);
+    expect(await store.resolveConflict('remote')).toBe(false);
+    expect(api.save).not.toHaveBeenCalled();
+    expect(store.getSnapshot().payload).toEqual(payload('local retained'));
+    expect(JSON.parse(JSON.stringify(store.getSnapshot())).quarantined.raw).toEqual(malformed);
+    api.read.mockResolvedValue(null); await store.load();
+    expect(store.getSnapshot().quarantined).toBeUndefined();
+    expect(await store.flush()).toBe(true);
+    expect(api.save).toHaveBeenCalledExactlyOnceWith(payload('local retained'), 0);
+  });
+  it('quarantines malformed failed-save readback and stops subsequent retries', async () => {
+    const api = transport(); const store = new QuarterlyDraftStore(identity, api, memoryStorage().storage);
+    await store.load(); edit(store, 'retained');
+    api.save.mockRejectedValue(new Error('timeout'));
+    api.read.mockRejectedValue(new InvalidDraftPayloadError(malformed));
+    expect(await store.flush()).toBe(false);
+    expect(store.getSnapshot()).toMatchObject({ quarantined: { raw: malformed }, dirty: true, saving: false });
+    expect(await store.flush()).toBe(false); expect(api.save).toHaveBeenCalledTimes(1);
+  });
+  it('quarantines malformed conflict rereads before adopting or restoring any version', async () => {
+    const api = transport(); const store = new QuarterlyDraftStore(identity, api, memoryStorage().storage);
+    await store.load(); edit(store, 'retained'); api.read.mockResolvedValue(remote('other', 2)); await store.load();
+    api.read.mockRejectedValue(new InvalidDraftPayloadError(malformed));
+    expect(await store.resolveConflict('local')).toBe(false);
+    expect(store.getSnapshot()).toMatchObject({ quarantined: { raw: malformed }, payload: payload('retained') });
+    expect(api.save).not.toHaveBeenCalled();
+  });
+  it.each([{ 'a': null }, { 'a': [] }, { 'a': { qQuote: {} } }, { __futureSupply__: { 'future': null } }, []])('rejects malformed shape %# without changing the raw object', (raw) => {
+    const before = JSON.stringify(raw);
+    expect(() => unpackDraft(raw)).toThrow(InvalidDraftPayloadError);
+    expect(JSON.stringify(raw)).toBe(before);
+  });
+  it('keeps scalar zero, null fields and unconfirmed metadata intact', () => {
+    const row = { qQuote: 0, qFree: '0', qRemark: null };
+    expect(unpackDraft({ a: row, __quarterly_meta__: null, __futureSupply__: { future: row } })).toEqual({ regular: { a: row }, future: { future: row } });
+    expect(unpackDraft(null)).toEqual({ regular: {}, future: {} });
+  });
+});
+
+describe('quarantine during an in-flight save', () => {
+  it.each([false, true])('keeps the first acknowledgement but never drains newer edits or clears quarantine, newerEdit=%s', async (newerEdit) => {
+    const api = transport(); const { storage } = memoryStorage();
+    const pending = deferred<{ revision: number; updatedAt: string }>();
+    api.save.mockReturnValueOnce(pending.promise);
+    const store = new QuarterlyDraftStore(identity, api, storage);
+    await store.load(); edit(store, 'first submitted snapshot');
+    const saving = store.flush();
+    if (newerEdit) edit(store, 'newer retained edit');
+    const malformed = { 'synthetic-building': null };
+    api.read.mockRejectedValue(new InvalidDraftPayloadError(malformed));
+    await store.load();
+    pending.resolve({ revision: 1, updatedAt: stamp });
+    expect(await saving).toBe(false);
+    expect(api.save).toHaveBeenCalledTimes(1);
+    expect(store.getSnapshot()).toMatchObject({ revision: 1, dirty: newerEdit, saving: false, quarantined: { raw: malformed }, payload: payload(newerEdit ? 'newer retained edit' : 'first submitted snapshot') });
+    expect(store.getSnapshot().error).toContain('格式异常');
+    expect(store.clearAcknowledgedLocalCopy()).toBe(false);
+    expect(await store.flush()).toBe(false);
+    expect(api.save).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('quarantine during an in-flight conflict reread', () => {
+  it('does not replace edits or clear the warning when another read quarantines first', async () => {
+    const api = transport(); const store = new QuarterlyDraftStore(identity, api, memoryStorage().storage);
+    await store.load(); edit(store, 'retained local edit');
+    api.read.mockResolvedValue(remote('conflicting remote', 2)); await store.load();
+    const pending = deferred<RemoteDraft | null>(); api.read.mockReturnValueOnce(pending.promise);
+    const resolving = store.resolveConflict('remote');
+    const malformed = { 'synthetic-building': null };
+    api.read.mockRejectedValue(new InvalidDraftPayloadError(malformed)); await store.load();
+    pending.resolve(remote('conflicting remote', 2));
+    expect(await resolving).toBe(false);
+    expect(store.getSnapshot()).toMatchObject({ payload: payload('retained local edit'), dirty: true, quarantined: { raw: malformed } });
+    expect(store.getSnapshot().error).toContain('格式异常');
+    expect(api.save).not.toHaveBeenCalled();
+  });
+});
