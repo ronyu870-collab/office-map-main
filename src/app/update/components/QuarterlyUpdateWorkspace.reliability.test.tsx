@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   userId: 'synthetic-user', role: 'editor', preview: null as string | null, loggedIn: true, settingsFailure: false, missingSettings: false, supplyFailure: false,
+  impersonating: false, year: 2026, quarter: 4,
   authCallback: null as ((event: string, session: { user: { id: string } } | null) => void) | null,
   router: { replace: vi.fn() }, rpc: vi.fn(),
   draftRead: vi.fn<(tab: string) => Promise<{ data: unknown; error: unknown }>>(),
@@ -16,7 +17,7 @@ const state = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ useRouter: () => state.router, useSearchParams: () => ({ get: () => state.preview }) }));
 vi.mock('@/src/services/Auth', () => ({ getSessionFast: async () => state.loggedIn ? ({ user: { id: state.userId, email: 'synthetic@example.invalid', user_metadata: { full_name: 'Synthetic Person' } } }) : null }));
 vi.mock('@/src/hooks/useBuildings', () => ({ useBuildings: () => ({ buildings: state.buildings, error: null, mutate: vi.fn() }) }));
-vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: false }) }));
+vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: state.impersonating }) }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
   auth: { onAuthStateChange: (callback: typeof state.authCallback) => { state.authCallback = callback; return { data: { subscription: { unsubscribe: vi.fn() } } }; } },
@@ -33,7 +34,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
       let data: unknown = [];
       if (table === 'user_roles') data = filters.user_id === state.userId ? { role: state.role } : { full_name: 'Synthetic Preview' };
       if (table === 'building_assignments') data = state.buildings.map((building) => ({ building_id: building.id }));
-      if (table === 'app_settings') data = [{ key: 'current_submission_year', value: '2026' }, { key: 'current_submission_quarter', value: '4' }];
+      if (table === 'app_settings') data = [{ key: 'current_submission_year', value: String(state.year) }, { key: 'current_submission_quarter', value: String(state.quarter) }];
       if (table === 'quarterly_submissions') data = state.formal;
       if (table === 'building_metrics') data = [{ building_id: 'synthetic-a', record_year: 2026, record_quarter: 3, asking_rent: 444, total_area: 1000 }];
       if (range && Array.isArray(data)) data = data.slice(range[0], range[1] + 1);
@@ -57,6 +58,7 @@ vi.mock('@/src/components/ui', () => ({
   LoadingState: ({ label }: { label: string }) => <div>{label}</div>,
 }));
 import { QuarterlyUpdateWorkspace } from './QuarterlyUpdateWorkspace';
+import { legacyReferencePreferenceKey } from '../quarterlyLegacyReferencePreference';
 
 function quoteInputs() { return [...document.querySelectorAll<HTMLInputElement>('input[data-quarterly-field="qQuote"]')]; }
 async function ready() {
@@ -67,6 +69,7 @@ function draft(quote: string) { return { data: { draft_data: { 'synthetic-a': { 
 
 beforeEach(() => {
   state.userId = 'synthetic-user'; state.role = 'editor'; state.preview = null; state.formal = []; state.reads = [];
+  state.impersonating = false; state.year = 2026; state.quarter = 4;
   state.loggedIn = true; state.settingsFailure = false; state.missingSettings = false; state.supplyFailure = false; state.authCallback = null; state.router.replace.mockClear();
   state.rpc.mockReset().mockImplementation(async (_name: string, args: Record<string, unknown>) => ({ data: [{ revision: Number(args.p_expected_revision ?? 0) + 1, updated_at: '2026-10-08T00:00:00.000Z' }], error: null }));
   state.draftRead.mockReset().mockResolvedValue({ data: null, error: null });
@@ -317,3 +320,284 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
 
 });
 
+
+describe('recovery boundary regressions', () => {
+  it.each(['unacknowledged', 'viewer'])('lets %s users navigate dirty recovery without writing or losing edits', async (mode) => {
+    if (mode === 'viewer') state.role = 'viewer';
+    else window.localStorage.removeItem('quarterly-client-ack:20261008-v2:synthetic-user');
+    const key = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeA';
+    const payload = { regular: { 'synthetic-a': { qQuote: '321' } }, future: {} };
+    window.localStorage.setItem(key, JSON.stringify({ version: 1, identity: { userId: state.userId, year: 2026, quarter: 4, tab: 'GradeA' }, payload, revision: 0, dirty: true, updatedAt: null, cachedAt: Date.now() }));
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    await waitFor(() => expect(quoteInputs()[0].value).toBe('321'));
+    fireEvent.click(screen.getByRole('button', { name: '乙级' }));
+    await screen.findByText('Synthetic Person · 乙级');
+    expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '甲级' }));
+    await screen.findByText('Synthetic Person · 甲级');
+    expect(quoteInputs()[0].value).toBe('321');
+    expect(JSON.parse(window.localStorage.getItem(key)!).payload).toEqual(payload);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it('leaves and reenters admin preview with the correct owner and no preview writes', async () => {
+    state.role = 'admin'; state.preview = 'synthetic-preview';
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    const view = render(<QuarterlyUpdateWorkspace />); await ready();
+    expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
+    expect(setItem).not.toHaveBeenCalled(); expect(removeItem).not.toHaveBeenCalled();
+    state.preview = null; view.rerender(<QuarterlyUpdateWorkspace />);
+    await screen.findByRole('button', { name: '保存草稿' });
+    expect(quoteInputs().every((input) => !input.readOnly)).toBe(true);
+    expect(screen.queryByText(/管理员预览模式/)).not.toBeInTheDocument();
+    fireEvent.change(quoteInputs()[0], { target: { value: '123' } });
+    const ownerCache = window.localStorage.getItem('quarterly-draft:v1:synthetic-user:2026:Q4:GradeA');
+    setItem.mockClear(); removeItem.mockClear();
+    state.preview = 'synthetic-preview'; view.rerender(<QuarterlyUpdateWorkspace />);
+    await screen.findByText(/管理员预览模式/);
+    expect(quoteInputs().every((input) => input.readOnly && input.value === '')).toBe(true);
+    expect(setItem).not.toHaveBeenCalled(); expect(removeItem).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem('quarterly-draft:v1:synthetic-user:2026:Q4:GradeA')).toBe(ownerCache);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it.each([{ 'synthetic-a': null }, { __futureSupply__: { 'synthetic-future': null } }, { 'synthetic-a': { qQuote: { bad: 'nested' } } }])('quarantines malformed legacy rows without crashing or normalizing them %#', async (draft_data) => {
+    state.draftRead.mockResolvedValue({ data: { draft_data, revision: 0, record_year: 2026, record_quarter: 3, updated_at: '2026-10-08T00:00:00Z' }, error: null });
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    await screen.findAllByText(/云端草稿格式异常/);
+    expect(quoteInputs().every((input) => input.readOnly && input.value === '')).toBe(true);
+    expect(screen.queryByRole('button', { name: '保存草稿' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '载入原草稿到编辑区供核对' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    expect(screen.getByText('格式异常的原始草稿（已隔离，未覆盖）').parentElement).toHaveTextContent(JSON.stringify(draft_data, null, 2).replace(/\s+/g, ' '));
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it.each([null, {}, { 'synthetic-a': { qQuote: 0, qFree: '0', qRemark: null }, __quarterly_meta__: null }, { __futureSupply__: { 'synthetic-future': { qQuote: 0 } } }, { __futureSupply__: null }])('retains compatible legacy empty, metadata and zero shapes %#', async (draft_data) => {
+    state.draftRead.mockResolvedValue({ data: { draft_data, revision: 0, record_year: 2026, record_quarter: 3, updated_at: '2026-10-08T00:00:00Z' }, error: null });
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    await screen.findByText('已有草稿已保留，来源待核实');
+    expect(screen.queryByText(/云端草稿格式异常/)).not.toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it.each([false, true])('never clears another category pending immutable submission, pointerPending=%s', async (pointerPending) => {
+    const key = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeB:submission';
+    const batch = { p_user_id: state.userId, p_year: 2026, p_quarter: 4, p_tab: 'GradeB', p_regular_rows: [], p_future_rows: [] };
+    const pending = { requestId: 'pending', batch };
+    window.localStorage.setItem(key, JSON.stringify(pointerPending ? pending : { requestId: 'acknowledged', batch, receipt: { regular_count: 0, future_count: 0, submitted_at: '2026-10-08T00:00:00Z' } }));
+    window.localStorage.setItem(key + ':request:pending', JSON.stringify(pending));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    fireEvent.click(screen.getByRole('button', { name: '清除此账号本机恢复历史' }));
+    expect(window.localStorage.getItem(key + ':request:pending')).toBe(JSON.stringify(pending));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('recovery cleanup confirmation boundaries', () => {
+  it('rechecks pending requests created by another window during confirmation', async () => {
+    const key = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeB:submission:request:new-pending';
+    vi.spyOn(window, 'confirm').mockImplementation(() => {
+      window.localStorage.setItem(key, JSON.stringify({ requestId: 'new-pending', batch: { p_user_id: state.userId, p_year: 2026, p_quarter: 4, p_tab: 'GradeB', p_regular_rows: [], p_future_rows: [] } }));
+      return true;
+    });
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const current = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeA';
+    await waitFor(() => expect(window.localStorage.getItem(current)).not.toBeNull());
+    const original = window.localStorage.getItem(current);
+    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    fireEvent.click(screen.getByRole('button', { name: '清除此账号本机恢复历史' }));
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(window.localStorage.getItem(key)).not.toBeNull();
+    expect(window.localStorage.getItem(current)).toBe(original);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+  it('warns and retains every account recovery copy when an unknown record is found', async () => {
+    const key = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeB:unknown';
+    window.localStorage.setItem(key, '{}');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    fireEvent.click(screen.getByRole('button', { name: '清除此账号本机恢复历史' }));
+    expect(screen.getByText(/无法确认本机恢复副本状态/)).toBeInTheDocument();
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(key)).toBe('{}');
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+});
+
+function legacyDraft() {
+  return { data: { draft_data: { 'synthetic-a': { qQuote: '876' }, 'synthetic-b': { qQuote: '765' } }, revision: 0, updated_at: '2026-06-12T08:30:00.000Z', record_year: 2026, record_quarter: 3 }, error: null };
+}
+function preferenceKey() {
+  const original = legacyDraft().data;
+  return legacyReferencePreferenceKey({ userId: state.userId, year: state.year, quarter: state.quarter, tab: 'GradeA' }, { payload: { regular: original.draft_data, future: {} }, revision: original.revision, updatedAt: original.updated_at, year: original.record_year, quarter: original.record_quarter })!;
+}
+async function referenceReady() { await ready(); await screen.findByRole('status', { name: '原草稿参考提示' }); }
+function ignoreReference() { fireEvent.click(screen.getByRole('button', { name: '本季度不使用这份草稿' })); }
+
+describe('legacy reference banner choices', () => {
+  beforeEach(() => { state.draftRead.mockResolvedValue(legacyDraft()); });
+
+  it('collapses only after a successful confirmed restore and retains a neutral recovery entry on reload', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
+    const view = render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    fireEvent.click(screen.getByRole('button', { name: '查看全部原草稿' }));
+    fireEvent.click(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' }));
+    expect(screen.getByRole('status', { name: '原草稿参考提示' })).toBeInTheDocument();
+    expect(window.localStorage.getItem(preferenceKey())).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' }));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(quoteInputs().every((input) => input.value === '876')).toBe(true);
+    expect(screen.queryByRole('status', { name: '原草稿参考提示' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: '原草稿快捷入口' })).toHaveTextContent('原草稿已载入供核对');
+    expect(screen.queryByText(/原有草稿 2026 Q3/)).not.toBeInTheDocument();
+    expect(window.localStorage.getItem(preferenceKey())).toContain('restored');
+    expect(state.rpc).not.toHaveBeenCalled();
+    view.unmount(); render(<QuarterlyUpdateWorkspace />); await ready();
+    await screen.findByRole('status', { name: '原草稿快捷入口' });
+    expect(quoteInputs().every((input) => input.value === '876')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '查看原草稿' }));
+    expect(screen.getByText(/原有草稿 2026 Q3/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' })).toBeInTheDocument();
+  });
+
+  it('keeps an empty current form empty when ignored, without saving or deleting any draft/reference', async () => {
+    const view = render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    const before = Object.fromEntries(Object.entries(window.localStorage));
+    const remove = vi.spyOn(Storage.prototype, 'removeItem');
+    ignoreReference();
+    expect(quoteInputs().every((input) => input.value === '')).toBe(true);
+    expect(screen.getByRole('status', { name: '原草稿快捷入口' })).toHaveTextContent('本季度已忽略这份原草稿');
+    for (const [key, value] of Object.entries(before)) expect(window.localStorage.getItem(key)).toBe(value);
+    expect(remove).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+    await act(async () => { window.dispatchEvent(new Event('online')); });
+    expect(state.rpc).not.toHaveBeenCalled();
+    view.unmount(); render(<QuarterlyUpdateWorkspace />); await ready();
+    await screen.findByRole('status', { name: '原草稿快捷入口' });
+    expect(quoteInputs().every((input) => input.value === '')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '查看原草稿' }));
+    expect(screen.getByText(/"qQuote": "876"/)).toBeInTheDocument();
+    expect(screen.getByText(/原稿保存时间：2026-06-12T08:30:00.000Z/)).toHaveTextContent('保存时间不代表数据所属季度');
+    expect(screen.getByText(/原有草稿 2026 Q3/)).toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('ignores the reference without changing dirty current input, its saved recovery or dirty state', async () => {
+    render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    fireEvent.change(quoteInputs()[0], { target: { value: '555' } });
+    const key = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeA';
+    const before = window.localStorage.getItem(key);
+    expect(JSON.parse(before!).dirty).toBe(true);
+    const writes = vi.spyOn(Storage.prototype, 'setItem');
+    expect(screen.getByText(/不使用只收起这份参考，不清空当前输入/)).toBeInTheDocument();
+    ignoreReference();
+    expect(quoteInputs().every((input) => input.value === '555')).toBe(true);
+    expect(window.localStorage.getItem(key)).toBe(before);
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(writes).toHaveBeenCalledWith(preferenceKey(), JSON.stringify({ version: 1, disposition: 'ignored' }));
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('keeps choices separate between categories and restores the choice when switching back', async () => {
+    render(<QuarterlyUpdateWorkspace />); await referenceReady(); ignoreReference();
+    fireEvent.click(screen.getByRole('button', { name: '乙级' }));
+    await screen.findByRole('status', { name: '原草稿参考提示' });
+    expect(screen.getByText('Synthetic Person · 乙级')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '甲级' }));
+    await screen.findByRole('status', { name: '原草稿快捷入口' });
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(['account', 'year', 'quarter'] as const)('does not inherit another %s choice on remount', async (scope) => {
+    const first = render(<QuarterlyUpdateWorkspace />); await referenceReady(); ignoreReference(); first.unmount();
+    if (scope === 'account') state.userId = 'synthetic-other';
+    if (scope === 'year') state.year = 2027;
+    if (scope === 'quarter') state.quarter = 3;
+    render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(['revision', 'updated_at', 'record_year', 'record_quarter'] as const)('shows a new source when %s changes, including a replaced revision-zero legacy draft', async (field) => {
+    const first = render(<QuarterlyUpdateWorkspace />); await referenceReady(); ignoreReference(); first.unmount();
+    const next = legacyDraft();
+    if (field === 'updated_at') next.data.updated_at = '2026-06-13T08:30:00.000Z';
+    else next.data[field] += 1;
+    state.draftRead.mockResolvedValue(next);
+    render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each(['preview', 'impersonation', 'viewer'] as const)('allows only an in-memory collapse for %s, with no preference writes or RPCs', async (mode) => {
+    if (mode === 'preview') { state.role = 'admin'; state.preview = 'synthetic-preview'; }
+    if (mode === 'impersonation') state.impersonating = true;
+    if (mode === 'viewer') state.role = 'viewer';
+    const view = render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    const before = Object.fromEntries(Object.entries(window.localStorage));
+    const setItem = vi.spyOn(Storage.prototype, 'setItem'); const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
+    expect(screen.queryByRole('button', { name: '载入原草稿到编辑区供核对' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '本季度不使用这份草稿' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '收起草稿提示' }));
+    expect(screen.getByRole('status', { name: '原草稿快捷入口' })).toHaveTextContent('原草稿提示已收起');
+    fireEvent.click(screen.getByRole('button', { name: '查看原草稿' }));
+    expect(screen.getByText(/"qQuote": "876"/)).toBeInTheDocument();
+    expect(quoteInputs().every((input) => input.readOnly && input.value === '')).toBe(true);
+    expect(Object.fromEntries(Object.entries(window.localStorage))).toEqual(before);
+    expect(setItem).not.toHaveBeenCalled(); expect(removeItem).not.toHaveBeenCalled(); expect(state.rpc).not.toHaveBeenCalled();
+    view.unmount(); render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
+  });
+
+  it('never dismisses or grants the separate old-tab editing acknowledgement', async () => {
+    const ackKey = 'quarterly-client-ack:20261008-v2:synthetic-user'; window.localStorage.removeItem(ackKey);
+    render(<QuarterlyUpdateWorkspace />); await referenceReady(); ignoreReference();
+    expect(screen.getByRole('region', { name: '新版编辑安全确认' })).toBeInTheDocument();
+    expect(window.localStorage.getItem(ackKey)).toBeNull();
+    expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('keeps the reference expanded if restore cannot safely preserve current work', async () => {
+    render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    fireEvent.change(quoteInputs()[0], { target: { value: '555' } });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('full'); });
+    fireEvent.click(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' }));
+    expect(screen.getByRole('status', { name: '原草稿参考提示' })).toBeInTheDocument();
+    expect(quoteInputs().every((input) => input.value === '555')).toBe(true);
+    expect(window.localStorage.getItem(preferenceKey())).toBeNull(); expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('tolerates malformed preferences without hiding references or deleting the bad value', async () => {
+    window.localStorage.setItem(preferenceKey(), 'broken');
+    render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    expect(window.localStorage.getItem(preferenceKey())).toBe('broken');
+    expect(screen.getByRole('status', { name: '原草稿参考提示' })).toHaveTextContent('原稿保存时间 2026-06-12T08:30:00.000Z');
+  });
+
+  it('still collapses in memory if preference storage is full and accurately redisplays on reload', async () => {
+    const view = render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('full'); });
+    ignoreReference();
+    expect(screen.getByRole('status', { name: '原草稿快捷入口' })).toHaveTextContent('仅在本页收起，浏览器未能记住选择');
+    expect(quoteInputs().every((input) => input.value === '')).toBe(true);
+    expect(window.localStorage.getItem(preferenceKey())).toBeNull();
+    expect(state.rpc).not.toHaveBeenCalled();
+    view.unmount(); setItem.mockRestore(); render(<QuarterlyUpdateWorkspace />); await referenceReady();
+    expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
+  });
+
+  it('does not let a saved dismissal hide or enable edits to a quarantined malformed source', async () => {
+    window.localStorage.setItem(preferenceKey(), JSON.stringify({ version: 1, disposition: 'ignored' }));
+    state.draftRead.mockResolvedValue({ data: { ...legacyDraft().data, draft_data: { 'synthetic-a': null } }, error: null });
+    render(<QuarterlyUpdateWorkspace />); await ready(); await screen.findAllByText(/云端草稿格式异常/);
+    expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '本季度不使用这份草稿' })).not.toBeInTheDocument();
+    expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    expect(screen.getByText('格式异常的原始草稿（已隔离，未覆盖）')).toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+});
