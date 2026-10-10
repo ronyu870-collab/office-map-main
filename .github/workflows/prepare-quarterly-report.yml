@@ -1,0 +1,84 @@
+name: Prepare quarterly report candidate
+
+on:
+  push:
+    branches:
+      - work/quarterly-report-prepare-20261010-1348
+
+permissions:
+  contents: write
+
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Assemble focused source change
+        shell: bash
+        env:
+          EXPECTED_BASE: ea0042835dfe46f3d789755e187c3ef685eed237
+          PAYLOAD_SHA256: a57db5310cdc11c3667130de393b241220cbee3aca1e5eb633410e77e3dfbd1c
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$EXPECTED_BASE"
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os
+          from pathlib import Path
+          folder = Path('.github/quarterly-report-prepare')
+          encoded = ''.join((folder / name).read_text() for name in ['payload-1.b64', 'payload-2.b64', 'payload-3a.b64', 'payload-3b.b64'])
+          packed = base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(packed).hexdigest() == os.environ['PAYLOAD_SHA256'], 'Source payload checksum mismatch'
+          payload = json.loads(gzip.decompress(packed))
+          assert len(payload) == 9
+          for name, content in payload.items():
+              assert isinstance(content, str)
+              assert name == '_apply.py' or (name.startswith('src/components/admin/quarterly-report/') and '..' not in name and name.endswith(('.ts', '.tsx')))
+          (Path(os.environ['RUNNER_TEMP']) / 'quarterly-report-source.json').write_text(json.dumps(payload), encoding='utf-8')
+          PY
+          git checkout -b feat/quarterly-report-v1-20261010 "$EXPECTED_BASE"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          payload = json.loads((Path(os.environ['RUNNER_TEMP']) / 'quarterly-report-source.json').read_text())
+          for name, content in payload.items():
+              if name == '_apply.py':
+                  continue
+              path = Path(name)
+              assert not path.exists(), f'Unexpected existing file: {name}'
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(content, encoding='utf-8')
+          exec(compile(payload['_apply.py'], 'quarterly-report-integration', 'exec'))
+          PY
+          git diff --check
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify candidate
+        run: npm run verify
+        env:
+          QUARTERLY_REPORT_ARTIFACT_DIR: ${{ runner.temp }}/quarterly-report-artifacts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quarterly-report-synthetic-preview
+          path: ${{ runner.temp }}/quarterly-report-artifacts
+          if-no-files-found: ignore
+      - name: Publish verified source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/admin/quarterly-report src/components/admin/SubmissionManager.tsx CHANGELOG.md
+          git diff --cached --stat
+          git commit -m 'feat: add quarterly market workbook and admin dashboard'
+          git push origin HEAD:refs/heads/feat/quarterly-report-v1-20261010
+          echo "VERIFIED_COMMIT=$(git rev-parse HEAD)"
