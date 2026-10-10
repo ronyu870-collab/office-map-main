@@ -12,8 +12,6 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-test-key
-      QUARTERLY_BROWSER_ARTIFACT_DIR: ${{ runner.temp }}/quarterly-export-hotfix-evidence
-      PLAYWRIGHT_MODULE: ${{ runner.temp }}/quarterly-browser-tools/node_modules/playwright/index.mjs
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,7 +23,9 @@ jobs:
       - name: Prepare clean candidate from exact production head
         run: |
           set -euo pipefail
-          mkdir -p "$QUARTERLY_BROWSER_ARTIFACT_DIR"
+          echo "QUARTERLY_BROWSER_ARTIFACT_DIR=$RUNNER_TEMP/quarterly-export-hotfix-evidence" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_MODULE=$RUNNER_TEMP/quarterly-browser-tools/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/quarterly-export-hotfix-evidence"
           cp scripts/check-quarterly-export-browser.mjs "$RUNNER_TEMP/quarterly-browser-check.mjs"
           git fetch origin main
           test "$(git rev-parse origin/main)" = 2697bbd27c543ec2e0cae21d297fe911e58f9ee9
