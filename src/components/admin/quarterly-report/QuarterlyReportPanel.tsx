@@ -64,7 +64,8 @@ export function QuarterlyReportPanel({ period, history }: { period: PeriodContro
     busyKey.current = key;
     setExportState({ key, busy: true });
     try {
-      const [{ reportBytes }, { saveAs }] = await Promise.all([import('./workbook'), import('file-saver')]);
+      // FileSaver is CommonJS/UMD; webpack dynamic imports expose its callable as default.
+      const [{ reportBytes }, { default: saveAs }] = await Promise.all([import('./workbook'), import('file-saver')]);
       const bytes = await reportBytes(report);
       if (generation.current !== request) return; // Quarter changed or component unmounted while preparing the file.
       const filename = `季度市场数据_${year}Q${quarter}.xlsx`;

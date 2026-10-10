@@ -5,14 +5,15 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: {} }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('./data', () => ({ loadReport: vi.fn() }));
 vi.mock('./workbook', () => ({ reportBytes: vi.fn() }));
-vi.mock('file-saver', () => ({ saveAs: vi.fn() }));
+// Match the production dynamic-import namespace: no synthetic named export.
+vi.mock('file-saver', () => ({ default: vi.fn() }));
 vi.mock('@/src/components/ui', () => ({ Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => {
   const { size, variant, ...rest } = props; void size; void variant;
   return <button type="button" {...rest} />;
 } }));
 import { loadReport } from './data';
 import { reportBytes } from './workbook';
-import { saveAs } from 'file-saver';
+import saveAs from 'file-saver';
 import { logAction } from '@/src/utils/audit';
 import { buildReport, type Report } from './model';
 import { QuarterlyReportPanel } from './QuarterlyReportPanel';

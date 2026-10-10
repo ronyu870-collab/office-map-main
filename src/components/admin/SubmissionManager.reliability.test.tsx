@@ -12,7 +12,7 @@ vi.mock('@/src/services/supabaseClient', () => {
 });
 vi.mock('xlsx', () => ({ utils: { json_to_sheet: (rows: unknown) => rows, book_new: () => ({}), book_append_sheet: vi.fn() }, writeFile: (...args: any[]) => mock.export(...args) }));
 vi.mock('./quarterly-report/workbook', () => ({ reportBytes: (...args: unknown[]) => mock.report(...args) }));
-vi.mock('file-saver', () => ({ saveAs: (...args: unknown[]) => mock.save(...args) }));
+vi.mock('file-saver', () => ({ default: (...args: unknown[]) => mock.save(...args) }));
 vi.mock('./GenericTablePanel', () => ({ GenericTablePanel: ({ config }: any) => { mock.assignmentConfig = config; return <div>Assignments</div>; } }));
 vi.mock('./BuildingSortManager', () => ({ BuildingSortManager: () => null }));
 vi.mock('./SubmissionGrid', () => ({ SubmissionGrid: ({ data, loading, emptyMessage }: any) => <div data-testid="grid">{loading ? 'Loading' : data.length ? JSON.stringify(data) : emptyMessage}</div>, ProgressRenderer: () => null, DateRenderer: () => null }));
