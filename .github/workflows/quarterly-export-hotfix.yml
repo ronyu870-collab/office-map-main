@@ -31,6 +31,13 @@ jobs:
           test "$(git rev-parse origin/main)" = 2697bbd27c543ec2e0cae21d297fe911e58f9ee9
           git checkout -b fix/quarterly-export-browser-20261010 origin/main
           cp "$RUNNER_TEMP/quarterly-browser-check.mjs" scripts/check-quarterly-export-browser.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/check-quarterly-export-browser.mjs')
+          text = p.read_text()
+          assert "page.getByRole('alert')" in text
+          p.write_text(text.replace("page.getByRole('alert')", "page.locator('p[role=\"alert\"]')"))
+          PY
       - name: Install locked application dependencies and isolated browser tooling
         run: |
           npm ci --no-audit --no-fund
