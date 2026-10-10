@@ -1,0 +1,139 @@
+name: Finalize quarterly report
+
+on:
+  push:
+    branches:
+      - work/quarterly-report-finalize-20261010
+    paths:
+      - .github/workflows/finalize-quarterly-report.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Recover reviewed candidate on unchanged main
+        env:
+          EXPECTED_BASE: ea0042835dfe46f3d789755e187c3ef685eed237
+          PAYLOAD_SHA256: a57db5310cdc11c3667130de393b241220cbee3aca1e5eb633410e77e3dfbd1c
+        run: |
+          python3 - <<'PY'
+          import subprocess, textwrap
+          from pathlib import Path
+          path = '.github/workflows/prepare-quarterly-report.yml'
+          assert subprocess.check_output(['git', 'hash-object', path], text=True).strip() == '514dc1410bdd7b9ecaa04085d9cf1ef13cb03169'
+          recipe = Path(path).read_text()
+          section = recipe.split('      - name: Assemble focused source change\n', 1)[1].split('      - name: Install dependencies\n', 1)[0]
+          script = textwrap.dedent(section.split('        run: |\n', 1)[1])
+          subprocess.run(['bash', '-euo', 'pipefail', '-c', script], check=True)
+          PY
+      - name: Adapt existing regressions without dropping coverage
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/admin/SubmissionManager.reliability.test.tsx')
+          source = path.read_text()
+          def replace(old, new):
+              global source
+              assert source.count(old) == 1, f'Unexpected test contract: {old}'
+              source = source.replace(old, new, 1)
+          replace('read: vi.fn(), export: vi.fn(), queries:', 'read: vi.fn(), export: vi.fn(), save: vi.fn(), report: vi.fn(), queries:')
+          replace('neq: () => q,', "lte: (field: string, value: unknown) => { state.filters.push([field, value, 'lte']); return q; }, neq: () => q,")
+          replace("vi.mock('./GenericTablePanel',", "vi.mock('./quarterly-report/workbook', () => ({ reportBytes: (...args: unknown[]) => mock.report(...args) }));\nvi.mock('file-saver', () => ({ saveAs: (...args: unknown[]) => mock.save(...args) }));\nvi.mock('./GenericTablePanel',")
+          replace('mock.export.mockClear(); mock.queries.length', 'mock.export.mockClear(); mock.save.mockClear(); mock.report.mockReset().mockResolvedValue(new Uint8Array([80, 75])); mock.queries.length')
+          first = source.index("  it('loads the configured quarter, exports all pages, and disables export during a new-filter request'")
+          second = source.index("  it('reads current audit events with both selected quarter and user filters'")
+          source = source[:first] + '''  it('loads the configured quarter, exports all pages, and disables export during a new-filter request', async () => {
+            let release!: (value: unknown) => void;
+            const pending = new Promise(resolve => { release = resolve; });
+            mock.read.mockImplementation((state: any) => {
+              if (state.table !== 'quarterly_submissions') return base(state);
+              const q = state.filters.find(([field]: any) => field === 'record_quarter')?.[1];
+              if (q === 2) return pending;
+              return { data: Array.from({ length: 1107 }, (_, id) => ({
+                id: String(id), building_id: 'synthetic-building', user_id: 'synthetic-user',
+                record_year: 2026, record_quarter: q, created_at: '2026-07-01T00:00:00Z',
+                total_area: 100, net_effective_rent: 240, vacant_area: 10, vacancy_rate: 10,
+              })).slice(state.from, Math.min(state.to + 1, state.from + 100)), error: null };
+            });
+            render(<SubmissionManager />);
+            fireEvent.click(screen.getByText('填报数据'));
+            await screen.findByText('甲级写字楼');
+            expect(screen.getByRole('combobox', { name: '统计季度' })).toHaveValue('3');
+            expect(mock.queries.some(q => q.table === 'quarterly_submissions' && q.from >= 1000 && q.filters.some((f: unknown[]) => f[0] === 'created_at' && f[2] === 'lte'))).toBe(true);
+            fireEvent.click(screen.getByRole('tab', { name: '原始记录' }));
+            await screen.findByText('1107 条记录');
+            await waitFor(() => expect(screen.getByRole('button', { name: '导出 Excel' })).not.toBeDisabled());
+            fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
+            await waitFor(() => expect(mock.save).toHaveBeenCalledTimes(1));
+            expect(mock.report).toHaveBeenCalledTimes(1);
+            expect(mock.report.mock.calls[0][0].raw).toHaveLength(1107);
+            expect(mock.report.mock.calls[0][0].latest).toHaveLength(1);
+            expect(mock.report.mock.calls[0][0].latest[0].source.id).toBe('1106');
+            expect(mock.save.mock.calls[0][1]).toBe('季度市场数据_2026Q3.xlsx');
+            expect(mock.export).not.toHaveBeenCalled();
+            await waitFor(() => expect(screen.getByRole('button', { name: '导出 Excel' })).not.toBeDisabled());
+            fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: '2' } });
+            expect(screen.getByRole('button', { name: '导出 Excel' })).toBeDisabled();
+            expect(screen.getByTestId('grid').textContent).toBe('Loading');
+            fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
+            expect(mock.save).toHaveBeenCalledTimes(1);
+            await act(async () => release({ data: [], error: null }));
+            await screen.findByText('0 条记录');
+          });
+          ''' + source[second:]
+          marker = "  it('reads current audit events with both selected quarter and user filters', async () => {\n    render(<SubmissionManager />); fireEvent.click(screen.getByText('填报数据'));"
+          replace(marker, marker + "\n    fireEvent.click(screen.getByRole('tab', { name: '原始记录' }));")
+          replace("expect(query.filters).toContainEqual(['details->>quarter', '3']);", "expect(query.filters).toContainEqual(['details->>year', '2026']);\n    expect(query.filters).toContainEqual(['details->>quarter', '3']);")
+          path.write_text(source)
+          PY
+          git diff --check
+      - name: Install dependencies
+        run: npm ci > "$RUNNER_TEMP/quarterly-install.log" 2>&1
+      - name: Focused report and integration regressions
+        run: |
+          mkdir -p "$RUNNER_TEMP/quarterly-report-artifacts"
+          npx vitest run src/components/admin/quarterly-report src/components/admin/SubmissionManager.reliability.test.tsx > "$RUNNER_TEMP/quarterly-report-artifacts/focused.log" 2>&1 || { tail -150 "$RUNNER_TEMP/quarterly-report-artifacts/focused.log"; exit 1; }
+          tail -8 "$RUNNER_TEMP/quarterly-report-artifacts/focused.log"
+        env:
+          QUARTERLY_REPORT_ARTIFACT_DIR: ${{ runner.temp }}/quarterly-report-artifacts
+      - name: Full verification and production build
+        run: |
+          npm run verify > "$RUNNER_TEMP/quarterly-report-artifacts/verify.log" 2>&1 || { tail -180 "$RUNNER_TEMP/quarterly-report-artifacts/verify.log"; exit 1; }
+          tail -90 "$RUNNER_TEMP/quarterly-report-artifacts/verify.log"
+        env:
+          QUARTERLY_REPORT_ARTIFACT_DIR: ${{ runner.temp }}/quarterly-report-artifacts
+      - name: Publish verified source branch only
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = ea0042835dfe46f3d789755e187c3ef685eed237
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/admin/quarterly-report src/components/admin/SubmissionManager.tsx src/components/admin/SubmissionManager.reliability.test.tsx CHANGELOG.md
+          git diff --cached --stat
+          git commit -m 'feat: add verified quarterly market workbook and admin dashboard'
+          git push origin HEAD:refs/heads/feat/quarterly-report-v1-20261010
+          git rev-parse HEAD | tee "$RUNNER_TEMP/quarterly-report-artifacts/verified-commit.txt"
+      - name: Save verification evidence
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/quarterly-report-artifacts/source"
+          cp src/components/admin/quarterly-report/* "$RUNNER_TEMP/quarterly-report-artifacts/source/"
+          cp src/components/admin/SubmissionManager.reliability.test.tsx "$RUNNER_TEMP/quarterly-report-artifacts/source/"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quarterly-report-final-verification
+          path: ${{ runner.temp }}/quarterly-report-artifacts
