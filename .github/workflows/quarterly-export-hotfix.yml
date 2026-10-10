@@ -1,0 +1,89 @@
+name: Verify quarterly export browser hotfix
+on:
+  push:
+    branches: [work/quarterly-export-hotfix-20261010]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-test-key
+      QUARTERLY_BROWSER_ARTIFACT_DIR: ${{ runner.temp }}/quarterly-export-hotfix-evidence
+      PLAYWRIGHT_MODULE: ${{ runner.temp }}/quarterly-browser-tools/node_modules/playwright/index.mjs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Prepare clean candidate from exact production head
+        run: |
+          set -euo pipefail
+          mkdir -p "$QUARTERLY_BROWSER_ARTIFACT_DIR"
+          cp scripts/check-quarterly-export-browser.mjs "$RUNNER_TEMP/quarterly-browser-check.mjs"
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = 2697bbd27c543ec2e0cae21d297fe911e58f9ee9
+          git checkout -b fix/quarterly-export-browser-20261010 origin/main
+          cp "$RUNNER_TEMP/quarterly-browser-check.mjs" scripts/check-quarterly-export-browser.mjs
+      - name: Install locked application dependencies and isolated browser tooling
+        run: |
+          npm ci --no-audit --no-fund
+          npm install --prefix "$RUNNER_TEMP/quarterly-browser-tools" --no-audit --no-fund playwright@1.56.1
+          command -v google-chrome
+      - name: Reproduce the exact pre-fix production export failure
+        run: node scripts/check-quarterly-export-browser.mjs --expect-export-error
+      - name: Apply focused import correction and strengthen mock contract
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          panel = Path('src/components/admin/quarterly-report/QuarterlyReportPanel.tsx')
+          old = "const [{ reportBytes }, { saveAs }] = await Promise.all([import('./workbook'), import('file-saver')]);"
+          new = "// FileSaver is CommonJS/UMD; webpack dynamic imports expose its callable as default.\n      const [{ reportBytes }, { default: saveAs }] = await Promise.all([import('./workbook'), import('file-saver')]);"
+          text = panel.read_text()
+          assert text.count(old) == 1
+          panel.write_text(text.replace(old, new))
+          test = Path('src/components/admin/quarterly-report/QuarterlyReportPanel.test.tsx')
+          text = test.read_text()
+          assert "vi.mock('file-saver', () => ({ saveAs: vi.fn() }));" in text
+          text = text.replace("vi.mock('file-saver', () => ({ saveAs: vi.fn() }));", "// Match the production dynamic-import namespace: no synthetic named export.\nvi.mock('file-saver', () => ({ default: vi.fn() }));")
+          text = text.replace("import { saveAs } from 'file-saver';", "import saveAs from 'file-saver';")
+          test.write_text(text)
+          integration = Path('src/components/admin/SubmissionManager.reliability.test.tsx')
+          text = integration.read_text()
+          old = "vi.mock('file-saver', () => ({ saveAs: (...args: unknown[]) => mock.save(...args) }));"
+          assert text.count(old) == 1
+          integration.write_text(text.replace(old, "vi.mock('file-saver', () => ({ default: (...args: unknown[]) => mock.save(...args) }));"))
+          changelog = Path('CHANGELOG.md')
+          changelog.write_text("## 2026-10-10 — 修复季度 Excel 生产下载报错\n\n- 修正 FileSaver 动态导入为默认导出，避免生产 webpack 构建调用不存在的命名导出而报 not a function。\n- 测试模拟改为与生产一致的默认导出，保留分页、季度切换、重复点击和审计回归覆盖。\n- 增加可复现的生产浏览器导出检查：真实加载 Next/webpack、SheetJS、JSZip 和 FileSaver，实际下载并回读四张工作表；仅使用隔离的虚拟后端，不接触生产数据。\n- 不修改业务计算口径、Excel 字段、样式或数据库。\n\n" + changelog.read_text())
+          PY
+      - name: Full repository tests, typecheck, lint and production build
+        run: |
+          npm run verify > "$QUARTERLY_BROWSER_ARTIFACT_DIR/verify.log" 2>&1 || { tail -180 "$QUARTERLY_BROWSER_ARTIFACT_DIR/verify.log"; exit 1; }
+          tail -90 "$QUARTERLY_BROWSER_ARTIFACT_DIR/verify.log"
+      - name: Real browser download and workbook readback after the fix
+        run: node scripts/check-quarterly-export-browser.mjs
+      - name: Publish tested source branch without touching main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = 2697bbd27c543ec2e0cae21d297fe911e58f9ee9
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/admin/quarterly-report/QuarterlyReportPanel.tsx src/components/admin/quarterly-report/QuarterlyReportPanel.test.tsx src/components/admin/SubmissionManager.reliability.test.tsx scripts/check-quarterly-export-browser.mjs CHANGELOG.md
+          git diff --cached --stat
+          git commit -m 'fix: use FileSaver default export and verify real browser downloads'
+          git push origin HEAD:refs/heads/fix/quarterly-export-browser-20261010
+          git rev-parse HEAD > "$QUARTERLY_BROWSER_ARTIFACT_DIR/verified-commit.txt"
+          git diff HEAD^ HEAD > "$QUARTERLY_BROWSER_ARTIFACT_DIR/fix.patch"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quarterly-export-hotfix-evidence
+          path: ${{ runner.temp }}/quarterly-export-hotfix-evidence
