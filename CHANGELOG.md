@@ -1,3 +1,13 @@
+## 2026-10-10 — 填报管理：季度数据工作簿与简约市场看板
+
+- 将填报数据的单表导出替换为四表：逐栋季度环比、本季最新、原始记录、市场看板；默认打开市场看板，不增加行政区、技术标识列或说明页。
+- 同楼宇、同季度按提交时间（保留微秒顺序）选取最新完整记录；跨填写人去重，不从旧记录拼补空白字段，原始提交全部保留。
+- 上季度基准仅使用紧邻季度的 building_metrics。本季当前已填样本与上季全部样本直接比较，不做同楼宇样本限制或未填楼宇补齐。
+- 甲级 A+P、乙级 B、产业园 BP 自上而下按子市场展示。租金按总面积加权，空置率为有效空置面积合计除以对应总面积；空置率变化用百分点。缺失或无效值不转为零。
+- 后台看板与 Excel 共享同一份读取结果和计算逻辑；保留原始记录、人员筛选和操作日志，人员筛选不改变市场导出范围。
+- Excel 保留原有业务字段，统一数值单位、表头、列宽及冻结窗格；只在确有异常时增加数据检查标注。静态 V1，不新增依赖、不修改数据库或 Broker 填报流程。
+- 验证覆盖：去重/微秒排序、跨年季度、60 对 100 的完整历史基准、面积权重、空值与零值、超过 1000 行分页、四表 XML/数值格式、请求竞态、失败禁导出及导出审计。发布门槛为 npm run verify 与 PR Verify 工作流。
+
 ## 2026-10-09 — Remove dismissed draft notices from the compact quarterly workspace
 
 - After successful original-draft restoration or choosing not to use the reference, render no legacy notice row, wrapper or spacing. This applies to Grade A, Grade B and business parks; the existing records/recovery toggle remains the access point for the preserved original.

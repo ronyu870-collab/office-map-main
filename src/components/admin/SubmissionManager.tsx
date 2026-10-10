@@ -14,6 +14,7 @@ import { Button } from '@/src/components/ui';
 import { fetchAllSubmissionPages, submissionPageResult, draftEntries, draftProjectLabel, summarizeAdminDraft } from './submissionReliability';
 import { useSubmissionRead, useSubmissionPeriod } from './useSubmissionRead';
 import { logAction } from '@/src/utils/audit';
+import { QuarterlyReportPanel } from './quarterly-report/QuarterlyReportPanel';
 
 const compactSelectClassName = 'h-[var(--cd-control-height-sm)] rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-xs outline-none transition-colors focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]';
 
@@ -799,73 +800,6 @@ function SubmissionDataSection({ dicts, period }: { dicts: DictBundle; period: R
     { headerName: '提交时间', field: 'created_at', width: 160, cellRenderer: DateRenderer },
   ], [dicts]);
 
-  function handleExport() {
-    if (loading || result.error) return;
-    if (rows.length === 0) {
-      alert("当前筛选无数据");
-      return;
-    }
-    // 按等级分组 → 子市场顺序 → sort_order 排序
-    const sorted = [...rows].sort((a, b) => {
-      const gA = resolveGradeCode(dicts.building_grades?.[a.building_id] ?? '');
-      const gB = resolveGradeCode(dicts.building_grades?.[b.building_id] ?? '');
-      const gIdxA = GRADE_GROUP_ORDER.indexOf(gA);
-      const gIdxB = GRADE_GROUP_ORDER.indexOf(gB);
-      const gPosA = gIdxA >= 0 ? gIdxA : GRADE_GROUP_ORDER.length;
-      const gPosB = gIdxB >= 0 ? gIdxB : GRADE_GROUP_ORDER.length;
-      if (gPosA !== gPosB) return gPosA - gPosB;
-      const order = SUBMARKET_ORDER[gA] ?? [];
-      const smA = dicts.building_submarkets?.[a.building_id] ?? '';
-      const smB = dicts.building_submarkets?.[b.building_id] ?? '';
-      const idxA = order.indexOf(smA);
-      const idxB = order.indexOf(smB);
-      const posA = idxA >= 0 ? idxA : order.length;
-      const posB = idxB >= 0 ? idxB : order.length;
-      if (posA !== posB) return posA - posB;
-      const soA = Number(dicts.building_sort_orders?.[a.building_id] ?? 0);
-      const soB = Number(dicts.building_sort_orders?.[b.building_id] ?? 0);
-      return soA - soB;
-    });
-    const exportRows = sorted.map((r) => ({
-      项目名称: dicts.buildings?.[r.building_id] || r.building_id,
-      填写人: dicts.user_roles?.[r.user_id] || r.user_name || r.user_id,
-      年份: r.record_year,
-      季度: r.record_quarter,
-      总面积: r.total_area,
-      报价租金: r.asking_rent,
-      物业费: r.management_fee,
-      表面租金: r.face_rent,
-      免租期: r.rent_free_period,
-      净有效租金: r.net_effective_rent,
-      空置率: r.vacancy_rate,
-      空置面积: r.vacant_area,
-      业主: r.owner,
-      物业: r.property_management,
-      备注: r.notes,
-      提交时间: r.created_at
-        ? new Date(r.created_at).toLocaleString("zh-CN", { hour12: false })
-        : "",
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "填报数据");
-    const userLabel =
-      userId === "all"
-        ? "全部"
-        : (dicts.user_roles?.[userId] || userId).replace(/[\/\\:*?"<>|]/g, "_");
-    const filename = `填报数据_${userLabel}_${year}Q${quarter}.xlsx`;
-    XLSX.writeFile(wb, filename);
-    logAction(undefined, 'EXPORT_DATA', {
-      export_type: 'quarterly_submissions',
-      record_count: exportRows.length,
-      file_name: filename,
-      subject_user_id: userId === 'all' ? null : userId,
-      year,
-      quarter,
-      target_name: filename,
-    });
-  }
-
   const years = [...new Set([...Array.from({ length: 5 }, (_, i) => dq.year - 2 + i), year, configured.data?.year ?? year])].sort();
   const userOptions = React.useMemo(() => {
     const list = Object.entries(dicts.user_roles || {}).map(([id, name]) => ({
@@ -926,22 +860,6 @@ function SubmissionDataSection({ dicts, period }: { dicts: DictBundle; period: R
           {loading ? "加载中…" : result.error ? "记录数量未知" : `${rows.length} 条记录`}
         </span>
 
-        <Button size="sm" variant="secondary" onClick={handleExport} disabled={loading || !!result.error || !rows.length}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          导出 Excel
-        </Button>
 
         <button
           onClick={() => setShowLog(value => !value)}
@@ -1554,7 +1472,7 @@ export function SubmissionManager() {
         )}
         {subTab === "data" && (
           <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
-            <SubmissionDataSection dicts={dicts} period={period} />
+            <QuarterlyReportPanel period={period} history={<SubmissionDataSection dicts={dicts} period={period} />} />
           </div>
         )}
         {subTab === "drafts" && (

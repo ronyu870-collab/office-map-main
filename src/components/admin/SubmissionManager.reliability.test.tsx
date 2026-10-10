@@ -1,16 +1,18 @@
 import * as React from 'react';
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const mock = vi.hoisted(() => ({ read: vi.fn(), export: vi.fn(), queries: [] as any[], assignmentConfig: null as any }));
+const mock = vi.hoisted(() => ({ read: vi.fn(), export: vi.fn(), save: vi.fn(), report: vi.fn(), queries: [] as any[], assignmentConfig: null as any }));
 vi.mock('@/src/services/supabaseClient', () => {
   function query(table: string) {
     const state: any = { table, filters: [], from: 0, to: 499 };
-    const q: any = { select: () => q, order: () => q, eq: (field: string, value: any) => { state.filters.push([field, value]); return q; }, neq: () => q, in: () => q, range: (from: number, to: number) => { state.from = from; state.to = to; return q; }, then: (resolve: any, reject: any) => { mock.queries.push({ ...state }); return Promise.resolve(mock.read(state)).then(resolve, reject); } };
+    const q: any = { select: () => q, order: () => q, eq: (field: string, value: any) => { state.filters.push([field, value]); return q; }, lte: (field: string, value: unknown) => { state.filters.push([field, value, 'lte']); return q; }, neq: () => q, in: () => q, range: (from: number, to: number) => { state.from = from; state.to = to; return q; }, then: (resolve: any, reject: any) => { mock.queries.push({ ...state }); return Promise.resolve(mock.read(state)).then(resolve, reject); } };
     return q;
   }
   return { supabase: { from: query, rpc: (name: string) => query(name) } };
 });
 vi.mock('xlsx', () => ({ utils: { json_to_sheet: (rows: unknown) => rows, book_new: () => ({}), book_append_sheet: vi.fn() }, writeFile: (...args: any[]) => mock.export(...args) }));
+vi.mock('./quarterly-report/workbook', () => ({ reportBytes: (...args: unknown[]) => mock.report(...args) }));
+vi.mock('file-saver', () => ({ saveAs: (...args: unknown[]) => mock.save(...args) }));
 vi.mock('./GenericTablePanel', () => ({ GenericTablePanel: ({ config }: any) => { mock.assignmentConfig = config; return <div>Assignments</div>; } }));
 vi.mock('./BuildingSortManager', () => ({ BuildingSortManager: () => null }));
 vi.mock('./SubmissionGrid', () => ({ SubmissionGrid: ({ data, loading, emptyMessage }: any) => <div data-testid="grid">{loading ? 'Loading' : data.length ? JSON.stringify(data) : emptyMessage}</div>, ProgressRenderer: () => null, DateRenderer: () => null }));
@@ -27,39 +29,58 @@ function base(state: any) {
   if (state.table === 'future_supplies') return { data: [{ id: 'synthetic-future', name: 'Synthetic Future' }], error: null };
   return { data: [], error: null };
 }
-beforeEach(() => { mock.read.mockImplementation(base); mock.export.mockClear(); mock.queries.length = 0; });
+beforeEach(() => { mock.read.mockImplementation(base); mock.export.mockClear(); mock.save.mockClear(); mock.report.mockReset().mockResolvedValue(new Uint8Array([80, 75])); mock.queries.length = 0; });
 afterEach(cleanup);
 
 describe('admin submission UI regressions', () => {
   it('loads the configured quarter, exports all pages, and disables export during a new-filter request', async () => {
-    let release!: (value: unknown) => void;
-    const pending = new Promise(resolve => { release = resolve; });
-    mock.read.mockImplementation((state: any) => {
-      if (state.table !== 'quarterly_submissions') return base(state);
-      const q = state.filters.find(([field]: any) => field === 'record_quarter')?.[1];
-      if (q === 2) return pending;
-      return { data: Array.from({ length: 1107 }, (_, id) => ({ id: String(id), building_id: 'synthetic-building', record_year: 2026, record_quarter: q })).slice(state.from, Math.min(state.to + 1, state.from + 100)), error: null };
-    });
-    render(<SubmissionManager />); fireEvent.click(screen.getByText('填报数据'));
-    await waitFor(() => expect(screen.getByText('1107 条记录')).toBeTruthy());
-    const selects = screen.getAllByRole('combobox');
-    await waitFor(() => expect((selects[1] as HTMLSelectElement).value).toBe('3'));
-    await waitFor(() => expect((screen.getByText('导出 Excel').closest('button') as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(screen.getByText('导出 Excel')); expect(mock.export).toHaveBeenCalledTimes(1);
-    expect(mock.export.mock.calls[0][1]).toBe('填报数据_全部_2026Q3.xlsx');
-    fireEvent.change(selects[1], { target: { value: '2' } });
-    expect((screen.getByText('导出 Excel').closest('button') as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByTestId('grid').textContent).toBe('Loading');
-    await act(async () => release({ data: [], error: null }));
+  let release!: (value: unknown) => void;
+  const pending = new Promise(resolve => { release = resolve; });
+  mock.read.mockImplementation((state: any) => {
+    if (state.table !== 'quarterly_submissions') return base(state);
+    const q = state.filters.find(([field]: any) => field === 'record_quarter')?.[1];
+    if (q === 2) return pending;
+    return { data: Array.from({ length: 1107 }, (_, id) => ({
+      id: String(id), building_id: 'synthetic-building', user_id: 'synthetic-user',
+      record_year: 2026, record_quarter: q, created_at: '2026-07-01T00:00:00Z',
+      total_area: 100, net_effective_rent: 240, vacant_area: 10, vacancy_rate: 10,
+    })).slice(state.from, Math.min(state.to + 1, state.from + 100)), error: null };
   });
+  render(<SubmissionManager />);
+  fireEvent.click(screen.getByText('填报数据'));
+  await screen.findByText('甲级写字楼');
+  expect(screen.getByRole('combobox', { name: '统计季度' })).toHaveValue('3');
+  expect(mock.queries.some(q => q.table === 'quarterly_submissions' && q.from >= 1000 && q.filters.some((f: unknown[]) => f[0] === 'created_at' && f[2] === 'lte'))).toBe(true);
+  fireEvent.click(screen.getByRole('tab', { name: '原始记录' }));
+  await screen.findByText('1107 条记录');
+  await waitFor(() => expect(screen.getByRole('button', { name: '导出 Excel' })).not.toBeDisabled());
+  fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
+  await waitFor(() => expect(mock.save).toHaveBeenCalledTimes(1));
+  expect(mock.report).toHaveBeenCalledTimes(1);
+  expect(mock.report.mock.calls[0][0].raw).toHaveLength(1107);
+  expect(mock.report.mock.calls[0][0].latest).toHaveLength(1);
+  expect(mock.report.mock.calls[0][0].latest[0].source.id).toBe('1106');
+  expect(mock.save.mock.calls[0][1]).toBe('季度市场数据_2026Q3.xlsx');
+  expect(mock.export).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByRole('button', { name: '导出 Excel' })).not.toBeDisabled());
+  fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: '2' } });
+  expect(screen.getByRole('button', { name: '导出 Excel' })).toBeDisabled();
+  expect(screen.getByTestId('grid').textContent).toBe('Loading');
+  fireEvent.click(screen.getByRole('button', { name: '导出 Excel' }));
+  expect(mock.save).toHaveBeenCalledTimes(1);
+  await act(async () => release({ data: [], error: null }));
+  await screen.findByText('0 条记录');
+});
   it('reads current audit events with both selected quarter and user filters', async () => {
     render(<SubmissionManager />); fireEvent.click(screen.getByText('填报数据'));
+    fireEvent.click(screen.getByRole('tab', { name: '原始记录' }));
     await waitFor(() => expect(screen.getByRole('option', { name: 'Synthetic User' })).toBeTruthy());
     fireEvent.change(screen.getAllByRole('combobox')[2], { target: { value: 'synthetic-user' } });
     fireEvent.click(screen.getByText('操作日志'));
     await waitFor(() => expect(mock.queries.some(q => q.table === 'audit_logs')).toBe(true));
     const query = mock.queries.filter(q => q.table === 'audit_logs').at(-1);
     expect(query.filters).toContainEqual(['user_id', 'synthetic-user']);
+    expect(query.filters).toContainEqual(['details->>year', '2026']);
     expect(query.filters).toContainEqual(['details->>quarter', '3']);
     expect(query.filters).toContainEqual(['action_type', 'SUBMIT_QUARTERLY_DATA']);
     expect(mock.queries.some(q => q.table === 'quarterly_updates')).toBe(false);
