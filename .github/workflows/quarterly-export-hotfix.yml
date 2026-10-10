@@ -10,7 +10,7 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: '1'
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_URL: https://quarterly-test.supabase.co.invalid
       NEXT_PUBLIC_SUPABASE_ANON_KEY: synthetic-test-key
     steps:
       - uses: actions/checkout@v4
@@ -69,12 +69,12 @@ jobs:
           changelog = Path('CHANGELOG.md')
           changelog.write_text("## 2026-10-10 — 修复季度 Excel 生产下载报错\n\n- 修正 FileSaver 动态导入为默认导出，避免生产 webpack 构建调用不存在的命名导出而报 not a function。\n- 测试模拟改为与生产一致的默认导出，保留分页、季度切换、重复点击和审计回归覆盖。\n- 增加可复现的生产浏览器导出检查：真实加载 Next/webpack、SheetJS、JSZip 和 FileSaver，实际下载并回读四张工作表；仅使用隔离的虚拟后端，不接触生产数据。\n- 不修改业务计算口径、Excel 字段、样式或数据库。\n\n" + changelog.read_text())
           PY
+      - name: Real browser download and workbook readback after the fix
+        run: node scripts/check-quarterly-export-browser.mjs
       - name: Full repository tests, typecheck, lint and production build
         run: |
           npm run verify > "$QUARTERLY_BROWSER_ARTIFACT_DIR/verify.log" 2>&1 || { tail -180 "$QUARTERLY_BROWSER_ARTIFACT_DIR/verify.log"; exit 1; }
           tail -90 "$QUARTERLY_BROWSER_ARTIFACT_DIR/verify.log"
-      - name: Real browser download and workbook readback after the fix
-        run: node scripts/check-quarterly-export-browser.mjs
       - name: Publish tested source branch without touching main
         run: |
           set -euo pipefail
