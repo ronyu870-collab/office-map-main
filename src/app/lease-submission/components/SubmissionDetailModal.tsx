@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import { X, Building2, FileText } from 'lucide-react';
 import type { LeaseTransaction } from '@/src/types/lease-transaction';
 import { MaskedCell } from '@/src/components/demo';
@@ -152,7 +153,7 @@ const COLUMNS: ColDef[] = [
     width: 'min-w-[80px]',
     render: (r) => (
       <span className="tabular-nums text-right block text-zinc-700">
-        {fmtNum(r.face_rent)}
+        {formatLeaseRent(r.face_rent)}
       </span>
     ),
   },
@@ -161,7 +162,7 @@ const COLUMNS: ColDef[] = [
     width: 'min-w-[80px]',
     render: (r) => (
       <span className="tabular-nums text-right block font-medium text-[#003e7e]">
-        {fmtNum(r.effective_rent)}
+        {formatLeaseRent(r.effective_rent)}
       </span>
     ),
   },

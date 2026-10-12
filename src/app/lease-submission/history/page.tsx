@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import {
   Building2,
   ChevronLeft,
@@ -482,8 +483,8 @@ export default function LeaseHistoryPage() {
                         <span className="ml-1 text-[10px] text-[var(--cd-color-text-muted)]">㎡</span>
                       </td>
                       <td className="w-[130px] whitespace-nowrap px-3.5 py-3 text-right align-top tabular-nums">
-                        <div className="font-medium text-[var(--cd-color-text-primary)]">{fmtNumber(row.face_rent)}</div>
-                        {row.effective_rent != null ? <div className="mt-0.5 text-[10px] text-[var(--cd-color-text-muted)]">有效 {fmtNumber(row.effective_rent)}</div> : null}
+                        <div className="font-medium text-[var(--cd-color-text-primary)]">{formatLeaseRent(row.face_rent)}</div>
+                        {row.effective_rent != null ? <div className="mt-0.5 text-[10px] text-[var(--cd-color-text-muted)]">有效 {formatLeaseRent(row.effective_rent)}</div> : null}
                       </td>
                     </tr>
                   ))}
@@ -564,8 +565,8 @@ export default function LeaseHistoryPage() {
                 <div className="mt-4 grid grid-cols-2 gap-x-4 border-t border-[var(--cd-color-border)]">
                   <DetailItem label="成交面积" value={`${fmtNumber(selectedRecord.area_sqm, 0)} ㎡`} numeric />
                   <DetailItem label="租期" value={selectedRecord.lease_term_months == null ? '—' : `${fmtNumber(selectedRecord.lease_term_months, 0)} 个月`} numeric />
-                  <DetailItem label="表面租金" value={fmtNumber(selectedRecord.face_rent)} numeric />
-                  <DetailItem label="有效租金" value={fmtNumber(selectedRecord.effective_rent)} numeric />
+                  <DetailItem label="表面租金" value={formatLeaseRent(selectedRecord.face_rent)} numeric />
+                  <DetailItem label="有效租金" value={formatLeaseRent(selectedRecord.effective_rent)} numeric />
                 </div>
               </div>
 

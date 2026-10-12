@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-react';
@@ -68,7 +69,7 @@ function MySubmissionTable({ items, userName, canWrite, onEdit, onTransfer }: Hi
                 <td className="max-w-48 truncate px-3 py-2.5 font-medium text-slate-900"><MaskedCell masked>{item.company || '-'}</MaskedCell></td>
                 <td className="max-w-48 truncate px-3 py-2.5 text-slate-600"><MaskedCell masked>{item.new_building || '-'}</MaskedCell></td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{item.area_sqm?.toLocaleString('zh-CN') ?? '-'}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums font-medium text-[#003e7e]">{item.effective_rent?.toLocaleString('zh-CN') ?? '-'}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums font-medium text-[#003e7e]">{formatLeaseRent(item.effective_rent)}</td>
                 <td className="px-3 py-2.5 text-center tabular-nums text-slate-600">{item.transaction_year || '-'}</td>
                 <td className="px-3 py-2.5 text-center text-slate-600">{item.transaction_quarter || '-'}</td>
                 <td className="px-3 py-2.5 text-center text-slate-400">{item.created_at ? new Date(item.created_at).toLocaleDateString('zh-CN') : '-'}</td>

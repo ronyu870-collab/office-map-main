@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { canViewLeaseTeamSubmissions } from '@/src/utils/accessControl';
 import { annotateSubmitterActivity } from '@/src/utils/leaseSubmitterPrivacy';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { readTeamTransactions } from './readTeamTransactions';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -13,7 +14,9 @@ const SUPABASE_REQUEST_TIMEOUT_MS = 10_000;
 function timedFetch(input: RequestInfo | URL, init?: RequestInit) {
   return fetch(input, {
     ...init,
-    signal: AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
+    signal: init?.signal
+      ? AbortSignal.any([init.signal, AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS)])
+      : AbortSignal.timeout(SUPABASE_REQUEST_TIMEOUT_MS),
   });
 }
 
@@ -93,22 +96,13 @@ export async function GET(req: NextRequest) {
       }
     })();
 
-    const [transactionsResult, activeUserIds] = await Promise.all([
-      timedSupabaseAdmin
-        .from('lease_transactions')
-        .select('*')
-        .gte('created_at', '2026-04-23T00:00:00Z')
-        .order('created_at', { ascending: false })
-        .limit(500),
+    const [transactions, activeUserIds] = await Promise.all([
+      readTeamTransactions(timedSupabaseAdmin),
       activeUserIdsPromise,
     ]);
 
-    if (transactionsResult.error) {
-      console.error('[team-submissions] 查询成交记录失败:', transactionsResult.error);
-      return NextResponse.json({ error: '查询提交记录失败' }, { status: 500 });
-    }
     const submissions = annotateSubmitterActivity(
-      transactionsResult.data ?? [],
+      transactions,
       activeUserIds ?? new Set<string>(),
     );
 

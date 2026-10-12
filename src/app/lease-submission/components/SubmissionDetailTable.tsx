@@ -2,12 +2,15 @@
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, FileText, Maximize2, Minimize2, ChevronDown, ChevronRight, Edit2, History } from 'lucide-react';
+import { Building2, FileText, Maximize2, Minimize2, ChevronRight, Edit2, History } from 'lucide-react';
 import type { LeaseTransaction } from '@/src/types/lease-transaction';
 import { MaskedCell } from '@/src/components/demo';
 import { useResponsiveColumns, calculateColumnWidths, type ColumnDef } from '@/src/hooks/useResponsiveColumns';
 import { AdminLeaseExportButton } from './AdminLeaseExportButton';
 import { LeaseTransactionHistoryDrawer } from './LeaseTransactionHistoryDrawer';
+import { LeaseColumnMenu } from './LeaseColumnMenu';
+import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
+import { LEASE_TABLE_FIELDS, isLeaseFilterActive, leaseFilterOptions, leaseFilterSummary, queryLeaseTable, type LeaseColumnKey, type LeaseColumnFilter, type LeaseTableFilters, type LeaseTableSort } from '../leaseTableQuery';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -50,22 +53,22 @@ const TABLE_COLUMNS: ColumnDef[] = [
   // ── 企业信息 ──
   { key: 'company', label: '公司名称', width: 'flex', minWidth: 110, maxWidth: 240, flexWeight: 2.5 },
   // 这是低覆盖率的辅助字段：保留其位置与可查阅性，但不为大量空值预留主列宽度。
-  { key: 'suspectedCompanyFullname', label: '疑似全称', width: 'flex', minWidth: 72, maxWidth: 124, flexWeight: 0.65 },
-  { key: 'enterpriseType', label: '企业类型', width: 76 },
+  { key: 'suspectedCompanyFullname', label: '疑似全称', width: 'flex', minWidth: 88, maxWidth: 124, flexWeight: 0.65 },
+  { key: 'enterpriseType', label: '企业类型', width: 88 },
   // ── 行业/需求 ──
   { key: 'industry', label: '行业分类', width: 100 },
-  { key: 'demandType', label: '需求类型', width: 76 },
+  { key: 'demandType', label: '需求类型', width: 88 },
   // ── 成交楼宇/位置 ──
   { key: 'building', label: '成交楼宇', width: 'flex', minWidth: 90, maxWidth: 200, flexWeight: 1 },
   { key: 'subMarket', label: '子市场', width: 80 },
   { key: 'district', label: '行政区', width: 76 },
-  { key: 'grade', label: '级别', width: 60 },
+  { key: 'grade', label: '级别', width: 68 },
   // ── 租金/面积 ──
   { key: 'area', label: '成交面积', width: 88, align: 'right' },
   { key: 'faceRent', label: '表面租金', width: 88, align: 'right' },
   { key: 'effectiveRent', label: '有效租金', width: 92, align: 'right' },
   // ── 时间/提交人 ──
-  { key: 'year', label: '成交年份', width: 72 },
+  { key: 'year', label: '成交年份', width: 88 },
   { key: 'quarter', label: '成交季度', width: 84 },
   { key: 'submitter', label: '提交人', width: 80 },
 ];
@@ -178,9 +181,9 @@ const renderCell = (key: string, row: LeaseTransaction): React.ReactNode => {
     case 'area':
       return <span className="tabular-nums text-zinc-800 text-[13px]">{fmtNum(row.area_sqm)}</span>;
     case 'faceRent':
-      return <span className="tabular-nums text-zinc-600 text-[13px]">{fmtNum(row.face_rent)}</span>;
+      return <span className="tabular-nums text-zinc-600 text-[13px]">{formatLeaseRent(row.face_rent)}</span>;
     case 'effectiveRent':
-      return <span className="tabular-nums font-semibold text-[#003e7e] text-[13px]">{fmtNum(row.effective_rent)}</span>;
+      return <span className="tabular-nums font-semibold text-[#003e7e] text-[13px]">{formatLeaseRent(row.effective_rent)}</span>;
     // ── 时间/提交人 ──
     case 'year':
       return <span className="tabular-nums text-zinc-600 text-[13px]">{row.transaction_year > 0 ? row.transaction_year : '—'}</span>;
@@ -269,7 +272,7 @@ export function SubmissionDetailTable({
   React.useEffect(() => {
     if (!isFullscreen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsFullscreen(false);
+      if (e.key === 'Escape' && !e.defaultPrevented) setIsFullscreen(false);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -283,138 +286,46 @@ export function SubmissionDetailTable({
     }
   }, [isFullscreen]);
 
-  // 多列筛选
-  const [filters, setFilters] = React.useState({
-    company: '',
-    demandType: '',
-    newBuilding: '',
-    subMarket: '',
-    grade: '',
-    submitter: '',
-  });
-  const [activeDropdown, setActiveDropdown] = React.useState<string | null>(null);
-  const [dropdownSearch, setDropdownSearch] = React.useState('');
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
-  const dropdownBtnRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
-  const [dropdownPos, setDropdownPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [filters, setFilters] = React.useState<LeaseTableFilters>({});
+  const [sort, setSort] = React.useState<LeaseTableSort>(null);
+  const [activeMenu, setActiveMenu] = React.useState<string | null>(null);
+  const options = React.useMemo(() => Object.fromEntries(
+    (Object.keys(LEASE_TABLE_FIELDS) as LeaseColumnKey[]).map((key) => [key, leaseFilterOptions(submissions, key)]),
+  ), [submissions]);
+  const filteredSubmissions = React.useMemo(() => queryLeaseTable(submissions, filters, sort), [submissions, filters, sort]);
 
-  // 点击外部关闭下拉
-  React.useEffect(() => {
-    if (!activeDropdown) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (dropdownRef.current?.contains(target)) return;
-      if (document.querySelector('[data-filter-dropdown]')?.contains(target)) return;
-      setActiveDropdown(null);
-      setDropdownSearch('');
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [activeDropdown]);
-
-  // 各列唯一值
-  const uniqueValues = React.useMemo(() => {
-    const vals: Record<string, Set<string>> = {
-      company: new Set(), demandType: new Set(), newBuilding: new Set(),
-      subMarket: new Set(), grade: new Set(),
-    };
-    const submitterMap = new Map<string, string>();
-    for (const s of submissions) {
-      if (s.company?.trim()) vals.company.add(s.company.trim());
-      if (s.demand_type?.trim()) vals.demandType.add(s.demand_type.trim());
-      if (s.new_building?.trim()) vals.newBuilding.add(s.new_building.trim());
-      if (s.sub_market?.trim()) vals.subMarket.add(s.sub_market.trim());
-      if (s.building_grade?.trim()) vals.grade.add(s.building_grade.trim());
-      if (s.submitter_id && s.submitter_name?.trim()) {
-        submitterMap.set(s.submitter_id, s.submitter_name.trim());
-      }
-    }
-    const submitterEntries = [...submitterMap.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-    return {
-      company: [...vals.company].sort(),
-      demandType: [...vals.demandType].sort(),
-      newBuilding: [...vals.newBuilding].sort(),
-      subMarket: [...vals.subMarket].sort(),
-      grade: [...vals.grade].sort(),
-      submitter: submitterEntries,
-    };
-  }, [submissions]);
-
-  // 过滤数据
-  const filteredSubmissions = React.useMemo(() => {
-    return submissions.filter((s) => {
-      if (filters.company && !s.company?.toLowerCase().includes(filters.company.toLowerCase())) return false;
-      if (filters.demandType && s.demand_type?.trim() !== filters.demandType) return false;
-      if (filters.newBuilding && !s.new_building?.toLowerCase().includes(filters.newBuilding.toLowerCase())) return false;
-      if (filters.subMarket && s.sub_market?.trim() !== filters.subMarket) return false;
-      if (filters.grade && s.building_grade?.trim() !== filters.grade) return false;
-      if (filters.submitter && s.submitter_id !== filters.submitter) return false;
-      return true;
-    });
-  }, [submissions, filters]);
-
-  // 重置分页
   React.useEffect(() => {
     setCurrentPage(1);
     setExpandedId(null);
   }, [filteredSubmissions]);
 
+  const updateFilter = (key: LeaseColumnKey, filter: LeaseColumnFilter) => {
+    setFilters((previous) => {
+      const next = { ...previous };
+      if (isLeaseFilterActive(filter)) next[key] = filter;
+      else delete next[key];
+      return next;
+    });
+  };
   const totalPages = Math.ceil(filteredSubmissions.length / PAGE_SIZE);
-  const pagedData = filteredSubmissions.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
-
-  // 生成页码
+  const safePage = Math.max(1, Math.min(currentPage, totalPages));
+  const pagedData = filteredSubmissions.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const pageNumbers = React.useMemo(() => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
     const pages: (number | '...')[] = [1];
-    if (currentPage > 3) pages.push('...');
-    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
-      pages.push(i);
-    }
-    if (currentPage < totalPages - 2) pages.push('...');
+    if (safePage > 3) pages.push('...');
+    for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) pages.push(i);
+    if (safePage < totalPages - 2) pages.push('...');
     pages.push(totalPages);
     return pages;
-  }, [currentPage, totalPages]);
-
-  const toggleExpand = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
+  }, [safePage, totalPages]);
+  const toggleExpand = (id: string) => setExpandedId((previous) => previous === id ? null : id);
+  const activeFilters = (Object.entries(filters) as [LeaseColumnKey, LeaseColumnFilter][]).filter(([, filter]) => isLeaseFilterActive(filter));
+  const activeFilterCount = activeFilters.length;
+  const renderColumnMenu = (key: LeaseColumnKey, variant: 'header' | 'toolbar') => {
+    const menuId = `${variant}-${key}`;
+    return <LeaseColumnMenu columnKey={key} variant={variant} filter={filters[key]} sort={sort} options={options[key]} open={activeMenu === menuId} onOpenChange={(open) => setActiveMenu(open ? menuId : null)} onFilter={(filter) => updateFilter(key, filter)} onSort={setSort} />;
   };
-
-  // ─── 筛选下拉 ───
-
-  const FILTER_CONFIGS = [
-    { key: 'company', label: '公司名称', match: 'fuzzy' as const },
-    { key: 'demandType', label: '需求类型', match: 'exact' as const },
-    { key: 'newBuilding', label: '成交楼宇', match: 'fuzzy' as const },
-    { key: 'subMarket', label: '子市场', match: 'exact' as const },
-    { key: 'grade', label: '级别', match: 'exact' as const },
-    { key: 'submitter', label: '提交人', match: 'submitter_id' as const },
-  ];
-
-  const openDropdown = (key: string, btnEl: HTMLButtonElement | null) => {
-    if (activeDropdown === key) { setActiveDropdown(null); setDropdownSearch(''); return; }
-    if (btnEl) {
-      const rect = btnEl.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left });
-    }
-    setDropdownSearch('');
-    setActiveDropdown(key);
-  };
-
-  const selectFilter = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setActiveDropdown(null);
-    setDropdownSearch('');
-  };
-
-  const clearFilter = (key: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFilters(prev => ({ ...prev, [key]: '' }));
-  };
-
-  const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   // 总列数（用于 colSpan）
   const totalColSpan = visibleColumns.length + 1 + (editMode ? 1 : 0); // +1 for expand/序号, +1 for edit
@@ -443,12 +354,12 @@ export function SubmissionDetailTable({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {activeFilterCount > 0 && (
+            {(activeFilterCount > 0 || sort) && (
               <button
-                onClick={() => setFilters({ company: '', demandType: '', newBuilding: '', subMarket: '', grade: '', submitter: '' })}
+                onClick={() => { setFilters({}); setSort(null); setActiveMenu(null); }}
                 className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
               >
-                清除全部筛选
+                重置筛选和排序
               </button>
             )}
             {canManageTeamRecords && onEdit && (
@@ -488,122 +399,18 @@ export function SubmissionDetailTable({
           </div>
         </div>
 
-        {/* 筛选栏 */}
-        <div className={`flex flex-wrap gap-1.5 ${isFullscreen ? '2xl:flex-1 2xl:flex-nowrap' : ''}`} ref={dropdownRef}>
-          {FILTER_CONFIGS.map((cfg) => {
-            const isActive = !!filters[cfg.key as keyof typeof filters];
-            const isOpen = activeDropdown === cfg.key;
-            const rawOptions = uniqueValues[cfg.key as keyof typeof uniqueValues] || [];
-            const isSubmitter = cfg.match === 'submitter_id';
-            const searchVal = dropdownSearch.toLowerCase();
-
-            const filtered = isSubmitter
-              ? (rawOptions as [string, string][]).filter(([, name]) => name.toLowerCase().includes(searchVal))
-              : cfg.match === 'fuzzy'
-                ? (rawOptions as string[]).filter(o => o.toLowerCase().includes(searchVal))
-                : (searchVal ? (rawOptions as string[]).filter(o => o.toLowerCase().includes(searchVal)) : rawOptions as string[]);
-
-            const selectedValue = filters[cfg.key as keyof typeof filters];
-            let displayLabel = cfg.label;
-            if (selectedValue && isSubmitter) {
-              const found = (rawOptions as [string, string][]).find(([id]) => id === selectedValue);
-              displayLabel = found ? found[1] : selectedValue;
-            } else if (selectedValue) {
-              displayLabel = selectedValue;
-            }
-
-            return (
-              <div key={cfg.key} className="flex items-center rounded-md">
-                <button
-                  type="button"
-                  ref={(el) => { dropdownBtnRefs.current[cfg.key] = el; }}
-                  onClick={() => openDropdown(cfg.key, dropdownBtnRefs.current[cfg.key])}
-                  aria-haspopup="listbox"
-                  aria-expanded={isOpen}
-                  className={`flex items-center gap-1 ${isActive ? 'rounded-l-md' : 'rounded-md'} border px-2 py-1 text-[12px] transition-colors ${
-                    isActive
-                      ? 'border-[#003e7e] bg-blue-50 text-[#003e7e]'
-                      : 'border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300'
-                  }`}
-                >
-                  <span className="truncate max-w-[80px]">
-                    {displayLabel}
-                  </span>
-                  <ChevronDown size={11} className="text-zinc-400" />
-                </button>
-                {isActive && (
-                  <button
-                    type="button"
-                    onClick={(e) => clearFilter(cfg.key, e)}
-                    aria-label={`清除${cfg.label}筛选`}
-                    className="-ml-px rounded-r-md border border-[#003e7e] bg-blue-50 px-1.5 py-1 text-[12px] text-zinc-400 transition-colors hover:text-[#003e7e]"
-                  >
-                    ×
-                  </button>
-                )}
-
-                {isOpen && createPortal(
-                  <div
-                    data-filter-dropdown
-                    style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
-                    className="w-48 rounded-lg border border-zinc-200 bg-white shadow-lg overflow-hidden"
-                  >
-                    <div className="p-1.5 border-b border-zinc-100">
-                      <input
-                        autoFocus
-                        type="text"
-                        value={dropdownSearch}
-                        onChange={(e) => setDropdownSearch(e.target.value)}
-                        placeholder={`搜索${cfg.label}...`}
-                        className="w-full px-2 py-1 text-[12px] border border-zinc-200 rounded outline-none focus:border-[#003e7e]"
-                      />
-                    </div>
-                    <div className="max-h-52 overflow-auto">
-                      <button
-                        onClick={() => selectFilter(cfg.key, '')}
-                        className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-zinc-50 transition ${
-                          !selectedValue ? 'bg-blue-50 text-[#003e7e] font-semibold' : 'text-zinc-600'
-                        }`}
-                      >
-                        全部
-                      </button>
-                      {isSubmitter ? (
-                        (filtered as [string, string][]).map(([id, name]) => (
-                          <button
-                            key={id}
-                            onClick={() => selectFilter(cfg.key, id)}
-                            className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-zinc-50 transition truncate ${
-                              selectedValue === id ? 'bg-blue-50 text-[#003e7e] font-semibold' : 'text-zinc-700'
-                            }`}
-                          >
-                            {name}
-                          </button>
-                        ))
-                      ) : (
-                        (filtered as string[]).map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() => selectFilter(cfg.key, opt)}
-                            className={`w-full text-left px-3 py-1.5 text-[12px] hover:bg-zinc-50 transition truncate ${
-                              selectedValue === opt ? 'bg-blue-50 text-[#003e7e] font-semibold' : 'text-zinc-700'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))
-                      )}
-                      {filtered.length === 0 && (
-                        <div className="px-3 py-2 text-[12px] text-zinc-400">无匹配项</div>
-                      )}
-                    </div>
-                  </div>,
-                  document.body
-                )}
-              </div>
-            );
+        {/* 快捷入口与表头共享筛选状态。 */}
+        <div className="flex flex-wrap gap-1.5">
+          {(['company', 'demandType', 'building', 'subMarket', 'grade', 'submitter', 'area', 'quarter'] as LeaseColumnKey[]).map((key) => <div key={key}>{renderColumnMenu(key, 'toolbar')}</div>)}
+        </div>
+        </div>
+        {(activeFilterCount > 0 || sort) && <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+          {activeFilters.map(([key, filter]) => {
+            const summary = `${LEASE_TABLE_FIELDS[key].label}：${leaseFilterSummary(key, filter, options[key])}`;
+            return <button key={key} type="button" title={summary} aria-label={`清除${summary}`} onClick={() => updateFilter(key, {})} className="max-w-64 truncate rounded border border-blue-100 bg-blue-50 px-2 py-1 text-[#003e7e]">{summary} ×</button>;
           })}
-        </div>
-        </div>
+          {sort && <button type="button" onClick={() => setSort(null)} className="rounded bg-zinc-100 px-2 py-1 text-zinc-500">{LEASE_TABLE_FIELDS[sort.key].label} · {sort.direction === 'asc' ? '升序' : '降序'} ×</button>}
+        </div>}
       </div>
 
       {/* ── 表格（填满剩余高度，内部独立滚动）── */}
@@ -632,8 +439,9 @@ export function SubmissionDetailTable({
                   key={col.key}
                   className="border-b border-r border-zinc-200 bg-zinc-50 px-2 py-2.5 text-xs font-semibold tracking-wide text-zinc-500 truncate"
                   style={{ textAlign: col.align || 'left' }}
+                  aria-sort={sort?.key === col.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}
                 >
-                  {col.label}
+                  {renderColumnMenu(col.key as LeaseColumnKey, 'header')}
                 </th>
               ))}
               {editMode && (
@@ -650,12 +458,12 @@ export function SubmissionDetailTable({
               <tr>
                 <td colSpan={totalColSpan} className="px-4 py-20 text-center">
                   <FileText className="mx-auto text-zinc-300 mb-4" size={48} />
-                  <p className="text-sm font-medium text-zinc-400">暂无成交记录</p>
+                  <p className="text-sm font-medium text-zinc-400">{activeFilterCount > 0 ? '没有符合筛选条件的成交记录' : '暂无成交记录'}</p>
                 </td>
               </tr>
             ) : (
               pagedData.map((row, idx) => {
-                const rowNum = (currentPage - 1) * PAGE_SIZE + idx + 1;
+                const rowNum = (safePage - 1) * PAGE_SIZE + idx + 1;
                 const isHighlighted = highlightUserId && row.submitter_id === highlightUserId;
                 const isExpanded = expandedId === (row.id ?? `${idx}`);
                 const isEven = idx % 2 === 0;
@@ -680,6 +488,7 @@ export function SubmissionDetailTable({
                           key={col.key}
                           className="border-b border-r border-zinc-100 px-2 py-3"
                           style={{ textAlign: col.align || 'left' }}
+                  aria-sort={sort?.key === col.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}
                         >
                           {renderCell(col.key, row)}
                         </td>
@@ -737,7 +546,7 @@ export function SubmissionDetailTable({
       {totalPages > 1 && (
         <div className={`shrink-0 flex items-center justify-between border-t border-zinc-200 bg-zinc-50/60 px-5 py-3 ${isFullscreen ? '' : 'rounded-b-2xl'}`}>
           <p className="text-xs text-zinc-400">
-            显示 {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredSubmissions.length)} 条，共 {filteredSubmissions.length} 条
+            显示 {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredSubmissions.length)} 条，共 {filteredSubmissions.length} 条
           </p>
           <div className="flex items-center gap-1">
             {pageNumbers.map((p, i) =>
@@ -748,7 +557,7 @@ export function SubmissionDetailTable({
                   key={p}
                   onClick={() => setCurrentPage(p as number)}
                   className={`min-w-[30px] h-7 rounded-md text-xs font-medium transition-colors ${
-                    currentPage === p
+                    safePage === p
                       ? 'bg-[#003e7e] text-white'
                       : 'text-zinc-600 hover:bg-zinc-100'
                   }`}
