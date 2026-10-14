@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   authCallback: null as ((event: string, session: { user: { id: string } } | null) => void) | null,
   router: { replace: vi.fn() }, rpc: vi.fn(),
   draftRead: vi.fn<(tab: string) => Promise<{ data: unknown; error: unknown }>>(),
+  assignmentRead: vi.fn<() => Promise<void>>(),
   formal: [] as Record<string, unknown>[], reads: [] as Array<{ table: string; filters: Record<string, unknown> }>,
   buildings: [
     { id: 'synthetic-a', name: 'Synthetic Tower A', grade: 'A', submarket: 'CBD', total_area: 1000 },
@@ -28,6 +29,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
     let range: [number, number] | null = null;
     const resolve = async () => {
       state.reads.push({ table, filters: { ...filters } });
+      if (table === 'building_assignments') await state.assignmentRead();
       if (table === 'app_settings' && state.settingsFailure) return { data: null, error: new Error('synthetic settings failure') };
       if (table === 'app_settings' && state.missingSettings) return { data: [], error: null };
       if (table === 'future_supply_assignments' && state.supplyFailure) return { data: null, error: new Error('synthetic assignment failure') };
@@ -74,12 +76,26 @@ beforeEach(() => {
   state.loggedIn = true; state.settingsFailure = false; state.missingSettings = false; state.supplyFailure = false; state.authCallback = null; state.router.replace.mockClear();
   state.rpc.mockReset().mockImplementation(async (_name: string, args: Record<string, unknown>) => ({ data: [{ revision: Number(args.p_expected_revision ?? 0) + 1, updated_at: '2026-10-08T00:00:00.000Z' }], error: null }));
   state.draftRead.mockReset().mockResolvedValue({ data: null, error: null });
+  state.assignmentRead.mockReset().mockResolvedValue(undefined);
   window.localStorage.clear();
   window.localStorage.setItem('quarterly-client-ack:20261008-v2:synthetic-user', 'saved-closed-legacy-pages');
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe('QuarterlyUpdateWorkspace reliability integration', () => {
+  it('loads the authoritative period in parallel with assignments and waits for both before opening drafts', async () => {
+    let release!: () => void;
+    state.assignmentRead.mockReturnValue(new Promise<void>((resolve) => { release = resolve; }));
+    render(<QuarterlyUpdateWorkspace />);
+    await waitFor(() => expect(state.reads.some((read) => read.table === 'future_supply_assignments')).toBe(true));
+    expect(state.assignmentRead).toHaveBeenCalled();
+    expect(state.reads.some((read) => read.table === 'update_drafts')).toBe(false);
+    expect(quoteInputs()).toHaveLength(0);
+    await act(async () => { release(); });
+    await ready();
+    expect(quoteInputs().length).toBeGreaterThan(0);
+  });
+
   it('refuses to switch category after failed save and retains local input', async () => {
     state.rpc.mockResolvedValue({ data: null, error: new Error('offline') });
     render(<QuarterlyUpdateWorkspace />); await ready();
@@ -640,3 +656,4 @@ describe('legacy reference banner choices', () => {
     expect(state.rpc).not.toHaveBeenCalled();
   });
 });
+

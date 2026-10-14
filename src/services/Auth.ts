@@ -1,11 +1,14 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
+import { clearMapReadCache } from './mapReadCache';
 
 export const DEFAULT_APP_ROLE = 'viewer' as const;
 
 const AUTH_SESSION_CACHE_KEY = '__auth_session_cache';
 const AUTH_SESSION_CACHE_VERSION = 2;
 const AUTH_SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
+let sessionCacheGeneration = 0;
+let pendingRealSession: Promise<AuthSessionResult | null> | null = null;
 
 /**
  * 生成唯一会话标识符（UUID v4）
@@ -250,17 +253,28 @@ export function getSessionFromHeaders(): AuthSessionResult | null {
  * 获取真实的管理员会话（不含模拟拦截，避免递归）
  */
 async function getRealSession(): Promise<AuthSessionResult | null> {
+  // Never share request state across server renders or users.
+  if (typeof window === 'undefined') return getSession();
   const headerSession = getSessionFromHeaders();
   if (headerSession) return headerSession;
 
   const cached = readSessionCache();
   if (cached) return cached;
 
-  const session = await getSession();
-  if (typeof window !== 'undefined' && session) {
-    prewarmSessionCache(session);
+  if (pendingRealSession) return pendingRealSession;
+  const generation = sessionCacheGeneration;
+  const request = getSession().then((session) => {
+    // A sign-out, token refresh or account change supersedes this response.
+    if (generation !== sessionCacheGeneration) return getRealSession();
+    if (session) writeSessionCache(session);
+    return session;
+  });
+  pendingRealSession = request;
+  try {
+    return await request;
+  } finally {
+    if (pendingRealSession === request) pendingRealSession = null;
   }
-  return session;
 }
 
 /**
@@ -313,25 +327,7 @@ export async function getSessionFast(): Promise<AuthSessionResult | null> {
   }
   // --- 模拟模式拦截结束 ---
 
-  // 优先尝试从 Headers 读取（如果中间件已注入）
-  const headerSession = getSessionFromHeaders();
-  if (headerSession) {
-    return headerSession;
-  }
-
-  // 尝试从 sessionStorage 读取缓存
-  const cached = readSessionCache();
-  if (cached) return cached;
-
-  // 缓存不存在或已过期，查询数据库
-  const session = await getSession();
-
-  // 写入缓存（缓存预热）
-  if (typeof window !== 'undefined' && session) {
-    prewarmSessionCache(session);
-  }
-
-  return session;
+  return getRealSession();
 }
 
 /**
@@ -342,6 +338,14 @@ export async function getSessionFast(): Promise<AuthSessionResult | null> {
  * 2. 数据库查询后更新缓存
  */
 export function prewarmSessionCache(session: AuthSessionResult): void {
+  if (typeof window === 'undefined') return;
+  sessionCacheGeneration += 1;
+  pendingRealSession = null;
+  clearMapReadCache();
+  writeSessionCache(session);
+}
+
+function writeSessionCache(session: AuthSessionResult): void {
   if (typeof window !== 'undefined') {
     try {
       sessionStorage.setItem(AUTH_SESSION_CACHE_KEY, JSON.stringify({
@@ -367,6 +371,9 @@ export function prewarmSessionCache(session: AuthSessionResult): void {
  */
 export function clearSessionCache(): void {
   if (typeof window !== 'undefined') {
+    sessionCacheGeneration += 1;
+    pendingRealSession = null;
+    clearMapReadCache();
     try {
       sessionStorage.removeItem(AUTH_SESSION_CACHE_KEY);
     } catch (err) {
@@ -394,8 +401,10 @@ export function clearSessionCacheOnRoleChange(): void {
  */
 export function clearImpersonationCache(): void {
   if (typeof window !== 'undefined') {
+    clearMapReadCache();
     try {
       sessionStorage.removeItem('__impersonation_state');
     } catch {}
   }
 }
+

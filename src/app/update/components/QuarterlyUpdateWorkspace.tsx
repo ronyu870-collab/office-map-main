@@ -307,6 +307,56 @@ export function QuarterlyUpdateWorkspace() {
           if (previewDraftName) setDraftUserName(previewDraftName);
         }
 
+        // Period/supply reads do not depend on building assignments or historical metrics.
+        const periodReadyPromise = (async () => {
+          try {
+            const { data: settings, error: settingsError } = await supabase
+              .from('app_settings')
+              .select('key,value')
+              .in('key', ['current_submission_year', 'current_submission_quarter']);
+            const yearValue = settings?.find((row) => row.key === 'current_submission_year')?.value;
+            const quarterValue = settings?.find((row) => row.key === 'current_submission_quarter')?.value;
+            if (settingsError) throw settingsError;
+            const effectiveYear = Number(yearValue);
+            const effectiveQuarter = Number(quarterValue);
+            if (!Number.isInteger(effectiveYear) || effectiveYear < 2020 || ![1, 2, 3, 4].includes(effectiveQuarter)) throw new Error('无法确认当前填报季度，请重试。');
+            if (cancelled) return;
+            setSubmitYear(effectiveYear);
+            setSubmitQuarter(effectiveQuarter);
+
+            const supplyAssignments = await readQuarterlyPages<Record<string, any>>((from, to) => supabase
+              .from('future_supply_assignments')
+              .select('id,future_supply_id,record_year,record_quarter')
+              .eq('user_id', assignmentUserId)
+              .eq('record_year', effectiveYear)
+              .eq('record_quarter', effectiveQuarter).order('id').range(from, to));
+            if (!cancelled) {
+              setFutureSupplyAssignments(supplyAssignments ?? []);
+              setFutureSupplyData({});
+              if (supplyAssignments?.length) {
+                const idsToLoad = supplyAssignments.map((assignment) => assignment.future_supply_id);
+                const supplies: Record<string, any>[] = [];
+                for (let start = 0; start < idsToLoad.length; start += 100) {
+                  supplies.push(...await readQuarterlyPages<Record<string, any>>((from, to) => supabase
+                    .from('future_supplies')
+                    .select('id,name,submarket,grade,owner,total_area,district')
+                    .in('id', idsToLoad.slice(start, start + 100))
+                    .eq('is_entered_market', false).order('id').range(from, to)));
+                }
+                if (cancelled) return;
+                const supplyMap: Record<string, any> = {};
+                for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
+                setFutureSupplyData(supplyMap);
+              }
+            }
+            return !cancelled;
+          } catch (error) {
+            if (!cancelled) setAssignmentsError('季度或未来供应任务读取失败，请重试，避免遗漏项目。');
+            console.warn('[QuarterlyUpdate] period or future supply unavailable', error);
+            return false;
+          }
+        })();
+
         const assignments = await retryAsync(async () => {
           return readQuarterlyPages((from, to) => supabase.from('building_assignments').select('building_id').eq('user_id', assignmentUserId).order('building_id').range(from, to));
         }, { attempts: 3, baseDelayMs: 250 });
@@ -332,50 +382,9 @@ export function QuarterlyUpdateWorkspace() {
           }
         }
 
-        try {
-          const { data: settings, error: settingsError } = await supabase
-            .from('app_settings')
-            .select('key,value')
-            .in('key', ['current_submission_year', 'current_submission_quarter']);
-          const yearValue = settings?.find((row) => row.key === 'current_submission_year')?.value;
-          const quarterValue = settings?.find((row) => row.key === 'current_submission_quarter')?.value;
-          if (settingsError) throw settingsError;
-          const effectiveYear = Number(yearValue);
-          const effectiveQuarter = Number(quarterValue);
-          if (!Number.isInteger(effectiveYear) || effectiveYear < 2020 || ![1, 2, 3, 4].includes(effectiveQuarter)) throw new Error('无法确认当前填报季度，请重试。');
-          if (cancelled) return;
-          setSubmitYear(effectiveYear);
-          setSubmitQuarter(effectiveQuarter);
-
-          const supplyAssignments = await readQuarterlyPages<Record<string, any>>((from, to) => supabase
-            .from('future_supply_assignments')
-            .select('id,future_supply_id,record_year,record_quarter')
-            .eq('user_id', assignmentUserId)
-            .eq('record_year', effectiveYear)
-            .eq('record_quarter', effectiveQuarter).order('id').range(from, to));
-          if (!cancelled) {
-            setFutureSupplyAssignments(supplyAssignments ?? []);
-            setFutureSupplyData({});
-            if (supplyAssignments?.length) {
-              const idsToLoad = supplyAssignments.map((assignment) => assignment.future_supply_id);
-              const supplies: Record<string, any>[] = [];
-              for (let start = 0; start < idsToLoad.length; start += 100) {
-                supplies.push(...await readQuarterlyPages<Record<string, any>>((from, to) => supabase
-                  .from('future_supplies')
-                  .select('id,name,submarket,grade,owner,total_area,district')
-                  .in('id', idsToLoad.slice(start, start + 100))
-                  .eq('is_entered_market', false).order('id').range(from, to)));
-              }
-              if (cancelled) return;
-              const supplyMap: Record<string, any> = {};
-              for (const supply of supplies ?? []) supplyMap[supply.id] = supply;
-              setFutureSupplyData(supplyMap);
-            }
-          }
-          if (!cancelled) { setResolvedPreviewQuery(previewAsUserId); setPeriodReady(true); }
-        } catch (error) {
-          if (!cancelled) setAssignmentsError('季度或未来供应任务读取失败，请重试，避免遗漏项目。');
-          console.warn('[QuarterlyUpdate] period or future supply unavailable', error);
+        if (await periodReadyPromise && !cancelled) {
+          setResolvedPreviewQuery(previewAsUserId);
+          setPeriodReady(true);
         }
       } catch (error: any) {
         console.error('[QuarterlyUpdate] assignment load failed', error);
@@ -991,5 +1000,6 @@ export function QuarterlyUpdateWorkspace() {
     </div>
   );
 }
+
 
 

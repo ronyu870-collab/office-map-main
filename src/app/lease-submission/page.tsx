@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import dynamic from 'next/dynamic';
 import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -14,10 +15,17 @@ import { canViewLeaseTeamSubmissions, canWriteBusinessData, isUserAdmin } from '
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
-import { LeaseTransactionForm } from './components/LeaseTransactionForm';
 import { SubmissionDetailTable } from './components/SubmissionDetailTable';
 import type { LeaseTransaction, WeeklyProgress } from '@/src/types/lease-transaction';
 import { AppHeader, Badge, Button, Dialog, LoadingState } from '@/src/components/ui';
+
+const LeaseTransactionForm = dynamic(
+  () => import('./components/LeaseTransactionForm').then((module) => module.LeaseTransactionForm),
+  {
+    ssr: false,
+    loading: () => <div role="status" className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"><LoadingState label="正在打开成交表单" rows={0} /></div>,
+  },
+);
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
@@ -292,7 +300,7 @@ export default function LeaseSubmissionPage() {
         {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
       </main>
 
-      {canWrite ? <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} /> : null}
+      {canWrite && showForm ? <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} /> : null}
 
       {canWrite && transferringRecord && (
         <Dialog
@@ -318,3 +326,4 @@ export default function LeaseSubmissionPage() {
     </div>
   );
 }
+
