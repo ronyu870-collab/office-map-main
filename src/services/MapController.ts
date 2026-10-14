@@ -8,6 +8,7 @@ import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
+import { clearMapReadCache } from "./mapReadCache";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
@@ -2877,6 +2878,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
    * @param buildingId 楼宇ID
    */
   async refreshBuildingData(buildingId: string): Promise<void> {
+    clearMapReadCache();
     if (this._destroyed) return;
 
     try {
@@ -3003,3 +3005,4 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.AMap = null;
   }
 }
+

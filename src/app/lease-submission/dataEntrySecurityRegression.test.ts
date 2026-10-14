@@ -55,7 +55,7 @@ describe('lease data entry authorization seams', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
     expect(source).toContain('const canWrite = canWriteBusinessData(userRole)');
     expect(source).toContain('{canWrite ? <Button type="button" size="sm" onClick={openCreate}>');
-    expect(source).toContain('{canWrite ? <LeaseTransactionForm');
+    expect(source).toContain('{canWrite && showForm ? <LeaseTransactionForm');
     expect(source).toContain('{canWrite && transferringRecord && (');
   });
 
@@ -90,3 +90,4 @@ describe('lease data entry authorization seams', () => {
     expect(source).toContain('无权编辑此记录');
   });
 });
+
