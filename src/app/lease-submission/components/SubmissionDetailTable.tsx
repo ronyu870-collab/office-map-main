@@ -322,9 +322,8 @@ export function SubmissionDetailTable({
   const toggleExpand = (id: string) => setExpandedId((previous) => previous === id ? null : id);
   const activeFilters = (Object.entries(filters) as [LeaseColumnKey, LeaseColumnFilter][]).filter(([, filter]) => isLeaseFilterActive(filter));
   const activeFilterCount = activeFilters.length;
-  const renderColumnMenu = (key: LeaseColumnKey, variant: 'header' | 'toolbar') => {
-    const menuId = `${variant}-${key}`;
-    return <LeaseColumnMenu columnKey={key} variant={variant} filter={filters[key]} sort={sort} options={options[key]} open={activeMenu === menuId} onOpenChange={(open) => setActiveMenu(open ? menuId : null)} onFilter={(filter) => updateFilter(key, filter)} onSort={setSort} />;
+  const renderColumnMenu = (key: LeaseColumnKey) => {
+    return <LeaseColumnMenu columnKey={key} filter={filters[key]} sort={sort} options={options[key]} open={activeMenu === key} onOpenChange={(open) => setActiveMenu(open ? key : null)} onFilter={(filter) => updateFilter(key, filter)} onSort={setSort} />;
   };
 
   // 总列数（用于 colSpan）
@@ -341,9 +340,8 @@ export function SubmissionDetailTable({
       <div className={outerClass}>
       {/* ── 工具栏 ── */}
       <div className={`shrink-0 border-b border-zinc-200 bg-white px-5 py-3 ${isFullscreen ? '' : 'rounded-t-2xl'}`}>
-        <div className={`flex flex-col gap-2.5 ${isFullscreen ? '2xl:flex-row 2xl:items-center 2xl:gap-5' : ''}`}>
-          <div className="flex shrink-0 items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex shrink-0 items-center gap-2.5">
             <FileText className="text-[#003e7e]" size={17} />
             <div>
               <h3 className="text-[15px] font-semibold text-zinc-900">{title}</h3>
@@ -353,7 +351,7 @@ export function SubmissionDetailTable({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2 [&>button]:whitespace-nowrap">
             {(activeFilterCount > 0 || sort) && (
               <button
                 onClick={() => { setFilters({}); setSort(null); setActiveMenu(null); }}
@@ -398,12 +396,6 @@ export function SubmissionDetailTable({
             </button>
           </div>
         </div>
-
-        {/* 快捷入口与表头共享筛选状态。 */}
-        <div className="flex flex-wrap gap-1.5">
-          {(['company', 'demandType', 'building', 'subMarket', 'grade', 'submitter', 'area', 'quarter'] as LeaseColumnKey[]).map((key) => <div key={key}>{renderColumnMenu(key, 'toolbar')}</div>)}
-        </div>
-        </div>
         {(activeFilterCount > 0 || sort) && <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
           {activeFilters.map(([key, filter]) => {
             const summary = `${LEASE_TABLE_FIELDS[key].label}：${leaseFilterSummary(key, filter, options[key])}`;
@@ -441,7 +433,7 @@ export function SubmissionDetailTable({
                   style={{ textAlign: col.align || 'left' }}
                   aria-sort={sort?.key === col.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}
                 >
-                  {renderColumnMenu(col.key as LeaseColumnKey, 'header')}
+                  {renderColumnMenu(col.key as LeaseColumnKey)}
                 </th>
               ))}
               {editMode && (
@@ -580,3 +572,4 @@ export function SubmissionDetailTable({
     </>
   );
 }
+
