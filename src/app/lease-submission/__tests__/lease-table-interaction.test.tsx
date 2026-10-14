@@ -36,10 +36,10 @@ describe('成交汇总交互', () => {
     expect(rows[39].face_rent).toBe(121.667);
   });
 
-  it('shares header and toolbar filters and validates inverted numeric ranges', async () => {
+  it('retains header filter state and validates inverted numeric ranges', async () => {
     const user = userEvent.setup();
     render(<SubmissionDetailTable submissions={[row(1), row(2), row(3)]} title="团队成交汇总" />);
-    await user.click(screen.getByRole('button', { name: '成交面积快捷筛选' }));
+    await user.click(screen.getByRole('button', { name: '成交面积筛选和排序' }));
     const dialog = screen.getByRole('dialog');
     await user.type(within(dialog).getByLabelText('成交面积最小值'), '3');
     await user.type(within(dialog).getByLabelText('成交面积最大值'), '1');
@@ -65,7 +65,7 @@ describe('成交汇总交互', () => {
     await user.click(within(dialog).getByRole('checkbox', { name: '金融' }));
     await user.click(within(dialog).getByRole('checkbox', { name: '互联网' }));
     await user.click(within(dialog).getByRole('button', { name: '应用筛选' }));
-    await user.click(screen.getByRole('button', { name: '成交季度快捷筛选' }));
+    await user.click(screen.getByRole('button', { name: '成交季度筛选和排序' }));
     dialog = screen.getByRole('dialog');
     await user.selectOptions(within(dialog).getByLabelText('起始季度'), '2026Q1');
     await user.click(within(dialog).getByRole('button', { name: '应用筛选' }));
@@ -96,7 +96,7 @@ describe('成交汇总交互', () => {
     const user = userEvent.setup();
     const rows = [row(1, { submitter_active: false }), row(2, { submitter_id: 'u2', submitter_name: '离职顾问', submitter_active: false })];
     render(<SubmissionDetailTable submissions={rows} title="团队成交汇总" />);
-    await user.click(screen.getByRole('button', { name: '提交人快捷筛选' }));
+    await user.click(screen.getByRole('button', { name: '提交人筛选和排序' }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('checkbox', { name: '离职顾问' })).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: '取消全选' }));
@@ -108,3 +108,4 @@ describe('成交汇总交互', () => {
     expect(within(screen.getByRole('dialog')).getByRole('checkbox', { name: '离职顾问' })).toBeChecked();
   });
 });
+
