@@ -6,6 +6,27 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Repository engineering rules
 
+## Required standards and preservation of existing design
+
+Before making changes, read `README.md`, the four standards below, and the relevant module documentation, implementation and tests:
+
+- [Product](docs/standards/product.md): business scope, permissions and data semantics.
+- [Design and interaction](docs/standards/design.md): existing appearance, component variants and visual baseline.
+- [Engineering and data](docs/standards/engineering.md): implementation, reliability, performance and maintenance.
+- [Acceptance and release](docs/standards/acceptance.md): affected flows, before/after evidence and release verification.
+
+Apply provisions marked as inherited (`沿用`) or explicitly confirmed (`已确认`) within their stated scope. Suggested details (`建议`) and unresolved choices (`待定`) remain proposals; storing them in this repository does not approve them or authorize an application-wide redesign, permission change or data operation. Follow the user's latest explicit requirements and existing authorization. Do not turn routine implementation choices into repeated approval requests.
+
+The existing modules contain deliberately refined design decisions. For UI changes:
+
+1. Establish the current behavior and rendered appearance, and identify the details to preserve. Distinguish code declarations from computed styles; do not claim browser verification from source inspection.
+2. Classify differences as intentional/appropriate, confirmed defects or unresolved. Different font sizes, spacing or component implementations alone do not prove a defect. Preserve unresolved differences until evidence establishes the needed change.
+3. Improve shared components compatibly before migrating pages in small batches. Preserve suitable variants for ordinary forms, dense entry, reading tables and map labels. Check actual consumers before changing a shared default; avoid blind global replacements.
+4. Supply comparable before/after evidence for each UI batch and verify the affected pages and flows. Preserve reasonable density, hierarchy, operation positions, business behavior, permissions and data correctness.
+5. Keep each batch traceable and recoverable. Correct or revert a regression before extending that change to more pages, without overwriting unrelated work.
+
+Keep standards, their confirmation status and the corresponding implementations consistent. The code audit in the design standard is a dated snapshot, not evidence that listed issues were fixed or that current pages were visually tested.
+
 ## Verification
 
 Before considering a meaningful code change complete, run the repository verification pipeline:
