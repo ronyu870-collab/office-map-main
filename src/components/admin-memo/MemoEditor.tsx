@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useImperativeHandle, useRef, type Ref } from 'react';
 import { Save, Eye, Edit3, History, Loader2 } from 'lucide-react';
 import { getMemo, updateMemoContent, saveMemoWithVersion } from '@/src/services/memoApi';
 import { useAutoSave } from '@/src/hooks/useAutoSave';
@@ -15,7 +15,12 @@ import { Button, EmptyState, LoadingState } from '@/src/components/ui';
 
 type EditorMode = 'edit' | 'preview' | 'history';
 
+export interface MemoEditorHandle {
+  saveBeforeLeave: () => Promise<boolean>;
+}
+
 interface MemoEditorProps {
+  ref?: Ref<MemoEditorHandle>;
   memoId: string;
   userEmail: string;
   allTags: string[];
@@ -23,7 +28,7 @@ interface MemoEditorProps {
   onDeleted: () => void;
 }
 
-export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: MemoEditorProps) {
+export function MemoEditor({ ref, memoId, userEmail, allTags, onSaved }: MemoEditorProps) {
   const [memo, setMemo] = useState<Memo | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -56,36 +61,60 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
     return () => { cancelled = true; };
   }, [memoId]);
 
+  const manualSaving = useRef(false);
+  const draft = JSON.stringify({ title, content, tags });
+  const savedDraft = memo ? JSON.stringify({ title: memo.title, content: memo.content, tags: memo.tags }) : undefined;
+
   const autoSave = useCallback(
     async (val: string) => {
       if (!memo) return;
-      await updateMemoContent(memo.id, { content: val }, userEmail);
+      await updateMemoContent(memo.id, JSON.parse(val) as Pick<Memo, 'title' | 'content' | 'tags'>, userEmail);
     },
     [memo, userEmail]
   );
 
-  const { isSaving, lastSaved } = useAutoSave({
-    content,
+  const { isSaving, lastSaved, error, forceSave, hasUnsavedChanges } = useAutoSave({
+    content: draft,
+    savedContent: savedDraft,
     onSave: autoSave,
     delay: 3000,
-    enabled: mode === 'edit' && !!memo,
+    enabled: !!memo,
   });
 
+  useImperativeHandle(ref, () => ({
+    saveBeforeLeave: async () => !memo || forceSave(),
+  }), [memo, forceSave]);
+
+  useEffect(() => {
+    if (!memo || (!hasUnsavedChanges && !isSaving)) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [memo, hasUnsavedChanges, isSaving]);
+
   const handleManualSave = useCallback(async () => {
-    if (!memo) return;
+    if (!memo || manualSaving.current) return;
+    manualSaving.current = true;
     setSaveStatus('saving');
-    try {
-      await saveMemoWithVersion(memo.id, { title, content, tags }, userEmail);
-      setSaveStatus('saved');
+    const saved = await forceSave(async (snapshot) => {
+      await saveMemoWithVersion(memo.id, JSON.parse(snapshot) as Pick<Memo, 'title' | 'content' | 'tags'>, userEmail);
+    });
+    manualSaving.current = false;
+    setSaveStatus(saved ? 'saved' : 'error');
+    if (saved) {
       showToast('success', '版本已保存');
       onSaved();
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch (err) {
-      setSaveStatus('error');
-      showToast('error', err instanceof Error ? err.message : '保存失败');
-      setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  }, [memo, title, content, tags, userEmail, onSaved]);
+  }, [memo, userEmail, onSaved, forceSave]);
+
+  const changeMode = async (nextMode: EditorMode) => {
+    if (nextMode !== 'edit' && memo && !(await forceSave())) return;
+    setMode(nextMode);
+    setViewingVersion(null);
+  };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -138,7 +167,7 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
       <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-4 py-2">
         <div className="flex items-center gap-1">
           <button
-            onClick={() => { setMode('edit'); setViewingVersion(null); }}
+            onClick={() => { void changeMode('edit'); }}
             className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1 rounded-[var(--cd-radius-md)] px-2.5 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
               mode === 'edit' ? 'bg-[var(--cd-color-brand)] text-white' : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
             }`}
@@ -147,7 +176,7 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
             编辑
           </button>
           <button
-            onClick={() => { setMode('preview'); setViewingVersion(null); }}
+            onClick={() => { void changeMode('preview'); }}
             className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1 rounded-[var(--cd-radius-md)] px-2.5 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
               mode === 'preview' && !isViewingOld ? 'bg-[var(--cd-color-brand)] text-white' : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
             }`}
@@ -156,7 +185,7 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
             预览
           </button>
           <button
-            onClick={() => { setMode('history'); setViewingVersion(null); }}
+            onClick={() => { void changeMode('history'); }}
             className={`inline-flex h-[var(--cd-control-height-sm)] items-center gap-1 rounded-[var(--cd-radius-md)] px-2.5 text-[var(--cd-font-size-sm)] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${
               mode === 'history' ? 'bg-[var(--cd-color-brand)] text-white' : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'
             }`}
@@ -177,7 +206,9 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
                   className={`h-1.5 w-1.5 rounded-full ${
                     saveStatus === 'saving' || isSaving
                       ? 'bg-[var(--cd-color-warning)]'
-                      : saveStatus === 'saved'
+                      : error
+                        ? 'bg-[var(--cd-color-danger)]'
+                        : saveStatus === 'saved'
                         ? 'bg-[var(--cd-color-success)]'
                         : saveStatus === 'error'
                           ? 'bg-[var(--cd-color-danger)]'
@@ -186,7 +217,11 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
                 />
                 {saveStatus === 'saving' || isSaving
                   ? '保存中'
-                  : saveStatus === 'saved'
+                  : error
+                    ? '保存失败'
+                    : hasUnsavedChanges
+                      ? '待保存'
+                      : saveStatus === 'saved'
                     ? '已保存'
                     : lastSaved
                       ? lastSaved.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -200,6 +235,13 @@ export function MemoEditor({ memoId, userEmail, allTags, onSaved, onDeleted }: M
           )}
         </div>
       </div>
+
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 border-b border-[var(--cd-color-danger)] bg-[var(--cd-color-danger-soft)] px-4 py-2 text-sm text-[var(--cd-color-danger)]">
+          <span>保存失败，当前输入仍保留。请重试，保存成功后再切换。</span>
+          <Button size="sm" variant="secondary" disabled={isSaving} onClick={() => { void (saveStatus === 'error' ? handleManualSave() : forceSave()); }}>重试保存</Button>
+        </div>
+      )}
 
       {/* 版本查看提示 */}
       {isViewingOld && (

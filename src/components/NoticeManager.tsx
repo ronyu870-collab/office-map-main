@@ -18,6 +18,8 @@ export function NoticeManager({ adminEmail }: Props) {
   const [notices, setNotices] = React.useState<NoticeRow[]>([]);
   const [drafts, setDrafts] = React.useState<string[]>(['', '', '']);
   const [loading, setLoading] = React.useState(true);
+  const mutationInFlight = React.useRef(false);
+  const [deleting, setDeleting] = React.useState(false);
   const [saving, setSaving] = React.useState<number | null>(null);
   const [toast, setToast] = React.useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -28,44 +30,55 @@ export function NoticeManager({ adminEmail }: Props) {
 
   const fetchNotices = React.useCallback(async () => {
     setLoading(true);
-    const data = await getAllActiveNotices();
-    setNotices(data);
-    // 草稿槽重置为空（已有内容的槽不预填，保持"需手动清空才能编辑"的设计）
-    setDrafts(['', '', '']);
-    setLoading(false);
+    try {
+      setNotices(await getAllActiveNotices());
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   React.useEffect(() => { fetchNotices(); }, [fetchNotices]);
 
   const handlePublish = async (slotIndex: number) => {
+    if (mutationInFlight.current) return;
     const content = drafts[slotIndex].trim();
     if (!content) { showToast('公告内容不能为空', false); return; }
     if (notices.length >= MAX_NOTICES) {
       showToast('已达到3条上限，请先删除一条再发布', false);
       return;
     }
+    mutationInFlight.current = true;
     setSaving(slotIndex);
     try {
       await publishNotice(content, adminEmail);
       logAction(adminEmail, 'UPDATE_NOTICE', { content: content.slice(0, 50) });
+      // Compact the remaining drafts before the number of visible slots shrinks.
+      setDrafts((current) => [...current.filter((_, index) => index !== slotIndex), '']);
       showToast('公告已发布');
-      await fetchNotices();
+      await fetchNotices().catch(() => showToast('公告已发布，但列表刷新失败，请刷新页面', false));
     } catch (e: any) {
       showToast(e.message ?? '发布失败', false);
     } finally {
+      mutationInFlight.current = false;
       setSaving(null);
     }
   };
 
   const handleDelete = async (notice: NoticeRow) => {
+    if (mutationInFlight.current) return;
     if (!confirm(`确认删除这条公告？\n\n"${notice.content.slice(0, 40)}${notice.content.length > 40 ? '…' : ''}"`)) return;
+    mutationInFlight.current = true;
+    setDeleting(true);
     try {
       await deactivateNotice(notice.id);
       logAction(adminEmail, 'DELETE_NOTICE', { content: notice.content.slice(0, 50) });
       showToast('公告已删除');
-      await fetchNotices();
+      await fetchNotices().catch(() => showToast('公告已删除，但列表刷新失败，请刷新页面', false));
     } catch (e: any) {
       showToast(e.message ?? '删除失败', false);
+    } finally {
+      mutationInFlight.current = false;
+      setDeleting(false);
     }
   };
 
@@ -113,6 +126,7 @@ export function NoticeManager({ adminEmail }: Props) {
                 </span>
                 <button
                   onClick={() => handleDelete(notice)}
+                  disabled={saving !== null || deleting}
                   className="rounded border border-red-200 bg-white px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors"
                 >
                   删除此条
@@ -136,6 +150,7 @@ export function NoticeManager({ adminEmail }: Props) {
                 </p>
                 <textarea
                   value={drafts[slotIdx]}
+                  disabled={saving === slotIdx}
                   onChange={e => setDraft(slotIdx, e.target.value)}
                   rows={3}
                   placeholder="输入公告内容后点击发布，例如：本周五下午3点系统将进行例行维护，请提前保存数据。"
@@ -145,7 +160,7 @@ export function NoticeManager({ adminEmail }: Props) {
                   <Button
                     size="sm"
                     onClick={() => handlePublish(slotIdx)}
-                    disabled={saving === slotIdx || !drafts[slotIdx].trim()}
+                    disabled={saving !== null || deleting || !drafts[slotIdx].trim()}
                   >
                     {saving === slotIdx ? '发布中...' : '发布公告'}
                   </Button>
