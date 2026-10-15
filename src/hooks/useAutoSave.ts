@@ -22,6 +22,7 @@ export function useAutoSave({ content, onSave, delay = 3000, enabled = true, sav
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queue = useRef<Promise<boolean>>(Promise.resolve(true));
   const mounted = useRef(true);
+  const needsRetry = useRef(false);
 
   useEffect(() => { latest.current = { content, onSave }; }, [content, onSave]);
   useEffect(() => {
@@ -44,7 +45,7 @@ export function useAutoSave({ content, onSave, delay = 3000, enabled = true, sav
     const task = queue.current.then(async () => {
       if (!mounted.current) return false;
       let save = saveVersion;
-      if (!save && persisted.current === latest.current.content) return true;
+      if (!save && !needsRetry.current && persisted.current === latest.current.content) return true;
       setIsSaving(true);
       setError(null);
       try {
@@ -52,6 +53,7 @@ export function useAutoSave({ content, onSave, delay = 3000, enabled = true, sav
           const snapshot = latest.current.content;
           await (save ?? latest.current.onSave)(snapshot);
           persisted.current = snapshot;
+          needsRetry.current = false;
           if (!mounted.current) return false;
           setPersistedContent(snapshot);
           setLastSaved(new Date());
@@ -60,6 +62,7 @@ export function useAutoSave({ content, onSave, delay = 3000, enabled = true, sav
         } while (persisted.current !== latest.current.content);
         return true;
       } catch (err) {
+        needsRetry.current = true;
         if (mounted.current) setError(err instanceof Error ? err : new Error('保存失败'));
         return false;
       } finally {
@@ -82,5 +85,5 @@ export function useAutoSave({ content, onSave, delay = 3000, enabled = true, sav
     return cancelTimer;
   }, [content, enabled, delay, forceSave, cancelTimer]);
 
-  return { isSaving, lastSaved, error, forceSave, hasUnsavedChanges: content !== persistedContent };
+  return { isSaving, lastSaved, error, forceSave, hasUnsavedChanges: content !== persistedContent || error !== null };
 }

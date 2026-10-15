@@ -52,6 +52,18 @@ describe('useAutoSave draft durability', () => {
     expect(result.current.error).toBeNull();
   });
 
+  it('retries after a failed write even when the user restores the last known saved text', async () => {
+    const save = vi.fn().mockRejectedValueOnce(new Error('response lost')).mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(({ content }) => useAutoSave({ content, savedContent: 'server', onSave: save }), { initialProps: { content: 'draft' } });
+    await act(async () => { expect(await result.current.forceSave()).toBe(false); });
+    rerender({ content: 'server' });
+    expect(result.current.hasUnsavedChanges).toBe(true);
+    await act(async () => { expect(await result.current.forceSave()).toBe(true); });
+    expect(save).toHaveBeenLastCalledWith('server');
+    expect(result.current.error).toBeNull();
+    expect(result.current.hasUnsavedChanges).toBe(false);
+  });
+
   it('puts explicit version saves after any active autosave', async () => {
     const pending = deferred();
     const save = vi.fn().mockImplementationOnce(() => pending.promise).mockResolvedValue(undefined);
