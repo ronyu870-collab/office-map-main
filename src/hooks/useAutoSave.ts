@@ -1,89 +1,86 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import debounce from 'lodash.debounce';
+
+type SaveContent = (content: string) => Promise<void>;
 
 interface UseAutoSaveOptions {
   content: string;
-  onSave: (content: string) => Promise<void>;
+  onSave: SaveContent;
   delay?: number;
   enabled?: boolean;
+  /** A server-loaded baseline; omit to retain save-on-enable behavior. */
+  savedContent?: string;
 }
 
-interface UseAutoSaveReturn {
-  isSaving: boolean;
-  lastSaved: Date | null;
-  error: Error | null;
-  forceSave: () => Promise<void>;
-}
-
-/**
- * 自动保存 Hook
- *
- * 使用 ref 持有最新的 onSave，避免 debounce 函数因依赖变化而频繁重建。
- */
-export function useAutoSave({
-  content,
-  onSave,
-  delay = 3000,
-  enabled = true,
-}: UseAutoSaveOptions): UseAutoSaveReturn {
+/** Debounce edits, serialize writes, and let navigation await the latest draft. */
+export function useAutoSave({ content, onSave, delay = 3000, enabled = true, savedContent }: UseAutoSaveOptions) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [persistedContent, setPersistedContent] = useState(savedContent);
+  const latest = useRef({ content, onSave });
+  const persisted = useRef(savedContent);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const mounted = useRef(true);
 
-  // 用 ref 持有最新的 onSave，避免 debounce 因 onSave 引用变化而重建
-  const onSaveRef = useRef(onSave);
+  useEffect(() => { latest.current = { content, onSave }; }, [content, onSave]);
   useEffect(() => {
-    onSaveRef.current = onSave;
-  }, [onSave]);
+    if (savedContent !== undefined) {
+      persisted.current = savedContent;
+      setPersistedContent(savedContent);
+      setError(null);
+    }
+  }, [savedContent]);
 
-  // debounce 函数只创建一次，通过 ref 调用最新的 onSave
-  const debouncedSaveRef = useRef(
-    debounce(async (value: string) => {
+  const cancelTimer = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+
+  // A manual version save uses the same queue so an older autosave cannot
+  // finish after it and overwrite the new version's current content.
+  const forceSave = useCallback((saveVersion?: SaveContent): Promise<boolean> => {
+    cancelTimer();
+    const task = queue.current.then(async () => {
+      if (!mounted.current) return false;
+      let save = saveVersion;
+      if (!save && persisted.current === latest.current.content) return true;
       setIsSaving(true);
       setError(null);
       try {
-        await onSaveRef.current(value);
-        setLastSaved(new Date());
+        do {
+          const snapshot = latest.current.content;
+          await (save ?? latest.current.onSave)(snapshot);
+          persisted.current = snapshot;
+          if (!mounted.current) return false;
+          setPersistedContent(snapshot);
+          setLastSaved(new Date());
+          save = undefined;
+          // Include edits made while a slow request was in flight.
+        } while (persisted.current !== latest.current.content);
+        return true;
       } catch (err) {
-        setError(err as Error);
+        if (mounted.current) setError(err instanceof Error ? err : new Error('保存失败'));
+        return false;
       } finally {
-        setIsSaving(false);
+        if (mounted.current) setIsSaving(false);
       }
-    }, delay)
-  );
+    });
+    queue.current = task;
+    return task;
+  }, [cancelTimer]);
 
-  // 当内容变化时触发 debounced 保存
   useEffect(() => {
-    if (enabled) {
-      debouncedSaveRef.current(content);
-    }
-    return () => {
-      debouncedSaveRef.current.cancel();
-    };
-  }, [content, enabled]);
+    mounted.current = true;
+    return () => { mounted.current = false; cancelTimer(); };
+  }, [cancelTimer]);
 
-  // 组件卸载时取消待处理的 debounce
   useEffect(() => {
-    const debouncedFn = debouncedSaveRef.current;
-    return () => {
-      debouncedFn.cancel();
-    };
-  }, []);
-
-  // 强制立即保存
-  const forceSave = useCallback(async () => {
-    debouncedSaveRef.current.cancel();
-    setIsSaving(true);
-    setError(null);
-    try {
-      await onSaveRef.current(content);
-      setLastSaved(new Date());
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setIsSaving(false);
+    if (enabled && content !== persisted.current) {
+      timer.current = setTimeout(() => { void forceSave(); }, delay);
     }
-  }, [content]);
+    return cancelTimer;
+  }, [content, enabled, delay, forceSave, cancelTimer]);
 
-  return { isSaving, lastSaved, error, forceSave };
+  return { isSaving, lastSaved, error, forceSave, hasUnsavedChanges: content !== persistedContent };
 }

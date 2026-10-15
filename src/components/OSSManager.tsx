@@ -135,6 +135,9 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   const [targetItem, setTargetItem] = React.useState<ResearchLibraryItem | null>(null);
   const [newName, setNewName] = React.useState('');
   const [folderName, setFolderName] = React.useState('');
+  const currentPrefixRef = React.useRef('');
+  const listRequest = React.useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
+  const mounted = React.useRef(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const canManage = isResearchLibraryManager(userRole) && !isImpersonating;
@@ -158,26 +161,51 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   }, []);
 
   const loadReports = React.useCallback(async (prefix: string) => {
+    if (!mounted.current) return;
+    listRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const id = listRequest.current.id + 1;
+    listRequest.current = { id, controller };
+    currentPrefixRef.current = prefix;
+    const isCurrent = () => mounted.current && listRequest.current.id === id && !controller.signal.aborted;
     setLoading(true);
     setLoadError('');
+    setTruncated(false);
     setCurrentPrefix(prefix);
     setSelectedItems(new Set());
     try {
       const headers = await authHeaders();
-      const response = await fetch(`/api/oss?action=get-list&prefix=${encodeURIComponent(prefix)}`, { headers });
+      if (!isCurrent()) return;
+      const response = await fetch(`/api/oss?action=get-list&prefix=${encodeURIComponent(prefix)}`, { headers, signal: controller.signal });
       const result = await response.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '资料列表加载失败');
       setItems(Array.isArray(result.data) ? result.data : []);
       setTruncated(Boolean(result.truncated));
     } catch (error) {
+      if (!isCurrent()) return;
       setItems([]);
       setLoadError(error instanceof Error ? error.message : '资料列表加载失败');
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 
-  React.useEffect(() => { void loadReports(''); }, [loadReports]);
+  React.useEffect(() => {
+    mounted.current = true;
+    void loadReports('');
+    return () => {
+      mounted.current = false;
+      listRequest.current.controller?.abort();
+      listRequest.current.id += 1;
+    };
+  }, [loadReports]);
+
+  // A completed upload/edit refreshes its original directory only if the
+  // user is still there; it must never navigate them back to an old folder.
+  const refreshDirectory = (prefix: string) => {
+    if (mounted.current && currentPrefixRef.current === prefix) return loadReports(prefix);
+  };
 
   const goUp = () => {
     const parts = currentPrefix.split('/').filter(Boolean);
@@ -255,7 +283,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '创建失败');
       setShowCreateFolderModal(false);
       setNotice({ tone: 'success', text: '文件夹已创建。' });
-      await loadReports(currentPrefix);
+      await refreshDirectory(currentPrefix);
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '创建失败' });
     } finally {
@@ -311,7 +339,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
         }
       }
       setNotice({ tone: 'success', text: '上传队列已处理完成；请查看每个文件的状态。' });
-      await loadReports(currentPrefix);
+      await refreshDirectory(currentPrefix);
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '上传失败' });
       setUploads((current) => current.map((item) => item.status === 'queued' || item.status === 'uploading' ? { ...item, status: 'error', message: '上传初始化失败' } : item));
@@ -341,7 +369,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '重命名失败');
       setShowRenameModal(false);
       setNotice({ tone: 'success', text: result.message || '名称已更新。' });
-      await loadReports(currentPrefix);
+      await refreshDirectory(currentPrefix);
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '重命名失败' });
     } finally {
@@ -365,7 +393,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '删除失败');
       setShowDeleteModal(false);
       setNotice({ tone: 'success', text: result.message || '项目已删除。' });
-      await loadReports(currentPrefix);
+      await refreshDirectory(currentPrefix);
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '删除失败' });
     } finally {
@@ -397,7 +425,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       setShowBatchDeleteModal(false);
       setSelectedItems(new Set());
       setNotice({ tone: failed ? 'warning' : 'success', text: `批量删除完成：成功 ${success} 个，失败 ${failed} 个。` });
-      await loadReports(currentPrefix);
+      await refreshDirectory(currentPrefix);
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '批量删除失败' });
     } finally {
