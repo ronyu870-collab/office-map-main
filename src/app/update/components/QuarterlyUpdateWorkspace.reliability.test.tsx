@@ -778,3 +778,92 @@ describe('mobile history beside current-quarter entry', () => {
     expect(mobile.getByLabelText(/^报价 \*$/)).toHaveValue(null);
   });
 });
+
+describe('mobile project navigation', () => {
+  let originalBuildings: typeof state.buildings;
+  beforeEach(() => {
+    originalBuildings = state.buildings;
+    state.buildings = [...originalBuildings,
+      { id: 'synthetic-a2', name: 'Synthetic Tower A2', grade: 'A', submarket: 'CBD', total_area: 1200 },
+      { id: 'synthetic-a3', name: 'Synthetic Tower A3', grade: 'A', submarket: 'CBD', total_area: 1500 },
+    ];
+  });
+  afterEach(() => { state.buildings = originalBuildings; });
+  const card = () => within(screen.getByLabelText('手机项目填写区'));
+
+  it('shows one mobile project, supports direct selection and boundary buttons, and keeps every desktop row', async () => {
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const picker = screen.getByRole('combobox', { name: '选择项目' });
+    expect(picker).toHaveValue('building:synthetic-a');
+    expect(card().getAllByRole('region')).toHaveLength(1);
+    expect(screen.getByLabelText('项目序号')).toHaveTextContent('1 / 3');
+    expect(screen.getByRole('button', { name: '上一个' })).toBeDisabled();
+    expect(document.querySelectorAll('.md\\:block tbody tr')).toHaveLength(3);
+    fireEvent.click(screen.getByRole('button', { name: '下一个' }));
+    expect(card().getByRole('region', { name: 'Synthetic Tower A2填报' })).toBeInTheDocument();
+    expect(card().queryByRole('region', { name: 'Synthetic Tower A填报' })).not.toBeInTheDocument();
+    fireEvent.change(picker, { target: { value: 'building:synthetic-a3' } });
+    expect(screen.getByLabelText('项目序号')).toHaveTextContent('3 / 3');
+    expect(screen.getByRole('button', { name: '下一个' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '上一个' }));
+    expect(picker).toHaveValue('building:synthetic-a2');
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('preserves each project input and reference while resetting only the scroll position on navigation', async () => {
+    state.metrics = [
+      { building_id: 'synthetic-a', record_year: 2026, record_quarter: 3, asking_rent: 300 },
+      { building_id: 'synthetic-a2', record_year: 2025, record_quarter: 4, asking_rent: 200 },
+    ];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    fireEvent.change(card().getByLabelText(/^报价 \*$/), { target: { value: '310' } });
+    const scroll = screen.getByLabelText('手机项目填写区'); scroll.scrollTop = 450;
+    fireEvent.click(screen.getByRole('button', { name: '下一个' }));
+    expect(scroll.scrollTop).toBe(0);
+    expect(card().getByLabelText(/^报价 \*$/)).toHaveValue(null);
+    expect(card().getByLabelText(/^报价历史参考/)).toHaveTextContent('200');
+    expect(card().getByRole('columnheader', { name: /历史参考.*2025 Q4/ })).toBeInTheDocument();
+    fireEvent.change(card().getByLabelText(/^报价 \*$/), { target: { value: '220' } });
+    fireEvent.click(screen.getByRole('button', { name: '上一个' }));
+    expect(card().getByLabelText(/^报价 \*$/)).toHaveValue(310);
+    expect(card().getByLabelText(/^报价历史参考/)).toHaveTextContent('300');
+    fireEvent.click(screen.getByRole('button', { name: '下一个' }));
+    expect(card().getByLabelText(/^报价 \*$/)).toHaveValue(220);
+  });
+
+  it('remembers the selection per category and disables both buttons for a single project', async () => {
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'building:synthetic-a3' } });
+    fireEvent.click(screen.getByRole('button', { name: '乙级' }));
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('building:synthetic-b'));
+    expect(screen.getByLabelText('项目序号')).toHaveTextContent('1 / 1');
+    expect(screen.getByRole('button', { name: '上一个' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '下一个' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '甲级' }));
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('building:synthetic-a3'));
+  });
+
+  it('shows an empty category without a stale project or navigation controls', async () => {
+    state.buildings = state.buildings.filter((building) => building.grade !== 'B');
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    fireEvent.click(screen.getByRole('button', { name: '乙级' }));
+    await waitFor(() => expect(screen.getByText('Synthetic Person · 乙级')).toBeInTheDocument());
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(card().getByText('当前分类没有需要填报的项目。')).toBeInTheDocument();
+    expect(card().queryByRole('region')).not.toBeInTheDocument();
+  });
+
+  it('submits filled projects across the category even when only one project is displayed', async () => {
+    const row = { qQuote: '300', qProp: '30', qFace: '285', qFree: '3', qVacArea: '100' };
+    state.draftRead.mockResolvedValue({ data: { ...draft('300').data, draft_data: { 'synthetic-a': row, 'synthetic-a2': row, 'synthetic-a3': row, __quarterly_meta__: { version: 2, year: 2026, quarter: 4, revision: 1 } } }, error: null });
+    state.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => name === 'submit_quarterly_batch_v2'
+      ? { data: [{ regular_count: 3, future_count: 0, submitted_at: '2026-10-08T00:00:00.000Z' }], error: null }
+      : { data: [{ revision: Number(args.p_expected_revision ?? 0) + 1, updated_at: '2026-10-08T00:00:00.000Z' }], error: null });
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    await waitFor(() => expect(card().getByLabelText(/^报价 \*$/)).toHaveValue(300));
+    fireEvent.click(screen.getByRole('button', { name: '提交当前分类' }));
+    await screen.findByText('提交成功');
+    const submission = state.rpc.mock.calls.find(([name]) => name === 'submit_quarterly_batch_v2')?.[1];
+    expect(submission.p_regular_rows.map((row: { building_id: string }) => row.building_id)).toEqual(['synthetic-a', 'synthetic-a2', 'synthetic-a3']);
+  });
+});
