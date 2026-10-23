@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, History, RotateCcw, Save } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, History, RotateCcw, Save } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
@@ -185,6 +185,8 @@ export function QuarterlyUpdateWorkspace() {
   const [isPreview, setIsPreview] = React.useState(false);
   const [previewUserName, setPreviewUserName] = React.useState('');
   const [currentTab, setCurrentTab] = React.useState('GradeA');
+  const [mobileSelection, setMobileSelection] = React.useState<Record<string, string>>({});
+  const mobileScrollRef = React.useRef<HTMLDivElement>(null);
   const [futureSupplyAssignments, setFutureSupplyAssignments] = React.useState<any[]>([]);
   const [futureSupplyData, setFutureSupplyData] = React.useState<Record<string, any>>({});
   const [assignedBuildingIds, setAssignedBuildingIds] = React.useState<string[] | null>(null);
@@ -644,6 +646,19 @@ export function QuarterlyUpdateWorkspace() {
   };
 
   const filteredBuildings = myBuildings.filter((building: any) => building._category === currentTab);
+  const mobileScope = `${draftUserId}:${submitYear}:${submitQuarter}:${currentTab}`;
+  const projectKey = (building: any) => building._isFutureSupply ? `future:${building._assignmentId ?? building.id}` : `building:${building.id}`;
+  const selectedIndex = filteredBuildings.findIndex((building) => projectKey(building) === mobileSelection[mobileScope]);
+  const mobileIndex = Math.max(0, selectedIndex);
+  const mobileBuilding = filteredBuildings[mobileIndex];
+  const mobileKey = mobileBuilding ? projectKey(mobileBuilding) : '';
+  const selectMobileProject = (index: number) => {
+    const building = filteredBuildings[index];
+    if (building) setMobileSelection((selection) => ({ ...selection, [mobileScope]: projectKey(building) }));
+  };
+  React.useEffect(() => {
+    if (mobileScrollRef.current) mobileScrollRef.current.scrollTop = 0;
+  }, [mobileScope, mobileKey]);
   const rowState = (building: any) => building._isFutureSupply
     ? futureSupplyDrafts[building.id] || futureSupplyDrafts[building._assignmentId] || {}
     : draftData[building.id] || {};
@@ -971,8 +986,27 @@ export function QuarterlyUpdateWorkspace() {
             </table>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto md:hidden">
-            {filteredBuildings.map((building: any, index: number) => {
+          <div className="flex min-h-0 flex-1 flex-col md:hidden">
+            {mobileBuilding && <nav className="shrink-0 border-b border-slate-200 bg-white px-3 pt-2" aria-label="手机项目切换">
+              <div className="relative">
+                <label htmlFor="mobile-project-picker" className="sr-only">选择项目</label>
+                <select id="mobile-project-picker" value={mobileKey} onChange={(event) => {
+                  const index = filteredBuildings.findIndex((building) => projectKey(building) === event.target.value);
+                  selectMobileProject(index);
+                }} className="min-h-11 w-full min-w-0 appearance-none truncate rounded-md border border-slate-200 bg-white py-2 pl-3 pr-9 text-base font-semibold text-[#003e7e] outline-none focus:border-[#003e7e] focus:ring-2 focus:ring-[#003e7e]/10">
+                  {filteredBuildings.map((building: any) => <option key={projectKey(building)} value={projectKey(building)}>{String(building._isFutureSupply ? building.name : getVal(building, ['写字楼名称', 'name']) || '-')}</option>)}
+                </select>
+                <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              </div>
+              <div className="flex items-center justify-between">
+                <button type="button" onClick={() => selectMobileProject(mobileIndex - 1)} disabled={mobileIndex === 0} className="inline-flex min-h-11 items-center gap-1 pr-3 text-xs font-medium text-[#003e7e] disabled:text-slate-300"><ChevronLeft size={14} aria-hidden="true" />上一个</button>
+                <span className="text-[11px] tabular-nums text-slate-500" aria-label="项目序号">{mobileIndex + 1} / {filteredBuildings.length}</span>
+                <button type="button" onClick={() => selectMobileProject(mobileIndex + 1)} disabled={mobileIndex === filteredBuildings.length - 1} className="inline-flex min-h-11 items-center gap-1 pl-3 text-xs font-medium text-[#003e7e] disabled:text-slate-300">下一个<ChevronRight size={14} aria-hidden="true" /></button>
+              </div>
+            </nav>}
+            <div ref={mobileScrollRef} className="min-h-0 flex-1 overflow-y-auto" aria-label="手机项目填写区">
+            {filteredBuildings.length === 0 && <p className="p-10 text-center text-sm text-zinc-400">当前分类没有需要填报的项目。</p>}
+            {mobileBuilding && [mobileBuilding].map((building: any) => {
               const draft = rowState(building);
               const totalArea = totalAreaFor(building);
               const issues = getQuarterlyRowIssues(draft, totalArea);
@@ -1010,11 +1044,8 @@ export function QuarterlyUpdateWorkspace() {
               const missing = issues.filter((issue) => issue.severity === 'warning').length;
               const error = issues.find((issue) => issue.severity === 'error');
               return (
-                <section key={`${building.id}-${index}`} className="border-b border-zinc-200 px-3 py-3" aria-label={`${String(name)}填报`}>
-                  <div className="mb-3">
-                    <h2 className="text-sm font-semibold leading-5 text-[#003e7e]">{index + 1}. {String(name)}</h2>
-                    <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{String(building.submarket || '')}</p>
-                  </div>
+                <section key={projectKey(building)} className="px-3 py-3" aria-label={`${String(name)}填报`}>
+                  <p className="mb-2 text-[11px] leading-4 text-slate-500">{String(building.submarket || '')}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <label><span className="mb-1 block text-[11px] font-medium text-slate-500">业主</span><RowField value={draft.qOwner ?? (building._isFutureSupply ? '' : String(getVal(building, ['业主', 'Landlord']) || ''))} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline appearance="mobile" /></label>
                     <label><span className="mb-1 block text-[11px] font-medium text-slate-500">物业</span><RowField value={draft.qPropMan ?? (building._isFutureSupply ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || ''))} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline appearance="mobile" /></label>
@@ -1055,6 +1086,7 @@ export function QuarterlyUpdateWorkspace() {
                 </section>
               );
             })}
+            </div>
           </div>
 
           <DataEntryToolbar className="shrink-0" leading={<span className="hidden text-[10px] text-zinc-500 md:inline">草稿自动保存</span>}>
