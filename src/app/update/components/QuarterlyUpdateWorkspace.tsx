@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertTriangle, CheckCircle2, Database, RotateCcw, Save } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, History, RotateCcw, Save } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
@@ -614,7 +614,6 @@ export function QuarterlyUpdateWorkspace() {
     ? safeNum(building.total_area)
     : safeNum(getVal(building, ['总面积', 'Total Area']));
 
-  const formalCoveredCount = myBuildings.filter((building) => formalRows.some((row) => building._isFutureSupply ? row.future_supply_id === building.id : row.building_id === building.id)).length;
   const completedCount = filteredBuildings.filter((building: any) => isQuarterlyRowComplete(rowState(building))).length;
   const exceptionCount = filteredBuildings.filter((building: any) => getQuarterlyRowIssues(rowState(building), totalAreaFor(building)).length > 0).length;
   const incompleteBuildings = filteredBuildings.filter((building: any) => !isQuarterlyRowComplete(rowState(building)));
@@ -741,7 +740,7 @@ export function QuarterlyUpdateWorkspace() {
   }
 
   return (
-    <div className="flex h-screen min-h-0 flex-col overflow-hidden bg-[#f3f5f7] text-zinc-900">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#f3f5f7] text-zinc-900">
       <header className="shrink-0 border-b border-zinc-200 bg-white">
         <AppHeader
           title={<span className="flex items-center gap-2">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{readOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
@@ -769,43 +768,46 @@ export function QuarterlyUpdateWorkspace() {
           <span className="px-2">草稿完整 <strong className="tabular-nums text-emerald-700">{completedCount}</strong></span>
           <span className="pl-2">待检查 <strong className="tabular-nums text-amber-700">{exceptionCount}</strong></span>
         </div>
+        <button type="button" className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1 rounded px-2 text-[11px] text-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-[#003e7e] md:ml-2" onClick={() => setShowRecovery(true)} aria-haspopup="dialog">
+          <History size={14} aria-hidden="true" />历史记录
+        </button>
       </div>
 
-      {!editingAcknowledged && canWriteBusinessData(userRole) && !isPreview && !isImpersonating && <section className="shrink-0 border-b border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-950" aria-label="新版编辑安全确认">
-        <strong>开始新版编辑前，请先保存并关闭其他旧版填报页面</strong>
-        <p className="my-1">已有草稿可先只读查看。请在其他设备或旧标签页确认保存成功后再关闭，避免新旧页面同时修改同一草稿。此确认仅记录您在本浏览器的选择，不会替您关闭页面，也不代表系统已验证旧页面没有未保存内容。</p>
-        <button type="button" className="mt-1 rounded border border-amber-500 bg-white px-3 py-1.5 font-semibold" onClick={() => {
+      {!editingAcknowledged && canWriteBusinessData(userRole) && !isPreview && !isImpersonating && <section className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 sm:px-5" aria-label="新版编辑安全确认">
+        <p className="min-w-0 flex-1 basis-52 leading-relaxed">请先保存并关闭其他设备或标签页中的旧版填报页面。</p>
+        <button type="button" className="min-h-9 shrink-0 rounded border border-amber-400 bg-white px-3 py-1.5 font-semibold" onClick={() => {
           if (!clientAckKey) return;
           try { storage?.setItem(clientAckKey, 'saved-closed-legacy-pages'); } catch { /* The current page can still record the explicit acknowledgement. */ }
           setAcknowledgedEditorKey(clientAckKey);
-        }}>我已保存并关闭其他旧版编辑页面，启用本页编辑</button>
+        }}>开始填写</button>
       </section>}
 
-      <section className="shrink-0 border-b border-zinc-200 bg-white px-3 py-2 text-xs" aria-label="季度记录与恢复">
-        <div className="flex flex-wrap items-center gap-3">
-          <span>{formalLoading ? '正在读取正式记录…' : formalError ? '正式记录覆盖暂不可用' : `正式记录覆盖 ${formalCoveredCount} 个已分配项目 / 当前分配 ${myBuildings.length} 个`}</span>
-          <span className="text-zinc-500">覆盖表示存在提交记录，不代表本季度数据已核验</span>
-          <button type="button" className="underline" onClick={() => setShowRecovery((value) => !value)}>{showRecovery ? '收起记录与恢复' : '查看正式记录与草稿恢复'}</button>
-          <button type="button" className="underline" onClick={exportRecovery}>导出恢复副本</button>
-        </div>
-        {formalError && <div role="alert" className="mt-1 text-rose-700">{formalError} <button type="button" className="underline" onClick={() => setFormalRefresh((value) => value + 1)}>重新读取正式记录</button></div>}
+      {(draftSnapshot.error || (draftSnapshot.localError && !isPreview && !isImpersonating) || attemptState.error || attemptState.attempt?.hasPending()) && <section className="shrink-0 border-b border-zinc-200 bg-white px-3 py-2 text-xs" aria-label="填报提示">
         {draftSnapshot.error && <div role="alert" className="mt-1 text-rose-700">{draftSnapshot.error}</div>}
         {draftSnapshot.localError && !isPreview && !isImpersonating && <div role="alert" className="mt-1 text-rose-700">{draftSnapshot.localError}</div>}
-        {legacyReference && !referenceChoice && <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-zinc-700" role="status" aria-label="原草稿参考提示">
-          <strong>已有草稿已保留，来源待核实</strong>：共 {Object.keys(legacyReference.payload.regular).length + Object.keys(legacyReference.payload.future).length} 个项目条目；原标记 {legacyReference.year} Q{legacyReference.quarter}；原稿保存时间 {legacyReference.updatedAt}
-          <p className="mt-1">保存时间不代表数据所属季度。可选择载入后逐项核对，或本季度不使用；原件仍可从恢复入口查看。</p>
-          <div className="mt-1 text-[11px]">{[...Object.entries(legacyReference.payload.regular), ...Object.entries(legacyReference.payload.future)].slice(0, 3).map(([id, row]) => <div key={id}>{myBuildings.find((building) => building.id === id || building._assignmentId === id)?.name ?? id}：报价 {row.qQuote ?? '未填'}，表面租金 {row.qFace ?? '未填'}，空置面积 {row.qVacArea ?? '未填'}</div>)}</div>
-          <div className="mt-2 flex flex-wrap items-center gap-3"><button type="button" className="underline" onClick={() => setShowRecovery(true)}>查看全部原草稿</button>{!readOnly && <button type="button" className="rounded border border-zinc-300 bg-white px-2 py-1 font-semibold" onClick={restoreLegacyDraft}>载入原草稿到编辑区供核对</button>}<button type="button" className="underline" disabled={!referenceDisplayKey || submitting} onClick={() => rememberReferenceChoice('ignored')}>{canRememberReferenceChoice ? '本季度不使用这份草稿' : '收起草稿提示'}</button></div>
-          <p className="mt-1 text-[11px] text-zinc-500">不使用只收起这份参考，不清空当前输入、不删除原稿，也不会保存或提交数据。</p>
-        </div>}
         {attemptState.error && <div role="alert" className="mt-1 text-rose-700">{attemptState.error}</div>}
-        {attemptState.attempt?.hasPending() && <div role="alert" className="mt-1 text-amber-800">有一笔提交尚未确认。重试将核验原请求；之后新增的编辑需另行提交。</div>}
-        {showRecovery && <div className="mt-2 max-h-72 overflow-auto rounded border border-zinc-200 p-3">
+        {attemptState.attempt?.hasPending() && <div role="alert" className="mt-1 text-amber-800">有一笔提交尚未确认，请重试提交。</div>}
+      </section>}
+
+      <Dialog open={showRecovery} onOpenChange={setShowRecovery} title="历史记录" size="xl" footer={<><Button variant="secondary" onClick={exportRecovery}>导出备份</Button><Button onClick={() => setShowRecovery(false)}>返回填写</Button></>}>
+        <section className="text-xs" aria-label="季度记录与恢复">
+        {submitError && <p role="alert" className="mb-2 text-rose-700">{submitError}</p>}
+        {legacyReference && !referenceChoice && <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 p-2 text-zinc-700" role="status" aria-label="原草稿参考提示">
+          <strong>历史草稿</strong> · {Object.keys(legacyReference.payload.regular).length + Object.keys(legacyReference.payload.future).length} 个项目
+          <p className="mt-1">载入后请核对季度和数据，再保存或提交。</p>
+          <div className="mt-1 text-[11px]">{[...Object.entries(legacyReference.payload.regular), ...Object.entries(legacyReference.payload.future)].slice(0, 3).map(([id, row]) => <div key={id}>{myBuildings.find((building) => building.id === id || building._assignmentId === id)?.name ?? id}：报价 {row.qQuote ?? '未填'}，表面租金 {row.qFace ?? '未填'}，空置面积 {row.qVacArea ?? '未填'}</div>)}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-3">{!readOnly && <button type="button" className="min-h-9 rounded border border-zinc-300 bg-white px-3 py-1 font-semibold" onClick={restoreLegacyDraft}>载入草稿</button>}<button type="button" className="min-h-9 px-2 text-zinc-500" disabled={!referenceDisplayKey || submitting} onClick={() => rememberReferenceChoice('ignored')}>{canRememberReferenceChoice ? '暂不使用' : '收起提示'}</button></div>
+          <p className="mt-1 text-[11px] text-zinc-500">暂不使用会保留草稿，当前填写不变。</p>
+        </div>}
+        <div className="mt-2">
           {referenceChoice && referenceDisplayKey && referenceChoiceStorageFailed[referenceDisplayKey] && <p role="status" className="mb-2 text-amber-800">仅在本页收起，浏览器未能记住选择</p>}
-          <p className="mb-2">本季度正式记录与草稿分别保存。正式记录可能包含历史恢复内容，请核对季度归属后继续编辑。</p>{provenanceError && <p role="alert" className="mb-2 text-amber-800">{provenanceError}</p>}
-          {!readOnly && <button type="button" className="mb-2 rounded border px-2 py-1" disabled={!draftSnapshot.loaded || Boolean(draftSnapshot.conflict || draftSnapshot.remoteMissing) || !formalRows.length} onClick={restoreFormalRows}>载入本分类正式记录供编辑</button>}
+          <p className="mb-2">{submitYear} Q{submitQuarter} · {TAB_LABELS[currentTab]}。使用历史数据前请核对季度。</p>{provenanceError && <p role="alert" className="mb-2 text-amber-800">{provenanceError}</p>}
+          {formalLoading && <p role="status" className="mb-2 text-zinc-500">正在加载记录…</p>}
+          {formalError && <div role="alert" className="mb-2 text-rose-700">{formalError} <button type="button" className="underline" onClick={() => setFormalRefresh((value) => value + 1)}>重试</button></div>}
+          {!readOnly && <button type="button" className="mb-2 min-h-9 rounded border px-3 py-1" disabled={!draftSnapshot.loaded || Boolean(draftSnapshot.conflict || draftSnapshot.remoteMissing) || !formalRows.length} onClick={restoreFormalRows}>载入已提交数据</button>}
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[700px] text-left text-xs">
-            <caption className="text-left font-semibold">本季度正式提交记录（每项目最新一条）</caption>
+            <caption className="text-left font-semibold">本季度提交记录</caption>
             <thead><tr>{['项目', '报价', '物业费', '表面租金', '免租期', '空置面积', '备注', '记录时间', '来源'].map((label) => <th key={label} className="p-1">{label}</th>)}</tr></thead>
             <tbody>{formalRows.map((row) => <tr key={row.id ?? `${row.building_id ?? row.future_supply_id}-${row.created_at}`}>
               <td className="p-1">{myBuildings.find((building) => building.id === (row.building_id ?? row.future_supply_id))?.name ?? row.building_id ?? row.future_supply_id}</td>
@@ -813,9 +815,10 @@ export function QuarterlyUpdateWorkspace() {
               <td className="p-1">{formalProvenance[`${row.building_id ? 'regular' : 'future'}:${row.id}`] === 'user_confirmed_submission' ? '新流程用户提交（非独立核验）' : '来源未确认'}</td>
             </tr>)}</tbody>
           </table>
+          </div>
           {draftSnapshot.quarantined && <details open className="mt-3"><summary>格式异常的原始草稿（已隔离，未覆盖）</summary><pre className="whitespace-pre-wrap text-xs">{JSON.stringify(draftSnapshot.quarantined.raw, null, 2)}</pre></details>}
-          {draftSnapshot.historical && <details open className="mt-3"><summary>原有草稿 {draftSnapshot.historical.year} Q{draftSnapshot.historical.quarter}（来源待核实）</summary><p className="my-1 text-zinc-500">原稿保存时间：{draftSnapshot.historical.updatedAt}。保存时间不代表数据所属季度。</p>{referenceChoice && !readOnly && <button type="button" className="my-1 rounded border px-2 py-1" onClick={restoreLegacyDraft}>载入原草稿到编辑区供核对</button>}{referenceChoice && canRememberReferenceChoice && <button type="button" className="ml-3 underline" disabled={submitting || Boolean(draftSnapshot.quarantined)} onClick={() => rememberReferenceChoice('ignored')}>本季度不使用这份草稿</button>}<p className="my-1 text-zinc-500">不使用只收起参考，当前输入保持不变，原稿仍保留。</p><pre className="whitespace-pre-wrap text-xs">{JSON.stringify(packDraft(draftSnapshot.historical.payload), null, 2)}</pre></details>}
-          {!isPreview && !isImpersonating && <p className="mt-3 text-zinc-500">恢复副本按账号、季度、分类和项目区分，保存在此浏览器；共用设备请先保存云端再清除本机副本。未同步修改和冲突恢复版本不会自动删除；已同步副本超过 30 天后再次读取时清除。</p>}
+          {draftSnapshot.historical && <details className="mt-3"><summary>原有草稿 {draftSnapshot.historical.year} Q{draftSnapshot.historical.quarter}（季度待核对）</summary><p className="my-1 break-words text-zinc-500">原稿保存时间：{draftSnapshot.historical.updatedAt}。保存时间不代表数据所属季度。</p>{referenceChoice && !readOnly && <button type="button" className="my-1 min-h-9 rounded border px-3 py-1" onClick={restoreLegacyDraft}>载入草稿</button>}{referenceChoice && canRememberReferenceChoice && <button type="button" className="ml-3 min-h-9 px-2 text-zinc-500" disabled={submitting || Boolean(draftSnapshot.quarantined)} onClick={() => rememberReferenceChoice('ignored')}>暂不使用</button>}<pre className="whitespace-pre-wrap break-all text-xs">{JSON.stringify(packDraft(draftSnapshot.historical.payload), null, 2)}</pre></details>}
+          {!isPreview && !isImpersonating && <p className="mt-3 text-zinc-500">清理本机备份前，请先保存草稿或导出备份。</p>}
           {!readOnly && <button type="button" className="mt-2 underline" disabled={draftSnapshot.dirty || draftSnapshot.saving || Boolean(draftSnapshot.conflict || draftSnapshot.remoteMissing)} onClick={() => {
             if (window.confirm('仅清除此分类已同步的本机当前副本；云端草稿与恢复历史不受影响。继续？')) draftStore.clearAcknowledgedLocalCopy();
           }}>清除已同步的本机当前副本</button>}
@@ -833,12 +836,13 @@ export function QuarterlyUpdateWorkspace() {
               keys.filter((key) => confirmed.keys.includes(key)).forEach((key) => window.localStorage.removeItem(key));
             } catch { setSubmitError('无法确认本机恢复副本状态，未执行清除。'); }
           }}>清除此账号本机恢复历史</button>}
-        </div>}
-      </section>
+        </div>
+        </section>
+      </Dialog>
 
       <main className="min-h-0 flex-1 overflow-hidden p-2 sm:p-3">
         <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-zinc-200 bg-white">
-          {(completionNotice || submitError) && (
+          {(completionNotice || (!showRecovery && submitError)) && (
             <div className="shrink-0 border-b border-zinc-200 p-2.5">
               {completionNotice ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -955,10 +959,10 @@ export function QuarterlyUpdateWorkspace() {
             })}
           </div>
 
-          <DataEntryToolbar leading={<div className="flex items-center gap-2 text-[10px] text-zinc-500"><Database size={12} /><span>修改即时保存本机恢复副本，自动同步云端；历史参考不会自动提交。</span></div>}>
+          <DataEntryToolbar className="shrink-0" leading={<span className="hidden text-[10px] text-zinc-500 md:inline">草稿自动保存</span>}>
             {!readOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> 保存草稿</button>}
             {!readOnly && <button type="button" onClick={() => { void submitData(); }} disabled={submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? '提交中…' : '提交当前分类'}</button>}
-            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{userRole === 'viewer' ? '查看用户为只读模式' : isImpersonating ? '模拟模式不可写入' : isPreview ? '预览模式不可写入' : !editingAcknowledged ? '等待旧版页面保存确认，当前只读' : '当前不可写入'}</span>}
+            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{userRole === 'viewer' ? '只读模式' : isImpersonating ? '模拟模式' : isPreview ? '预览模式' : !editingAcknowledged ? '点击“开始填写”后可编辑' : '暂时无法编辑'}</span>}
           </DataEntryToolbar>
         </div>
       </main>

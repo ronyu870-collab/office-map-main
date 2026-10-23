@@ -68,6 +68,11 @@ async function ready() {
   await screen.findByRole('button', { name: '甲级' });
   await waitFor(() => expect(state.reads.some((read) => read.table === 'update_drafts')).toBe(true));
 }
+function openRecovery() {
+  fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+  const summary = screen.queryByText(/原有草稿 \d{4} Q\d/);
+  if (summary && !summary.closest('details')?.open) fireEvent.click(summary);
+}
 function draft(quote: string) { return { data: { draft_data: { 'synthetic-a': { qQuote: quote }, 'synthetic-b': { qQuote: quote }, __quarterly_meta__: { version: 2, year: 2026, quarter: 4, revision: 1 } }, revision: 1, updated_at: '2026-10-08T00:00:00.000Z', record_year: 2026, record_quarter: 4 }, error: null }; }
 
 beforeEach(() => {
@@ -128,7 +133,7 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     expect(screen.queryByRole('button', { name: '保存草稿' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '提交当前分类' })).not.toBeInTheDocument();
     expect(state.rpc).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: '我已保存并关闭其他旧版编辑页面，启用本页编辑' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '开始填写' })).not.toBeInTheDocument();
     expect(state.reads.filter((read) => read.table === 'update_drafts').every((read) => read.filters.user_id === 'synthetic-preview')).toBe(true);
   });
 
@@ -249,17 +254,17 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     state.draftRead.mockResolvedValue({ data: { draft_data: { 'synthetic-a': { qQuote: '876' } }, revision: 7, updated_at: '2026-10-08T00:00:00.000Z', record_year: 2026, record_quarter: 4 }, error: null });
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
     render(<QuarterlyUpdateWorkspace />); await ready();
-    const banner = (await screen.findByText('已有草稿已保留，来源待核实')).closest('[role="status"]');
-    expect(banner).toHaveTextContent('共 1 个项目条目');
-    expect(banner).toHaveTextContent('2026-10-08T00:00:00.000Z');
+    openRecovery();
+    const banner = (await screen.findByText('历史草稿')).closest('[role="status"]');
+    expect(banner).toHaveTextContent('1 个项目');
+    expect(screen.getByText(/原稿保存时间：2026-10-08T00:00:00.000Z/)).toBeInTheDocument();
     expect(banner).toHaveTextContent('报价 876');
     expect(quoteInputs().every((input) => input.value === '')).toBe(true);
     expect(state.rpc).not.toHaveBeenCalled();
     fireEvent.change(quoteInputs()[0], { target: { value: '555' } });
-    fireEvent.click(screen.getByRole('button', { name: '查看全部原草稿' }));
     expect(screen.getByText(/原有草稿 2026 Q4/)).toBeInTheDocument();
     expect(screen.getByText(/"qQuote": "876"/)).toBeInTheDocument();
-    const restore = screen.getByRole('button', { name: '载入原草稿到编辑区供核对' });
+    const restore = screen.getByRole('button', { name: '载入草稿' });
     fireEvent.click(restore);
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(quoteInputs().every((input) => input.value === '555')).toBe(true);
@@ -288,7 +293,7 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
     expect(state.rpc).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: '保存草稿' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '我已保存并关闭其他旧版编辑页面，启用本页编辑' }));
+    fireEvent.click(screen.getByRole('button', { name: '开始填写' }));
     expect(window.localStorage.getItem(ackKey)).toBe('saved-closed-legacy-pages');
     expect(quoteInputs().every((input) => !input.readOnly)).toBe(true);
     expect(state.rpc).not.toHaveBeenCalled();
@@ -297,7 +302,7 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     await act(async () => { for (let i = 0; i < 100; i++) await Promise.resolve(); });
     expect(quoteInputs()[0].value).toBe('321');
     expect(quoteInputs().every((input) => !input.readOnly)).toBe(true);
-    expect(screen.queryByRole('button', { name: '我已保存并关闭其他旧版编辑页面，启用本页编辑' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '开始填写' })).not.toBeInTheDocument();
   });
 
   it('does not inherit another account acknowledgement on a shared browser', async () => {
@@ -305,7 +310,7 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     render(<QuarterlyUpdateWorkspace />); await ready();
     expect(window.localStorage.getItem('quarterly-client-ack:20261008-v2:synthetic-user')).toBe('saved-closed-legacy-pages');
     expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
-    expect(screen.getByRole('button', { name: '我已保存并关闭其他旧版编辑页面，启用本页编辑' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '开始填写' })).toBeInTheDocument();
     expect(state.rpc).not.toHaveBeenCalled();
     expect(window.localStorage.getItem('quarterly-client-ack:20261008-v2:synthetic-other-account')).toBeNull();
   });
@@ -318,17 +323,18 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     delete (legacy.data.draft_data as Record<string, unknown>).__quarterly_meta__;
     state.draftRead.mockResolvedValue(legacy);
     render(<QuarterlyUpdateWorkspace />); await ready();
-    await screen.findByText('已有草稿已保留，来源待核实');
+    openRecovery();
+    await screen.findByText('历史草稿');
     expect(screen.queryByText('云端草稿读取失败；已保留本页及本机副本，重试读取后才能同步。')).not.toBeInTheDocument();
     expect(quoteInputs().every((input) => input.value === '' && input.readOnly)).toBe(true);
     expect(state.rpc).not.toHaveBeenCalled();
     expect(state.reads.filter((read) => read.table === 'update_drafts').every((read) => read.filters.user_id === (mode === 'preview' ? 'synthetic-preview' : state.userId))).toBe(true);
     if (mode === 'preview') {
-      expect(screen.queryByRole('button', { name: '载入原草稿到编辑区供核对' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '载入草稿' })).not.toBeInTheDocument();
     } else {
-      fireEvent.click(screen.getByRole('button', { name: '我已保存并关闭其他旧版编辑页面，启用本页编辑' }));
+      fireEvent.click(screen.getByRole('button', { name: '开始填写' }));
       vi.spyOn(window, 'confirm').mockReturnValue(true);
-      fireEvent.click(await screen.findByRole('button', { name: '载入原草稿到编辑区供核对' }));
+      fireEvent.click(await screen.findByRole('button', { name: '载入草稿' }));
       expect(quoteInputs().every((input) => input.value === '321')).toBe(true);
       fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
       await waitFor(() => expect(state.rpc).toHaveBeenCalledWith('save_quarterly_draft_v2', expect.objectContaining({ p_user_id: state.userId, p_expected_revision: 0 })));
@@ -383,15 +389,16 @@ describe('recovery boundary regressions', () => {
     await screen.findAllByText(/云端草稿格式异常/);
     expect(quoteInputs().every((input) => input.readOnly && input.value === '')).toBe(true);
     expect(screen.queryByRole('button', { name: '保存草稿' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '载入原草稿到编辑区供核对' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    expect(screen.queryByRole('button', { name: '载入草稿' })).not.toBeInTheDocument();
+    openRecovery();
     expect(screen.getByText('格式异常的原始草稿（已隔离，未覆盖）').parentElement).toHaveTextContent(JSON.stringify(draft_data, null, 2).replace(/\s+/g, ' '));
     expect(state.rpc).not.toHaveBeenCalled();
   });
   it.each([null, {}, { 'synthetic-a': { qQuote: 0, qFree: '0', qRemark: null }, __quarterly_meta__: null }, { __futureSupply__: { 'synthetic-future': { qQuote: 0 } } }, { __futureSupply__: null }])('retains compatible legacy empty, metadata and zero shapes %#', async (draft_data) => {
     state.draftRead.mockResolvedValue({ data: { draft_data, revision: 0, record_year: 2026, record_quarter: 3, updated_at: '2026-10-08T00:00:00Z' }, error: null });
     render(<QuarterlyUpdateWorkspace />); await ready();
-    await screen.findByText('已有草稿已保留，来源待核实');
+    openRecovery();
+    await screen.findByText('历史草稿');
     expect(screen.queryByText(/云端草稿格式异常/)).not.toBeInTheDocument();
     expect(state.rpc).not.toHaveBeenCalled();
   });
@@ -403,7 +410,7 @@ describe('recovery boundary regressions', () => {
     window.localStorage.setItem(key + ':request:pending', JSON.stringify(pending));
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<QuarterlyUpdateWorkspace />); await ready();
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     fireEvent.click(screen.getByRole('button', { name: '清除此账号本机恢复历史' }));
     expect(window.localStorage.getItem(key + ':request:pending')).toBe(JSON.stringify(pending));
     expect(confirm).not.toHaveBeenCalled();
@@ -422,7 +429,7 @@ describe('recovery cleanup confirmation boundaries', () => {
     const current = 'quarterly-draft:v1:synthetic-user:2026:Q4:GradeA';
     await waitFor(() => expect(window.localStorage.getItem(current)).not.toBeNull());
     const original = window.localStorage.getItem(current);
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     fireEvent.click(screen.getByRole('button', { name: '清除此账号本机恢复历史' }));
     expect(window.confirm).toHaveBeenCalledOnce();
     expect(window.localStorage.getItem(key)).not.toBeNull();
@@ -434,7 +441,7 @@ describe('recovery cleanup confirmation boundaries', () => {
     window.localStorage.setItem(key, '{}');
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<QuarterlyUpdateWorkspace />); await ready();
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     fireEvent.click(screen.getByRole('button', { name: '清除此账号本机恢复历史' }));
     expect(screen.getByText(/无法确认本机恢复副本状态/)).toBeInTheDocument();
     expect(window.confirm).not.toHaveBeenCalled();
@@ -450,18 +457,16 @@ function preferenceKey(tab = 'GradeA') {
   const original = legacyDraft().data;
   return legacyReferencePreferenceKey({ userId: state.userId, year: state.year, quarter: state.quarter, tab }, { payload: { regular: original.draft_data, future: {} }, revision: original.revision, updatedAt: original.updated_at, year: original.record_year, quarter: original.record_quarter })!;
 }
-async function referenceReady() { await ready(); await screen.findByRole('status', { name: '原草稿参考提示' }); }
-function ignoreReference() { fireEvent.click(screen.getByRole('button', { name: '本季度不使用这份草稿' })); }
+async function referenceReady() { await ready(); openRecovery(); await screen.findByRole('status', { name: '原草稿参考提示' }); }
+function ignoreReference() { fireEvent.click(screen.getByRole('button', { name: '暂不使用' })); }
 function expectReferenceRemoved() {
+  const back = screen.queryByRole('button', { name: '返回填写' });
+  if (back) fireEvent.click(back);
   expect(screen.queryByRole('status', { name: '原草稿参考提示' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: '季度记录与恢复' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: '填报提示' })).not.toBeInTheDocument();
   expect(screen.queryByText(/原草稿已载入供核对|本季度已忽略这份原草稿|原草稿提示已收起/)).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: '查看原草稿' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: '查看全部原草稿' })).not.toBeInTheDocument();
-  const recovery = screen.getByRole('region', { name: '季度记录与恢复' });
-  const toggle = within(recovery).getByRole('button', { name: '查看正式记录与草稿恢复' });
-  // The existing toolbar is the only remaining node: no banner, compact row, or empty spacing wrapper.
-  expect([...recovery.childNodes]).toEqual([toggle.parentElement]);
+  expect(screen.getByRole('button', { name: '历史记录' })).toBeInTheDocument();
 }
 const referenceCategories = [
   { tab: 'GradeA', label: '甲级', quote: '876' },
@@ -478,15 +483,34 @@ async function selectReferenceCategory(label: string) {
 describe('legacy reference banner choices', () => {
   beforeEach(() => { state.draftRead.mockResolvedValue(legacyDraft()); });
 
+  it.each(referenceCategories.flatMap((category) => [true, false].map((empty) => ({ ...category, empty }))))('keeps $tab filling clear with empty=$empty history and opens recovery only on request', async ({ label, empty }) => {
+    if (empty) state.draftRead.mockResolvedValue({ data: { ...legacyDraft().data, draft_data: {} }, error: null });
+    render(<QuarterlyUpdateWorkspace />); await selectReferenceCategory(label);
+    expectReferenceRemoved();
+    expect(screen.queryByText(/正式记录覆盖|覆盖表示存在提交记录|已有草稿已保留|保存时间不代表/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '导出备份' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存草稿' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '提交当前分类' })).toBeEnabled();
+    openRecovery();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: '原草稿参考提示' })).toHaveTextContent(empty ? '0 个项目' : '3 个项目');
+    expect(screen.getByRole('button', { name: '导出备份' })).toBeEnabled();
+    expect(screen.getByText(/原有草稿 2026 Q3/)).toBeInTheDocument();
+    expect(quoteInputs().every((input) => input.value === '')).toBe(true);
+    expect(state.rpc).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '返回填写' }));
+    expectReferenceRemoved();
+  });
+
   it.each(referenceCategories)('removes the entire $tab banner only after a successful confirmed restore, including on reload', async ({ tab, label, quote }) => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValue(true);
     const view = render(<QuarterlyUpdateWorkspace />); await selectReferenceCategory(label);
+    openRecovery();
     const banner = await screen.findByRole('status', { name: '原草稿参考提示' });
-    fireEvent.click(screen.getByRole('button', { name: '查看全部原草稿' }));
-    fireEvent.click(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' }));
+    fireEvent.click(screen.getByRole('button', { name: '载入草稿' }));
     expect(banner).toBeInTheDocument();
     expect(window.localStorage.getItem(preferenceKey(tab))).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' }));
+    fireEvent.click(screen.getByRole('button', { name: '载入草稿' }));
     expect(confirm).toHaveBeenCalledTimes(2);
     expect(quoteInputs().every((input) => input.value === quote)).toBe(true);
     expect(banner).not.toBeInTheDocument();
@@ -495,17 +519,18 @@ describe('legacy reference banner choices', () => {
     expect(window.localStorage.getItem(preferenceKey(tab))).toContain('restored');
     expect(state.rpc).not.toHaveBeenCalled();
     view.unmount(); render(<QuarterlyUpdateWorkspace />); await selectReferenceCategory(label);
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     await screen.findByText(/原有草稿 2026 Q3/);
     expect(quoteInputs().every((input) => input.value === quote)).toBe(true);
     expect(JSON.parse(screen.getByText(/"qQuote": "876"/).textContent!)).toEqual({ ...legacyDraft().data.draft_data, __futureSupply__: {} });
-    expect(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: '收起记录与恢复' }));
+    expect(screen.getByRole('button', { name: '载入草稿' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: '返回填写' }));
     expectReferenceRemoved();
   });
 
   it.each(referenceCategories)('removes the entire ignored $tab banner without saving, deleting or filling any draft, including on reload', async ({ tab, label }) => {
     const view = render(<QuarterlyUpdateWorkspace />); await selectReferenceCategory(label);
+    openRecovery();
     const banner = await screen.findByRole('status', { name: '原草稿参考提示' });
     const before = Object.fromEntries(Object.entries(window.localStorage));
     const remove = vi.spyOn(Storage.prototype, 'removeItem');
@@ -519,13 +544,13 @@ describe('legacy reference banner choices', () => {
     await act(async () => { window.dispatchEvent(new Event('online')); });
     expect(state.rpc).not.toHaveBeenCalled();
     view.unmount(); render(<QuarterlyUpdateWorkspace />); await selectReferenceCategory(label);
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     await screen.findByText(/原有草稿 2026 Q3/);
     expect(quoteInputs().every((input) => input.value === '')).toBe(true);
     expect(JSON.parse(screen.getByText(/"qQuote": "876"/).textContent!)).toEqual({ ...legacyDraft().data.draft_data, __futureSupply__: {} });
     expect(screen.getByText(/原稿保存时间：2026-06-12T08:30:00.000Z/)).toHaveTextContent('保存时间不代表数据所属季度');
-    expect(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' })).toBeEnabled();
-    fireEvent.click(screen.getByRole('button', { name: '收起记录与恢复' }));
+    expect(screen.getByRole('button', { name: '载入草稿' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: '返回填写' }));
     expectReferenceRemoved();
     expect(state.rpc).not.toHaveBeenCalled();
   });
@@ -537,7 +562,7 @@ describe('legacy reference banner choices', () => {
     const before = window.localStorage.getItem(key);
     expect(JSON.parse(before!).dirty).toBe(true);
     const writes = vi.spyOn(Storage.prototype, 'setItem');
-    expect(screen.getByText(/不使用只收起这份参考，不清空当前输入/)).toBeInTheDocument();
+    expect(screen.getByText('暂不使用会保留草稿，当前填写不变。')).toBeInTheDocument();
     ignoreReference();
     expect(quoteInputs().every((input) => input.value === '555')).toBe(true);
     expect(window.localStorage.getItem(key)).toBe(before);
@@ -549,6 +574,7 @@ describe('legacy reference banner choices', () => {
   it('keeps choices separate between categories and restores the choice when switching back', async () => {
     render(<QuarterlyUpdateWorkspace />); await referenceReady(); ignoreReference();
     fireEvent.click(screen.getByRole('button', { name: '乙级' }));
+    openRecovery();
     await screen.findByRole('status', { name: '原草稿参考提示' });
     expect(screen.getByText('Synthetic Person · 乙级')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '甲级' }));
@@ -585,11 +611,11 @@ describe('legacy reference banner choices', () => {
     const view = render(<QuarterlyUpdateWorkspace />); await referenceReady();
     const before = Object.fromEntries(Object.entries(window.localStorage));
     const setItem = vi.spyOn(Storage.prototype, 'setItem'); const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
-    expect(screen.queryByRole('button', { name: '载入原草稿到编辑区供核对' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '本季度不使用这份草稿' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '收起草稿提示' }));
+    expect(screen.queryByRole('button', { name: '载入草稿' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '暂不使用' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '收起提示' }));
     expectReferenceRemoved();
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     expect(screen.getByText(/"qQuote": "876"/)).toBeInTheDocument();
     expect(quoteInputs().every((input) => input.readOnly && input.value === '')).toBe(true);
     expect(Object.fromEntries(Object.entries(window.localStorage))).toEqual(before);
@@ -612,8 +638,9 @@ describe('legacy reference banner choices', () => {
     fireEvent.change(quoteInputs()[0], { target: { value: '555' } });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('full'); });
-    fireEvent.click(screen.getByRole('button', { name: '载入原草稿到编辑区供核对' }));
+    fireEvent.click(screen.getByRole('button', { name: '载入草稿' }));
     expect(screen.getByRole('status', { name: '原草稿参考提示' })).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('恢复版本无法保存');
     expect(quoteInputs().every((input) => input.value === '555')).toBe(true);
     expect(window.localStorage.getItem(preferenceKey())).toBeNull(); expect(state.rpc).not.toHaveBeenCalled();
   });
@@ -622,7 +649,7 @@ describe('legacy reference banner choices', () => {
     window.localStorage.setItem(preferenceKey(), 'broken');
     render(<QuarterlyUpdateWorkspace />); await referenceReady();
     expect(window.localStorage.getItem(preferenceKey())).toBe('broken');
-    expect(screen.getByRole('status', { name: '原草稿参考提示' })).toHaveTextContent('原稿保存时间 2026-06-12T08:30:00.000Z');
+    expect(screen.getByText(/原稿保存时间：2026-06-12T08:30:00.000Z/)).toBeInTheDocument();
   });
 
   it('still collapses in memory if preference storage is full and accurately redisplays on reload', async () => {
@@ -631,11 +658,11 @@ describe('legacy reference banner choices', () => {
     ignoreReference();
     expectReferenceRemoved();
     expect(screen.queryByText('仅在本页收起，浏览器未能记住选择')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     const warning = screen.getByText('仅在本页收起，浏览器未能记住选择');
     expect(warning).toHaveAttribute('role', 'status');
     expect(warning.parentElement).toContainElement(screen.getByText(/原有草稿 2026 Q3/));
-    fireEvent.click(screen.getByRole('button', { name: '收起记录与恢复' }));
+    fireEvent.click(screen.getByRole('button', { name: '返回填写' }));
     expectReferenceRemoved();
     expect(quoteInputs().every((input) => input.value === '')).toBe(true);
     expect(window.localStorage.getItem(preferenceKey())).toBeNull();
@@ -649,9 +676,9 @@ describe('legacy reference banner choices', () => {
     state.draftRead.mockResolvedValue({ data: { ...legacyDraft().data, draft_data: { 'synthetic-a': null } }, error: null });
     render(<QuarterlyUpdateWorkspace />); await ready(); await screen.findAllByText(/云端草稿格式异常/);
     expect(screen.queryByRole('status', { name: '原草稿快捷入口' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '本季度不使用这份草稿' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '暂不使用' })).not.toBeInTheDocument();
     expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: '查看正式记录与草稿恢复' }));
+    openRecovery();
     expect(screen.getByText('格式异常的原始草稿（已隔离，未覆盖）')).toBeInTheDocument();
     expect(state.rpc).not.toHaveBeenCalled();
   });
