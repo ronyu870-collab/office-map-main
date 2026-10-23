@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   draftRead: vi.fn<(tab: string) => Promise<{ data: unknown; error: unknown }>>(),
   assignmentRead: vi.fn<() => Promise<void>>(),
   formal: [] as Record<string, unknown>[], reads: [] as Array<{ table: string; filters: Record<string, unknown> }>,
+  metrics: [] as Record<string, unknown>[],
   buildings: [
     { id: 'synthetic-a', name: 'Synthetic Tower A', grade: 'A', submarket: 'CBD', total_area: 1000 },
     { id: 'synthetic-b', name: 'Synthetic Tower B', grade: 'B', submarket: 'CBD', total_area: 2000 },
@@ -39,7 +40,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
       if (table === 'building_assignments') data = state.buildings.map((building) => ({ building_id: building.id }));
       if (table === 'app_settings') data = [{ key: 'current_submission_year', value: String(state.year) }, { key: 'current_submission_quarter', value: String(state.quarter) }];
       if (table === 'quarterly_submissions') data = state.formal;
-      if (table === 'building_metrics') data = [{ building_id: 'synthetic-a', record_year: 2026, record_quarter: 3, asking_rent: 444, total_area: 1000 }];
+      if (table === 'building_metrics') data = state.metrics;
       if (range && Array.isArray(data)) data = data.slice(range[0], range[1] + 1);
       return { data, error: null };
     };
@@ -77,6 +78,7 @@ function draft(quote: string) { return { data: { draft_data: { 'synthetic-a': { 
 
 beforeEach(() => {
   state.userId = 'synthetic-user'; state.role = 'editor'; state.preview = null; state.formal = []; state.reads = [];
+  state.metrics = [{ building_id: 'synthetic-a', record_year: 2026, record_quarter: 3, asking_rent: 444, total_area: 1000 }];
   state.impersonating = false; state.year = 2026; state.quarter = 4;
   state.loggedIn = true; state.settingsFailure = false; state.missingSettings = false; state.supplyFailure = false; state.authCallback = null; state.router.replace.mockClear();
   state.rpc.mockReset().mockImplementation(async (_name: string, args: Record<string, unknown>) => ({ data: [{ revision: Number(args.p_expected_revision ?? 0) + 1, updated_at: '2026-10-08T00:00:00.000Z' }], error: null }));
@@ -684,3 +686,95 @@ describe('legacy reference banner choices', () => {
   });
 });
 
+
+describe('mobile history beside current-quarter entry', () => {
+  const metric = { building_id: 'synthetic-a', record_year: 2025, record_quarter: 4, asking_rent: 300, management_fee: 30, face_rent: 285, rent_free_period: 3, vacant_area: 125, net_effective_rent: 261.25, vacancy_rate: 0.125, total_area: 1000 };
+  function mobileCard() { return within(screen.getByRole('region', { name: 'Synthetic Tower A填报' })); }
+
+  it('labels the actual reference period and aligns history before current input without filling or saving it', async () => {
+    state.metrics = [metric];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = mobileCard();
+    expect(mobile.getByRole('columnheader', { name: /历史参考.*2025 Q4/ })).toBeInTheDocument();
+    for (const [field, label, value] of [['qQuote', '报价', '300'], ['qProp', '物业费', '30'], ['qFace', '表面租金', '285'], ['qFree', '免租期', '3 个月'], ['qVacArea', '空置面积', '125 ㎡']]) {
+      const reference = mobile.getByLabelText(new RegExp(`^${label}历史参考`));
+      expect(reference).toHaveTextContent(value);
+      const input = mobile.getByLabelText(new RegExp(`^${label} \\*$`));
+      expect(input).toHaveValue(null);
+      expect(input).toHaveAttribute('aria-describedby', reference.id);
+      expect(input).toHaveAccessibleDescription(`历史${value}`);
+      expect(reference.closest('td')?.cellIndex).toBe(1);
+      expect(input.closest('td')?.cellIndex).toBe(2);
+      expect(input.closest('tr')).toContainElement(reference);
+      expect(input).toHaveAttribute('data-quarterly-field', field);
+    }
+    expect(mobile.getByLabelText('净有效租金对照')).toHaveTextContent('历史261.25');
+    expect(mobile.getByLabelText('空置率对照')).toHaveTextContent('历史12.5%');
+    expect(mobile.queryByText(/不参与本季度提交/)).not.toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('follows the desktop column order down the mobile rows, including ownership, area and calculated changes', async () => {
+    state.metrics = [metric];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = mobileCard();
+    const mobileOrder = mobile.getAllByRole('rowheader').map((cell) => cell.textContent!.replace(/\s*\*/g, '').trim());
+    const desktopHead = document.querySelector('.md\\:block thead')!.querySelectorAll('tr')[1];
+    const desktopOrder = [...desktopHead.querySelectorAll('th')].slice(-10).map((cell) => cell.textContent);
+    expect(mobileOrder).toEqual(desktopOrder);
+    expect(mobileOrder).toEqual(['报价', '物业费', '表面租金', '免租期', '净有效租金', '租金变化', '空置面积', '面积变化', '空置率', '备注']);
+    const card = screen.getByRole('region', { name: 'Synthetic Tower A填报' });
+    expect([...card.querySelectorAll('[data-quarterly-field]')].map((input) => input.getAttribute('data-quarterly-field'))).toEqual(['qOwner', 'qPropMan', 'qQuote', 'qProp', 'qFace', 'qFree', 'qVacArea', 'qRemark']);
+    const area = mobile.getByText('总面积');
+    expect(mobile.getByLabelText('物业', { exact: true }).compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(area.compareDocumentPosition(mobile.getByLabelText(/^报价 \*$/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mobile.getAllByRole('columnheader').map((cell) => cell.textContent)).toEqual(['指标', '历史参考2025 Q4', '本季填写2026 Q4']);
+  });
+
+  it('preserves zero, formats area and decimals, and uses a dash for missing historical values', async () => {
+    state.metrics = [{ ...metric, asking_rent: null, management_fee: 0, face_rent: '285.75', rent_free_period: 0, vacant_area: 12000, net_effective_rent: 0, vacancy_rate: 0 }];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = mobileCard();
+    expect(mobile.getByLabelText(/^报价历史参考/)).toHaveTextContent('历史—');
+    expect(mobile.getByLabelText(/^物业费历史参考/)).toHaveTextContent('历史0');
+    expect(mobile.getByLabelText(/^表面租金历史参考/)).toHaveTextContent('285.75');
+    expect(mobile.getByLabelText(/^免租期历史参考/)).toHaveTextContent('0 个月');
+    expect(mobile.getByLabelText(/^空置面积历史参考/)).toHaveTextContent('12,000 ㎡');
+    expect(mobile.getByLabelText('净有效租金对照')).toHaveTextContent('历史0');
+    expect(mobile.getByLabelText('空置率对照')).toHaveTextContent('历史0.0%');
+  });
+
+  it.each([0.125, 12.5])('uses the same historical vacancy display convention as desktop for %s', async (vacancy_rate) => {
+    state.metrics = [{ ...metric, vacancy_rate }];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    expect(mobileCard().getByLabelText('空置率对照')).toHaveTextContent('历史12.5%');
+  });
+
+  it('shows a compact empty-history state without inventing a quarter or populating current inputs', async () => {
+    state.metrics = [];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = mobileCard();
+    expect(mobile.getByText('暂无历史数据')).toBeInTheDocument();
+    expect(mobile.queryByText(/参考 \d{4} Q\d/)).not.toBeInTheDocument();
+    for (const label of ['报价', '物业费', '表面租金', '免租期', '空置面积']) expect(mobile.getByLabelText(new RegExp(`^${label}历史参考`))).toHaveTextContent('—');
+    expect(quoteInputs().every((input) => input.value === '')).toBe(true);
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+
+  it('keeps live calculations separate from historical values and prioritizes numeric errors above missing fields', async () => {
+    state.metrics = [metric];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = mobileCard();
+    fireEvent.change(mobile.getByLabelText(/^表面租金 \*$/), { target: { value: '360' } });
+    fireEvent.change(mobile.getByLabelText(/^免租期 \*$/), { target: { value: '0' } });
+    fireEvent.change(mobile.getByLabelText(/^空置面积 \*$/), { target: { value: '0' } });
+    expect(mobile.getByLabelText('净有效租金对照')).toHaveTextContent('历史261.25360.00');
+    expect(mobile.getByRole('status', { name: '租金变化' })).toHaveTextContent('+37.8%');
+    expect(mobile.getByRole('status', { name: '面积变化' })).toHaveTextContent('-125 ㎡');
+    expect(mobile.getByLabelText('空置率对照')).toHaveTextContent('历史12.5%0.0%');
+    fireEvent.change(mobile.getByLabelText(/^免租期 \*$/), { target: { value: '37' } });
+    expect(mobile.getByRole('alert')).toHaveTextContent('免租期不能超过36个月');
+    expect(mobile.getByLabelText('净有效租金对照')).toHaveTextContent('历史261.25—');
+    expect(mobile.getByLabelText(/^报价 \*$/)).toHaveValue(null);
+  });
+});

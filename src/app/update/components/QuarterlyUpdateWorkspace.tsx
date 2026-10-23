@@ -42,6 +42,29 @@ const TAB_LABELS: Record<string, string> = {
   BP: '产业园',
 };
 
+interface QuarterlyEntryColumn {
+  key: string;
+  label: string;
+  field?: string;
+  reference?: string;
+  step?: string;
+  unit?: string;
+}
+
+// Desktop columns read left to right; mobile presents the same sequence top to bottom.
+const QUARTERLY_ENTRY_COLUMNS: readonly QuarterlyEntryColumn[] = [
+  { key: 'qQuote', label: '报价', field: 'qQuote', reference: 'asking_rent', step: '1' },
+  { key: 'qProp', label: '物业费', field: 'qProp', reference: 'management_fee', step: '1' },
+  { key: 'qFace', label: '表面租金', field: 'qFace', reference: 'face_rent', step: '0.01' },
+  { key: 'qFree', label: '免租期', field: 'qFree', reference: 'rent_free_period', step: '0.1', unit: '个月' },
+  { key: 'net', label: '净有效租金', reference: 'net_effective_rent' },
+  { key: 'rentDelta', label: '租金变化' },
+  { key: 'qVacArea', label: '空置面积', field: 'qVacArea', reference: 'vacant_area', step: '1', unit: '㎡' },
+  { key: 'areaDelta', label: '面积变化' },
+  { key: 'vacancy', label: '空置率', reference: 'vacancy_rate' },
+  { key: 'qRemark', label: '备注', field: 'qRemark' },
+];
+
 function QuarterlyStateShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--cd-color-canvas)]">
@@ -97,11 +120,21 @@ interface RowFieldProps {
   type?: 'number' | 'text';
   step?: string;
   multiline?: boolean;
+  appearance?: 'compact' | 'mobile';
+  issueSeverity?: 'error' | 'warning';
+  describedBy?: string;
+  labelledBy?: string;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement | HTMLTextAreaElement>;
 }
 
-function RowField({ value, onChange, field, readOnly, issue, type = 'text', step, multiline, onKeyDown }: RowFieldProps) {
-  const className = `data-entry-cell w-full min-w-0 rounded-[4px] border px-1.5 py-1 text-[11px] leading-5 outline-none transition focus:border-[#003e7e] focus:ring-1 focus:ring-[#003e7e]/20 ${issue ? 'border-amber-400 bg-amber-50/60' : 'border-zinc-300 bg-white'} ${readOnly ? 'cursor-not-allowed bg-zinc-100 text-zinc-400' : 'text-zinc-800'}`;
+function RowField({ value, onChange, field, readOnly, issue, type = 'text', step, multiline, onKeyDown, appearance = 'compact', issueSeverity, describedBy, labelledBy }: RowFieldProps) {
+  const mobile = appearance === 'mobile';
+  const size = mobile ? 'min-h-11 rounded-md px-3 py-2 text-base leading-6' : 'rounded-[4px] px-1.5 py-1 text-[11px] leading-5';
+  const tone = mobile
+    ? (issueSeverity === 'error' ? 'border-rose-300 bg-rose-50/40' : 'border-slate-300 bg-white')
+    : (issue ? 'border-amber-400 bg-amber-50/60' : 'border-zinc-300 bg-white');
+  const focus = mobile ? 'focus:ring-2 focus:ring-[#003e7e]/10' : 'focus:ring-1 focus:ring-[#003e7e]/20';
+  const className = `data-entry-cell w-full min-w-0 border ${size} outline-none transition focus:border-[#003e7e] ${focus} ${tone} ${readOnly ? 'cursor-not-allowed bg-zinc-100 text-zinc-400' : 'text-zinc-800'}`;
   if (multiline) {
     return (
       <textarea
@@ -111,6 +144,8 @@ function RowField({ value, onChange, field, readOnly, issue, type = 'text', step
         readOnly={readOnly}
         data-quarterly-field={field}
         aria-invalid={Boolean(issue)}
+        aria-describedby={describedBy}
+        aria-labelledby={labelledBy}
         title={issue}
         onKeyDown={onKeyDown as React.KeyboardEventHandler<HTMLTextAreaElement>}
         className={`${className} resize-none text-left`}
@@ -126,6 +161,8 @@ function RowField({ value, onChange, field, readOnly, issue, type = 'text', step
       readOnly={readOnly}
       data-quarterly-field={field}
       aria-invalid={Boolean(issue)}
+      aria-describedby={describedBy}
+      aria-labelledby={labelledBy}
       title={issue}
       onKeyDown={onKeyDown as React.KeyboardEventHandler<HTMLInputElement>}
       className={`${className} text-right tabular-nums`}
@@ -743,7 +780,7 @@ export function QuarterlyUpdateWorkspace() {
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#f3f5f7] text-zinc-900">
       <header className="shrink-0 border-b border-zinc-200 bg-white">
         <AppHeader
-          title={<span className="flex items-center gap-2">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{readOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
+          title={<span className="flex items-center gap-2 max-sm:flex-wrap max-sm:gap-y-0">季度数据填报<Badge tone="brand">{submitYear} Q{submitQuarter}</Badge>{readOnly ? <Badge tone="warning">只读</Badge> : null}</span>}
           status={<span className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">{isPreview ? `管理员预览 · ${previewUserName}` : `${matchName} · ${TAB_LABELS[currentTab]}`}</span>}
           homeHref="/"
           actions={<SaveStatus state={saveState} message={saveMessage} savedAt={lastSavedAt} onRetry={() => { if (draftSnapshot.quarantined) void draftStore.load(); else void manualSave(); }} />}
@@ -869,7 +906,7 @@ export function QuarterlyUpdateWorkspace() {
                   <th colSpan={10} className="bg-[#fffaf0] px-2 py-1.5 text-left text-amber-800">本季度填报</th>
                 </tr>
                 <tr className="border-b border-zinc-200 bg-white text-zinc-600">
-                  {['序号','项目','子市场','业主 / 物业','总面积','报价','物业费','表面租金','免租期','净有效租金','空置面积','空置率','报价','物业费','表面租金','免租期','净有效租金','租金变化','空置面积','面积变化','空置率','备注'].map((label, index) => (
+                  {['序号','项目','子市场','业主 / 物业','总面积','报价','物业费','表面租金','免租期','净有效租金','空置面积','空置率', ...QUARTERLY_ENTRY_COLUMNS.map((column) => column.label)].map((label, index) => (
                     <th key={`${label}-${index}`} className={`whitespace-nowrap border-r border-zinc-100 px-2 py-2 font-semibold ${index === 1 ? 'sticky left-0 z-30 bg-white text-left' : index >= 12 ? 'bg-[#fffdf7]' : 'text-right'}`}>{label}</th>
                   ))}
                 </tr>
@@ -939,21 +976,82 @@ export function QuarterlyUpdateWorkspace() {
               const draft = rowState(building);
               const totalArea = totalAreaFor(building);
               const issues = getQuarterlyRowIssues(draft, totalArea);
-              const issueFor = (field: string) => issues.find((issue) => issue.field === field)?.message;
+              const issueFor = (field: string) => issues.find((issue) => issue.field === field && issue.severity === 'error') ?? issues.find((issue) => issue.field === field);
               const change = (field: string, value: string) => building._isFutureSupply ? updateFutureField(building.id, building._assignmentId, field, value) : updateRegularField(building.id, field, value);
               const name = building._isFutureSupply ? building.name : getVal(building, ['写字楼名称', 'name']) || '-';
+              const reference = building._referenceData;
+              const referenceValue = (field: string) => {
+                const value = reference?.[field];
+                if (value === undefined || value === null || String(value).trim() === '') return null;
+                return Number.isFinite(Number(value)) ? Number(value) : null;
+              };
+              const number = (value: number | null) => value === null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+              const currentValue = (field: string) => {
+                const value = draft[field];
+                return value === undefined || value === null || String(value).trim() === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+              };
+              const face = currentValue('qFace');
+              const free = currentValue('qFree');
+              const vacant = currentValue('qVacArea');
+              const net = face !== null && face >= 0 && free !== null && free >= 0 && free <= 36 ? face * (36 - free) / 36 : null;
+              const vacancy = vacant !== null && vacant >= 0 && totalArea > 0 ? vacant / totalArea * 100 : null;
+              const historicalVacancy = referenceValue('vacancy_rate');
+              const referenceVacancy = historicalVacancy === null ? null : historicalVacancy > 1 ? historicalVacancy : historicalVacancy * 100;
+              const lastNet = referenceValue('net_effective_rent');
+              const lastVacant = referenceValue('vacant_area');
+              const rentDelta = !building._isFutureSupply && net !== null && lastNet !== null && lastNet > 0 ? (net - lastNet) / lastNet * 100 : null;
+              const areaDelta = !building._isFutureSupply && vacant !== null && lastVacant !== null ? Math.round(vacant - lastVacant) : null;
+              const calculated: Record<string, string> = {
+                net: net === null ? '—' : net.toFixed(2),
+                rentDelta: rentDelta === null ? '—' : `${rentDelta > 0 ? '+' : ''}${rentDelta.toFixed(1)}%`,
+                areaDelta: areaDelta === null ? '—' : `${areaDelta > 0 ? '+' : ''}${number(areaDelta)} ㎡`,
+                vacancy: vacancy === null ? '—' : `${vacancy.toFixed(1)}%`,
+              };
+              const missing = issues.filter((issue) => issue.severity === 'warning').length;
+              const error = issues.find((issue) => issue.severity === 'error');
               return (
-                <section key={`${building.id}-${index}`} className="border-b border-zinc-200 p-3">
-                  <div className="mb-2 flex items-start justify-between gap-3"><div><div className="text-xs font-semibold text-[#003e7e]">{index + 1}. {String(name)}</div><div className="mt-0.5 text-[10px] text-zinc-400">{String(building.submarket || '')} · {totalArea > 0 ? Math.round(totalArea).toLocaleString() : '未知'} ㎡</div></div>{isQuarterlyRowComplete(draft) ? <CheckCircle2 size={14} className="text-emerald-600" /> : <AlertTriangle size={14} className="text-amber-600" />}</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[['qQuote','报价','1'],['qProp','物业费','1'],['qFace','表面租金','0.01'],['qFree','免租期','0.1'],['qVacArea','空置面积','1']].map(([field,label,step]) => <label key={field} className={field === 'qVacArea' ? 'col-span-2' : ''}><span className="mb-1 block text-[10px] font-medium text-zinc-500">{label} *</span><RowField value={draft[field]} onChange={(value) => change(field, value)} field={field} readOnly={readOnly} issue={issueFor(field)} type="number" step={step} /></label>)}
-                    <label><span className="mb-1 block text-[10px] font-medium text-zinc-500">业主</span><RowField value={draft.qOwner ?? (building._isFutureSupply ? '' : String(getVal(building, ['业主', 'Landlord']) || ''))} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline /></label>
-                    <label><span className="mb-1 block text-[10px] font-medium text-zinc-500">物业</span><RowField value={draft.qPropMan ?? (building._isFutureSupply ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || ''))} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline /></label>
-                    <label className="col-span-2"><span className="mb-1 block text-[10px] font-medium text-zinc-500">备注</span><RowField value={draft.qRemark} onChange={(value) => change('qRemark', value)} field="qRemark" readOnly={readOnly} multiline /></label>
+                <section key={`${building.id}-${index}`} className="border-b border-zinc-200 px-3 py-3" aria-label={`${String(name)}填报`}>
+                  <div className="mb-3">
+                    <h2 className="text-sm font-semibold leading-5 text-[#003e7e]">{index + 1}. {String(name)}</h2>
+                    <p className="mt-0.5 text-[11px] leading-4 text-slate-500">{String(building.submarket || '')}</p>
                   </div>
-                  <div className="mt-2 text-[10px] text-zinc-500">本季度净有效租金：{draft.qFace !== undefined && draft.qFace !== null && draft.qFace !== '' && draft.qFree !== undefined && draft.qFree !== null && draft.qFree !== '' ? (Number(draft.qFace) * (36 - Number(draft.qFree)) / 36).toFixed(2) : '未填'}；空置率：{totalArea > 0 && draft.qVacArea !== undefined && draft.qVacArea !== null && draft.qVacArea !== '' ? `${(Number(draft.qVacArea) / totalArea * 100).toFixed(1)}%` : '未知'}</div>
-                  {!building._isFutureSupply && <details className="mt-2 text-[10px] text-zinc-500"><summary>历史参考 {building._referenceData ? `${building._referenceData.record_year} Q${building._referenceData.record_quarter}` : '暂无'}（不参与本季度提交）</summary><div>{[['asking_rent', '报价'], ['management_fee', '物业费'], ['face_rent', '表面租金'], ['rent_free_period', '免租期'], ['vacant_area', '空置面积']].map(([field, label]) => `${label} ${building._referenceData?.[field] ?? '未知'}`).join('；')}</div></details>}
-                  {issues.length > 0 && <div className="mt-2"><ValidationMessage severity="warning">{issues[0].message}{issues.length > 1 ? `（另有 ${issues.length - 1} 项待检查）` : ''}</ValidationMessage></div>}
+                  <div className="grid grid-cols-2 gap-3">
+                    <label><span className="mb-1 block text-[11px] font-medium text-slate-500">业主</span><RowField value={draft.qOwner ?? (building._isFutureSupply ? '' : String(getVal(building, ['业主', 'Landlord']) || ''))} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline appearance="mobile" /></label>
+                    <label><span className="mb-1 block text-[11px] font-medium text-slate-500">物业</span><RowField value={draft.qPropMan ?? (building._isFutureSupply ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || ''))} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline appearance="mobile" /></label>
+                  </div>
+                  <div className="my-2 flex items-center justify-between text-[11px] leading-5 text-slate-500"><span>总面积</span><span className="tabular-nums">{totalArea > 0 ? `${Math.round(totalArea).toLocaleString()} ㎡` : '未知'}</span></div>
+                  <table className="w-full table-fixed border-collapse text-xs" aria-label={`${String(name)}季度指标对照`}>
+                    <caption className="sr-only">指标按电脑端表格顺序排列，历史参考在左，本季填写在右。</caption>
+                    <colgroup><col className="w-[30%]" /><col className="w-[27%]" /><col className="w-[43%]" /></colgroup>
+                    <thead>
+                      <tr className="border-y border-slate-200 text-left">
+                        <th scope="col" className="py-2 text-[11px] font-medium text-slate-500">指标</th>
+                        <th scope="col" className="bg-slate-50 px-2 py-2 text-right font-normal"><span className="block text-[10px] leading-4 text-slate-500">历史参考</span><span className="block text-[11px] leading-4 tabular-nums text-slate-600">{reference ? `${reference.record_year} Q${reference.record_quarter}` : '暂无历史数据'}</span></th>
+                        <th scope="col" className="pl-3 py-2 text-right"><span className="block text-[10px] font-medium leading-4 text-[#003e7e]">本季填写</span><span className="block text-[11px] font-medium leading-4 tabular-nums text-[#003e7e]">{submitYear} Q{submitQuarter}</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {QUARTERLY_ENTRY_COLUMNS.map((column) => {
+                        const labelId = `mobile-label-${building.id}-${column.key}`;
+                        const historyId = `mobile-history-${building.id}-${column.key}`;
+                        const historicalNumber = column.reference ? referenceValue(column.reference) : null;
+                        const historical = column.key === 'vacancy'
+                          ? (referenceVacancy === null ? '—' : `${referenceVacancy.toFixed(1)}%`)
+                          : number(historicalNumber) + (historicalNumber !== null && column.unit ? ` ${column.unit}` : '');
+                        const issue = column.field ? issueFor(column.field) : undefined;
+                        return (
+                          <tr key={column.key} className="h-12 border-b border-slate-100" aria-label={`${column.label}对照`}>
+                            <th scope="row" id={labelId} className="pr-1 text-left text-xs font-medium leading-4 text-slate-700">{column.label}{column.field && column.key !== 'qRemark' ? <> <span className="text-slate-400">*</span></> : null}</th>
+                            {column.key === 'qRemark' ? <td colSpan={2} className="py-2 pl-2"><RowField value={draft.qRemark} onChange={(value) => change('qRemark', value)} field="qRemark" readOnly={readOnly} multiline appearance="mobile" labelledBy={labelId} /></td> : <>
+                              <td className="bg-slate-50/70 px-2 py-0.5 text-right align-middle"><p id={historyId} className="text-[12px] leading-4 tabular-nums text-slate-500" aria-label={`${column.label}历史参考：${historical}`}><span className="sr-only">历史</span>{historical}</p></td>
+                              <td className="py-0.5 pl-3 text-right align-middle">{column.field ? <RowField value={draft[column.field]} onChange={(value) => change(column.field!, value)} field={column.field} readOnly={readOnly} issue={issue?.message} issueSeverity={issue?.severity === 'error' ? 'error' : 'warning'} type="number" step={column.step} appearance="mobile" describedBy={historyId} labelledBy={labelId} /> : <output className="inline-flex min-h-11 items-center justify-end text-sm font-semibold tabular-nums text-[#003e7e]" aria-labelledby={labelId}>{calculated[column.key]}</output>}</td>
+                            </>}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {error ? <div className="mt-3"><ValidationMessage severity="error">{error.message}</ValidationMessage></div> : missing > 0 ? <p className="mt-2 text-[11px] leading-4 text-slate-500">还有 {missing} 项待填写</p> : issues.length > 0 ? <div className="mt-3"><ValidationMessage severity="info">{issues[0].message}</ValidationMessage></div> : null}
                 </section>
               );
             })}
