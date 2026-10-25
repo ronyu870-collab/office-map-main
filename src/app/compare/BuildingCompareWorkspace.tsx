@@ -121,6 +121,9 @@ function Workspace() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mobileSelectionOpen, setMobileSelectionOpen] = useState(false);
+  const selectionPanelId = React.useId();
+  const selectionToggleRef = React.useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -274,52 +277,60 @@ function Workspace() {
         : [['contains', '包含'], ['equals', '等于']];
 
   return <div className="flex h-screen h-[100dvh] min-h-0 flex-col bg-zinc-50">
-    <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-5 py-3 shadow-sm">
-      <button type="button" onClick={() => router.push('/map')} className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800"><ArrowLeft size={16} />返回地图</button>
+    <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-zinc-200 bg-white px-4 py-2 shadow-sm lg:px-5 lg:py-3">
+      <button type="button" onClick={() => router.push('/map')} className="flex min-h-11 items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 lg:min-h-0"><ArrowLeft size={16} />返回地图</button>
       <span className="text-zinc-300">|</span><h1 className="text-sm font-semibold text-zinc-800">楼宇对比</h1>
       <span className="truncate text-xs text-zinc-400">{targetName}</span>
       <span className="ml-auto text-xs text-zinc-400">已选 {competitorCount} / {MAX_COMPETITORS} 个竞品</span>
     </header>
 
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <aside className="flex w-[280px] shrink-0 flex-col border-r border-zinc-200 bg-white">
-        <div className="border-b border-zinc-100 p-4">
+    <div className="shrink-0 border-b border-zinc-200 bg-white px-4 lg:hidden">
+      <button ref={selectionToggleRef} type="button" aria-expanded={mobileSelectionOpen} aria-controls={selectionPanelId} onClick={() => setMobileSelectionOpen((open) => !open)} className="flex min-h-11 w-full items-center gap-2 text-left text-sm font-medium text-[#003e7e]">
+        <SlidersHorizontal size={16} aria-hidden="true" />{mobileSelectionOpen ? '收起选择与筛选' : '选择项目与筛选'}
+        <span className="ml-auto text-xs font-normal text-zinc-500">{competitorCount} 个竞品{filters.length ? ` · ${filters.length} 项筛选` : ''}</span>
+        <ChevronDown size={16} aria-hidden="true" className={mobileSelectionOpen ? 'rotate-180' : ''} />
+      </button>
+    </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+      <aside id={selectionPanelId} aria-label="项目选择与筛选" className={`${mobileSelectionOpen ? 'flex' : 'hidden'} max-h-[60dvh] w-full shrink-0 flex-col overflow-y-auto border-b border-zinc-200 bg-white lg:flex lg:max-h-none lg:w-[280px] lg:overflow-hidden lg:border-b-0 lg:border-r`}>
+        <div className="shrink-0 border-b border-zinc-100 p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-700"><SlidersHorizontal size={15} className="text-[#003e7e]" />选择对比项目</div>
-          <div className="relative"><Search size={14} className="absolute left-2.5 top-2 text-zinc-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索项目名称" className="w-full rounded border border-zinc-200 py-1.5 pl-8 pr-2 text-xs outline-none focus:border-[#003e7e]" /></div>
+          <div className="relative"><Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索项目名称" aria-label="搜索对比项目" className="min-h-11 w-full rounded border border-zinc-200 py-1.5 pl-8 pr-2 text-base lg:min-h-0 lg:text-xs outline-none focus:border-[#003e7e]" /></div>
           <div className="mt-3 border-t border-zinc-100 pt-3">
             <p className="mb-2 text-[11px] font-medium text-zinc-600">按指标筛选 <span className="font-normal text-zinc-400">（条件同时满足）</span></p>
-            <select value={fieldKey} onChange={(e) => { const next = FIELD_MAP.get(e.target.value); setFieldKey(e.target.value); if (next) setOperator(defaultOperator(next)); setValue(''); setValueTo(''); }} className="mb-2 w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-[11px]">
+            <select aria-label="筛选指标" value={fieldKey} onChange={(e) => { const next = FIELD_MAP.get(e.target.value); setFieldKey(e.target.value); if (next) setOperator(defaultOperator(next)); setValue(''); setValueTo(''); }} className="mb-2 w-full rounded border border-zinc-200 bg-white px-2 py-1.5 min-h-11 text-base lg:min-h-0 lg:text-[11px]">
               {GROUPS.map((group) => <optgroup key={group.label} label={group.label}>{group.fields.map((item) => <option key={item.key} value={item.key}>{item.label}{item.unit ? ` (${item.unit})` : ''}</option>)}</optgroup>)}
             </select>
             <div className="grid grid-cols-[92px_1fr] gap-2">
-              <select value={operator} onChange={(e) => setOperator(e.target.value as Operator)} className="rounded border border-zinc-200 bg-white px-1.5 py-1.5 text-[11px]">{operatorOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-              {field.kind !== 'boolean' ? <input type={field.kind === 'date' ? 'date' : field.kind === 'number' || field.kind === 'percent' ? 'number' : 'text'} value={value} onChange={(e) => setValue(e.target.value)} placeholder={field.kind === 'text' ? '输入关键词' : '数值'} className="min-w-0 rounded border border-zinc-200 px-2 py-1.5 text-[11px] outline-none focus:border-[#003e7e]" /> : <div />}
+              <select aria-label="筛选关系" value={operator} onChange={(e) => setOperator(e.target.value as Operator)} className="rounded border border-zinc-200 bg-white px-1.5 py-1.5 min-h-11 text-base lg:min-h-0 lg:text-[11px]">{operatorOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+              {field.kind !== 'boolean' ? <input type={field.kind === 'date' ? 'date' : field.kind === 'number' || field.kind === 'percent' ? 'number' : 'text'} aria-label="筛选数值或关键词" value={value} onChange={(e) => setValue(e.target.value)} placeholder={field.kind === 'text' ? '输入关键词' : '数值'} className="min-w-0 rounded border border-zinc-200 px-2 py-1.5 min-h-11 text-base lg:min-h-0 lg:text-[11px] outline-none focus:border-[#003e7e]" /> : <div />}
             </div>
-            {operator === 'between' ? <input type={field.kind === 'date' ? 'date' : 'number'} value={valueTo} onChange={(e) => setValueTo(e.target.value)} placeholder="上限" className="mt-2 w-full rounded border border-zinc-200 px-2 py-1.5 text-[11px]" /> : null}
-            <button type="button" onClick={addFilter} disabled={field.kind !== 'boolean' && (!value || (operator === 'between' && !valueTo))} className="mt-2 w-full rounded bg-[#003e7e] px-2 py-1.5 text-[11px] font-medium text-white hover:bg-[#002d5c] disabled:cursor-not-allowed disabled:bg-zinc-300">添加条件</button>
+            {operator === 'between' ? <input type={field.kind === 'date' ? 'date' : 'number'} aria-label="筛选上限" value={valueTo} onChange={(e) => setValueTo(e.target.value)} placeholder="上限" className="mt-2 min-h-11 w-full rounded border border-zinc-200 px-2 py-1.5 text-base lg:min-h-0 lg:text-[11px]" /> : null}
+            <button type="button" onClick={addFilter} disabled={field.kind !== 'boolean' && (!value || (operator === 'between' && !valueTo))} className="mt-2 min-h-11 w-full rounded bg-[#003e7e] px-2 py-1.5 text-sm lg:min-h-0 lg:text-[11px] font-medium text-white hover:bg-[#002d5c] disabled:cursor-not-allowed disabled:bg-zinc-300">添加条件</button>
             {filters.length ? <div className="mt-2 flex flex-wrap gap-1">{filters.map((filter) => <span key={filter.id} className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-1 text-[10px] text-[#003e7e]">{FIELD_MAP.get(filter.key)?.label}<button type="button" onClick={() => setFilters((current) => current.filter((item) => item.id !== filter.id))} aria-label="删除筛选条件"><X size={11} /></button></span>)}</div> : null}
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-2">
+        <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-auto">
           {error ? <div className="m-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</div> : null}
-          {candidates.map((row) => { const checked = selected.has(row.id); const target = row.id === targetId; return <button key={row.id} type="button" onClick={() => toggle(row.id)} className={`mb-1 flex w-full items-start gap-2 rounded px-2.5 py-2 text-left ${checked ? 'bg-blue-50' : 'hover:bg-zinc-50'}`}>
+          {candidates.map((row) => { const checked = selected.has(row.id); const target = row.id === targetId; return <button key={row.id} type="button" aria-pressed={checked} onClick={() => toggle(row.id)} className={`mb-1 flex min-h-11 w-full items-start gap-2 rounded px-2.5 py-2 text-left ${checked ? 'bg-blue-50' : 'hover:bg-zinc-50'}`}>
             <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-[#003e7e] bg-[#003e7e] text-white' : 'border-zinc-300'}`}>{checked ? <Check size={11} /> : null}</span>
             <span className="min-w-0"><span className={`block truncate text-xs font-medium ${target ? 'text-[#003e7e]' : 'text-zinc-700'}`}>{row.name}{target ? <span className="ml-1 text-[10px]">当前</span> : null}</span><span className="block truncate text-[10px] text-zinc-400">{GRADE[row.grade] || row.grade || '未分级'}{row.submarket ? ` · ${row.submarket}` : ''}</span></span>
           </button>; })}
           {!loading && !error && !candidates.length ? <p className="p-4 text-center text-xs text-zinc-400">没有匹配项目</p> : null}
         </div>
+        <div className="shrink-0 border-t border-zinc-200 p-3 lg:hidden"><button type="button" onClick={() => { setMobileSelectionOpen(false); selectionToggleRef.current?.focus(); }} className="min-h-11 w-full rounded-md bg-[#003e7e] px-3 text-sm font-medium text-white">查看对比结果</button></div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex shrink-0 items-center gap-4 border-b border-zinc-200 bg-white px-5 py-2.5 text-xs text-zinc-500">
-          <span>最多选择 5 个竞品，可横向逐项比较。</span>
-          <label className="flex cursor-pointer items-center gap-1.5"><input type="checkbox" checked={onlyDifferences} onChange={(e) => setOnlyDifferences(e.target.checked)} className="accent-[#003e7e]" />仅看差异</label>
-          <label className="flex cursor-pointer items-center gap-1.5"><input type="checkbox" checked={onlyPopulated} onChange={(e) => setOnlyPopulated(e.target.checked)} className="accent-[#003e7e]" />隐藏空指标</label>
+      <main aria-label="楼宇比较结果" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-zinc-200 bg-white px-4 py-2 text-xs text-zinc-500 lg:px-5 lg:py-2.5">
+          <span className="basis-full lg:basis-auto">最多选择 5 个竞品，可横向逐项比较。</span>
+          <label className="flex min-h-11 cursor-pointer items-center gap-1.5 lg:min-h-0"><input type="checkbox" checked={onlyDifferences} onChange={(e) => setOnlyDifferences(e.target.checked)} className="accent-[#003e7e]" />仅看差异</label>
+          <label className="flex min-h-11 cursor-pointer items-center gap-1.5 lg:min-h-0"><input type="checkbox" checked={onlyPopulated} onChange={(e) => setOnlyPopulated(e.target.checked)} className="accent-[#003e7e]" />隐藏空指标</label>
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {loading ? <div className="flex justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" /></div> : !selectedRows.length ? <div className="p-12 text-center text-sm text-zinc-400">请选择至少一个项目</div> : <table className="min-w-full border-collapse text-xs">
-            <thead className="sticky top-0 z-20 bg-zinc-50 shadow-sm"><tr className="border-b-2 border-zinc-200"><th className="sticky left-0 z-30 min-w-[180px] bg-zinc-50 px-4 py-3 text-left font-semibold text-zinc-500">对比指标</th>{selectedRows.map((row) => <th key={row.id} className={`min-w-[180px] border-l border-zinc-100 px-4 py-2.5 text-left ${row.id === targetId ? 'bg-blue-50' : 'bg-zinc-50'}`}><div className={`font-semibold ${row.id === targetId ? 'text-[#003e7e]' : 'text-zinc-700'}`}>{row.name}</div><div className="mt-1 font-normal text-[10px] text-zinc-400">{GRADE[row.grade] || row.grade || '未分级'}{row.submarket ? ` · ${row.submarket}` : ''}{row.metricPeriod ? ` · 经营数据 ${row.metricPeriod}` : ''}</div></th>)}</tr></thead>
-            <tbody>{GROUPS.map((group) => { const fields = group.fields.filter(visible); if (!fields.length) return null; const closed = collapsed.has(group.label); return <React.Fragment key={group.label}><tr className="border-y border-zinc-200 bg-zinc-100"><td colSpan={selectedRows.length + 1} className="sticky left-0 cursor-pointer px-3 py-2 font-semibold text-[#003e7e]" onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.label)) next.delete(group.label); else next.add(group.label); return next; })}>{closed ? <ChevronRight size={14} className="mr-1 inline" /> : <ChevronDown size={14} className="mr-1 inline" />}{group.label}<span className="ml-2 text-[10px] font-normal text-zinc-400">{fields.length} 项</span></td></tr>{!closed ? fields.map((item) => <tr key={item.key} className="border-b border-zinc-100 hover:bg-zinc-50"><td className="sticky left-0 z-10 bg-white px-4 py-2.5 font-medium text-zinc-600">{item.label}{item.unit ? <span className="ml-1 text-[10px] font-normal text-zinc-400">({item.unit})</span> : null}</td>{selectedRows.map((row) => { const raw = valueFor(row, item); const missing = raw === null || raw === undefined || raw === ''; return <td key={row.id} className={`border-l border-zinc-100 px-4 py-2.5 ${row.id === targetId ? 'bg-blue-50/30 font-medium text-[#003e7e]' : 'text-zinc-700'} ${missing ? 'text-zinc-300' : ''}`}>{format(raw, item)}</td>; })}</tr>) : null}</React.Fragment>; })}</tbody>
+            <thead className="sticky top-0 z-20 bg-zinc-50 shadow-sm"><tr className="border-b-2 border-zinc-200"><th className="sticky left-0 z-30 min-w-[128px] bg-zinc-50 px-3 py-3 lg:min-w-[180px] lg:px-4 text-left font-semibold text-zinc-500">对比指标</th>{selectedRows.map((row) => <th key={row.id} className={`min-w-[180px] border-l border-zinc-100 px-4 py-2.5 text-left ${row.id === targetId ? 'bg-blue-50' : 'bg-zinc-50'}`}><div className={`font-semibold ${row.id === targetId ? 'text-[#003e7e]' : 'text-zinc-700'}`}>{row.name}</div><div className="mt-1 font-normal text-[10px] text-zinc-400">{GRADE[row.grade] || row.grade || '未分级'}{row.submarket ? ` · ${row.submarket}` : ''}{row.metricPeriod ? ` · 经营数据 ${row.metricPeriod}` : ''}</div></th>)}</tr></thead>
+            <tbody>{GROUPS.map((group) => { const fields = group.fields.filter(visible); if (!fields.length) return null; const closed = collapsed.has(group.label); return <React.Fragment key={group.label}><tr className="border-y border-zinc-200 bg-zinc-100"><td colSpan={selectedRows.length + 1} className="px-3 font-semibold text-[#003e7e]"><button type="button" aria-expanded={!closed} aria-label={`${closed ? '展开' : '收起'}${group.label}`} className="sticky left-0 inline-flex min-h-11 items-center py-2 text-left lg:min-h-0" onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.label)) next.delete(group.label); else next.add(group.label); return next; })}>{closed ? <ChevronRight size={14} className="mr-1" /> : <ChevronDown size={14} className="mr-1" />}{group.label}<span className="ml-2 text-xs font-normal text-zinc-500">{fields.length} 项</span></button></td></tr>{!closed ? fields.map((item) => <tr key={item.key} className="border-b border-zinc-100 hover:bg-zinc-50"><td className="sticky left-0 z-10 bg-white px-4 py-2.5 font-medium text-zinc-600">{item.label}{item.unit ? <span className="ml-1 text-[10px] font-normal text-zinc-400">({item.unit})</span> : null}</td>{selectedRows.map((row) => { const raw = valueFor(row, item); const missing = raw === null || raw === undefined || raw === ''; return <td key={row.id} className={`border-l border-zinc-100 px-4 py-2.5 ${row.id === targetId ? 'bg-blue-50/30 font-medium text-[#003e7e]' : 'text-zinc-700'} ${missing ? 'text-zinc-300' : ''}`}>{format(raw, item)}</td>; })}</tr>) : null}</React.Fragment>; })}</tbody>
           </table>}
         </div>
       </main>

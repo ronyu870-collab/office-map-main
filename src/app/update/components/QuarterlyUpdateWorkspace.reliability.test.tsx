@@ -867,3 +867,30 @@ describe('mobile project navigation', () => {
     expect(submission.p_regular_rows.map((row: { building_id: string }) => row.building_id)).toEqual(['synthetic-a', 'synthetic-a2', 'synthetic-a3']);
   });
 });
+
+
+describe('desktop and mobile quarterly presentation parity', () => {
+  it('shows the same precise reference and calculated results and suppresses invalid derivations on both layouts', async () => {
+    state.metrics = [{ building_id: 'synthetic-a', record_year: 2025, record_quarter: 4, net_effective_rent: 250.125, face_rent: 285.75, vacant_area: 125, vacancy_rate: 0.125, total_area: 1000 }];
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = within(screen.getByRole('region', { name: 'Synthetic Tower A填报' }));
+    fireEvent.change(mobile.getByLabelText(/^表面租金 \*$/), { target: { value: '285.75' } });
+    fireEvent.change(mobile.getByLabelText(/^免租期 \*$/), { target: { value: '3' } });
+    fireEvent.change(mobile.getByLabelText(/^空置面积 \*$/), { target: { value: '100' } });
+    const desktop = document.querySelector('table.min-w-\\[1760px\\]')!;
+    const row = [...desktop.querySelectorAll('tbody tr')].find((item) => item.textContent?.includes('Synthetic Tower A'))!;
+    const cells = within(row as HTMLElement).getAllByRole('cell');
+    expect(cells[9]).toHaveTextContent('250.13');
+    expect(mobile.getByLabelText(/^净有效租金历史参考/)).toHaveTextContent('250.13');
+    expect(cells[16]).toHaveTextContent('261.94');
+    expect(mobile.getByRole('status', { name: '净有效租金' })).toHaveTextContent('261.94');
+    expect(cells[17]).toHaveTextContent('+4.7%');
+    expect(mobile.getByRole('status', { name: '租金变化' })).toHaveTextContent('+4.7%');
+    expect(cells[19]).toHaveTextContent('-25');
+    expect(mobile.getByRole('status', { name: '面积变化' })).toHaveTextContent('-25 ㎡');
+    fireEvent.change(mobile.getByLabelText(/^免租期 \*$/), { target: { value: '37' } });
+    expect(cells[16]).toHaveTextContent('—');
+    expect(mobile.getByRole('status', { name: '净有效租金' })).toHaveTextContent('—');
+    expect(state.rpc).not.toHaveBeenCalled();
+  });
+});
