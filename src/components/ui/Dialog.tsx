@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
+import { useBodyScrollLock } from "@/src/hooks/useBodyScrollLock";
+
 import { IconButton } from "./IconButton";
 
 type DialogSize = "sm" | "md" | "lg" | "xl";
@@ -53,13 +55,12 @@ export function Dialog({
   const descriptionId = useId();
 
   useEffect(() => setMounted(true), []);
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
 
     const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
 
     const frame = window.requestAnimationFrame(() => {
       const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
@@ -68,7 +69,6 @@ export function Dialog({
 
     return () => {
       window.cancelAnimationFrame(frame);
-      document.body.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
   }, [open]);

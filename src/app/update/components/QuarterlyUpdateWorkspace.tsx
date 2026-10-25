@@ -24,6 +24,8 @@ import {
   type QuarterlyDraftRow,
 } from '../quarterlyDataEntry';
 
+import { quarterlyPresentation } from '../quarterlyPresentation';
+
 import { QuarterlyDraftStore, packDraft, unpackDraft, hasConfirmedDraftPeriod, type DraftPayload, type DraftStorage } from '../quarterlyDraftStore';
 import { inspectAccountRecovery } from '../quarterlyRecoveryCleanup';
 import { legacyReferencePreferenceKey, readLegacyReferencePreference, writeLegacyReferencePreference, type LegacyReferenceDisposition } from '../quarterlyLegacyReferencePreference';
@@ -937,25 +939,7 @@ export function QuarterlyUpdateWorkspace() {
                   const isFuture = building._isFutureSupply === true;
                   const name = isFuture ? building.name : getVal(building, ['写字楼名称', 'Project Name CN', 'name']) || '-';
                   const submarket = isFuture ? building.submarket || '-' : getVal(building, ['子市场', 'SUBMARKET']) || '-';
-                  const referenceNumber = (field: string): number | null => {
-                    const value = building._referenceData?.[field];
-                    return value === undefined || value === null || value === '' || !Number.isFinite(Number(value)) ? null : Number(value);
-                  };
-                  const lastQuote = isFuture ? null : referenceNumber('asking_rent');
-                  const lastMgmt = isFuture ? null : referenceNumber('management_fee');
-                  const lastFace = isFuture ? null : referenceNumber('face_rent');
-                  const lastFree = isFuture ? null : referenceNumber('rent_free_period');
-                  const lastNet = isFuture ? null : referenceNumber('net_effective_rent');
-                  const lastVacant = isFuture ? null : referenceNumber('vacant_area');
-                  const rawVacancy = isFuture ? null : referenceNumber('vacancy_rate');
-                  const lastVacancyPercent = rawVacancy === null ? null : (rawVacancy > 1 ? rawVacancy : rawVacancy * 100);
-                  const face = parseFloat(String(draft.qFace ?? '')) || 0;
-                  const free = parseFloat(String(draft.qFree ?? '')) || 0;
-                  const vacant = parseFloat(String(draft.qVacArea ?? '')) || 0;
-                  const net = draft.qFace !== undefined && draft.qFace !== null && draft.qFace !== '' && draft.qFree !== undefined && draft.qFree !== null && draft.qFree !== '' ? face * (36 - free) / 36 : null;
-                  const rentDelta = !isFuture && net !== null && net >= 0 && lastNet !== null && lastNet > 0 ? ((net - lastNet) / lastNet) * 100 : null;
-                  const areaDelta = draft.qVacArea !== undefined && draft.qVacArea !== '' && draft.qVacArea !== null && !isFuture && lastVacant !== null ? Math.round(vacant - lastVacant) : null;
-                  const vacancy = totalArea > 0 && draft.qVacArea !== undefined && draft.qVacArea !== null && draft.qVacArea !== '' ? (vacant / totalArea) * 100 : null;
+                  const presentation = quarterlyPresentation(draft, totalArea, building._referenceData, isFuture);
                   const change = (field: string, value: string) => isFuture ? updateFutureField(building.id, building._assignmentId, field, value) : updateRegularField(building.id, field, value);
                   const defaultOwner = isFuture ? '' : String(getVal(building, ['业主', 'Landlord']) || '');
                   const defaultPm = isFuture ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || '');
@@ -967,17 +951,16 @@ export function QuarterlyUpdateWorkspace() {
                       <td className="px-2 py-1.5 text-zinc-600">{String(submarket)}</td>
                       <td className="min-w-40 px-1 py-1"><div className="grid grid-cols-2 gap-1"><RowField value={draft.qOwner ?? defaultOwner} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline /><RowField value={draft.qPropMan ?? defaultPm} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline /></div></td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-zinc-600">{totalArea > 0 ? Math.round(totalArea).toLocaleString() : '未知'}</td>
-                      {[lastQuote,lastMgmt,lastFace,lastFree,lastNet,lastVacant].map((value, valueIndex) => <td key={valueIndex} className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{value !== null ? (valueIndex === 5 ? Math.round(value).toLocaleString() : Number(value).toFixed(valueIndex >= 2 ? 1 : 0)) : '-'}</td>)}
-                      <td className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{lastVacancyPercent !== null && Number.isFinite(lastVacancyPercent) ? `${lastVacancyPercent.toFixed(1)}%` : '-'}</td>
+                      {Object.entries(presentation.historical).map(([field, value]) => <td key={field} className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{value}</td>)}
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qQuote} onChange={(value) => change('qQuote', value)} field="qQuote" readOnly={readOnly} issue={issueFor('qQuote')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qProp} onChange={(value) => change('qProp', value)} field="qProp" readOnly={readOnly} issue={issueFor('qProp')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qFace} onChange={(value) => change('qFace', value)} field="qFace" readOnly={readOnly} issue={issueFor('qFace')} type="number" step="0.01" onKeyDown={handleGridKeyDown} /></td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qFree} onChange={(value) => change('qFree', value)} field="qFree" readOnly={readOnly} issue={issueFor('qFree')} type="number" step="0.1" onKeyDown={handleGridKeyDown} /></td>
-                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right font-semibold tabular-nums text-amber-800">{net !== null ? net.toFixed(1) : '-'}</td>
-                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right tabular-nums">{rentDelta === null ? '-' : `${rentDelta > 0 ? '+' : ''}${rentDelta.toFixed(1)}%`}</td>
+                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right font-semibold tabular-nums text-amber-800">{presentation.current.net}</td>
+                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right tabular-nums">{presentation.current.rentDelta}</td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qVacArea} onChange={(value) => change('qVacArea', value)} field="qVacArea" readOnly={readOnly} issue={issueFor('qVacArea')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
-                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right tabular-nums">{areaDelta === null ? '-' : `${areaDelta > 0 ? '+' : ''}${areaDelta.toLocaleString()}`}</td>
-                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right font-semibold tabular-nums text-[#003e7e]">{vacancy === null ? '-' : `${vacancy.toFixed(1)}%`}</td>
+                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right tabular-nums">{presentation.current.areaDelta}</td>
+                      <td className="bg-[#fffaf0] px-2 py-1.5 text-right font-semibold tabular-nums text-[#003e7e]">{presentation.current.vacancy}</td>
                       <td className="min-w-40 bg-[#fffdf7] px-1 py-1"><RowField value={draft.qRemark} onChange={(value) => change('qRemark', value)} field="qRemark" readOnly={readOnly} multiline /></td>
                     </tr>
                   );
@@ -1014,33 +997,7 @@ export function QuarterlyUpdateWorkspace() {
               const change = (field: string, value: string) => building._isFutureSupply ? updateFutureField(building.id, building._assignmentId, field, value) : updateRegularField(building.id, field, value);
               const name = building._isFutureSupply ? building.name : getVal(building, ['写字楼名称', 'name']) || '-';
               const reference = building._referenceData;
-              const referenceValue = (field: string) => {
-                const value = reference?.[field];
-                if (value === undefined || value === null || String(value).trim() === '') return null;
-                return Number.isFinite(Number(value)) ? Number(value) : null;
-              };
-              const number = (value: number | null) => value === null ? '—' : value.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
-              const currentValue = (field: string) => {
-                const value = draft[field];
-                return value === undefined || value === null || String(value).trim() === '' || !Number.isFinite(Number(value)) ? null : Number(value);
-              };
-              const face = currentValue('qFace');
-              const free = currentValue('qFree');
-              const vacant = currentValue('qVacArea');
-              const net = face !== null && face >= 0 && free !== null && free >= 0 && free <= 36 ? face * (36 - free) / 36 : null;
-              const vacancy = vacant !== null && vacant >= 0 && totalArea > 0 ? vacant / totalArea * 100 : null;
-              const historicalVacancy = referenceValue('vacancy_rate');
-              const referenceVacancy = historicalVacancy === null ? null : historicalVacancy > 1 ? historicalVacancy : historicalVacancy * 100;
-              const lastNet = referenceValue('net_effective_rent');
-              const lastVacant = referenceValue('vacant_area');
-              const rentDelta = !building._isFutureSupply && net !== null && lastNet !== null && lastNet > 0 ? (net - lastNet) / lastNet * 100 : null;
-              const areaDelta = !building._isFutureSupply && vacant !== null && lastVacant !== null ? Math.round(vacant - lastVacant) : null;
-              const calculated: Record<string, string> = {
-                net: net === null ? '—' : net.toFixed(2),
-                rentDelta: rentDelta === null ? '—' : `${rentDelta > 0 ? '+' : ''}${rentDelta.toFixed(1)}%`,
-                areaDelta: areaDelta === null ? '—' : `${areaDelta > 0 ? '+' : ''}${number(areaDelta)} ㎡`,
-                vacancy: vacancy === null ? '—' : `${vacancy.toFixed(1)}%`,
-              };
+              const presentation = quarterlyPresentation(draft, totalArea, reference, building._isFutureSupply === true);
               const missing = issues.filter((issue) => issue.severity === 'warning').length;
               const error = issues.find((issue) => issue.severity === 'error');
               return (
@@ -1065,17 +1022,17 @@ export function QuarterlyUpdateWorkspace() {
                       {QUARTERLY_ENTRY_COLUMNS.map((column) => {
                         const labelId = `mobile-label-${building.id}-${column.key}`;
                         const historyId = `mobile-history-${building.id}-${column.key}`;
-                        const historicalNumber = column.reference ? referenceValue(column.reference) : null;
-                        const historical = column.key === 'vacancy'
-                          ? (referenceVacancy === null ? '—' : `${referenceVacancy.toFixed(1)}%`)
-                          : number(historicalNumber) + (historicalNumber !== null && column.unit ? ` ${column.unit}` : '');
+                        const historical = column.reference
+                          ? presentation.historical[column.reference as keyof typeof presentation.historical]
+                          : '—';
+                        const historicalWithUnit = historical !== '—' && column.unit ? `${historical} ${column.unit}` : historical;
                         const issue = column.field ? issueFor(column.field) : undefined;
                         return (
                           <tr key={column.key} className="h-12 border-b border-slate-100" aria-label={`${column.label}对照`}>
                             <th scope="row" id={labelId} className="pr-1 text-left text-xs font-medium leading-4 text-slate-700">{column.label}{column.field && column.key !== 'qRemark' ? <> <span className="text-slate-400">*</span></> : null}</th>
                             {column.key === 'qRemark' ? <td colSpan={2} className="py-2 pl-2"><RowField value={draft.qRemark} onChange={(value) => change('qRemark', value)} field="qRemark" readOnly={readOnly} multiline appearance="mobile" labelledBy={labelId} /></td> : <>
-                              <td className="bg-slate-50/70 px-2 py-0.5 text-right align-middle"><p id={historyId} className="text-[12px] leading-4 tabular-nums text-slate-500" aria-label={`${column.label}历史参考：${historical}`}><span className="sr-only">历史</span>{historical}</p></td>
-                              <td className="py-0.5 pl-3 text-right align-middle">{column.field ? <RowField value={draft[column.field]} onChange={(value) => change(column.field!, value)} field={column.field} readOnly={readOnly} issue={issue?.message} issueSeverity={issue?.severity === 'error' ? 'error' : 'warning'} type="number" step={column.step} appearance="mobile" describedBy={historyId} labelledBy={labelId} /> : <output className="inline-flex min-h-11 items-center justify-end text-sm font-semibold tabular-nums text-[#003e7e]" aria-labelledby={labelId}>{calculated[column.key]}</output>}</td>
+                              <td className="bg-slate-50/70 px-2 py-0.5 text-right align-middle"><p id={historyId} className="text-[12px] leading-4 tabular-nums text-slate-500" aria-label={`${column.label}历史参考：${historicalWithUnit}`}><span className="sr-only">历史</span>{historicalWithUnit}</p></td>
+                              <td className="py-0.5 pl-3 text-right align-middle">{column.field ? <RowField value={draft[column.field]} onChange={(value) => change(column.field!, value)} field={column.field} readOnly={readOnly} issue={issue?.message} issueSeverity={issue?.severity === 'error' ? 'error' : 'warning'} type="number" step={column.step} appearance="mobile" describedBy={historyId} labelledBy={labelId} /> : <output className="inline-flex min-h-11 items-center justify-end text-sm font-semibold tabular-nums text-[#003e7e]" aria-labelledby={labelId}>{presentation.current[column.key as keyof typeof presentation.current]}{column.key === 'areaDelta' && presentation.current.areaDelta !== '—' ? ' ㎡' : ''}</output>}</td>
                             </>}
                           </tr>
                         );

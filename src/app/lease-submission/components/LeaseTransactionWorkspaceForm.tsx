@@ -20,6 +20,7 @@ import {
   saveLeaseTransactionDraft,
   type LeaseTransactionDraftSnapshot,
 } from '@/src/services/leaseTransactionDraftService';
+import { useBodyScrollLock } from '@/src/hooks/useBodyScrollLock';
 import { useBuildings } from '@/src/hooks/useBuildings';
 import { logAction } from '@/src/utils/audit';
 import { supabase } from '@/src/services/supabaseClient';
@@ -166,7 +167,11 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const [draftHydrated, setDraftHydrated] = React.useState(mode !== 'create');
   const [draftUiBaseline, setDraftUiBaseline] = React.useState('');
   const createInitializedRef = React.useRef(false);
+  const editInitializedRef = React.useRef<string | null>(null);
   const draftLoadTokenRef = React.useRef(0);
+  const savedDraftSignatureRef = React.useRef<string | null>(null);
+  const operationRef = React.useRef<'saving' | 'submitting' | null>(null);
+  const [showLeaveConfirmation, setShowLeaveConfirmation] = React.useState(false);
 
   const {
     register,
@@ -234,20 +239,44 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     oldGradeUnknown,
   ]);
   const currentDraftUiSignature = React.useMemo(() => JSON.stringify(currentDraftUi), [currentDraftUi]);
+  const currentDraftUiRef = React.useRef(currentDraftUi);
+  currentDraftUiRef.current = currentDraftUi;
+  useBodyScrollLock(isOpen);
+  const busy = isSubmitting || submitState === 'saving' || submitState === 'submitting';
+  const hasUnsavedChanges = React.useCallback(() => {
+    if (submittedRecord) return false;
+    if (mode === 'create' && savedDraftSignatureRef.current) {
+      return JSON.stringify({ version: 1, values: getValues(), ui: currentDraftUiRef.current }) !== savedDraftSignatureRef.current;
+    }
+    return dirtyCount > 0 || Boolean(draftUiBaseline && JSON.stringify(currentDraftUiRef.current) !== draftUiBaseline);
+  }, [dirtyCount, draftUiBaseline, getValues, mode, submittedRecord]);
+  const requestClose = React.useCallback(() => {
+    if (busy || operationRef.current || showLeaveConfirmation || showDuplicate || pendingEdit) return;
+    if (hasUnsavedChanges()) setShowLeaveConfirmation(true);
+    else onClose();
+  }, [busy, hasUnsavedChanges, onClose, pendingEdit, showDuplicate, showLeaveConfirmation]);
 
   React.useEffect(() => {
     if (!isOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!busy && !operationRef.current && !hasUnsavedChanges()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [busy, hasUnsavedChanges, isOpen]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !showDuplicate && !pendingEdit && !isSubmitting) onClose();
+      if (event.key === 'Escape' && !event.defaultPrevented) requestClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, isSubmitting, onClose, pendingEdit, showDuplicate]);
+  }, [isOpen, requestClose]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -276,11 +305,20 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   React.useEffect(() => {
     if (!isOpen) {
       createInitializedRef.current = false;
+      editInitializedRef.current = null;
+      savedDraftSignatureRef.current = null;
+      setShowLeaveConfirmation(false);
       setDraftHydrated(mode !== 'create');
       return;
     }
 
     if (mode === 'edit' && initialData) {
+      const editKey = `${userId}:${initialData.id}`;
+      // Option requests can finish after the user has started editing.
+      if (editInitializedRef.current === editKey) return;
+      editInitializedRef.current = editKey;
+      savedDraftSignatureRef.current = null;
+      setShowLeaveConfirmation(false);
       setSubmittedRecord(null);
       setSubmitErrorMessage(null);
       setSubmitState('idle');
@@ -309,11 +347,27 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       const oldMatch = initialData.old_address ? (buildings ?? []).some((building) => building.name === initialData.old_address) : false;
       setOldBuildingLocked(oldMatch && !initialData.is_manual_old_building);
       setManualOldBuilding(Boolean(initialData.is_manual_old_building) || Boolean(initialData.old_address && !oldMatch && initialData.old_address !== '未知'));
+      setDraftUiBaseline(JSON.stringify({
+        ...currentDraftUiRef.current,
+        isCustomSubIndustry: customSubIndustry,
+        customSubIndustryText: customSubIndustry ? initialData.sub_industry || '' : '',
+        faceRentUnit: Number(initialData.face_rent) > 0 && Number(initialData.face_rent) < 30 ? 'daily' : 'monthly',
+        effectiveRentUnit: Number(initialData.effective_rent) > 0 && Number(initialData.effective_rent) < 30 ? 'daily' : 'monthly',
+        floorInfoUnknown: initialData.floor_info === '未知', floorUnknown: initialData.floor === '未知',
+        oldAddressUnknown: initialData.old_address === '未知', oldSubmarketUnknown: initialData.old_sub_market === '未知',
+        oldDistrictUnknown: initialData.old_district === '未知', oldGradeUnknown: initialData.old_building_grade === '未知',
+        buildingLocked: buildingMatch && !initialData.is_manual_building,
+        manualBuilding: Boolean(initialData.is_manual_building) || !buildingMatch,
+        oldBuildingLocked: oldMatch && !initialData.is_manual_old_building,
+        manualOldBuilding: Boolean(initialData.is_manual_old_building) || Boolean(initialData.old_address && !oldMatch && initialData.old_address !== '未知'),
+      }));
       return;
     }
 
     if (mode === 'create' && !createInitializedRef.current) {
       createInitializedRef.current = true;
+      savedDraftSignatureRef.current = null;
+      setShowLeaveConfirmation(false);
       setSubmittedRecord(null);
       setSubmitErrorMessage(null);
       setSubmitState('idle');
@@ -343,7 +397,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setIsCustomSubIndustry(false);
       setCustomSubIndustryText('');
     }
-  }, [isOpen, mode, initialData, reset, buildings, industryMap]);
+  }, [isOpen, mode, initialData, reset, buildings, industryMap, userId]);
 
   React.useEffect(() => {
     if (!isOpen || mode !== 'create' || !userId || draftHydrated) return;
@@ -424,13 +478,14 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   }, [dirtyCount, submitState]);
 
   const saveDraft = React.useCallback(async () => {
-    if (mode !== 'create' || !draftHydrated || !userId) return;
+    if (mode !== 'create' || !draftHydrated || !userId || operationRef.current) return false;
     const snapshot: LeaseTransactionDraftSnapshot = {
       version: 1,
       values: getValues() as unknown as Record<string, unknown>,
       ui: currentDraftUi,
     };
 
+    operationRef.current = 'saving';
     setSubmitErrorMessage(null);
     setSubmitState('saving');
     setSubmitMessage('正在保存云端草稿');
@@ -438,14 +493,20 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       const savedAt = await saveLeaseTransactionDraft(userId, userName, snapshot);
       setDraftSavedAt(savedAt);
       setDraftUiBaseline(JSON.stringify(snapshot.ui));
-      setSubmitState('saved');
-      setSubmitMessage('草稿已保存到云端');
+      savedDraftSignatureRef.current = JSON.stringify(snapshot);
+      const savedCurrentInput = JSON.stringify({ version: 1, values: getValues(), ui: currentDraftUiRef.current }) === savedDraftSignatureRef.current;
+      setSubmitState(savedCurrentInput ? 'saved' : 'unsaved');
+      setSubmitMessage(savedCurrentInput ? '草稿已保存到云端' : '草稿已保存，仍有新的未保存修改');
+      return savedCurrentInput;
     } catch (error) {
       console.error('Lease draft save failed', error);
       const message = error instanceof Error ? error.message : '草稿保存失败';
       setSubmitState('error');
       setSubmitMessage(message);
       setSubmitErrorMessage('草稿保存失败，请检查网络后重试。当前表单内容仍保留在本页。');
+      return false;
+    } finally {
+      operationRef.current = null;
     }
   }, [mode, draftHydrated, userId, userName, getValues, currentDraftUi]);
 
@@ -597,6 +658,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   };
 
   const persistTransaction = async (data: LeaseTransactionFormData, payload: LeaseTransaction) => {
+    if (operationRef.current) return;
+    operationRef.current = 'submitting';
     setSubmitErrorMessage(null);
     setSubmitState('submitting');
     setSubmitMessage(mode === 'edit' ? '正在更新成交记录' : '正在写入成交记录');
@@ -649,6 +712,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setSubmitState('error');
       setSubmitMessage('提交失败，当前表单内容已保留');
       setSubmitErrorMessage('提交失败，请重试。当前表单内容仍保留。');
+    } finally {
+      operationRef.current = null;
     }
   };
 
@@ -692,6 +757,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   };
 
   const continueAdding = () => {
+    savedDraftSignatureRef.current = null;
+    setDraftUiBaseline('');
     reset(DEFAULTS);
     setSubmittedRecord(null);
     setSubmitState('idle');
@@ -747,12 +814,12 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
 
   return (
     <>
-      <div className="fixed inset-0 z-[45] bg-slate-950/35" onClick={onClose} aria-hidden="true" />
-      <aside className="fixed inset-y-0 right-0 z-[var(--cd-z-drawer)] flex w-full max-w-3xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="lease-entry-title">
+      <div className="fixed inset-0 z-[45] bg-slate-950/35" onClick={requestClose} aria-hidden="true" />
+      <aside className="fixed inset-y-0 right-0 z-[var(--cd-z-drawer)] flex w-full max-w-3xl flex-col border-l border-[#d9e0e8] bg-[#eef2f6] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="lease-entry-title" aria-busy={busy} inert={showLeaveConfirmation || showDuplicate || Boolean(pendingEdit)}>
         <div className="shrink-0 border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <h2 id="lease-entry-title" className="truncate text-sm font-semibold text-slate-900">{mode === 'edit' ? '编辑成交记录' : '新增成交记录'}</h2>
-            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} savedAt={draftSavedAt} className="hidden" /><button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
+            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} savedAt={draftSavedAt} className="hidden" /><button type="button" onClick={requestClose} disabled={busy} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
           </div>
         </div>
 
@@ -818,13 +885,27 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
           </Section>
 
           <DataEntryToolbar className="sticky bottom-0 z-30" leading={errorCount ? <div className="text-[10px] font-semibold text-rose-700">{errorCount} 个字段需要检查</div> : undefined}>
-            <Button type="button" variant="secondary" size="sm" onClick={onClose} disabled={isSubmitting || submitState === 'saving'}>取消</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={requestClose} disabled={busy}>取消</Button>
             {mode === 'create' && <Button type="button" variant="secondary" size="sm" onClick={() => { void saveDraft(); }} disabled={!draftHydrated || isSubmitting || submitState === 'saving' || submitState === 'submitting'}>{submitState === 'saving' && <Loader2 size={13} className="animate-spin" />}保存草稿</Button>}
             <Button type="submit" size="sm" disabled={isSubmitting || submitState === 'saving' || submitState === 'submitting' || !draftHydrated}>{(isSubmitting || submitState === 'submitting') && <Loader2 size={13} className="animate-spin" />}{submitState === 'submitting' ? '提交中…' : mode === 'edit' ? '更新记录' : '提交记录'}</Button>
           </DataEntryToolbar>
         </form>
       </aside>
 
+      <Dialog
+        open={showLeaveConfirmation}
+        onOpenChange={(open) => { if (!busy && !operationRef.current) setShowLeaveConfirmation(open); }}
+        title="未保存的修改"
+        dismissible={!busy}
+        footer={<>
+          <Button className="min-h-11" variant="secondary" disabled={busy} onClick={() => setShowLeaveConfirmation(false)}>继续编辑</Button>
+          <Button className="min-h-11" variant="danger" disabled={busy} onClick={() => { if (operationRef.current) return; setShowLeaveConfirmation(false); onClose(); }}>放弃修改并关闭</Button>
+          {mode === 'create' && <Button className="min-h-11" disabled={busy || !draftHydrated} onClick={async () => { if (await saveDraft()) { setShowLeaveConfirmation(false); onClose(); } }}>保存草稿并关闭</Button>}
+        </>}
+      >
+        <p className="text-sm text-[var(--cd-color-text-secondary)]">{mode === 'create' ? '关闭会丢失尚未保存的修改，已保存的云端草稿仍会保留。' : '关闭会丢失本次修改，正式成交记录保持原样。'}</p>
+        {submitError && <ValidationMessage severity="error">{submitError}</ValidationMessage>}
+      </Dialog>
       {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState(mode === 'create' ? 'unsaved' : 'idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
 
       {pendingEdit && (
