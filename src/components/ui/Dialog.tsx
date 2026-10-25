@@ -20,6 +20,9 @@ type DialogProps = {
   size?: DialogSize;
   closeLabel?: string;
   dismissible?: boolean;
+  presentation?: "dialog" | "fullscreen";
+  layer?: "primary" | "child";
+  inactive?: boolean;
 };
 
 const sizeClass: Record<DialogSize, string> = {
@@ -48,6 +51,9 @@ export function Dialog({
   size = "md",
   closeLabel = "关闭",
   dismissible = true,
+  presentation = "dialog",
+  layer = "primary",
+  inactive = false,
 }: DialogProps) {
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -56,9 +62,21 @@ export function Dialog({
 
   useEffect(() => setMounted(true), []);
   useBodyScrollLock(open);
+  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    if (!open || presentation !== 'fullscreen') return;
+    const update = () => setViewport(window.visualViewport ? { height: window.visualViewport.height, top: window.visualViewport.offsetTop } : null);
+    update();
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('scroll', update);
+    };
+  }, [open, presentation]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || inactive) return;
 
     const previousFocus = document.activeElement as HTMLElement | null;
 
@@ -71,13 +89,16 @@ export function Dialog({
       window.cancelAnimationFrame(frame);
       previousFocus?.focus();
     };
-  }, [open]);
+  }, [open, inactive]);
 
   if (!mounted || !open) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[var(--cd-z-modal)] flex items-center justify-center bg-[var(--cd-color-overlay)] p-4"
+      className={`fixed inset-0 flex items-center justify-center bg-[var(--cd-color-overlay)] ${presentation === 'fullscreen' ? 'p-0' : 'p-4'}`}
+      style={{ zIndex: layer === 'child' ? 62 : 'var(--cd-z-modal)', ...(presentation === 'fullscreen' && viewport ? { top: viewport.top, bottom: 'auto', height: viewport.height } : {}) }}
+      inert={inactive || undefined}
+      aria-hidden={inactive || undefined}
       onMouseDown={(event) => {
         if (dismissible && event.target === event.currentTarget) onOpenChange(false);
       }}
@@ -89,8 +110,9 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`flex max-h-[min(88dvh,760px)] w-full flex-col overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-overlay)] outline-none ${sizeClass[size]}`}
+        className={`flex w-full flex-col overflow-hidden border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-overlay)] outline-none ${presentation === 'fullscreen' ? 'h-full max-h-full rounded-none' : `max-h-[min(88dvh,760px)] rounded-[var(--cd-radius-lg)] ${sizeClass[size]}`}`}
         onKeyDown={(event) => {
+          if (event.defaultPrevented || inactive) return;
           if (event.key === "Escape" && dismissible) {
             event.preventDefault();
             onOpenChange(false);
@@ -132,6 +154,7 @@ export function Dialog({
           {dismissible ? (
             <IconButton
               label={closeLabel}
+              className={presentation === "fullscreen" ? "min-h-11 min-w-11" : undefined}
               variant="ghost"
               size="sm"
               onClick={() => onOpenChange(false)}
@@ -140,9 +163,9 @@ export function Dialog({
             </IconButton>
           ) : null}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
         {footer ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-5 py-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
             {footer}
           </div>
         ) : null}

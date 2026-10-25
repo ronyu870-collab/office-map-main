@@ -1,0 +1,12 @@
+{
+  "results": [
+    "mobile field selection, close guard, failed save retry, one confirmed write and failed readback",
+    "responsive switch retains edit buffer",
+    "reload scoped recovery and explicit discard",
+    "mobile statistical selection",
+    "desktop unblurred input guarded on next row, discard restores original"
+  ],
+  "errors": [],
+  "syntheticData": true,
+  "realDevicesTested": false
+}

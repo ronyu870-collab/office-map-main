@@ -14,7 +14,7 @@ export function ActionCellRenderer(params: CustomCellRendererProps) {
   const row = params.data
   if (!row) return null
 
-  const isEditing = editingId != null && (editingId === row.id || editingId === row.building_id)
+  const isEditing = editingId != null && (editingId === ctx.rowKey?.(row) || (!ctx.rowKey && (editingId === row.id || editingId === row.building_id)))
   const isLoading = (key: string) => actionLoading === `${key}-${row.id}`
 
   // 所有列都是只读 → 不允许编辑
@@ -40,6 +40,7 @@ export function ActionCellRenderer(params: CustomCellRendererProps) {
         </button>
         <button
           className="grid-action-btn"
+          disabled={ctx.saving}
           onClick={() => ctx.cancelEdit()}
         >
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

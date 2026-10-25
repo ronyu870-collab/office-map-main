@@ -48,8 +48,8 @@ function AdminPageContent() {
     <div className="flex h-full min-h-0 w-full overflow-hidden">
       <AdminSidebar active={activeSection} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
       <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--cd-color-canvas)]">
-        <div className="flex h-10 shrink-0 items-center border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 lg:hidden">
-          <IconButton label="打开管理导航" variant="ghost" size="sm" onClick={() => setMobileNavOpen(true)}><Menu size={16} /></IconButton>
+        <div className="flex h-11 shrink-0 items-center border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 lg:hidden">
+          <IconButton label="打开管理导航" className="min-h-11 min-w-11" variant="ghost" size="sm" onClick={() => setMobileNavOpen(true)}><Menu size={16} /></IconButton>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
           {activeSection === 'database' && <DatabaseManager />}

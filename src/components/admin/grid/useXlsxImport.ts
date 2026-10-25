@@ -19,7 +19,7 @@ import {
 export function useXlsxImport(
   config: TableConfig,
   dicts: DictBundle,
-  fetchRows: () => Promise<void>,
+  fetchRows: () => Promise<void | boolean>,
   showToast: (msg: string, ok?: boolean) => void,
   onRefreshDicts?: () => Promise<void>,
 ) {

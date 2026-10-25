@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo, useCallback } from 'react'
+import { gridRowKey } from './recordModel'
 import type { TableConfig } from '../types'
 
 /**
@@ -17,8 +18,8 @@ export function useGridStats(config: TableConfig, filtered: any[]) {
   }, [])
 
   const selectAll = useCallback(() => {
-    setSelectedIds(new Set(filtered.map(r => r.id)))
-  }, [filtered])
+    setSelectedIds(new Set(filtered.map(r => gridRowKey(config, r))))
+  }, [filtered, config])
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set())
@@ -35,7 +36,7 @@ export function useGridStats(config: TableConfig, filtered: any[]) {
 
   const stats = useMemo(() => {
     if (!statsEnabled || !config.statsMode || selectedIds.size === 0) return null
-    const selected = filtered.filter(r => selectedIds.has(r.id))
+    const selected = filtered.filter(r => selectedIds.has(gridRowKey(config, r)))
     if (selected.length === 0) return null
 
     const result: { label: string; value: string }[] = []
@@ -82,7 +83,7 @@ export function useGridStats(config: TableConfig, filtered: any[]) {
     }
 
     return result
-  }, [statsEnabled, config.statsMode, selectedIds, filtered, config.cols])
+  }, [statsEnabled, config, selectedIds, filtered])
 
   return {
     statsEnabled, toggleStats,

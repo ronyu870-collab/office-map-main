@@ -12,81 +12,66 @@ export function useGridData(
   dicts: DictBundle,
   showToast: (msg: string, ok?: boolean) => void,
 ) {
-  const [rows, setRows] = useState<any[]>([])
+  const [rows, rawSetRows] = useState<any[]>([])
+  const rowsRef = useRef<any[]>([])
+  const setRows = useCallback((next: React.SetStateAction<any[]>) => {
+    rowsRef.current = typeof next === 'function' ? next(rowsRef.current) : next
+    rawSetRows(rowsRef.current)
+  }, [])
+  const getLatestRows = useCallback(() => rowsRef.current, [])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<string>(
     config.viewMode?.views[0]?.key ?? ''
   )
   const generationRef = useRef(0)
 
-  const fetchRows = useCallback(async (forceRefresh = false) => {
+  const [loadError, setLoadError] = useState('')
+  const fetchRows = useCallback(async (forceRefresh = false): Promise<boolean> => {
     const gen = ++generationRef.current
-    setLoading(true)
-
-    // 自定义数据获取
-    if (config.customFetch) {
-      try {
-        // 强制刷新：清除缓存后再拉取
+    setLoading(true); setLoadError('')
+    try {
+      if (config.customFetch) {
         if (forceRefresh) {
-          try { sessionStorage.removeItem('__project_ledger_cache_v3') } catch {}
+          try { sessionStorage.removeItem('__project_ledger_cache_v4') } catch {}
         }
         const data = await config.customFetch(dicts)
-        if (gen !== generationRef.current) return // 已过期
+        if (gen !== generationRef.current) return false
         setRows(data)
-      } catch (e: any) {
-        if (gen !== generationRef.current) return
-        showToast(`读取失败: ${e.message}`, false)
+        return true
       }
-      if (gen === generationRef.current) setLoading(false)
-      return
-    }
-
-    // 视图模式
-    const activeView = config.viewMode?.views.find(v => v.key === viewMode)
-    const tableName = activeView?.table ?? config.table
-
-    // PostgREST 分页查询
-    const PAGE = 1000
-    let allData: any[] = []
-    let offset = 0
-    let hasMore = true
-
-    while (hasMore) {
-      if (gen !== generationRef.current) return // 已过期，停止加载
-      const q = supabase.from(tableName).select('*').range(offset, offset + PAGE - 1)
-      if (config.filterField && config.filterValue != null) {
-        q.eq(config.filterField, config.filterValue)
-      }
-      if (config.orderBy) {
+      const tableName = config.viewMode?.views.find(v => v.key === viewMode)?.table ?? config.table
+      const PAGE = 1000
+      let allData: any[] = []
+      for (let offset = 0; ; offset += PAGE) {
+        if (gen !== generationRef.current) return false
+        const query = supabase.from(tableName).select('*').range(offset, offset + PAGE - 1)
+        if (config.filterField && config.filterValue != null) query.eq(config.filterField, config.filterValue)
         if (Array.isArray(config.orderBy)) {
-          for (const o of config.orderBy) q.order(o.col, { ascending: o.asc ?? false })
-        } else {
-          q.order(config.orderBy, { ascending: false })
-        }
+          for (const order of config.orderBy) query.order(order.col, { ascending: order.asc ?? false })
+        } else if (config.orderBy) query.order(config.orderBy, { ascending: false })
+        const { data, error } = await query
+        if (gen !== generationRef.current) return false
+        if (error) throw error
+        allData = allData.concat(data ?? [])
+        if ((data ?? []).length < PAGE) break
       }
-      const { data, error } = await q
-      if (gen !== generationRef.current) return // 已过期
-      if (error) {
-        showToast(`读取失败: ${error.message}`, false)
-        hasMore = false
-      } else {
-        allData = allData.concat(data || [])
-        if ((data || []).length < PAGE) hasMore = false
-        else offset += PAGE
-      }
-    }
-
-    if (gen === generationRef.current) {
       setRows(allData)
-      setLoading(false)
-      // 修改建筑数据后清除项目台账缓存（确保切换标签看到最新数据）
       if (tableName === 'building_metrics' || tableName === 'building_current_data') {
-        try { sessionStorage.removeItem('__project_ledger_cache_v3') } catch {}
+        try { sessionStorage.removeItem('__project_ledger_cache_v4') } catch {}
       }
+      return true
+    } catch (error) {
+      if (gen === generationRef.current) {
+        const message = String((error as any)?.message ?? '请求失败')
+        setLoadError(message); showToast(`读取失败: ${message}`, false)
+      }
+      return false
+    } finally {
+      if (gen === generationRef.current) setLoading(false)
     }
-  }, [config.table, config.orderBy, viewMode, config.viewMode, config.customFetch, config.filterField, config.filterValue, dicts, showToast])
+  }, [config, viewMode, dicts, showToast, setRows])
 
-  useEffect(() => { fetchRows() }, [fetchRows])
+  useEffect(() => { void fetchRows(); return () => { generationRef.current++ } }, [fetchRows])
 
-  return { rows, setRows, loading, fetchRows, viewMode, setViewMode }
+  return { rows, setRows, getLatestRows, loading, loadError, fetchRows, viewMode, setViewMode }
 }

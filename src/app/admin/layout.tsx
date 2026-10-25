@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { GRID_DRAFT_PREFIX } from '@/src/components/admin/grid/useGridRecovery';
+import { AdminEditProtection, useAdminEditProtection } from '@/src/components/admin/AdminEditProtection';
 import { useRouter } from 'next/navigation';
 import { getSession, signOut } from '@/src/services/Auth';
 import { isDemoMode } from '@/src/config/demoMode';
@@ -17,6 +19,11 @@ function AdminGuardLoading() {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return <AdminEditProtection><ProtectedAdminLayout>{children}</ProtectedAdminLayout></AdminEditProtection>;
+}
+
+function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
+  const { requestNavigation } = useAdminEditProtection();
   const router = useRouter();
   const { isImpersonating } = useImpersonation();
   const [ready, setReady] = React.useState(false);
@@ -57,6 +64,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   async function handleLogout() {
     try {
+      try {
+      const session = await getSession();
+      if (session?.user?.id) {
+        const prefix = `${GRID_DRAFT_PREFIX}${session.user.id}:`;
+        for (const key of Object.keys(sessionStorage)) if (key.startsWith(prefix)) sessionStorage.removeItem(key);
+      }
+      } catch { /* Storage availability must not prevent sign-out. */ }
       await signOut();
     } finally {
       window.location.href = '/login';
@@ -71,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <AppHeader
           title="系统管理"
           homeHref="/"
-          actions={<Button variant="ghost" size="sm" onClick={handleLogout}>退出登录</Button>}
+          actions={<Button variant="ghost" size="sm" onClick={() => { void requestNavigation(() => { void handleLogout(); }); }}>退出登录</Button>}
         />
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>

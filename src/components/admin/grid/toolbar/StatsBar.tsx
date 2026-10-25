@@ -13,7 +13,7 @@ export function StatsBar({ stats, selectedCount, totalCount, onSelectAll, onClea
   if (!stats) return null
 
   return (
-    <div className="flex items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] px-4 py-2.5">
+    <div className="grid-stats-bar flex flex-wrap items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] px-4 py-2.5">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <svg className="h-4 w-4 text-[var(--cd-color-brand)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
