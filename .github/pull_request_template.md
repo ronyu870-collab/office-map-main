@@ -9,7 +9,7 @@ Describe the problem and the change in plain language.
 
 ## Applicable standards and preservation
 
-- Relevant provisions in [product](../docs/standards/product.md), [design](../docs/standards/design.md), [engineering](../docs/standards/engineering.md) and [acceptance](../docs/standards/acceptance.md); distinguish confirmed rules from proposals.
+- Read [AGENTS](../AGENTS.md) and the [standards index](../docs/standards/README.md). Record applicable rule IDs, responsibility documents and any documented exception; distinguish adopted rules, candidates and implementation status.
 - Existing design and behavior to preserve; evidence that the changed difference is a problem.
 - Shared components or logic affected, consuming pages/flows, and planned checks. Mark not applicable for documentation-only changes.
 
@@ -19,11 +19,10 @@ Describe behavior, data, security, performance, or deployment risk.
 
 ## Verification
 
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npm run test`
-- [ ] `npm run build`
-- [ ] Relevant manual flow checked when behavior changed
+- [ ] Applicable local verification under [AGENTS](../AGENTS.md) completed. Documentation-only: links, anchors, rule consistency and unchanged business code checked; application tests not applicable.
+- [ ] The exact PR head passed the [Verify workflow](workflows/verify.yml); local verification does not substitute for CI.
+- [ ] Relevant behavior, permissions and shared callers checked; unverified items are explicit.
+- [ ] Affected mobile actions checked against [MOB-01](../docs/standards/03_模块规范.md#mob-01), with [MOB-05 evidence](../docs/standards/05_工程验证与交付规范.md#mob-05); not applicable when no UI/behavior changed.
 
 ## UI evidence and recovery
 
