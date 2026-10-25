@@ -1,9 +1,10 @@
 'use client'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
 import { logAction } from '@/src/utils/audit'
 import { getSession } from '@/src/services/Auth'
 import type { TableConfig, DictBundle, ColDef } from '../types'
+import { copyRecord, gridRowKey, recordIsDirty, recordPayload } from './recordModel'
 
 function emptyRow(cols: ColDef[]): Record<string, any> {
   const row: Record<string, any> = {}
@@ -51,237 +52,143 @@ export function useGridCrud(
   config: TableConfig,
   dicts: DictBundle,
   rows: any[],
-  fetchRows: () => Promise<void>,
+  fetchRows: () => Promise<void | boolean>,
   showToast: (msg: string, ok?: boolean) => void,
   onRefreshDicts?: () => Promise<void>,
 ) {
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editBuf, setEditBuf] = useState<Record<string, any>>({})
+  const [editBuf, rawSetEditBuf] = useState<Record<string, any>>({})
   const [adding, setAdding] = useState(false)
-  const [newRow, setNewRow] = useState<Record<string, any>>({})
+  const [newRow, rawSetNewRow] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [refreshFailed, setRefreshFailed] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  // 保存编辑前的原始行（用于 WHERE 条件和变更 diff）
   const editingOriginalRef = useRef<Record<string, any>>({})
-  // 解决闭包过期：handleSaveEdit 中 rawSaveEdit 可能引用旧的 editBuf
   const editBufRef = useRef<Record<string, any>>({})
-  useEffect(() => { editBufRef.current = editBuf }, [editBuf])
-
-  // ─── 编辑 ───
-
+  const newRowRef = useRef<Record<string, any>>({})
+  const addingRef = useRef(false)
+  const savingRef = useRef(false)
+  const setEditBuf = useCallback((next: React.SetStateAction<Record<string, any>>) => {
+    editBufRef.current = typeof next === 'function' ? next(editBufRef.current) : next
+    rawSetEditBuf(editBufRef.current)
+  }, [])
+  const setNewRow = useCallback((next: React.SetStateAction<Record<string, any>>) => {
+    newRowRef.current = typeof next === 'function' ? next(newRowRef.current) : next
+    rawSetNewRow(newRowRef.current)
+  }, [])
+  const clearErrors = useCallback(() => { setSaveError(''); setFieldErrors({}) }, [])
   const startEdit = useCallback((row: any) => {
-    const rowId = row.id ?? row.building_id
-    setEditingId(rowId)
-    setEditBuf({ ...row })
-    editingOriginalRef.current = { ...row }
-    setAdding(false)
-  }, [])
-
+    if (savingRef.current) return
+    const snapshot = copyRecord(row)
+    editingOriginalRef.current = snapshot
+    setEditingId(gridRowKey(config, row))
+    setEditBuf(copyRecord(snapshot))
+    setAdding(false); addingRef.current = false
+    clearErrors()
+  }, [config, setEditBuf, clearErrors])
   const cancelEdit = useCallback(() => {
-    setEditingId(null)
-    setEditBuf({})
-    editBufRef.current = {}
-    editingOriginalRef.current = {}
-  }, [])
-
-  // 强制同步 editBufRef —— 从 AG Grid 直接拿最新行数据写入 ref，
-  // 绕过 React useEffect 异步时序问题，确保 saveEdit 读到的是最新值
-  const forceSyncBuf = useCallback((data: Record<string, any>) => {
-    editBufRef.current = { ...data }
-    setEditBuf({ ...data })
-  }, [])
-
-  const saveEdit = useCallback(async () => {
-    setSaving(true)
-    const buf = editBufRef.current
-    let payload: Record<string, any> = {}
-    for (const c of config.cols) {
-      if (c.readOnly) continue
-      if (c.type === 'number') {
-        payload[c.key] = buf[c.key] === '' || buf[c.key] == null ? null : Number(buf[c.key])
-      } else if (c.type === 'boolean') {
-        payload[c.key] = buf[c.key] === true || buf[c.key] === 'true'
-      } else if (c.type === 'jsonb') {
-        try { payload[c.key] = buf[c.key] ? JSON.parse(buf[c.key]) : null }
-        catch { showToast(`${c.label} JSON 格式错误`, false); setSaving(false); return }
-      } else if (c.type === 'date') {
-        payload[c.key] = buf[c.key] === '' ? null : buf[c.key]
-      } else {
-        payload[c.key] = buf[c.key]
-      }
-    }
-
-    if (config.beforeSave) payload = config.beforeSave(payload, dicts)
-
-    // 使用编辑前保存的原始行，避免 rows.find(r => r.id === editingId) 在无 id 列的表上失败
-    const currentRow = editingOriginalRef.current
-    const isVirtual = currentRow._virtual === true
-    const labels = colLabels(config.cols)
-
-    let error: any
-    if (isVirtual) {
-      delete payload.id
-      // 虚拟行=INSERT：自动注入 filterField/filterValue
-      if (config.filterField && config.filterValue != null && !(config.filterField in payload)) {
-        payload[config.filterField] = config.filterValue
-      }
-      const res = await supabase.from(config.table).insert(payload).select()
-      error = res.error
-      if (!error) {
-        const session = await getSession()
-        const userId = session?.user?.email ?? session?.user?.id ?? 'admin'
-        logAction(userId, 'ADMIN_DATA_OPERATION', {
-          operation: 'INSERT', table: config.table, table_label: config.label,
-          target_id: res.data?.[0]?.id ?? 'unknown',
-          context: buildRowContext({ ...currentRow, ...payload }, config.cols, dicts),
-          changes: Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, { from: null, to: v }])),
-          col_labels: labels,
-        })
-      }
-    } else {
-      // 用 uploadMatchKeys 构建 WHERE（兼容无 id 列的表如 building_current_data）
-      let updateQuery = supabase.from(config.table).update(payload)
-      if (config.uploadMatchKeys?.length) {
-        for (const mk of config.uploadMatchKeys) {
-          updateQuery = updateQuery.eq(mk, currentRow[mk])
-        }
-      } else {
-        updateQuery = updateQuery.eq('id', editingId!)
-      }
-      const res = await updateQuery
-      error = res.error
-      if (!error) {
-        const changes: Record<string, { from: any; to: any }> = {}
-        for (const key of Object.keys(payload)) {
-          if (String(currentRow[key] ?? '') !== String(payload[key] ?? '')) {
-            changes[key] = { from: currentRow[key] ?? null, to: payload[key] ?? null }
-          }
-        }
-        const session = await getSession()
-        const userId = session?.user?.email ?? session?.user?.id ?? 'admin'
-        logAction(userId, 'ADMIN_DATA_OPERATION', {
-          operation: 'UPDATE', table: config.table, table_label: config.label,
-          target_id: editingId, context: buildRowContext({ ...currentRow, ...payload }, config.cols, dicts),
-          changes, col_labels: labels,
-        })
-      }
-    }
-
-    if (error) { showToast(`保存失败: ${error.message}`, false) }
-    else {
-      showToast(isVirtual ? '新增成功' : '保存成功')
-      invalidateLedgerCache(config.table)
-      cancelEdit()
-      await fetchRows()
-      if (config.table === 'buildings') await onRefreshDicts?.()
-    }
-    setSaving(false)
-  }, [editingId, config, dicts, fetchRows, showToast, onRefreshDicts])
-
-  // ─── 新增 ───
-
+    if (savingRef.current) return
+    setEditingId(null); setEditBuf({}); editingOriginalRef.current = {}; clearErrors()
+  }, [setEditBuf, clearErrors])
+  const forceSyncBuf = setEditBuf
   const startAdd = useCallback(() => {
-    setAdding(true)
-    setNewRow(emptyRow(config.cols))
-    setEditingId(null)
-  }, [config.cols])
-
+    if (savingRef.current) return
+    setAdding(true); addingRef.current = true; setNewRow(emptyRow(config.cols)); setEditingId(null); clearErrors()
+  }, [config.cols, setNewRow, clearErrors])
   const cancelAdd = useCallback(() => {
-    setAdding(false)
-    setNewRow({})
-  }, [])
+    if (savingRef.current) return
+    setAdding(false); addingRef.current = false; setNewRow({}); clearErrors()
+  }, [setNewRow, clearErrors])
+  const isDirty = useCallback(() => recordIsDirty(config, addingRef.current ? emptyRow(config.cols) : editingOriginalRef.current, addingRef.current ? newRowRef.current : editBufRef.current), [config])
 
-  const saveAdd = useCallback(async () => {
-    setSaving(true)
-    let payload: Record<string, any> = {}
-    for (const c of config.cols) {
-      if (c.readOnly) continue
-      if (c.type === 'number') {
-        payload[c.key] = newRow[c.key] === '' || newRow[c.key] == null ? null : Number(newRow[c.key])
-      } else if (c.type === 'boolean') {
-        payload[c.key] = newRow[c.key] === true || newRow[c.key] === 'true'
-      } else if (c.type === 'jsonb') {
-        try { payload[c.key] = newRow[c.key] ? JSON.parse(newRow[c.key]) : null }
-        catch { showToast(`${c.label} JSON 格式错误`, false); setSaving(false); return }
-      } else if (c.type === 'date') {
-        payload[c.key] = newRow[c.key] === '' ? null : newRow[c.key]
-      } else {
-        payload[c.key] = newRow[c.key]
-      }
-    }
-
-    // 必填校验
-    for (const c of config.cols) {
-      if (c.required && !c.readOnly && (payload[c.key] === undefined || payload[c.key] === null || payload[c.key] === '')) {
-        showToast(`${c.label} 为必填项`, false)
-        setSaving(false)
-        return
-      }
-    }
-
-    // 自动注入 filterField/filterValue（如 project_type=stock/future/entering）
-    if (config.filterField && config.filterValue != null && !(config.filterField in payload)) {
-      payload[config.filterField] = config.filterValue
-    }
-
-    if (config.beforeSave) payload = config.beforeSave(payload, dicts)
-    const labels = colLabels(config.cols)
-
-    // 自定义新增逻辑
-    if (config.customSaveAdd) {
-      const result = await config.customSaveAdd(payload, dicts)
-      if (result.success) {
-        showToast(result.message)
-        invalidateLedgerCache(config.table)
-        const session = await getSession()
-        const userId = session?.user?.email ?? session?.user?.id ?? 'admin'
-        const insertChanges: Record<string, { from: any; to: any }> = {}
-        for (const [key, val] of Object.entries(payload)) {
-          if (val !== null && val !== undefined && val !== '') {
-            insertChanges[key] = { from: null, to: val }
-          }
-        }
-        logAction(userId, 'ADMIN_DATA_OPERATION', {
-          operation: 'INSERT', table: config.table, table_label: config.label,
-          target_id: result.targetId ?? 'unknown',
-          context: buildRowContext(payload, config.cols, dicts),
-          changes: insertChanges, col_labels: labels,
-        })
-        cancelAdd()
-        await fetchRows()
-        if (config.table === 'buildings') await onRefreshDicts?.()
-      } else {
-        showToast(result.message, false)
-      }
-      setSaving(false)
-      return
-    }
-
-    const { data, error } = await supabase.from(config.table).insert(payload).select()
-    if (error) { showToast(`新增失败: ${error.message}`, false) }
-    else {
-      showToast('新增成功')
-      invalidateLedgerCache(config.table)
-      const session = await getSession()
-      const userId = session?.user?.email ?? session?.user?.id ?? 'admin'
-      const insertChanges: Record<string, { from: any; to: any }> = {}
-      for (const [key, val] of Object.entries(payload)) {
-        if (val !== null && val !== undefined && val !== '') {
-          insertChanges[key] = { from: null, to: val }
-        }
-      }
-      logAction(userId, 'ADMIN_DATA_OPERATION', {
-        operation: 'INSERT', table: config.table, table_label: config.label,
-        target_id: data?.[0]?.id ?? 'unknown',
-        context: buildRowContext(data?.[0] ?? payload, config.cols, dicts),
-        changes: insertChanges, col_labels: labels,
-      })
-      cancelAdd()
-      await fetchRows()
+  const refreshAfterWrite = useCallback(async () => {
+    try {
+      const loaded = await fetchRows()
+      if (loaded === false) throw new Error('列表刷新失败')
       if (config.table === 'buildings') await onRefreshDicts?.()
+      setRefreshFailed(false)
+    } catch {
+      setRefreshFailed(true)
+      showToast('已保存，列表刷新失败，请重试刷新', false)
     }
-    setSaving(false)
-  }, [newRow, config, dicts, fetchRows, showToast, onRefreshDicts])
+  }, [fetchRows, onRefreshDicts, config.table, showToast])
+
+  const persist = useCallback(async (kind: 'edit' | 'add'): Promise<boolean> => {
+    if (savingRef.current) return false
+    savingRef.current = true; setSaving(true); clearErrors()
+    let committed = false
+    try {
+      const values = copyRecord(kind === 'edit' ? editBufRef.current : newRowRef.current)
+      const checked = recordPayload(config, values)
+      if (Object.keys(checked.errors).length) {
+        setFieldErrors(checked.errors)
+        throw new Error(Object.values(checked.errors)[0])
+      }
+      let payload = checked.payload
+      const original = copyRecord(editingOriginalRef.current)
+      const insert = kind === 'add' || original._virtual === true
+      if (insert && config.filterField && config.filterValue != null && !(config.filterField in payload)) payload[config.filterField] = config.filterValue
+      if (config.beforeSave) payload = config.beforeSave(payload, dicts)
+      let targetId = kind === 'edit' ? gridRowKey(config, original) : 'unknown'
+      let resultRow = { ...values, ...payload }
+      if (kind === 'add' && config.customSaveAdd) {
+        const result = await config.customSaveAdd(payload, dicts)
+        if (!result.success) throw new Error(result.message)
+        targetId = result.targetId ?? targetId
+        committed = true
+      } else {
+        let query
+        if (insert) {
+          delete payload.id
+          query = supabase.from(config.table).insert(payload)
+        } else {
+          query = supabase.from(config.table).update(payload)
+          const keys = config.uploadMatchKeys?.length ? config.uploadMatchKeys : original.id != null ? ['id'] : original.user_id != null ? ['user_id'] : ['building_id']
+          for (const key of keys) {
+            if (original[key] == null || original[key] === '') throw new Error('缺少记录定位信息，请刷新后重试')
+            query = query.eq(key, original[key])
+          }
+          // Use an existing version column only; no schema or permission changes.
+          if (original.updated_at != null) query = query.eq('updated_at', original.updated_at)
+        }
+        const { data, error } = await query.select()
+        if (error) throw error
+        if (!data?.length) throw new Error('未保存：记录已变更或当前无写入权限，请核对后重试')
+        committed = true
+        resultRow = data[0]
+        targetId = gridRowKey(config, resultRow)
+      }
+      invalidateLedgerCache(config.table)
+      // A confirmed write is never retried because audit/readback failed.
+      try {
+        const session = await getSession()
+        const changes: Record<string, { from: any; to: any }> = {}
+        for (const [key, value] of Object.entries(payload)) {
+          if (insert || JSON.stringify(original[key] ?? null) !== JSON.stringify(value ?? null)) changes[key] = { from: insert ? null : original[key] ?? null, to: value }
+        }
+        logAction(session?.user?.email ?? session?.user?.id ?? 'admin', 'ADMIN_DATA_OPERATION', {
+          operation: insert ? 'INSERT' : 'UPDATE', table: config.table, table_label: config.label,
+          target_id: targetId, context: buildRowContext(resultRow, config.cols, dicts), changes, col_labels: colLabels(config.cols),
+        })
+      } catch { showToast('已保存，操作记录同步失败，请联系管理员核对', false) }
+      setEditingId(null); setAdding(false); addingRef.current = false
+      setEditBuf({}); setNewRow({}); editingOriginalRef.current = {}
+      showToast(insert ? '新增成功' : '保存成功')
+      await refreshAfterWrite()
+      return true
+    } catch (error) {
+      if (committed) return true
+      const message = error instanceof Error ? error.message : String((error as any)?.message ?? '请求失败，请重试')
+      setSaveError(message); showToast(`保存失败：${message}`, false)
+      return false
+    } finally {
+      savingRef.current = false; setSaving(false)
+    }
+  }, [config, dicts, clearErrors, setEditBuf, setNewRow, showToast, refreshAfterWrite])
+  const saveEdit = useCallback(() => persist('edit'), [persist])
+  const saveAdd = useCallback(() => persist('add'), [persist])
 
   // ─── 删除 ───
 
@@ -365,9 +272,14 @@ export function useGridCrud(
   return {
     editingId, editBuf, setEditBuf,
     adding, newRow, setNewRow,
-    saving, actionLoading,
+    saving, savingRef, actionLoading, saveError, fieldErrors, refreshFailed, isDirty, editingOriginalRef,
     startEdit, cancelEdit, saveEdit,
     startAdd, cancelAdd, saveAdd,
     deleteRow, handleSpecialAction, forceSyncBuf,
+    getDraft: () => (addingRef.current || Object.keys(editingOriginalRef.current).length) ? {
+      dirty: isDirty(),
+      kind: addingRef.current ? 'add' as const : 'edit' as const,
+      original: copyRecord(editingOriginalRef.current), values: copyRecord(addingRef.current ? newRowRef.current : editBufRef.current),
+    } : null,
   }
 }

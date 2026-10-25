@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useAdminEditProtection } from './AdminEditProtection';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Activity,
@@ -114,7 +115,9 @@ function SidebarContents({ active, onChange, onMobileClose }: AdminSidebarProps)
   const pathname = usePathname();
   const router = useRouter();
 
+  const { requestNavigation } = useAdminEditProtection();
   const select = (section: AdminSection) => {
+    void requestNavigation(() => {
     if (section === 'display-overrides') {
       router.push('/admin/display-overrides');
     } else {
@@ -122,6 +125,7 @@ function SidebarContents({ active, onChange, onMobileClose }: AdminSidebarProps)
       router.push(`/admin?section=${section}`);
     }
     onMobileClose?.();
+    });
   };
 
   return (

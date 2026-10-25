@@ -103,9 +103,7 @@ export function buildAgColumnDefs(
   const agCols: AgColDef[] = []
 
   // 统计模式时添加 checkbox 列
-  if (statsEnabled) {
-    agCols.push(buildCheckboxColDef())
-  }
+  // AG Grid v35 owns the selection column through rowSelection/selectionColumnDef.
 
   for (const col of cols) {
     if (col.hidden) continue

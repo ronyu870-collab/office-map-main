@@ -37,7 +37,7 @@ export function TableToolbar({
   uploading, onLockManager,
 }: TableToolbarProps) {
   return (
-    <div className="flex items-center gap-3 flex-wrap py-3 px-1">
+    <div className="grid-table-toolbar flex items-center gap-3 flex-wrap py-3 px-1">
       {/* 搜索框 */}
       <div className="relative">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -111,7 +111,7 @@ export function TableToolbar({
       )}
 
       {/* 右侧按钮组 */}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="grid-table-actions ml-auto flex items-center gap-2">
         {/* 工具栏额外按钮 */}
         {config.toolbarExtra?.map(action => (
           <button

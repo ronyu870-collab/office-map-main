@@ -113,7 +113,7 @@ export type DictBundle = Record<string, Record<string, string>>
 // ─── 操作上下文 ──────────────────────────────────────────────────────────────
 
 export interface ActionContext {
-  fetchRows: () => Promise<void>
+  fetchRows: () => Promise<void | boolean>
   showToast: (msg: string, ok?: boolean) => void
   dicts: DictBundle
 }

@@ -125,3 +125,45 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(156 163 175);
 }
+
+/* Record editing uses the shared semantic colors; touch sizes are local to this workspace. */
+.grid-record-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--cd-color-border);
+  border-radius: var(--cd-radius-md);
+  background: var(--cd-color-surface);
+  padding: 0 12px;
+  font-size: 16px;
+  color: var(--cd-color-text-primary);
+}
+.grid-record-input:focus-visible {
+  outline: 2px solid var(--cd-color-brand);
+  outline-offset: 2px;
+}
+.grid-record-input[aria-invalid="true"] { border-color: var(--cd-color-danger); }
+.grid-record-select input, .grid-record-select [role="option"] { min-height: 44px; font-size: 16px; }
+@media (max-width: 639px) {
+  .admin-grid-workspace .grid-action-btn { min-height: 44px; min-width: 44px; font-size: 13px; }
+  .admin-grid-workspace .grid-table-actions { width: 100%; flex-wrap: wrap; margin-left: 0; }
+  .admin-grid-workspace .grid-table-actions > button { min-height: 44px; }
+  .admin-grid-workspace .grid-stats-bar button { min-height: 44px; }
+  .admin-grid-workspace li .flex { flex-wrap: wrap; }
+}
+@media (pointer: coarse) {
+  .admin-grid-workspace .grid-action-btn { min-height: 44px; min-width: 44px; }
+}
+@media (min-width: 640px) and (pointer: fine) {
+  .grid-record-fields-dense .grid-record-input,
+  .grid-record-fields-dense .grid-record-select input { min-height: 36px; font-size: 14px; }
+}
+@media (max-width: 639px) {
+  .admin-grid-workspace .grid-table-toolbar label,
+  .admin-grid-workspace .grid-table-toolbar input[type="text"],
+  .admin-grid-workspace .grid-table-toolbar button { min-height: 44px; }
+  .admin-grid-workspace .grid-table-toolbar input[type="text"] { font-size: 16px; }
+}
+@media (pointer: coarse) {
+  .admin-grid-workspace .ag-cell input,
+  .admin-grid-workspace .ag-cell select { min-height: 44px; font-size: 16px; }
+}

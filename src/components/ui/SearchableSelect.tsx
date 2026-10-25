@@ -14,6 +14,8 @@ interface SearchableSelectProps {
   onClear?: () => void;
   className?: string;
   id?: string;
+  'aria-invalid'?: boolean;
+  'aria-describedby'?: string;
 }
 
 function normalizeOptions(options: Option[]): { value: string; label: string }[] {
@@ -30,9 +32,12 @@ export function SearchableSelect({
   onClear,
   className = '',
   id,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
 }: SearchableSelectProps) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
+  const [activeIndex, setActiveIndex] = React.useState(0);
   const ref = React.useRef<HTMLDivElement>(null);
   const listboxId = React.useId();
 
@@ -41,6 +46,10 @@ export function SearchableSelect({
   const filtered = query
     ? normalized.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
     : normalized;
+
+  React.useEffect(() => {
+    if (open) document.getElementById(`${listboxId}-${Math.min(activeIndex, filtered.length - 1)}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, activeIndex, filtered.length, listboxId]);
 
   const selectedLabel = normalized.find(o => o.value === value)?.label ?? '';
 
@@ -69,11 +78,18 @@ export function SearchableSelect({
   }, [open]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && filtered.length > 0) {
+    if (e.key === 'Escape' && open) {
+      e.preventDefault(); e.stopPropagation(); setOpen(false); setQuery(''); return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); setOpen(true);
+      setActiveIndex(index => filtered.length ? (index + (e.key === 'ArrowDown' ? 1 : -1) + filtered.length) % filtered.length : 0);
+    }
+    if (e.key === 'Enter' && !open) { e.preventDefault(); setOpen(true); return; }
+    if (e.key === 'Enter' && open && filtered.length > 0) {
       e.preventDefault();
-      onChange(filtered[0].value);
-      setOpen(false);
-      setQuery('');
+      onChange(filtered[Math.min(activeIndex, filtered.length - 1)].value);
+      setOpen(false); setQuery('');
     }
   };
 
@@ -107,9 +123,12 @@ export function SearchableSelect({
         id={id}
         type="text"
         role="combobox"
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
+        aria-activedescendant={open && filtered.length ? `${listboxId}-${Math.min(activeIndex, filtered.length - 1)}` : undefined}
         value={open ? query : selectedLabel}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => { if (!disabled) { setQuery(''); setOpen(true); } }}
+        onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); setOpen(true); }}
+        onFocus={() => { if (!disabled) { setQuery(''); setActiveIndex(0); setOpen(true); } }}
         onKeyDown={handleKeyDown}
         placeholder={open ? '搜索…' : placeholder}
         disabled={disabled}
@@ -133,10 +152,11 @@ export function SearchableSelect({
       </div>
       {open && filtered.length > 0 && (
         <div id={listboxId} role="listbox" className="absolute z-50 mt-1 max-h-60 w-full overflow-auto overscroll-contain rounded-lg border border-zinc-200 bg-white p-1 shadow-lg">
-          {filtered.map((opt) => (
+          {filtered.map((opt, index) => (
             <button
               type="button"
               key={opt.value}
+              id={`${listboxId}-${index}`}
               onClick={() => {
                 onChange(opt.value);
                 setOpen(false);
@@ -145,7 +165,7 @@ export function SearchableSelect({
               role="option"
               aria-selected={opt.value === value}
               className={`block w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 ${
-                opt.value === value ? 'bg-blue-100 font-medium text-[#003e7e]' : 'text-zinc-700'
+                opt.value === value ? 'bg-blue-100 font-medium text-[#003e7e]' : index === activeIndex ? 'bg-blue-50 text-zinc-700' : 'text-zinc-700'
               }`}
             >
               {opt.label}

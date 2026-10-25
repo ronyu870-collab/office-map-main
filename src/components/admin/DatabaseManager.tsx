@@ -38,7 +38,7 @@ function TableSkeleton() {
   return (
     <div className="flex flex-col h-full animate-pulse">
       {/* Tab栏骨架 */}
-      <div className="shrink-0 border-b border-zinc-200 bg-white px-4 py-2 flex items-center gap-2">
+      <div className="hidden shrink-0 border-b border-zinc-200 bg-white px-4 py-2 sm:flex sm:items-center sm:gap-2">
         {[1, 2, 3, 4, 5].map(i => (
           <div key={i} className="h-7 w-20 bg-zinc-200 rounded-lg" />
         ))}
@@ -100,6 +100,9 @@ export function DatabaseManager() {
   const [backupOpen, setBackupOpen] = React.useState(false);
 
   // 已访问过的 tab 缓存
+  const [visitedAutoTables, setVisitedAutoTables] = React.useState<Set<string>>(new Set());
+  const [draftTabs, setDraftTabs] = React.useState<Record<string, boolean>>({});
+  const setDraft = React.useCallback((key: string, dirty: boolean) => setDraftTabs(previous => previous[key] === dirty ? previous : { ...previous, [key]: dirty }), []);
   const [visitedTabs, setVisitedTabs] = React.useState<Set<number>>(new Set([0]));
 
   React.useEffect(() => {
@@ -181,8 +184,21 @@ export function DatabaseManager() {
         isFullscreen ? "fixed inset-0 z-50 bg-zinc-50" : ""
       }`}
     >
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--cd-color-border)] bg-white p-3 sm:hidden">
+        <label className="min-w-0 flex-1 text-sm">数据表
+          <select aria-label="选择数据表" className="grid-record-input mt-1" value={selectedAutoTable ? `auto:${selectedAutoTable}` : `core:${activeTab}`} onChange={event => {
+            const value = event.target.value;
+            if (value.startsWith('core:')) handleTabChange(Number(value.slice(5)));
+            else { const table = value.slice(5); setSelectedAutoTable(table); setVisitedAutoTables(previous => new Set([...previous, table])); }
+          }}>
+            {CORE_TABLE_CONFIGS.map((config, index) => <option key={index} value={`core:${index}`}>{config.label}{draftTabs[`core:${index}`] ? ' · 未保存' : ''}</option>)}
+            {autoTables.map(config => <option key={config.table} value={`auto:${config.table}`}>{config.label}{draftTabs[`auto:${config.table}`] ? ' · 未保存' : ''}</option>)}
+          </select>
+        </label>
+        <IconButton label="数据备份" variant="ghost" onClick={() => setBackupOpen(true)} className="min-h-11 min-w-11"><Download size={16} /></IconButton>
+      </div>
       {/* Tab 栏 — 左右分栏：左=建筑类，右=数据类，竖线分隔 */}
-      <div className="shrink-0 border-b border-zinc-200 bg-white px-4 py-2 flex items-center gap-2">
+      <div className="hidden shrink-0 border-b border-zinc-200 bg-white px-4 py-2 sm:flex sm:items-center sm:gap-2">
         {/* ── 左半区：项目台账 + 建筑三表 ── */}
         <div className="flex items-center gap-1">
           {(() => {
@@ -305,6 +321,7 @@ export function DatabaseManager() {
                       key={t.table}
                       onClick={() => {
                         setSelectedAutoTable(t.table);
+                        setVisitedAutoTables(previous => new Set([...previous, t.table]));
                         setAutoTableOpen(false);
                       }}
                       className={`w-full text-left px-3 py-2 text-xs hover:bg-zinc-50 transition ${
@@ -353,19 +370,19 @@ export function DatabaseManager() {
       </div>
 
       {/* 表格内容 - 已访问的 tab 保持挂载（避免切标签重复加载数据） */}
-      <div className="flex-1 min-h-0 p-4 overflow-hidden w-full">
+      <div className="flex-1 min-h-0 p-3 sm:p-4 overflow-hidden w-full">
         {CORE_TABLE_CONFIGS.map((cfg, idx) => {
           const tabKey = (cfg as any).tabKey ?? cfg.table;
           if (!visitedTabs.has(idx)) return null;
           return (
             <div key={tabKey} style={{ display: activeTab === idx && !selectedAutoTable ? undefined : 'none', height: '100%' }}>
-              <GridPanel config={cfg} dicts={dicts} onRefreshDicts={refreshDicts} />
+              <GridPanel config={cfg} dicts={dicts} onRefreshDicts={refreshDicts} active={activeTab === idx && !selectedAutoTable} onDraftChange={dirty => setDraft(`core:${idx}`, dirty)} />
             </div>
           );
         })}
-        {selectedAutoTable && autoTables.filter(t => t.table === selectedAutoTable).map(t => (
-          <div key={t.table} style={{ height: '100%' }}>
-            <GridPanel config={t} dicts={dicts} />
+        {autoTables.filter(t => visitedAutoTables.has(t.table)).map(t => (
+          <div key={t.table} style={{ display: selectedAutoTable === t.table ? undefined : 'none', height: '100%' }}>
+            <GridPanel config={t} dicts={dicts} active={selectedAutoTable === t.table} onDraftChange={dirty => setDraft(`auto:${t.table}`, dirty)} />
           </div>
         ))}
       </div>
