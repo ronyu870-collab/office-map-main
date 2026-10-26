@@ -75,6 +75,11 @@ jobs:
         env:
           QUARTERLY_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 lease edit and audit regressions
+        run: npm run test:db:lease-audit
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Production build
         run: npm run build
 

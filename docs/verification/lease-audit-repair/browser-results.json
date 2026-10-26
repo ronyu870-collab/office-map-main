@@ -1,0 +1,26 @@
+{
+  "database": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "browser": "Google Chrome",
+  "build": "actual Next 16 production webpack of unmodified form and submission service",
+  "backend": "real Supabase JS SDK + PostgREST v14.10 + PostgreSQL 17; synthetic auth-user endpoint and building options; client audit sink isolated",
+  "results": [
+    {
+      "case": "original actual form edit",
+      "result": "42883 shown; database unchanged; input preserved"
+    },
+    {
+      "case": "fixed actual form edit and reload",
+      "width": 1280,
+      "rent": 230,
+      "auditCount": 2
+    },
+    {
+      "case": "fixed actual form edit and reload",
+      "width": 390,
+      "rent": 240,
+      "auditCount": 1
+    }
+  ],
+  "pageErrors": [],
+  "externalRequests": []
+}

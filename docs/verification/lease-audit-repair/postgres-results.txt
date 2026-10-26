@@ -1,0 +1,18 @@
+
+> office-map-main@0.1.0 test:db:lease-audit
+> node supabase/tests/lease-change-history/run.mjs
+
+Database: PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+PASS unchanged save succeeds before repair and produces no audit
+PASS original actual edit fails with 42883 and rolls back the entire row
+PASS repair preserves policies, trigger identities and function security
+PASS owner edits one field, reads it back and gets authoritative audit snapshots
+PASS multiple fields and null to value produce the exact field count
+PASS value to null is audited; unchanged and timestamp-only saves add no history
+PASS other editor and viewer cannot update, or read/write private audit history
+PASS ownership and source changes remain denied by WITH CHECK
+PASS admin can edit another submitter; history identifies the admin actor
+PASS stale optimistic-lock timestamp changes no row and adds no audit
+PASS audit insertion failure rolls back business fields and updated_at
+PASS repair is reapplicable and retains system-actor fallback
+PASS all 12 lease audit PostgreSQL regression cases
