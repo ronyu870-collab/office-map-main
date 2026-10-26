@@ -22,6 +22,7 @@ Describe behavior, data, security, performance, or deployment risk.
 - [ ] Applicable local verification under [AGENTS](../AGENTS.md) completed. Documentation-only: links, anchors, rule consistency and unchanged business code checked; application tests not applicable.
 - [ ] The exact PR head passed the [Verify workflow](workflows/verify.yml); local verification does not substitute for CI.
 - [ ] Relevant behavior, permissions and shared callers checked; unverified items are explicit.
+- [ ] For runtime behavior changes, [VERIFY-03](../docs/standards/05_工程验证与交付规范.md#verify-03) execution evidence is included: affected operations and indirect dependencies; database operations on real PostgreSQL matching the target major version when applicable; bug regression failing on the old implementation and passing after the fix; required regressions wired into CI and actually run. Mark not applicable with a reason for documentation-only changes. SQL text checks, successful migration creation and unrelated green checks do not satisfy this requirement.
 - [ ] Affected mobile actions checked against [MOB-01](../docs/standards/03_模块规范.md#mob-01), with [MOB-05 evidence](../docs/standards/05_工程验证与交付规范.md#mob-05); not applicable when no UI/behavior changed.
 
 ## UI evidence and recovery
