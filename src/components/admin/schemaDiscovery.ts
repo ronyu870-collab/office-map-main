@@ -52,7 +52,7 @@ async function doDiscovery(hardcodedTables: string[]): Promise<TableConfig[]> {
       key: col.column_name,
       label: col.column_comment || col.column_name,
       type: pgTypeToColType(col.data_type),
-      readOnly: READONLY_COLUMNS.has(col.column_name) || col.column_default?.includes('gen_random_uuid'),
+      readOnly: READONLY_COLUMNS.has(col.column_name) || col.column_default?.includes('gen_random_uuid') || (tableName === 'future_supplies' && col.column_name === 'building_id'),
       hidden: SYSTEM_COLUMNS.has(col.column_name) || (idx >= shouldHideAfter && !isKeyColumn(col.column_name)),
       masked: false,
     }))

@@ -3,6 +3,7 @@ import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
 import { logAction } from '@/src/utils/audit'
 import { getSession } from '@/src/services/Auth'
+import { clearMapReadCache } from '@/src/services/mapReadCache'
 import type { TableConfig, DictBundle, ColDef } from '../types'
 import { copyRecord, gridRowKey, recordIsDirty, recordPayload } from './recordModel'
 
@@ -34,6 +35,7 @@ const LEDGER_CACHE_KEYS = ['__project_ledger_cache_v4']
 const LEDGER_SOURCE_TABLES = new Set(['buildings', 'building_metrics', 'building_current_data'])
 
 function invalidateLedgerCache(table: string) {
+  if (table === 'buildings' || table === 'future_supplies') clearMapReadCache()
   if (LEDGER_SOURCE_TABLES.has(table)) {
     for (const key of LEDGER_CACHE_KEYS) {
       try { sessionStorage.removeItem(key) } catch {}
@@ -131,9 +133,31 @@ export function useGridCrud(
       const insert = kind === 'add' || original._virtual === true
       if (insert && config.filterField && config.filterValue != null && !(config.filterField in payload)) payload[config.filterField] = config.filterValue
       if (config.beforeSave) payload = config.beforeSave(payload, dicts)
+      if (!insert && config.table === 'buildings') {
+        const aliasColumn = config.cols.find(col => col.key === 'former_names')
+        if (aliasColumn && !recordIsDirty({ ...config, cols: [aliasColumn] }, original, values)) delete payload.former_names
+      }
       let targetId = kind === 'edit' ? gridRowKey(config, original) : 'unknown'
       let resultRow = { ...values, ...payload }
-      if (kind === 'add' && config.customSaveAdd) {
+      const identityCols = config.cols.filter(col => col.key === 'name' || col.key === 'former_names')
+      const otherCols = config.cols.filter(col => col.key !== 'name' && col.key !== 'former_names')
+      const buildingEdit = !insert && config.table === 'buildings'
+      const otherFieldsChanged = buildingEdit && recordIsDirty({ ...config, cols: otherCols }, original, values)
+      const identityChanged = buildingEdit && recordIsDirty({ ...config, cols: identityCols }, original, values)
+      if (identityChanged && otherFieldsChanged) throw new Error('更名请单独保存名称和曾用名；其他修改仍保留在编辑框中，请分开操作')
+      if (buildingEdit && !otherFieldsChanged) {
+        if (!original.id || !original.name) throw new Error('缺少楼宇身份信息，请刷新后重试')
+        const { data, error } = await supabase.rpc('admin_rename_building', {
+          p_id: original.id,
+          p_expected_name: original.name,
+          p_expected_former_names: original.former_names ?? null,
+          p_new_name: values.name,
+          p_former_names: payload.former_names ?? null,
+        })
+        if (error) throw error
+        if (!data?.length) throw new Error('未保存：未找到楼宇或当前无更名权限，请核对后重试')
+        resultRow = data[0]; targetId = gridRowKey(config, resultRow); committed = true
+      } else if (kind === 'add' && config.customSaveAdd) {
         const result = await config.customSaveAdd(payload, dicts)
         if (!result.success) throw new Error(result.message)
         targetId = result.targetId ?? targetId
@@ -145,10 +169,16 @@ export function useGridCrud(
           query = supabase.from(config.table).insert(payload)
         } else {
           query = supabase.from(config.table).update(payload)
-          const keys = config.uploadMatchKeys?.length ? config.uploadMatchKeys : original.id != null ? ['id'] : original.user_id != null ? ['user_id'] : ['building_id']
+          // Names are import lookup keys, not stable identities for an edit.
+          const keys = config.table === 'buildings' && original.id != null ? ['id'] : config.uploadMatchKeys?.length ? config.uploadMatchKeys : original.id != null ? ['id'] : original.user_id != null ? ['user_id'] : ['building_id']
           for (const key of keys) {
             if (original[key] == null || original[key] === '') throw new Error('缺少记录定位信息，请刷新后重试')
             query = query.eq(key, original[key])
+          }
+          if (config.table === 'buildings') {
+            if (original.name != null) query = query.eq('name', original.name)
+            if (original.former_names === null) query = query.is('former_names', null)
+            else if (original.former_names !== undefined) query = query.eq('former_names', JSON.stringify(original.former_names))
           }
           // Use an existing version column only; no schema or permission changes.
           if (original.updated_at != null) query = query.eq('updated_at', original.updated_at)

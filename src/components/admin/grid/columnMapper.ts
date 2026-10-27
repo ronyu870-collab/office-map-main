@@ -4,6 +4,7 @@
  */
 import type { ColDef as AgColDef } from 'ag-grid-community'
 import type { ColDef, TableConfig, DictBundle } from '../types'
+import { tagNames } from './recordModel'
 
 // Tailwind w-XX → px 查找表
 const WIDTH_MAP: Record<string, number> = {
@@ -160,6 +161,15 @@ export function buildAgColumnDefs(
     // 布尔列
     else if (col.type === 'boolean') {
       agCol.cellRenderer = 'BooleanRenderer'
+      agCol.filter = 'agTextColumnFilter'
+    }
+    else if (col.type === 'tags') {
+      agCol.valueGetter = params => tagNames(params.data?.[col.key]).join('\n')
+      agCol.valueParser = params => tagNames(params.newValue)
+      agCol.cellEditor = 'agLargeTextCellEditor'
+      // The grid edits full rows; popup editors are incompatible with that mode.
+      agCol.cellEditorPopup = false
+      agCol.cellEditorParams = { rows: 5, cols: 40, maxLength: 10000 }
       agCol.filter = 'agTextColumnFilter'
     }
     // JSONB 列

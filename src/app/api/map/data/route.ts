@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 const MAP_BUILDING_SELECT = `
   id,
   name,
+  former_names,
   submarket,
   grade,
   city,

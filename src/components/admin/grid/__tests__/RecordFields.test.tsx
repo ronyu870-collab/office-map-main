@@ -10,6 +10,16 @@ const config: TableConfig = { table: 'synthetic', label: '测试', cols: [
   { key: 'readonly', label: '来源', type: 'text', readOnly: true },
 ] }
 describe('shared record fields', () => {
+  it('edits former names one per line, preserving punctuation inside a single project name', () => {
+    const change = vi.fn()
+    const tags: TableConfig = { table: 'buildings', label: '楼宇', cols: [{ key: 'former_names', label: '曾用名', type: 'tags' }] }
+    render(<RecordFields config={tags} values={{ former_names: ['旧项目（东座, 西座）', '另一旧名'] }} onChange={change} dicts={{}} />)
+    const input = screen.getByLabelText('曾用名')
+    expect(input.tagName).toBe('TEXTAREA')
+    expect(input).toHaveValue('旧项目（东座, 西座）\n另一旧名')
+    fireEvent.change(input, { target: { value: '旧项目（东座, 西座）\n手工补充名' } })
+    expect(change).toHaveBeenCalledWith({ former_names: '旧项目（东座, 西座）\n手工补充名' })
+  })
   it('supports keyboard object selection and Escape closes its menu without closing the parent task', () => {
     const change = vi.fn(); const escape = vi.fn()
     render(<div onKeyDown={escape}><RecordFields config={config} values={{ building: 'b' }} onChange={change} dicts={{ buildings: { a: '甲', b: '乙' } }} /></div>)

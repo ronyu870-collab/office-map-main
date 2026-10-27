@@ -230,3 +230,17 @@ A row-specific decision for a reused ambiguous label should use `lease_building_
 - the historical identity layer introduces no `SECURITY DEFINER` function.
 
 Do not broaden matching rules merely to improve a percentage. A missing relationship is preferable to a wrong building identity because Map building profiles, tenant histories, company migration paths, expiry analysis and future AI queries inherit this relation.
+
+## 管理员常规更名契约
+
+管理员在数据库管理的项目基础信息中继续使用「编辑 → 修改项目名称 → 保存」。更名和补充曾用名通过 `public.admin_rename_building`，不向浏览器开放楼宇表的整表写权限。公共 SQL invoker 包装使用定义时解析的函数体调用 private definer 实现；后者验证真实 `auth.uid()` 与现有管理员角色。没有新增 authenticated 对 `buildings` 的 UPDATE/INSERT 权限，也没有开放 private schema 的 USAGE。
+
+身份更改由 `20261027100738_protect_building_identity_renames.sql` 的事务内触发器完成：保留楼宇 ID、原名称及原有曾用名，去重并补全新旧名称的 exact 映射；已有成交原始文本不改写。未来供应通过新增的 `future_supplies.building_id` 固定关联同步显示名称和曾用名，分配与填报继续沿用原未来供应 ID。
+
+未来供应关联仅在迁移中对当前名称、坐标均完全一致且双向唯一的记录回填。没有可靠关联的未来项目拒绝更名；重复名称、其他楼宇别名、项目级映射歧义也拒绝整笔保存。没有自动模糊匹配、最近坐标匹配、楼座合并或入市状态改变。普通编辑不能更换未来供应身份关联；身份核验另按本专项治理。
+
+RPC 只接受楼宇 ID、原名称及曾用名快照、目标名称和可选新增曾用名。它不能修改面积、业主、人员归属或权限；同次编辑混入其他字段时，界面保留输入并要求分开操作。原名称/曾用名已被其他操作改变时拒绝覆盖；请求结果已实现的重试可直接返回当前记录，不重复写审计。无变化保存不产生身份审计。旧的 SQL null、JSON null 和空字符串曾用名按空列表理解；非空异常格式仍需核验。
+
+曾用名编辑按每行一个名称处理，名称内部的逗号等标点保留。日常更名只需改名称，系统自动保留旧名；该入口对已确认别名采用追加保护，删除或纠正错误身份映射须另行核验。存量与未来供应地图关键词可检索曾用名；保存成功会清除相关地图/台账缓存。该能力不等于全站所有选择器均支持别名搜索。
+
+楼宇、未来供应、名称映射及服务端审计在同一数据库事务完成。同步、冲突检查或审计失败即回滚，前端不清除失败输入。代码、迁移、隔离测试与目标生产启用是不同阶段；执行验证及 CI 入口见[更名回归](../supabase/tests/building-renames/README.md)。

@@ -115,7 +115,7 @@ export function filterFutureSupplies(
     const submarket = normalizeMapSubmarket(supply?.submarket);
     if (!filterState.districts.includes(district) || !selectedSubmarkets.has(submarket)) return false;
 
-    if (query && ![supply?.name, supply?.submarket, supply?.district, supply?.owner]
+    if (query && ![supply?.name, ...(Array.isArray(supply?.former_names) ? supply.former_names : []), supply?.submarket, supply?.district, supply?.owner]
       .some(value => String(value ?? '').toLocaleLowerCase().includes(query))) {
       return false;
     }

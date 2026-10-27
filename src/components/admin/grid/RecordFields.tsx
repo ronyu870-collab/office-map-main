@@ -3,7 +3,7 @@ import React, { useId } from 'react'
 import { Input } from '@/src/components/ui'
 import { SearchableSelect } from '@/src/components/ui/SearchableSelect'
 import type { DictBundle, TableConfig } from '../types'
-import { displayRecordValue, type GridRecord } from './recordModel'
+import { displayRecordValue, tagNames, type GridRecord } from './recordModel'
 
 interface Props {
   config: TableConfig
@@ -35,7 +35,7 @@ export function RecordFields({ config, values, onChange, dicts, errors = {}, dis
           if (event.key === 'Escape' && (event.target as HTMLElement).getAttribute('aria-expanded') === 'true') event.preventDefault()
         }}><SearchableSelect aria-invalid={!!errors[col.key]} aria-describedby={errors[col.key] ? errorId : undefined} id={id} value={String(value ?? '')} onChange={set} disabled={disabled} options={Object.entries(dicts[col.foreignKey] ?? {}).map(([key, label]) => ({ value: key, label }))} placeholder={`选择${col.label}`} className="grid-record-select" /></div> : col.displayMap || col.type === 'boolean' ? <select {...attributes} value={value == null ? '' : String(value)} onChange={event => set(event.target.value === '' ? null : col.type === 'boolean' ? event.target.value === 'true' : event.target.value)} className="grid-record-input">
           <option value="">请选择</option>{Object.entries(col.displayMap ?? { true: '是', false: '否' }).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select> : col.type === 'textarea' || col.type === 'jsonb' ? <textarea {...attributes} rows={4} value={typeof value === 'object' && value != null ? JSON.stringify(value, null, 2) : value ?? ''} onChange={event => set(event.target.value)} className="grid-record-input h-auto py-2" /> : <Input {...attributes} type={col.type === 'number' ? 'number' : col.type === 'date' && !String(value ?? '').includes('T') ? 'date' : 'text'} step={col.type === 'number' ? 'any' : undefined} value={value ?? ''} onChange={event => set(event.target.value)} className="grid-record-input" />}
+        </select> : col.type === 'textarea' || col.type === 'jsonb' || col.type === 'tags' ? <textarea {...attributes} rows={4} placeholder={col.type === 'tags' ? '每行一个曾用名；更名时会自动保留原名称' : undefined} value={col.type === 'tags' ? (Array.isArray(value) ? tagNames(value).join('\n') : value ?? '') : typeof value === 'object' && value != null ? JSON.stringify(value, null, 2) : value ?? ''} onChange={event => set(event.target.value)} className="grid-record-input h-auto py-2" /> : <Input {...attributes} type={col.type === 'number' ? 'number' : col.type === 'date' && !String(value ?? '').includes('T') ? 'date' : 'text'} step={col.type === 'number' ? 'any' : undefined} value={value ?? ''} onChange={event => set(event.target.value)} className="grid-record-input" />}
         {col.suffix && !readonly && <p className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">按原始比例填写；0.1 显示为 10{col.suffix}</p>}
         {errors[col.key] && <p id={errorId} className="mt-1 text-sm text-[var(--cd-color-danger)]">{errors[col.key]}</p>}
       </div>
