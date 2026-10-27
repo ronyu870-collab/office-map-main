@@ -45,6 +45,7 @@ export function useGridData(
       for (let offset = 0; ; offset += PAGE) {
         if (gen !== generationRef.current) return false
         const query = supabase.from(tableName).select('*').range(offset, offset + PAGE - 1)
+        if (tableName === 'buildings') query.is('merged_into_id', null)
         if (config.filterField && config.filterValue != null) query.eq(config.filterField, config.filterValue)
         if (Array.isArray(config.orderBy)) {
           for (const order of config.orderBy) query.order(order.col, { ascending: order.asc ?? false })

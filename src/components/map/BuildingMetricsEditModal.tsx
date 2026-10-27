@@ -1,4 +1,5 @@
 'use client';
+import { resolveBuildingId } from '@/src/services/buildingIdentity';
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
@@ -193,10 +194,11 @@ export function BuildingMetricsEditModal({
     if (!isOpen || !buildingId) return;
 
     const loadBuildingInfo = async () => {
+      const canonicalId = await resolveBuildingId(supabase, buildingId);
       const { data, error } = await supabase
         .from('buildings')
-        .select('id, name, total_area')
-        .eq('id', buildingId)
+        .select('id, name, total_area:leasable_area')
+        .eq('id', canonicalId)
         .single();
 
       if (!error && data) {
@@ -204,7 +206,7 @@ export function BuildingMetricsEditModal({
       }
     };
 
-    loadBuildingInfo();
+    void loadBuildingInfo().catch(error => setSaveError(String(error?.message || '楼宇信息读取失败')));
   }, [isOpen, buildingId]);
 
   // 加载指标数据
@@ -218,10 +220,11 @@ export function BuildingMetricsEditModal({
 
     const loadMetricData = async () => {
       try {
+        const canonicalId = await resolveBuildingId(supabase, buildingId);
         const { data, error } = await supabase
           .from('building_metrics')
           .select('*')
-          .eq('building_id', buildingId)
+          .eq('building_id', canonicalId)
           .eq('record_year', year)
           .eq('record_quarter', quarter)
           .order('created_at', { ascending: false })
@@ -379,6 +382,7 @@ export function BuildingMetricsEditModal({
     setSaveError(null);
 
     try {
+      const canonicalId = await resolveBuildingId(supabase, buildingId);
       const payload = {
         asking_rent: parseNumericInput(formData.asking_rent),
         management_fee: parseNumericInput(formData.management_fee),
@@ -415,7 +419,7 @@ export function BuildingMetricsEditModal({
         if (updateError) throw updateError;
 
         // 记录审计日志
-        AuditService.metricsUpdate(buildingId, buildingName, {
+        AuditService.metricsUpdate(canonicalId, buildingName, {
           record_year: year,
           record_quarter: quarter,
           ...Object.fromEntries(
@@ -429,7 +433,7 @@ export function BuildingMetricsEditModal({
         const { error: insertError } = await supabase
           .from('building_metrics')
           .insert({
-            building_id: buildingId,
+            building_id: canonicalId,
             record_year: year,
             record_quarter: quarter,
             ...payload,
@@ -438,7 +442,7 @@ export function BuildingMetricsEditModal({
         if (insertError) throw insertError;
 
         // 记录审计日志
-        AuditService.metricsInsert(buildingId, buildingName, year, quarter);
+        AuditService.metricsInsert(canonicalId, buildingName, year, quarter);
       }
 
       // 保存成功

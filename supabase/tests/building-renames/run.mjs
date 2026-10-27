@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { spawn } from 'node:child_process';
+import { runMergeRegressions } from './merges.mjs';
 import { createLeaseTestDatabase, ADMIN, OWNER, VIEWER } from '../lease-change-history/database.mjs';
 
 const source = p => readFile(new URL(p, import.meta.url), 'utf8');
@@ -232,6 +233,8 @@ try {
       assert.equal(s.maps.filter(m=>m.alias_name==='Contested name').length,1);
     } finally {await first.query('rollback').catch(()=>{});await second.query('rollback').catch(()=>{});await first.end();await second.end();}
   });
+  await runMergeRegressions(db);
+  const sourcesBeforeUI = await preservedSources();
   await test('real mobile editor, shared SDK HTTP write and PostgreSQL persistence regressions', async () => {
     await new Promise((resolve,reject) => {
       const child=spawn(process.execPath,['node_modules/vitest/vitest.mjs','run','--config','supabase/tests/building-renames/vitest.config.ts'],{
@@ -241,7 +244,7 @@ try {
       child.once('exit',code=>code===0?resolve():reject(new Error('UI integration exited with '+code)));
     });
     const after=await preservedSources();
-    assert.deepEqual(after,sourcesBefore);
+    assert.deepEqual(after,sourcesBeforeUI);
   });
   if (process.env.BUILDING_RENAME_BROWSER === '1') {
     await test('actual production build desktop and mobile browser rename checks', async () => {
@@ -261,5 +264,5 @@ try {
       });
     });
   }
-  console.log('PASS all ' + passed + ' building identity PostgreSQL regression cases');
+  console.log('PASS all ' + passed + ' rename cases plus executed merge regressions');
 } finally { await db.close(); }

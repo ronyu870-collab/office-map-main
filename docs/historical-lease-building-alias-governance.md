@@ -1,5 +1,17 @@
 # Historical Lease Building Identity Governance
 
+## 已核验的重复主档合并
+
+`buildings.merged_into_id` 只记录经owner维护事务核验的单层合并。原重复行保留，设为inactive/reference_only，主档仍为active/tracked；归档行不可再次编辑、删除或形成身份链。`public.resolve_building_id` 为同权限SQL invoker，只使用调用者原有楼宇读取权限，不开放合并能力或private schema。地图趋势、指标和后台入口按主档解析；旧名称冲突只豁免明确归属于同一主档的归档记录，不泛化忽略inactive楼宇。
+
+维护入口仅 `private.merge_verified_buildings`，PUBLIC/anon/authenticated/service_role均无EXECUTE；不提供浏览器合并按钮。维护者提供旧/主/未来供应身份、完整精度前像与核验依据，事务锁定后重新检查。源未来主档与目标存量主档需同名/同坐标/同业主、均已入市，面积来源相符；目标已有指标、其他未迁移FK、已关联供应或身份链均拒绝。不把“同名”用作自动批量合并规则。
+
+FK归一触发器为private definer、撤销所有调用者EXECUTE，核对真实认证或owner维护上下文。它只锁定并读取父身份、归一NEW中的外键；原目标表写入授权与最终行RLS仍生效。KEY SHARE锁与合并的FOR UPDATE串行，避免在合并提交前读到旧身份、等待FK后又把新记录挂回归档ID；不为调用者新增buildings UPDATE权限。公开只读resolver仍是invoker，不通过该触发器扩展读取范围。
+
+指标与父项目成员仅改building_id，保留记录ID、字段、锁定及原更新时间；未来供应仅补关联，原未来ID下分配/填报、原文与历史项目范围保持。原表业务触发器临时状态仅在受锁定的原子维护事务中变化，失败全部恢复；成功写一条包含完整前后证据的可信审计。现有RLS/授权与FK唯一约束保持，后续FK写入归一到主档，但业务权限或资格校验失败仍需刷新后重试，不承诺对已过期的填报请求绕过校验。
+
+已有分配、填报、历史及其他楼座不因归档而删除；不能使用ON DELETE CASCADE简化身份治理。实际执行回归与CI入口在[更名及合并测试](../supabase/tests/building-renames/README.md)。
+
 ## Purpose
 
 Historical lease rows preserve source-era building names as text, while the current building inventory uses `public.buildings.id` as the canonical identity. This document defines the controlled, auditable bridge between those representations.

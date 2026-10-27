@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { resolveBuildingId } from './buildingIdentity';
 import { withImpersonationHeaders } from "./impersonationHeaders";
 import { readPagedRows } from "../utils/readPagedRows";
 import type { NumericLike } from "../utils/calculations";
@@ -162,7 +163,7 @@ export async function getBuildingMetrics(params?: {
     "building_id,net_effective_rent,vacancy_rate,vacancy_area,total_area,prev_net_effective_rent,prev_vacancy_rate,prev_vacancy_area,as_of";
 
   let q = supabase.from("building_metrics").select(select);
-  if (params?.buildingId) q = q.eq("building_id", params.buildingId);
+  if (params?.buildingId) q = q.eq("building_id", await resolveBuildingId(supabase, params.buildingId));
   if (params?.asOf) q = q.eq("as_of", params.asOf);
 
   const { data, error } = await q;

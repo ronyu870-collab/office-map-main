@@ -6,6 +6,7 @@ import {
 
 const EXCLUDED_TABLES = new Set(['audit_logs', 'update_drafts']);
 const READ_ONLY_RPCS = new Set([
+  'resolve_building_id',
   'get_all_tables',
   'get_table_columns',
   'get_all_memo_tags',
