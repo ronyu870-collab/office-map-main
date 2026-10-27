@@ -3,6 +3,7 @@
  */
 
 "use client";
+import { resolveBuildingId } from './buildingIdentity';
 
 import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
@@ -2882,6 +2883,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (this._destroyed) return;
 
     try {
+      buildingId = await resolveBuildingId(supabase, buildingId);
       const { data, error } = await supabase
         .from('buildings')
         .select('*, building_metrics(*)')

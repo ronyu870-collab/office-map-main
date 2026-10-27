@@ -8,6 +8,7 @@
 
 export interface Building {
   id: string;
+  merged_into_id?: string | null;
   name: string;
   former_names?: string[] | null;
   submarket: string;

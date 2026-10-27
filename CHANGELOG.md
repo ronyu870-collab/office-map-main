@@ -1452,3 +1452,10 @@ Git commit titles are too compressed to serve as product memory. A persistent re
 - P0: remove excessive debug logging and sensitive diagnostic output.
 
 
+## 2026-10-27 — 保留原件的楼宇身份合并
+
+- 增加受控的 `merged_into_id` 单层身份关系、同权限旧ID解析和归档写保护；既有更名RPC与名称冲突保护理解已核验合并，重解析SQL包装的返回行，避免加列后旧包装返回列数错误。
+- 地图趋势、指标读取/编辑及后台列表沿用同一主身份，归档记录不再成为业务选项；不开放浏览器合并/表写权限。FK写入在既有RLS及约束下归一到主档。
+- 私有owner维护事务核对完整前像、未迁移引用和同期间冲突，保留指标ID/锁定/数值/时间、存量分配与未来分配/填报、项目范围历史；任何失败回滚。具体楼宇数据合并另按用户授权、目标库前像及回读执行，本文件不自动执行合并。
+- 必需合并回归接入现有真实PG17更名CI入口；包含过期前像、唯一键、意外新FK、审计失败/触发器状态回滚、幂等、权限、归档/链保护、旧ID及更名；实际Next处理器/共享SDK/HTTP测试适配器/PG链路核验见对应测试。提交、CI和生产数据状态以发布记录为准。
+

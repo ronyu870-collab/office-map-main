@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import pg from 'pg';
+import { ADMIN } from '../lease-change-history/database.mjs';
+
+export async function runMergeRegressions(db) {
+ const q=(sql,args)=>db.setup.query(sql,args);
+ const source=p=>readFile(new URL(p,import.meta.url),'utf8');
+ const base=await source('../../migrations/20260730043721_create_colliers_lite_schema.sql');
+ await q(base.slice(base.indexOf('create table public.building_metrics ('),base.indexOf('create table public.lease_transactions (')));
+ const restoration=await source('../../migrations/20260801110130_restore_quarterly_oss_admin.sql');
+ await q(restoration.slice(restoration.indexOf('create table public.building_assignments ('),restoration.indexOf('create table public.quarterly_submissions (')));
+ await q('create table auth.users(id uuid primary key)');await q('insert into auth.users values($1)',[ADMIN]);
+ await q(restoration.slice(restoration.indexOf('create table public.quarterly_submissions ('),restoration.indexOf('create table public.quarterly_updates (')));
+ await q('create trigger building_metrics_set_updated_at before update on public.building_metrics for each row execute function private.set_updated_at()');
+ await q('alter table public.building_metrics enable row level security; grant select on public.building_metrics to authenticated; create policy synthetic_metric_read on public.building_metrics for select to authenticated using(true)');
+ const old='cccccccc-cccc-4ccc-8ccc-000000000001',keep='cccccccc-cccc-4ccc-8ccc-000000000002',future='cccccccc-cccc-4ccc-8ccc-000000000003';
+ await q("insert into public.buildings(id,name,city,project_type,is_entered_market,tracking_scope,location_lng,location_lat,owner,leasable_area) values($1,'Synthetic merge tower','北京','future',true,'tracked',116.5,39.9,'Synthetic owner',112700),($2,'Synthetic merge tower','北京','stock',true,'tracked',116.5,39.9,'Synthetic owner',null)",[old,keep]);
+ await q("insert into public.future_supplies(id,name,total_area,is_entered_market,location_lng,location_lat) values($1,'Synthetic merge tower',112700,true,116.6,39.8)",[future]);
+ await q("insert into public.building_metrics(building_id,total_area,record_year,record_quarter,is_locked,locked_at,updated_at,net_effective_rent) values($1,112700,2026,2,true,'2026-07-01','2026-07-02',84.4444444444444)",[old]);
+ await q("insert into public.building_assignments(building_id,project_name,user_id,user_name) values($1,'Synthetic merge tower',$2,'Synthetic owner')",[keep,ADMIN]);
+ await q('insert into public.future_supply_assignments values(gen_random_uuid(),$1,$2),(gen_random_uuid(),$1,$2)',[future,ADMIN]);
+ await q('insert into public.future_supply_submissions values(gen_random_uuid(),$1,2026,2)',[future]);
+ await q("insert into public.lease_building_project_map(market_code,alias_name,building_id,match_method,verification_status) values('BJ','Synthetic merge project',$1,'PARENT_PROJECT_SCOPE','AUTO_VERIFIED_PROJECT'),('BJ','Synthetic merge project',$2,'PARENT_PROJECT_SCOPE','AUTO_VERIFIED_PROJECT')",[old,'aaaaaaaa-aaaa-4aaa-8aaa-000000000002']);
+ await assert.rejects(q("select public.resolve_building_id($1)",[old]),e=>e.code==='42883');
+ assert.equal((await q('select count(*)::int n from public.building_metrics where building_id=$1',[keep])).rows[0].n,0);
+ console.log('PASS merge baseline has split metrics and no old-ID resolution');
+ await q(await source('../../migrations/20261027151600_preserve_merged_building_identities.sql'));
+ const snapshot=async()=> (await q('select private.building_merge_snapshot($1,$2,$3) s',[old,keep,future])).rows[0].s;
+ const merge=expected=>q("select private.merge_verified_buildings($1,$2,$3,$4::jsonb,'Synthetic verified identity evidence') result",[old,keep,future,JSON.stringify(expected)]);
+ let before=await snapshot();
+ await q("update public.buildings set notes='concurrent edit' where id=$1",[old]);
+ const stale=await snapshot(); await assert.rejects(merge(before),e=>e.code==='40001');assert.deepEqual(await snapshot(),stale);
+ await q('update public.buildings set notes=null where id=$1',[old]);before=await snapshot();
+ console.log('PASS merge rejects stale complete snapshot without overwriting concurrent data');
+ await q('insert into public.building_metrics(building_id,record_year,record_quarter) values($1,2026,2)',[keep]);
+ const conflicting=await snapshot();await assert.rejects(merge(conflicting),/Unsafe or conflicting/);assert.deepEqual(await snapshot(),conflicting);
+ await q('delete from public.building_metrics where building_id=$1',[keep]);before=await snapshot();
+ console.log('PASS same-period target metrics prevent merge without any overwrite');
+ await q('create table public.synthetic_unexpected_reference(building_id uuid references public.buildings(id))');await q('insert into public.synthetic_unexpected_reference values($1)',[old]);
+ await assert.rejects(merge(before),/Unmigrated reference/);assert.deepEqual(await snapshot(),before);await q('drop table public.synthetic_unexpected_reference');
+ console.log('PASS newly added unexpected FK prevents an incomplete merge');
+ await q("alter table public.audit_logs add constraint synthetic_merge_audit_failure check(details->>'operation' is distinct from 'merge_verified_building_identity')");
+ await assert.rejects(merge(before),e=>e.code==='23514');assert.deepEqual(await snapshot(),before);
+ assert.equal((await q("select count(*)::int n from pg_trigger where tgname in ('building_metrics_set_updated_at','future_supplies_guard_identity') and tgenabled='O'")).rows[0].n,2);
+ await q('alter table public.audit_logs drop constraint synthetic_merge_audit_failure');
+ console.log('PASS audit failure atomically restores all rows and temporarily changed trigger states');
+ await assert.rejects(db.asUser(ADMIN,'select private.merge_verified_buildings($1,$2,$3,$4::jsonb,\'denied\')',[old,keep,future,JSON.stringify(before)]),e=>e.code==='42501');
+ const result=await merge(before);assert.equal(result.rows[0].result.status,'merged');
+ const after=await snapshot();
+ assert.deepEqual(after.assignments,before.assignments);assert.deepEqual(after.future_assignments,before.future_assignments);assert.deepEqual(after.future_submissions,before.future_submissions);
+ assert.deepEqual(after.metrics,before.metrics.map(x=>({...x,building_id:keep})));
+ for(const field of ['other_buildings','live_sources','history_sources'])assert.equal(after[field],before[field]);
+ assert.equal(after.future.id,future);assert.equal(after.future.building_id,keep);
+ const {building_id:ignored,...supply}=after.future;const {building_id:ignoredBefore,...originalSupply}=before.future;assert.deepEqual(supply,originalSupply);assert.equal(ignored,keep);assert.equal(ignoredBefore,null);
+ assert.deepEqual(after.project_maps.map(x=>x.building_id).sort(),[keep,'aaaaaaaa-aaaa-4aaa-8aaa-000000000002'].sort());
+ assert.equal((await db.asUser(ADMIN,'select public.resolve_building_id($1) id',[old])).rows[0].id,keep);
+ console.log('PASS merge retains IDs, lock/time/value precision, original sources, same owner assignments and future submissions');
+ const auditCount=(await q("select count(*)::int n from public.audit_logs where event_id='building-merge-'||$1",[old])).rows[0].n;
+ assert.equal(auditCount,1);assert.equal((await merge(before)).rows[0].result.status,'already_merged');assert.deepEqual(await snapshot(),after);
+ console.log('PASS repeated maintenance has one receipt and no duplicate rows');
+ await assert.rejects(q('update public.buildings set is_active=true where id=$1',[old]),e=>e.code==='23514');
+ await assert.rejects(q('delete from public.buildings where id=$1',[old]),e=>e.code==='23514');
+ await assert.rejects(q('update public.buildings set is_active=false where id=$1',[keep]),e=>e.code==='23514');
+ console.log('PASS archived identities are immutable and canonical targets cannot be retired into a chain');
+ await q('insert into public.building_metrics(building_id,record_year,record_quarter) values($1,2026,3)',[old]);
+ assert.equal((await q('select building_id from public.building_metrics where record_year=2026 and record_quarter=3 and building_id=$1',[keep])).rowCount,1);
+ await db.asUser(ADMIN,"select * from public.admin_rename_building($1,'Synthetic merge tower','[]'::jsonb,'Synthetic merged renamed',null)",[old]);
+ assert.equal((await q('select name from public.future_supplies where id=$1',[future])).rows[0].name,'Synthetic merged renamed');
+ assert.equal((await q('select name from public.buildings where id=$1',[old])).rows[0].name,'Synthetic merge tower');
+ console.log('PASS old-ID writes canonicalize and rename follows the merge without archived-name conflicts');
+ const raceOld='dddddddd-dddd-4ddd-8ddd-000000000001',raceKeep='dddddddd-dddd-4ddd-8ddd-000000000002',raceFuture='dddddddd-dddd-4ddd-8ddd-000000000003';
+ await q("insert into public.buildings(id,name,city,project_type,is_entered_market,tracking_scope,location_lng,location_lat,owner,leasable_area) values($1,'Concurrent merge tower','北京','future',true,'tracked',116.7,39.9,'Synthetic owner',112700),($2,'Concurrent merge tower','北京','stock',true,'tracked',116.7,39.9,'Synthetic owner',null)",[raceOld,raceKeep]);
+ await q("insert into public.future_supplies(id,name,total_area,is_entered_market,location_lng,location_lat) values($1,'Concurrent merge tower',112700,true,116.7,39.9)",[raceFuture]);
+ const raceSnapshot=(await q('select private.building_merge_snapshot($1,$2,$3) s',[raceOld,raceKeep,raceFuture])).rows[0].s;
+ await q('alter table public.quarterly_submissions enable row level security; grant select,insert on public.quarterly_submissions to authenticated; create policy synthetic_quarterly_read on public.quarterly_submissions for select to authenticated using(user_id=auth.uid());create policy synthetic_quarterly_write on public.quarterly_submissions for insert to authenticated with check(user_id=auth.uid())');
+ const config={host:'127.0.0.1',port:Number(process.env.LEASE_TEST_PG_PORT),user:'postgres',password:'synthetic_ci_only',database:db.database};
+ const merger=new pg.Client(config),writer=new pg.Client(config);
+ await merger.connect();await writer.connect();
+ try {
+   await merger.query('begin');
+   await merger.query("select private.merge_verified_buildings($1,$2,$3,$4::jsonb,'concurrency evidence')",[raceOld,raceKeep,raceFuture,JSON.stringify(raceSnapshot)]);
+   await writer.query('begin');await writer.query("select set_config('request.jwt.claim.sub',$1,true)",[ADMIN]);await writer.query('set local role authenticated');
+   const late=writer.query("insert into public.quarterly_submissions(building_id,user_id,user_name,record_year,record_quarter) values($1,$2,'Synthetic concurrent owner',2026,4) returning building_id",[raceOld,ADMIN]);
+   let blocked=false;
+   for(let attempt=0;attempt<200;attempt++){
+     if((await q("select 1 from pg_stat_activity where pid=$1 and wait_event_type='Lock'",[writer.processID])).rowCount){blocked=true;break;}
+     await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   assert.ok(blocked,'Late writer must serialize behind the in-flight merge');
+   await merger.query('commit');
+   assert.equal((await late).rows[0].building_id,raceKeep);await writer.query('commit');
+   assert.equal((await q('select count(*)::int n from public.quarterly_submissions where building_id=$1',[raceOld])).rows[0].n,0);
+   assert.equal((await q("select has_table_privilege('authenticated','public.buildings','UPDATE') u")).rows[0].u,false);
+ } finally {await merger.query('rollback').catch(()=>{});await writer.query('rollback').catch(()=>{});await merger.end();await writer.end();}
+ console.log('PASS concurrent late authenticated FK write waits and resolves to canonical ID without granting building UPDATE');
+ return {old,keep,future};
+}

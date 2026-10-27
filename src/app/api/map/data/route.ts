@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
+import { resolveBuildingId } from '@/src/services/buildingIdentity';
 
 export const dynamic = 'force-dynamic';
 
@@ -185,8 +186,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (mode === 'trend') {
-      const buildingId = params.get('building_id')?.trim() || '';
-      if (!buildingId) return noStoreJson({ error: '缺少 building_id' }, { status: 400 });
+      const requestedId = params.get('building_id')?.trim() || '';
+      if (!requestedId) return noStoreJson({ error: '缺少 building_id' }, { status: 400 });
+      const buildingId = await resolveBuildingId(admin, requestedId);
 
       const { data: building, error: buildingError } = await admin
         .from('buildings')
@@ -217,7 +219,7 @@ export async function GET(request: NextRequest) {
         return noStoreJson({ error: '历史趋势读取失败' }, { status: 500 });
       }
 
-      return noStoreJson({ metrics: metrics ?? [] });
+      return noStoreJson({ building_id: buildingId, metrics: metrics ?? [] });
     }
 
     return noStoreJson({ error: 'Unsupported map data mode' }, { status: 400 });
