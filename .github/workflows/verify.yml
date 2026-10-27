@@ -80,6 +80,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 lease transfer integrity regressions
+        run: npm run test:db:lease-transfer
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Production build
         run: npm run build
 

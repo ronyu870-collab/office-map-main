@@ -10,7 +10,8 @@ import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-re
 import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
 import { logAction } from '@/src/utils/audit';
-import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
+import { discardUnsentLeaseTransfer, getPendingLeaseTransfers, LeaseTransferError, prepareLeaseTransfer, submitLeaseTransfer } from '@/src/services/leaseTransferService';
+import type { LeaseTransferRecord, PendingLeaseTransfer } from '@/src/services/leaseTransferService';
 import { canViewLeaseTeamSubmissions, canWriteBusinessData, isUserAdmin } from '@/src/utils/accessControl';
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
@@ -116,12 +117,41 @@ export default function LeaseSubmissionPage() {
   const [showForm, setShowForm] = React.useState(false);
   const [editingRecord, setEditingRecord] = React.useState<LeaseTransaction | null>(null);
   const [lastSubmissionAt, setLastSubmissionAt] = React.useState<Date | null>(null);
-  const [transferringRecord, setTransferringRecord] = React.useState<LeaseTransaction | null>(null);
+  const [transferringRecord, setTransferringRecord] = React.useState<LeaseTransferRecord | null>(null);
   const [brokers, setBrokers] = React.useState<Array<{ user_id: string; name: string }>>([]);
   const [selectedBrokerId, setSelectedBrokerId] = React.useState('');
   const [transferring, setTransferring] = React.useState(false);
   const [transferError, setTransferError] = React.useState<string | null>(null);
+  const [transferPending, setTransferPending] = React.useState<PendingLeaseTransfer | null>(null);
+  const [pendingTransfers, setPendingTransfers] = React.useState<PendingLeaseTransfer[]>([]);
+  const [transferNotice, setTransferNotice] = React.useState<string | null>(null);
+  const [transferStorageError, setTransferStorageError] = React.useState<string | null>(null);
+  const transferBusyRef = React.useRef(false);
+  const transferDialogRef = React.useRef(0);
+  const activeUserRef = React.useRef(userId);
   const canWrite = canWriteBusinessData(userRole);
+
+  const syncPendingTransfers = React.useCallback((uid: string) => {
+    try {
+      setPendingTransfers(getPendingLeaseTransfers(uid));
+      setTransferStorageError(null);
+    } catch (error) {
+      setTransferStorageError(errorMessage(error));
+    }
+  }, []);
+
+  React.useEffect(() => {
+    activeUserRef.current = userId;
+    let active = true;
+    queueMicrotask(() => { if (active) syncPendingTransfers(userId); });
+    const onStorage = () => syncPendingTransfers(userId);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      active = false;
+      activeUserRef.current = '';
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [syncPendingTransfers, userId]);
 
   const loadCoreData = React.useCallback(async (uid: string) => {
     setCoreLoading(true);
@@ -210,39 +240,81 @@ export default function LeaseSubmissionPage() {
   };
 
   const openTransfer = async (record: LeaseTransaction) => {
-    if (!canWrite) return;
+    if (!canWrite || transferBusyRef.current) return;
+    const dialogGeneration = ++transferDialogRef.current;
+    let pending: PendingLeaseTransfer | undefined;
+    try { pending = getPendingLeaseTransfers(userId).find((item) => item.submissionId === record.id); }
+    catch (error) { setTransferStorageError(errorMessage(error)); return; }
     setTransferringRecord(record);
-    setSelectedBrokerId('');
+    setTransferPending(pending ?? null);
+    setSelectedBrokerId(pending?.targetUserId ?? '');
     setTransferError(null);
+    const actor = userId;
     if (brokers.length === 0) {
-      try { setBrokers(await getAllBrokers()); } catch (error) { setTransferError(errorMessage(error)); }
+      try { const rows = await getAllBrokers(); if (activeUserRef.current === actor && transferDialogRef.current === dialogGeneration) setBrokers(rows); }
+      catch (error) { if (activeUserRef.current === actor && transferDialogRef.current === dialogGeneration) setTransferError(errorMessage(error)); }
     }
   };
 
+  const reopenPendingTransfer = (pending: PendingLeaseTransfer) => {
+    if (!canWrite || transferBusyRef.current) return;
+    transferDialogRef.current += 1;
+    setTransferPending(pending);
+    setTransferringRecord({ id: pending.submissionId, submitter_id: pending.expectedSubmitterId, updated_at: pending.expectedUpdatedAt });
+    setSelectedBrokerId(pending.targetUserId);
+    setTransferError(null);
+  };
+
+  const closeTransfer = () => {
+    if (transferBusyRef.current) return;
+    transferDialogRef.current += 1;
+    if (transferPending) {
+      try { discardUnsentLeaseTransfer(transferPending); } catch { /* Uncertain requests remain recoverable. */ }
+    }
+    setTransferringRecord(null);
+    setTransferPending(null);
+    syncPendingTransfers(userId);
+  };
+
   const confirmTransfer = async () => {
-    if (!canWrite || !transferringRecord || !selectedBrokerId) return;
-    const target = brokers.find((broker) => broker.user_id === selectedBrokerId);
-    if (!target) return;
+    if (!canWrite || !transferringRecord || !selectedBrokerId || transferBusyRef.current) return;
+    if (!transferPending && !brokers.some((broker) => broker.user_id === selectedBrokerId)) return;
+    transferBusyRef.current = true;
+    const actor = userId;
     setTransferring(true);
     setTransferError(null);
     try {
-      const session = await getSessionFast();
-      const token = session?.session?.access_token;
-      if (!token) throw new Error('登录状态异常，请重新登录');
-      const response = await fetch('/api/admin/transfer-submission', {
-        method: 'POST',
-        headers: withImpersonationHeaders({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
-        body: JSON.stringify({ submissionId: transferringRecord.id, targetUserId: target.user_id, targetUserName: target.name }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || '赠与失败');
-      logAction(session.user?.email || '未知用户', 'TRANSFER_SUBMISSION', { recordId: transferringRecord.id, targetUserId: target.user_id, targetUserName: target.name });
+      const pending = transferPending ?? prepareLeaseTransfer(actor, transferringRecord, selectedBrokerId);
+      setTransferPending(pending);
+      const receipt = await submitLeaseTransfer(pending);
+      if (activeUserRef.current !== actor) return;
       setTransferringRecord(null);
-      await refreshData();
+      setTransferPending(null);
+      setTransferNotice(receipt.replayed
+        ? `已确认原转交给 ${receipt.targetUserName} 的操作已完成。当前归属以重新读取的记录为准。`
+        : `已确认转交给 ${receipt.targetUserName}。`);
+      // The receipt confirms the write. Readback errors have their own notices;
+      // they must not invite a second transfer with a new request ID.
+      try { await refreshData(); }
+      catch { if (activeUserRef.current === actor) setTransferNotice(`已确认转交给 ${receipt.targetUserName}，列表刷新失败，请重新读取记录`); }
     } catch (error) {
-      setTransferError(errorMessage(error));
+      if (activeUserRef.current === actor) {
+        setTransferError(errorMessage(error));
+        if (error instanceof LeaseTransferError && error.certainty === 'rejected') {
+          setTransferPending(null);
+          setSelectedBrokerId('');
+        }
+      }
     } finally {
-      setTransferring(false);
+      transferBusyRef.current = false;
+      if (activeUserRef.current === actor) {
+        setTransferring(false);
+        syncPendingTransfers(actor);
+        try {
+          const retained = getPendingLeaseTransfers(actor).find((item) => item.submissionId === transferringRecord.id);
+          if (retained) { setTransferPending(retained); setSelectedBrokerId(retained.targetUserId); }
+        } catch { /* Storage notice is rendered by syncPendingTransfers. */ }
+      }
     }
   };
 
@@ -295,6 +367,13 @@ export default function LeaseSubmissionPage() {
 
         {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
 
+        {transferNotice && <ValidationMessage severity="info">{transferNotice}</ValidationMessage>}
+        {transferStorageError && <ValidationMessage severity="error">{transferStorageError}</ValidationMessage>}
+        {canWrite && pendingTransfers.length > 0 && <section className="rounded-lg border border-amber-200 bg-amber-50 p-3" aria-label="待确认转交">
+          <p className="text-xs text-amber-900">有 {pendingTransfers.length} 笔转交需要确认。重试会核对原操作，不会重新转交。</p>
+          <div className="mt-2 flex flex-wrap gap-2">{pendingTransfers.map((pending, index) => <Button key={pending.requestId} variant="secondary" size="sm" disabled={transferring} onClick={() => reopenPendingTransfer(pending)}>确认待处理转交 {index + 1}</Button>)}</div>
+        </section>}
+
         <MySubmissionTable items={submissions} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
 
         {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
@@ -305,22 +384,23 @@ export default function LeaseSubmissionPage() {
       {canWrite && transferringRecord && (
         <Dialog
           open
-          onOpenChange={(open) => { if (!open && !transferring) setTransferringRecord(null) }}
+          onOpenChange={(open) => { if (!open) closeTransfer(); }}
           title={<span className="flex items-center gap-2"><Gift size={15} className="text-[var(--cd-color-success)]" />转交成交记录</span>}
           description="记录归属将转移给所选团队成员。"
           size="sm"
           dismissible={!transferring}
           footer={(
             <>
-              <Button variant="secondary" onClick={() => setTransferringRecord(null)} disabled={transferring}>取消</Button>
-              <Button onClick={() => { void confirmTransfer(); }} disabled={!selectedBrokerId || transferring}>{transferring && <RotateCcw size={12} className="animate-spin" />}{transferring ? '转交中…' : '确认转交'}</Button>
+              <Button variant="secondary" onClick={closeTransfer} disabled={transferring}>{transferPending?.state === 'unknown' ? '稍后确认' : '取消'}</Button>
+              <Button onClick={() => { void confirmTransfer(); }} disabled={!selectedBrokerId || transferring || Boolean(transferStorageError)}>{transferring && <RotateCcw size={12} className="animate-spin" />}{transferring ? '转交中…' : transferPending ? '重试确认原操作' : '确认转交'}</Button>
             </>
           )}
         >
-              <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] text-slate-600"><div className="font-semibold text-slate-900">{transferringRecord.company || '-'}</div><div className="mt-1 flex items-center gap-1"><Building2 size={11} /> {transferringRecord.new_building || '-'} · {transferringRecord.area_sqm?.toLocaleString('zh-CN') || '-'} ㎡</div></div>
+              <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] text-slate-600"><div className="font-semibold text-slate-900">{transferringRecord.company || '待确认成交记录'}</div><div className="mt-1 flex items-center gap-1"><Building2 size={11} /> {transferringRecord.new_building || '-'} · {transferringRecord.area_sqm?.toLocaleString('zh-CN') || '-'} ㎡</div></div>
+              {transferPending?.state === 'unknown' && <div className="mb-3"><ValidationMessage severity="warning">原转交结果尚未确认，接收人已锁定。请确认原操作后再进行新的转交。</ValidationMessage></div>}
               {transferError && <div className="mb-3"><ValidationMessage severity="error">{transferError}</ValidationMessage></div>}
               <label htmlFor="transfer-target" className="mb-1 block text-[11px] font-medium text-slate-600">选择接收人</label>
-              <select id="transfer-target" value={selectedBrokerId} onChange={(event) => setSelectedBrokerId(event.target.value)} className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[#003e7e]"><option value="">请选择…</option>{brokers.map((broker) => <option key={broker.user_id} value={broker.user_id}>{broker.name}</option>)}</select>
+              <select id="transfer-target" value={selectedBrokerId} disabled={transferring || Boolean(transferPending)} onChange={(event) => setSelectedBrokerId(event.target.value)} className="min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[#003e7e]"><option value="">请选择…</option>{transferPending && !brokers.some((broker) => broker.user_id === transferPending.targetUserId) && <option value={transferPending.targetUserId}>原操作接收人（待确认）</option>}{brokers.map((broker) => <option key={broker.user_id} value={broker.user_id}>{broker.name}</option>)}</select>
         </Dialog>
       )}
     </div>

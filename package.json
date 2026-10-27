@@ -14,7 +14,8 @@
     "test:ui": "vitest --ui",
     "audit:coverage": "node scripts/check-audit-coverage.mjs",
     "check": "npm run audit:coverage && npm run typecheck && npm run lint && npm run test",
-    "verify": "npm run check && npm run build"
+    "verify": "npm run check && npm run build",
+    "test:db:lease-transfer": "node supabase/tests/lease-transfer-safety/run.mjs"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
