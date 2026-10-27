@@ -58,6 +58,17 @@ function defaultFilter(): SidebarFilterState {
 }
 
 describe('MapDataStore', () => {
+  it('finds the same canonical ID by its current or former name while preserving other filters', () => {
+    const store = new MapDataStore([
+      building('renamed', { name: '新名称', former_names: ['Legacy Name'] }),
+      building('other'),
+    ]);
+    for (const keyword of ['新名称', ' legacy name ']) {
+      expect(store.filter({ filterState: defaultFilter(), compareGroups: [], keyword }).map(b => b.id)).toEqual(['renamed']);
+    }
+    const restricted = defaultFilter(); restricted.districts = ['西城区'];
+    expect(store.filter({ filterState: restricted, compareGroups: [], keyword: 'Legacy' })).toEqual([]);
+  });
   it('builds stable lookup indexes when the dataset is replaced', () => {
     const cbd = building('a');
     const finance = building('b', { district: '西城区', submarket: '金融街', grade: 'P', leed_certification: '' });

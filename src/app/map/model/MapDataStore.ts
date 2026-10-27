@@ -74,7 +74,7 @@ function intersectIds(current: Set<string> | null, next: Set<string>): Set<strin
 function matchesKeyword(building: BuildingWithMetrics, keyword: string): boolean {
   const query = keyword.trim().toLocaleLowerCase();
   if (!query) return true;
-  return [building.name, building.submarket, building.owner, building.property_management]
+  return [building.name, ...(Array.isArray(building.former_names) ? building.former_names : []), building.submarket, building.owner, building.property_management]
     .some(value => String(value ?? '').toLocaleLowerCase().includes(query));
 }
 

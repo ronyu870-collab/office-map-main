@@ -67,6 +67,15 @@ describe('map supply calendar domain model', () => {
     });
   });
   describe('filterFutureSupplies', () => {
+    it('finds a renamed supply by its old name without changing its ID or bypassing visibility filters', () => {
+      const supply = { id: 'retained-id', name: '新供应名称', former_names: ['原供应名称'], district: '朝阳区', submarket: 'CBD', grade: 'A', launch_year: 2027 };
+      const state = createDefaultFilterState();
+      for (const keyword of ['新供应名称', '原供应名称']) {
+        expect(filterFutureSupplies([supply], state, keyword).map(f => f.id)).toEqual(['retained-id']);
+      }
+      state.futureSupplyGrades = ['BP'];
+      expect(filterFutureSupplies([supply], state, '原供应名称')).toEqual([]);
+    });
     it('applies canonical location, keyword, grade, year and subway-distance constraints together', () => {
       const state = createDefaultFilterState();
       state.districts = ['朝阳区'];

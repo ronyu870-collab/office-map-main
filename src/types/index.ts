@@ -9,6 +9,7 @@
 export interface Building {
   id: string;
   name: string;
+  former_names?: string[] | null;
   submarket: string;
   grade: string;
   city: string;
@@ -50,6 +51,8 @@ export interface BuildingWithMetrics extends Building {
 export interface FutureSupply {
   id: string;
   name: string;
+  former_names?: string[] | null;
+  building_id?: string | null;
   owner: string | null;
   district: string | null;
   submarket: string | null;

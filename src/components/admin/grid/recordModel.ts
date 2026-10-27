@@ -3,6 +3,12 @@ import type { ColDef, DictBundle, TableConfig } from '../types'
 export type GridRecord = Record<string, any>
 export const copyRecord = (row: GridRecord): GridRecord => structuredClone(row)
 
+/** One alias per line: commas inside a building/project name are significant. */
+export function tagNames(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : String(value ?? '').split(/\r?\n/)
+  return [...new Set(values.map(item => String(item).trim()).filter(Boolean))]
+}
+
 /** A single identity for the grid, mobile list and selection, including tables without id. */
 export function gridRowKey(config: TableConfig, row: GridRecord): string {
   if (row.id != null) return String(row.id)
@@ -21,6 +27,7 @@ export function writableColumns(config: TableConfig) {
 }
 
 function normalized(col: ColDef, value: any): any {
+  if (col.type === 'tags') return tagNames(value)
   if (value === '' || value == null) return null
   if (col.type === 'number') return Number(value)
   if (col.type === 'boolean') return value === true || value === 'true'
@@ -45,7 +52,7 @@ export function recordPayload(config: TableConfig, values: GridRecord) {
     else if (col.type === 'jsonb' && value != null && typeof values[col.key] === 'string') {
       try { JSON.parse(values[col.key]) } catch { errors[col.key] = `${col.label} JSON 格式错误` }
     }
-    payload[col.key] = ['number', 'boolean', 'jsonb', 'date'].includes(col.type) ? value : values[col.key]
+    payload[col.key] = ['number', 'boolean', 'jsonb', 'date', 'tags'].includes(col.type) ? value : values[col.key]
   }
   return { payload, errors }
 }
@@ -53,6 +60,7 @@ export function recordPayload(config: TableConfig, values: GridRecord) {
 export function displayRecordValue(col: ColDef, row: GridRecord, dicts: DictBundle): string {
   const value = row[col.sourceKey ?? col.key]
   if (value == null || value === '') return '—'
+  if (col.type === 'tags') return tagNames(value).join('\n') || '—'
   if (col.foreignKey) return dicts[col.foreignKey]?.[String(value)] ?? String(value)
   if (col.displayMap) return col.displayMap[String(value)] ?? String(value)
   if (col.type === 'boolean') return value === true || value === 'true' ? '是' : '否'

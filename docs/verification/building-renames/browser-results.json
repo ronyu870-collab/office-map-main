@@ -1,0 +1,21 @@
+{
+  "browser": "Google Chrome",
+  "visualPhase": null,
+  "app": "actual Next production webpack of GridPanel and shared Supabase client",
+  "backend": "real PostgREST 16.5 and PostgreSQL 17; isolated synthetic JWT/auth-user endpoint; no production account",
+  "results": [
+    {
+      "width": 1280,
+      "case": "real AG Grid full-row edit, multiline aliases, save, reload",
+      "name": "Desktop renamed"
+    },
+    {
+      "width": 390,
+      "case": "real mobile layout edit and save",
+      "name": "Mobile renamed"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "externalRequests": []
+}
