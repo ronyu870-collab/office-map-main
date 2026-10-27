@@ -1,0 +1,143 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
+import { configuration } from '../config.mjs';
+import { temporary, command, safeCode } from '../common.mjs';
+import { store, verifyPrivateTarget } from '../r2.mjs';
+import { backup, readBackup } from '../pipeline.mjs';
+import { sameInventory, checkName, configuredSources } from '../sources.mjs';
+import { s3Fixture } from './s3-fixture.mjs';
+import { health } from '../health.mjs';
+import { sourceRegressions } from './sources.mjs';
+import { validateManifest } from '../manifest.mjs';
+
+let passed = 0;
+const test = async (name, action) => { await action(); console.log(`PASS UNIT ${++passed} ${name}`); };
+await temporary('colliers-backup-unit-', async (dir) => {
+  const identity = path.join(dir, 'identity'); await command('age-keygen', ['-o', identity]);
+  const recipient = (await command('age-keygen', ['-y', identity])).trim();
+  const fixture = await s3Fixture();
+  const env = { BACKUP_PROJECT_REF: 'abcdefghijklmnopqrst', BACKUP_R2_ACCOUNT_ID: 'a'.repeat(32), BACKUP_R2_BUCKET: 'synthetic-backups', BACKUP_DATABASE_URL: 'postgres://synthetic:synthetic@127.0.0.1/postgres', BACKUP_AGE_RECIPIENT: recipient, BACKUP_R2_ACCESS_KEY_ID: 'synthetic', BACKUP_R2_SECRET_ACCESS_KEY: 'synthetic', BACKUP_TEST_S3_ENDPOINT: fixture.endpoint };
+  const c = configuration(env, { synthetic: true }); const target = store(c, { requestHandler: fixture.requestHandler });
+  // Stub the database only in this transport/crypto suite. PG behavior is
+  // mandatory in tests/run.mjs and CI; these assertions cannot replace it.
+  const exportDB = async (_c, tmp) => {
+    const files = [];
+    for (const kind of ['database', 'roles']) {
+      const file = path.join(tmp, kind); await writeFile(file, `synthetic ${kind}`, { mode: 0o600 }); files.push({ file, kind });
+    }
+    return { files, evidence: [], schemas: [], version: 170000, prerequisites: ['synthetic only'] };
+  };
+  const sources = ['supabase-storage', 'ali-oss'].map((kind) => ({ kind, inventory: async () => [{ kind: 'object', name: '合成文件.txt', bucket: 'synthetic', size: 14 }], download: async (_o, file) => writeFile(file, 'synthetic-file', { flag: 'wx', mode: 0o600 }) }));
+  let completion;
+  try {
+    await sourceRegressions(test, dir);
+    await test('configuration rejects unsafe host/profile/endpoint and missing coverage', async () => {
+      assert.throws(() => configuration(env), /DATABASE_HOST_NOT_APPROVED/);
+      assert.throws(() => configuration({ ...env, BACKUP_PROFILE: 'typo' }, { synthetic: true }), /INVALID_BACKUP_PROFILE/);
+      assert.throws(() => configuredSources(c), /MISSING_STORAGE_CREDENTIALS/);
+      assert.throws(() => store({ ...c, synthetic: false }), /R2_ENDPOINT_REJECTED/);
+      assert.throws(() => store({ ...c, synthetic: false }, { requestHandler: fixture.requestHandler }), /PRODUCTION_TRANSPORT_OVERRIDE_REJECTED/);
+      await assert.rejects(backup(c, { target, sources: [], exportDB }), /FULL_COVERAGE_REQUIRED/);
+      const prod = { ...env, BACKUP_CF_CONFIG_READ_TOKEN: 'synthetic', BACKUP_PG_CA_FILE: '/unused-synthetic-ca', BACKUP_DATABASE_URL: `postgres://synthetic:synthetic@db.${c.project}.supabase.co/postgres?sslmode=verify-full`, BACKUP_DB_ALLOWED_HOSTS: ` db.${c.project}.supabase.co ` };
+      const production = configuration(prod);
+      assert.equal(production.pg.host, `db.${c.project}.supabase.co`);
+      store(production).close(); // Real SDK default transport constructor probe.
+      assert.throws(() => configuration({ ...prod, BACKUP_DATABASE_URL: 'postgres://postgres.wrongproject:synthetic@aws-1-ap-southeast-1.pooler.supabase.com/postgres', BACKUP_DB_ALLOWED_HOSTS: 'aws-1-ap-southeast-1.pooler.supabase.com' }), /DATABASE_PROJECT_MISMATCH/);
+      assert.throws(() => configuration({ ...prod, BACKUP_DATABASE_URL: prod.BACKUP_DATABASE_URL.replace('verify-full', 'require') }), /DATABASE_TLS_CONFIGURATION_REJECTED/);
+    });
+    await test('actual age + AWS SDK upload/readback/decrypt preserves all synthetic bytes', async () => {
+      completion = await backup(c, { target, sources, exportDB });
+      assert.equal(completion.recoveryReady, false);
+      await temporary('colliers-read-', async (tmp) => {
+        const restored = await readBackup(c, target, completion.run, tmp, identity);
+        assert.equal(restored.files.length, 4);
+        for (const f of restored.files) assert.equal(await readFile(f.file, 'utf8'), f.kind === 'object' ? 'synthetic-file' : `synthetic ${f.kind}`);
+        assert.throws(() => validateManifest({ ...restored.manifest, entries: restored.manifest.entries.filter((e) => e.kind !== 'object') }, c, completion.run), /BACKUP_MANIFEST_INVALID/);
+        assert.throws(() => validateManifest({ ...restored.manifest, entries: [...restored.manifest.entries, restored.manifest.entries[0]] }, c, completion.run), /BACKUP_MANIFEST_INVALID/);
+      });
+      assert.ok(fixture.requests.every((r) => r.signed));
+      assert.ok(fixture.requests.filter((r) => r.method === 'PUT').every((r) => r.condition === '*'));
+      for (const [key, bytes] of fixture.objects) if (key.endsWith('.age')) {
+        assert.ok(bytes.toString().startsWith('age-encryption.org/v1'));
+        assert.ok(!bytes.includes(Buffer.from('synthetic-file')));
+      }
+    });
+    await test('conditions reject duplicate key and SDK pagination returns all objects', async () => {
+      const file = path.join(dir, 'duplicate'); await writeFile(file, 'synthetic');
+      await assert.rejects(target.put(`${completion.run}complete.json`, file));
+      assert.equal((await target.list(c.prefix)).length, fixture.objects.size);
+      await assert.rejects(target.put('outside-prefix', file), /R2_PREFIX_REJECTED/);
+    });
+    await test('wrong key and altered ciphertext are rejected', async () => {
+      const wrong = path.join(dir, 'wrong'); await command('age-keygen', ['-o', wrong]);
+      await temporary('colliers-wrong-', async (tmp) => assert.rejects(readBackup(c, target, completion.run, tmp, wrong)));
+      const key = `${completion.run}manifest.age`; const original = fixture.objects.get(key); fixture.objects.set(key, Buffer.from('altered'));
+      await temporary('colliers-corrupt-', async (tmp) => assert.rejects(readBackup(c, target, completion.run, tmp, identity), /BACKUP_HASH_MISMATCH/));
+      fixture.objects.set(key, original);
+    });
+    await test('failed export/upload/readback/source churn never creates completion', async () => {
+      const markers = () => [...fixture.objects.keys()].filter((k) => k.endsWith('complete.json'));
+      const before = markers();
+      await assert.rejects(backup(c, { target, sources, exportDB: async () => { throw new Error('SYNTHETIC_FAILURE'); } }), /SYNTHETIC_FAILURE/);
+      fixture.failPut(2); await assert.rejects(backup(c, { target, sources, exportDB })); fixture.failPut(Infinity);
+      const corrupt = { ...target, put: async (...args) => { const result = await target.put(...args); fixture.corruptGet(); return result; } };
+      await assert.rejects(backup(c, { target: corrupt, sources, exportDB }), /BACKUP_HASH_MISMATCH/);
+      let calls = 0;
+      const changing = { ...sources[0], inventory: async () => ++calls === 1 ? sources[0].inventory() : [] };
+      await assert.rejects(backup(c, { target, sources: [changing, sources[1]], exportDB }), /SOURCE_CHANGED/);
+      assert.deepEqual(markers(), before);
+    });
+    await test('incomplete and path-injected manifests are rejected', async () => {
+      await temporary('colliers-missing-', async (tmp) => assert.rejects(readBackup(c, target, `${c.prefix}2026-10-27T00-00-00-000Z-00000000-0000-0000-0000-000000000000/`, tmp, identity)));
+      await temporary('colliers-invalid-', async (tmp) => assert.rejects(readBackup(c, target, `${c.prefix}../`, tmp, identity), /BACKUP_RUN_REJECTED/));
+      assert.throws(() => checkName('../private'), /SOURCE_NAME_REJECTED/);
+      assert.throws(() => sameInventory([{ name: 'a' }], [{ name: 'b' }]), /SOURCE_CHANGED/);
+    });
+    await test('database-only remains partial; errors do not expose credentials', async () => {
+      const partial = await backup({ ...c, profile: 'database-only' }, { target, sources: [], exportDB });
+      assert.equal(partial.profile, 'database-only'); assert.equal(partial.recoveryReady, false);
+      assert.equal(safeCode(new Error('postgres://user:password@host/db')), 'BACKUP_FAILED');
+      assert.equal(safeCode(new Error('ANY_UNTRUSTED_SECRET_TEXT')), 'BACKUP_FAILED');
+    });
+    await test('freshness rejects missing/stale full backups and ignores partial completion', async () => {
+      assert.equal((await health(c, target)).run, completion.run);
+      const later = Date.now() + 31 * 3600_000;
+      for (const [key, value] of fixture.objects) if (key.endsWith('/complete.json')) {
+        const marker = JSON.parse(value);
+        if (marker.profile === 'database-only') { marker.finished = new Date(later).toISOString(); fixture.objects.set(key, Buffer.from(JSON.stringify(marker))); }
+      }
+      // A newly finished partial backup must not conceal an old full backup.
+      await assert.rejects(health(c, target, { now: later }), /NO_RECENT_FULL_BACKUP/);
+      await assert.rejects(health({ ...c, prefix: `${c.prefix}missing/` }, target), /NO_RECENT_FULL_BACKUP/);
+    });
+    await test('public/unknown target and missing retention lock fail closed', async () => {
+      const original = globalThis.fetch;
+      const prod = { ...c, synthetic: false, cloudflareToken: 'synthetic' };
+      try {
+        for (const managed of [{ enabled: true }, {}]) {
+          globalThis.fetch = async (url) => ({ ok: true, json: async () => ({ success: true, result: url.endsWith('/managed') ? managed : { domains: [] } }) });
+          await assert.rejects(verifyPrivateTarget(prod), /R2_PUBLIC_OR_UNKNOWN/);
+        }
+        globalThis.fetch = async (url) => ({ ok: true, json: async () => ({ success: true, result: url.endsWith('/managed') ? { enabled: false } : url.endsWith('/custom') ? { domains: [] } : { rules: [] } }) });
+        await assert.rejects(verifyPrivateTarget(prod), /R2_RETENTION_LOCK_REQUIRED/);
+      } finally { globalThis.fetch = original; }
+    });
+    await test('Cloudflare configuration shapes accept only a matching 30-day lock', async () => {
+      const original = globalThis.fetch;
+      const prod = { ...c, synthetic: false, cloudflareToken: 'synthetic' };
+      let prefix = 'backups/another-project/';
+      try {
+        globalThis.fetch = async (url, options) => {
+          assert.equal(options.redirect, 'error');
+          assert.equal(options.headers['User-Agent'], 'colliers-backup/1.0');
+          const result = url.endsWith('/managed') ? { enabled: false, bucketId: 'synthetic', domain: 'pub-synthetic.r2.dev' } : url.endsWith('/custom') ? { domains: [] } : { rules: [{ id: 'backup-retention', enabled: true, prefix, condition: { type: 'Age', maxAgeSeconds: 30 * 86400 } }] };
+          return { ok: true, json: async () => ({ success: true, result }) };
+        };
+        await assert.rejects(verifyPrivateTarget(prod), /R2_RETENTION_LOCK_REQUIRED/);
+        prefix = c.prefix; await verifyPrivateTarget(prod);
+      } finally { globalThis.fetch = original; }
+    });
+  } finally { target.close(); await fixture.close(); }
+});
+console.log(`Backup unit regressions: ${passed} passed. PostgreSQL and real-cloud verification are separate gates.`);

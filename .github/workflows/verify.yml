@@ -18,7 +18,7 @@ concurrency:
 jobs:
   verify:
     name: Typecheck, lint, test and build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
       postgres:
@@ -84,6 +84,16 @@ jobs:
         run: npm run test:db:building-renames
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Install isolated backup regression tools
+        run: bash scripts/backup/install-ci-tools.sh server
+
+      - name: Encrypted backup and fresh PostgreSQL 17 restore regressions
+        run: |
+          npm run test:backup:unit
+          npm run test:backup
+        env:
+          BACKUP_TEST_PG_BIN: /usr/lib/postgresql/17/bin
 
       - name: Production build
         run: npm run build

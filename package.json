@@ -11,6 +11,10 @@
     "test": "vitest --run",
     "test:db:lease-audit": "node supabase/tests/lease-change-history/run.mjs",
     "test:db:building-renames": "node supabase/tests/building-renames/run.mjs",
+    "test:backup": "node scripts/backup/tests/run.mjs",
+    "test:backup:unit": "node scripts/backup/tests/unit.mjs",
+    "backup:create": "node scripts/backup/cli.mjs create",
+    "backup:inspect": "node scripts/backup/inspect.mjs",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "audit:coverage": "node scripts/check-audit-coverage.mjs",
@@ -46,6 +50,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "3.1105.0",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.1",
