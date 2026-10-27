@@ -11,6 +11,7 @@
     "test": "vitest --run",
     "test:db:lease-audit": "node supabase/tests/lease-change-history/run.mjs",
     "test:db:building-renames": "node supabase/tests/building-renames/run.mjs",
+    "test:db:backup-permissions": "node supabase/tests/backup-permissions/run.mjs",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "audit:coverage": "node scripts/check-audit-coverage.mjs",
