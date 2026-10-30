@@ -16,6 +16,7 @@ try{
  await db.query(`create schema auth;create table auth.users(id uuid primary key);create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table public.buildings(id uuid primary key);create table public.building_assignments(id integer primary key,owner text);create table public.quarterly_submissions(id integer primary key,value numeric);insert into public.building_assignments values(1,'synthetic owner');insert into public.quarterly_submissions values(1,123.45);`);
  const protectedRows=async()=> (await db.query("select jsonb_build_object('assignment',(select jsonb_agg(to_jsonb(x)) from public.building_assignments x),'submission',(select jsonb_agg(to_jsonb(x)) from public.quarterly_submissions x)) data")).rows[0].data;
  const before=await protectedRows();await db.query(await readFile(new URL('../../migrations/20261030025403_historical_project_materials.sql',import.meta.url),'utf8'));
+ await db.query(await readFile(new URL('../../migrations/20261030080736_historical_material_data_only.sql',import.meta.url),'utf8'));
  assert.deepEqual(await protectedRows(),before);count++;
  await db.query('insert into public.buildings values($1)',[bid]);
  const manifest={extraction:{method:'codex-document',reviewed:true,source_sha256:'a'.repeat(64)}};
@@ -35,6 +36,13 @@ try{
  await fails("update public.building_sales_materials set mime_type='text/html'");
  for(const role of ['anon','authenticated']){await db.query(`set role ${role}`);await fails('select * from public.building_sales_materials');await db.query('reset role');}
  await db.query('set role service_role');assert.equal((await db.query('select count(*)::int n from public.building_sales_materials')).rows[0].n,1);await db.query('reset role');count++;
+ await fails("update public.building_sales_materials set storage_path=null");
+ await fails("update public.building_sales_materials set original_location='local_archive',storage_path=null,archive_reference='sha256:'||source_sha256");
+ await db.query("update public.building_sales_materials set original_location='local_archive',storage_path=null,archive_reference='sha256:'||source_sha256,extraction=jsonb_set(extraction,'{extraction,historical_import_authorized}','true')");count++;
+ assert.equal((await db.query('select storage_path from public.building_sales_materials')).rows[0].storage_path,null);count++;
+ await fails("update public.building_sales_materials set archive_reference='sha256:wrong'");
+ await fails("update public.building_sales_materials set historical_context=null");
+ await fails("update public.building_sales_materials set storage_path='pretend-cloud-original.pdf'");
  const bucket=(await db.query('select * from storage.buckets')).rows[0];assert.equal(bucket.public,false);assert.equal(Number(bucket.file_size_limit),536870912);count++;
  assert.deepEqual(await protectedRows(),before);count++;
  console.log(`PASS ${count} real PostgreSQL 17 material scenarios: private original, historical-only data, idempotency, scope, constraints, business preservation.`);

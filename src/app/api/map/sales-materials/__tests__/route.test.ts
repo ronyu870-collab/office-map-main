@@ -61,3 +61,17 @@ describe('broker 销控只读 API',()=>{
     mocks.query.mockImplementation((table:string)=>table==='buildings'?{data:{id:building},error:null}:{data:null,error:{code:'42P01'}});expect((await route.GET(request())).status).toBe(503);
   });
 });
+
+describe('locally archived originals',()=>{
+ it('serves extracted data without calling Storage or leaking archive paths',async()=>{
+  const local={...row,storage_path:null,original_location:'local_archive',commission_policies:[{key:'old',summary:'历史参考'}]};
+  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:building}:local,error:null}));
+  const response=await route.GET(request(`&material_id=${id}`));expect(response.status).toBe(200);
+  const body=await response.json();expect(body.preview_url).toBeNull();expect(body.download_url).toBeNull();expect(body.commission_policies).toEqual(local.commission_policies);
+  expect(mocks.sign).not.toHaveBeenCalled();expect(body).not.toHaveProperty('storage_path');expect(mocks.audit).toHaveBeenCalled();
+ });
+ it('does not silently treat a missing cloud original as a local archive',async()=>{
+  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:building}:{...row,storage_path:null,original_location:'cloud'},error:null}));
+  expect((await route.GET(request(`&material_id=${id}`))).status).toBe(502);expect(mocks.sign).not.toHaveBeenCalled();
+ });
+});

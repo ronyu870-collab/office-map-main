@@ -186,7 +186,7 @@ export const materialImportSchema = z.object({
   .refine(value => !value.historical_context || (value.details.length === 0 && !value.content_types.includes('availability')), '历史资料不能发布为当前房源');
 export type MaterialImport = z.infer<typeof materialImportSchema>;
 export type MaterialAccess = {
-  preview_url: string; download_url: string; details: AvailabilityRow[]; provenance: MaterialProvenance;
+  preview_url: string | null; download_url: string | null; details: AvailabilityRow[]; provenance: MaterialProvenance;
   commission_policies?: CommissionPolicy[]; project_facts?: ProjectFact[]; workbook_preview?: WorkbookPreview;
 };
 

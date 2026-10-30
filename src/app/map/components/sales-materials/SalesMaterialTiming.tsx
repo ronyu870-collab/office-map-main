@@ -13,7 +13,7 @@ function Event({ label, event, unknown }: { label: string; event: TimeEvidence |
 }
 
 export default function SalesMaterialTiming({ row, material, provenance, onViewOriginal, sourceRef }: {
-  row?: AvailabilityRow; material: SalesMaterial; provenance: MaterialProvenance; onViewOriginal: () => void; sourceRef?: string;
+  row?: AvailabilityRow; material: SalesMaterial; provenance: MaterialProvenance; onViewOriginal?: () => void; sourceRef?: string;
 }) {
   const asOf = row ? rowAsOf(row, material, provenance) : provenance.as_of;
   return <section aria-label={`${row?.floor_unit || material.scope_label || material.title}的时间来源`} className={styles.timing}>
@@ -26,7 +26,7 @@ export default function SalesMaterialTiming({ row, material, provenance, onViewO
     </dl>
     <div className={styles.sourceFooter}>
       <p className={styles.sourceReference}>{material.source} · {material.title}<span>{sourceRef || row?.source_row_ref || (row ? `对应房源：${row.floor_unit}` : '')}</span></p>
-      <button type="button" onClick={onViewOriginal} className={styles.sourceLink}><FileImage size={14} aria-hidden />查看对应原件</button>
+      {onViewOriginal ? <button type="button" onClick={onViewOriginal} className={styles.sourceLink}><FileImage size={14} aria-hidden />查看对应原件</button> : <span>原件已本地归档</span>}
     </div>
   </section>;
 }
