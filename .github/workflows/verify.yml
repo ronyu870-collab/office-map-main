@@ -65,7 +65,9 @@ jobs:
         run: npm run test
 
       - name: Archived original ingestion regression
-        run: node --experimental-strip-types scripts/sales-materials/verify-local.mjs
+        run: |
+          node --experimental-strip-types scripts/sales-materials/verify-local.mjs
+          node --experimental-strip-types scripts/sales-materials/verify-data-only.mjs
 
       - name: Isolated quarterly SQL regressions
         shell: bash

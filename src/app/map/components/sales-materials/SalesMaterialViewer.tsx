@@ -10,6 +10,7 @@ export default function SalesMaterialViewer({ material, access, onRetry }: { mat
   const [zoom, setZoom] = useState(100);
   const [sheetIndex,setSheetIndex] = useState(0);
   const [failed, setFailed] = useState(false);
+  if (!access.preview_url || !access.download_url) return <p className="text-sm">原件已本地归档，暂无在线预览。</p>;
   return <div>
     <div className="mb-3 flex items-center justify-between gap-3 text-slate-500">
       <div className="flex items-center gap-1">

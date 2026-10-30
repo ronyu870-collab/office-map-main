@@ -30,6 +30,8 @@ export default function SalesCommissionPolicies({ policies, historical = false }
         </div>)}</div>
         {policy.settlement ? <div className={styles.policyRule}><div>结佣条件</div><p>{policy.settlement}</p></div> : null}
         {policy.validity_note ? <p className={styles.policyTerms}>{policy.validity_note}</p> : null}
+        {policy.notes.map((note,index)=><p key={index} className={styles.policyTerms}>{note}</p>)}
+        <p className={styles.policyTerms}>来源：{policy.source_ref}</p>
       </details>
     </article>;
   })}</div>;

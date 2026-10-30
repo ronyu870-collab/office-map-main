@@ -23,7 +23,9 @@ export async function validateImport(manifestPath, filePath) {
   return { manifest, bytes, mimeType };
 }
 
-export async function importToSupabase(manifest, bytes, mimeType, originalName, client, apply = false) {
+export async function importToSupabase(manifest, bytes, mimeType, originalName, client, apply = false, originalMode = 'cloud') {
+  if (!['cloud','local_archive'].includes(originalMode)) throw new Error('未知原件保存方式');
+  if (originalMode === 'local_archive' && (!manifest.historical_context || manifest.extraction.historical_import_authorized !== true)) throw new Error('仅已授权历史资料支持本地原件归档');
   const { data: building, error: scopeError } = await client.from('buildings').select('id,name').eq('id',manifest.building_id)
     .eq('is_active',true).eq('tracking_scope','tracked').maybeSingle();
   if (scopeError || !building || building.name !== manifest.building_name) throw new Error('楼宇 ID、名称或地图范围不匹配');
@@ -37,12 +39,13 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
   const { randomUUID } = await import('node:crypto');
   const id = existing?.id || randomUUID();
   const ext = { 'image/png':'png','image/jpeg':'jpg','image/webp':'webp','application/pdf':'pdf',[XLSX_MIME]:'xlsx',[PPTX_MIME]:'pptx',[PPTM_MIME]:'pptm' }[mimeType];
-  const path = `${building.id}/${id}/original.${ext}`;
+  const path = originalMode === 'cloud' ? `${building.id}/${id}/original.${ext}` : null;
   if (!existing) {
     const result = await client.from('building_sales_materials').insert({id,building_id:building.id,title:manifest.title,document_date:manifest.document_date,source:manifest.source,notes:manifest.notes,
-      original_name:originalName,storage_path:path,mime_type:mimeType,file_size:bytes.length,source_sha256:sourceHash,extraction_sha256:extractionHash,extraction:manifest,status:'pending',series_key:manifest.series_key,scope_label:manifest.scope_label,content_types:manifest.content_types,data_date:manifest.source_timing?.as_of?.value || manifest.document_date,commission_policies:manifest.commission_policies,project_facts:manifest.project_facts,workbook_preview:manifest.workbook_preview || null,association_status:manifest.association_status,association_note:manifest.association_note,historical_context:manifest.historical_context || null});
+      original_name:originalName,storage_path:path,original_location:originalMode,archive_reference:originalMode === 'local_archive' ? `sha256:${sourceHash}` : null,mime_type:mimeType,file_size:bytes.length,source_sha256:sourceHash,extraction_sha256:extractionHash,extraction:manifest,status:'pending',series_key:manifest.series_key,scope_label:manifest.scope_label,content_types:manifest.content_types,data_date:manifest.source_timing?.as_of?.value || manifest.document_date,commission_policies:manifest.commission_policies,project_facts:manifest.project_facts,workbook_preview:manifest.workbook_preview || null,association_status:manifest.association_status,association_note:manifest.association_note,historical_context:manifest.historical_context || null});
     if (result.error) throw result.error;
   }
+  if (originalMode === 'cloud') {
   const bucket = client.storage.from(SALES_MATERIAL_BUCKET);
   const found = await bucket.download(path);
   if (found.error) {
@@ -51,6 +54,7 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
   }
   const verified = await bucket.download(path);
   if (verified.error || sha256(new Uint8Array(await verified.data.arrayBuffer())) !== sourceHash) throw new Error('云端原件校验失败，资料未发布');
+  }
   const published = await client.from('building_sales_materials').update({details:manifest.details,status:'ready',published_at:new Date().toISOString()}).eq('id',id).eq('status','pending').select('id').maybeSingle();
   if (published.error || !published.data) throw new Error('资料发布失败，请检查任务状态');
   const audit = await client.from('audit_logs').insert({user_id:'codex',action_type:'SALES_MATERIAL_IMPORT',module:'map',page_url:'/map',target_name:manifest.building_name,request_source:'server',details:{material_id:id,building_id:building.id,source_sha256:sourceHash,row_count:manifest.details.length,method:manifest.extraction.method}});
@@ -74,7 +78,7 @@ async function main() {
     const {createClient} = await import('@supabase/supabase-js');
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL,secret=process.env.SUPABASE_SECRET_KEY;
     if (!url||!secret) throw new Error('缺少服务端 Supabase 配置');
-    result=await importToSupabase(manifest,bytes,mimeType,(manifest.original_name || basename(filePath)),createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}}),args.includes('--apply'));
+    result=await importToSupabase(manifest,bytes,mimeType,(manifest.original_name || basename(filePath)),createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}}),args.includes('--apply'),args.includes('--original-mode') ? value('--original-mode') : 'cloud');
   } else throw new Error('未知导入目标');
   console.log(JSON.stringify({ ...result, building:manifest.building_name, source_row_count:manifest.details.length, policy_count:manifest.commission_policies.length },null,2));
 }

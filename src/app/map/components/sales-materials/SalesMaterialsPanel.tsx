@@ -29,7 +29,7 @@ function dateLabel(entry:Entry) {
   return entry.material.document_date ? `资料日期 ${entry.material.document_date.replaceAll('-','.')}` : '业主日期未注明';
 }
 
-function SharedTiming({entry, availability, onViewOriginal}:{entry:Entry;availability:boolean;onViewOriginal:()=>void}) {
+function SharedTiming({entry, availability, onViewOriginal}:{entry:Entry;availability:boolean;onViewOriginal?:()=>void}) {
   const groups = new Map<string, AvailabilityRow[]>();
   if (availability) for (const row of entry.access.details) {
     const key=JSON.stringify([rowAsOf(row,entry.material,entry.access.provenance),row.timing?.confirmed || null]);
@@ -108,9 +108,9 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, onClose,
     <div data-sales-materials>
       <div className={styles.toolbar}>
         <div className={styles.source}>{first ? <><span>{entries.length===1?first.material.source:`${entries.length}份资料`}</span>{!original ? <button type="button" className={`${styles.sourceDate} ${styles.sourceDateButton}`} data-unknown={headerDate==='业主日期未注明'} title="查看时间依据" aria-expanded={timingOpen} aria-controls={timingOpen?timingId:undefined} onClick={()=>setTimingOpen(value=>!value)}>{headerDate}</button> : <span className={styles.sourceDate} data-unknown={headerDate==='业主日期未注明'}>{headerDate}</span>}</> : null}</div>
-        {first ? <button type="button" className={styles.originalButton} onClick={()=>original?setOriginal(null):showOriginal(first.material,originalPage)}>{original?<ArrowLeft size={14}/>:<FileImage size={14}/>} {original?backLabel:'查看原件'}</button> : null}
+        {first && (original || first.access.preview_url) ? <button type="button" className={styles.originalButton} onClick={()=>original?setOriginal(null):showOriginal(first.material,originalPage)}>{original?<ArrowLeft size={14}/>:<FileImage size={14}/>} {original?backLabel:'查看原件'}</button> : null}
       </div>
-      {timingOpen && !original ? <div id={timingId} className={styles.sharedTiming} aria-label="资料时间依据">{entries.map(entry=><SharedTiming key={entry.material.id} entry={entry} availability={category==='availability'} onViewOriginal={()=>showOriginal(entry.material)}/>)}</div> : null}
+      {timingOpen && !original ? <div id={timingId} className={styles.sharedTiming} aria-label="资料时间依据">{entries.map(entry=><SharedTiming key={entry.material.id} entry={entry} availability={category==='availability'} onViewOriginal={entry.access.preview_url ? ()=>showOriginal(entry.material) : undefined}/>)}</div> : null}
       {manyTypes && !original ? <nav className={styles.tabs} aria-label="楼宇资料类型">{tabs.filter(tab=>tab.key!=='brochure'||records.some(record=>materialCategories(record).includes('brochure'))).map(tab=><button key={tab.key} type="button" aria-pressed={category===tab.key} onClick={()=>{setRequested(tab.key);setHistoryId('');setTimingOpen(false);}}>{tab.label}</button>)}</nav> : null}
       {(original?records:categoryRecords).length>1 ? <div className={styles.versionRow}>
         <select aria-label="资料版本" value={original?.id || historyId} onChange={event=>{if(original)setOriginal({id:event.target.value});else setHistoryId(event.target.value);}}>
@@ -122,14 +122,14 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, onClose,
         : loading ? <p role="status" className={styles.empty}>加载中…</p>
         : !records.length ? <p className={styles.empty}>暂无销控资料</p>
         : !entries.length ? <p className={styles.empty}>{category==='commission'?'暂无佣金政策':category==='brochure'?'暂无项目资料':'暂无房源资料'}</p>
-        : original && first ? <SalesMaterialViewer key={`${first.material.id}:${original.page || 1}`} material={first.material} access={original.page && first.material.mime_type==='application/pdf'?{...first.access,preview_url:`${first.access.preview_url}#page=${original.page}`} : first.access} onRetry={()=>setRefresh(value=>value+1)}/>
+        : original && first ? <SalesMaterialViewer key={`${first.material.id}:${original.page || 1}`} material={first.material} access={original.page && first.material.mime_type==='application/pdf' && first.access.preview_url?{...first.access,preview_url:`${first.access.preview_url}#page=${original.page}`} : first.access} onRetry={()=>setRefresh(value=>value+1)}/>
         : entries.map(entry=><section key={entry.material.id} className={styles.materialSection} aria-label={entry.material.scope_label || entry.material.title}>
-          {entries.length>1 ? <div className={styles.sectionHeader}><h3>{entry.material.scope_label || entry.material.title}</h3>{headerDate!==dateLabel(entry) ? <span>{dateLabel(entry)}</span> : null}<button type="button" onClick={()=>showOriginal(entry.material)}>查看原件</button></div> : null}
+          {entries.length>1 ? <div className={styles.sectionHeader}><h3>{entry.material.scope_label || entry.material.title}</h3>{headerDate!==dateLabel(entry) ? <span>{dateLabel(entry)}</span> : null}{entry.access.preview_url ? <button type="button" onClick={()=>showOriginal(entry.material)}>查看原件</button> : null}</div> : null}
           {entry.material.historical_context ? <p className={styles.historyNote}>历史参考 · {entry.material.historical_context.period_label}。当前适用条件请向业主确认。</p> : null}
           {entry.material.association_status==='unconfirmed' ? <p className={styles.associationNote}><strong>楼宇归属未确认</strong></p> : null}
           {category==='availability' ? <SalesMaterialDetails rows={entry.access.details} material={entry.material} provenance={entry.access.provenance} onViewOriginal={()=>showOriginal(entry.material)}/>
             : category==='commission' ? <SalesCommissionPolicies policies={entry.access.commission_policies || []} historical={!!entry.material.historical_context}/>
-            : <SalesProjectFacts facts={entry.access.project_facts || []}/>}
+            : <SalesProjectFacts facts={entry.access.project_facts || []} showSources={!entry.access.preview_url}/>}
         </section>)}
     </div>
   </Dialog>;

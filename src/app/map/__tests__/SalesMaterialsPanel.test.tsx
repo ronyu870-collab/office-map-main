@@ -22,7 +22,7 @@ describe('极简只读销控',()=>{
     fireEvent.click(screen.getByRole('button',{name:'佣金政策'}));
     expect(await screen.findByRole('article',{name:'代理佣金'})).toHaveTextContent('2026-09-01 — 2027-02-28');
     expect(screen.getAllByText('数据截至 2026.10.13')).toHaveLength(1);
-    expect(screen.queryByText(/仅供参考/)).not.toBeInTheDocument();
+    for (const note of screen.getAllByText(/仅供参考/)) expect(note).not.toBeVisible();
     expect(screen.queryByText('PDF第3页')).not.toBeInTheDocument();expect(screen.queryByText('PDF第4页')).not.toBeInTheDocument();
     expect(screen.queryByText('标准、奖励与适用条件')).not.toBeInTheDocument();
     expect(screen.queryByText('时间来源')).not.toBeInTheDocument();
@@ -123,4 +123,30 @@ describe('极简只读销控',()=>{
     mocks.list.mockResolvedValue({records:[{...row,mime_type:'application/pdf'}],count:1});open();await screen.findByRole('region',{name:'可租房源'});fireEvent.click(screen.getByRole('button',{name:'查看原件'}));
     expect(await screen.findByLabelText('空置面积表 PDF')).toHaveAttribute('data-url',access.preview_url);expect(screen.getByRole('link',{name:'下载原件'})).toBeInTheDocument();
   });
+});
+
+ describe('历史资料无需在线原件',()=>{
+  it('shows extracted policies and source conditions without preview controls',async()=>{
+    const historical={period_label:'2023年；日期未知',evidence:'历史归档',not_current:true as const};
+    mocks.list.mockResolvedValue({records:[{...row,historical_context:historical,content_types:['commission']}],count:1});
+    mocks.access.mockResolvedValue({...access,preview_url:null,download_url:null,details:[],commission_policies:[{key:'history',title:'历史佣金条款',scope:'指定单元',summary:'基础2个月',basis:'净租金',valid_from:null,valid_until:null,validity_note:'起止未知',settlement:'原页未注明',rules:[{kind:'base',label:'基础',reward:'2个月',condition:'指定单元',applicability:'stated'}],source_ref:'历史楼书.pdf 第12页',notes:['奖励不能叠加']} ]});
+    open();expect(await screen.findByRole('article',{name:'历史佣金条款'})).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'查看原件'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('佣金明细'));
+    expect(screen.getByText('奖励不能叠加')).toBeVisible();expect(screen.getByText('来源：历史楼书.pdf 第12页')).toBeVisible();
+    fireEvent.click(screen.getByRole('button',{name:'历史资料 · 2023年；日期未知'}));
+    expect(screen.getByText('原件已本地归档')).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'查看对应原件'})).not.toBeInTheDocument();
+  });
+ });
+it('keeps a return control when changing from a cloud original to a locally archived version',async()=>{
+  const local={...row,id:'33333333-3333-4333-8333-333333333333',content_types:['commission'],historical_context:{period_label:'历史',evidence:'合成',not_current:true}};
+  mocks.list.mockResolvedValue({records:[row,local],count:2});
+  mocks.access.mockImplementation((_building:string,material:string)=>Promise.resolve(material===id?access:{...access,preview_url:null,download_url:null,details:[]}));
+  open();await screen.findByRole('region',{name:'可租房源'});
+  fireEvent.click(screen.getByRole('button',{name:'查看原件'}));
+  fireEvent.change(screen.getByRole('combobox',{name:'资料版本'}),{target:{value:local.id}});
+  expect(await screen.findByText('原件已本地归档，暂无在线预览。')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'返回房源'}));
+  expect(await screen.findByRole('region',{name:'可租房源'})).toBeInTheDocument();
 });

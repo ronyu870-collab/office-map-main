@@ -72,19 +72,26 @@ export async function GET(request: Request): Promise<NextResponse> {
     const materialId = params.get('material_id');
     if (materialId !== null) {
       if (!UUID.safeParse(materialId).success) return json({ error: '资料编号无效' }, 400);
-      const { data: material, error } = await admin.from(TABLE).select('id,title,storage_path,original_name,details,commission_policies,project_facts,workbook_preview,created_at,source_sha256,extraction')
+      const { data: material, error } = await admin.from(TABLE).select('id,title,storage_path,original_location,original_name,details,commission_policies,project_facts,workbook_preview,created_at,source_sha256,extraction')
         .eq('building_id', buildingId).eq('id', materialId).eq('status', 'ready').maybeSingle();
       if (error) return databaseError(error, '销控资料读取失败');
       if (!material) return json({ error: '资料不存在或已撤回，请刷新列表' }, 404);
-      const bucket = admin.storage.from(SALES_MATERIAL_BUCKET);
-      const [preview, download] = await Promise.all([
-        bucket.createSignedUrl(material.storage_path, 300),
-        bucket.createSignedUrl(material.storage_path, 300, { download: material.original_name }),
-      ]);
-      if (preview.error || download.error) return json({ error: '原文件暂时无法访问，请重试' }, 502);
+      let previewUrl: string | null = null;
+      let downloadUrl: string | null = null;
+      if (material.original_location !== 'local_archive') {
+        if (!material.storage_path) return json({ error: '原件路径缺失，请联系管理员核对' }, 502);
+        const bucket = admin.storage.from(SALES_MATERIAL_BUCKET);
+        const [preview, download] = await Promise.all([
+          bucket.createSignedUrl(material.storage_path, 300),
+          bucket.createSignedUrl(material.storage_path, 300, { download: material.original_name }),
+        ]);
+        if (preview.error || download.error) return json({ error: '原文件暂时无法访问，请重试' }, 502);
+        previewUrl = preview.data.signedUrl;
+        downloadUrl = download.data.signedUrl;
+      }
       await audit(admin, identity, 'ACCESS', buildingId, materialId, material.title);
       return json({
-        preview_url: preview.data.signedUrl, download_url: download.data.signedUrl,
+        preview_url: previewUrl, download_url: downloadUrl,
         details: material.details, commission_policies: material.commission_policies || [], project_facts: material.project_facts || [], workbook_preview: material.workbook_preview || undefined, provenance: materialProvenance(material),
       });
     }
