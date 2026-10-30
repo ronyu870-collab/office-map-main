@@ -64,6 +64,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Archived original ingestion regression
+        run: node --experimental-strip-types scripts/sales-materials/verify-local.mjs
+
       - name: Isolated quarterly SQL regressions
         shell: bash
         run: |
@@ -84,6 +87,11 @@ jobs:
         run: npm run test:db:building-renames
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL historical project material regressions
+        run: node supabase/tests/project-materials/run.mjs
+        env:
+          MATERIAL_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
       - name: Production build
         run: npm run build

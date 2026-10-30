@@ -43,3 +43,7 @@ supabase/.temp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Generated PDF.js runtime assets; material originals stay outside git.
+/public/vendor/pdfjs/
+/.local/sales-materials/
