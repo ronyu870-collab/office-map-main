@@ -1982,6 +1982,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       ? `${Number(supply.total_area).toLocaleString()} ㎡`
       : "未知";
     const notes = escapeHtml(supply.notes || "无");
+    const materialsButton = supply.building_id ? `
+      <button type="button" data-map-action="building-sales-control"
+        data-building-id="${escapeHtml(supply.building_id)}" data-building-name="${name}"
+        style="width:100%;min-height:44px;margin-top:8px;background:var(--cd-color-surface);color:var(--cd-color-brand);border:1px solid var(--cd-color-border);border-radius:5px;font-size:14px;font-weight:600;cursor:pointer;">
+        项目资料与佣金
+      </button>` : '';
 
     return `
       <div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
@@ -1997,6 +2003,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
              <span style="color:#94a3b8;">备注：</span><span style="color:#64748b; font-size:11px;">${notes}</span>
           </div>
+          ${materialsButton}
         </div>
       </div>
     `;
@@ -2721,27 +2728,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             联系方式
           </button>
 
-          <div
-            data-map-action="building-sales-control"
-            aria-disabled="true"
-            title="楼宇销控功能建设中"
-            style="
-              background: #f8fafc;
-              color: #94a3b8;
-              border: 1px solid #e2e8f0;
-              padding: 6px 2px;
-              border-radius: 5px;
-              font-size: 9px;
-              font-weight: 700;
-              cursor: not-allowed;
-              text-align: center;
-              opacity: 0.6;
-              white-space: nowrap;
-              user-select: none;
-            "
-          >
-            楼宇销控
-          </div>
+          <button type="button" data-map-action="building-sales-control"
+            data-building-id="${escapeHtml(building.id)}" data-building-name="${name}"
+            style="background:var(--cd-color-surface);color:var(--cd-color-brand);border:1px solid var(--cd-color-border);grid-column:1/-1;min-height:44px;padding:8px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">
+            项目资料与佣金
+          </button>
         </div>
 
       </div>
