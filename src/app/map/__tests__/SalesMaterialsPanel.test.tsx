@@ -150,3 +150,21 @@ it('keeps a return control when changing from a cloud original to a locally arch
   fireEvent.click(screen.getByRole('button',{name:'返回房源'}));
   expect(await screen.findByRole('region',{name:'可租房源'})).toBeInTheDocument();
 });
+
+it('distinguishes equally titled unknown-date versions by their original filenames',async()=>{
+  const first={...row,title:'项目历史参数',historical_context:{period_label:'历史日期未知',evidence:'合成来源',not_current:true},content_types:['brochure'],original_name:'项目介绍_推介版.pdf'};
+  const second={...first,id:'33333333-3333-4333-8333-333333333333',original_name:'项目介绍_早期版.pdf'};
+  mocks.list.mockResolvedValue({records:[first,second],count:2});mocks.access.mockResolvedValue({...access,details:[],preview_url:null,download_url:null,project_facts:[{label:'楼层口径',value:'系统快照building_floors=42、floors_above=38，不能视为直接矛盾。',source_ref:'楼书第19页'},{label:'关联依据',value:'名称与位置一致，保留候选系统关联，生产写入前复核。',source_ref:'楼书第5页'}]});
+  open();expect(await screen.findByRole('option',{name:/项目介绍_推介版.pdf/})).toBeInTheDocument();expect(screen.getByRole('option',{name:/项目介绍_早期版.pdf/})).toBeInTheDocument();
+  expect(await screen.findAllByText(/系统记录楼层=42、地上实际楼层=38/)).toHaveLength(2);
+  expect(screen.queryByText(/building_floors|floors_above|保留候选系统关联|生产写入前复核/)).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('combobox',{name:'资料版本'}),{target:{value:second.id}});
+  await waitFor(()=>expect(screen.getAllByText(/系统记录楼层=42/)).toHaveLength(1));
+});
+it('renders business-ready notes while preserving source conflicts and unknown deadlines',async()=>{
+ mocks.list.mockResolvedValue({records:[{...row,content_types:['brochure']}],count:1});
+ mocks.access.mockResolvedValue({...access,details:[],project_facts:[{label:'楼层',value:'系统快照building_floors=42、floors_above=38；966㎡与996㎡冲突，待核。',source_ref:'原页19'},{label:'说明',value:'名称与位置一致，保留候选系统关联，生产写入前复核。年份未知，valid_until留空。',source_ref:'原页5'}]});
+ open();expect(await screen.findByText(/系统记录楼层=42、地上实际楼层=38；966㎡与996㎡冲突，待核/)).toBeInTheDocument();
+ expect(screen.getByText(/名称与位置一致。年份未知，有效截止日期未知/)).toBeInTheDocument();
+ expect(screen.queryByText(/building_floors|floors_above|valid_until|候选系统关联|写入前复核/)).not.toBeInTheDocument();
+});

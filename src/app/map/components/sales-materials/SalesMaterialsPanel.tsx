@@ -5,6 +5,7 @@ import { ArrowLeft, FileImage } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { Dialog } from '@/src/components/ui/Dialog';
 import { MATERIAL_PAGE_SIZE, type AvailabilityRow, type MaterialAccess, type MaterialCategory, type SalesMaterial } from '@/src/lib/sales-materials/model';
+import { materialVersionLabel } from '@/src/lib/sales-materials/presentation';
 import { currentMaterials, materialCategories } from '@/src/lib/sales-materials/catalog';
 import { formatSourceTime, rowAsOf } from '@/src/lib/sales-materials/timing';
 import { salesMaterialReader, type SalesMaterialReader } from '@/src/services/salesMaterialsClient';
@@ -115,7 +116,7 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, onClose,
       {(original?records:categoryRecords).length>1 ? <div className={styles.versionRow}>
         <select aria-label="资料版本" value={original?.id || historyId} onChange={event=>{if(original)setOriginal({id:event.target.value});else setHistoryId(event.target.value);}}>
           {!original ? <option value="">最新与历史资料</option> : null}
-          {(original?records:categoryRecords).map(record=><option key={record.id} value={record.id}>{record.scope_label || record.title} · {record.historical_context?`历史 ${record.historical_context.period_label}`:record.data_date?`数据 ${record.data_date}`:record.document_date?`资料 ${record.document_date}`:`收录 ${new Date(record.created_at).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai'})}`} · {record.title}</option>)}
+          {(original?records:categoryRecords).map(record=><option key={record.id} value={record.id}>{materialVersionLabel(record,original?records:categoryRecords)}</option>)}
         </select>
       </div> : null}
       {error ? <div role="alert" className={styles.empty}>{error}<Button variant="ghost" size="sm" onClick={()=>{setReload(value=>value+1);setRefresh(value=>value+1);}}>重试</Button></div>
