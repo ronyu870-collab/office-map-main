@@ -313,7 +313,8 @@ export function MapWorkbenchView({
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]')) return;
       closeOpenWorkspaces();
     };
     window.addEventListener('keydown', handleKeyDown);

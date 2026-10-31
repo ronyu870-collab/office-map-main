@@ -189,3 +189,15 @@ describe('MapWorkbenchView', () => {
   });
 
 });
+
+it('respects modal Escape without dismissing the map workspace behind it',async()=>{
+ const callbacks=renderWorkbench({isListVisible:true,isFilterPanelOpen:true,isSupplyOpen:true});
+ const {Dialog}=await import('@/src/components/ui/Dialog');const close=vi.fn();
+ render(<Dialog open onOpenChange={close} title="资料" closeLabel="关闭资料"><p>历史资料内容</p></Dialog>);
+ fireEvent.keyDown(screen.getByRole('button',{name:'关闭资料'}),{key:'Escape'});
+ expect(close).toHaveBeenCalledWith(false);expect(callbacks.onCloseList).not.toHaveBeenCalled();expect(callbacks.onFilterPanelOpenChange).not.toHaveBeenCalled();expect(callbacks.onSupplyOpenChange).not.toHaveBeenCalled();
+});
+it('respects handled Escape while preserving ordinary workspace Escape behavior',()=>{
+ const callbacks=renderWorkbench({isListVisible:true});const event=new KeyboardEvent('keydown',{key:'Escape',cancelable:true,bubbles:true});event.preventDefault();window.dispatchEvent(event);
+ expect(callbacks.onCloseList).not.toHaveBeenCalled();fireEvent.keyDown(window,{key:'Escape'});expect(callbacks.onCloseList).toHaveBeenCalledOnce();
+});
