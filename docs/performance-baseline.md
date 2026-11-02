@@ -105,3 +105,13 @@ For a production-like authenticated target, capture cold and warm runs separatel
 4. Keep UI responsiveness and network completion as separate timestamps.
 5. Timing tests must not become wall-clock CI gates.
 6. Any performance refactor that changes business output is a product change, not an optimization shortcut.
+
+## 2026-11-02 measurement tooling preparation
+
+`scripts/performance/README.md` describes controlled Chrome sampling and its execution commands. The collector observes the actual click and rendered frames, keeps shell/content/fresh-read timestamps separate, and records failures and missing measurements. Readiness selectors must be calibrated per business scenario; a loading skeleton is not usable content. The tools do not change application authentication, loading or cache behavior and do not upload telemetry.
+
+The summary groups version, deployment, environment, data origin, device, browser, network, proxy state, role, scenario and cache state separately. Sample quantiles never conceal failure or missing-value counts. Bundle inventory is a client-reference manifest inspection, not a browser waterfall or a package CPU measurement.
+
+The Verify workflow now runs the synthetic readiness calibration in a real browser, summary consistency assertions, and anonymous fresh-context redirects/resource-boundary checks against the actual production build. These cover the measurement mechanism and three anonymous routes only; they do not prove authenticated performance, identity switching, third-party map behavior, or real-phone acceptance. There are no wall-clock performance thresholds in CI.
+
+Authenticated baseline coverage and absolute cold/map/freshness budgets remain pending. The first production OSS sample is diagnostic only, not a stable percentile, an A/B comparison, or a system-wide improvement claim.
