@@ -27,7 +27,7 @@ Describe behavior, data, security, performance, or deployment risk.
 
 ## UI evidence and recovery
 
-For UI changes, link comparable before/after evidence and report checks of the affected pages and flows. State what was actually verified and what remains unverified; mark not applicable when there is no UI change.
+For UI changes, link comparable before/after evidence and report checks of the affected pages and flows, including [VERIFY-04](../docs/standards/05_工程验证与交付规范.md#verify-04) whole-page visual review of grouping, alignment, typography and consistency across pages. State what was actually verified and what remains unverified; mark not applicable when there is no UI change.
 
 Record the baseline commit and how this batch can be reverted without overwriting unrelated work.
 
