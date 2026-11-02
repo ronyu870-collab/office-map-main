@@ -12,8 +12,12 @@ try{
  await admin.query(`create database ${name}`);db=new pg.Client({host:'127.0.0.1',port,user:'postgres',password:'synthetic_ci_only',database:name});await db.connect();await db.query("set timezone='UTC'");
  for(const role of ['anon','authenticated','service_role'])if(!(await admin.query('select 1 from pg_roles where rolname=$1',[role])).rowCount)await admin.query(`create role ${role}`);
  await admin.query('alter role service_role bypassrls');
+ // Supabase grants ALL on newly created public tables to service_role by default.
+ // Reproduce that real target environment before applying our migrations.
+ await db.query('alter default privileges in schema public grant all on tables to service_role');
  await db.query("create table public.audit_logs(user_id text,action_type text,module text,page_url text,target_name text,request_source text,details jsonb)");
  await db.query(await readFile(new URL('../../migrations/20261102064528_preserve_project_material_library.sql',import.meta.url),'utf8'));
+ await db.query(await readFile(new URL('../../migrations/20261102104720_enforce_material_library_append_only.sql',import.meta.url),'utf8'));
  const payload={source_sha256:'a'.repeat(64),originals:[{relative:'synthetic.pdf'}],historical_context:{not_current:true},text_pages:[1],sections:[{scope:'归属未确认',facts:[{label:'原文面积',value:'100/110㎡冲突，未选值',source_ref:'合成第1页'}]}],review:{association_status:'unmapped'}};
  const insert=`insert into public.project_material_library(source_sha256,payload_sha256,original_name,archive_reference,review_state,batch_key,payload) select $1,encode(sha256(convert_to($2::jsonb::text,'UTF8')),'hex'),'synthetic.pdf','sha256:'||$1,'needs_association','synthetic',$2::jsonb on conflict(source_sha256,payload_sha256) do nothing returning id`;
  const id=(await db.query(insert,['a'.repeat(64),payload])).rows[0].id;count++;
@@ -40,7 +44,17 @@ try{
   await db.query(`set role ${role}`);await fails('select * from public.project_material_library');await fails('select * from public.project_material_library_pages');await fails(insert,['a'.repeat(64),payload]);await db.query('reset role');
  }
  await db.query('set role service_role');assert.equal((await db.query('select count(*)::int n from public.project_material_library')).rows[0].n,1);count++;
- await fails("update public.project_material_library set review_state='reviewed'");await fails('delete from public.project_material_library_pages');await db.query('reset role');
+ await db.query(insert,['a'.repeat(64),payload]);await db.query(insPage,[id,p]);count++;
+ await fails("update public.project_material_library set review_state='reviewed'");
+ await fails('delete from public.project_material_library where false');
+ await fails("update public.project_material_library_pages set content=content where false");
+ await fails('delete from public.project_material_library_pages');
+ await fails('truncate public.project_material_library_pages,public.project_material_library');
+ await db.query('reset role');
+ for(const table of ['project_material_library','project_material_library_pages']){
+  const acl=(await db.query("select has_table_privilege('service_role',$1,'SELECT') r,has_table_privilege('service_role',$1,'INSERT') i,has_table_privilege('service_role',$1,'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN') extra",['public.'+table])).rows[0];
+  assert.deepEqual(acl,{r:true,i:true,extra:false});count++;
+ }
  const second=(await db.query(insert,['a'.repeat(64),{...payload,review:{association_status:'unmapped',revision:2}}])).rows[0].id;assert.notEqual(id,second);assert.equal((await db.query('select count(*)::int n from public.project_material_library')).rows[0].n,2);count++;
  await db.query('begin');await db.query(insert,['c'.repeat(64),{...payload,source_sha256:'c'.repeat(64)}]);await fails('select 1/0');await db.query('rollback');assert.equal((await db.query("select count(*)::int n from public.project_material_library where source_sha256=repeat('c',64)")).rows[0].n,0);count++;
  assert.equal((await db.query("select count(*)::int n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname like 'project_material_library%' and c.relkind='r' and c.relrowsecurity")).rows[0].n,2);count++;

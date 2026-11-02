@@ -9,3 +9,7 @@
 - 未关联的资产子集/原文冲突、恢复原件完整性保留；费用凭证只入排除元信息，正文不入库。真实资料及SQL载荷只留本地交付目录，不进入Git测试夹具。
 
 生产表创建、实际写入及回读状态由本次本地入库执行记录维护，不能从本文件的隔离验证推断已发布。精确PR head CI通过后才合并本工程变更；不会将本地构建成功当作远端CI证据。
+
+## Supabase默认ACL实测补核
+
+生产有效权限回读发现，两张表由public默认ACL向service_role授予ALL，追加GRANT SELECT/INSERT不足以收窄。先在隔离PG17设置同样的默认ALL授权，旧迁移在应拒绝的真实UPDATE路径上复现失败；补丁迁移先REVOKE ALL，再只恢复SELECT/INSERT。修复后39项资料库PG17场景及25项既有资料回归通过，新增默认ACL与UPDATE/DELETE/TRUNCATE/MAINTAIN有效权限回归沿既有脚本进入CI。正式生产迁移仍以最终修复head CI通过为门槛。
