@@ -66,6 +66,14 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   const p = payload ?? {};
 
   switch (action) {
+    case "SALES_MATERIAL_IMPORT": {
+      const parts = [
+        p.material_count != null ? `${p.material_count} 份资料` : p.material_id ? '1 份资料' : '',
+        (p.commission_policy_count ?? p.policy_count) != null ? `${p.commission_policy_count ?? p.policy_count} 条佣金政策` : '',
+        (p.parameter_and_note_count ?? p.row_count) != null ? `${p.parameter_and_note_count ?? p.row_count} 条参数与说明` : '',
+      ].filter(Boolean);
+      return `导入了项目资料${parts.length ? `（${parts.join('、')}）` : ''}`;
+    }
     // 搜索 / 查询
     case "SEARCH":
       return `在「${moduleLabel(p.module)}」搜索了关键词："${p.keyword ?? p.query ?? ""}"`;
@@ -329,6 +337,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 // ─── Badge 样式映射 ───────────────────────────────────────────────────────────
 
 const BADGE_MAP: Record<string, BadgeStyle> = {
+  SALES_MATERIAL_IMPORT: { variant: "orange", label: "资料导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   // 导航 → 靛蓝
   ENTER_MODULE: { variant: "blue",    label: "进入板块", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" },
   ACCESS_DENIED: { variant: "red", label: "拒绝访问", className: "bg-red-50 text-red-700 ring-red-100" },

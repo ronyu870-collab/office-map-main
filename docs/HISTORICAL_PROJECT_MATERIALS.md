@@ -12,7 +12,7 @@
 
 ## 操作
 
-先核对并生成符合 model.ts 的 manifest，通过 ingest.mjs --manifest 文件.json --file 原件 --target supabase 预检；显式 --apply 才写入。服务端配置沿用现有环境，不将密钥写入参数或 manifest。
+先核对并生成符合 model.ts 的 manifest，通过 ingest.mjs --manifest 文件.json --file 原件 --target supabase 预检；显式 `--apply --actor-user-id 管理员UUID` 才写入；写入前核验操作账号，工具执行者单独记录。身份与快照规则见 [审计身份](audit-identity.md)。服务端配置沿用现有环境，不将密钥写入参数或 manifest。
 
 原件经上传后重新下载哈希一致才将记录由 pending 发布为 ready；中断保留 pending，重跑按原件和解析哈希恢复。发布后回读楼宇、原件、政策和来源，再验证地图展示。楼书字段补空独立写入已有字段来源表，不使用历史房源覆盖当前指标。
 

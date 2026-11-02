@@ -1,3 +1,4 @@
+import { resolveImportActor } from './audit-actor.mjs';
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { loadLocalCatalog } from './building-catalog.mjs';
@@ -23,9 +24,10 @@ export async function validateImport(manifestPath, filePath) {
   return { manifest, bytes, mimeType };
 }
 
-export async function importToSupabase(manifest, bytes, mimeType, originalName, client, apply = false, originalMode = 'cloud') {
+export async function importToSupabase(manifest, bytes, mimeType, originalName, client, apply = false, originalMode = 'cloud', actorUserId) {
   if (!['cloud','local_archive'].includes(originalMode)) throw new Error('未知原件保存方式');
   if (originalMode === 'local_archive' && (!manifest.historical_context || manifest.extraction.historical_import_authorized !== true)) throw new Error('仅已授权历史资料支持本地原件归档');
+  const actor = apply ? await resolveImportActor(client, actorUserId) : null;
   const { data: building, error: scopeError } = await client.from('buildings').select('id,name').eq('id',manifest.building_id)
     .eq('is_active',true).eq('tracking_scope','tracked').maybeSingle();
   if (scopeError || !building || building.name !== manifest.building_name) throw new Error('楼宇 ID、名称或地图范围不匹配');
@@ -57,7 +59,7 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
   }
   const published = await client.from('building_sales_materials').update({details:manifest.details,status:'ready',published_at:new Date().toISOString()}).eq('id',id).eq('status','pending').select('id').maybeSingle();
   if (published.error || !published.data) throw new Error('资料发布失败，请检查任务状态');
-  const audit = await client.from('audit_logs').insert({user_id:'codex',action_type:'SALES_MATERIAL_IMPORT',module:'map',page_url:'/map',target_name:manifest.building_name,request_source:'server',details:{material_id:id,building_id:building.id,source_sha256:sourceHash,row_count:manifest.details.length,method:manifest.extraction.method}});
+  const audit = await client.from('audit_logs').insert({user_id:actor,action_type:'SALES_MATERIAL_IMPORT',module:'map',page_url:'/map',target_name:manifest.building_name,request_source:'server',details:{executor:'codex',material_id:id,building_id:building.id,source_sha256:sourceHash,row_count:manifest.details.length,method:manifest.extraction.method}});
   if (audit.error) console.error('资料已入库；审计写入失败，请补记', audit.error.code);
   return { id, duplicate:false };
 }
@@ -65,7 +67,7 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
 async function main() {
   const args = process.argv.slice(2);
   const value = key => args[args.indexOf(key)+1];
-  if (!args.includes('--manifest') || !args.includes('--file')) throw new Error('用法：node --experimental-strip-types scripts/sales-materials/ingest.mjs --manifest 解析结果.json --file 原图.png [--target local|supabase] [--dir 本地目录] [--apply]');
+  if (!args.includes('--manifest') || !args.includes('--file')) throw new Error('用法：node --experimental-strip-types scripts/sales-materials/ingest.mjs --manifest 解析结果.json --file 原图.png [--target local|supabase] [--dir 本地目录] [--apply --actor-user-id 管理员UUID]');
   const manifestPath = resolve(value('--manifest')), filePath = resolve(value('--file'));
   const { manifest, bytes, mimeType } = await validateImport(manifestPath,filePath);
   const target = args.includes('--target') ? value('--target') : 'local';
@@ -78,7 +80,7 @@ async function main() {
     const {createClient} = await import('@supabase/supabase-js');
     const url=process.env.NEXT_PUBLIC_SUPABASE_URL,secret=process.env.SUPABASE_SECRET_KEY;
     if (!url||!secret) throw new Error('缺少服务端 Supabase 配置');
-    result=await importToSupabase(manifest,bytes,mimeType,(manifest.original_name || basename(filePath)),createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}}),args.includes('--apply'),args.includes('--original-mode') ? value('--original-mode') : 'cloud');
+    result=await importToSupabase(manifest,bytes,mimeType,(manifest.original_name || basename(filePath)),createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}}),args.includes('--apply'),args.includes('--original-mode') ? value('--original-mode') : 'cloud',args.includes('--actor-user-id') ? value('--actor-user-id') : undefined);
   } else throw new Error('未知导入目标');
   console.log(JSON.stringify({ ...result, building:manifest.building_name, source_row_count:manifest.details.length, policy_count:manifest.commission_policies.length },null,2));
 }
