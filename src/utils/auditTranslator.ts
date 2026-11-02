@@ -66,6 +66,12 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   const p = payload ?? {};
 
   switch (action) {
+    case "PROJECT_MATERIAL_LIBRARY_IMPORT":
+      return `处理了历史资料提取批次${p.planned_rows != null ? `（${p.planned_rows} 份来源）` : ""}`;
+    case "PROJECT_MATERIAL_PAGE_IMPORT":
+      return `保存并核验了资料逐页证据${p.planned_rows != null ? `（${p.planned_rows} 页）` : ""}`;
+    case "BROCHURE_ASSOCIATION_CORRECTION":
+      return `纠正了楼书归属并同步溯源${p.provenance_rows != null ? `（${p.provenance_rows} 条）` : ""}`;
     case "SALES_MATERIAL_ACCESS":
       return "查看了项目资料";
     case "SALES_MATERIAL_IMPORT": {
@@ -339,6 +345,9 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 // ─── Badge 样式映射 ───────────────────────────────────────────────────────────
 
 const BADGE_MAP: Record<string, BadgeStyle> = {
+  PROJECT_MATERIAL_LIBRARY_IMPORT: { variant: "orange", label: "资料归档", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  PROJECT_MATERIAL_PAGE_IMPORT: { variant: "blue", label: "保存证据", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  BROCHURE_ASSOCIATION_CORRECTION: { variant: "orange", label: "楼书纠正", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   SALES_MATERIAL_ACCESS: { variant: "blue", label: "查看资料", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   SALES_MATERIAL_IMPORT: { variant: "orange", label: "资料导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   // 导航 → 靛蓝
