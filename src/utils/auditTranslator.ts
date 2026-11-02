@@ -23,7 +23,7 @@ const MODULE_LABELS: Record<string, string> = {
   admin: '管理后台',
   bi: '商业分析',
   intelligence: '业务智能',
-  settings: '设置',
+  settings: '修改密码',
   login: '登录页',
 };
 
