@@ -62,12 +62,12 @@ export default function SettingsPage() {
     <div className="flex h-dvh flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
       <header className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="mx-auto w-full max-w-3xl">
-          <AppHeader title="设置" homeHref={passwordChangeRequired ? undefined : '/'} />
+          <AppHeader title="修改密码" homeHref={passwordChangeRequired ? undefined : '/'} />
         </div>
       </header>
       <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         {isLoadingUser ? (
-          <Panel><LoadingState label="正在加载账户设置" /></Panel>
+          <Panel><LoadingState label="正在加载修改密码页面" /></Panel>
         ) : (
           <Panel className="p-6">
             <div className="mb-6 flex items-center gap-3">

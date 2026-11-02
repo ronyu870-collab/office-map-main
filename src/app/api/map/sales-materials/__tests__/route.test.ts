@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getLogBadgeStyle, parseAuditLog } from '@/src/utils/auditTranslator';
 import { NextResponse } from 'next/server';
 import * as route from '../route';
 const mocks=vi.hoisted(()=>({identity:vi.fn(),audit:vi.fn(),from:vi.fn(),query:vi.fn(),sign:vi.fn(),calls:[] as {table:string;op:string;args:unknown[]}[]}));
@@ -48,6 +49,13 @@ describe('broker 销控只读 API',()=>{
     const response=await route.GET(request(`&material_id=${id}`));expect(await response.json()).toMatchObject({details:[],preview_url:'https://synthetic.invalid/signed'});
     expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['building_id',building]});expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['id',id]});
     expect(mocks.sign).toHaveBeenCalledWith(row.storage_path,300,{download:row.original_name});expect(mocks.audit).toHaveBeenCalled();
+  });
+  it('emits a material access action with a specific human-readable description and badge',async()=>{
+    const response=await route.GET(request(`&material_id=${id}`));expect(response.status).toBe(200);
+    const event=mocks.audit.mock.calls[0][1];
+    expect(event.action_type).toBe('SALES_MATERIAL_ACCESS');
+    expect(parseAuditLog(event.action_type,event.details)).toBe('查看了项目资料');
+    expect(getLogBadgeStyle(event.action_type).label).toBe('查看资料');
   });
   it('returns time evidence with the recorded version time, but omits private extraction metadata',async()=>{
     const body=await (await route.GET(request(`&material_id=${id}`))).json();

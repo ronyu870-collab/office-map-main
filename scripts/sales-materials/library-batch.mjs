@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {projectFactSchema,commissionPolicySchema} from '../../src/lib/sales-materials/model.ts';
+export const libraryAuditActions={metadata:{action_type:'PROJECT_MATERIAL_LIBRARY_IMPORT'},pages:{action_type:'PROJECT_MATERIAL_PAGE_IMPORT'},relink:{action_type:'BROCHURE_ASSOCIATION_CORRECTION'}};
 const hash=z.string().regex(/^[a-f0-9]{64}$/);
 const section=z.object({scope:z.string().min(1).max(160),candidate_building_ids:z.array(z.uuid()).max(30),association_status:z.enum(['confirmed','unconfirmed','unmapped','reference']),facts:z.array(projectFactSchema).max(1000),commission_policies:z.array(commissionPolicySchema).max(40),notes:z.array(z.string().max(2000)).max(100),issue_ids:z.array(z.string().max(50)).max(40),kind:z.string().min(1).max(60)}).strict();
 export const libraryRecordSchema=z.object({id:z.uuid(),source_sha256:hash,original_name:z.string().min(1).max(255),review_state:z.enum(['reviewed','needs_association','reference','excluded','recovered_partial']),batch_key:z.string().regex(/^[a-z][a-z0-9_-]{0,99}$/),payload:z.object({schema_version:z.literal(1),source_sha256:hash,originals:z.array(z.object({relative_path:z.string().min(1).max(1000),original_name:z.string().min(1).max(255),size:z.number().int().positive()})).min(1).max(100),historical_context:z.object({period_label:z.string().min(1),evidence:z.string().min(1),not_current:z.literal(true)}),text_pages:z.array(z.number().int().min(1).max(10000)).max(10000),sections:z.array(section).max(1000),review:z.object({scope:z.string().min(1),conclusion:z.string().min(1),issue_ids:z.array(z.string()),method:z.string(),source_state:z.enum(['ok','recovered_partial','excluded']),normalization:z.string(),revision:z.string().min(1)}).strict()}).strict()}).strict().refine(x=>x.source_sha256===x.payload.source_sha256,'Source hash mismatch').refine(x=>x.review_state!=='excluded'||(x.payload.text_pages.length===0&&x.payload.sections.length===0),'Excluded source contains private content');
@@ -28,7 +29,7 @@ lock table public.project_material_library in share row exclusive mode;
 insert into public.project_material_library(id,source_sha256,payload_sha256,original_name,archive_reference,review_state,batch_key,payload)
 select (x->>'id')::uuid,x->>'source_sha256',encode(sha256(convert_to((x->'payload')::text,'UTF8')),'hex'),x->>'original_name','sha256:'||(x->>'source_sha256'),x->>'review_state',x->>'batch_key',x->'payload' from jsonb_array_elements(${data}) x on conflict(source_sha256,payload_sha256) do nothing;
 do ${tag} begin if exists(select 1 from jsonb_array_elements(${data}) x left join public.project_material_library l on l.id=(x->>'id')::uuid where l.id is null or l.payload is distinct from x->'payload' or l.review_state is distinct from x->>'review_state') then raise exception 'Library metadata conflict';end if;end ${tag};
-${audit('PROJECT_MATERIAL_LIBRARY_IMPORT',batch,records.length)}
+${audit(libraryAuditActions.metadata.action_type,batch,records.length)}
 commit;select ${records.length}::int as checked_metadata_rows;`;
 }
 export function libraryPagesSQL(pages,batch){
@@ -36,7 +37,7 @@ export function libraryPagesSQL(pages,batch){
  return `begin;set local lock_timeout='8s';set local statement_timeout='60s';
 insert into public.project_material_library_pages(extraction_id,page_number,content,content_sha256) select (x->>'extraction_id')::uuid,(x->>'page_number')::int,x->'content',encode(sha256(convert_to((x->'content')::text,'UTF8')),'hex') from jsonb_array_elements(${data}) x on conflict(extraction_id,page_number) do nothing;
 do ${tag} begin if exists(select 1 from jsonb_array_elements(${data}) x left join public.project_material_library_pages p on p.extraction_id=(x->>'extraction_id')::uuid and p.page_number=(x->>'page_number')::int where p.extraction_id is null or p.content is distinct from x->'content') then raise exception 'Library page conflict';end if;end ${tag};
-${audit('PROJECT_MATERIAL_PAGE_IMPORT',batch,pages.length)}
+${audit(libraryAuditActions.pages.action_type,batch,pages.length)}
 commit;select ${pages.length}::int as checked_source_pages;`;
 }
 export function contentDigest(value){return createHash('sha256').update(JSON.stringify(value)).digest('hex');}
@@ -67,6 +68,6 @@ update public.building_data_field_provenance set building_id=${tid} where brochu
 select to_jsonb(d) into after_row from public.building_brochure_data d where d.id=${rid};
 select jsonb_agg(to_jsonb(p)-'building_id' order by p.id) into after_refs from public.building_data_field_provenance p where brochure_data_id=${rid};
 if (after_row-'building_id'-'updated_at') is distinct from (old_row-'building_id'-'updated_at') or old_refs is distinct from after_refs then raise exception 'Source values changed during relink';end if;
-insert into public.audit_logs(user_id,action_type,module,page_url,target_name,request_source,details) values('codex','BROCHURE_ASSOCIATION_CORRECTION','map','/map',${q(to.name)},'server',jsonb_build_object('batch',${q(batch_key)},'from_building_id',${fid},'to_building_id',${tid},'brochure_id',${rid},'before',old_row,'after',after_row,'provenance_rows',${expected_provenance_count},'evidence',${encoded(plan.evidence)}));
+insert into public.audit_logs(user_id,action_type,module,page_url,target_name,request_source,details) values('codex',${q(libraryAuditActions.relink.action_type)},'map','/map',${q(to.name)},'server',jsonb_build_object('batch',${q(batch_key)},'from_building_id',${fid},'to_building_id',${tid},'brochure_id',${rid},'before',old_row,'after',after_row,'provenance_rows',${expected_provenance_count},'evidence',${encoded(plan.evidence)}));
 end ${tag};commit;`;
 }
