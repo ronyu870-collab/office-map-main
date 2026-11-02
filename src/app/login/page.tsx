@@ -9,6 +9,7 @@ import { getSessionFast, signInWithPassword } from '@/src/services/Auth';
 import { logActionImmediate } from '@/src/utils/audit';
 import { perfStart, perfEnd, perfMark } from '@/src/utils/performanceLogger';
 import { setTrustedDevice } from '@/src/services/trustedDevice';
+import { hasPasswordChangeNotice, setPasswordChangeNotice } from '@/src/services/passwordChangeNotice';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { Button, IconButton, Input } from '@/src/components/ui';
 
@@ -21,16 +22,21 @@ export default function LoginPage() {
   const [trustDevice, setTrustDevice] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [passwordChanged, setPasswordChanged] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const session = await getSessionFast();
-        if (!cancelled && session) {
+        if (cancelled) return;
+        setPasswordChanged(hasPasswordChangeNotice());
+        if (session) {
           router.replace(session.user.app_metadata?.must_change_password ? '/settings?required=1' : '/');
         }
-      } catch { /* stay */ }
+      } catch {
+        if (!cancelled) setPasswordChanged(hasPasswordChangeNotice());
+      }
     })();
     return () => { cancelled = true; };
   }, [router]);
@@ -50,6 +56,7 @@ export default function LoginPage() {
       perfStart('登录-验证凭据');
       setTrustedDevice(trustDevice);
       const result = await signInWithPassword({ email: email.trim(), password, phone: phone.trim() });
+      setPasswordChangeNotice(false);
       perfEnd('登录-验证凭据');
 
       perfStart('登录-记录日志');
@@ -163,6 +170,12 @@ export default function LoginPage() {
               />
               <label htmlFor="trust-device" className="cursor-pointer text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">信任此设备 14 天</label>
             </div>
+
+            {passwordChanged && (
+              <p role="status" className="text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
+                密码已修改，请使用新密码重新登录。
+              </p>
+            )}
 
             {error && (
               <div role="alert" className="rounded-[var(--cd-radius-md)] border border-[color:rgb(201_54_43_/_0.15)] bg-[var(--cd-color-danger-soft)] px-3 py-2.5 text-[var(--cd-font-size-sm)] text-[var(--cd-color-danger)]">
