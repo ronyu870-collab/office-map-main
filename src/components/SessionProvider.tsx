@@ -89,12 +89,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AppSessionStatus>('loading');
   const sessionManagerRef = useRef<SessionManager | null>(null);
   const inFlightSessionRef = useRef<Promise<AuthSessionResult | null> | null>(null);
+  const sessionGenerationRef = useRef(0);
   const pathname = usePathname();
   const router = useRouter();
 
   const resolveSession = useCallback(async (forceRefresh = false) => {
-    if (forceRefresh) clearSessionCache();
+    if (forceRefresh) {
+      clearSessionCache();
+      sessionGenerationRef.current += 1;
+      inFlightSessionRef.current = null;
+    }
     if (inFlightSessionRef.current) return inFlightSessionRef.current;
+    const generation = sessionGenerationRef.current;
 
     // Background token/profile refreshes should not replace an already usable
     // authenticated workspace with a loading skeleton.
@@ -103,11 +109,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const request = (async () => {
       try {
         const nextSession = await getSessionFast();
+        if (generation !== sessionGenerationRef.current) return null;
         setSession(nextSession);
         setStatus(nextSession ? 'authenticated' : 'unauthenticated');
         if (!nextSession) setShowWarning(false);
         return nextSession;
       } catch (error) {
+        if (generation !== sessionGenerationRef.current) return null;
         console.error('解析应用会话失败:', error);
         setSession(null);
         setStatus('unauthenticated');
@@ -120,7 +128,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     try {
       return await request;
     } finally {
-      inFlightSessionRef.current = null;
+      if (inFlightSessionRef.current === request) inFlightSessionRef.current = null;
     }
   }, []);
 
@@ -217,6 +225,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
+        sessionGenerationRef.current += 1;
+        inFlightSessionRef.current = null;
         clearSessionCache();
         setSession(null);
         setStatus('unauthenticated');
@@ -227,6 +237,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         clearSessionCache();
+        sessionGenerationRef.current += 1;
+        inFlightSessionRef.current = null;
         queueMicrotask(() => {
           void resolveSession();
         });
