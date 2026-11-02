@@ -49,10 +49,10 @@ function databaseError(error: { code?: string }, fallback: string) {
   return json({ error: fallback }, 500);
 }
 
-async function audit(admin: SupabaseClient, identity: EffectiveRequestIdentity, action: string, buildingId: string, materialId: string, title?: string) {
+async function audit(admin: SupabaseClient, identity: EffectiveRequestIdentity, action: 'ACCESS', buildingId: string, materialId: string, title?: string) {
   await writeAuditBestEffort(admin, {
     user_id: identity.caller.email || identity.caller.id,
-    action_type: `SALES_MATERIAL_${action}`,
+    action_type: 'SALES_MATERIAL_ACCESS',
     module: 'map', page_url: '/map', target_name: title,
     request_source: 'server',
     details: { authority: 'server', building_id: buildingId, material_id: materialId },

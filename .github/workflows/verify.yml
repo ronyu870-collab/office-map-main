@@ -95,6 +95,11 @@ jobs:
         env:
           MATERIAL_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL audit identity regressions
+        run: node supabase/tests/audit-identity/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Production build
         run: npm run build
 
