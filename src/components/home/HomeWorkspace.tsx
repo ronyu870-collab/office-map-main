@@ -13,7 +13,7 @@ import {
   Handshake,
   LogOut,
   Map,
-  Settings,
+  Lock,
   Sparkles,
   UserRound,
 } from 'lucide-react';
@@ -227,8 +227,8 @@ function HomeHeader({
                 onClick={() => setMenuOpen(false)}
                 className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
               >
-                <Settings size={14} strokeWidth={1.55} aria-hidden="true" />
-                设置
+                <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
+                修改密码
               </Link>
 
               {canSeeAdminWorkspace ? (

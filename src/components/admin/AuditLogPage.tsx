@@ -24,7 +24,7 @@ interface AuditLogWithUser extends AuditLog { user_name?: string }
 interface UserOption { id: string; name: string; auditIds: string[]; role?: string }
 
 const PAGE_SIZE = 50;
-const MODULE_NAMES: Record<string, string> = { map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'设置' };
+const MODULE_NAMES: Record<string, string> = { map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'修改密码' };
 
 const TRAIL_ACTIONS = [
   'PAGE_VIEW','ENTER_MODULE','MAP_FILTER','SEARCH','VIEW_BUILDING','VIEW_BI_CHART',

@@ -84,7 +84,7 @@ describe('Home workspace behavior', () => {
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
 
     const menu = await screen.findByRole('menu', { name: '账户操作' });
-    const settings = screen.getByRole('menuitem', { name: '设置' });
+    const settings = screen.getByRole('menuitem', { name: '修改密码' });
     const admin = screen.getByRole('menuitem', { name: '系统管理' });
 
     await waitFor(() => expect(settings).toHaveFocus());
