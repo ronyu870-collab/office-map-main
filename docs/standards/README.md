@@ -36,6 +36,7 @@
 | [季度可靠性](../quarterly-reliability-release.md) | 草稿、季度配置、提交或 RPC 相关任务 | 读取相关回归矩阵；历史实施状态不自动成为新任务授权 |
 | [季度发布操作](../quarterly-rollout/README.md) | 季度机制发布或数据迁移 | 保留分阶段保护、隔离检查及生产启用边界 |
 | [楼宇身份治理](../historical-lease-building-alias-governance.md) | 别名、楼座、项目映射及历史成交关联 | 按身份粒度核对；历史生产结果不是当前数据已验证的证据 |
+| [历史项目资料提取库](../PROJECT_MATERIAL_LIBRARY.md) | 历史资料完整提取、无唯一归属、逐页证据和提取版本导入 | 复用04的身份/时间门槛；资料入库不自动变成地图ready或当前政策 |
 | [令牌实现](../../src/styles/tokens.css) | 检查实际运行参数 | 实现值与 01 目标映射；缺失项如实记为待实现 |
 | [审计覆盖检查](../../scripts/check-audit-coverage.mjs) | 客户端数据入口、写接口或审计变更 | 保留已有共享入口及服务端审计约束；检查成功不等于完整权限证明 |
 
