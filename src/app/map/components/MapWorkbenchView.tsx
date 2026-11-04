@@ -6,6 +6,8 @@ import Link from 'next/link';
 
 import { SearchBar } from '@/src/components/SearchBar';
 import { AppHeader, Button } from '@/src/components/ui';
+import { FullBuildingList } from './FullBuildingList';
+import type { FullListBuilding } from '../model/fullBuildingList';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -85,6 +87,18 @@ type MapWorkbenchViewProps = {
   onExportMapData: () => void | Promise<void>;
   onBuildingClick: (building: any) => void;
   onBuildingHover: (buildingId: string | null) => void;
+  searchContextKey?: string;
+  isFullListVisible?: boolean;
+  hasVisitedFullList?: boolean;
+  fullBuildingList?: FullListBuilding[];
+  fullListQueryKey?: string;
+  fullListBusy?: boolean;
+  fullListWarning?: string | null;
+  competitorContext?: boolean;
+  onFullListSearch?: (value: string) => void | Promise<void>;
+  onOpenFullList?: () => void;
+  onCloseFullList?: () => void;
+  onFullListBuildingClick?: (building: FullListBuilding) => void;
 };
 
 const MODE_OPTIONS: Array<{ mode: RenderMode; label: string }> = [
@@ -301,7 +315,27 @@ export function MapWorkbenchView({
   onExportMapData,
   onBuildingClick,
   onBuildingHover,
+  searchContextKey,
+  isFullListVisible = false,
+  hasVisitedFullList = false,
+  fullBuildingList = [],
+  fullListQueryKey = '',
+  fullListBusy = false,
+  fullListWarning = null,
+  competitorContext = false,
+  onFullListSearch,
+  onOpenFullList,
+  onCloseFullList,
+  onFullListBuildingClick,
 }: MapWorkbenchViewProps) {
+
+  const previouslyFullList = React.useRef(false);
+  const mapWorkspaceRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!isFullListVisible && previouslyFullList.current) mapWorkspaceRef.current?.querySelector<HTMLButtonElement>('[aria-label="完整列表"]')?.focus({ preventScroll: true });
+    previouslyFullList.current = isFullListVisible;
+  }, [isFullListVisible]);
+
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
 
@@ -342,12 +376,22 @@ export function MapWorkbenchView({
   };
 
   return (
+    <div className="relative h-screen h-[100dvh] overflow-clip">
+      {/* Keep SDK visibility measurable during direct list startup; opacity and inert hide the inactive map. */}
+      <div ref={mapWorkspaceRef} className={isFullListVisible ? 'opacity-0 pointer-events-none absolute inset-0' : 'absolute inset-0'} inert={isFullListVisible || undefined} aria-hidden={isFullListVisible || undefined}>
     <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <AppHeader
           title="北京办公楼市场地图"
           homeHref="/"
-          actions={process.env.NODE_ENV === 'development' ? (
+          actions={<>
+            <Button variant="secondary" size="sm" onClick={() => {
+              if (isFilterPanelOpen) onFilterPanelOpenChange(false);
+              if (isSupplyOpen) onSupplyOpenChange(false);
+              if (isListVisible) onCloseList();
+              onOpenFullList?.();
+            }} className="max-sm:min-h-11" aria-label="完整列表">完整列表</Button>
+            {process.env.NODE_ENV === 'development' ? (
             <Button
               variant="secondary"
               size="sm"
@@ -357,7 +401,7 @@ export function MapWorkbenchView({
             >
               {isExporting ? '导出中…' : '导出地图数据'}
             </Button>
-          ) : null}
+          ) : null}</>}
         />
       </header>
 
@@ -421,7 +465,7 @@ export function MapWorkbenchView({
               </div>
             ) : (
               <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
-                <SearchBar placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
+                <SearchBar searchContextKey={searchContextKey} placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
               </div>
             )}
           </div>
@@ -469,42 +513,6 @@ export function MapWorkbenchView({
               {label}
             </button>
           ))}
-        </div>
-
-        <div
-          aria-hidden={!isFilterPanelOpen}
-          className={isFilterPanelOpen
-            ? 'absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'
-            : 'hidden'}
-        >
-          <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-900">市场筛选</div>
-            <button
-              type="button"
-              onClick={() => onFilterPanelOpenChange(false)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
-              aria-label="关闭筛选"
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <SidebarFilter
-              embedded
-              defaultExpanded
-              title="全局筛选"
-              districts={MAP_DISTRICTS}
-              submarkets={MAP_SUBMARKETS}
-              submarketsSecondary={MAP_SUBMARKETS_SECONDARY}
-              leeds={MAP_LEEDS}
-              subwayLines={MAP_SUBWAYS}
-              availableStations={currentSubwayStations}
-              initialState={filterState ?? undefined}
-              onFilterChange={onFilterChange}
-              onCompareGroupsChange={onCompareGroupsChange}
-              filterCommand={filterCommand}
-            />
-          </div>
         </div>
 
         {isSupplyOpen ? (
@@ -563,6 +571,57 @@ export function MapWorkbenchView({
           </div>
         ) : null}
       </main>
+    </div>
+      </div>
+      {(isFullListVisible || hasVisitedFullList) ? (
+        <div className={isFullListVisible ? 'absolute inset-0' : 'hidden'} inert={!isFullListVisible || undefined} aria-hidden={!isFullListVisible || undefined}>
+          <FullBuildingList searchContextKey={searchContextKey} active={isFullListVisible} buildings={fullBuildingList} queryKey={fullListQueryKey}
+            activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} onRemoveFilterChip={onRemoveFilterChip}
+            keyword={keyword} loading={fullListBusy} error={mapError} warning={fullListWarning}
+            filtersOpen={isFilterPanelOpen} displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
+            onBack={() => onCloseFullList?.()} onToggleFilters={toggleFilterPanel}
+            onKeywordChange={onKeywordChange} onSearch={onFullListSearch ?? onSearch} onResetFilters={onResetFilters}
+            onRetry={onRetryMap} onBuildingClick={building => onFullListBuildingClick?.(building)} />
+        </div>
+      ) : null}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--cd-header-height)] z-[380]">
+        <div
+          aria-hidden={!isFilterPanelOpen}
+          className={isFilterPanelOpen
+            ? 'pointer-events-auto absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'
+            : 'hidden'}
+        >
+          <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
+            <div className="text-sm font-semibold text-slate-900">市场筛选</div>
+            <button
+              type="button"
+              onClick={() => onFilterPanelOpenChange(false)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
+              aria-label="关闭筛选"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <SidebarFilter
+              embedded
+              defaultExpanded
+              title="全局筛选"
+              districts={MAP_DISTRICTS}
+              submarkets={MAP_SUBMARKETS}
+              submarketsSecondary={MAP_SUBMARKETS_SECONDARY}
+              leeds={MAP_LEEDS}
+              subwayLines={MAP_SUBWAYS}
+              availableStations={currentSubwayStations}
+              initialState={filterState ?? undefined}
+              onFilterChange={onFilterChange}
+              onCompareGroupsChange={onCompareGroupsChange}
+              filterCommand={filterCommand}
+            />
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

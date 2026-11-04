@@ -24,6 +24,8 @@ import {
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
 import { useMapRuntime } from './runtime/useMapRuntime';
+import { useMapWorkspaceView } from './runtime/useMapWorkspaceView';
+import { hasBuildingLocation, type FullListBuilding } from './model/fullBuildingList';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
 import { MapLoadingShell } from './components/MapLoadingShell';
 import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
@@ -134,6 +136,17 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   }, []);
   
   const [keyword, setKeyword] = React.useState('');
+  const fullListFilterKey = React.useMemo(() => JSON.stringify([keyword, filterState, compareGroups]), [keyword, filterState, compareGroups]);
+  const [settledFullListFilterKey, setSettledFullListFilterKey] = React.useState<string | null>(null);
+  const [fullListWarning, setFullListWarning] = React.useState<string | null>(null);
+  const fullBuildingList = React.useMemo<FullListBuilding[]>(() => {
+    if (competitorBuildings) return competitorBuildings.map(building => ({ ...building, _dataType: 'existing' }));
+    return [
+      ...filteredBuildings.map(building => ({ ...building, _dataType: 'existing' as const })),
+      ...filteredFutureSupplies.map(building => ({ ...building, _dataType: 'future' as const })),
+    ];
+  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies]);
+  const fullListQueryKey = React.useMemo(() => JSON.stringify([fullListFilterKey, competitorBuildings?.map(building => building.id) ?? null]), [fullListFilterKey, competitorBuildings]);
   const prevKeywordRef = React.useRef(keyword);
   const hadActiveFiltersRef = React.useRef(false);
   
@@ -191,6 +204,19 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const futureSupplyRequestTokenRef = React.useRef(0);
   const hoveredBuildingIdRef = React.useRef<string | null>(null);
   const listNavigationTokenRef = React.useRef(0);
+  const pendingNavigationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNavigationFrameRef = React.useRef<number | null>(null);
+  const cancelPendingBuildingNavigation = React.useCallback(() => {
+    listNavigationTokenRef.current += 1;
+    if (pendingNavigationTimerRef.current !== null) clearTimeout(pendingNavigationTimerRef.current);
+    if (pendingNavigationFrameRef.current !== null) window.cancelAnimationFrame(pendingNavigationFrameRef.current);
+    pendingNavigationTimerRef.current = null;
+    pendingNavigationFrameRef.current = null;
+  }, []);
+  const { view: workspaceView, revision: workspaceRevision, listVisited: hasVisitedFullList, viewRef: workspaceViewRef, changeView: changeWorkspaceView } = useMapWorkspaceView(cancelPendingBuildingNavigation);
+  React.useEffect(() => cancelPendingBuildingNavigation, [cancelPendingBuildingNavigation]);
+  React.useEffect(() => { cancelPendingBuildingNavigation(); }, [fullListFilterKey, competitorBuildings, cancelPendingBuildingNavigation]);
+
 
   const getFilterFrameScheduler = React.useCallback(() => {
     if (!filterFrameSchedulerRef.current) {
@@ -207,6 +233,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     isCancelled: () => boolean = () => false,
   ) => {
     setMapDataLoading(true);
+    setSettledFullListFilterKey(null);
+    futureSupplyRequestTokenRef.current += 1;
     setMapError(null);
 
     try {
@@ -343,6 +371,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
+    setFullListWarning(null);
+    if (!activeFilterState.showFutureSupply) setSettledFullListFilterKey(fullListFilterKey);
     if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
       setIntelligenceCandidatesResolved(true);
     }
@@ -360,6 +390,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // ================= 🌟 未来新增供应分支逻辑 (修复后) =================
     if (activeFilterState.showFutureSupply) {
+      setSettledFullListFilterKey(null);
       void (async () => {
         try {
           const supplies = await ctrl.fetchFutureSupplies();
@@ -373,6 +404,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           setFilteredFutureSupplies(filteredSupplies);
+          setSettledFullListFilterKey(fullListFilterKey);
           if (!competitorModeRef.current) {
             ctrl.renderFutureMarkers(filteredSupplies, renderMode);
           }
@@ -380,6 +412,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           console.error('[MapClient] future supply fetch/render failed', e);
           setFilteredFutureSupplies([]);
+          setFullListWarning('未来供应暂时无法读取，当前仅显示存量楼宇。');
+          setSettledFullListFilterKey(fullListFilterKey);
         }
       })();
     } else {
@@ -402,9 +436,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterState, keyword, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler]);
+  }, [filterState, keyword, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey]);
 
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
+    cancelPendingBuildingNavigation();
     const isDefault = isDefaultFilterState(state);
     const hasOtherWorkspaceState = activeCompareGroups.length > 0 || Boolean(keyword.trim());
     setUserHasInteracted(!isDefault || hasOtherWorkspaceState);
@@ -414,16 +449,17 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     });
     if (isDefault && !hasOtherWorkspaceState) setIsListVisible(false);
     queueSettledFilterAudit(state);
-  }, [activeCompareGroups.length, keyword, queueSettledFilterAudit]);
+  }, [activeCompareGroups.length, keyword, queueSettledFilterAudit, cancelPendingBuildingNavigation]);
 
   const handleCompareGroupsChange = React.useCallback((groups: CompareGroup[]) => {
+    cancelPendingBuildingNavigation();
     setCompareGroups(groups);
     const hasCompareGroups = getConfiguredCompareGroups(groups).length > 0;
     const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
     const hasSearch = Boolean(keyword.trim());
     setUserHasInteracted(hasCompareGroups || hasGlobalFilters || hasSearch);
     if (!hasCompareGroups && !hasGlobalFilters && !hasSearch) setIsListVisible(false);
-  }, [filterState, keyword]);
+  }, [filterState, keyword, cancelPendingBuildingNavigation]);
 
   // 🌟 CL-013: 悬停联动 — 卡片悬停时地图 marker 弹跳
   const handleBuildingHover = React.useCallback((buildingId: string | null) => {
@@ -442,6 +478,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
   // 🌟 地图联动：点击列表卡片时，地图自动定位到对应楼宇并打开信息窗口
   const handleBuildingClick = React.useCallback((building: any) => {
+    if (workspaceViewRef.current !== 'map') return;
+    cancelPendingBuildingNavigation();
     if (!controllerRef.current || !mapReady) return;
     
     const ctrl = controllerRef.current;
@@ -457,8 +495,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     const navigationToken = ++listNavigationTokenRef.current;
     ctrl.map.setZoomAndCenter(16, [lng, lat], false, 500);
     
-    setTimeout(() => {
-      if (navigationToken !== listNavigationTokenRef.current || controllerRef.current !== ctrl) return;
+    pendingNavigationTimerRef.current = setTimeout(() => {
+      pendingNavigationTimerRef.current = null;
+      if (navigationToken !== listNavigationTokenRef.current || controllerRef.current !== ctrl || workspaceViewRef.current !== 'map') return;
       if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
       else ctrl.openBuildingInfoWindow(building.id);
     }, 600);
@@ -468,10 +507,25 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       buildingName: building.name,
       dataType: building._dataType || 'existing',
     });
-  }, [appSession?.user?.email, mapReady]);
+  }, [appSession?.user?.email, mapReady, cancelPendingBuildingNavigation, workspaceViewRef]);
+
+  const fullListBusy = mapDataLoading || !mapReady || settledFullListFilterKey !== fullListFilterKey;
+  const handleFullListBuildingClick = React.useCallback((building: FullListBuilding) => {
+    if (workspaceViewRef.current !== 'list' || fullListBusy || !hasBuildingLocation(building)) return;
+    cancelPendingBuildingNavigation();
+    changeWorkspaceView('map');
+    const controller = controllerRef.current;
+    const token = ++listNavigationTokenRef.current;
+    pendingNavigationFrameRef.current = window.requestAnimationFrame(() => {
+      pendingNavigationFrameRef.current = null;
+      if (token !== listNavigationTokenRef.current || workspaceViewRef.current !== 'map' || controllerRef.current !== controller) return;
+      handleBuildingClick(building);
+    });
+  }, [fullListBusy, cancelPendingBuildingNavigation, changeWorkspaceView, controllerRef, workspaceViewRef, handleBuildingClick]);
 
   // 🌟 2. 抽离出的地图搜索处理函数及埋点逻辑
   const handleSearch = (val: string) => {
+    cancelPendingBuildingNavigation();
     const trimmed = val.trim();
     setKeyword(trimmed);
     const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
@@ -550,8 +604,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         onSupplyOpenChange={setIsSupplyOpen}
         onFilterChange={handleFilterChange}
         onCompareGroupsChange={handleCompareGroupsChange}
-        onKeywordChange={setKeyword}
-        onSearch={handleSearch}
+        onKeywordChange={value => { cancelPendingBuildingNavigation(); setKeyword(value); }}
+        onSearch={value => { if (workspaceViewRef.current === 'map') handleSearch(value); }}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
         onResetFilters={handleResetAllFilters}
         onRenderModeChange={handleRenderModeChange}
@@ -565,6 +619,18 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         onExportMapData={handleExportMapData}
         onBuildingClick={handleBuildingClick}
         onBuildingHover={handleBuildingHover}
+        searchContextKey={JSON.stringify([workspaceRevision, currentUserId, userRole])}
+        isFullListVisible={workspaceView === 'list'}
+        hasVisitedFullList={hasVisitedFullList}
+        fullBuildingList={fullBuildingList}
+        fullListQueryKey={fullListQueryKey}
+        fullListBusy={fullListBusy}
+        fullListWarning={fullListWarning}
+        competitorContext={competitorBuildings !== null}
+        onOpenFullList={() => changeWorkspaceView('list')}
+        onCloseFullList={() => changeWorkspaceView('map')}
+        onFullListBuildingClick={handleFullListBuildingClick}
+        onFullListSearch={value => { if (workspaceViewRef.current === 'list') handleSearch(value); }}
       />
 
       {editingBuilding && (
