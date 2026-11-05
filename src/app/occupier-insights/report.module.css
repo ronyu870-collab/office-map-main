@@ -100,7 +100,7 @@
 .heroMetric p { margin-top: 10px; color: var(--muted); font-size: 14px; }
 .heroMetric p span { font-size: 12px; }
 .bodyCopy { color: var(--muted); font-size: 16px; }
-.navy { --ink: #f3f6f9; --muted: #c1cfd7; --line: #3d5669; --blue: #c4def2; background: #102e45; }
+.navy { --ink: #f3f6f9; --muted: #c1cfd7; --line: #3d5669; --blue: #c4def2; color: var(--ink); background: #102e45; }
 .navy .eyebrow { color: #abc9e0; }
 .navy .chartLabel { color: #d3e0e8; }
 .navy .chartScale, .navy .sourceNote { color: #aabbc7; }
@@ -295,3 +295,5 @@
  .chart, .conclusions article, .workflow article { break-inside: avoid; }
  .sources p { font-size: 10pt; }
 }
+
+@media (max-height:760px) { .costSticky { position: static; } }

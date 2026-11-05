@@ -71,7 +71,7 @@ export function OccupierInsightsReport() {
           <Heading number="01" label="受访者画像" title={<>先看企业处在什么阶段，<br />再理解它为什么选择一处办公室。</>}>这组会议资料收集了来自高端写字楼需求行业的高级管理人员观点。行业和发展阶段，是理解后续办公策略的起点。</Heading>
           <div className={styles.sampleGrid}>
             <Chart name="industries" variant="compact" />
-            <div><Chart name="stages" variant="tiles" /><div className={styles.editorialNote}><h3>优化与整合，是这份样本的重要背景。</h3><p>初创增长阶段关注快速扩张与组织完善；扩张阶段关注员工增长和业务覆盖；优化阶段聚焦增长效率与质量；整合阶段强调成本控制与业务组合调整；转型或重组阶段则面临新的组织安排。</p><p>这些比例描述的是受访群体，不是所有企业或北京租赁需求的行业分布。</p></div></div>
+            <div><Chart name="stages" variant="tiles" /><div className={styles.editorialNote}><h3>优化与整合，是这份样本的重要背景。</h3><p>初期增长阶段关注快速扩张，组织架构与商业模式仍在构建和完善；扩张阶段关注员工增长和业务覆盖；优化阶段聚焦增长效率与质量；整合阶段强调成本控制与业务组合调整；转型或重组阶段则面临新的组织安排。</p><p>这些比例描述的是受访群体，不是所有企业或北京租赁需求的行业分布。</p></div></div>
           </div>
         </div>
       </section>
