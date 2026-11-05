@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { getBuildingMediaPilot, pilotMediaPath } from '@/src/lib/sales-materials/building-media-pilot';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { MATERIAL_PAGE_SIZE, SALES_MATERIAL_BUCKET, materialProvenance } from '@/src/lib/sales-materials/model';
 
@@ -69,13 +70,27 @@ export async function GET(request: Request): Promise<NextResponse> {
     if (!UUID.safeParse(buildingId).success) return json({ error: '楼宇编号无效' }, 400);
     const scope = await buildingScope(admin, buildingId);
     if ('response' in scope) return scope.response;
-    const materialId = params.get('material_id');
+    const pilot = getBuildingMediaPilot(buildingId);
+    const cover = params.get('cover') === '1';
+    const index = params.get('photo') ?? '0';
+    const photo = cover && /^(0|[1-9][0-9]{0,2})$/.test(index) ? pilot?.photos[Number(index)] : undefined;
+    if (cover && !photo) return json({ error: '没有这张项目图片' }, 404);
+    const materialId = cover ? pilot?.materialId ?? null : params.get('material_id');
     if (materialId !== null) {
       if (!UUID.safeParse(materialId).success) return json({ error: '资料编号无效' }, 400);
       const { data: material, error } = await admin.from(TABLE).select('id,title,storage_path,original_location,original_name,details,commission_policies,project_facts,workbook_preview,created_at,source_sha256,extraction')
         .eq('building_id', buildingId).eq('id', materialId).eq('status', 'ready').maybeSingle();
       if (error) return databaseError(error, '销控资料读取失败');
       if (!material) return json({ error: '资料不存在或已撤回，请刷新列表' }, 404);
+      if (photo) {
+        if (material.original_location !== 'cloud' || !material.storage_path) {
+          return json({ error: '暂无项目图片' }, 404);
+        }
+        const asset = await admin.storage.from(SALES_MATERIAL_BUCKET)
+          .createSignedUrl(pilotMediaPath(buildingId, materialId, photo.file), 300);
+        if (asset.error) return json({ error: '项目图片暂时无法访问，请重试' }, 502);
+        return json({ url: asset.data.signedUrl });
+      }
       let previewUrl: string | null = null;
       let downloadUrl: string | null = null;
       if (material.original_location !== 'local_archive') {
