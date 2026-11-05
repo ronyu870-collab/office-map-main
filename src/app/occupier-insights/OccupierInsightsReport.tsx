@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useAppSession } from '@/src/components/SessionProvider';
@@ -47,20 +46,13 @@ function Background({ src, eager = false }: { src: string; eager?: boolean }) {
 }
 
 export function OccupierInsightsReport() {
-  const router = useRouter();
-  const { status } = useAppSession();
+  const { status, session } = useAppSession();
+  const canNavigateInternally = status === 'authenticated' && session !== null;
   const reportRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/login');
-  }, [router, status]);
-  useEffect(() => {
-    if (status !== 'authenticated' || !reportRef.current) return;
+    if (!reportRef.current) return;
     return mountReportNavigation(reportRef.current);
-  }, [status]);
-
-  if (status !== 'authenticated') {
-    return <main className={styles.loading} role="status">{status === 'loading' ? '正在打开企业选址洞察…' : '正在前往登录…'}</main>;
-  }
+  }, []);
 
   return (
     <div className={styles.report} ref={reportRef}>
@@ -73,7 +65,7 @@ export function OccupierInsightsReport() {
         <nav className={styles.chapters} aria-label="报告章节">
           {chapters.map(([id, label]) => <a key={id} href={`#${id}`} data-chapter-link={id}>{label}</a>)}
         </nav>
-        <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" /><span>返回首页</span></Link>
+        {canNavigateInternally ? <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" /><span>返回首页</span></Link> : null}
         <div className={styles.readingTrack} aria-hidden="true"><span data-reading-progress /></div>
       </header>
 
@@ -169,7 +161,7 @@ export function OccupierInsightsReport() {
               <ol className={styles.checklist}>
                 {checklist.map(([title, body], index) => <li key={title}><span className={styles.step} aria-hidden="true">0{index + 1}</span><div><h3>{title}</h3><p>{body}</p></div></li>)}
               </ol>
-              <Link className={styles.mapLink} href="/map">打开北京办公楼市场地图 <ArrowRight size={18} aria-hidden="true" /></Link>
+              {canNavigateInternally ? <Link className={styles.mapLink} href="/map">打开北京办公楼市场地图 <ArrowRight size={18} aria-hidden="true" /></Link> : null}
             </div>
           </div>
         </section>
@@ -185,7 +177,7 @@ export function OccupierInsightsReport() {
             <h3>11 张现场照片的内容提要</h3>
             <ol>{fieldNotes.map(([name, takeaway], index) => <li key={name}><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><div><h4>{name}</h4><p>{takeaway}</p></div></li>)}</ol>
           </div>
-          <footer className={styles.footer}><Link href="/"><ArrowLeft size={16} aria-hidden="true" />返回首页</Link><span>企业选址洞察 · 2026 年 11 月</span><a href="#report-top">回到报告开头 <ArrowUpRight size={16} aria-hidden="true" /></a></footer>
+          <footer className={styles.footer}>{canNavigateInternally ? <Link href="/"><ArrowLeft size={16} aria-hidden="true" />返回首页</Link> : null}<span>企业选址洞察 · 2026 年 11 月</span><a href="#report-top">回到报告开头 <ArrowUpRight size={16} aria-hidden="true" /></a></footer>
         </section>
       </main>
     </div>

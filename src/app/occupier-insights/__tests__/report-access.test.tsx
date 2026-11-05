@@ -1,29 +1,48 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OccupierInsightsReport } from '../OccupierInsightsReport';
 
 const app = vi.hoisted(() => ({
   status: 'authenticated' as 'authenticated' | 'unauthenticated' | 'loading',
+  session: { user: { id: 'test-viewer' } } as { user: { id: string } } | null,
   replace: vi.fn(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: app.replace }) }));
-vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: app.status }) }));
+vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: app.status, session: app.session }) }));
 
 describe('occupier insights access and continuous reading', () => {
-  beforeEach(() => { app.status = 'authenticated'; app.replace.mockReset(); });
+  beforeEach(() => { app.status = 'authenticated'; app.session = { user: { id: 'test-viewer' } }; app.replace.mockReset(); });
 
-  it('prompts anonymous direct visitors to log in', async () => {
+  it('renders all report content and chapter links for visitors without internal links', () => {
     app.status = 'unauthenticated';
+    app.session = null;
     render(<OccupierInsightsReport />);
-    expect(screen.queryByRole('heading', { name: '企业选址洞察' })).not.toBeInTheDocument();
-    await waitFor(() => expect(app.replace).toHaveBeenCalledWith('/login'));
+    expect(screen.getByRole('heading', { name: '企业选址洞察' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 4 })).toHaveLength(11);
+    expect(screen.getByRole('link', { name: '来源与口径' })).toHaveAttribute('href', '#sources');
+    expect(screen.queryByRole('link', { name: '返回首页' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '打开北京办公楼市场地图' })).not.toBeInTheDocument();
+    for (const link of screen.getAllByRole('link', { name: '回到报告开头' })) expect(link).toHaveAttribute('href', '#report-top');
+    expect(app.replace).not.toHaveBeenCalled();
   });
 
-  it('does not expose the report while the shared session is loading', () => {
+  it('shows internal navigation only after login and removes it without hiding the report on sign-out', () => {
     app.status = 'loading';
-    render(<OccupierInsightsReport />);
-    expect(screen.getByRole('status')).toHaveTextContent('正在打开企业选址洞察');
-    expect(screen.queryByRole('heading', { name: '企业选址洞察' })).not.toBeInTheDocument();
+    const { rerender } = render(<OccupierInsightsReport />);
+    expect(screen.getByRole('heading', { name: '企业选址洞察' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '返回首页' })).not.toBeInTheDocument();
+
+    app.status = 'authenticated';
+    rerender(<OccupierInsightsReport />);
+    expect(screen.getAllByRole('link', { name: '返回首页' })).toHaveLength(2);
+    expect(screen.getByRole('link', { name: '打开北京办公楼市场地图' })).toHaveAttribute('href', '/map');
+
+    app.status = 'unauthenticated';
+    app.session = null;
+    rerender(<OccupierInsightsReport />);
+    expect(screen.getByRole('heading', { name: '企业选址洞察' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '返回首页' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '打开北京办公楼市场地图' })).not.toBeInTheDocument();
     expect(app.replace).not.toHaveBeenCalled();
   });
 

@@ -91,6 +91,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const inFlightSessionRef = useRef<Promise<AuthSessionResult | null> | null>(null);
   const sessionGenerationRef = useRef(0);
   const pathname = usePathname();
+  // This route contains only the public research article. Session expiry still
+  // clears credentials; readers simply remain on the article as visitors.
+  const readingPublicReport = pathname === '/occupier-insights';
   const router = useRouter();
 
   const resolveSession = useCallback(async (forceRefresh = false) => {
@@ -168,7 +171,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
-        router.push('/login');
+        if (!readingPublicReport) router.push('/login');
       }
     };
 
@@ -199,8 +202,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
-        alert('登录已过期，请重新登录');
-        router.push('/login');
+        if (!readingPublicReport) {
+          alert('登录已过期，请重新登录');
+          router.push('/login');
+        }
       },
       onWarning: (seconds) => {
         setRemainingSeconds(seconds);
@@ -218,7 +223,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
       if (trustedExpiryTimer) clearTimeout(trustedExpiryTimer);
     };
-  }, [pathname, router, session, status]);
+  }, [pathname, readingPublicReport, router, session, status]);
 
   useEffect(() => {
     const {
@@ -231,7 +236,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
-        if (pathname !== '/login') router.push('/login');
+        if (pathname !== '/login' && !readingPublicReport) router.push('/login');
         return;
       }
 
@@ -246,7 +251,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [pathname, resolveSession, router]);
+  }, [pathname, readingPublicReport, resolveSession, router]);
 
   const handleContinue = () => {
     setShowWarning(false);
@@ -261,7 +266,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppSessionContext.Provider value={value}>
       <SessionWarningBanner
-        visible={showWarning}
+        visible={showWarning && !readingPublicReport}
         remainingSeconds={remainingSeconds}
         onContinue={handleContinue}
       />

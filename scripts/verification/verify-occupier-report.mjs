@@ -1,7 +1,7 @@
 /**
  * Browser verification of the actual report component/CSS/controller in an isolated
  * authenticated-content fixture. Platform auth is mocked here, never in the app.
- * Optional argv[2] checks the anonymous boundary on the real production build.
+ * Optional argv[2] checks public reading and protected routes on the real build.
  * Artifacts contain only the static public-research report, never business data.
  */
 import assert from 'node:assert/strict';
@@ -42,7 +42,7 @@ const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => 
   } };
   if (name === 'next/link') return { __esModule: true, default: props => React.createElement('a', props) };
   if (name === 'next/navigation') return { useRouter: () => ({ replace() {} }) };
-  if (name.includes('SessionProvider')) return { useAppSession: () => ({ status: 'authenticated' }) };
+  if (name.includes('SessionProvider')) return { useAppSession: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-reader' } } }) };
   if (name.includes('brandAssets')) return assets;
   if (name === './reportNavigation') return { mountReportNavigation() {} };
   if (name.endsWith('.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
@@ -102,12 +102,24 @@ try {
   assert.equal(await reduced.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), 'auto');
   await reduced.close();
   if (process.argv[2]) {
-    const anonymous = await browser.newPage();
-    await anonymous.goto(`${process.argv[2].replace(/\/$/, '')}/occupier-insights`);
+    const anonymous = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+    const app = process.argv[2].replace(/\/$/, '');
+    const response = await anonymous.goto(`${app}/occupier-insights`);
+    assert.equal(response?.status(), 200);
+    await anonymous.getByRole('heading', { name: '企业选址洞察', exact: true }).waitFor({ timeout: 15000 });
+    assert.equal(await anonymous.locator('h4').count(), 11);
+    assert.equal(await anonymous.locator('a[href="/"], a[href="/map"]').count(), 0);
+    await anonymous.locator('nav a[href="#sources"]').click();
+    await anonymous.waitForURL('**/occupier-insights#sources');
+    await anonymous.waitForFunction(() => document.querySelector('nav [aria-current]')?.getAttribute('href') === '#sources');
+    await anonymous.locator('footer a[href="#report-top"]').click();
+    await anonymous.waitForURL('**/occupier-insights#report-top');
+    await anonymous.goto(app + '/');
     await anonymous.waitForURL('**/login', { timeout: 15000 });
-    assert.equal(await anonymous.getByRole('heading', { name: '企业选址洞察', exact: true }).count(), 0);
+    await anonymous.goto(app + '/map');
+    await anonymous.waitForURL('**/login', { timeout: 15000 });
     await anonymous.close();
-    results.push({ anonymousProductionBuildRedirect: true });
+    results.push({ anonymousReport: true, anonymousChapterNavigation: true, anonymousInternalLinks: 0, homeAndMapRequireLogin: true });
   }
   results.push({ reducedMotionAndDeepLink: true });
   console.log(JSON.stringify({ status: 'passed', results }, null, 2));
