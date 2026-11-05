@@ -1,0 +1,117 @@
+.report, .loading {
+  --paper: #f6f7f3;
+  --ink: #193343;
+  --muted: #4d6470;
+  --blue: #225f84;
+  --line: #cbd9da;
+  --soft: #e9efec;
+  --title: 2rem;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 1rem/1.7 "PingFang SC", "Microsoft YaHei", Arial, system-ui, sans-serif;
+}
+
+.loading { padding: 2rem; }
+.report h1, .report h2, .report strong, .report summary, .report dt, .report figcaption {
+  font-weight: 500;
+}
+.report h1, .report h2 {
+  margin: 0;
+  font-size: var(--title);
+  line-height: 1.35;
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+.report a { color: var(--blue); text-underline-offset: .22em; }
+.report a:focus-visible, .report summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+.frame { width: min(100% - 3rem, 70rem); margin-inline: auto; }
+.masthead { border-bottom: 1px solid var(--line); }
+.masthead .frame {
+  min-height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem 1.5rem;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+.back, .heroLink, .mapLink { display: inline-flex; align-items: center; gap: .5rem; min-height: 2.75rem; }
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: clamp(1.5rem, 5vw, 4rem);
+  padding-block: 3rem 1.75rem;
+}
+.heroCopy { max-width: 25rem; }
+.kicker { margin: 0 0 .65rem; color: var(--blue); }
+.deck { margin: 1.25rem 0 .8rem; }
+.muted { color: var(--muted); }
+.heroLink { margin-top: .75rem; font-weight: 500; text-decoration: underline; }
+.photo { margin: 0; min-width: 0; }
+.photo figcaption { margin-top: .35rem; font-weight: 400; color: var(--muted); }
+.image { display: block; width: 100%; height: auto; border-radius: .375rem; }
+.chapters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.65rem;
+  padding-block: .25rem;
+  border-block: 1px solid var(--line);
+}
+.chapters a, .footer a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+.section {
+  padding-block: 3.15rem;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 1rem;
+}
+.evidence, .checklistLayout {
+  display: grid;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 2.5rem;
+  margin-top: 1.5rem;
+}
+.textBlock { max-width: 44rem; }
+.textBlock p + p { margin-top: .8rem; }
+.chart { margin: 0; padding: 1.25rem; background: var(--soft); border-radius: .375rem; }
+.chart dl { display: grid; gap: .8rem; margin: .8rem 0; }
+.chartRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3rem .65rem; }
+.chartRow dt { font-weight: 400; }
+.chartRow dd { margin: 0; font-variant-numeric: tabular-nums; }
+.barTrack { grid-column: 1/-1; background: #d5e0e0; border-radius: .125rem; }
+.barTrack span { display: block; height: .375rem; border-radius: inherit; background: #477d98; }
+.chart a { margin-inline-start: .5rem; }
+.annotation { border-left: 2px solid #668ca1; margin-top: 1.5rem; padding-left: 1rem; max-width: 44rem; }
+.annotation p + p, .industryRow p + p, .checklist p, .notes li p { margin-top: .35rem; }
+.intro { margin-top: .9rem; color: var(--muted); }
+.industryList { margin: 1.5rem 0 0; border-top: 1px solid var(--line); }
+.industryRow { display: grid; grid-template-columns: minmax(10rem, .6fr) minmax(0, 1.4fr); gap: 1rem; padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.industryRow dd { margin: 0; }
+.checklist { margin: 0; padding-left: 1.55rem; list-style: decimal; }
+.checklist li { padding-left: .4rem; }
+.checklist li + li { margin-top: 1rem; }
+.mapLink { margin-top: 1rem; text-decoration: underline; font-weight: 500; }
+.section > .textBlock { margin-top: 1rem; }
+.notes { margin-top: 1.4rem; max-width: 44rem; border-top: 1px solid var(--line); }
+.notes summary { padding: .65rem 0; min-height: 2.75rem; color: var(--blue); cursor: pointer; }
+.notes ol { list-style: decimal; padding-left: 1.5rem; }
+.notes li { padding-block: .55rem; }
+.footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 1rem; padding: .5rem 0 1rem; }
+
+@media (max-width: 700px) {
+  .report { --title: 1.65rem; }
+  .frame { width: calc(100% - 2rem); }
+  .masthead .frame { gap: 0 .75rem; }
+  .hero, .evidence, .checklistLayout, .industryRow { grid-template-columns: 1fr; }
+  .hero { padding-block: 1.75rem 1.25rem; gap: 1.25rem; }
+  .evidence, .checklistLayout { gap: 1.25rem; }
+  .heroCopy { max-width: none; }
+  .section { padding-block: 2rem; }
+  .chapters { gap: 0 1.1rem; }
+  .industryRow { gap: .3rem; }
+  .chart { padding: 1rem; }
+}
