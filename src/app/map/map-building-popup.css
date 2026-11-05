@@ -55,8 +55,8 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
 .building-popup__certification {
   padding: .125rem .375rem;
   border-radius: var(--cd-radius-sm);
-  background: #eef2f3;
-  color: #455561;
+  background: var(--cd-color-success-soft);
+  color: #285945;
 }
 .building-popup__quiet {
   min-width: var(--popup-control);
@@ -132,6 +132,7 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.building-popup__row dd.building-popup__metric-key { color: var(--cd-color-brand); }
 .building-popup__value {
   display: block;
   width: 100%;
@@ -151,8 +152,7 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   border: 0;
   border-radius: var(--cd-radius-sm);
   background: transparent;
-  text-decoration: underline dotted #75889b;
-  text-underline-offset: .18em;
+  text-decoration: none;
 }
 .building-popup__reveal[aria-expanded="true"] { color: var(--cd-color-brand); }
 .building-popup-tooltip {
@@ -194,10 +194,17 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   background: color-mix(in srgb, var(--cd-color-surface-alt) 82%, var(--cd-color-border));
   color: var(--cd-color-text-primary);
 }
+.building-popup__actions > :is([data-map-action="nearby-compare"], [data-map-action="building-compare"]) {
+  --popup-action-hover: color-mix(in srgb, var(--cd-color-brand-soft) 88%, var(--cd-color-brand));
+  background: var(--cd-color-brand-soft);
+  border-color: color-mix(in srgb, var(--cd-color-border) 85%, var(--cd-color-brand));
+  color: var(--cd-color-brand);
+}
 .building-popup__action[aria-expanded="true"] {
   background: var(--cd-color-brand-soft);
   color: var(--cd-color-brand);
 }
+.building-popup__action:not(:disabled):active { background-color: var(--popup-action-hover, var(--cd-color-brand-soft)); }
 .building-popup__action:disabled { color: var(--cd-color-text-secondary); cursor: default; }
 .building-popup__proposal { margin-top: .5rem; flex-shrink: 0; }
 .building-popup__proposal button { width: 100%; }
@@ -212,7 +219,9 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
 .building-popup__trend #chart-btn-rent { color: white; background: var(--cd-color-brand); }
 .building-popup__trend #info-chart-container { width: 100%; height: 220px; }
 @media (hover: hover) {
-  .building-popup__action:not(:disabled):hover, .building-popup__quiet:hover { background-color: var(--cd-color-brand-soft); }
+  .building-popup__action:not(:disabled):hover, .building-popup__quiet:hover {
+    background-color: var(--popup-action-hover, var(--cd-color-brand-soft));
+  }
   .building-popup__reveal:hover { color: var(--cd-color-brand); }
 }
 @container (max-width: 15.625rem) {
