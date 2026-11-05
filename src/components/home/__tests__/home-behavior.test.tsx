@@ -110,6 +110,14 @@ describe('Home workspace behavior', () => {
     );
   });
 
+  it('gives a viewer a direct route from the homepage to the occupier report', () => {
+    setSession('viewer');
+    render(<HomeWorkspace />);
+    const report = screen.getByRole('link', { name: '企业选址洞察' });
+    expect(report).toHaveAttribute('href', '/occupier-insights');
+    expect(fireEvent.click(report)).toBe(true);
+  });
+
   it('does not expose the admin entry while impersonating', () => {
     state.impersonating = true;
     render(<HomeWorkspace />);
