@@ -329,6 +329,20 @@ export function MapWorkbenchView({
   onFullListBuildingClick,
 }: MapWorkbenchViewProps) {
 
+  const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
+  const moreFiltersTriggerId = React.useId();
+  const filtersPanelId = React.useId();
+  const filterCloseRef = React.useRef<HTMLButtonElement>(null);
+  const listMoreOpen = isFullListVisible && listMoreContext !== null && listMoreContext.key === searchContextKey;
+  const filterPanelOpen = isFullListVisible ? listMoreOpen : isFilterPanelOpen;
+  const closeListMore = React.useCallback(() => {
+    setListMoreContext(null);
+    document.getElementById(moreFiltersTriggerId)?.focus({ preventScroll: true });
+  }, [moreFiltersTriggerId]);
+  React.useEffect(() => {
+    if (listMoreOpen) filterCloseRef.current?.focus({ preventScroll: true });
+  }, [listMoreOpen]);
+
   const previouslyFullList = React.useRef(false);
   const mapWorkspaceRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -350,11 +364,12 @@ export function MapWorkbenchView({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]')) return;
-      closeOpenWorkspaces();
+      if (listMoreOpen) closeListMore();
+      else closeOpenWorkspaces();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeOpenWorkspaces]);
+  }, [closeOpenWorkspaces, closeListMore, listMoreOpen]);
 
   const toggleFilterPanel = () => {
     const nextOpen = !isFilterPanelOpen;
@@ -576,26 +591,32 @@ export function MapWorkbenchView({
       {(isFullListVisible || hasVisitedFullList) ? (
         <div className={isFullListVisible ? 'absolute inset-0' : 'hidden'} inert={!isFullListVisible || undefined} aria-hidden={!isFullListVisible || undefined}>
           <FullBuildingList searchContextKey={searchContextKey} active={isFullListVisible} buildings={fullBuildingList} queryKey={fullListQueryKey}
-            activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} onRemoveFilterChip={onRemoveFilterChip}
+            activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} filterState={filterState} onPatchFilters={onRemoveFilterChip}
             keyword={keyword} loading={fullListBusy} error={mapError} warning={fullListWarning}
-            filtersOpen={isFilterPanelOpen} displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
-            onBack={() => onCloseFullList?.()} onToggleFilters={toggleFilterPanel}
+            filtersOpen={listMoreOpen} moreFiltersTriggerId={moreFiltersTriggerId} filtersPanelId={filtersPanelId}
+            displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
+            onBack={() => onCloseFullList?.()} onToggleFilters={() => {
+              if (listMoreOpen) closeListMore();
+              else setListMoreContext({ key: searchContextKey });
+            }}
             onKeywordChange={onKeywordChange} onSearch={onFullListSearch ?? onSearch} onResetFilters={onResetFilters}
             onRetry={onRetryMap} onBuildingClick={building => onFullListBuildingClick?.(building)} />
         </div>
       ) : null}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--cd-header-height)] z-[380]">
         <div
-          aria-hidden={!isFilterPanelOpen}
-          className={isFilterPanelOpen
+          id={filtersPanelId}
+          aria-hidden={!filterPanelOpen}
+          className={filterPanelOpen
             ? 'pointer-events-auto absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'
             : 'hidden'}
         >
           <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-900">市场筛选</div>
+            <div className="text-sm font-semibold text-slate-900">{isFullListVisible ? '更多筛选' : '市场筛选'}</div>
             <button
               type="button"
-              onClick={() => onFilterPanelOpenChange(false)}
+              ref={filterCloseRef}
+              onClick={isFullListVisible ? closeListMore : () => onFilterPanelOpenChange(false)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
               aria-label="关闭筛选"
             >
@@ -606,6 +627,7 @@ export function MapWorkbenchView({
             <SidebarFilter
               embedded
               defaultExpanded
+              presentation={isFullListVisible ? 'list-more' : undefined}
               title="全局筛选"
               districts={MAP_DISTRICTS}
               submarkets={MAP_SUBMARKETS}

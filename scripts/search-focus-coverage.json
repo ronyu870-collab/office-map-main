@@ -16,6 +16,12 @@
     "cases": ["continues typing in the full list after the results update"]
   },
   {
+    "id": "full-list-quick-filter",
+    "roots": ["src/app/map/components/FullListQuickFilters.tsx"],
+    "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
+    "cases": ["continues editing the list search across result updates with a quick filter applied"]
+  },
+  {
     "id": "map-and-list-text-filter",
     "roots": ["src/components/SidebarFilter.tsx"],
     "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
