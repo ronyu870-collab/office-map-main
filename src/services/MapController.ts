@@ -14,7 +14,6 @@ import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
-import { createFutureSupplyMarker } from "./map/futureSupplyMarker";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger, type GalleryPhoto } from "./map/buildingPhotoGallery";
 import { photoSummaries } from "@/src/lib/building-photos/model";
@@ -1852,21 +1851,25 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       if (lng === null || lat === null) continue;
 
       const style = getMarkerStyle(supply, null, renderMode, true);
-      const markerEl = createFutureSupplyMarker(supply, renderMode, style);
-      const openSupply = () => this.openFutureSupplyInfoWindow(supply);
-      markerEl.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        // Prevent the native button's extra click and the map's keyboard
-        // handling; pointer activation continues through the SDK click event.
-        event.preventDefault();
-        event.stopPropagation();
-        if (!event.repeat) openSupply();
-      });
+      const borderStyle = renderMode === "default" ? "dashed" : "solid";
+
+      const markerEl = `
+        <div style="
+          width:26px;height:26px;border-radius:50%;
+          background:${style.bgColor};border:2px ${borderStyle} ${style.borderColor};
+          box-shadow:0 6px 14px rgba(0,0,0,0.18);
+          display:flex;align-items:center;justify-content:center;
+          color:${style.textColor};font-weight:800;font-size:${style.fontSize};
+          transition: transform 0.2s, background-color 0.3s;
+        " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+          ${style.text}
+        </div>
+      `;
 
       const marker = new AMap.Marker({
         position: [lng, lat],
         content: markerEl,
-        offset: new AMap.Pixel(-22, -22),
+        offset: new AMap.Pixel(-13, -13),
         zooms: [MAP_BUILDING_TIER_MIN_ZOOM, 20],
         zIndex: 110,
       });
@@ -1886,7 +1889,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         this.hoverTimeout = setTimeout(() => this.hideHoverTooltip(), 80);
       });
 
-      marker.on("click", openSupply);
+      marker.on("click", () => {
+        this.openFutureSupplyInfoWindow(supply);
+      });
 
       this.futureMarkers.push(marker);
     }
