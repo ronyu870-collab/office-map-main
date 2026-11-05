@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/verification/building-photos/
 
 # next.js
 /.next/

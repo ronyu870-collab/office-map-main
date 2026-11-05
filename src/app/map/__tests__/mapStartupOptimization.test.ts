@@ -25,6 +25,7 @@ const BUILDING_ROW = {
   owner: 'Owner',
   property_management: 'Manager',
   contact_phone: '010-00000000',
+  photos: [{ id: '22222222-2222-4222-8222-222222222222', caption: '外观照片' }],
   building_metrics: [{
     id: 'metric-1',
     building_id: 'building-1',
@@ -82,6 +83,7 @@ describe('map startup optimization', () => {
     expect(buildings).toHaveLength(1);
     expect(buildings[0].metrics).toHaveLength(1);
     expect(buildings[0].metrics[0].record_year).toBe(2026);
+    expect(buildings[0].photos).toEqual(BUILDING_ROW.photos);
     expect(raw._allBuildingsCache).toEqual(buildings);
     expect(raw._displayOverridesCache.get('building-1')?.get('grade')).toEqual({
       display_label: '等级',
