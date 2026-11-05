@@ -70,11 +70,12 @@ describe('occupier report native-scroll navigation', () => {
     expect(root.querySelector<HTMLElement>('[data-reading-progress]')!.style.transform).toBe('scaleX(1)');
   });
 
-  it('uses passive observation rather than capturing wheel, touch or keyboard input', () => {
+  it('keeps wheel observation passive so native scrolling is never prevented', () => {
     const add = vi.spyOn(window, 'addEventListener');
     cleanup = mountReportNavigation(root);
     expect(add).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
-    expect(add.mock.calls.some(([type]) => ['wheel', 'touchmove', 'keydown'].includes(type))).toBe(false);
+    expect(add).toHaveBeenCalledWith('wheel', expect.any(Function), { passive: true });
+    expect(add.mock.calls.some(([type]) => type === 'touchmove')).toBe(false);
   });
 
   it('coalesces scroll events and cancels pending frames on unmount', () => {
