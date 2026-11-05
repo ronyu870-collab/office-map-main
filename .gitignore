@@ -13,6 +13,7 @@
 # testing
 /coverage
 /verification/building-photos/
+/verification/map-markers/
 
 # next.js
 /.next/

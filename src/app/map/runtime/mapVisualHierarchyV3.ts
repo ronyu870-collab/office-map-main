@@ -110,14 +110,12 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
   let border = '#ffffff';
   let textColor = '#ffffff';
   let text = 'A';
-  let fontSize = 12;
 
   if (mode === 'default') {
     const grade = String(building?.grade ?? '').toUpperCase();
     if (grade.includes('BP')) {
       background = PALETTE.gradeBP;
       text = 'BP';
-      fontSize = 9;
     } else if (grade.includes('A') || grade.includes('P')) {
       background = PALETTE.gradeA;
     } else if (grade.includes('B')) {
@@ -131,14 +129,12 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     const rent = Number(metric?.net_effective_rent);
     const hasValue = Number.isFinite(rent) && rent > 0;
     text = hasValue ? String(Math.round(rent)) : '–';
-    fontSize = text.length >= 3 ? 9.5 : 10.5;
     background = !hasValue ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
   } else if (mode === 'vacancy') {
     const vacancy = Number(metric?.vacancy_rate);
     const hasValue = Number.isFinite(vacancy);
     const percent = hasValue ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
     text = hasValue ? `${Math.round(percent)}%` : '–';
-    fontSize = text.length >= 3 ? 9 : 10;
     background = !hasValue ? PALETTE.neutral : percent >= 30 ? PALETTE.extreme : percent >= 20 ? PALETTE.high : percent >= 10 ? PALETTE.medium : PALETTE.low;
   } else {
     const leed = String(building?.leed_certification ?? '').toUpperCase();
@@ -159,7 +155,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     border = '#ffffff';
     textColor = '#ffffff';
   }
-  return { background, border, textColor, text, fontSize };
+  return { background, border, textColor, text };
 }
 
 function dataUri(svg: string): string {
@@ -170,8 +166,13 @@ function dotImage(background: string, border: string): string {
   return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5.1" fill="#fff" fill-opacity=".95"/><circle cx="6" cy="6" r="4" fill="${background}" stroke="${border}" stroke-width=".7"/></svg>`);
 }
 
-function detailImage(visual: ReturnType<typeof visualFor>): string {
-  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="16" fill="#fff" fill-opacity=".97"/><circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="800" fill="${visual.textColor}">${escapeHtml(visual.text)}</text></svg>`);
+function detailArtwork(visual: ReturnType<typeof visualFor>) {
+  // Grow the badge with the value instead of shrinking three- and four-digit
+  // metrics into a fixed circle. The native collision box matches this artwork.
+  const width = Math.max(36, Math.ceil(visual.text.length * 8.2 + 18));
+  const height = 30;
+  const image = dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x=".5" y=".5" width="${width - 1}" height="29" rx="6" fill="#fff" fill-opacity=".97"/><rect x="2" y="2" width="${width - 4}" height="26" rx="4" fill="${escapeHtml(visual.background)}" stroke="${escapeHtml(visual.border)}" stroke-width="1"/><text x="${width / 2}" y="15.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="13" font-weight="700" fill="${escapeHtml(visual.textColor)}">${escapeHtml(visual.text)}</text></svg>`);
+  return { image, width, height };
 }
 
 function tierForZoom(zoom: number): MarkerTier {
@@ -293,6 +294,7 @@ export function installMapVisualHierarchyV3(
   let pendingFrame: number | null = null;
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
+  let selectedElement: HTMLElement | null = null;
   let selectedId: string | null = null;
   let suppressMapClearUntil = 0;
   let navigationToken = 0;
@@ -313,8 +315,32 @@ export function installMapVisualHierarchyV3(
       try { map.remove?.(selectedMarker); } catch {}
     }
     selectedMarker = null;
+    selectedElement = null;
     selectedId = null;
     container.removeAttribute('data-selected-building');
+  };
+
+  const syncSelection = () => {
+    if (!selectedElement || !selectedId) return;
+    const building = lastBuildings.find(item => String(item?.id ?? '') === selectedId);
+    if (!building) return;
+    const visual = visualFor(building, lastMode, lastGroups);
+    const artwork = detailArtwork(visual);
+    const detailed = (map.getZoom?.() ?? 14) >= BREAKPOINTS.dotToBuilding;
+    const width = detailed ? artwork.width : 12;
+    const height = detailed ? artwork.height : 12;
+    selectedElement.dataset.tier = detailed ? 'building' : 'dot';
+    selectedElement.dataset.renderMode = lastMode;
+    selectedElement.style.width = `${width}px`;
+    selectedElement.style.height = `${height}px`;
+    selectedElement.setAttribute('aria-label', `${building.name ?? ''}，${visual.text}，已选中`);
+    const image = selectedElement.querySelector<HTMLImageElement>('.map-selected-marker__artwork');
+    if (image) {
+      image.src = detailed ? artwork.image : dotImage(visual.background, visual.border);
+      image.width = width;
+      image.height = height;
+      image.alt = visual.text;
+    }
   };
 
   const showSelection = (building: any) => {
@@ -322,7 +348,10 @@ export function installMapVisualHierarchyV3(
     if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
     const element = document.createElement('div');
     element.className = 'map-selected-marker';
-    element.innerHTML = '<span class="map-selected-marker__core"></span><span class="map-selected-marker__ring"></span>';
+    element.innerHTML = '<img class="map-selected-marker__artwork" alt=""/><span class="map-selected-marker__ring" aria-hidden="true"></span>';
+    selectedElement = element;
+    selectedId = String(building.id ?? '');
+    syncSelection();
     selectedMarker = new Marker({
       position: [building.location_lng, building.location_lat],
       content: element,
@@ -331,7 +360,6 @@ export function installMapVisualHierarchyV3(
       bubble: true,
     });
     map.add?.(selectedMarker);
-    selectedId = String(building.id ?? '');
     suppressMapClearUntil = performance.now() + 180;
     container.dataset.selectedBuilding = selectedId;
   };
@@ -423,7 +451,6 @@ export function installMapVisualHierarchyV3(
       else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'leed') accent = leedPercent >= 60 ? '#3f715f' : leedPercent >= 40 ? '#537f6c' : leedPercent >= 20 ? '#6f927f' : leedPercent > 0 ? '#88a493' : PALETTE.neutral;
 
-      const size = 74 + Math.min(12, Math.round(Math.sqrt(aggregate.count) * 1.45));
       let primary = `¥${rent > 0 ? rent.toFixed(0) : '–'}`;
       let secondary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
       if (mode === 'rent') { primary = `¥${rent > 0 ? rent.toFixed(1) : '–'}`; secondary = '平均租金'; }
@@ -431,15 +458,16 @@ export function installMapVisualHierarchyV3(
       else if (mode === 'leed') { primary = `${leedPercent.toFixed(0)}%`; secondary = 'LEED'; }
       const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
 
-      const element = document.createElement('div');
+      const element = document.createElement('button');
+      element.type = 'button';
       const nameOnly = isNameOnlyArea(aggregate.name);
       element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       element.dataset.renderMode = mode;
       element.title = aggregate.name;
       if (!nameOnly) element.style.setProperty('--sm-accent', accent);
-      element.style.setProperty('--sm-size', `${size}px`);
-      const metrics = nameOnly ? '' : `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
-      element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div>${metrics}`;
+      element.setAttribute('aria-label', nameOnly ? `查看${aggregate.name}` : `查看${aggregate.name}，${mode === 'default' ? `平均租金${primary}，空置率${secondary}` : `${secondary}${primary}`}`);
+      const metrics = nameOnly ? '' : `<span class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></span>`;
+      element.innerHTML = `<span class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</span>${metrics}`;
 
       const marker = new Marker({
         position: center,
@@ -450,11 +478,18 @@ export function installMapVisualHierarchyV3(
         topWhenClick: true,
         opacity: 0,
       });
-      marker.on?.('click', () => {
+      const openSubmarket = () => {
         if (currentTier !== 'submarket' || zooming) return;
         element.classList.add('is-expanding');
         map.setZoomAndCenter?.(12.15, center, false, 320);
         window.setTimeout(() => element.classList.remove('is-expanding'), 380);
+      };
+      marker.on?.('click', openSubmarket);
+      element.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.repeat) openSubmarket();
       });
       submarkets.push(marker);
     }
@@ -544,6 +579,7 @@ export function installMapVisualHierarchyV3(
     for (const building of buildings) {
       if (!finite(building?.location_lng) || !finite(building?.location_lat)) continue;
       const visual = visualFor(building, mode, groups);
+      const artwork = detailArtwork(visual);
       const metric = latestMetric(building);
       const area = Number(metric?.total_area);
       const grade = String(building?.grade ?? '').toUpperCase();
@@ -559,7 +595,7 @@ export function installMapVisualHierarchyV3(
         zIndex: rank,
         anchor: 'center',
         extData: { id: building.id },
-        icon: { type: 'image', image: detailImage(visual), size: [34, 34], anchor: 'center' },
+        icon: { type: 'image', image: artwork.image, size: [artwork.width, artwork.height], anchor: 'center' },
       });
       icon.on?.('mouseover', (event: any) => {
         if (currentTier !== 'building' && !zooming) return;
@@ -596,9 +632,9 @@ export function installMapVisualHierarchyV3(
         text: {
           content: buildingName,
           direction: 'right',
-          offset: [18, 0],
+          offset: [artwork.width / 2 + 5, 0],
           style: {
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: '600',
             fillColor: '#26394d',
             strokeColor: '#ffffff',
@@ -637,6 +673,7 @@ export function installMapVisualHierarchyV3(
       c.infoWindow?.close?.();
       clearSelection();
     }
+    syncSelection();
     syncFutureVisibility();
   };
 

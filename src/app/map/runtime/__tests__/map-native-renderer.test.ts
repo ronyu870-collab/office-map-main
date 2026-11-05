@@ -135,6 +135,76 @@ afterEach(() => {
 });
 
 describe('native map visual hierarchy', () => {
+  it('keeps selected metric text and color synchronized with mode and data changes', async () => {
+    const harness = createNativeHarness();
+    harness.setZoom(14.4);
+    const close = vi.fn();
+    const controller = {
+      AMap: harness.AMap, map: harness.map,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(),
+      openBuildingInfoWindow: vi.fn(), infoWindow: { close },
+    };
+    const cleanup = installMapInteractionHardening(controller as never, 'map-container');
+    const item = building('a', 'CBD', 116.46, 39.91, 305, 0.08);
+    const svgFor = (uri: string) => new DOMParser().parseFromString(decodeURIComponent(uri.split(',')[1]), 'image/svg+xml');
+    const lastIcon = () => harness.labelMarkerInstances.filter(marker => marker.options.icon).at(-1);
+    try {
+      controller.renderMarkers([item], 'rent');
+      await flushFrames();
+      const icon = lastIcon();
+      const artwork = svgFor(icon.options.icon.image);
+      expect(artwork.querySelector('text')?.textContent).toBe('305');
+      icon.handlers.emit('click');
+      const selected = harness.markerInstances.find(marker => marker.options.content.classList.contains('map-selected-marker'));
+      const element = selected.options.content as HTMLElement;
+      const selectedImage = () => element.querySelector<HTMLImageElement>('.map-selected-marker__artwork');
+      expect(selectedImage()?.src).toBe(icon.options.icon.image);
+      expect(selected.options.position).toEqual([116.46, 39.91]);
+      expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('a');
+
+      controller.renderMarkers([item], 'vacancy');
+      await flushFrames();
+      expect(element.dataset.renderMode).toBe('vacancy');
+      expect(selectedImage()?.src).toBe(lastIcon().options.icon.image);
+      expect(svgFor(selectedImage()!.src).querySelector('text')?.textContent).toBe('8%');
+
+      const refreshed = building('a', 'CBD', 116.46, 39.91, 305, 0.12);
+      controller.renderMarkers([refreshed], 'vacancy');
+      await flushFrames();
+      expect(svgFor(selectedImage()!.src).querySelector('text')?.textContent).toBe('12%');
+      expect(selectedImage()?.src).toBe(lastIcon().options.icon.image);
+      expect(harness.markerInstances.filter(marker => marker.options.content.classList.contains('map-selected-marker'))).toHaveLength(1);
+
+      controller.renderMarkers([], 'vacancy');
+      await flushFrames();
+      expect(document.getElementById('map-container')?.dataset.selectedBuilding).toBeUndefined();
+      expect(harness.remove).toHaveBeenCalledWith(selected);
+      expect(close).toHaveBeenCalled();
+    } finally { cleanup(); }
+  });
+
+  it('makes populated submarket cards keyboard operable without changing their metrics or coordinates', async () => {
+    const harness = createNativeHarness();
+    const controller = {
+      AMap: harness.AMap, map: harness.map,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller as never, 'map-container');
+    try {
+      controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
+      await flushFrames();
+      const card = harness.markerInstances[0].options.content as HTMLButtonElement;
+      expect(card.tagName).toBe('BUTTON');
+      expect(card.type).toBe('button');
+      expect(card.getAttribute('aria-label')).toContain('平均租金¥305，空置率8.0%');
+      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      expect(harness.setZoomAndCenter).toHaveBeenCalledTimes(1);
+      expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.46, 39.91], false, 320);
+      card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true }));
+      expect(harness.setZoomAndCenter).toHaveBeenCalledTimes(1);
+    } finally { cleanup(); }
+  });
+
   it('shows only the two designated area names without removing metrics for other markets', async () => {
     const harness = createNativeHarness();
     const controller = {

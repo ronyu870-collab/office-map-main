@@ -144,6 +144,7 @@ type LegendItem = {
   label: string;
   className?: string;
   style?: React.CSSProperties;
+  future?: boolean;
 };
 
 function MapLegend({ mode, compareGroups }: { mode: RenderMode; compareGroups: CompareGroup[] }) {
@@ -154,7 +155,6 @@ function MapLegend({ mode, compareGroups }: { mode: RenderMode; compareGroups: C
         { label: '甲级写字楼', className: 'bg-[#245b78]' },
         { label: '乙级写字楼', className: 'bg-[#4f7968]' },
         { label: '产业园', className: 'bg-[#9b6948]' },
-        { label: '未来供应', className: 'border border-slate-500 bg-white' },
       ],
     },
     rent: {
@@ -200,9 +200,9 @@ function MapLegend({ mode, compareGroups }: { mode: RenderMode; compareGroups: C
     <div className="pointer-events-none absolute bottom-[76px] left-4 z-[250] hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2.5 shadow-[var(--cd-shadow-sm)] sm:block">
       <div className="mb-2 text-[10px] font-medium text-[var(--cd-color-text-muted)]">{config.title}</div>
       <div className="flex items-center gap-3">
-        {config.items.map(item => (
+        {[...config.items, { label: '未来供应', className: 'border border-dashed border-slate-500 bg-white', future: true } as LegendItem].map(item => (
           <div key={item.label} className="flex items-center gap-1.5 text-[10px] text-slate-500">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
+            <span className={`h-2.5 w-2.5 ${item.future ? 'rounded-[2px]' : 'rounded-full'} ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
             {item.label}
           </div>
         ))}
