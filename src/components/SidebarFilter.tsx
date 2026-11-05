@@ -50,6 +50,7 @@ export interface SidebarFilterProps {
   filterCommand?: SidebarFilterCommand | null;
   embedded?: boolean;
   defaultExpanded?: boolean;
+  presentation?: 'list-more';
 }
 
 function uniqStrings(items: string[]): string[] { 
@@ -96,6 +97,7 @@ const NUMERIC_OPERATORS = [
 
 export function SidebarFilter(props: SidebarFilterProps) {
   const title = props.title ?? '全局筛选';
+  const listMore = props.presentation === 'list-more';
   const districts = React.useMemo(() => uniqStrings(props.districts), [props.districts]);
   const submarkets = React.useMemo(() => uniqStrings(props.submarkets ?? []), [props.submarkets]);
   const submarketsSecondary = React.useMemo(() => uniqStrings(props.submarketsSecondary ?? []), [props.submarketsSecondary]);
@@ -325,7 +327,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
           >
             <div className="text-[13px] font-bold tracking-wide text-zinc-900">{title}</div>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={e => { e.stopPropagation(); reset(); }} className="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">重置</button>
+              {!listMore && <button type="button" onClick={e => { e.stopPropagation(); reset(); }} className="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">重置</button>}
               <ChevronIcon isOpen={globalFilterOpen} />
             </div>
           </div>
@@ -335,14 +337,14 @@ export function SidebarFilter(props: SidebarFilterProps) {
           {/* ================= 🌟 项目类型大调整 ================= */}
           <section className="mb-1">
             <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('projectTypes')}>
-              <div className="text-[12px] font-semibold text-zinc-800">项目类型</div>
+              <div className="text-[12px] font-semibold text-zinc-800">{listMore ? '未来供应' : '项目类型'}</div>
               <ChevronIcon isOpen={openSections.projectTypes} />
             </div>
             {openSections.projectTypes && (
               <div className="mt-1 mb-3 px-1">
                 
                 {/* 第一部分：现有项目 */}
-                <div className="mb-3">
+                {!listMore && <div className="mb-3">
                   <label className="flex items-center gap-2 mb-2 text-[11px] font-medium text-zinc-600 cursor-pointer">
                     <input 
                       type="checkbox" 
@@ -369,7 +371,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                       </label>
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 {/* 第二部分：未来新增供应（嵌套细分项） */}
                 <div className="pt-2 border-t border-zinc-100">
@@ -448,7 +450,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
             )}
           </section>
 
-          <section className="mb-1 border-t border-zinc-100 pt-1">
+          {!listMore && <section className="mb-1 border-t border-zinc-100 pt-1">
             <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('districts')}>
               <div className="text-[12px] font-semibold text-zinc-800">行政区划</div>
               <ChevronIcon isOpen={openSections.districts} />
@@ -472,9 +474,9 @@ export function SidebarFilter(props: SidebarFilterProps) {
                 </div>
               </div>
             )}
-          </section>
+          </section>}
 
-          {allSubmarkets.length > 0 && (
+          {!listMore && allSubmarkets.length > 0 && (
             <section className="mb-1 border-t border-zinc-100 pt-1">
               <div className="flex items-center justify-between cursor-pointer py-2 px-1 rounded-md hover:bg-zinc-50 transition-colors group" onClick={() => toggleSection('submarkets')}>
                 <div className="text-[12px] font-semibold text-zinc-800">子市场</div>

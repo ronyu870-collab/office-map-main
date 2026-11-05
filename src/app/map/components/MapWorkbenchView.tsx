@@ -6,8 +6,9 @@ import Link from 'next/link';
 
 import { SearchBar } from '@/src/components/SearchBar';
 import { AppHeader, Button } from '@/src/components/ui';
+import { MaskedText } from '@/src/components/demo';
 import { FullBuildingList } from './FullBuildingList';
-import type { FullListBuilding } from '../model/fullBuildingList';
+import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -22,6 +23,7 @@ import {
   MAP_SUBWAYS,
   SUPPLY_CALENDAR_CATEGORIES,
   SUPPLY_CALENDAR_LABELS,
+  isCommercialFutureSupply,
   type ActiveFilterChip,
   type MapStatsState,
   type RenderMode,
@@ -49,6 +51,7 @@ type MapWorkbenchViewProps = {
   stats: MapStatsState;
   futureSupplyCalendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   futureSuppliesCount: number;
+  futureSupplies: FullListBuilding[];
   activeFilterChips: ActiveFilterChip[];
   keyword: string;
   filterState: SidebarFilterState | null;
@@ -233,10 +236,14 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
 function SupplyPanel({
   calendar,
   total,
+  commercialProjects,
+  onSelect,
   onClose,
 }: {
   calendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   total: number;
+  commercialProjects: FullListBuilding[];
+  onSelect: (project: FullListBuilding) => void;
   onClose: () => void;
 }) {
   return (
@@ -255,7 +262,27 @@ function SupplyPanel({
           <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        {commercialProjects.length > 0 ? (
+          <section aria-labelledby="commercial-supply-heading" className="rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 pt-3">
+            <h3 id="commercial-supply-heading" className="text-sm font-semibold text-[var(--cd-color-text-primary)]">商业项目</h3>
+            <ul className="mt-1 divide-y divide-[var(--cd-color-border)]">
+              {commercialProjects.map(project => (
+                <li key={project.id} className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
+                  {hasBuildingLocation(project) ? (
+                    <button type="button" onClick={() => onSelect(project)} className="min-h-11 rounded-sm text-left font-medium text-[var(--cd-color-brand)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)]">
+                      <MaskedText>{project.name || '未命名项目'}</MaskedText>
+                    </button>
+                  ) : (
+                    <span className="py-2"><MaskedText>{project.name || '未命名项目'}</MaskedText></span>
+                  )}
+                  {project.launch_year ? <span className="text-[var(--cd-color-text-secondary)]">预计 {project.launch_year}{project.launch_quarter ?? ''}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
         {SUPPLY_CALENDAR_CATEGORIES.map(category => {
           const data = calendar[category];
           return (
@@ -272,6 +299,7 @@ function SupplyPanel({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -281,6 +309,7 @@ export function MapWorkbenchView({
   stats,
   futureSupplyCalendar,
   futureSuppliesCount,
+  futureSupplies,
   activeFilterChips,
   keyword,
   filterState,
@@ -330,6 +359,20 @@ export function MapWorkbenchView({
   onFullListBuildingClick,
 }: MapWorkbenchViewProps) {
 
+  const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
+  const moreFiltersTriggerId = React.useId();
+  const filtersPanelId = React.useId();
+  const filterCloseRef = React.useRef<HTMLButtonElement>(null);
+  const listMoreOpen = isFullListVisible && listMoreContext !== null && listMoreContext.key === searchContextKey;
+  const filterPanelOpen = isFullListVisible ? listMoreOpen : isFilterPanelOpen;
+  const closeListMore = React.useCallback(() => {
+    setListMoreContext(null);
+    document.getElementById(moreFiltersTriggerId)?.focus({ preventScroll: true });
+  }, [moreFiltersTriggerId]);
+  React.useEffect(() => {
+    if (listMoreOpen) filterCloseRef.current?.focus({ preventScroll: true });
+  }, [listMoreOpen]);
+
   const previouslyFullList = React.useRef(false);
   const mapWorkspaceRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -351,11 +394,12 @@ export function MapWorkbenchView({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]')) return;
-      closeOpenWorkspaces();
+      if (listMoreOpen) closeListMore();
+      else closeOpenWorkspaces();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeOpenWorkspaces]);
+  }, [closeOpenWorkspaces, closeListMore, listMoreOpen]);
 
   const toggleFilterPanel = () => {
     const nextOpen = !isFilterPanelOpen;
@@ -520,6 +564,11 @@ export function MapWorkbenchView({
           <SupplyPanel
             calendar={futureSupplyCalendar}
             total={futureSuppliesCount}
+            commercialProjects={futureSupplies.filter(isCommercialFutureSupply)}
+            onSelect={project => {
+              onSupplyOpenChange(false);
+              onBuildingClick({ ...project, _dataType: 'future' });
+            }}
             onClose={() => onSupplyOpenChange(false)}
           />
         ) : null}
@@ -577,26 +626,32 @@ export function MapWorkbenchView({
       {(isFullListVisible || hasVisitedFullList) ? (
         <div className={isFullListVisible ? 'absolute inset-0' : 'hidden'} inert={!isFullListVisible || undefined} aria-hidden={!isFullListVisible || undefined}>
           <FullBuildingList searchContextKey={searchContextKey} active={isFullListVisible} buildings={fullBuildingList} queryKey={fullListQueryKey}
-            activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} onRemoveFilterChip={onRemoveFilterChip}
+            activeFilterChips={activeFilterChips} compareGroupCount={compareGroups.length} requirementContext={Boolean(intelligenceContext)} competitorContext={competitorContext} filterState={filterState} onPatchFilters={onRemoveFilterChip}
             keyword={keyword} loading={fullListBusy} error={mapError} warning={fullListWarning}
-            filtersOpen={isFilterPanelOpen} displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
-            onBack={() => onCloseFullList?.()} onToggleFilters={toggleFilterPanel}
+            filtersOpen={listMoreOpen} moreFiltersTriggerId={moreFiltersTriggerId} filtersPanelId={filtersPanelId}
+            displayOverrides={displayOverrides} targetBuildingId={targetBuildingId}
+            onBack={() => onCloseFullList?.()} onToggleFilters={() => {
+              if (listMoreOpen) closeListMore();
+              else setListMoreContext({ key: searchContextKey });
+            }}
             onKeywordChange={onKeywordChange} onSearch={onFullListSearch ?? onSearch} onResetFilters={onResetFilters}
             onRetry={onRetryMap} onBuildingClick={building => onFullListBuildingClick?.(building)} />
         </div>
       ) : null}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--cd-header-height)] z-[380]">
         <div
-          aria-hidden={!isFilterPanelOpen}
-          className={isFilterPanelOpen
+          id={filtersPanelId}
+          aria-hidden={!filterPanelOpen}
+          className={filterPanelOpen
             ? 'pointer-events-auto absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'
             : 'hidden'}
         >
           <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-900">市场筛选</div>
+            <div className="text-sm font-semibold text-slate-900">{isFullListVisible ? '更多筛选' : '市场筛选'}</div>
             <button
               type="button"
-              onClick={() => onFilterPanelOpenChange(false)}
+              ref={filterCloseRef}
+              onClick={isFullListVisible ? closeListMore : () => onFilterPanelOpenChange(false)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
               aria-label="关闭筛选"
             >
@@ -607,6 +662,7 @@ export function MapWorkbenchView({
             <SidebarFilter
               embedded
               defaultExpanded
+              presentation={isFullListVisible ? 'list-more' : undefined}
               title="全局筛选"
               districts={MAP_DISTRICTS}
               submarkets={MAP_SUBMARKETS}

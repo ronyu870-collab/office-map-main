@@ -168,24 +168,110 @@ describe('complete list with the existing map workbench', () => {
     expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
   });
 
-  it('uses a single real SidebarFilter instance across map and list and preserves its checked state', async () => {
+  it('exposes all three quick filters and keeps the map and advanced panel in sync', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
-    fireEvent.click(within(list).getByRole('button', { name: '筛选' }));
-    fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('项目类型', { exact: true }));
-    const type = screen.getByRole('checkbox', { name: '甲级写字楼' });
-    fireEvent.click(type);
-    await within(list).findByText('14 栋楼宇');
-    expect(within(list).getByRole('group', { name: '已生效筛选条件' })).toHaveTextContent('乙级写字楼');
-    expect(controller.renderMarkers).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'b-44' })]), 'default', expect.anything(), undefined);
+    const district = within(list).getByRole('button', { name: '行政区' });
+    const submarket = within(list).getByRole('button', { name: '子市场' });
+    const projectType = within(list).getByRole('button', { name: '项目类型' });
+    fireEvent.click(district);
+    fireEvent.click(within(list).getByRole('checkbox', { name: '朝阳区' }));
+    await within(list).findByText('30 栋楼宇');
+    fireEvent.keyDown(within(list).getByRole('checkbox', { name: '朝阳区' }), { key: 'Escape' });
+    expect(district).toHaveFocus();
+    expect(district).toHaveTextContent('朝阳区');
+    fireEvent.click(submarket);
+    fireEvent.click(within(list).getByRole('checkbox', { name: 'CBD' }));
+    await waitFor(() => expect(submarket).toHaveTextContent('CBD'));
+    fireEvent.click(projectType);
+    fireEvent.click(within(list).getByRole('checkbox', { name: '乙级写字楼' }));
+    await within(list).findByText('未找到符合条件的楼宇');
+    fireEvent.click(within(list).getByRole('checkbox', { name: '甲级写字楼' }));
+    await within(list).findByText('30 栋楼宇');
+    fireEvent.click(within(list).getByRole('button', { name: '更多筛选' }));
+    const more = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
+    expect(within(more).getByText('未来供应', { exact: true })).toBeVisible();
+    for (const name of ['行政区划', '子市场', '项目类型']) expect(within(more).queryByText(name, { exact: true })).not.toBeInTheDocument();
     fireEvent.click(within(list).getByRole('button', { name: '返回地图' }));
-    expect(screen.getByRole('checkbox', { name: '甲级写字楼' })).toBe(type);
-    expect(type).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: '关闭筛选' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
+    const mapPanel = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
+    fireEvent.click(within(mapPanel).getByText('行政区划', { exact: true }));
+    expect(within(mapPanel).getByRole('checkbox', { name: '朝阳区' })).toBeChecked();
+    expect(within(mapPanel).getByRole('checkbox', { name: '海淀区' })).not.toBeChecked();
+    fireEvent.click(within(mapPanel).getByRole('checkbox', { name: '海淀区' }));
     fireEvent.click(screen.getByRole('button', { name: '完整列表' }));
-    expect(screen.queryByRole('checkbox', { name: '甲级写字楼' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('region', { name: '完整楼宇列表' }).querySelector('button[aria-expanded]') as HTMLElement);
-    expect(screen.getByRole('checkbox', { name: '甲级写字楼' })).toBe(type);
-    expect(type).not.toBeChecked();
+    const restored = within(list);
+    await waitFor(() => expect(restored.getByRole('button', { name: '行政区' })).toHaveTextContent('朝阳区、海淀区'));
+    expect(restored.getByRole('button', { name: '子市场' })).toHaveTextContent('CBD');
+    fireEvent.click(restored.getByRole('button', { name: '清空条件' }));
+    await restored.findByText('44 栋楼宇');
+    expect(restored.getByRole('button', { name: '行政区' })).toHaveTextContent('全部');
+    expect(restored.getByRole('button', { name: '子市场' })).toHaveTextContent('全部');
+  });
+
+  it('continues editing the list search across result updates with a quick filter applied', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    const ui = within(list);
+    fireEvent.click(ui.getByRole('button', { name: '行政区' }));
+    fireEvent.click(ui.getByRole('checkbox', { name: '朝阳区' }));
+    await ui.findByText('30 栋楼宇');
+    const input = ui.getByRole<HTMLInputElement>('searchbox');
+    input.focus();
+
+    fireEvent.change(input, { target: { value: 'C' } });
+    await waitFor(() => expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'C', module: 'map' }));
+    expect(ui.getByRole('searchbox')).toBe(input);
+    expect(input).toHaveFocus();
+
+    fireEvent.change(input, { target: { value: 'CD' } });
+    await ui.findByText('未找到符合条件的楼宇');
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'CBD' } });
+    input.setSelectionRange(2, 2);
+    await ui.findByText('30 栋楼宇');
+    expect(input).toHaveValue('CBD');
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('');
+    expect(ui.getByRole('button', { name: '行政区' })).toHaveTextContent('朝阳区');
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'xiang' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(logAction).not.toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'xiang', module: 'map' });
+    fireEvent.change(input, { target: { value: '项目0' } });
+    fireEvent.compositionEnd(input, { data: '项目0' });
+    await ui.findByText('9 栋楼宇');
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('项目0');
+  });
+
+  it('sorts the whole result by descending rent and vacancy before paging', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    const sort = within(list).getByRole('combobox', { name: '楼宇排序' });
+    fireEvent.click(within(list).getByRole('button', { name: '下一页' }));
+    expect(within(list).getByText('第 2 / 3 页')).toBeInTheDocument();
+    fireEvent.change(sort, { target: { value: 'rent-desc' } });
+    expect(within(list).getByText('第 1 / 3 页')).toBeInTheDocument();
+    expect(list.querySelector('article')).toHaveAttribute('data-building-id', 'b-44');
+    fireEvent.change(sort, { target: { value: 'vacancy-desc' } });
+    expect(list.querySelector('article')).toHaveAttribute('data-building-id', 'b-44');
+    fireEvent.change(sort, { target: { value: 'vacancy' } });
+    expect(list.querySelector('article')).toHaveAttribute('data-building-id', 'b-1');
+  });
+
+  it('keeps a single mixed-period notice and omits quarterly labels from each row', async () => {
+    const rows = BUILDINGS.map((row, index) => index ? row : {...row, metrics: [{...row.metrics[0], record_quarter: 2}]});
+    controller.fetchMapData.mockResolvedValue(rows);
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    expect(within(list).getAllByText('各楼宇数据季度可能不同')).toHaveLength(1);
+    expect(within(list).queryByText(/2026Q[23]|数据期间按楼宇标注/)).not.toBeInTheDocument();
   });
 
   it('opens only the last selected building through the unchanged map detail entry', async () => {
@@ -353,8 +439,8 @@ describe('asynchronous scope and view boundaries', () => {
     const list = await openList();
     const responses: Array<(value: unknown[]) => void> = [];
     controller.fetchFutureSupplies.mockImplementation(() => new Promise(resolve => responses.push(resolve)));
-    fireEvent.click(within(list).getByRole('button', { name: '筛选' }));
-    fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('项目类型', { exact: true }));
+    fireEvent.click(within(list).getByRole('button', { name: '更多筛选' }));
+    fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('未来供应', { exact: true }));
     fireEvent.click(screen.getByRole('checkbox', { name: '显示未来新增供应' }));
     await waitFor(() => expect(responses).toHaveLength(1));
     fireEvent.click(screen.getByRole('button', { name: '关闭筛选' }));
@@ -375,8 +461,8 @@ describe('asynchronous scope and view boundaries', () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
     controller.fetchFutureSupplies.mockRejectedValue(new Error('synthetic fixture failure'));
-    fireEvent.click(within(list).getByRole('button', { name: '筛选' }));
-    fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('项目类型', { exact: true }));
+    fireEvent.click(within(list).getByRole('button', { name: '更多筛选' }));
+    fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('未来供应', { exact: true }));
     fireEvent.click(screen.getByRole('checkbox', { name: '显示未来新增供应' }));
     await within(list).findByText('未来供应暂时无法读取，当前仅显示存量楼宇。');
     await within(list).findByText('44 栋楼宇');

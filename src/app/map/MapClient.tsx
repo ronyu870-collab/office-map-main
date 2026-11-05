@@ -586,6 +586,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}
         futureSuppliesCount={futureSupplies.length}
+        futureSupplies={futureSupplies}
         activeFilterChips={activeFilterChips}
         keyword={searchInput}
         filterState={filterState}
