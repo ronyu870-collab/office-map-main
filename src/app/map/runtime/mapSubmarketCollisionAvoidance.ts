@@ -6,8 +6,7 @@ type LayoutNode = {
   anchorY: number;
   x: number;
   y: number;
-  halfWidth: number;
-  halfHeight: number;
+  radius: number;
   name: string;
 };
 
@@ -23,7 +22,6 @@ const SETTINGS = {
   uiGap: 8,
   edgeGap: 8,
   iterations: 36,
-  settleIterations: 12,
   spring: 0.06,
   strongSpring: 0.13,
   strongSpringDistance: 64,
@@ -84,23 +82,22 @@ function collectAvoidRects(container: HTMLElement): AvoidRect[] {
 }
 
 function keepInsideMap(node: LayoutNode, width: number, height: number): void {
-  const minX = node.halfWidth + SETTINGS.edgeGap;
-  const maxX = width - node.halfWidth - SETTINGS.edgeGap;
-  const minY = node.halfHeight + SETTINGS.edgeGap;
-  const maxY = height - node.halfHeight - SETTINGS.edgeGap;
+  const minX = node.radius + SETTINGS.edgeGap;
+  const maxX = width - node.radius - SETTINGS.edgeGap;
+  const minY = node.radius + SETTINGS.edgeGap;
+  const maxY = height - node.radius - SETTINGS.edgeGap;
 
   if (maxX >= minX) node.x = clamp(node.x, minX, maxX);
   if (maxY >= minY) node.y = clamp(node.y, minY, maxY);
 }
 
 function pushOutsideUi(node: LayoutNode, rect: AvoidRect, width: number, height: number): void {
-  const paddingX = node.halfWidth + SETTINGS.uiGap;
-  const paddingY = node.halfHeight + SETTINGS.uiGap;
+  const padding = node.radius + SETTINGS.uiGap;
   const expanded = {
-    left: rect.left - paddingX,
-    top: rect.top - paddingY,
-    right: rect.right + paddingX,
-    bottom: rect.bottom + paddingY,
+    left: rect.left - padding,
+    top: rect.top - padding,
+    right: rect.right + padding,
+    bottom: rect.bottom + padding,
   };
 
   if (
@@ -112,10 +109,10 @@ function pushOutsideUi(node: LayoutNode, rect: AvoidRect, width: number, height:
     return;
   }
 
-  const minX = node.halfWidth + SETTINGS.edgeGap;
-  const maxX = width - node.halfWidth - SETTINGS.edgeGap;
-  const minY = node.halfHeight + SETTINGS.edgeGap;
-  const maxY = height - node.halfHeight - SETTINGS.edgeGap;
+  const minX = node.radius + SETTINGS.edgeGap;
+  const maxX = width - node.radius - SETTINGS.edgeGap;
+  const minY = node.radius + SETTINGS.edgeGap;
+  const maxY = height - node.radius - SETTINGS.edgeGap;
 
   const candidates = [
     { x: expanded.left, y: node.y },
@@ -141,53 +138,27 @@ function pushOutsideUi(node: LayoutNode, rect: AvoidRect, width: number, height:
   node.y = candidates[0].y;
 }
 
-function separatePair(a: LayoutNode, b: LayoutNode, useHorizontalRoom = false): void {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const overlapX = a.halfWidth + b.halfWidth + SETTINGS.collisionGap - Math.abs(dx);
-  const overlapY = a.halfHeight + b.halfHeight + SETTINGS.collisionGap - Math.abs(dy);
-  if (overlapX <= 0 || overlapY <= 0) return;
+function separatePair(a: LayoutNode, b: LayoutNode, aIndex: number, bIndex: number): void {
+  let dx = b.x - a.x;
+  let dy = b.y - a.y;
+  let distance = Math.hypot(dx, dy);
+  const minimumDistance = a.radius + b.radius + SETTINGS.collisionGap;
+  if (distance >= minimumDistance) return;
 
-  // Cards can touch at their corners even when a width-based circular distance
-  // looks clear. Separate along the nearer rectangle edge, keeping
-  // already clear rows in place. Stable node ordering resolves coincident anchors.
-  // A half-pixel total margin survives the final half-pixel shift rounding.
-  if (useHorizontalRoom || overlapX < overlapY) {
-    const push = (overlapX / 2 + 0.25) * (dx < 0 ? -1 : 1);
-    a.x -= push;
-    b.x += push;
-  } else {
-    const push = (overlapY / 2 + 0.25) * (dy < 0 ? -1 : 1);
-    a.y -= push;
-    b.y += push;
+  if (distance < 0.001) {
+    const angle = (((aIndex + 1) * 53 + (bIndex + 1) * 97) % 360) * (Math.PI / 180);
+    dx = Math.cos(angle);
+    dy = Math.sin(angle);
+    distance = 1;
   }
-}
 
-function separateAndConstrain(nodes: LayoutNode[], avoidRects: AvoidRect[], width: number, height: number): void {
-  for (let aIndex = 0; aIndex < nodes.length; aIndex += 1) {
-    for (let bIndex = aIndex + 1; bIndex < nodes.length; bIndex += 1) {
-      separatePair(nodes[aIndex], nodes[bIndex]);
-    }
-  }
-  for (const node of nodes) {
-    // Clamp first so an offscreen anchor cannot invalidate every UI candidate.
-    keepInsideMap(node, width, height);
-    for (const rect of avoidRects) pushOutsideUi(node, rect, width, height);
-  }
-}
-
-function remainingOverlap(nodes: LayoutNode[]): number {
-  let area = 0;
-  for (let aIndex = 0; aIndex < nodes.length; aIndex += 1) {
-    for (let bIndex = aIndex + 1; bIndex < nodes.length; bIndex += 1) {
-      const a = nodes[aIndex];
-      const b = nodes[bIndex];
-      const x = a.halfWidth + b.halfWidth + SETTINGS.collisionGap - Math.abs(b.x - a.x);
-      const y = a.halfHeight + b.halfHeight + SETTINGS.collisionGap - Math.abs(b.y - a.y);
-      if (x > 0 && y > 0) area += x * y;
-    }
-  }
-  return area;
+  const ux = dx / distance;
+  const uy = dy / distance;
+  const push = (minimumDistance - distance) / 2 + 0.05;
+  a.x -= ux * push;
+  a.y -= uy * push;
+  b.x += ux * push;
+  b.y += uy * push;
 }
 
 function solve(nodes: LayoutNode[], avoidRects: AvoidRect[], width: number, height: number): void {
@@ -197,10 +168,8 @@ function solve(nodes: LayoutNode[], avoidRects: AvoidRect[], width: number, heig
     a.name.localeCompare(b.name, 'zh-CN')
   ));
 
-  for (let iteration = 0; iteration < SETTINGS.iterations + SETTINGS.settleIterations; iteration += 1) {
-    // The anchor spring is a soft preference. Stop it for the final passes so
-    // labels pinned against a toolbar or map edge can fully separate.
-    if (iteration > 0 && iteration < SETTINGS.iterations) {
+  for (let iteration = 0; iteration < SETTINGS.iterations; iteration += 1) {
+    if (iteration > 0) {
       for (const node of nodes) {
         const displacement = Math.hypot(node.x - node.anchorX, node.y - node.anchorY);
         const spring = displacement > SETTINGS.strongSpringDistance
@@ -211,41 +180,17 @@ function solve(nodes: LayoutNode[], avoidRects: AvoidRect[], width: number, heig
       }
     }
 
-    separateAndConstrain(nodes, avoidRects, width, height);
-  }
-
-  // Minimum-axis separation can pack wide cards into a column that is taller
-  // than the viewport. Only if that relaxation still leaves collisions, let
-  // one blocked pair use the available horizontal room, then settle normally.
-  let bestOverlap = remainingOverlap(nodes);
-  let bestPositions = nodes.map(node => ({ x: node.x, y: node.y }));
-  for (let attempt = 0; bestOverlap > 0 && attempt < nodes.length; attempt += 1) {
-    let blockedPair: [LayoutNode, LayoutNode] | null = null;
-    for (let aIndex = 0; aIndex < nodes.length && !blockedPair; aIndex += 1) {
+    for (let aIndex = 0; aIndex < nodes.length; aIndex += 1) {
       for (let bIndex = aIndex + 1; bIndex < nodes.length; bIndex += 1) {
-        const a = nodes[aIndex];
-        const b = nodes[bIndex];
-        const overlapX = a.halfWidth + b.halfWidth + SETTINGS.collisionGap - Math.abs(b.x - a.x);
-        const overlapY = a.halfHeight + b.halfHeight + SETTINGS.collisionGap - Math.abs(b.y - a.y);
-        const pairWidth = (a.halfWidth + b.halfWidth) * 2 + SETTINGS.collisionGap + 0.5;
-        if (overlapY > 0 && overlapX >= overlapY && pairWidth <= width - SETTINGS.edgeGap * 2) {
-          blockedPair = [a, b];
-          break;
-        }
+        separatePair(nodes[aIndex], nodes[bIndex], aIndex, bIndex);
       }
     }
-    if (!blockedPair) break;
-    separatePair(...blockedPair, true);
-    for (let iteration = 0; iteration < SETTINGS.settleIterations; iteration += 1) {
-      separateAndConstrain(nodes, avoidRects, width, height);
-    }
-    const overlap = remainingOverlap(nodes);
-    if (overlap < bestOverlap) {
-      bestOverlap = overlap;
-      bestPositions = nodes.map(node => ({ x: node.x, y: node.y }));
+
+    for (const node of nodes) {
+      for (const rect of avoidRects) pushOutsideUi(node, rect, width, height);
+      keepInsideMap(node, width, height);
     }
   }
-  nodes.forEach((node, index) => Object.assign(node, bestPositions[index]));
 }
 
 function resetBubbleShift(element: HTMLElement): void {
@@ -309,6 +254,10 @@ export function installSubmarketCollisionAvoidance(
 
       const previousX = finiteNumber(element.dataset.collisionX);
       const previousY = finiteNumber(element.dataset.collisionY);
+      const computed = window.getComputedStyle(element);
+      const renderedWidth = finiteNumber(computed.width, rect.width);
+      const renderedHeight = finiteNumber(computed.height, rect.height);
+      const radius = Math.max(42, Math.max(renderedWidth, renderedHeight) / 2);
       const currentCenterX = rect.left - containerRect.left + rect.width / 2;
       const currentCenterY = rect.top - containerRect.top + rect.height / 2;
       const anchorX = currentCenterX - previousX;
@@ -318,12 +267,9 @@ export function installSubmarketCollisionAvoidance(
         element,
         anchorX,
         anchorY,
-        // Start from geographic anchors so the bounded crowded-card fallback
-        // reaches the same layout on repeated moveend events, without drift.
-        x: anchorX,
-        y: anchorY,
-        halfWidth: rect.width / 2,
-        halfHeight: rect.height / 2,
+        x: anchorX + previousX,
+        y: anchorY + previousY,
+        radius,
         name: element.title || element.textContent || '',
       });
     }
