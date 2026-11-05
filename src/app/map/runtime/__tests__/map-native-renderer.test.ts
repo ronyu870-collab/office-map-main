@@ -135,37 +135,42 @@ afterEach(() => {
 });
 
 describe('native map visual hierarchy', () => {
-  it('shows both area bubbles in the overview, without counting or retaining a placeholder in filtered renders', async () => {
+  it('shows only the two designated area names without removing metrics for other markets', async () => {
     const harness = createNativeHarness();
     const controller = {
       AMap: harness.AMap, map: harness.map,
       renderMarkers: vi.fn(), clearMarkers: vi.fn(),
     };
     const cleanup = installMapInteractionHardening(controller as never, 'map-container');
-    const data = [building('yufu', '玉渊潭', 116.294204, 39.92354, 205.8, 0.31)];
+    const data = [
+      building('yufu', '玉渊潭', 116.294204, 39.92354, 205.8, 0.31),
+      building('other', 'CBD', 116.46, 39.91, 305, 0.08),
+    ];
     try {
       controller.renderMarkers(data, 'default', undefined, undefined, true);
       await flushFrames();
       const contents = harness.markerInstances.map(marker => marker.options.content as HTMLElement);
       const populated = contents.find(node => node.title === '玉渊潭');
-      expect(populated?.textContent).toContain('¥206');
+      expect(populated?.textContent).toBe('玉渊潭');
+      expect(populated?.style.getPropertyValue('--sm-accent')).toBe('');
+      expect(contents.find(node => node.title === 'CBD')?.textContent).toContain('¥305');
       const pending = contents.find(node => node.title === '四季青');
-      expect(pending?.textContent).toContain('资料待补');
-      expect(pending?.textContent).not.toMatch(/¥|%/);
+      expect(pending?.textContent).toBe('四季青');
+      expect(pending?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       pending?.click();
       expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.274193, 39.942414], false, 320);
-      expect(harness.massMarksInstances[0].data).toHaveLength(1);
+      expect(harness.massMarksInstances[0].data).toHaveLength(2);
 
       const previousMarkers = harness.markerInstances.length;
       controller.renderMarkers(data, 'default', undefined, undefined, false);
       await flushFrames();
       const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
-      expect(filtered).toEqual(['玉渊潭']);
+      expect(filtered).toEqual(['玉渊潭', 'CBD']);
 
       const beforeEmpty = harness.markerInstances.length;
       controller.renderMarkers([], 'default', undefined, undefined, true);
       await flushFrames();
-      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.title)).toEqual(['玉渊潭', '四季青']);
+      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭', '四季青']);
     } finally { cleanup(); }
   });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { MapController } from '@/src/services/MapController';
-import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerMode = 'submarket' | 'dot' | 'building';
@@ -668,14 +668,18 @@ export function installNativeMarkerRenderer(
         separator = '';
       }
 
+      const nameOnly = isNameOnlyArea(item.name);
+      const bubbleClass = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
+      const accentStyle = nameOnly ? '' : `--sm-accent:${accent};`;
+      const metrics = nameOnly ? '' : `
+        <div class="map-submarket-bubble__metrics">
+          <span class="map-submarket-bubble__primary">${primary}</span>${separator}
+          <span class="map-submarket-bubble__secondary">${secondary}</span>
+        </div>`;
       const content = `
-        <div class="map-submarket-bubble" data-render-mode="${mode}"
-          title="${escapeHtml(item.name)}" style="--sm-accent:${accent};--sm-size:${size}px">
-          <div class="map-submarket-bubble__name">${escapeHtml(item.name)}</div>
-          <div class="map-submarket-bubble__metrics">
-            <span class="map-submarket-bubble__primary">${primary}</span>${separator}
-            <span class="map-submarket-bubble__secondary">${secondary}</span>
-          </div>
+        <div class="${bubbleClass}" data-render-mode="${mode}"
+          title="${escapeHtml(item.name)}" style="${accentStyle}--sm-size:${size}px">
+          <div class="map-submarket-bubble__name">${escapeHtml(item.name)}</div>${metrics}
         </div>`;
 
       const marker = new Marker({

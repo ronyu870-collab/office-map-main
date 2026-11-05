@@ -36,8 +36,8 @@ body:has(#map-container) .map-submarket-bubble {
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease-out, filter 180ms ease-out, opacity 160ms ease-out;
 }
 
-body:has(#map-container) .map-submarket-bubble--pending { --sm-accent: #546b73; }
-body:has(#map-container) .map-submarket-bubble--pending:focus-visible {
+body:has(#map-container) .map-submarket-bubble--name-only { --sm-accent: #546b73; }
+body:has(#map-container) .map-submarket-bubble--name-only:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: -5px;
 }

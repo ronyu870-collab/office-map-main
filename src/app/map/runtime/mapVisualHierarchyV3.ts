@@ -2,7 +2,7 @@
 
 import type { MapController } from '@/src/services/MapController';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
-import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerTier = 'submarket' | 'dot' | 'building';
@@ -432,12 +432,14 @@ export function installMapVisualHierarchyV3(
       const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
 
       const element = document.createElement('div');
-      element.className = 'map-submarket-bubble';
+      const nameOnly = isNameOnlyArea(aggregate.name);
+      element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       element.dataset.renderMode = mode;
       element.title = aggregate.name;
-      element.style.setProperty('--sm-accent', accent);
+      if (!nameOnly) element.style.setProperty('--sm-accent', accent);
       element.style.setProperty('--sm-size', `${size}px`);
-      element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div><div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+      const metrics = nameOnly ? '' : `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+      element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div>${metrics}`;
 
       const marker = new Marker({
         position: center,

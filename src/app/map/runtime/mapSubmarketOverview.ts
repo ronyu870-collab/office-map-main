@@ -7,6 +7,12 @@ const AREA_ANCHORS: readonly AreaAnchor[] = [
   { name: '四季青', center: [116.274193, 39.942414] },
 ];
 
+export const NAME_ONLY_BUBBLE_CLASS = 'map-submarket-bubble map-submarket-bubble--name-only';
+
+export function isNameOnlyArea(name: string): boolean {
+  return AREA_ANCHORS.some(area => area.name === name);
+}
+
 export function getAreaPlaceholders(overview: boolean, positionedNames: ReadonlySet<string>) {
   return overview ? AREA_ANCHORS.filter(({ name }) => !positionedNames.has(name)) : [];
 }
@@ -15,16 +21,12 @@ export function createAreaPlaceholder(name: string, open: () => void): HTMLButto
   const bubble = document.createElement('button');
   bubble.type = 'button';
   bubble.title = name;
-  bubble.className = 'map-submarket-bubble map-submarket-bubble--pending';
-  bubble.setAttribute('aria-label', `${name}，资料待补`);
+  bubble.className = NAME_ONLY_BUBBLE_CLASS;
 
   const heading = document.createElement('span');
   heading.className = 'map-submarket-bubble__name';
   heading.textContent = name;
-  const status = document.createElement('span');
-  status.className = 'map-submarket-bubble__metrics';
-  status.textContent = '资料待补';
-  bubble.append(heading, status);
+  bubble.append(heading);
   bubble.addEventListener('click', event => { event.stopPropagation(); open(); });
   return bubble;
 }
