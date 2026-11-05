@@ -2,7 +2,7 @@ import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarF
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
-export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园'];
+export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭'];
 export const MAP_DISTRICTS: string[] = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区', '石景山区', '大兴区', '通州区', '昌平区'];
 export const MAP_LEEDS: string[] = ['Platinum', 'Gold', 'Silver', 'NULL'];
 export const MAP_SUBWAYS: string[] = [
