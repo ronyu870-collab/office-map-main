@@ -13,7 +13,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
-const require = createRequire(import.meta.url);
+const nodeRequire = createRequire(import.meta.url);
 const cwd = process.cwd();
 const directory = path.join(cwd, 'src/app/occupier-insights');
 const output = path.join(cwd, 'verification/occupier-report');
@@ -21,10 +21,10 @@ fs.mkdirSync(output, { recursive: true });
 const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
-function load(file, resolver = require) {
-  const module = { exports: {} };
-  new Function('require', 'module', 'exports', compile(file))(resolver, module, module.exports);
-  return module.exports;
+function load(file, resolver = nodeRequire) {
+  const evaluatedModule = { exports: {} };
+  new Function('require', 'module', 'exports', compile(file))(resolver, evaluatedModule, evaluatedModule.exports);
+  return evaluatedModule.exports;
 }
 const assets = load(path.join(cwd, 'src/constants/brandAssets.ts'));
 function inlineImage(src) {
@@ -33,14 +33,20 @@ function inlineImage(src) {
   return `data:image/webp;base64,${fs.readFileSync(path.join(cwd, 'public', src)).toString('base64')}`;
 }
 const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => {
-  if (name === 'next/image') return { __esModule: true, default: ({ src, fill, unoptimized: _unoptimized, fetchPriority: _priority, loading: _loading, ...props }) => React.createElement('img', { ...props, src: inlineImage(src), loading: 'eager', style: fill ? { position: 'absolute', inset: 0, width: '100%', height: '100%' } : props.style }) };
+  if (name === 'next/image') return { __esModule: true, default: ({ src, fill, ...input }) => {
+    const props = { ...input };
+    delete props.unoptimized;
+    delete props.fetchPriority;
+    delete props.loading;
+    return React.createElement('img', { ...props, src: inlineImage(src), loading: 'eager', style: fill ? { position: 'absolute', inset: 0, width: '100%', height: '100%' } : props.style });
+  } };
   if (name === 'next/link') return { __esModule: true, default: props => React.createElement('a', props) };
   if (name === 'next/navigation') return { useRouter: () => ({ replace() {} }) };
   if (name.includes('SessionProvider')) return { useAppSession: () => ({ status: 'authenticated' }) };
   if (name.includes('brandAssets')) return assets;
   if (name === './reportNavigation') return { mountReportNavigation() {} };
   if (name.endsWith('.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
-  return require(name);
+  return nodeRequire(name);
 });
 const css = fs.readFileSync(path.join(directory, 'report.module.css'), 'utf8').replaceAll(':global(html)', 'html');
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>企业选址洞察 · 隔离验证</title><style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}html{--cd-header-height:54px;scroll-padding-top:54px}body{display:flex;flex-direction:column}img{max-width:100%;height:auto}${css}</style><body>${renderToStaticMarkup(React.createElement(report.OccupierInsightsReport))}<script>const exports={};${compile(path.join(directory, 'reportNavigation.ts'))};exports.mountReportNavigation(document.querySelector('[data-report-header]').parentElement);</script></body></html>`;
@@ -48,7 +54,7 @@ fs.writeFileSync(path.join(output, 'report.html'), html);
 const server = http.createServer((_request, response) => { response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.end(html); });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const url = `http://127.0.0.1:${server.address().port}`;
-const { chromium } = require(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
+const { chromium } = nodeRequire(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
 let browser;
 const results = [];
 try {
