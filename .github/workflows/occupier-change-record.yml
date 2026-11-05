@@ -1,0 +1,34 @@
+# Temporary, branch-scoped preparation; remove this file before opening the PR.
+name: Prepare occupier report change record
+on:
+  push:
+    branches:
+      - codex/occupier-report-scroll-20261105
+permissions:
+  contents: write
+jobs:
+  record:
+    if: github.repository == 'ronyu870-collab/office-map-main' && github.ref == 'refs/heads/codex/occupier-report-scroll-20261105'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepend task record without replacing existing changelog history
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          changelog = Path('CHANGELOG.md')
+          heading = '## 2026-11-05 — 企业选址洞察连续滚动阅读版'
+          entry = heading + '\n\n- 参考用户提供的二季度 HTML，报告改为连续纵向阅读、吸顶章节导航及阅读进度；封面、数据、行业和看楼清单分别组织，不依赖展开点击。\n- 保留原调研数值、第三方来源、适用边界及 11 条资料提要；图片作为背景构图，移除页面生成标注，素材来源留在验证记录。未改业务数据、认证、权限或全站令牌。\n- 增加会话边界、滚动导航、清理与深链接回归，以及五档视口的隔离浏览器验证。测试结果以精确 PR head 的 Verify 为准；范围及限制见 [交付记录](docs/verification/occupier-insights-scroll-20261105.md)。\n\n'
+          content = changelog.read_text()
+          if heading not in content:
+              changelog.write_text(entry + content)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md
+          git commit -m "docs: record occupier report redesign"
+          git push origin HEAD:refs/heads/codex/occupier-report-scroll-20261105
