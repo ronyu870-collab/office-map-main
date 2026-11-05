@@ -494,6 +494,36 @@ describe('complete list with the existing map workbench', () => {
 });
 
 describe('asynchronous scope and view boundaries', () => {
+  it('shows pending Yuyuantan points when future supply is enabled from a fresh map', async () => {
+    const pending = {
+      id: 'yuyuantan-pending', name: '玉渊潭示例楼', status: 'pending',
+      district: '海淀区', submarket: '玉渊潭', launch_year: null, grade: null,
+      location_lng: 116.29, location_lat: 39.93,
+    };
+    controller.fetchFutureSupplies.mockResolvedValue([pending]);
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
+    const panel = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
+    fireEvent.click(within(panel).getByText('项目类型', { exact: true }));
+    fireEvent.click(within(panel).getByRole('checkbox', { name: '显示未来新增供应' }));
+    expect(within(panel).getByRole('checkbox', { name: '待核实' })).toBeChecked();
+    expect(within(panel).getByRole('checkbox', { name: '暂无供应时间' })).toBeChecked();
+    await waitFor(() => expect(controller.renderFutureMarkers.mock.lastCall?.[0]).toContainEqual(pending));
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
+
+    fireEvent.click(within(panel).getByText('子市场', { exact: true }));
+    fireEvent.click(within(panel).getByRole('checkbox', { name: '玉渊潭' }));
+    await waitFor(() => expect(controller.renderFutureMarkers.mock.lastCall?.[0]).toEqual([]));
+    fireEvent.click(screen.getByRole('button', { name: '关闭筛选' }));
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
+    const reopened = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
+    if (!within(reopened).queryByRole('checkbox', { name: '玉渊潭' })) {
+      fireEvent.click(within(reopened).getByText('子市场', { exact: true }));
+    }
+    expect(within(reopened).getByRole('checkbox', { name: '玉渊潭' })).not.toBeChecked();
+  });
+
   it('invalidates a delayed detail when popstate restores the list', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList(); vi.useFakeTimers();
