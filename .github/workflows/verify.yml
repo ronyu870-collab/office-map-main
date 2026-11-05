@@ -16,6 +16,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  search-focus:
+    name: Search and filter focus coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify the coverage contract
+        run: node --test scripts/verify-search-focus-gate.mjs
+      - name: Run regressions for affected entrypoints
+        run: node scripts/search-focus-gate.mjs
+        env:
+          SEARCH_FOCUS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+
   verify:
     name: Typecheck, lint, test and build
     runs-on: ubuntu-24.04
