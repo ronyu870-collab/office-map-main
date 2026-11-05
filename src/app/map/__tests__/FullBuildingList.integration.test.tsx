@@ -256,6 +256,34 @@ describe('complete list with the existing map workbench', () => {
     expect(restored.getByRole('button', { name: '子市场' })).toHaveTextContent('全部');
   });
 
+  it.each([
+    ['行政区', '朝阳区', '30 栋楼宇'],
+    ['子市场', '中关村', '14 栋楼宇'],
+    ['项目类型', '乙级写字楼', '14 栋楼宇'],
+  ])('applies the %s option when clicking its label blurs the trigger without a focus target', async (group, option, result) => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    const ui = within(list);
+    const trigger = ui.getByRole('button', { name: group });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const checkbox = ui.getByRole('checkbox', { name: option });
+    const label = checkbox.closest('label')!;
+    const text = within(label).getByText(option);
+    fireEvent.pointerDown(text);
+    // A label click can blur the trigger before it is forwarded to the input.
+    fireEvent.blur(trigger, { relatedTarget: null });
+    fireEvent.click(text);
+    await ui.findByText(result);
+    expect(checkbox).toBeChecked();
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(trigger).toHaveTextContent(option);
+
+    // A focus move to a known external control still dismisses the menu.
+    fireEvent.blur(checkbox, { relatedTarget: ui.getByRole('searchbox') });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('continues editing the list search across result updates with a quick filter applied', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
