@@ -23,9 +23,9 @@ describe('occupier insights extended public research', () => {
     app.session = null;
     const { container } = render(<OccupierInsightsReport />);
     expect(screen.getByRole('heading', { name: '企业选址洞察' })).toBeInTheDocument();
-    expect(container.querySelectorAll('main section')).toHaveLength(19);
+    expect(container.querySelectorAll('main section')).toHaveLength(18);
     expect(screen.getByRole('navigation', { name: '报告章节' }).querySelectorAll('a')).toHaveLength(4);
-    expect(screen.getByRole('link', { name: '结论与口径' })).toHaveAttribute('href', '#sources');
+    expect(screen.getByRole('link', { name: '决策与行动' })).toHaveAttribute('href', '#options');
     expect(screen.queryByRole('link', { name: '返回首页' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '打开北京办公楼市场地图' })).not.toBeInTheDocument();
     expect(app.replace).not.toHaveBeenCalled();
@@ -50,28 +50,26 @@ describe('occupier insights extended public research', () => {
 
   it('keeps all eleven photo topics and all 62 chart observations visible', () => {
     const { container } = render(<OccupierInsightsReport />);
-    expect(container.querySelectorAll('main section')).toHaveLength(19);
+    expect(container.querySelectorAll('main section')).toHaveLength(18);
     expect(container.querySelectorAll('figure[data-study]')).toHaveLength(11);
     expect(container.querySelectorAll('[data-survey-value]')).toHaveLength(62);
-    expect(screen.getAllByRole('heading', { level: 4 })).toHaveLength(11);
+    expect(screen.queryAllByRole('heading', { level: 4 })).toHaveLength(0);
     expect(sourceNotes).toHaveLength(11);
     expect(container.querySelectorAll('details')).toHaveLength(0);
-    expect(screen.getByText('战略准备与优化机遇')).toBeVisible();
-    expect(screen.getByText('结论与下一步')).toBeVisible();
+    expect(screen.getByRole('heading', { name: '现有空间仍有价值，但审查不能停止。' })).toBeVisible();
     const count = Object.values(surveyPlots).reduce((sum, values) => sum + values.length, 0);
     expect(count).toBe(62);
   });
 
-  it('retains third-party data boundaries without printing the competitor brand name', () => {
+  it('removes the closing appendix and editorial footnotes while preserving survey values', () => {
     const { container } = render(<OccupierInsightsReport />);
-    for (const value of ['86.4', '69.1', '60.5', '54.3', '35.8', '7.4', '67.9']) {
-      expect(screen.getAllByText(value).length).toBeGreaterThan(0);
+    expect(container.querySelector('#sources')).toBeNull();
+    expect(container.textContent).not.toMatch(/数据范围与应用边界|十一张现场资料|不代表北京|不等于|自行调查|AI\s*生成/);
+    expect(screen.queryByRole('link', { name: /阅读公开调研/ })).not.toBeInTheDocument();
+    const values = Array.from(container.querySelectorAll('[data-survey-value]')).map(row => row.textContent);
+    for (const data of Object.values(surveyPlots)) {
+      for (const [label, number] of data) expect(values).toContain(label + number.toFixed(1) + '%');
     }
-    const source = screen.getByRole('link', { name: /阅读公开调研原始页面/ });
-    expect(source).toHaveAttribute('href', expect.stringContaining('cushwake.com'));
-    expect(source).toHaveAttribute('rel', 'noopener noreferrer');
-    expect(screen.getByText(/不代表北京企业的实际迁移、成交或未来供应/)).toBeVisible();
-    expect(container.textContent).not.toMatch(/戴德梁行|AI\s*生成/);
-    expect(container.querySelectorAll('img[aria-hidden="true"][alt=""]')).toHaveLength(3);
+    expect(new Set(Array.from(container.querySelectorAll('[data-plot]')).map(el=>el.getAttribute('data-plot'))).size).toBe(5);
   });
 });

@@ -59,44 +59,64 @@ const { chromium } = nodeRequire(process.env.PERF_PLAYWRIGHT_MODULE || 'playwrig
 let browser;
 const results = [];
 try {
-  browser = await chromium.launch({ headless: true });
-  for (const [width, height] of [[1440, 900], [1280, 800], [768, 1024], [390, 844], [320, 740]]) {
+  browser = await chromium.launch({ headless: true, channel: process.env.PERF_BROWSER_CHANNEL || undefined });
+  for (const [width, height] of [[1440, 900], [1366, 768], [1280, 720], [1024, 700], [768, 1024], [390, 844], [320, 740]]) {
     const page = await browser.newPage({ viewport: { width, height } });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url, { waitUntil: 'load' });
     await page.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
-    assert.equal(await page.locator('main section').count(), 19);
+    assert.equal(await page.locator('main section').count(), 18);
     assert.equal(await page.locator('figure[data-study]').count(), 11);
     assert.equal(await page.locator('[data-survey-value]').count(), 62);
-    assert.equal(await page.locator('h4').count(), 11);
+    assert.equal(await page.locator('h4').count(), 0);
     assert.equal(await page.locator('details').count(), 0);
     const content = await page.locator('body').innerText();
     assert.ok(!/AI\s*生成|戴德梁行/.test(content));
     for (const value of ['86.4', '69.1', '60.5', '54.3', '35.8', '7.4', '67.9']) assert.ok(content.includes(value));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Horizontal overflow at ${width}`);
+    if (width >= 1000) {
+      const sizes = await page.evaluate(() => [...document.querySelectorAll('main section')].map(el => ({
+        id: el.id, height: el.getBoundingClientRect().height,
+        available: innerHeight - document.querySelector('[data-report-header]').getBoundingClientRect().height,
+      })));
+      assert.deepEqual(sizes.filter(s => s.height > s.available + 2), [], 'Every desktop scene must fit the available viewport');
+      await page.mouse.move(width / 2, height / 2);
+      await page.mouse.wheel(0, 180);
+      await page.waitForFunction(() => Math.abs(document.querySelector('#factors').getBoundingClientRect().top - document.querySelector('[data-report-header]').getBoundingClientRect().height) < 3, null, { timeout: 5000 });
+      await page.mouse.wheel(0, -180);
+      await page.waitForFunction(() => scrollY < 3);
+    }
     await page.mouse.move(width / 2, height / 2);
     await page.mouse.wheel(0, 700);
     await page.waitForFunction(() => scrollY > 100);
     await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, 0); });
-    for (const [id, chapter] of [['report-top', 'cover'], ['factors', 'factors'], ['priorities', 'factors'], ['industry', 'industry'], ['checklist', 'checklist'], ['sources', 'sources']]) {
+    for (const [id, chapter] of [['report-top', 'cover'], ['factors', 'factors'], ['priorities', 'factors'], ['industry', 'industry'], ['checklist', 'checklist'], ['options', 'options']]) {
       await page.evaluate(id => {
         const header = document.querySelector('[data-report-header]').getBoundingClientRect().height;
-        scrollTo(0, Math.max(0, document.getElementById(id).getBoundingClientRect().top + scrollY - header - 20));
+        scrollTo(0, Math.max(0, document.getElementById(id).getBoundingClientRect().top + scrollY - header));
       }, id);
       await page.waitForFunction(chapter => document.querySelector('[data-report-header]').parentElement.dataset.activeChapter === chapter, chapter);
       assert.equal(await page.locator('nav [aria-current]').count(), chapter === 'cover' ? 0 : 1);
       assert.ok(await page.evaluate(() => Math.abs(document.querySelector('[data-report-header]').getBoundingClientRect().top) < 1));
-      if (width === 1440 || width === 390) await page.screenshot({ path: path.join(output, `${width}-${id}.png`) });
+      await page.evaluate(async () => { await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))); });
+      if (width === 1440 || width === 390) await page.screenshot({ animations: 'disabled', path: path.join(output, `${width}-${id}.png`) });
+    }
+    if (width === 1280) {
+      for (const id of await page.locator('main section').evaluateAll(els=>els.map(el=>el.id))) {
+        await page.evaluate(id=>document.getElementById(id).scrollIntoView({block:'start',behavior:'instant'}),id);
+        await page.waitForFunction(id => [...document.querySelectorAll('#'+id+' [data-reveal]')].every(el=>el.dataset.visible==='true'), id);
+        await page.screenshot({animations:'disabled',path:path.join(output, 'laptop-'+id+'.png')});
+      }
     }
     await page.evaluate(() => { document.documentElement.style.scrollBehavior = ''; });
     await page.locator('nav a[href="#factors"]').click();
-    await page.waitForFunction(() => Math.abs(document.getElementById('factors').getBoundingClientRect().top - document.querySelector('[data-report-header]').getBoundingClientRect().height - 20) < 3);
+    await page.waitForFunction(() => Math.abs(document.getElementById('factors').getBoundingClientRect().top - document.querySelector('[data-report-header]').getBoundingClientRect().height) < 3);
     assert.equal(new URL(page.url()).hash, '#factors');
     assert.equal(await page.locator('a[href="/map"]').count(), 1);
-    assert.equal(await page.locator('a[target="_blank"][rel="noopener noreferrer"]').count(), 1);
+    assert.equal(await page.locator('a[target="_blank"][rel="noopener noreferrer"]').count(), 0);
     assert.deepEqual(errors, []);
-    results.push({ width, height, continuousScroll: true, stickyNav: true, activeChapter: true, anchorClearance: true, scenes: 19, plots: 11, dataPoints: 62, notes: 11, horizontalOverflow: false, errors });
+    results.push({ width, height, continuousScroll: true, stickyNav: true, activeChapter: true, anchorClearance: true, scenes: 18, plots: 11, dataPoints: 62, notes: 0, horizontalOverflow: false, errors });
     await page.close();
   }
   const reduced = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
@@ -110,13 +130,13 @@ try {
     const response = await anonymous.goto(`${app}/occupier-insights`);
     assert.equal(response?.status(), 200);
     await anonymous.getByRole('heading', { name: '企业选址洞察', exact: true }).waitFor({ timeout: 15000 });
-    assert.equal(await anonymous.locator('h4').count(), 11);
-    assert.equal(await anonymous.locator('main section').count(), 19);
+    assert.equal(await anonymous.locator('h4').count(), 0);
+    assert.equal(await anonymous.locator('main section').count(), 18);
     assert.equal(await anonymous.locator('[data-survey-value]').count(), 62);
     assert.equal(await anonymous.locator('a[href="/"], a[href="/map"]').count(), 0);
-    await anonymous.locator('nav a[href="#sources"]').click();
-    await anonymous.waitForURL('**/occupier-insights#sources');
-    await anonymous.waitForFunction(() => document.querySelector('nav [aria-current]')?.getAttribute('href') === '#sources');
+    await anonymous.locator('nav a[href="#options"]').click();
+    await anonymous.waitForURL('**/occupier-insights#options');
+    await anonymous.waitForFunction(() => document.querySelector('nav [aria-current]')?.getAttribute('href') === '#options');
     await anonymous.locator('footer a[href="#report-top"]').click();
     await anonymous.waitForURL('**/occupier-insights#report-top');
     await anonymous.goto(app + '/');
