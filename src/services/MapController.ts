@@ -2402,9 +2402,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const grade = this.getDisplayOverride(building.id, "grade");
     const submarket = this.getDisplayOverride(building.id, "submarket");
     const protectedText = (value: string | null | undefined) => this._isDemo && value ? "***" : value || "暂无";
-    const row = (label: string, value: unknown) => `
+    const row = (label: string, value: unknown, emphasize = false) => `
       <div class="building-popup__row">
-        <dt>${escapeHtml(label)}</dt><dd data-popup-value="${escapeHtml(label)}"><span class="building-popup__value">${escapeHtml(value)}</span></dd>
+        <dt>${escapeHtml(label)}</dt><dd${emphasize ? ' class="building-popup__metric-key"' : ""} data-popup-value="${escapeHtml(label)}"><span class="building-popup__value">${escapeHtml(value)}</span></dd>
       </div>`;
     const leed = building.leed_certification;
     const currency = (value: number | null | undefined) => value == null ? "—" : formatZhNumber(Number(value));
@@ -2442,7 +2442,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                 <dl>
                   ${row("空置率", latestMetric ? formatVacancyRate(latestMetric.vacancy_rate) : "—")}
                   ${row("表面租金", currency(latestMetric?.face_rent))}
-                  ${row("净有效租金", currency(latestMetric?.net_effective_rent))}
+                  ${row("净有效租金", currency(latestMetric?.net_effective_rent), latestMetric?.net_effective_rent != null)}
                   ${row("物业费", currency(latestMetric?.management_fee))}
                   ${row("指标季度", quarter)}
                 </dl>
