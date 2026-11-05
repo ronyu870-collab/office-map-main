@@ -183,11 +183,29 @@
   .sort > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
   .row { padding-block: 9px 13px; }
   .name { min-height: 44px; }
+  .facts { row-gap: 0; }
   .facts > div { padding-inline: 7px; gap: 2px 6px; }
+  /* Break between the identity fields and the three operating metrics. */
+  .facts::after {
+    content: "";
+    order: 1;
+    flex: 0 0 100%;
+    height: 0;
+  }
+  .facts > div:nth-child(-n+2) { margin-block-end: 6px; }
+  .facts > div:first-child { max-inline-size: calc(100% - 102px); }
+  .facts > div:nth-child(2) { max-inline-size: 96px; }
+  .facts > div:nth-child(n+3) {
+    order: 2;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    padding-block: 4px;
+  }
+  /* Leave room for both gaps while giving rent the most room to wrap. */
+  .facts > div:nth-child(3) { max-inline-size: calc(32% - 4px); }
+  .facts > div:nth-child(4) { max-inline-size: calc(44% - 4px); }
+  .facts > div:nth-child(5) { max-inline-size: calc(24% - 4px); }
   .footer { align-items: flex-start; flex-wrap: wrap; }
   .status { padding: 24px 0; }
-}
-
-@media (max-width: 369px) {
-  .facts > div { flex-direction: column; gap: 0; }
 }
