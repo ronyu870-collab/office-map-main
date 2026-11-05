@@ -237,3 +237,119 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   .building-popup__facts { column-gap: .75rem; }
   .building-popup__actions { margin-top: .75rem; }
 }
+
+/* Keep the title compact until a photo is requested. */
+body:has(#map-container) .amap-info-content:not(:has(.building-popup)):has(.building-pilot-gallery:not([hidden])) {
+  max-height: calc(100dvh - 136px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.building-pilot-title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: .25rem;
+}
+.building-pilot-title-row--future {
+  display: inline-flex;
+  vertical-align: middle;
+}
+.building-pilot-title-row .building-pilot-name {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--cd-color-text-primary, #172033);
+}
+.building-pilot-title-row--future .building-pilot-name {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.building-pilot-title-row:has([aria-expanded="true"]) .building-pilot-name {
+  display: block;
+}
+.building-pilot-photo-trigger,
+.building-pilot-photo-control {
+  display: inline-grid;
+  min-width: 44px;
+  min-height: 44px;
+  place-items: center;
+  padding: 0 4px;
+  border: 0;
+  color: var(--cd-color-brand);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.building-pilot-photo-trigger {
+  flex: none;
+}
+.building-pilot-photo-trigger span {
+  font-size: .75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border: 1px solid var(--cd-color-border);
+  border-radius: 4px;
+}
+.building-pilot-photo-trigger:hover span,
+.building-pilot-photo-trigger[aria-expanded="true"] span,
+.building-pilot-photo-control:hover:not([aria-disabled="true"]) {
+  background: var(--cd-color-surface-muted, #f1f5f9);
+}
+.building-pilot-photo-trigger:focus-visible,
+.building-pilot-photo-control:focus-visible {
+  outline: 2px solid var(--cd-color-brand);
+  outline-offset: -2px;
+}
+.building-pilot-photo-control[aria-disabled="true"] {
+  opacity: .42;
+  cursor: default;
+}
+.building-pilot-gallery {
+  margin: 0 0 8px;
+  color: var(--cd-color-text-secondary, #475569);
+  font-size: 12px;
+}
+.building-pilot-photo-stage {
+  position: relative;
+  display: grid;
+  height: clamp(110px, 24dvh, 180px);
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--cd-color-surface-muted, #f1f5f9);
+}
+.building-pilot-photo-stage img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.building-pilot-photo-message,
+.building-pilot-gallery figcaption,
+.building-pilot-gallery nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.building-pilot-gallery figcaption {
+  min-height: 28px;
+  justify-content: space-between;
+}
+.building-pilot-gallery nav {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 640px) and (pointer: fine) {
+  .building-pilot-photo-trigger {
+    min-height: 28px;
+  }
+}

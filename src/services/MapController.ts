@@ -12,6 +12,8 @@ import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPa
 import { isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
+import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
+import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from "./map/buildingPhotoGallery";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
@@ -323,6 +325,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private map: any | null = null;
   private infoWindow: any | null = null;
   private buildingPopupBinding: ReturnType<typeof bindBuildingPopup> | null = null;
+  private futurePhotoCleanup: (() => void) | null = null;
 
   private markers: any[] = [];
   private dotMarkers: any[] = []; // Level 3: 小圆点标记
@@ -1903,6 +1906,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       this.infoWindow?.close?.();
       this.releaseBuildingPopup();
     }
+    this.releaseFuturePhotoGallery();
     const containerDiv = document.createElement("div");
     containerDiv.innerHTML = this.buildFutureSupplyInfoWindow(supply);
     const info = new this.AMap.InfoWindow({
@@ -1912,11 +1916,21 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       content: containerDiv,
     });
     this.infoWindow = info;
+    const pilot = this.getPhotoPilot(supply.building_id);
+    if (pilot) {
+      const dispose = bindBuildingPhotoGallery(containerDiv, supply.building_id, pilot.photos);
+      this.futurePhotoCleanup = dispose;
+      info.on("close", () => {
+        if (this.futurePhotoCleanup === dispose) this.releaseFuturePhotoGallery();
+      });
+    }
     info.open(this.map, [lng, lat]);
   }
 
   private buildFutureSupplyInfoWindow(supply: any): string {
     const name = escapeHtml(supply.name);
+    const photoPilot = this.getPhotoPilot(supply.building_id);
+    const galleryId = photoPilot ? `building-gallery-${escapeHtml(supply.building_id)}` : "";
     const commercial = isCommercialFutureSupply(supply);
     const grade = escapeHtml(displayGrade(supply.grade));
     const owner = escapeHtml(supply.owner || "—");
@@ -1941,8 +1955,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       <div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
         <div style="margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 8px;">
            <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">${commercial ? '商业未来供应' : '未来供应'}</span>
-           <span style="font-size:16px; font-weight:900; color:#0f172a;">${this._mask(name)}</span>
+           ${photoPilot
+             ? `<div class="building-pilot-title-row building-pilot-title-row--future"><span class="building-pilot-name" title="${name}">${name}</span>${buildPhotoTrigger(galleryId)}</div>`
+             : `<span style="font-size:16px; font-weight:900; color:#0f172a;">${this._mask(name)}</span>`}
         </div>
+        ${photoPilot ? buildPhotoGallery(galleryId, name, photoPilot.photos) : ""}
         <div style="font-size: 12px; color: #475569; line-height: 1.8;">
           <div style="display:flex; justify-content:space-between;"><span>预计入市：</span> <span style="font-weight:700; color:#10b981;">${time}</span></div>
           <div style="display:flex; justify-content:space-between;"><span>总体量：</span> <span style="font-weight:700; color:#0f172a;">${area}</span></div>
@@ -2393,12 +2410,23 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return this._displayOverridesCache;
   }
 
+  private getPhotoPilot(buildingId?: string) {
+    return !this._isDemo && buildingId ? getBuildingMediaPilot(buildingId) : null;
+  }
+
+  private releaseFuturePhotoGallery() {
+    this.futurePhotoCleanup?.();
+    this.futurePhotoCleanup = null;
+  }
+
   private buildInfoWindowContent(
     building: BuildingWithMetrics,
     latestMetric: BuildingMetric | null,
   ): string {
     const name = escapeHtml(this._isDemo ? "***" : building.name);
     const id = escapeHtml(building.id);
+    const photoPilot = this.getPhotoPilot(building.id);
+    const galleryId = `building-gallery-${id}`;
     const grade = this.getDisplayOverride(building.id, "grade");
     const submarket = this.getDisplayOverride(building.id, "submarket");
     const protectedText = (value: string | null | undefined) => this._isDemo && value ? "***" : value || "暂无";
@@ -2414,7 +2442,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       <section class="building-popup" data-building-id="${id}" data-building-name="${name}" aria-label="${name}楼宇详情">
         <header class="building-popup__titlebar">
           <div class="building-popup__title">
-            <h2>${name}</h2>
+            ${photoPilot
+              ? `<div class="building-pilot-title-row"><h2 class="building-pilot-name" title="${name}">${name}</h2>${buildPhotoTrigger(galleryId)}</div>`
+              : `<h2>${name}</h2>`}
             ${leed && leed !== "NULL" ? `<span class="building-popup__certification">LEED ${escapeHtml(leed)}</span>` : ""}
           </div>
           <button type="button" class="building-popup__quiet building-popup__close" data-popup-action="close" aria-label="关闭楼宇详情">
@@ -2423,6 +2453,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         </header>
         <div class="building-popup__body">
           <div class="building-popup__summary">
+            ${photoPilot ? buildPhotoGallery(galleryId, name, photoPilot.photos) : ""}
             <div class="building-popup__facts">
               <section class="building-popup__group" aria-label="楼宇概况">
                 <div class="building-popup__group-head"><h3>楼宇概况</h3></div>
@@ -2479,7 +2510,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     content.innerHTML = this.buildInfoWindowContent(building, metric);
     const root = content.firstElementChild as HTMLElement;
     this.buildingPopupBinding?.dispose();
-    this.buildingPopupBinding = bindBuildingPopup(root, action => {
+    const popup = bindBuildingPopup(root, action => {
       switch (action) {
         case "close":
           this.infoWindow?.close?.();
@@ -2506,6 +2537,15 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
       }
     });
+    const pilot = this.getPhotoPilot(building.id);
+    const disposeGallery = pilot ? bindBuildingPhotoGallery(root, building.id, pilot.photos) : null;
+    this.buildingPopupBinding = {
+      ...popup,
+      dispose() {
+        disposeGallery?.();
+        popup.dispose();
+      },
+    };
     return content;
   }
 
@@ -2517,6 +2557,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.infoWindow?.close?.();
     this._isClearingCompetitor = false;
     this.releaseBuildingPopup();
+    this.releaseFuturePhotoGallery();
     const content = this.createBuildingPopupContent(building, metric);
     const info = new this.AMap.InfoWindow({
       isCustom: false,
@@ -2736,6 +2777,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   destroy(): void {
     this._destroyed = true;
     this.releaseBuildingPopup();
+    this.releaseFuturePhotoGallery();
     this.destroyHoverTooltip();
     this.clearMap();
     if (isBrowser()) {

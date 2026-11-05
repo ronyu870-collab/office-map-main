@@ -83,3 +83,48 @@ describe('locally archived originals',()=>{
   expect((await route.GET(request(`&material_id=${id}`))).status).toBe(502);expect(mocks.sign).not.toHaveBeenCalled();
  });
 });
+
+describe('building media pilot', () => {
+ const pilotBuilding='b99a801e-5dfd-4849-8aef-c55de594a48f';
+ const pilotMaterial='55c9ff8b-9596-459a-aa00-6e8cc034a630';
+ const prefix=`pilot-media/v1/${pilotBuilding}/${pilotMaterial}/`;
+ const original={...row,id:pilotMaterial,storage_path:'original.docx',original_name:'楼书.docx',original_location:'cloud'};
+ const pilotRequest=(extra:string,buildingId=pilotBuilding)=>new Request(`https://synthetic.invalid/api/map/sales-materials?building_id=${buildingId}&${extra}`);
+ beforeEach(()=>{
+  vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT','1');
+  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:pilotBuilding}:original,error:null}));
+ });
+ it('only signs the associated ready cover; caller-provided paths and material ids are ignored',async()=>{
+  const response=await route.GET(pilotRequest('cover=1&material_id='+id+'&path=other.webp'));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({url:'https://synthetic.invalid/signed'});
+  expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['id',pilotMaterial]});
+  expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['building_id',pilotBuilding]});
+  expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['status','ready']});
+  expect(mocks.sign.mock.calls).toEqual([[prefix+'cover.webp',300]]);
+ });
+ it('refuses anonymous, non-pilot, and disabled access before signing',async()=>{
+  mocks.identity.mockResolvedValueOnce({response:NextResponse.json({error:'login'},{status:401})});
+  expect((await route.GET(pilotRequest('cover=1'))).status).toBe(401);
+  expect((await route.GET(pilotRequest('cover=1',building))).status).toBe(404);
+  vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT','0');
+  expect((await route.GET(pilotRequest('cover=1'))).status).toBe(404);
+  expect(mocks.sign).not.toHaveBeenCalled();
+ });
+ it('only signs the requested photo from this building’s gallery',async()=>{
+  expect((await route.GET(pilotRequest('cover=1&photo=1&path=other.webp'))).status).toBe(200);
+  expect(mocks.sign.mock.calls).toEqual([[prefix+'interior.webp',300]]);
+ });
+ it.each([
+  ['-1',pilotBuilding],['2',pilotBuilding],['1.5',pilotBuilding],
+  ['1','59f20a3a-4fc8-40d2-8270-f6a5c9784bee'],
+ ])('does not sign photo %s when it is not available for the requested building',async(index,buildingId)=>{
+  expect((await route.GET(pilotRequest('cover=1&photo='+index,buildingId))).status).toBe(404);
+  expect(mocks.sign).not.toHaveBeenCalled();
+ });
+ it('keeps the regular materials request tied to the original Word file',async()=>{
+  const response=await route.GET(pilotRequest('material_id='+pilotMaterial));
+  expect(response.status).toBe(200);
+  expect(mocks.sign.mock.calls).toEqual([[original.storage_path,300],[original.storage_path,300,{download:original.original_name}]]);
+ });
+});

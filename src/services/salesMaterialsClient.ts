@@ -19,6 +19,10 @@ async function readMaterial<T>(params: URLSearchParams, signal?: AbortSignal): P
   if (!response.ok) throw new Error(result.error || '销控资料读取失败');
   return result as T;
 }
+export async function loadBuildingPhoto(buildingId: string, photoIndex: number, signal: AbortSignal): Promise<string> {
+  return (await readMaterial<{ url: string }>(new URLSearchParams({ building_id: buildingId, cover: '1', photo: String(photoIndex) }), signal)).url;
+}
+
 export const salesMaterialReader: SalesMaterialReader = {
   list: (buildingId, page, signal) => readMaterial(new URLSearchParams({ building_id: buildingId, page: String(page) }), signal),
   access: (buildingId, materialId, signal) => readMaterial(new URLSearchParams({ building_id: buildingId, material_id: materialId }), signal),
