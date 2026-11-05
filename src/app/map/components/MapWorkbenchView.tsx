@@ -267,6 +267,7 @@ function SupplyPanel({
               <div className="mt-2 flex items-center gap-3 border-t border-slate-200/70 pt-2 text-[10px] text-slate-400">
                 <span>办公 {data.office}</span>
                 <span>园区 {data.park}</span>
+                {data.commercial > 0 ? <span>商业 {data.commercial}</span> : null}
               </div>
             </div>
           );

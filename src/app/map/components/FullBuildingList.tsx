@@ -4,7 +4,7 @@ import * as React from 'react';
 import { AppHeader, Button } from '@/src/components/ui';
 import { SearchBar } from '@/src/components/SearchBar';
 import { X } from 'lucide-react';
-import type { ActiveFilterChip } from '../model/mapDomain';
+import { isCommercialFutureSupply, type ActiveFilterChip } from '../model/mapDomain';
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import { MaskedText } from '@/src/components/demo';
 import { displayListGrade, hasBuildingLocation, listBuildingValues, sortFullList, type FullListBuilding, type FullListSort } from '../model/fullBuildingList';
@@ -128,7 +128,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                       if (scrollRef.current) savedScroll.current = scrollRef.current.scrollTop;
                       onBuildingClick(building);
                     }}><MaskedText>{building.name || '未命名项目'}</MaskedText></button>
-                    <div className={styles.meta}>{[building.district, submarket, grade, year ? `${year}年${future ? '预计供应' : ''}` : null, future ? '未来供应' : null, targetBuildingId === building.id ? '目标楼宇' : null, periods.length > 1 ? values.period : null].filter(Boolean).map((value, index) => <span key={index}>{value}</span>)}</div>
+                    <div className={styles.meta}>{[building.district, submarket, grade, year ? `${year}年${future ? '预计供应' : ''}` : null, future ? (isCommercialFutureSupply(building) ? '商业未来供应' : '未来供应') : null, targetBuildingId === building.id ? '目标楼宇' : null, periods.length > 1 ? values.period : null].filter(Boolean).map((value, index) => <span key={index}>{value}</span>)}</div>
                     {!locationAvailable ? <p className={styles.locationNote}>位置待完善，暂无法在地图中查看详情</p> : null}
                   </div>
                   <div className={styles.metric}><span className="sr-only">统计面积（㎡）</span>{format(values.area, 0)}</div>

@@ -58,6 +58,16 @@ function defaultFilter(): SidebarFilterState {
 }
 
 describe('MapDataStore', () => {
+  it('finds an ungraded property by name without including it in a selected grade', () => {
+    const target = building('ungraded', { name: '中国电科科技创新园（海淀）', grade: '', district: '海淀区', submarket: '', leed_certification: '' });
+    const store = new MapDataStore([target]);
+    const keyword = '中国电科科技创新园';
+    const filterState = defaultFilter();
+    expect(store.filter({ filterState, compareGroups: [], keyword }).map(row => row.id)).toEqual(['ungraded']);
+    expect(store.filter({ filterState: { ...filterState, projectTypes: ['甲级写字楼'] }, compareGroups: [], keyword })).toEqual([]);
+    expect(store.filter({ filterState, compareGroups: [] })).toEqual([]);
+  });
+
   it('finds the same canonical ID by its current or former name while preserving other filters', () => {
     const store = new MapDataStore([
       building('renamed', { name: '新名称', former_names: ['Legacy Name'] }),

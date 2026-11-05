@@ -4,7 +4,7 @@ import { mkdir, readFile, copyFile, rename, unlink } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 
 export const DEFAULT_LOCAL_DIR = resolve('.local/sales-materials');
-const extension = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'application/pdf': 'pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation':'pptx', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12':'pptm' };
+const extension = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'application/pdf': 'pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation':'pptx', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12':'pptm', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx' };
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
 export async function openLocalStore(directory = DEFAULT_LOCAL_DIR) {

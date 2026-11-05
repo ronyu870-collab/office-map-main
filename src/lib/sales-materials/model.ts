@@ -4,13 +4,14 @@ export const SALES_MATERIAL_BUCKET = 'building-sales-materials';
 export const MAX_MATERIAL_BYTES = 512 * 1024 * 1024;
 export const MATERIAL_PAGE_SIZE = 30;
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 export const PPTM_MIME = 'application/vnd.ms-powerpoint.presentation.macroEnabled.12';
-export const MATERIAL_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', XLSX_MIME, PPTX_MIME, PPTM_MIME] as const;
+export const MATERIAL_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', XLSX_MIME, PPTX_MIME, PPTM_MIME, DOCX_MIME] as const;
 export type MaterialMimeType = typeof MATERIAL_MIME_TYPES[number];
 
 const extensions: Record<MaterialMimeType, string[]> = {
-  'image/jpeg': ['jpg', 'jpeg'], 'image/png': ['png'], 'image/webp': ['webp'], 'application/pdf': ['pdf'], [XLSX_MIME]: ['xlsx'], [PPTX_MIME]: ['pptx'], [PPTM_MIME]: ['pptm'],
+  'image/jpeg': ['jpg', 'jpeg'], 'image/png': ['png'], 'image/webp': ['webp'], 'application/pdf': ['pdf'], [XLSX_MIME]: ['xlsx'], [PPTX_MIME]: ['pptx'], [PPTM_MIME]: ['pptm'], [DOCX_MIME]: ['docx'],
 };
 
 export function materialMimeType(name: string, declaredType: string): MaterialMimeType | null {
@@ -24,7 +25,7 @@ export function matchesMaterialSignature(bytes: Uint8Array, mime: MaterialMimeTy
   if (mime === 'image/png') return [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value);
   const ascii = (start: number, end: number) => String.fromCharCode(...bytes.slice(start, end));
   if (mime === 'image/webp') return ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP';
-  if ([XLSX_MIME, PPTX_MIME, PPTM_MIME].includes(mime)) return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3 && bytes[3] === 4;
+  if ([XLSX_MIME, PPTX_MIME, PPTM_MIME, DOCX_MIME].includes(mime)) return bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3 && bytes[3] === 4;
   return ascii(0, 5) === '%PDF-';
 }
 

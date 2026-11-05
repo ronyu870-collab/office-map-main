@@ -4,6 +4,7 @@ import * as React from 'react';
 import { MaskedText } from '@/src/components/demo';
 import { attachTitleTooltip } from '@/src/utils/titleTooltip';
 import type { BuildingMetric } from '@/src/types';
+import { isCommercialFutureSupply } from '../model/mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
 interface DisplayOverride {
@@ -24,6 +25,7 @@ interface BuildingBasicCardProps {
     property_management?: string;
     metrics?: BuildingMetric[];
     _dataType?: 'existing' | 'future';
+    type?: string | null;
   };
   displayOverrides?: Map<string, Map<string, DisplayOverride>>;
   onClick?: () => void;
@@ -106,7 +108,7 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {hasLeed ? <span className="rounded-[3px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">LEED {leed}</span> : null}
-            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[10px] font-medium text-[#003e7e]">未来供应</span> : null}
+            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[10px] font-medium text-[#003e7e]">{isCommercialFutureSupply(building) ? '商业未来供应' : '未来供应'}</span> : null}
           </div>
         </div>
       </div>

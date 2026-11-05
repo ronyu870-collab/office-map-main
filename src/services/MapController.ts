@@ -9,6 +9,7 @@ import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
+import { isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { clearMapReadCache } from "./mapReadCache";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
@@ -1970,6 +1971,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   private buildFutureSupplyInfoWindow(supply: any): string {
     const name = escapeHtml(supply.name);
+    const commercial = isCommercialFutureSupply(supply);
     const grade = escapeHtml(displayGrade(supply.grade));
     const owner = escapeHtml(supply.owner || "—");
     const time =
@@ -1992,13 +1994,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return `
       <div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
         <div style="margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 8px;">
-           <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">未来供应</span>
+           <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">${commercial ? '商业未来供应' : '未来供应'}</span>
            <span style="font-size:16px; font-weight:900; color:#0f172a;">${this._mask(name)}</span>
         </div>
         <div style="font-size: 12px; color: #475569; line-height: 1.8;">
           <div style="display:flex; justify-content:space-between;"><span>预计入市：</span> <span style="font-weight:700; color:#10b981;">${time}</span></div>
           <div style="display:flex; justify-content:space-between;"><span>总体量：</span> <span style="font-weight:700; color:#0f172a;">${area}</span></div>
-          <div style="display:flex; justify-content:space-between;"><span>楼宇等级：</span> <span style="font-weight:700; color:#0f172a;">${grade}</span></div>
+          ${commercial ? "" : `<div style="display:flex; justify-content:space-between;"><span>楼宇等级：</span> <span style="font-weight:700; color:#0f172a;">${grade}</span></div>`}
           <div style="display:flex; justify-content:space-between;"><span>业主：</span> <span style="font-weight:700; color:#0f172a;">${this._mask(owner)}</span></div>
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
              <span style="color:#94a3b8;">备注：</span><span style="color:#64748b; font-size:11px;">${notes}</span>

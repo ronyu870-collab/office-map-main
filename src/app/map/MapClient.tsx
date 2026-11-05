@@ -11,6 +11,7 @@ import { createLatestFrameScheduler, type LatestFrameScheduler } from '@/src/uti
 import { retryAsync } from '@/src/utils/retryAsync';
 import {
   MAP_DISTRICTS as MOCK_DISTRICTS,
+  SUPPLY_CALENDAR_CATEGORIES,
   buildActiveFilterChips,
   buildDistrictLeedStats,
   buildFutureSupplyCalendar,
@@ -373,7 +374,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
     setFullListWarning(null);
-    if (!activeFilterState.showFutureSupply) setSettledFullListFilterKey(fullListFilterKey);
+    const searchCommercial = Boolean(keyword) && !activeFilterState.showFutureSupply;
+    const loadFuture = activeFilterState.showFutureSupply || searchCommercial;
+    const shouldFitSearch = Boolean(keyword) && keyword !== prevKeywordRef.current;
+    if (!loadFuture) setSettledFullListFilterKey(fullListFilterKey);
     if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
       setIntelligenceCandidatesResolved(true);
     }
@@ -390,7 +394,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     }
 
     // ================= 🌟 未来新增供应分支逻辑 (修复后) =================
-    if (activeFilterState.showFutureSupply) {
+    if (loadFuture) {
       setSettledFullListFilterKey(null);
       void (async () => {
         try {
@@ -398,7 +402,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           const filteredSupplies = filterFutureSupplies(
             supplies,
-            activeFilterState,
+            searchCommercial
+              ? { ...activeFilterState, futureSupplyGrades: ['commercial'], futureSupplyYears: [...SUPPLY_CALENDAR_CATEGORIES] }
+              : activeFilterState,
             keyword,
             (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
           );
@@ -408,6 +414,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
           setSettledFullListFilterKey(fullListFilterKey);
           if (!competitorModeRef.current) {
             ctrl.renderFutureMarkers(filteredSupplies, renderMode);
+            if (shouldFitSearch && filtered.length === 0 && filteredSupplies.length > 0) ctrl.fitToBuildings(filteredSupplies as typeof filtered);
           }
         } catch (e) {
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;

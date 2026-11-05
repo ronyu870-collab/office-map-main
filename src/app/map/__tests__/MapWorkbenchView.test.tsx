@@ -39,11 +39,11 @@ vi.mock('@/src/components/SidebarFilter', () => ({
 import { MapWorkbenchView } from '@/src/app/map/components/MapWorkbenchView';
 
 const emptyCalendar = {
-  '2026': { total: 0, office: 0, park: 0 },
-  '2027': { total: 0, office: 0, park: 0 },
-  '2028': { total: 0, office: 0, park: 0 },
-  '2029AndAfter': { total: 0, office: 0, park: 0 },
-  noDate: { total: 0, office: 0, park: 0 },
+  '2026': { total: 0, office: 0, park: 0, commercial: 0 },
+  '2027': { total: 0, office: 0, park: 0, commercial: 0 },
+  '2028': { total: 0, office: 0, park: 0, commercial: 0 },
+  '2029AndAfter': { total: 0, office: 0, park: 0, commercial: 0 },
+  noDate: { total: 0, office: 0, park: 0, commercial: 0 },
 };
 
 type WorkbenchProps = ComponentProps<typeof MapWorkbenchView>;

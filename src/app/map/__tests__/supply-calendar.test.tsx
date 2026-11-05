@@ -10,6 +10,16 @@ import {
 } from '@/src/app/map/model/mapDomain';
 
 describe('map supply calendar domain model', () => {
+  it('finds commercial future supply without a grade or submarket and keeps it out of office supply', () => {
+    const commercial = { id: '640', name: '玉渊潭640地块商业项目', type: '商业', district: '海淀区', submarket: null, grade: null, launch_year: '2027' };
+    const office = { id: 'office', name: '办公未来项目', district: '海淀区', submarket: '其他', grade: 'B', launch_year: '2027' };
+    const all = [commercial, office];
+    const filter = createDefaultFilterState();
+    expect(filterFutureSupplies(all, filter, '玉渊潭 640').map(x => x.id)).toEqual(['640']);
+    expect(filterFutureSupplies(all, { ...filter, futureSupplyGrades: ['A', 'B'] }, '玉渊潭 640')).toEqual([]);
+    expect(buildFutureSupplyCalendar(all)['2027']).toEqual({ total: 2, office: 1, park: 0, commercial: 1 });
+  });
+
   describe('safeParseSupplyYear', () => {
     it('accepts supported numeric and string year fields', () => {
       expect(safeParseSupplyYear({ launch_year: 2026 })).toBe(2026);
@@ -59,11 +69,11 @@ describe('map supply calendar domain model', () => {
         { name: 'F', launch_year: null, grade: 'BP' },
       ]);
 
-      expect(calendar['2026']).toEqual({ total: 1, office: 1, park: 0 });
-      expect(calendar['2027']).toEqual({ total: 1, office: 0, park: 1 });
-      expect(calendar['2028']).toEqual({ total: 1, office: 1, park: 0 });
-      expect(calendar['2029AndAfter']).toEqual({ total: 2, office: 1, park: 1 });
-      expect(calendar.noDate).toEqual({ total: 1, office: 0, park: 1 });
+      expect(calendar['2026']).toEqual({ total: 1, office: 1, park: 0, commercial: 0 });
+      expect(calendar['2027']).toEqual({ total: 1, office: 0, park: 1, commercial: 0 });
+      expect(calendar['2028']).toEqual({ total: 1, office: 1, park: 0, commercial: 0 });
+      expect(calendar['2029AndAfter']).toEqual({ total: 2, office: 1, park: 1, commercial: 0 });
+      expect(calendar.noDate).toEqual({ total: 1, office: 0, park: 1, commercial: 0 });
     });
   });
   describe('filterFutureSupplies', () => {

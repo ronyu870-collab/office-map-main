@@ -1,6 +1,6 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import type { BuildingWithMetrics } from '@/src/types';
-import { getConfiguredCompareGroups } from './mapDomain';
+import { getConfiguredCompareGroups, STOCK_PROJECT_TYPES } from './mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 
 export type MapRole = 'viewer' | 'editor' | 'admin' | string;
@@ -217,7 +217,12 @@ export class MapDataStore {
     }
 
     if (filterState.projectTypes.length === 0) return [];
-    candidateIds = intersectIds(candidateIds, unionBuckets(this.indexes.projectTypeIndex, filterState.projectTypes));
+    const typeIds = unionBuckets(this.indexes.projectTypeIndex, filterState.projectTypes);
+    // Unknown grades remain searchable without silently joining a market grade.
+    if (keyword && STOCK_PROJECT_TYPES.every(type => filterState.projectTypes.includes(type))) {
+      for (const id of this.indexes.gradeIndex.get(EMPTY_VALUE) ?? []) typeIds.add(id);
+    }
+    candidateIds = intersectIds(candidateIds, typeIds);
 
     if (filterState.leeds.length > 0) {
       candidateIds = intersectIds(candidateIds, unionBuckets(this.indexes.leedIndex, filterState.leeds));
