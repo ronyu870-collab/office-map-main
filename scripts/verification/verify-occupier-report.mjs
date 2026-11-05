@@ -45,6 +45,7 @@ const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => 
   if (name.includes('SessionProvider')) return { useAppSession: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-reader' } } }) };
   if (name.includes('brandAssets')) return assets;
   if (name === './reportNavigation') return { mountReportNavigation() {} };
+  if (name === './reportContent') return load(path.join(directory, 'reportContent.ts'));
   if (name.endsWith('.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
   return nodeRequire(name);
 });
@@ -65,11 +66,13 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url, { waitUntil: 'load' });
     await page.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
-    assert.equal(await page.locator('main section').count(), 6);
+    assert.equal(await page.locator('main section').count(), 19);
+    assert.equal(await page.locator('figure[data-study]').count(), 11);
+    assert.equal(await page.locator('[data-survey-value]').count(), 62);
     assert.equal(await page.locator('h4').count(), 11);
     assert.equal(await page.locator('details').count(), 0);
     const content = await page.locator('body').innerText();
-    assert.ok(!/AI\s*生成/.test(content));
+    assert.ok(!/AI\s*生成|戴德梁行/.test(content));
     for (const value of ['86.4', '69.1', '60.5', '54.3', '35.8', '7.4', '67.9']) assert.ok(content.includes(value));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Horizontal overflow at ${width}`);
     await page.mouse.move(width / 2, height / 2);
@@ -93,7 +96,7 @@ try {
     assert.equal(await page.locator('a[href="/map"]').count(), 1);
     assert.equal(await page.locator('a[target="_blank"][rel="noopener noreferrer"]').count(), 1);
     assert.deepEqual(errors, []);
-    results.push({ width, height, continuousScroll: true, stickyNav: true, activeChapter: true, anchorClearance: true, notes: 11, horizontalOverflow: false, errors });
+    results.push({ width, height, continuousScroll: true, stickyNav: true, activeChapter: true, anchorClearance: true, scenes: 19, plots: 11, dataPoints: 62, notes: 11, horizontalOverflow: false, errors });
     await page.close();
   }
   const reduced = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
@@ -108,6 +111,8 @@ try {
     assert.equal(response?.status(), 200);
     await anonymous.getByRole('heading', { name: '企业选址洞察', exact: true }).waitFor({ timeout: 15000 });
     assert.equal(await anonymous.locator('h4').count(), 11);
+    assert.equal(await anonymous.locator('main section').count(), 19);
+    assert.equal(await anonymous.locator('[data-survey-value]').count(), 62);
     assert.equal(await anonymous.locator('a[href="/"], a[href="/map"]').count(), 0);
     await anonymous.locator('nav a[href="#sources"]').click();
     await anonymous.waitForURL('**/occupier-insights#sources');
