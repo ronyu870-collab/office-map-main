@@ -44,19 +44,19 @@ body:has(#map-container) .amap-info-content {
   color: #172033 !important;
 }
 
-body:has(#map-container) .amap-info-content > div > div {
+body:has(#map-container) .amap-info-content:not(:has(.building-popup)) > div > div {
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif !important;
   background: #ffffff !important;
 }
 
-body:has(#map-container) .amap-info-content button {
+body:has(#map-container) .amap-info-content:not(:has(.building-popup)) button {
   border-radius: 4px !important;
   box-shadow: none !important;
   font-family: inherit !important;
 }
 
 body:has(#map-container) .amap-info-content #chart-btn-rent,
-body:has(#map-container) .amap-info-content button:hover {
+body:has(#map-container) .amap-info-content:not(:has(.building-popup)) button:hover {
   box-shadow: none !important;
 }
 
