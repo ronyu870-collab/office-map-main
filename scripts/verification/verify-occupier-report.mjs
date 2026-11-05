@@ -1,130 +1,100 @@
-/**
- * Browser verification of the actual report component/CSS/controller in an isolated
- * authenticated-content fixture. Platform auth is mocked here, never in the app.
- * Optional argv[2] checks public reading and protected routes on the real build.
- * Artifacts contain only the static public-research report, never business data.
+/** Verify the actual Next production build. The report is public after PR #115.
+ * No session substitution, business database fixture, or production credential is used.
+ * Run after next build/start: node scripts/verification/verify-occupier-report.mjs <baseURL>
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import http from 'node:http';
 import { createRequire } from 'node:module';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
-
-const nodeRequire = createRequire(import.meta.url);
-const cwd = process.cwd();
-const directory = path.join(cwd, 'src/app/occupier-insights');
-const output = path.join(cwd, 'verification/occupier-report');
-fs.mkdirSync(output, { recursive: true });
-const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), {
-  compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
-}).outputText;
-function load(file, resolver = nodeRequire) {
-  const evaluatedModule = { exports: {} };
-  new Function('require', 'module', 'exports', compile(file))(resolver, evaluatedModule, evaluatedModule.exports);
-  return evaluatedModule.exports;
-}
-const assets = load(path.join(cwd, 'src/constants/brandAssets.ts'));
-function inlineImage(src) {
-  if (src.startsWith('data:')) return src;
-  assert.ok(/^\/occupier-insights\/[a-z-]+\.webp$/.test(src), `Unexpected fixture image: ${src}`);
-  return `data:image/webp;base64,${fs.readFileSync(path.join(cwd, 'public', src)).toString('base64')}`;
-}
-const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => {
-  if (name === 'next/image') return { __esModule: true, default: ({ src, fill, ...input }) => {
-    const props = { ...input };
-    delete props.unoptimized;
-    delete props.fetchPriority;
-    delete props.loading;
-    return React.createElement('img', { ...props, src: inlineImage(src), loading: 'eager', style: fill ? { position: 'absolute', inset: 0, width: '100%', height: '100%' } : props.style });
-  } };
-  if (name === 'next/link') return { __esModule: true, default: props => React.createElement('a', props) };
-  if (name === 'next/navigation') return { useRouter: () => ({ replace() {} }) };
-  if (name.includes('SessionProvider')) return { useAppSession: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-reader' } } }) };
-  if (name.includes('brandAssets')) return assets;
-  if (name === './reportNavigation') return { mountReportNavigation() {} };
-  if (name.endsWith('.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
-  return nodeRequire(name);
-});
-const css = fs.readFileSync(path.join(directory, 'report.module.css'), 'utf8').replaceAll(':global(html)', 'html');
-const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>企业选址洞察 · 隔离验证</title><style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}html{--cd-header-height:54px;scroll-padding-top:54px}body{display:flex;flex-direction:column}img{max-width:100%;height:auto}${css}</style><body>${renderToStaticMarkup(React.createElement(report.OccupierInsightsReport))}<script>const exports={};${compile(path.join(directory, 'reportNavigation.ts'))};exports.mountReportNavigation(document.querySelector('[data-report-header]').parentElement);</script></body></html>`;
-fs.writeFileSync(path.join(output, 'report.html'), html);
-const server = http.createServer((_request, response) => { response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.end(html); });
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-const url = `http://127.0.0.1:${server.address().port}`;
-const { chromium } = nodeRequire(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
+const nodeRequire=createRequire(import.meta.url);
+assert.ok(process.argv[2],'Pass the running production-build base URL');
+const app=process.argv[2].replace(/\/$/,'');
+const url=`${app}/occupier-insights`;
+const output=path.join(process.cwd(),'verification/occupier-report');
+fs.mkdirSync(output,{recursive:true});
+const compiled=ts.transpileModule(fs.readFileSync('src/app/occupier-insights/reportContent.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const evaluatedModule={exports:{}};
+new Function('module','exports',compiled)(evaluatedModule,evaluatedModule.exports);
+const {charts}=evaluatedModule.exports;
+const {chromium}=nodeRequire(process.env.PERF_PLAYWRIGHT_MODULE||'playwright-core');
 let browser;
-const results = [];
-try {
-  browser = await chromium.launch({ headless: true });
-  for (const [width, height] of [[1440, 900], [1280, 800], [768, 1024], [390, 844], [320, 740]]) {
-    const page = await browser.newPage({ viewport: { width, height } });
-    const errors = [];
-    page.on('pageerror', error => errors.push(error.message));
-    await page.goto(url, { waitUntil: 'load' });
-    await page.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
-    assert.equal(await page.locator('main section').count(), 6);
-    assert.equal(await page.locator('h4').count(), 11);
-    assert.equal(await page.locator('details').count(), 0);
-    const content = await page.locator('body').innerText();
-    assert.ok(!/AI\s*生成/.test(content));
-    for (const value of ['86.4', '69.1', '60.5', '54.3', '35.8', '7.4', '67.9']) assert.ok(content.includes(value));
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `Horizontal overflow at ${width}`);
-    await page.mouse.move(width / 2, height / 2);
-    await page.mouse.wheel(0, 700);
-    await page.waitForFunction(() => scrollY > 100);
-    await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; scrollTo(0, 0); });
-    for (const [id, chapter] of [['report-top', 'cover'], ['factors', 'factors'], ['priorities', 'factors'], ['industry', 'industry'], ['checklist', 'checklist'], ['sources', 'sources']]) {
-      await page.evaluate(id => {
-        const header = document.querySelector('[data-report-header]').getBoundingClientRect().height;
-        scrollTo(0, Math.max(0, document.getElementById(id).getBoundingClientRect().top + scrollY - header - 20));
-      }, id);
-      await page.waitForFunction(chapter => document.querySelector('[data-report-header]').parentElement.dataset.activeChapter === chapter, chapter);
-      assert.equal(await page.locator('nav [aria-current]').count(), chapter === 'cover' ? 0 : 1);
-      assert.ok(await page.evaluate(() => Math.abs(document.querySelector('[data-report-header]').getBoundingClientRect().top) < 1));
-      if (width === 1440 || width === 390) await page.screenshot({ path: path.join(output, `${width}-${id}.png`) });
-    }
-    await page.evaluate(() => { document.documentElement.style.scrollBehavior = ''; });
-    await page.locator('nav a[href="#factors"]').click();
-    await page.waitForFunction(() => Math.abs(document.getElementById('factors').getBoundingClientRect().top - document.querySelector('[data-report-header]').getBoundingClientRect().height - 20) < 3);
-    assert.equal(new URL(page.url()).hash, '#factors');
-    assert.equal(await page.locator('a[href="/map"]').count(), 1);
-    assert.equal(await page.locator('a[target="_blank"][rel="noopener noreferrer"]').count(), 1);
-    assert.deepEqual(errors, []);
-    results.push({ width, height, continuousScroll: true, stickyNav: true, activeChapter: true, anchorClearance: true, notes: 11, horizontalOverflow: false, errors });
-    await page.close();
+const results=[];
+try{
+ browser=await chromium.launch({headless:true});
+ for(const [width,height] of [[1440,900],[1280,800],[768,1024],[390,844],[320,740]]){
+  const page=await browser.newPage({viewport:{width,height}}),errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  const response=await page.goto(url,{waitUntil:'load'});
+  assert.equal(response?.status(),200);
+  await page.getByRole('heading',{name:'企业选址洞察',exact:true}).waitFor({timeout:15000});
+  await page.waitForFunction(()=>document.querySelector('[data-report-header]')?.parentElement.dataset.activeChapter==='cover');
+  await page.evaluate(()=>document.fonts.ready);
+  assert.ok(await page.evaluate(()=>{
+   const luminance=color=>{const channels=color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;});return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;};
+   return ['ecosystem','checklist'].every(id=>{const section=document.getElementById(id);const foreground=luminance(getComputedStyle(section.querySelector('h2')).color),background=luminance(getComputedStyle(section).backgroundColor);return (Math.max(foreground,background)+.05)/(Math.min(foreground,background)+.05)>=4.5;});
+  }),'Dark-scene headings need sufficient contrast');
+  assert.equal(await page.locator('main section').count(),18);
+  assert.equal(await page.locator('[data-chart]').count(),11);
+  assert.equal(await page.locator('[data-observation]').count(),62);
+  assert.equal(await page.locator('details').count(),0);
+  assert.equal(await page.locator('[data-report-header] nav a').count(),6);
+  assert.equal(await page.locator('a[href="/"],a[href="/map"]').count(),0);
+  const text=await page.locator('[data-report-header]').evaluate(node=>node.parentElement.innerHTML);
+  assert.ok(!/戴德梁行|Cushman|Wakefield|cushwake|AI\s*生成/i.test(text));
+  for(const [key,chart]of Object.entries(charts))for(const [label,value]of chart.items){
+   const row=page.locator(`[data-chart="${key}"] [data-observation]`).filter({hasText:label});
+   assert.equal(await row.count(),1);assert.ok((await row.innerText()).includes(value.toFixed(1)));
   }
-  const reduced = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-  await reduced.goto(`${url}/#checklist`);
-  await reduced.waitForFunction(() => document.querySelector('[aria-current]')?.getAttribute('href') === '#checklist');
-  assert.equal(await reduced.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior), 'auto');
-  await reduced.close();
-  if (process.argv[2]) {
-    const anonymous = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
-    const app = process.argv[2].replace(/\/$/, '');
-    const response = await anonymous.goto(`${app}/occupier-insights`);
-    assert.equal(response?.status(), 200);
-    await anonymous.getByRole('heading', { name: '企业选址洞察', exact: true }).waitFor({ timeout: 15000 });
-    assert.equal(await anonymous.locator('h4').count(), 11);
-    assert.equal(await anonymous.locator('a[href="/"], a[href="/map"]').count(), 0);
-    await anonymous.locator('nav a[href="#sources"]').click();
-    await anonymous.waitForURL('**/occupier-insights#sources');
-    await anonymous.waitForFunction(() => document.querySelector('nav [aria-current]')?.getAttribute('href') === '#sources');
-    await anonymous.locator('footer a[href="#report-top"]').click();
-    await anonymous.waitForURL('**/occupier-insights#report-top');
-    await anonymous.goto(app + '/');
-    await anonymous.waitForURL('**/login', { timeout: 15000 });
-    await anonymous.goto(app + '/map');
-    await anonymous.waitForURL('**/login', { timeout: 15000 });
-    await anonymous.close();
-    results.push({ anonymousReport: true, anonymousChapterNavigation: true, anonymousInternalLinks: 0, homeAndMapRequireLogin: true });
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Overflow at ${width}`);
+  await page.mouse.move(width/2,height/2);await page.mouse.wheel(0,650);await page.waitForFunction(()=>scrollY>100);
+  await page.evaluate(()=>{document.documentElement.style.scrollBehavior='auto';scrollTo(0,0);});
+  if(width===1440||width===390)await page.screenshot({path:path.join(output,`${width}-cover.png`)});
+  for(const key of Object.keys(charts)){
+   await page.locator(`[data-chart="${key}"]`).scrollIntoViewIfNeeded();
+   await page.waitForFunction(key=>document.querySelector(`[data-chart="${key}"]`).dataset.revealed==='true',key);
   }
-  results.push({ reducedMotionAndDeepLink: true });
-  console.log(JSON.stringify({ status: 'passed', results }, null, 2));
-} finally {
-  fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2));
-  await browser?.close();
-  await new Promise(resolve => server.close(resolve));
+  await page.waitForTimeout(1400);
+  const scenes=await page.locator('main section').evaluateAll(nodes=>nodes.map(node=>({id:node.id,chapter:node.dataset.reportChapter})));
+  for(const {id,chapter}of scenes){
+   await page.evaluate(id=>{const h=document.querySelector('[data-report-header]').getBoundingClientRect().height;scrollTo(0,Math.max(0,document.getElementById(id).getBoundingClientRect().top+scrollY-h-20));},id);
+   await page.waitForFunction(chapter=>document.querySelector('[data-report-header]').parentElement.dataset.activeChapter===chapter,chapter);
+   assert.equal(await page.locator('nav [aria-current]').count(),chapter==='cover'?0:1);
+   assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('[data-report-header]').getBoundingClientRect().top)<1));
+   if(width===1440||width===390)await page.locator(`#${id}`).screenshot({path:path.join(output,`${width}-${id}.png`)});
+  }
+  assert.ok(await page.locator('img').evaluateAll(images=>images.every(image=>image.complete&&image.naturalWidth>0)),'Images must load');
+  for(let index=0;index<3;index++){
+   await page.evaluate(index=>{const step=document.querySelector(`[data-cost-step="${index}"]`),h=document.querySelector('[data-report-header]').getBoundingClientRect().height;scrollTo(0,step.getBoundingClientRect().top+scrollY-h-30);},index);
+   await page.waitForFunction(index=>document.querySelector('[data-report-header]').parentElement.dataset.costStep===String(index),index);
+  }
+  await page.evaluate(()=>{document.documentElement.style.scrollBehavior='';});
+  await page.locator('nav a[href="#factors"]').focus();await page.keyboard.press('Enter');
+  await page.waitForFunction(()=>Math.abs(document.getElementById('factors').getBoundingClientRect().top-document.querySelector('[data-report-header]').getBoundingClientRect().height-20)<3);
+  assert.equal(new URL(page.url()).hash,'#factors');
+  assert.ok((await page.locator('#sources').innerText()).includes('不将其表述为本平台自行开展的调查'));
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.waitForFunction(()=>document.querySelector('[data-report-header]').parentElement.dataset.motion==='reduce');
+  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).scrollBehavior),'auto');
+  assert.deepEqual(errors,[]);
+  results.push({width,height,actualProductionBuild:true,anonymousReport:true,charts:11,observations:62,scenes:17,nativeScroll:true,stickyNav:true,costStory:true,keyboardAnchor:true,motionPreferenceChange:true,horizontalOverflow:false,errors});
+  await page.close();
+ }
+ const reduced=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+ await reduced.goto(`${url}#checklist`);
+ await reduced.waitForFunction(()=>document.querySelector('nav [aria-current]')?.getAttribute('href')==='#advisory');
+ assert.equal(await reduced.evaluate(()=>getComputedStyle(document.documentElement).scrollBehavior),'auto');
+ await reduced.locator('nav a[href="#conclusions"]').click();await reduced.waitForURL('**/occupier-insights#conclusions');
+ await reduced.locator('a[href="#report-top"]').last().click();await reduced.waitForURL('**/occupier-insights#report-top');
+ await reduced.goto(app+'/');await reduced.waitForURL('**/login',{timeout:15000});
+ await reduced.goto(app+'/map');await reduced.waitForURL('**/login',{timeout:15000});
+ await reduced.close();
+ const fallback=await browser.newPage({viewport:{width:320,height:740}});
+ await fallback.addInitScript(()=>{window.IntersectionObserver=undefined;window.ResizeObserver=undefined;});
+ await fallback.goto(url);await fallback.waitForFunction(()=>document.querySelectorAll('[data-revealed]').length===11);await fallback.close();
+ results.push({reducedMotionDeepLink:true,missingObserverFallback:true,anonymousInternalLinks:0,homeAndMapRequireLogin:true});
+ console.log(JSON.stringify({status:'passed',results},null,2));
+}finally{
+ fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(results,null,2));
+ await browser?.close();
 }
