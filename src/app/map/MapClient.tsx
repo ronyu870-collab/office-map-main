@@ -135,7 +135,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     setFilterCommand(previous => ({ id: (previous?.id ?? 0) + 1, type, patch }));
   }, []);
   
-  const [keyword, setKeyword] = React.useState('');
+  const [searchInput, setSearchInput] = React.useState('');
+  const keyword = searchInput.trim();
   const fullListFilterKey = React.useMemo(() => JSON.stringify([keyword, filterState, compareGroups]), [keyword, filterState, compareGroups]);
   const [settledFullListFilterKey, setSettledFullListFilterKey] = React.useState<string | null>(null);
   const [fullListWarning, setFullListWarning] = React.useState<string | null>(null);
@@ -441,7 +442,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
     cancelPendingBuildingNavigation();
     const isDefault = isDefaultFilterState(state);
-    const hasOtherWorkspaceState = activeCompareGroups.length > 0 || Boolean(keyword.trim());
+    const hasOtherWorkspaceState = activeCompareGroups.length > 0 || Boolean(keyword);
     setUserHasInteracted(!isDefault || hasOtherWorkspaceState);
     setFilterState(prev => {
       if (prev?.subwayLine !== state.subwayLine) setCurrentSubwayStations([]);
@@ -456,7 +457,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     setCompareGroups(groups);
     const hasCompareGroups = getConfiguredCompareGroups(groups).length > 0;
     const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
-    const hasSearch = Boolean(keyword.trim());
+    const hasSearch = Boolean(keyword);
     setUserHasInteracted(hasCompareGroups || hasGlobalFilters || hasSearch);
     if (!hasCompareGroups && !hasGlobalFilters && !hasSearch) setIsListVisible(false);
   }, [filterState, keyword, cancelPendingBuildingNavigation]);
@@ -527,7 +528,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const handleSearch = (val: string) => {
     cancelPendingBuildingNavigation();
     const trimmed = val.trim();
-    setKeyword(trimmed);
+    // Submitting the current query must not rewrite the draft or move its caret.
+    setSearchInput(current => current.trim() === trimmed ? current : val);
     const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
     const hasCompareGroups = activeCompareGroups.length > 0;
     setUserHasInteracted(Boolean(trimmed) || hasGlobalFilters || hasCompareGroups);
@@ -543,7 +545,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   }, [competitorBuildings]);
 
   const handleResetAllFilters = React.useCallback(() => {
-    setKeyword('');
+    setSearchInput('');
     issueFilterCommand('reset');
   }, [issueFilterCommand]);
 
@@ -578,7 +580,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         futureSupplyCalendar={futureSupplyCalendar}
         futureSuppliesCount={futureSupplies.length}
         activeFilterChips={activeFilterChips}
-        keyword={keyword}
+        keyword={searchInput}
         filterState={filterState}
         renderMode={renderMode}
         compareGroups={activeCompareGroups}
@@ -604,7 +606,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         onSupplyOpenChange={setIsSupplyOpen}
         onFilterChange={handleFilterChange}
         onCompareGroupsChange={handleCompareGroupsChange}
-        onKeywordChange={value => { cancelPendingBuildingNavigation(); setKeyword(value); }}
+        onKeywordChange={value => { cancelPendingBuildingNavigation(); setSearchInput(value); }}
         onSearch={value => { if (workspaceViewRef.current === 'map') handleSearch(value); }}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
         onResetFilters={handleResetAllFilters}

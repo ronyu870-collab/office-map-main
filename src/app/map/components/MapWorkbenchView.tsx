@@ -336,7 +336,8 @@ export function MapWorkbenchView({
     previouslyFullList.current = isFullListVisible;
   }, [isFullListVisible]);
 
-  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(keyword) || compareGroups.length > 0;
+  const searchTerm = keyword.trim();
+  const hasActiveFilters = activeFilterChips.length > 0 || Boolean(searchTerm) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
 
   const closeOpenWorkspaces = React.useCallback(() => {
@@ -416,8 +417,11 @@ export function MapWorkbenchView({
           </div>
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
+            <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
+              <SearchBar searchContextKey={searchContextKey} inputLabel="搜索楼宇、子市场、业主或物业" placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
+            </div>
             {showFilterSummary ? (
-              <div className="flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" aria-label="已生效筛选条件">
+              <div className="mt-2 flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" role="group" aria-label="已生效筛选条件">
                 {intelligenceContext ? (
                   <>
                     <span className="shrink-0 text-[10px] font-semibold text-[var(--cd-color-brand)]">
@@ -428,14 +432,14 @@ export function MapWorkbenchView({
                 ) : (
                   <span className="shrink-0 text-[10px] font-medium text-slate-400">筛选</span>
                 )}
-                {keyword ? (
+                {searchTerm ? (
                   <button
                     type="button"
                     onClick={() => { void onSearch(''); }}
                     className="group flex max-w-[220px] shrink-0 items-center gap-1 rounded-[var(--cd-radius-sm)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] px-2 py-1 text-[10px] text-[var(--cd-color-brand)] transition-colors hover:border-[var(--cd-color-brand)]"
-                    title={`清除搜索：${keyword}`}
+                    title={`清除搜索：${searchTerm}`}
                   >
-                    <span className="truncate">搜索：{keyword}</span>
+                    <span className="truncate">搜索：{searchTerm}</span>
                     <span aria-hidden="true">×</span>
                   </button>
                 ) : null}
@@ -463,11 +467,7 @@ export function MapWorkbenchView({
                   <button type="button" onClick={onResetFilters} className="shrink-0 px-1.5 text-[10px] font-medium text-slate-400 transition hover:text-[#003e7e]">清空</button>
                 ) : null}
               </div>
-            ) : (
-              <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
-                <SearchBar searchContextKey={searchContextKey} placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
-              </div>
-            )}
+            ) : null}
           </div>
 
           <div className="pointer-events-auto hidden shrink-0 overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:flex" role="group" aria-label="地图显示模式">
