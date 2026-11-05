@@ -1979,6 +1979,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     renderMode: RenderMode = "default",
     districtLeedMap?: Map<string, { totalCount: number; leedCount: number }>,
     comparisonGroups?: CompareGroup[],
+    // Read by the installed overview renderers; legacy point rendering ignores it.
+    _showAreaPlaceholders = false,
   ): void {
     if (this._destroyed || !this.map || !this.AMap) return;
     const AMap = this.AMap;

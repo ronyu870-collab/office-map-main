@@ -2,6 +2,7 @@
 
 import type { MapController } from '@/src/services/MapController';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
+import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerTier = 'submarket' | 'dot' | 'building';
@@ -288,6 +289,7 @@ export function installMapVisualHierarchyV3(
   let lastBuildings: any[] = [];
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
+  let lastShowAreaPlaceholders = false;
   let pendingFrame: number | null = null;
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
@@ -372,7 +374,7 @@ export function installMapVisualHierarchyV3(
     timer = window.setTimeout(finishOnce, 600);
   };
 
-  const build = (buildings: any[], mode: RenderMode, groups?: any[]): LayerSet => {
+  const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean): LayerSet => {
     const labels = new Map<string, any>();
     const ranks = new Map<string, number>();
     const aggregates = new Map<string, any>();
@@ -408,8 +410,10 @@ export function installMapVisualHierarchyV3(
     }
 
     const submarkets: any[] = [];
+    const positionedNames = new Set<string>();
     for (const aggregate of aggregates.values()) {
       if (!aggregate.coords) continue;
+      positionedNames.add(aggregate.name);
       const center: [number, number] = [aggregate.lng / aggregate.coords, aggregate.lat / aggregate.coords];
       const rent = aggregate.rentArea > 0 ? aggregate.rentSum / aggregate.rentArea : 0;
       const vacancy = aggregate.area > 0 ? (aggregate.vacant / aggregate.area) * 100 : Number.NaN;
@@ -428,12 +432,14 @@ export function installMapVisualHierarchyV3(
       const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
 
       const element = document.createElement('div');
-      element.className = 'map-submarket-bubble';
+      const nameOnly = isNameOnlyArea(aggregate.name);
+      element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       element.dataset.renderMode = mode;
       element.title = aggregate.name;
-      element.style.setProperty('--sm-accent', accent);
+      if (!nameOnly) element.style.setProperty('--sm-accent', accent);
       element.style.setProperty('--sm-size', `${size}px`);
-      element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div><div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+      const metrics = nameOnly ? '' : `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+      element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div>${metrics}`;
 
       const marker = new Marker({
         position: center,
@@ -451,6 +457,12 @@ export function installMapVisualHierarchyV3(
         window.setTimeout(() => element.classList.remove('is-expanding'), 380);
       });
       submarkets.push(marker);
+    }
+    for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
+      const content = createAreaPlaceholder(name, () => {
+        if (currentTier === 'submarket' && !zooming) map.setZoomAndCenter?.(12.15, center, false, 320);
+      });
+      submarkets.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, 20], zIndex: 92, opacity: 0 }));
     }
     if (submarkets.length) map.add?.(submarkets);
 
@@ -628,7 +640,7 @@ export function installMapVisualHierarchyV3(
     syncFutureVisibility();
   };
 
-  const swap = (next: LayerSet, signature: string, buildings: any[], mode: RenderMode, groups?: any[]) => {
+  const swap = (next: LayerSet, signature: string, buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean) => {
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     if (outgoing) removeLayerSet(map, outgoing);
     outgoing = current;
@@ -637,6 +649,7 @@ export function installMapVisualHierarchyV3(
     lastBuildings = buildings;
     lastMode = mode;
     lastGroups = groups;
+    lastShowAreaPlaceholders = showAreaPlaceholders;
     container.classList.add('map-marker-swapping');
 
     requestAnimationFrame(() => {
@@ -649,13 +662,13 @@ export function installMapVisualHierarchyV3(
     });
   };
 
-  c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[]) => {
+  c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[], showAreaPlaceholders = false) => {
     const buildings = Array.isArray(input) ? input : [];
     if (selectedId && !buildings.some(building => String(building?.id ?? '') === selectedId)) {
       c.infoWindow?.close?.();
       clearSelection();
     }
-    const signature = renderSignature(buildings, mode, groups);
+    const signature = `${renderSignature(buildings, mode, groups)}|${showAreaPlaceholders}`;
     if (signature === lastSignature) {
       if (pendingFrame !== null) {
         cancelAnimationFrame(pendingFrame);
@@ -667,8 +680,8 @@ export function installMapVisualHierarchyV3(
     if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     pendingFrame = requestAnimationFrame(() => {
       pendingFrame = null;
-      const next = build(buildings, mode, groups);
-      swap(next, signature, buildings, mode, groups);
+      const next = build(buildings, mode, groups, showAreaPlaceholders);
+      swap(next, signature, buildings, mode, groups, showAreaPlaceholders);
     });
   }) as ControllerInternals['renderMarkers'];
 
@@ -718,6 +731,7 @@ export function installMapVisualHierarchyV3(
         lastMode,
         undefined,
         lastGroups,
+        lastShowAreaPlaceholders,
       );
     }) as ControllerInternals['refreshBuildingData'];
   }

@@ -137,6 +137,7 @@ describe('MapClient render mode synchronization', () => {
         'default',
         expect.anything(),
         undefined,
+        true,
       );
     });
 
@@ -148,6 +149,7 @@ describe('MapClient render mode synchronization', () => {
         'rent',
         expect.anything(),
         undefined,
+        true,
       );
     });
   });
@@ -191,6 +193,7 @@ describe('MapClient render mode synchronization', () => {
         'default',
         expect.anything(),
         undefined,
+        false,
       );
     });
   });

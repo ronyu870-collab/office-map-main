@@ -298,19 +298,21 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   
   // 新增：地图标记渲染模式状态
   const [renderMode, setRenderMode] = React.useState<RenderMode>('default');
+  const showAreaPlaceholders = !keyword && activeCompareGroups.length === 0
+    && !initialIntelligenceHandoff && (filterState === null || isDefaultFilterState(filterState));
 
   // 🌟 CL-011: 退出周边项目对比时，恢复之前的地图标记
   const prevCompetitorRef = React.useRef(competitorBuildings);
   React.useEffect(() => {
     if (prevCompetitorRef.current !== null && competitorBuildings === null && controllerRef.current && mapReady) {
       const ctrl = controllerRef.current;
-      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined);
+      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
       if (filteredFutureSupplies.length > 0) {
         ctrl.renderFutureMarkers(filteredFutureSupplies, renderMode);
       }
     }
     prevCompetitorRef.current = competitorBuildings;
-  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady]);
+  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders]);
 
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
@@ -384,7 +386,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
-      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined);
+      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
     }
     setStats(computeStatsFromBuildings(filtered));
 
@@ -444,7 +446,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterState, keyword, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey]);
+  }, [filterState, keyword, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey, showAreaPlaceholders]);
 
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
     cancelPendingBuildingNavigation();
