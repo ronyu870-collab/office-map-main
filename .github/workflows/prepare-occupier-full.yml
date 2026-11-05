@@ -1,0 +1,47 @@
+name: Prepare eleven-photo report handoff
+on:
+  push:
+    branches: [codex/occupier-full-eleven-20261105]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/codex/occupier-full-eleven-20261105'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/occupier-full-eleven-20261105
+      - name: Preserve changelog bytes and finalize reviewed text
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          prefix = '''## 2026-11-05 — 企业选址洞察：十一页资料完整重编
+
+          - 按用户提供的十一张照片重编17个正文场景，保留11组图表、62个比例值及原有定性框架，增加全成本分析、三类方案比较和决策流程。
+          - 重新设计分栏封面、六章导航、滚动图表与成本分层；不显示竞品名称，不冒称平台自有调研。沿用公共报告和受保护内部入口的现有边界。
+          - 浏览器验证升级为真实Next生产构建的五档视口与公共/受保护路由回归；来源覆盖、范围及限制见[交付记录](docs/verification/occupier-insights-full-20261105.md)。
+
+          '''
+          log = Path('CHANGELOG.md')
+          original = log.read_bytes()
+          assert not original.startswith(prefix.encode()), 'Handoff already prepared'
+          log.write_bytes(prefix.encode() + original)
+          css = Path('src/app/occupier-insights/report.module.css')
+          text = css.read_text()
+          old = '--blue: #c4def2; background: #102e45;'
+          assert text.count(old) == 1
+          css.write_text(text.replace(old, '--blue: #c4def2; color: var(--ink); background: #102e45;') + '\n@media (max-height:760px) { .costSticky { position: static; } }\n')
+          for name in ['reportContent.ts', 'OccupierInsightsReport.tsx']:
+              p = Path('src/app/occupier-insights') / name
+              text = p.read_text().replace('初创增长阶段', '初期增长阶段')
+              text = text.replace('初期增长阶段关注快速扩张与组织完善', '初期增长阶段关注快速扩张，组织架构与商业模式仍在构建和完善')
+              p.write_text(text)
+          Path('.github/workflows/prepare-occupier-full.yml').unlink()
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md src/app/occupier-insights/report.module.css src/app/occupier-insights/reportContent.ts src/app/occupier-insights/OccupierInsightsReport.tsx .github/workflows/prepare-occupier-full.yml
+          git commit -m 'chore: finalize report transcription, contrast and preserved changelog'
+          git push origin HEAD:refs/heads/codex/occupier-full-eleven-20261105
