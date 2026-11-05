@@ -79,8 +79,9 @@ export function SearchBar({
   const isControlled = typeof value === 'string';
   const [inner, setInner] = React.useState('');
   const currentValue = isControlled ? value : inner;
+  const composing = React.useRef(false);
 
-  const { debounced, flush } = useDebouncedCallback((v: string, requestedContext: string | number | undefined) => {
+  const { debounced, flush, cancel } = useDebouncedCallback((v: string, requestedContext: string | number | undefined) => {
     if (searchContextKey !== undefined && (
       requestedContext !== searchContextKey || (isControlled && v.trim() !== currentValue.trim())
     )) return;
@@ -90,6 +91,11 @@ export function SearchBar({
   function setValue(next: string) {
     if (!isControlled) setInner(next);
     onChange?.(next);
+  }
+
+  function scheduleSearch(next: string) {
+    if (debounceMs > 0) debounced(next, searchContextKey);
+    else onSearch(next);
   }
 
   return (
@@ -118,12 +124,21 @@ export function SearchBar({
           onChange={e => {
             const v = e.target.value;
             setValue(v);
-            if (debounceMs > 0) debounced(v, searchContextKey);
-            else onSearch(v);
+            if (!composing.current) scheduleSearch(v);
+          }}
+          onCompositionStart={() => {
+            composing.current = true;
+            cancel();
+          }}
+          onCompositionEnd={e => {
+            composing.current = false;
+            const v = e.currentTarget.value;
+            if (v !== currentValue) setValue(v);
+            scheduleSearch(v);
           }}
           onKeyDown={e => {
-            // 参考旧版：按 Enter 触发搜索（map.html / index.html 的输入框都有 Enter 逻辑）
-            if (e.key === 'Enter') {
+            // Some browsers report keyCode 229 when Enter confirms an IME candidate.
+            if (e.key === 'Enter' && !composing.current && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
               flush(currentValue.trim(), searchContextKey);
             }
           }}

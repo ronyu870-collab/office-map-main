@@ -32,6 +32,7 @@ vi.mock('@/src/app/map/runtime/useMapRuntime', () => ({ useMapRuntime: (options:
 } }));
 
 import MapClient from '../MapClient';
+import { logAction } from '@/src/utils/audit';
 
 const BUILDINGS = Array.from({ length: 44 }, (_, index) => ({
   id: `b-${index + 1}`, name: `项目${String(index + 1).padStart(2, '0')}`,
@@ -63,6 +64,72 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
 });
 afterEach(() => { cleanup(); restoreTimers(); vi.unstubAllGlobals(); });
+
+describe('map search retains the active input', () => {
+  it('keeps focus while typing and preserves the caret and draft after the search settles', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    vi.useFakeTimers();
+    const input = screen.getByRole<HTMLInputElement>('searchbox');
+    input.focus();
+    fireEvent.change(input, { target: { value: 'd' } });
+    expect(screen.getByRole('searchbox')).toBe(input);
+    expect(input).toHaveFocus();
+    expect(screen.getByTitle('清除搜索：d')).toBeVisible();
+    fireEvent.change(input, { target: { value: 'CBD ' } });
+    input.setSelectionRange(2, 2);
+    await act(async () => { vi.advanceTimersByTime(250); });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('CBD ');
+    expect(input.selectionStart).toBe(2);
+    expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(30);
+    expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'CBD', module: 'map' });
+  });
+
+  it('allows Chinese composition and submits only the completed text', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    vi.useFakeTimers();
+    const input = screen.getByRole('searchbox');
+    input.focus();
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'bei' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    await act(async () => { vi.advanceTimersByTime(250); });
+    expect(input).toHaveFocus();
+    expect(logAction).not.toHaveBeenCalledWith(expect.anything(), 'SEARCH', expect.anything());
+    fireEvent.change(input, { target: { value: '北城' } });
+    fireEvent.compositionEnd(input, { data: '北城' });
+    await act(async () => { vi.advanceTimersByTime(250); });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('北城');
+    expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(22);
+    const searches = vi.mocked(logAction).mock.calls.filter(([, action]) => action === 'SEARCH');
+    expect(searches).toEqual([['test@example.com', 'SEARCH', { keyword: '北城', module: 'map' }]]);
+  });
+
+  it('shares the query with the full list and can clear it without removing existing filters', async () => {
+    const { createDefaultFilterState } = await import('../model/mapDomain');
+    const filterState = { ...createDefaultFilterState(), numericFilters: [{ id: 'rent-min', field: 'net_effective_rent' as const, operator: '>=' as const, value: 20 }] };
+    render(<MapClient initialIntelligenceHandoff={{ source: 'intelligence', filterState, appliedCapabilities: ['rent'] }} />);
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(24));
+    const input = screen.getByRole('searchbox');
+    input.focus();
+    fireEvent.change(input, { target: { value: '北城' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(input).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: '完整列表' }));
+    const list = await screen.findByRole('region', { name: '完整楼宇列表' });
+    expect(within(list).getByRole('searchbox')).toHaveValue('北城');
+    await within(list).findByText('12 栋楼宇');
+    fireEvent.click(within(list).getByRole('button', { name: '返回地图' }));
+    expect(screen.getByRole('searchbox')).toBe(input);
+    expect(input).toHaveValue('北城');
+    fireEvent.click(screen.getByTitle('清除搜索：北城'));
+    expect(input).toHaveValue('');
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(24));
+  });
+});
 
 describe('complete list with the existing map workbench', () => {
   it('keeps one map node/runtime, query, list paging, sorting and scroll through a pure round trip', async () => {
