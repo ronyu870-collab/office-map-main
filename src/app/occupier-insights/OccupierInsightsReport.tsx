@@ -2,24 +2,23 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { mountReportNavigation } from './reportNavigation';
 import {
-  surveyPlots, sourceNotes, industryDrivers, strategyPaths,
+  surveyPlots, industryDrivers, strategyPaths,
   futureCriteria, costItems, visits,
   type SurveyPlot,
 } from './reportContent';
 import styles from './report.module.css';
 
-const sourceUrl = 'https://cw-prod-apacgws-a-cd.cushwake.com/en/greater-china/insights/chinese-mainland-office-occupier-strategy-report';
 const chapters = [
   ['factors', '调查与策略'],
   ['industry', '区位与布局'],
   ['checklist', '空间与成本'],
-  ['sources', '结论与口径'],
+  ['options', '决策与行动'],
 ] as const;
 
 type ChartKey = keyof typeof surveyPlots;
@@ -35,7 +34,7 @@ const chartScenes: ChartScene[] = [
     title:'理解结论之前，先看是谁在回答。',
     first:'受访企业涉及金融、科技、专业服务和多个实体行业，样本并非单一类型的办公室使用者。行业构成决定了研究更适合回答哪些问题。',
     second:'金融、科技和专业服务企业构成了受访群体的重要部分，因此解读区位、人才与办公体验时，需要注意行业需求的差异。',
-    takeaway:'行业构成是理解调查结果的前提，而不是北京租赁需求的行业占比。',
+    takeaway:'理解受访企业的行业构成，才能把调查结论用于适合的业务场景。',
     chartTitle:'受访企业行业分布',chartKey:'sectors',
     note:'中国大陆调查样本 · 分类比例按现场照片记录，四舍五入可能不严格合计为100%。',
   },
@@ -134,37 +133,55 @@ const chartScenes: ChartScene[] = [
 function Background({ src, eager = false }: { src: string; eager?: boolean }) {
   return <Image src={src} alt="" fill sizes="100vw" className={styles.background} unoptimized loading={eager ? 'eager' : 'lazy'} fetchPriority={eager ? 'high' : 'auto'} aria-hidden="true" />;
 }
-function Eyebrow({ number, label }: { number: string; label: string }) {
-  return <p className={styles.eyebrow}><span>{number}</span>{label}</p>;
+type PlotMode = 'bars' | 'columns' | 'dots' | 'composition' | 'portfolio';
+const plotModes: Record<ChartKey, PlotMode> = {
+  sectors: 'bars', stages: 'composition', priorities: 'columns', location: 'dots',
+  clusters: 'composition', portfolio: 'portfolio', lease: 'bars', workplace: 'composition',
+  sustainability: 'columns', readiness: 'composition', advisors: 'dots',
+};
+function PortfolioSketch() {
+  return <svg className={styles.networkSketch} viewBox="0 0 500 108" aria-hidden="true">
+    <g className={styles.networkLines} fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M65 54H250M250 54L420 22M250 54L420 86" />
+    </g>
+    <g fill="currentColor"><circle cx="65" cy="54" r="14"/><circle cx="250" cy="54" r="18"/><circle cx="420" cy="22" r="10"/><circle cx="420" cy="86" r="10"/></g>
+  </svg>;
 }
-function DataPlot({ title, data, note }: { title: string; data: SurveyPlot; note: string }) {
-  return <figure className={styles.dataPlot} data-study data-reveal>
+function DataPlot({ title, data, chartKey }: { title: string; data: SurveyPlot; chartKey: ChartKey }) {
+  const mode = plotModes[chartKey];
+  const total = data.reduce((sum, [,value])=>sum+value,0);
+  return <figure className={styles.dataPlot} data-study data-reveal data-plot={mode}>
     <figcaption>{title}</figcaption>
+    {mode === 'portfolio' && <PortfolioSketch />}
+    {mode === 'composition' && <div className={styles.composition} aria-hidden="true">
+      {data.map(([label,value],index)=><span key={label} style={{flex: value / total, '--series': index} as CSSProperties} />)}
+    </div>}
     <dl className={styles.plotRows}>
-      {data.map(([label, value], index) => <div className={styles.metricRow} key={label} data-survey-value="true" data-leading={index === 0 ? 'true' : undefined}>
+      {data.map(([label, value], index) => <div className={styles.metricRow} key={label} data-survey-value="true"
+        data-leading={index === 0 ? 'true' : undefined}
+        style={{'--value': value + '%', '--column-ratio': value / 60, '--series': index, '--order': index} as CSSProperties}>
         <dt>{label}</dt><dd className={styles.value}><span>{value.toFixed(1)}</span><small>%</small></dd>
-        <dd className={styles.barTrack} aria-hidden="true"><span style={{ width: value + '%' }} /></dd>
+        <dd className={styles.barTrack} aria-hidden="true"><span /></dd>
       </div>)}
     </dl>
-    <p className={styles.plotNote}>{note}</p>
   </figure>;
 }
 function SurveyScene({ scene }: { scene: ChartScene }) {
-  const hasImage = scene.tone === 'skyline' || scene.tone === 'interior';
-  return <section id={scene.id} data-report-chapter={scene.chapter}
+  const image = scene.id === 'portfolio' ? 'office-network' : scene.id === 'workplace' ? 'office-workplace'
+    : scene.id === 'sustainability' ? 'office-green' : scene.id === 'ecosystem' ? 'office-skyline' : null;
+  return <section id={scene.id} data-report-chapter={scene.chapter} data-scene-kind={scene.id}
     aria-labelledby={scene.id + '-title'}
-    className={[styles.scene, scene.tone === 'muted' ? styles.tinted : '', hasImage ? styles.imageScene : ''].join(' ')}>
-    {scene.tone === 'skyline' && <Background src="/occupier-insights/office-skyline.webp" />}
-    {scene.tone === 'interior' && <Background src="/occupier-insights/office-interior.webp" />}
-    {hasImage && <div className={styles.imageShade} />}
+    className={[styles.scene, scene.tone === 'muted' ? styles.tinted : '', image ? styles.photoScene : ''].join(' ')}>
     <div className={[styles.frame,styles.storyLayout].join(' ')}>
       <div className={styles.storyText} data-reveal>
-        <Eyebrow number={scene.number} label={scene.eyebrow} />
         <h2 id={scene.id + '-title'}>{scene.title}</h2>
         <p>{scene.first}</p><p>{scene.second}</p>
         <p className={styles.takeaway}>{scene.takeaway}</p>
       </div>
-      <DataPlot title={scene.chartTitle} data={surveyPlots[scene.chartKey]} note={scene.note} />
+      <div className={styles.visual}>
+        {image && <div className={styles.scenePhoto} data-reveal><Background src={'/occupier-insights/'+image+'.webp'} /></div>}
+        <DataPlot title={scene.chartTitle} data={surveyPlots[scene.chartKey]} chartKey={scene.chartKey} />
+      </div>
     </div>
   </section>;
 }
@@ -186,7 +203,7 @@ export function OccupierInsightsReport() {
     </header>
     <main>
       <section id="report-top" className={styles.cover} aria-labelledby="report-title" data-report-chapter="cover">
-        <Background src="/occupier-insights/office-district.webp" eager />
+        <Background src="/occupier-insights/office-cover.webp" eager />
         <div className={styles.coverShade} />
         <div className={[styles.frame,styles.coverInner].join(' ')}>
           <p className={styles.coverKicker}>高力国际 · 2026 年 11 月</p>
@@ -198,7 +215,6 @@ export function OccupierInsightsReport() {
 
       <section id="factors" className={[styles.scene,styles.leadScene].join(' ')} aria-labelledby="factors-title" data-report-chapter="factors">
         <div className={[styles.frame,styles.leadInner].join(' ')}>
-          <Eyebrow number="01" label="研究导言" />
           <div className={styles.leadGrid}>
             <div data-reveal>
               <h2 id="factors-title">企业选址，<br />已经不只是找一间办公室。</h2>
@@ -211,7 +227,6 @@ export function OccupierInsightsReport() {
               <div><strong>67.9<small>%</small></strong><p>认为办公地点与产业集群匹配程度较高</p></div>
             </div>
           </div>
-          <p className={styles.sceneNote}>下文为对中国大陆外部企业租户调研的分析与应用，不等于北京市场成交或高力自行调查数据。</p>
         </div>
       </section>
 
@@ -219,14 +234,13 @@ export function OccupierInsightsReport() {
 
       <section id="industry" data-report-chapter="industry" className={styles.scene} aria-labelledby="industry-title">
         <div className={styles.frame}>
-          <Eyebrow number="07" label="行业差异" />
           <div className={styles.sectionIntro} data-reveal>
             <h2 id="industry-title">没有一种选址方案，<br />适合所有企业。</h2>
-            <p>从人才密度到客户可达性，再到研发及供应链条件，不同行业存在不同的选址驱动因素。以下将参考调查中的行业差异转化为可实际核验的初访问题。</p>
+            <p>从人才密度到客户可达性，再到研发及供应链条件，不同行业存在不同的选址驱动因素。先明确行业需求，再确定看楼时必须验证的条件。</p>
           </div>
           <div className={styles.industryGrid}>
-            {industryDrivers.map((sector,index)=><article className={styles.industryCard} key={sector.name} data-reveal>
-              <span className={styles.cardIndex}>{'0'+(index+1)}</span><h3>{sector.name}</h3>
+            {industryDrivers.map((sector)=><article className={styles.industryCard} key={sector.name} data-reveal>
+              <h3>{sector.name}</h3>
               <p>{sector.intro}</p>
               <ul>{sector.points.map(point=><li key={point}>{point}</li>)}</ul>
               <p className={styles.validation}><strong>初访核验</strong>{sector.validate}</p>
@@ -239,60 +253,55 @@ export function OccupierInsightsReport() {
 
       <section id="evolution" className={styles.scene} data-report-chapter="checklist" aria-labelledby="evolution-title">
         <div className={styles.frame}>
-          <Eyebrow number="14" label="办公策略演进" />
           <div className={styles.sectionIntro} data-reveal>
             <h2 id="evolution-title">下一代办公室，<br />需要一套新的评价标准。</h2>
             <p>随着经营优先级改变，企业期待办公空间在成本之外承担更多职责：连接产业资源、支持协作、优化员工体验，并在不确定的环境下保留调整空间。</p>
           </div>
           <div className={styles.principleGrid}>
-            {futureCriteria.map(([title,body],index)=><article className={styles.principle} key={title} data-reveal>
-              <span>{'0'+(index+1)}</span><h3>{title}</h3><p>{body}</p>
+            {futureCriteria.map(([title,body])=><article className={styles.principle} key={title} data-reveal>
+              <h3>{title}</h3><p>{body}</p>
             </article>)}
           </div>
         </div>
       </section>
 
-      <section id="options" className={[styles.scene,styles.tinted].join(' ')} data-report-chapter="checklist" aria-labelledby="options-title">
+      <section id="options" className={[styles.scene,styles.tinted].join(' ')} data-report-chapter="options" aria-labelledby="options-title">
         <div className={styles.frame}>
-          <Eyebrow number="15" label="策略选择" />
           <div className={styles.sectionIntro} data-reveal>
             <h2 id="options-title">续租、搬迁或分点办公，<br />先定义问题再比较方案。</h2>
             <p>没有一种固定选择适用于所有企业。应先明确业务目标与不可妥协的条件，再把不同方案放进同一张比较表。</p>
           </div>
           <div className={styles.pathGrid}>
-            {strategyPaths.map((item,index)=><article className={styles.pathCard} key={item.name} data-reveal>
-              <span className={styles.cardIndex}>{'0'+(index+1)}</span><h3>{item.name}</h3>
+            {strategyPaths.map((item)=><article className={styles.pathCard} key={item.name} data-reveal>
+              <h3>{item.name}</h3>
               <p className={styles.pathLead}>{item.lead}</p>
               <p><strong>适合情形</strong>{item.suitable}</p>
               <p><strong>必须核验</strong>{item.check}</p>
             </article>)}
           </div>
-          <p className={styles.sceneNote}>三种路径是根据调研主题延伸的决策方法，并非原调查的方案占比或自动推荐。</p>
         </div>
       </section>
 
-      <section id="cost" className={styles.scene} data-report-chapter="checklist" aria-labelledby="cost-title">
+      <section id="cost" className={styles.scene} data-report-chapter="options" aria-labelledby="cost-title">
         <div className={styles.frame}>
-          <Eyebrow number="16" label="成本模型" />
           <div className={styles.sectionIntro} data-reveal>
             <h2 id="cost-title">比较租金之前，<br />先算清真实的占用成本。</h2>
             <p>把持续运营成本、一次性投入、租约条件和对业务的影响放在同一评价周期。方案必须使用相同的面积、时间、税费及计价口径。</p>
           </div>
           <div className={styles.costFlow} data-reveal>
-            {costItems.map(([title,body],index)=><article key={title}>
-              <span>{'0'+(index+1)}</span><h3>{title}</h3><p>{body}</p>
+            {costItems.map(([title,body])=><article key={title}>
+              <h3>{title}</h3><p>{body}</p>
             </article>)}
           </div>
-          <p className={styles.takeaway}>需要财务比较时，先明确现金流周期、贴现及税费假设；缺少数据则保留待核实项，不凭空计算净现值。</p>
+
         </div>
       </section>
 
-      <section id="visits" className={[styles.scene,styles.tinted].join(' ')} data-report-chapter="checklist" aria-labelledby="visits-title">
+      <section id="visits" className={[styles.scene,styles.tinted].join(' ')} data-report-chapter="options" aria-labelledby="visits-title">
         <div className={styles.frame}>
-          <Eyebrow number="17" label="北京看楼应用" />
           <div className={styles.sectionIntro} data-reveal>
             <h2 id="visits-title">把研究结论，<br />落到每一次实际看楼。</h2>
-            <p>企业选址可以分成三轮核验，把调研提出的问题转化为现场清单。北京写字楼市场数据应采用平台已确认的真实季度与统计口径。</p>
+            <p>从业务条件到现场体验，再到合同交付，用三轮核验把研究结论转化为可执行的选择。</p>
           </div>
           <ol className={styles.visitSteps}>
             {visits.map(([title,body],index)=><li key={title} data-reveal>
@@ -300,46 +309,14 @@ export function OccupierInsightsReport() {
             </li>)}
           </ol>
           {canNavigateInternally && <Link href="/map" className={styles.mapLink}>打开北京办公楼市场地图 <ArrowRight size={18} aria-hidden="true" /></Link>}
-        </div>
-      </section>
-
-      <section id="sources" className={[styles.scene,styles.sourcesScene].join(' ')} data-report-chapter="sources" aria-labelledby="sources-title">
-        <div className={styles.frame}>
-          <Eyebrow number="18" label="结论与研究口径" />
-          <div className={styles.sectionIntro} data-reveal>
-            <h2 id="sources-title">办公空间的价值，<br />需要持续被验证。</h2>
-            <p>企业办公策略正在从规模扩张转向价值创造。成本依旧重要，但单独压低租金不能替代区位、人才、协作和长期风险的综合判断。</p>
-          </div>
-          <div className={styles.conclusionGrid} data-reveal>
-            <p>企业选址应遵循产业集群与真实业务网络。</p>
-            <p>办公空间正成为竞争力和组织效率的支撑。</p>
-            <p>租赁灵活性、总占用成本与长期风险应一并评估。</p>
-            <p>研究和咨询的价值在于推动证据充分的决策。</p>
-          </div>
-          <div className={styles.methodology}>
-            <div>
-              <h3>数据范围与应用边界</h3>
-              <p>调查百分比来自用户提供的11张现场演示照片，参考2026年中国大陆企业租户公开行业调研；并非高力国际自行开展的问卷，也不代表北京企业的实际迁移、成交或未来供应。</p>
-              <p>多选题结果不能相加；照片中部分分类文字受拍摄角度和清晰度影响，使用不改变含义的概括性标签。新增的策略比较属于应用分析，不等于原调查结果。正式对外引用前，应再次核对原始问卷、样本和分类措辞。</p>
-              <a className={styles.sourceLink} href={sourceUrl} target="_blank" rel="noopener noreferrer">阅读公开调研原始页面 <ArrowUpRight size={17} aria-hidden="true" /></a>
-            </div>
-            <div>
-              <h3>十一张现场资料的研究覆盖</h3>
-              <ol className={styles.originalNotes}>
-                {sourceNotes.map(([name,summary],index)=><li key={name}>
-                  <span>{String(index+1).padStart(2,'0')}</span>
-                  <div><h4>{name}</h4><p>{summary}</p></div>
-                </li>)}
-              </ol>
-            </div>
-          </div>
           <footer className={styles.footer}>
             {canNavigateInternally && <Link href="/"><ArrowLeft size={16} aria-hidden="true" />返回首页</Link>}
-            <span>企业选址洞察 · 2026 年 11 月</span>
             <a href="#report-top">回到报告开头 <ArrowUpRight size={16} aria-hidden="true" /></a>
           </footer>
         </div>
       </section>
+
+
     </main>
   </div>;
 }
