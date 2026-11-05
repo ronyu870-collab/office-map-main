@@ -135,6 +135,41 @@ afterEach(() => {
 });
 
 describe('native map visual hierarchy', () => {
+  it('shows both area bubbles in the overview, without counting or retaining a placeholder in filtered renders', async () => {
+    const harness = createNativeHarness();
+    const controller = {
+      AMap: harness.AMap, map: harness.map,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller as never, 'map-container');
+    const data = [building('yufu', '玉渊潭', 116.294204, 39.92354, 205.8, 0.31)];
+    try {
+      controller.renderMarkers(data, 'default', undefined, undefined, true);
+      await flushFrames();
+      const contents = harness.markerInstances.map(marker => marker.options.content as HTMLElement);
+      const populated = contents.find(node => node.title === '玉渊潭');
+      expect(populated?.textContent).toContain('¥206');
+      const pending = contents.find(node => node.title === '四季青');
+      expect(pending?.textContent).toContain('资料待补');
+      expect(pending?.textContent).not.toMatch(/¥|%/);
+      pending?.click();
+      expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.274193, 39.942414], false, 320);
+      expect(harness.massMarksInstances[0].data).toHaveLength(1);
+
+      const previousMarkers = harness.markerInstances.length;
+      controller.renderMarkers(data, 'default', undefined, undefined, false);
+      await flushFrames();
+      const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
+      expect(filtered).toEqual(['玉渊潭']);
+
+      const beforeEmpty = harness.markerInstances.length;
+      controller.renderMarkers([], 'default', undefined, undefined, true);
+      await flushFrames();
+      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.title)).toEqual(['玉渊潭', '四季青']);
+    } finally { cleanup(); }
+  });
+
+
   it('clears legacy markers once and keeps only the submarket tier visible at overview zoom', async () => {
     const harness = createNativeHarness();
     const originalRender = vi.fn();

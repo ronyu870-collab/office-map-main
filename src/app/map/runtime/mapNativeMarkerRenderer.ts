@@ -1,6 +1,7 @@
 'use client';
 
 import type { MapController } from '@/src/services/MapController';
+import { createAreaPlaceholder, getAreaPlaceholders } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerMode = 'submarket' | 'dot' | 'building';
@@ -517,6 +518,7 @@ export function installNativeMarkerRenderer(
   let lastBuildings: any[] = [];
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
+  let lastShowAreaPlaceholders = false;
   let futureSignature = '';
   let frame: number | null = null;
   let pending: {
@@ -524,6 +526,7 @@ export function installNativeMarkerRenderer(
     mode: RenderMode;
     groups?: any[];
     signature: string;
+    showAreaPlaceholders: boolean;
   } | null = null;
   let activeTier: MarkerMode | null = null;
 
@@ -569,7 +572,7 @@ export function installNativeMarkerRenderer(
     massMarks = null;
   };
 
-  const buildSubmarkets = (buildings: any[], mode: RenderMode): MarkerLike[] => {
+  const buildSubmarkets = (buildings: any[], mode: RenderMode, showAreaPlaceholders: boolean): MarkerLike[] => {
     const aggregateMap = new Map<string, SubmarketAggregate>();
 
     for (const building of buildings) {
@@ -627,8 +630,10 @@ export function installNativeMarkerRenderer(
     }
 
     const result: MarkerLike[] = [];
+    const positionedNames = new Set<string>();
     for (const item of aggregateMap.values()) {
       if (item.coordCount === 0) continue;
+      positionedNames.add(item.name);
 
       const center: [number, number] = [
         item.lngSum / item.coordCount,
@@ -687,6 +692,12 @@ export function installNativeMarkerRenderer(
       result.push(marker);
     }
 
+    for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
+      const content = createAreaPlaceholder(name, () => {
+        if (activeTier === 'submarket') map.setZoomAndCenter?.(12.15, center, false, 320);
+      });
+      result.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92 }));
+    }
     return result;
   };
 
@@ -925,12 +936,13 @@ export function installNativeMarkerRenderer(
     mode: RenderMode,
     groups: any[] | undefined,
     signature: string,
+    showAreaPlaceholders: boolean,
   ) => {
     clearNativeLayers();
     originalClear();
     metricCache = new WeakMap<object, any | null>();
 
-    submarketMarkers = buildSubmarkets(buildings, mode);
+    submarketMarkers = buildSubmarkets(buildings, mode, showAreaPlaceholders);
     controller.submarketMarkers = submarketMarkers;
     if (submarketMarkers.length > 0) {
       map.add?.(submarketMarkers as unknown[]);
@@ -949,6 +961,7 @@ export function installNativeMarkerRenderer(
     lastBuildings = buildings;
     lastMode = mode;
     lastGroups = groups;
+    lastShowAreaPlaceholders = showAreaPlaceholders;
     lastSignature = signature;
     applyLayerOpacity();
     container.classList.remove('map-marker-rendering');
@@ -959,16 +972,17 @@ export function installNativeMarkerRenderer(
     mode: RenderMode = 'default',
     _districtStats?: unknown,
     groups?: any[],
+    showAreaPlaceholders = false,
   ) => {
     const buildings = Array.isArray(input) ? input : [];
-    const signature = renderSignature(
+    const signature = `${renderSignature(
       buildings,
       mode,
       groups,
       objectTokens,
       metricCache,
       () => tokenCounter++,
-    );
+    )}|${showAreaPlaceholders}`;
     if (signature === lastSignature) {
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
@@ -977,7 +991,7 @@ export function installNativeMarkerRenderer(
     }
     if (signature === pending?.signature) return;
 
-    pending = { buildings, mode, groups, signature };
+    pending = { buildings, mode, groups, signature, showAreaPlaceholders };
     container.classList.add('map-marker-rendering');
     if (frame !== null) cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
@@ -985,7 +999,7 @@ export function installNativeMarkerRenderer(
       const next = pending;
       pending = null;
       if (next) {
-        commit(next.buildings, next.mode, next.groups, next.signature);
+        commit(next.buildings, next.mode, next.groups, next.signature, next.showAreaPlaceholders);
       }
     });
   }) as ControllerInternals['renderMarkers'];
@@ -1045,7 +1059,7 @@ export function installNativeMarkerRenderer(
         building => fresh.get(String(building?.id)) ?? building,
       );
       lastSignature = '';
-      controller.renderMarkers(next, lastMode, undefined, lastGroups);
+      controller.renderMarkers(next, lastMode, undefined, lastGroups, lastShowAreaPlaceholders);
     }) as ControllerInternals['refreshBuildingData'];
   }
 
