@@ -21,6 +21,18 @@ export function mountReportNavigation(root: HTMLElement): () => void {
       if (!prefersReducedMotion && box.bottom >= 0 && box.top <= window.innerHeight) {
         chapter.style.setProperty('--scene-offset', `${Math.max(-12, Math.min(12, (headerHeight - box.top) * .035))}px`);
       }
+      // Fitting desktop scenes reveal after arrival, not while their edge is entering.
+      // Oversized/mobile scenes reveal individual groups as the reader reaches them.
+      const available = window.innerHeight - headerHeight;
+      if (box.top <= headerHeight + 4 && box.bottom > headerHeight + available * .5 && !chapter.dataset.entered) {
+        chapter.dataset.entered = 'true';
+        if (window.innerWidth >= 1000 && box.height <= available + 3) {
+          chapter.querySelectorAll<HTMLElement>('[data-reveal]').forEach(target => {
+            target.dataset.visible = 'true';
+            revealObserver?.unobserve(target);
+          });
+        }
+      }
       if (chapter.getBoundingClientRect().top <= readingLine) active = chapter.dataset.reportChapter || 'cover';
     }
     for (const link of links) {
@@ -103,10 +115,13 @@ export function mountReportNavigation(root: HTMLElement): () => void {
     ? new IntersectionObserver(entries => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
+          const section = entry.target.closest('section');
+          const available = window.innerHeight - (header?.getBoundingClientRect().height || 64);
+          if (window.innerWidth >= 1000 && section && section.getBoundingClientRect().height <= available + 3) continue;
           (entry.target as HTMLElement).dataset.visible = 'true';
           revealObserver?.unobserve(entry.target);
         }
-      }, { threshold: .13, rootMargin: '0px 0px -20px 0px' })
+      }, { threshold: .3, rootMargin: '0px 0px -24px 0px' })
     : null;
   if (revealObserver) {
     root.dataset.animated = 'true';
@@ -135,7 +150,10 @@ export function mountReportNavigation(root: HTMLElement): () => void {
     disposed = true;
     if (previousHeader) document.documentElement.style.setProperty('--occupier-header', previousHeader);
     else document.documentElement.style.removeProperty('--occupier-header');
-    for (const chapter of chapters) chapter.style.removeProperty('--scene-offset');
+    for (const chapter of chapters) {
+      chapter.style.removeProperty('--scene-offset');
+      delete chapter.dataset.entered;
+    }
     cancelSettle();
     window.removeEventListener('wheel', onWheel);
     window.removeEventListener('pointerdown', cancelSettle);

@@ -142,9 +142,9 @@ const plotModes: Record<ChartKey, PlotMode> = {
 function PortfolioSketch() {
   return <svg className={styles.networkSketch} viewBox="0 0 500 108" aria-hidden="true">
     <g className={styles.networkLines} fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M65 54H250M250 54L420 22M250 54L420 86" />
+      <path d="M65 54H250" /><path d="M250 54L420 22" /><path d="M250 54L420 86" />
     </g>
-    <g fill="currentColor"><circle cx="65" cy="54" r="14"/><circle cx="250" cy="54" r="18"/><circle cx="420" cy="22" r="10"/><circle cx="420" cy="86" r="10"/></g>
+    <g className={styles.networkNodes} fill="currentColor"><circle cx="65" cy="54" r="14"/><circle cx="250" cy="54" r="18"/><circle cx="420" cy="22" r="10"/><circle cx="420" cy="86" r="10"/></g>
   </svg>;
 }
 function DataPlot({ title, data, chartKey }: { title: string; data: SurveyPlot; chartKey: ChartKey }) {
@@ -167,8 +167,8 @@ function DataPlot({ title, data, chartKey }: { title: string; data: SurveyPlot; 
   </figure>;
 }
 function SurveyScene({ scene }: { scene: ChartScene }) {
-  const image = scene.id === 'portfolio' ? 'office-network' : scene.id === 'workplace' ? 'office-workplace'
-    : scene.id === 'sustainability' ? 'office-green' : scene.id === 'ecosystem' ? 'office-skyline' : null;
+  const image = scene.id === 'portfolio' ? 'office-network-panorama' : scene.id === 'workplace' ? 'office-workplace-panorama'
+    : scene.id === 'sustainability' ? 'office-green-panorama' : scene.id === 'ecosystem' ? 'office-ecosystem-panorama' : null;
   return <section id={scene.id} data-report-chapter={scene.chapter} data-scene-kind={scene.id}
     aria-labelledby={scene.id + '-title'}
     className={[styles.scene, scene.tone === 'muted' ? styles.tinted : '', image ? styles.photoScene : ''].join(' ')}>
