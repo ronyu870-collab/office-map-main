@@ -75,7 +75,7 @@ export function createDefaultFilterState(): SidebarFilterState {
     subwayStation: null,
     subwayDistance: 1000,
     numericFilters: [],
-    showFutureSupply: false,
+    showFutureSupply: true,
     futureSupplyGrades: [...FUTURE_SUPPLY_TYPES],
     futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
   };
@@ -177,7 +177,7 @@ function hasSameSelections(selected: string[], options: readonly string[]): bool
   return selected.length === options.length && options.every(option => selected.includes(option));
 }
 
-export function isDefaultFilterState(state: SidebarFilterState): boolean {
+export function isDefaultStockFilterState(state: SidebarFilterState): boolean {
   return (
     hasSameSelections(state.districts, MAP_DISTRICTS) &&
     hasSameSelections(state.submarkets, [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]) &&
@@ -186,9 +186,18 @@ export function isDefaultFilterState(state: SidebarFilterState): boolean {
     !state.showBoundaries &&
     !state.subwayLine &&
     !state.subwayStation &&
-    state.numericFilters.length === 0 &&
-    !state.showFutureSupply
+    state.numericFilters.length === 0
   );
+}
+
+function hasDefaultFutureSupply(state: SidebarFilterState): boolean {
+  return state.showFutureSupply
+    && hasSameSelections(state.futureSupplyGrades, FUTURE_SUPPLY_TYPES)
+    && hasSameSelections(state.futureSupplyYears, SUPPLY_CALENDAR_CATEGORIES);
+}
+
+export function isDefaultFilterState(state: SidebarFilterState): boolean {
+  return isDefaultStockFilterState(state) && hasDefaultFutureSupply(state);
 }
 
 export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsState {
@@ -378,7 +387,7 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
     chips.push({ id: 'boundaries', label: '行政区边界', patch: { showBoundaries: false } });
   }
 
-  if (filterState.showFutureSupply) {
+  if (filterState.showFutureSupply && !hasDefaultFutureSupply(filterState)) {
     const grades = filterState.futureSupplyGrades.length === FUTURE_SUPPLY_TYPES.length ? '全部类型' : filterState.futureSupplyGrades.map(type => type === 'commercial' ? '商业' : type === 'pending' ? '待核实' : type).join('、');
     const years = filterState.futureSupplyYears.length === 5
       ? '全部年份'
@@ -386,7 +395,7 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
     chips.push({
       id: 'futureSupply',
       label: `未来供应：${grades} · ${years}`,
-      patch: { showFutureSupply: false },
+      patch: { showFutureSupply: true, futureSupplyGrades: [...FUTURE_SUPPLY_TYPES], futureSupplyYears: [...SUPPLY_CALENDAR_CATEGORIES] },
     });
   }
 

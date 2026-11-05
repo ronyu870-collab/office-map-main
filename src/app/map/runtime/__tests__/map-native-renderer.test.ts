@@ -328,7 +328,7 @@ describe('native map visual hierarchy', () => {
     cleanup();
   });
 
-  it('hides future-supply markers at overview zoom and restores them from the dot tier onward', async () => {
+  it('keeps future-supply markers hidden until the building tier', async () => {
     const harness = createNativeHarness();
     const renderFuture = vi.fn();
     const clearFuture = vi.fn();
@@ -348,6 +348,10 @@ describe('native map visual hierarchy', () => {
     expect(clearFuture).toHaveBeenCalled();
 
     harness.setZoom(11.8);
+    harness.emitMap('zoomend');
+    expect(renderFuture).not.toHaveBeenCalled();
+
+    harness.setZoom(13.18);
     harness.emitMap('zoomend');
     expect(renderFuture).toHaveBeenCalledWith([{ id: 'future-a' }], 'default');
 

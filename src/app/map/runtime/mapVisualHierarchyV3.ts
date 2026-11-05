@@ -1,6 +1,7 @@
 'use client';
 
 import type { MapController } from '@/src/services/MapController';
+import { MAP_BUILDING_TIER_MIN_ZOOM } from './mapMarkerZoom';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
 import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
@@ -25,7 +26,7 @@ type OpacityState = {
 
 const BREAKPOINTS = {
   submarketToDot: 11.55,
-  dotToBuilding: 13.18,
+  dotToBuilding: MAP_BUILDING_TIER_MIN_ZOOM,
   submarketGestureStart: 11.42,
   submarketGestureEnd: 11.66,
   buildingGestureStart: 13.02,
@@ -303,7 +304,7 @@ export function installMapVisualHierarchyV3(
 
   const syncFutureVisibility = () => {
     if (!originalFutureRender || !originalFutureClear || !futureArgs) return;
-    const shouldShow = currentTier !== 'submarket';
+    const shouldShow = tierForZoom(map.getZoom?.() ?? 11) === 'building';
     if (shouldShow === futureVisible) return;
     futureVisible = shouldShow;
     if (shouldShow) originalFutureRender(futureArgs.supplies, futureArgs.mode);
@@ -776,7 +777,7 @@ export function installMapVisualHierarchyV3(
   if (originalFutureRender && originalFutureClear) {
     c.renderFutureMarkers = ((input: any[], mode: RenderMode = 'default') => {
       futureArgs = { supplies: Array.isArray(input) ? input : [], mode };
-      const shouldShow = currentTier !== 'submarket';
+      const shouldShow = tierForZoom(map.getZoom?.() ?? 11) === 'building';
       futureVisible = shouldShow;
       if (shouldShow) originalFutureRender(futureArgs.supplies, mode);
       else originalFutureClear();

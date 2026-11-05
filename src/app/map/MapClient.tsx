@@ -21,6 +21,7 @@ import {
   filterFutureSupplies,
   getConfiguredCompareGroups,
   isDefaultFilterState,
+  isDefaultStockFilterState,
   type MapStatsState,
   type RenderMode,
 } from './model/mapDomain';
@@ -300,7 +301,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   // 新增：地图标记渲染模式状态
   const [renderMode, setRenderMode] = React.useState<RenderMode>('default');
   const showAreaPlaceholders = !keyword && activeCompareGroups.length === 0
-    && !initialIntelligenceHandoff && (filterState === null || isDefaultFilterState(filterState));
+    && !initialIntelligenceHandoff && (filterState === null || isDefaultStockFilterState(filterState));
 
   // 🌟 CL-011: 退出周边项目对比时，恢复之前的地图标记
   const prevCompetitorRef = React.useRef(competitorBuildings);
@@ -308,12 +309,12 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     if (prevCompetitorRef.current !== null && competitorBuildings === null && controllerRef.current && mapReady) {
       const ctrl = controllerRef.current;
       ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
-      if (filteredFutureSupplies.length > 0) {
+      if ((filterState?.showFutureSupply ?? true) && filteredFutureSupplies.length > 0) {
         ctrl.renderFutureMarkers(filteredFutureSupplies, renderMode);
       }
     }
     prevCompetitorRef.current = competitorBuildings;
-  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders]);
+  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders, filterState]);
 
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
@@ -333,6 +334,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       const activeFilterState = filterState ?? createDefaultFilterState();
 
     if (competitorModeRef.current) ctrl.clearCompetitorElements();
+    if (!activeFilterState.showFutureSupply) ctrl.clearFutureMarkers?.();
 
     if (activeFilterState.showBoundaries) {
       const distToDraw = activeFilterState.districts?.length > 0 ? activeFilterState.districts : MOCK_DISTRICTS;
@@ -416,7 +418,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
           setFilteredFutureSupplies(filteredSupplies);
           setSettledFullListFilterKey(fullListFilterKey);
           if (!competitorModeRef.current) {
-            ctrl.renderFutureMarkers(filteredSupplies, renderMode);
+            if (activeFilterState.showFutureSupply) ctrl.renderFutureMarkers(filteredSupplies, renderMode);
             if (shouldFitSearch && filtered.length === 0 && filteredSupplies.length > 0) ctrl.fitToBuildings(filteredSupplies as typeof filtered);
           }
         } catch (e) {
@@ -429,12 +431,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       })();
     } else {
       setFilteredFutureSupplies([]);
-      ctrl.clearFutureMarkers?.();
     }
 
     // 筛选只改变显示内容，不应移动用户正在查看的地图视野。
     // 当用户从任意筛选状态恢复为默认条件时，才回到初始大气泡总览。
-    const hasActiveFilters = !isDefaultFilterState(activeFilterState);
+    const hasActiveFilters = !isDefaultStockFilterState(activeFilterState);
     if (!hasActiveFilters && hadActiveFiltersRef.current && !keyword) {
       ctrl.resetToDefaultView?.();
     }

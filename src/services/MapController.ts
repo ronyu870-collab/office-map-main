@@ -11,6 +11,7 @@ import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
+import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
 import { createFutureSupplyMarker } from "./map/futureSupplyMarker";
@@ -1842,7 +1843,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (this._destroyed || !this.map || !this.AMap) return;
     const AMap = this.AMap;
 
-    this.clearFutureMarkers();
+    this.removeFutureMarkerOverlays();
     if (!Array.isArray(supplies) || supplies.length === 0) return;
 
     for (const supply of supplies) {
@@ -1866,6 +1867,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         position: [lng, lat],
         content: markerEl,
         offset: new AMap.Pixel(-22, -22),
+        zooms: [MAP_BUILDING_TIER_MIN_ZOOM, 20],
         zIndex: 110,
       });
 
@@ -1893,6 +1895,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   clearFutureMarkers(): void {
+    this.removeFutureMarkerOverlays();
+  }
+
+  private removeFutureMarkerOverlays(): void {
     if (!this.map) return;
     if (this.futureMarkers.length > 0) {
       try {
@@ -1950,7 +1956,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const area = supply.total_area
       ? `${Number(supply.total_area).toLocaleString()} ㎡`
       : "未知";
-    const notes = escapeHtml(supply.notes || "无");
+    const notes = typeof supply.notes === "string" ? escapeHtml(supply.notes.trim()) : "";
     const materialsButton = supply.building_id && !pending ? `
       <button type="button" data-map-action="building-sales-control"
         data-building-id="${escapeHtml(supply.building_id)}" data-building-name="${name}"
@@ -1972,9 +1978,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           <div style="display:flex; justify-content:space-between;"><span>总体量：</span> <span style="font-weight:700; color:#0f172a;">${area}</span></div>
           ${commercial || pending ? "" : `<div style="display:flex; justify-content:space-between;"><span>楼宇等级：</span> <span style="font-weight:700; color:#0f172a;">${grade}</span></div>`}
           <div style="display:flex; justify-content:space-between;"><span>业主：</span> <span style="font-weight:700; color:#0f172a;">${this._mask(owner)}</span></div>
-          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
+          ${notes ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
              <span style="color:#94a3b8;">备注：</span><span style="color:#64748b; font-size:11px;">${notes}</span>
-          </div>
+          </div>` : ""}
           ${materialsButton}
         </div>
       </div>
