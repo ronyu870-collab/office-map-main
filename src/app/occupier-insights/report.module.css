@@ -11,7 +11,6 @@
   font: 400 16px/1.8 Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 .report { min-height: 100%; flex-shrink: 0; position: relative; }
-.loading { min-height: 100%; padding: 32px; }
 .report *, .report *::before, .report *::after { box-sizing: border-box; }
 .report h1, .report h2, .report h3, .report h4, .report p, .report dl, .report dd, .report figure { margin: 0; }
 .report h1, .report h2, .report h3, .report h4 { font-weight: 500; }
