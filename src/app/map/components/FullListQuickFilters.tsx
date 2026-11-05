@@ -43,7 +43,9 @@ export function FullListQuickFilters({
   return (
     <div className={styles.quickFilters} ref={rootRef} role="group" aria-label="常用筛选"
       onBlur={event => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpenGroup(null);
+        // A label tap can blur the trigger before its checkbox receives the click.
+        // Outside pointer presses are handled separately; only a known focus move closes here.
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpenGroup(null);
       }}
       onKeyDown={event => {
         if (event.key !== 'Escape' || !openGroup) return;
