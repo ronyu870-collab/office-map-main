@@ -35,6 +35,26 @@ export function mountReportNavigation(root: HTMLElement): () => void {
   window.addEventListener('scroll', schedule, { passive: true });
   window.addEventListener('resize', schedule);
   window.addEventListener('hashchange', schedule);
+
+  // Progressive enhancement: every chart remains fully readable without JavaScript.
+  const revealTargets = Array.from(root.querySelectorAll<HTMLElement>('[data-reveal]'));
+  const prefersReducedMotion = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const revealObserver = !prefersReducedMotion && typeof IntersectionObserver !== 'undefined'
+    ? new IntersectionObserver(entries => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          (entry.target as HTMLElement).dataset.visible = 'true';
+          revealObserver?.unobserve(entry.target);
+        }
+      }, { threshold: .13, rootMargin: '0px 0px -20px 0px' })
+    : null;
+  if (revealObserver) {
+    root.dataset.animated = 'true';
+    for (const target of revealTargets) revealObserver.observe(target);
+  } else {
+    for (const target of revealTargets) target.dataset.visible = 'true';
+  }
   const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
   observer?.observe(root);
   if (header) observer?.observe(header);
@@ -57,6 +77,8 @@ export function mountReportNavigation(root: HTMLElement): () => void {
     window.removeEventListener('scroll', schedule);
     window.removeEventListener('resize', schedule);
     window.removeEventListener('hashchange', schedule);
+    revealObserver?.disconnect();
+    delete root.dataset.animated;
     observer?.disconnect();
     if (frame !== null) window.cancelAnimationFrame(frame);
     if (anchorFrame !== null) window.cancelAnimationFrame(anchorFrame);
