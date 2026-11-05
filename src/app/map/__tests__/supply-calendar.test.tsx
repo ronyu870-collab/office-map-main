@@ -10,6 +10,17 @@ import {
 } from '@/src/app/map/model/mapDomain';
 
 describe('map supply calendar domain model', () => {
+  it('finds and filters pending map points without changing the confirmed supply calendar', () => {
+    const pending = { id: 'yufu', name: '裕惠大厦', status: 'pending', district: '海淀区', submarket: '玉渊潭', type: null, grade: null, launch_year: null };
+    const confirmed = { id: '640', name: '玉渊潭640地块商业项目', status: 'future', district: '海淀区', submarket: '玉渊潭', type: '商业', grade: null, launch_year: '2027' };
+    const filterState = createDefaultFilterState();
+    expect(filterFutureSupplies([confirmed, pending], filterState, '裕惠')).toEqual([pending]);
+    expect(filterFutureSupplies([confirmed, pending], { ...filterState, futureSupplyGrades: ['pending'] }, '')).toEqual([pending]);
+    expect(filterFutureSupplies([confirmed, pending], { ...filterState, futureSupplyGrades: ['commercial'] }, '')).toEqual([confirmed]);
+    expect(buildFutureSupplyCalendar([confirmed, pending])).toEqual(buildFutureSupplyCalendar([confirmed]));
+  });
+
+
   it('finds commercial future supply without a grade or submarket and keeps it out of office supply', () => {
     const commercial = { id: '640', name: '玉渊潭640地块商业项目', type: '商业', district: '海淀区', submarket: null, grade: null, launch_year: '2027' };
     const office = { id: 'office', name: '办公未来项目', district: '海淀区', submarket: '其他', grade: 'B', launch_year: '2027' };

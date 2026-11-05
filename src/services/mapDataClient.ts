@@ -43,7 +43,7 @@ export async function fetchMapBuildingPayload(metrics: 'latest' | 'all' = 'lates
 }
 
 export async function fetchFutureSupplyPayload() {
-  const payload = await fetchMapJson('/api/map/data?mode=future', true);
+  const payload = await fetchMapJson('/api/map/data?mode=future&include_pending=1', true);
   return Array.isArray(payload.future_supplies) ? payload.future_supplies : [];
 }
 

@@ -15,6 +15,30 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('building comparison mobile selection', () => {
+  it('continues typing in comparison search while results change and retains the caret', async () => {
+    render(<BuildingCompareWorkspace />);
+    const toggle = screen.getByRole('button', { name: /选择项目与筛选/ });
+    await waitFor(() => expect(toggle).toHaveTextContent('3 个竞品'));
+    fireEvent.click(toggle);
+    const panel = within(document.getElementById(toggle.getAttribute('aria-controls')!)!);
+    const input = panel.getByRole('textbox', { name: '搜索对比项目' }) as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: 'C' } });
+    expect(panel.queryByRole('button', { name: /Target/ })).not.toBeInTheDocument();
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'Canddate 6' } });
+    expect(panel.getByText('没有匹配项目')).toBeInTheDocument();
+    expect(panel.getByRole('textbox', { name: '搜索对比项目' })).toBe(input);
+    expect(input).toHaveFocus();
+    input.setSelectionRange(4, 4);
+    fireEvent.change(input, { target: { value: 'Candidate 6', selectionStart: 5, selectionEnd: 5 } });
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(5);
+    expect(panel.getByRole('button', { name: /Candidate 6/ })).toBeInTheDocument();
+    expect(panel.queryByRole('button', { name: /Candidate 0/ })).not.toBeInTheDocument();
+  });
+
+
   it('opens the same selection state, filters candidates and restores focus when returning to results', async () => {
     render(<BuildingCompareWorkspace />);
     const toggle = screen.getByRole('button', { name: /选择项目与筛选/ });

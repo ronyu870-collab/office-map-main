@@ -19,7 +19,11 @@ beforeEach(() => {
     const chain: Record<string, unknown> = {};
     for (const op of ['select', 'eq', 'or', 'order', 'limit']) chain[op] = () => chain;
     const data = table === 'building_display_overrides' ? [] : table === 'future_supplies'
-      ? [{ id: 'future-row', building_id: building }, { id: 'unlinked-future-row', building_id: null }]
+      ? [
+        { id: 'future-row', building_id: building },
+        { id: 'unlinked-future-row', building_id: null },
+        { id: 'pending-future-row', building_id: building, status: 'pending' },
+      ]
       : [{ id: building, name: '楼宇' }, { id: 'without-photos', name: '暂无图片' }];
     chain.then = (resolve: (value: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve);
     return chain;
@@ -38,7 +42,20 @@ describe('photo summaries in authenticated map data', () => {
   });
   it('attaches future supply photos through the canonical building_id', async () => {
     const body = await (await GET(new NextRequest('https://synthetic.invalid/api/map/data?mode=future'))).json();
-    expect(body.future_supplies.map((row: { photos: unknown }) => row.photos)).toEqual([[photo], []]);
+    expect(body.future_supplies).toEqual([
+      expect.objectContaining({ id: 'future-row', photos: [photo] }),
+      expect.objectContaining({ id: 'unlinked-future-row', photos: [] }),
+    ]);
+  });
+  it('includes pending supplies with their photos only when the map opts in', async () => {
+    const response = await GET(new NextRequest('https://synthetic.invalid/api/map/data?mode=future&include_pending=1'));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.future_supplies).toEqual([
+      expect.objectContaining({ id: 'future-row', photos: [photo] }),
+      expect.objectContaining({ id: 'unlinked-future-row', photos: [] }),
+      expect.objectContaining({ id: 'pending-future-row', status: 'pending', photos: [photo] }),
+    ]);
   });
   it('does not query photo summaries for an anonymous caller or an unknown role', async () => {
     mocks.identity.mockResolvedValueOnce({ response: NextResponse.json({}, { status: 401 }) });

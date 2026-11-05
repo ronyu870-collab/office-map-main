@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { SearchBar } from '@/src/components/SearchBar';
 import { AppHeader, Button } from '@/src/components/ui';
 import { MaskedText } from '@/src/components/demo';
+import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { FullBuildingList } from './FullBuildingList';
 import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
 import {
@@ -233,16 +234,37 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
   );
 }
 
+function SupplyProjectList({ projects, onSelect }: { projects: FullListBuilding[]; onSelect: (project: FullListBuilding) => void }) {
+  return (
+    <ul className="mt-1 divide-y divide-[var(--cd-color-border)]">
+      {projects.map(project => (
+        <li key={project.id} className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
+          {hasBuildingLocation(project) ? (
+            <button type="button" onClick={() => onSelect(project)} className="min-h-11 rounded-sm text-left font-medium text-[var(--cd-color-brand)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)]">
+              <MaskedText>{project.name || '未命名项目'}</MaskedText>
+            </button>
+          ) : (
+            <span className="py-2"><MaskedText>{project.name || '未命名项目'}</MaskedText></span>
+          )}
+          {project.launch_year ? <span className="text-[var(--cd-color-text-secondary)]">预计 {project.launch_year}{project.launch_quarter ?? ''}</span> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function SupplyPanel({
   calendar,
   total,
   commercialProjects,
+  pendingProjects,
   onSelect,
   onClose,
 }: {
   calendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   total: number;
   commercialProjects: FullListBuilding[];
+  pendingProjects: FullListBuilding[];
   onSelect: (project: FullListBuilding) => void;
   onClose: () => void;
 }) {
@@ -251,7 +273,7 @@ function SupplyPanel({
       <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3.5">
         <div>
           <div className="text-sm font-semibold text-slate-900">未来供应</div>
-          <div className="mt-0.5 text-[10px] text-slate-400">共 {total} 个项目</div>
+          <div className="mt-0.5 text-[10px] text-slate-400">已纳入统计 {total} 个项目</div>
         </div>
         <button
           type="button"
@@ -266,21 +288,16 @@ function SupplyPanel({
         {commercialProjects.length > 0 ? (
           <section aria-labelledby="commercial-supply-heading" className="rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 pt-3">
             <h3 id="commercial-supply-heading" className="text-sm font-semibold text-[var(--cd-color-text-primary)]">商业项目</h3>
-            <ul className="mt-1 divide-y divide-[var(--cd-color-border)]">
-              {commercialProjects.map(project => (
-                <li key={project.id} className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
-                  {hasBuildingLocation(project) ? (
-                    <button type="button" onClick={() => onSelect(project)} className="min-h-11 rounded-sm text-left font-medium text-[var(--cd-color-brand)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)]">
-                      <MaskedText>{project.name || '未命名项目'}</MaskedText>
-                    </button>
-                  ) : (
-                    <span className="py-2"><MaskedText>{project.name || '未命名项目'}</MaskedText></span>
-                  )}
-                  {project.launch_year ? <span className="text-[var(--cd-color-text-secondary)]">预计 {project.launch_year}{project.launch_quarter ?? ''}</span> : null}
-                </li>
-              ))}
-            </ul>
+            <SupplyProjectList projects={commercialProjects} onSelect={onSelect} />
           </section>
+        ) : null}
+        {pendingProjects.length > 0 ? (
+          <details className="rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3">
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--cd-color-text-primary)]">
+              待核实项目（{pendingProjects.length}）
+            </summary>
+            <SupplyProjectList projects={pendingProjects} onSelect={onSelect} />
+          </details>
         ) : null}
         <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
         {SUPPLY_CALENDAR_CATEGORIES.map(category => {
@@ -564,7 +581,8 @@ export function MapWorkbenchView({
           <SupplyPanel
             calendar={futureSupplyCalendar}
             total={futureSuppliesCount}
-            commercialProjects={futureSupplies.filter(isCommercialFutureSupply)}
+            commercialProjects={futureSupplies.filter(supply => !isPendingFutureSupply(supply) && isCommercialFutureSupply(supply))}
+            pendingProjects={futureSupplies.filter(isPendingFutureSupply)}
             onSelect={project => {
               onSupplyOpenChange(false);
               onBuildingClick({ ...project, _dataType: 'future' });

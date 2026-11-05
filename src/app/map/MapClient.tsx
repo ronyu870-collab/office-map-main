@@ -9,6 +9,7 @@ import type { MapController } from '@/src/services/MapController';
 import { logAction } from '@/src/utils/audit';
 import { createLatestFrameScheduler, type LatestFrameScheduler } from '@/src/utils/frameCoalescer';
 import { retryAsync } from '@/src/utils/retryAsync';
+import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import {
   MAP_DISTRICTS as MOCK_DISTRICTS,
   SUPPLY_CALENDAR_CATEGORIES,
@@ -376,8 +377,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
     setFullListWarning(null);
-    const searchCommercial = Boolean(keyword) && !activeFilterState.showFutureSupply;
-    const loadFuture = activeFilterState.showFutureSupply || searchCommercial;
+    const searchAdditionalSupply = Boolean(keyword) && !activeFilterState.showFutureSupply;
+    const loadFuture = activeFilterState.showFutureSupply || searchAdditionalSupply;
     const shouldFitSearch = Boolean(keyword) && keyword !== prevKeywordRef.current;
     if (!loadFuture) setSettledFullListFilterKey(fullListFilterKey);
     if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
@@ -404,8 +405,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           const filteredSupplies = filterFutureSupplies(
             supplies,
-            searchCommercial
-              ? { ...activeFilterState, futureSupplyGrades: ['commercial'], futureSupplyYears: [...SUPPLY_CALENDAR_CATEGORIES] }
+            searchAdditionalSupply
+              ? { ...activeFilterState, futureSupplyGrades: ['commercial', 'pending'], futureSupplyYears: [...SUPPLY_CALENDAR_CATEGORIES] }
               : activeFilterState,
             keyword,
             (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
@@ -587,7 +588,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       <MapWorkbenchView
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}
-        futureSuppliesCount={futureSupplies.length}
+        futureSuppliesCount={futureSupplies.filter(supply => !isPendingFutureSupply(supply)).length}
         futureSupplies={futureSupplies}
         activeFilterChips={activeFilterChips}
         keyword={searchInput}

@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { BuildingBasicCard } from './BuildingBasicCard';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 interface DisplayOverride {
   display_label: string;
@@ -60,6 +61,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
   const hasMore = visibleCount < buildings.length;
 
   const materialAction = (building: any) => {
+    if (building._dataType === 'future' && isPendingFutureSupply(building)) return null;
     const id=building._dataType === 'future' ? building.building_id : building.id;
     if (!id) return null;
     return <button type="button" data-map-action="building-sales-control" data-building-id={id}
@@ -100,7 +102,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-[11px] font-semibold text-[#172033]">{building.name || '未命名项目'}</span>
-            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">未来</span> : null}
+            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">{isPendingFutureSupply(building) ? '待核实' : '未来'}</span> : null}
           </div>
           <div className="mt-0.5 truncate text-[10px] text-[#8a94a6]">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}</div>
         </div>

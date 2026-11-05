@@ -9,7 +9,8 @@ import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
-import { isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
+import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
+import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
@@ -1934,6 +1935,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const photoPilot = this.getPhotoSet(supply.building_id, supply.photos);
     const galleryId = photoPilot ? `building-gallery-${escapeHtml(supply.building_id)}` : "";
     const commercial = isCommercialFutureSupply(supply);
+    const pending = isPendingFutureSupply(supply);
     const grade = escapeHtml(displayGrade(supply.grade));
     const owner = escapeHtml(supply.owner || "—");
     const time =
@@ -1946,7 +1948,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       ? `${Number(supply.total_area).toLocaleString()} ㎡`
       : "未知";
     const notes = escapeHtml(supply.notes || "无");
-    const materialsButton = supply.building_id ? `
+    const materialsButton = supply.building_id && !pending ? `
       <button type="button" data-map-action="building-sales-control"
         data-building-id="${escapeHtml(supply.building_id)}" data-building-name="${name}"
         style="width:100%;min-height:44px;margin-top:8px;background:var(--cd-color-surface);color:var(--cd-color-brand);border:1px solid var(--cd-color-border);border-radius:5px;font-size:14px;font-weight:600;cursor:pointer;">
@@ -1956,7 +1958,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return `
       <div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
         <div style="margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 8px;">
-           <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">${commercial ? '商业未来供应' : '未来供应'}</span>
+           <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">${futureSupplyDisplayLabel(supply)}</span>
            ${photoPilot
              ? `<div class="building-pilot-title-row building-pilot-title-row--future"><span class="building-pilot-name" title="${name}">${name}</span>${buildPhotoTrigger(galleryId)}</div>`
              : `<span style="font-size:16px; font-weight:900; color:#0f172a;">${this._mask(name)}</span>`}
@@ -1965,7 +1967,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         <div style="font-size: 12px; color: #475569; line-height: 1.8;">
           <div style="display:flex; justify-content:space-between;"><span>预计入市：</span> <span style="font-weight:700; color:#10b981;">${time}</span></div>
           <div style="display:flex; justify-content:space-between;"><span>总体量：</span> <span style="font-weight:700; color:#0f172a;">${area}</span></div>
-          ${commercial ? "" : `<div style="display:flex; justify-content:space-between;"><span>楼宇等级：</span> <span style="font-weight:700; color:#0f172a;">${grade}</span></div>`}
+          ${commercial || pending ? "" : `<div style="display:flex; justify-content:space-between;"><span>楼宇等级：</span> <span style="font-weight:700; color:#0f172a;">${grade}</span></div>`}
           <div style="display:flex; justify-content:space-between;"><span>业主：</span> <span style="font-weight:700; color:#0f172a;">${this._mask(owner)}</span></div>
           <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
              <span style="color:#94a3b8;">备注：</span><span style="color:#64748b; font-size:11px;">${notes}</span>
