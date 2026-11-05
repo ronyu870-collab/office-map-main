@@ -130,9 +130,9 @@ export function SidebarFilter(props: SidebarFilterProps) {
     subwayStation: null,
     subwayDistance: 1000,
     numericFilters: [],
-    showFutureSupply: false,
-    futureSupplyGrades: ['A', 'B', 'BP', 'commercial', 'pending'],
-    futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
+    showFutureSupply: props.initialState?.showFutureSupply ?? true,
+    futureSupplyGrades: props.initialState?.futureSupplyGrades ?? ['A', 'B', 'BP', 'commercial', 'pending'],
+    futureSupplyYears: props.initialState?.futureSupplyYears ?? ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
   }));
 
   // 当 props 的可选项列表变化时，将新增选项补入；首次挂载必须保留 initialState 的部分选择。
@@ -230,7 +230,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
       subwayStation: null,
       subwayDistance: 1000,
       numericFilters: [],
-      showFutureSupply: false,
+      showFutureSupply: true,
       futureSupplyGrades: ['A', 'B', 'BP', 'commercial', 'pending'],
       futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
     });

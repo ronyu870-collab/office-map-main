@@ -1,6 +1,7 @@
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MapController } from '../MapController';
+import { installMapVisualHierarchyV3 } from '@/src/app/map/runtime/mapVisualHierarchyV3';
 
 const mocks = vi.hoisted(() => ({ loadPhoto: vi.fn(), loadStoredPhoto: vi.fn(), from: vi.fn() }));
 vi.mock('../salesMaterialsClient', () => ({ loadBuildingPhoto: mocks.loadPhoto }));
@@ -52,6 +53,60 @@ beforeEach(() => {
   mocks.loadPhoto.mockReset().mockResolvedValue(coverUrl);
   mocks.loadStoredPhoto.mockReset().mockResolvedValue({ url: coverUrl, source_url: 'https://www.example.com/building', source_name: '项目官网' });
   mocks.from.mockReset();
+});
+
+it('only attaches future points at the building tier and restores them after zooming out and back', () => {
+  const controller = new MapController();
+  const container = document.createElement('div');
+  const listeners = new Map<string, Set<() => void>>();
+  let zoom = 10.8;
+  const points = new Set<unknown>();
+  const map = {
+    getZoom: () => zoom,
+    on: (event: string, callback: () => void) => {
+      const handlers = listeners.get(event) ?? new Set();
+      handlers.add(callback); listeners.set(event, handlers);
+    },
+    off: (event: string, callback: () => void) => listeners.get(event)?.delete(callback),
+    add: (markers: unknown[]) => markers.forEach(marker => points.add(marker)),
+    remove: (markers: unknown[]) => markers.forEach(marker => points.delete(marker)),
+  };
+  class Overlay { on() {} }
+  Object.assign(controller, { map, AMap: { Marker: Overlay, Pixel: Overlay, Size: Overlay, LabelsLayer: Overlay, LabelMarker: Overlay, MassMarks: Overlay } });
+  const dispose = installMapVisualHierarchyV3(controller, container);
+  expect(dispose).toBeTypeOf('function');
+  const move = (value: number) => {
+    for (const cb of listeners.get('zoomstart') ?? []) cb();
+    zoom = value;
+    for (const cb of listeners.get('zoomchange') ?? []) cb();
+    for (const cb of listeners.get('zoomend') ?? []) cb();
+  };
+  try {
+    controller.renderFutureMarkers([future]);
+    expect(points.size).toBe(0);
+    move(12.15);
+    expect(container.dataset.markerTier).toBe('dot');
+    expect(points.size).toBe(0);
+    move(14);
+    expect(points.size).toBe(1);
+    move(12.15);
+    expect(points.size).toBe(0);
+    move(14);
+    expect(points.size).toBe(1);
+    controller.clearFutureMarkers();
+    move(12.15);
+    move(14);
+    expect(points.size).toBe(0);
+  } finally { dispose?.(); }
+});
+
+it('shows a pending project area and omits an empty remarks row', () => {
+  const { controller, close } = createMap();
+  controller.openFutureSupplyInfoWindow({ ...future, status: 'pending', total_area: 63000, notes: ' ' });
+  try {
+    expect(document.body).toHaveTextContent('63,000 ㎡');
+    expect(document.body).not.toHaveTextContent('备注');
+  } finally { close(); }
 });
 
 describe('通用楼宇图片', () => {

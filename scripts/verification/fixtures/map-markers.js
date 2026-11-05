@@ -120,8 +120,9 @@ const controller = {
   infoWindow: { close() {} },
 };
 const future = loadModule('src/services/fixtureFutureMethods.ts').FutureMethods;
-controller.renderFutureMarkers = future.prototype.renderFutureMarkers;
-controller.clearFutureMarkers = future.prototype.clearFutureMarkers;
+for (const method of Object.getOwnPropertyNames(future.prototype)) {
+  if (method !== 'constructor') controller[method] = future.prototype[method];
+}
 loadModule('src/app/map/runtime/mapVisualHierarchyV3.ts').installMapVisualHierarchyV3(controller, container);
 loadModule('src/app/map/runtime/mapSubmarketCollisionAvoidance.ts').installSubmarketCollisionAvoidance(map, container);
 

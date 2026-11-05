@@ -36,7 +36,6 @@ body:has(#map-container) .map-submarket-bubble {
 }
 
 body:has(#map-container) .map-submarket-bubble--name-only {
-  --sm-accent: #8794a4;
   min-height: 44px;
 }
 body:has(#map-container) .map-submarket-bubble:focus-visible {

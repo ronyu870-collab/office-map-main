@@ -506,7 +506,7 @@ describe('asynchronous scope and view boundaries', () => {
     fireEvent.click(screen.getByRole('button', { name: '筛选' }));
     const panel = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
     fireEvent.click(within(panel).getByText('项目类型', { exact: true }));
-    fireEvent.click(within(panel).getByRole('checkbox', { name: '显示未来新增供应' }));
+    expect(within(panel).getByRole('checkbox', { name: '显示未来新增供应' })).toBeChecked();
     expect(within(panel).getByRole('checkbox', { name: '待核实' })).toBeChecked();
     expect(within(panel).getByRole('checkbox', { name: '暂无供应时间' })).toBeChecked();
     await waitFor(() => expect(controller.renderFutureMarkers.mock.lastCall?.[0]).toContainEqual(pending));
@@ -545,7 +545,10 @@ describe('asynchronous scope and view boundaries', () => {
     controller.fetchFutureSupplies.mockImplementation(() => new Promise(resolve => responses.push(resolve)));
     fireEvent.click(within(list).getByRole('button', { name: '更多筛选' }));
     fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('未来供应', { exact: true }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '显示未来新增供应' }));
+    const layer = screen.getByRole('checkbox', { name: '显示未来新增供应' });
+    fireEvent.click(layer);
+    expect(layer).not.toBeChecked();
+    fireEvent.click(layer);
     await waitFor(() => expect(responses).toHaveLength(1));
     fireEvent.click(screen.getByRole('button', { name: '关闭筛选' }));
     fireEvent.change(within(list).getByRole('searchbox'), { target: { value: '远期' } });
@@ -562,12 +565,9 @@ describe('asynchronous scope and view boundaries', () => {
   });
 
   it('labels a partial future failure instead of pretending the result is complete', async () => {
+    controller.fetchFutureSupplies.mockRejectedValue(new Error('synthetic fixture failure'));
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
-    controller.fetchFutureSupplies.mockRejectedValue(new Error('synthetic fixture failure'));
-    fireEvent.click(within(list).getByRole('button', { name: '更多筛选' }));
-    fireEvent.click(within(screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement).getByText('未来供应', { exact: true }));
-    fireEvent.click(screen.getByRole('checkbox', { name: '显示未来新增供应' }));
     await within(list).findByText('未来供应暂时无法读取，当前仅显示存量楼宇。');
     await within(list).findByText('44 栋楼宇');
   });

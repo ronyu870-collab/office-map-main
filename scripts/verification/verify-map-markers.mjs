@@ -39,12 +39,16 @@ function bundle(ref) {
   });
   const controller = ast.statements.find(node => ts.isClassDeclaration(node) && node.name?.text === 'MapController');
   assert.ok(controller, 'MapController class is required');
-  const methods = ['renderFutureMarkers', 'clearFutureMarkers'].map(name => {
+  const names = ['renderFutureMarkers', 'clearFutureMarkers'];
+  if (source.includes('private removeFutureMarkerOverlays')) names.push('removeFutureMarkerOverlays');
+  const methods = names.map(name => {
     const node = controller.members.find(node => ts.isMethodDeclaration(node) && node.name?.getText(ast) === name);
     assert.ok(node, `Controller method missing: ${name}`); return node.getText(ast);
   });
   const helperImport = source.includes('import { createFutureSupplyMarker }') ? "import { createFutureSupplyMarker } from './map/futureSupplyMarker';" : '';
-  add('src/services/fixtureFutureMethods.ts', `${helperImport}\n${functions.join('\n')}\nexport class FutureMethods { ${methods.join('\n')} }`);
+  const zoomImport = source.includes('import { MAP_BUILDING_TIER_MIN_ZOOM }')
+    ? "import { MAP_BUILDING_TIER_MIN_ZOOM } from '@/src/app/map/runtime/mapMarkerZoom';" : '';
+  add('src/services/fixtureFutureMethods.ts', `${helperImport}\n${zoomImport}\n${functions.join('\n')}\nexport class FutureMethods { ${methods.join('\n')} }`);
   return modules;
 }
 
@@ -70,6 +74,7 @@ function failuresFor(snapshot, scene) {
     check(snapshot.selected?.animation === 'none' && snapshot.selected?.ringAnimation === 'none', 'selection has a static outline');
   } else if (scene === 'submarket') {
     check(snapshot.cards.length === 3, 'all three submarkets are visible');
+    check(snapshot.futures.length === 0, 'future points stay hidden at overview zoom');
     for (const card of snapshot.cards) {
       check(card.box.width >= card.box.height * 1.4, `${card.name}: compact rectangle, not a large circle`);
       check(card.tag === 'BUTTON', `${card.name}: keyboard-operable button`);
@@ -99,7 +104,7 @@ function failuresFor(snapshot, scene) {
     }
   } else {
     check(snapshot.cards.length === 0, 'overview cards hidden in dot tier');
-    check(snapshot.futures.every(marker => !marker.timeVisible), 'future time stays hidden at dot zoom');
+    check(snapshot.futures.length === 0, 'future points stay hidden at dot zoom');
   }
   return failures;
 }
