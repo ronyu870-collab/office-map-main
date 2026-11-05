@@ -6,13 +6,8 @@ const root = process.cwd();
 const read = (file: string) => readFileSync(resolve(root, file), 'utf8');
 
 describe('map marker visual continuity', () => {
-  it('keeps all three marker tiers circular and readable', () => {
+  it('retains native SVG icons in the compatibility renderer', () => {
     const renderer = read('src/app/map/runtime/mapNativeMarkerRenderer.ts');
-    const css = read('src/app/map/map-native-overlays.css');
-
-    expect(css).toContain('.map-submarket-bubble');
-    expect(css).toContain('border-radius: 50%');
-    expect(css).toContain('--sm-size: 82px');
 
     expect(renderer).toContain('function dotImage');
     expect(renderer).toContain('size: new Size(12, 12)');
@@ -21,7 +16,7 @@ describe('map marker visual continuity', () => {
     expect(renderer).toContain("type: 'image'");
     expect(renderer).toContain('size: [34, 34]');
 
-    // High-zoom markers must not regress to tiny rectangular text backgrounds.
+    // The fallback still uses native artwork, not SDK text-background styling.
     expect(renderer).not.toContain('backgroundColor: visual.background');
   });
 

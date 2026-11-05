@@ -136,6 +136,8 @@ jobs:
 
       - name: Browser measurement calibration and anonymous production-build regression
         shell: bash
+        env:
+          MAP_MARKER_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
           node "$RUNNER_TEMP/performance-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
@@ -144,6 +146,7 @@ jobs:
           node scripts/performance/verify-summary.mjs
           node scripts/performance/verify-capture.mjs
           node scripts/verification/verify-building-photos.mjs
+          node scripts/verification/verify-map-markers.mjs
           node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/performance-server.log" 2>&1 &
           performance_server_pid=$!
           trap 'kill "$performance_server_pid" 2>/dev/null || true' EXIT
@@ -169,5 +172,14 @@ jobs:
         with:
           name: building-photo-verification
           path: verification/building-photos
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retain isolated map marker verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-marker-verification
+          path: verification/map-markers
           if-no-files-found: ignore
           retention-days: 7
