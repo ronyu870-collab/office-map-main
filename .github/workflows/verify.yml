@@ -129,7 +129,7 @@ jobs:
           PHOTO_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
       - name: Building photo transfer safety and idempotency regressions
-        run: node --test scripts/building-photos/transfer-handler.test.mjs
+        run: node --test scripts/building-photos/transfer-handler.node-test.mjs
 
       - name: Production build
         run: npm run build

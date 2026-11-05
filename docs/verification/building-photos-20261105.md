@@ -10,10 +10,11 @@
 - 地图原 `map-building-preview.test.ts` 的试点交互回归保留，并增加普通楼宇/未来供应、关闭试点开关、说明转义、来源、取消迟到响应、失败重试、指标回读保留摘要、无图与演示模式。首屏转换路径另由 `mapStartupOptimization.test.ts` 覆盖。
 - `supabase/tests/building-photos/run.mjs` 接入 Verify 的 PostgreSQL 17.6 服务，执行本次 migration，测试角色表权限、RLS、临时放开权限时仍隔离浏览器角色、唯一/外键/字段/存储归属及完整性约束、服务端发布/归档/删除。只连接一次性 localhost 合成库。
 - 上传 handler 的 Node 安全及幂等测试通过独立 CI 步骤运行；该脚本不由 Vitest 扫描。
+- 审计动作翻译影响 `AuditLogPage` 的实际筛选消费链，新增并登记该页面的对象筛选执行回归：首字后结果回读、继续输入、光标中插、中文组合输入、清空及照片导入中文动作显示。
 
 ## 本地执行结果
 
-- 最终一轮 `npm run verify` 的检查部分通过：审计覆盖、TypeScript、Lint（0 错误、809 警告）、158 个 Vitest 文件 / 1061 项测试。首轮误将独立 Node 测试作为 Vitest 文件，已在配置中明确排除并保留 CI Node 步骤；同轮原有随机延时导航测试一次超过其 500ms 断言，最终完整重跑通过，没有改动其断言或实现。
+- 最终一轮 `npm run verify` 的检查部分通过：审计覆盖、TypeScript、Lint（0 错误、809 警告）、158 个 Vitest 文件 / 1061 项测试。首轮误将独立 Node 测试作为 Vitest 文件，已改为独立 `.node-test.mjs` 文件名并保留 CI Node 步骤；同轮原有随机延时导航测试一次超过其 500ms 断言，最终完整重跑通过，没有改动其断言或实现。
 - Webpack 生产编译成功；随后收集原有 `/api/oss` 页面数据时，`ali-oss → address → os.networkInterfaces()` 因执行环境的 `uv_interface_addresses / Unknown system error 1` 失败。因此本地不能声明完整生产构建通过，必须由精确 PR head 的 Verify 完成。
 - 最终署名布局改为说明与翻页下方的整行后，6 个受影响测试文件 / 58 项回归再次通过。新增文件定向 Lint 通过。上传 handler 的 9 项 Node 测试通过。
 - 本批 50 条清单逐条通过实际应用的摘要、URL、来源、许可证与存储路径校验。此项只证明记录符合应用入口，不替代图片内容、Storage 上传和生产读取核验。
@@ -29,3 +30,9 @@
 ## 待 CI / 生产确认的边界
 
 本地执行环境仅映射 root UID，PostgreSQL 按安全规则拒绝启动，未绕过该限制。本地没有实际执行本次 SQL，数据库结论必须等待精确 PR head 的 CI PostgreSQL 17.6 回归。未使用生产库代测。手机真机与生产带真实账号的浏览器验收尚未执行；上线状态和实际照片数量由批次记录及生产回读确认。
+
+## CI 搜索焦点门槛修正
+
+首个 PR head `8da7cb4` 因改动全局 `vitest.config.ts` 触发全部搜索入口检查。将上传测试改为独立 `transfer-handler.node-test.mjs` 文件名后，恢复原 Vitest 配置，不再产生无关全局影响。剩余受影响入口为地图既有登记入口和实际消费新增审计文案的审计页；为后者补真实组件回归并登记，门槛脚本及既有用例均保持。
+
+以精确基线 `ccedadb3b5e69d09613a4303d8677f138bbce5d3` 实际运行搜索焦点 gate，3 个测试文件 / 33 项通过，执行报告确认所有登记必需用例均实际通过。门槛契约的 5 项 Node 测试及改名后的 9 项上传测试同样通过。
