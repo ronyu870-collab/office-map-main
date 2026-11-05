@@ -1,0 +1,30 @@
+[
+  {
+    "id": "map-search",
+    "roots": ["src/app/map/MapClient.tsx", "src/app/map/components/MapWorkbenchView.tsx"],
+    "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
+    "cases": [
+      "keeps focus while typing and preserves the caret and draft after the search settles",
+      "allows Chinese composition and submits only the completed text",
+      "shares the query with the full list and can clear it without removing existing filters"
+    ]
+  },
+  {
+    "id": "full-building-list-search",
+    "roots": ["src/app/map/components/FullBuildingList.tsx"],
+    "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
+    "cases": ["continues typing in the full list after the results update"]
+  },
+  {
+    "id": "full-list-quick-filter",
+    "roots": ["src/app/map/components/FullListQuickFilters.tsx"],
+    "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
+    "cases": ["continues editing the list search across result updates with a quick filter applied"]
+  },
+  {
+    "id": "map-and-list-text-filter",
+    "roots": ["src/components/SidebarFilter.tsx"],
+    "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
+    "cases": ["keeps the text filter focused across map and full list result updates"]
+  }
+]
