@@ -6,7 +6,7 @@ import { validateImport } from './ingest.mjs';
 import { openLocalStore, importLocalMaterial, sha256, listLocalMaterials } from './local-store.mjs';
 import { readPreviewRequest } from './preview-api.mjs';
 import JSZip from 'jszip';
-import { XLSX_MIME } from '../../src/lib/sales-materials/model.ts';
+import { DOCX_MIME, XLSX_MIME } from '../../src/lib/sales-materials/model.ts';
 const root=await mkdtemp(join(tmpdir(),'sales-import-test-'));
 const id='749e53a6-9d2e-40f0-8d36-e42a6e6ad36d';
 const catalog=[{id,name:'测试楼宇',longitude:116.406354,latitude:39.979452}];
@@ -68,5 +68,21 @@ try {
   const listed=listLocalMaterials(store,id,0,30).records.find(item=>item.id===saved.id);check(listed.content_types,['brochure']);check(listed.association_status,'unconfirmed');check(listed.data_date,'2026-10-13');
   const excelOriginal=await readPreviewRequest(store,new Request('http://127.0.0.1:4177'+savedAccess.download_url));check(excelOriginal.headers.get('content-type'),XLSX_MIME);check(sha256(new Uint8Array(await excelOriginal.arrayBuffer())),sha256(excelBytes));
   await writeFile(excelFile,bytes);await assert.rejects(validateImport(manifestFile,excelFile),/格式/);count++;
+  const word=new JSZip();word.file('[Content_Types].xml','<Types/>');word.file('word/document.xml','<document/>');
+  const wordBytes=await word.generateAsync({type:'nodebuffer'}),wordFile=join(root,'owner.docx');
+  const {workbook_preview:_workbookPreview,...wordBrochure}=brochure;
+  const wordManifest={...wordBrochure,original_name:'owner.docx',association_status:'confirmed',association_note:'',
+    source_timing:{document_date_evidence:'',received:{value:'2026-10-13',evidence:'用户确认接收日期'}},
+    extraction:{...brochure.extraction,method:'codex-document',source_sha256:sha256(wordBytes)}};
+  await writeFile(wordFile,wordBytes);await writeFile(manifestFile,JSON.stringify(wordManifest));
+  const checkedWord=await validateImport(manifestFile,wordFile);check(checkedWord.mimeType,DOCX_MIME);
+  const savedWord=await importLocalMaterial(store,checkedWord.manifest,wordFile,checkedWord.mimeType,catalog);
+  const accessWord=await (await readPreviewRequest(store,new Request(url.replace(first.id,savedWord.id)))).json();
+  check(accessWord.provenance.received,wordManifest.source_timing.received);
+  const originalWord=await readPreviewRequest(store,new Request('http://127.0.0.1:4177'+accessWord.download_url));
+  check(originalWord.headers.get('content-type'),DOCX_MIME);
+  check(sha256(new Uint8Array(await originalWord.arrayBuffer())),sha256(wordBytes));
+  await writeFile(wordFile,excelBytes);
+  await assert.rejects(validateImport(manifestFile,wordFile),/Word 原件结构/);count++;
   console.log(`Local Codex ingestion passed ${count} checks: validate → persist → reopen → API → original bytes, deduplication, scope and version integrity.`);
 } finally {if(store)store.close();await rm(root,{recursive:true,force:true});}

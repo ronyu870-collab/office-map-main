@@ -44,6 +44,23 @@ try{
  await fails("update public.building_sales_materials set historical_context=null");
  await fails("update public.building_sales_materials set storage_path='pretend-cloud-original.pdf'");
  const bucket=(await db.query('select * from storage.buckets')).rows[0];assert.equal(bucket.public,false);assert.equal(Number(bucket.file_size_limit),536870912);count++;
+ const docxMime='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+ const wordId=randomUUID();
+ const docxPath=`${bid}/${wordId}/original.docx`;
+ const docxInsert=`insert into public.building_sales_materials(id,building_id,title,source,original_name,storage_path,mime_type,file_size,source_sha256,extraction_sha256,extraction,content_types,project_facts,status,published_at)
+   values($1,$2,'Word project brochure','synthetic','source.docx',$3,$4,1000,$5,$6,$7,'{brochure}','[{"label":"物业类型","value":"商业","source_ref":"p1"}]','ready',now())`;
+ const docxArgs=[wordId,bid,docxPath,docxMime,'c'.repeat(64),'d'.repeat(64),{extraction:{method:'codex-document',reviewed:true,source_sha256:'c'.repeat(64)}}];
+ await fails(docxInsert,docxArgs);
+ await db.query(await readFile(new URL('../../migrations/20261105073001_support_word_project_originals.sql',import.meta.url),'utf8'));
+ await db.query('set role service_role');
+ await db.query(docxInsert,docxArgs);count++;
+ await fails("update public.building_sales_materials set storage_path=replace(storage_path,'.docx','.pdf') where id=$1",[wordId]);
+ assert.equal((await db.query('select mime_type,storage_path from public.building_sales_materials where id=$1',[wordId])).rows[0].storage_path,docxPath);count++;
+ await db.query('reset role');
+ for(const role of ['anon','authenticated']){await db.query(`set role ${role}`);await fails('select * from public.building_sales_materials where id=$1',[wordId]);await db.query('reset role');}
+ const nextBucket=(await db.query('select public,allowed_mime_types from storage.buckets')).rows[0];
+ assert.equal(nextBucket.public,false);
+ assert.deepEqual(nextBucket.allowed_mime_types,[...bucket.allowed_mime_types,docxMime]);count++;
  assert.deepEqual(await protectedRows(),before);count++;
  console.log(`PASS ${count} real PostgreSQL 17 material scenarios: private original, historical-only data, idempotency, scope, constraints, business preservation.`);
 }finally{await db?.end();await admin.query(`drop database if exists ${name} with(force)`);await admin.end();}

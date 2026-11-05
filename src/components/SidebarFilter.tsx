@@ -131,7 +131,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
     subwayDistance: 1000,
     numericFilters: [],
     showFutureSupply: false,
-    futureSupplyGrades: ['A', 'B', 'BP'],
+    futureSupplyGrades: ['A', 'B', 'BP', 'commercial'],
     futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
   }));
 
@@ -231,7 +231,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
       subwayDistance: 1000,
       numericFilters: [],
       showFutureSupply: false,
-      futureSupplyGrades: ['A', 'B', 'BP'],
+      futureSupplyGrades: ['A', 'B', 'BP', 'commercial'],
       futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
     });
   }, [districts, allSubmarkets, leeds]);
@@ -382,7 +382,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
                       onChange={e => {
                         const checked = e.target.checked;
                         // 每次勾选大类时，默认全选子类
-                        setState(p => ({ ...p, showFutureSupply: checked, futureSupplyGrades: checked ? ['A', 'B', 'BP'] : [], futureSupplyYears: checked ? ['2026', '2027', '2028', '2029AndAfter', 'noDate'] : [] }));
+                        setState(p => ({ ...p, showFutureSupply: checked, futureSupplyGrades: checked ? ['A', 'B', 'BP', 'commercial'] : [], futureSupplyYears: checked ? ['2026', '2027', '2028', '2029AndAfter', 'noDate'] : [] }));
                       }}
                       className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-200"
                     />
@@ -395,7 +395,8 @@ export function SidebarFilter(props: SidebarFilterProps) {
                       {[
                         { id: 'A', label: '甲级' },
                         { id: 'B', label: '乙级' },
-                        { id: 'BP', label: '产业园' }
+                        { id: 'BP', label: '产业园' },
+                        { id: 'commercial', label: '商业' }
                       ].map(grade => (
                         <label key={grade.id} className="flex min-w-0 items-center gap-2 rounded-md border border-transparent px-2 py-1 hover:border-zinc-200 hover:bg-zinc-50 cursor-pointer">
                           <input

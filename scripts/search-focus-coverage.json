@@ -26,5 +26,11 @@
     "roots": ["src/components/SidebarFilter.tsx"],
     "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
     "cases": ["keeps the text filter focused across map and full list result updates"]
+  },
+  {
+    "id": "admin-diagnostic-text-filter",
+    "roots": ["src/components/admin/DebugFilter.tsx"],
+    "file": "src/components/admin/__tests__/DebugFilter.focus.test.tsx",
+    "cases": ["retains the text filter focus and caret after matching rows refresh"]
   }
 ]

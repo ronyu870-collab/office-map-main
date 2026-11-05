@@ -6,8 +6,9 @@ import Link from 'next/link';
 
 import { SearchBar } from '@/src/components/SearchBar';
 import { AppHeader, Button } from '@/src/components/ui';
+import { MaskedText } from '@/src/components/demo';
 import { FullBuildingList } from './FullBuildingList';
-import type { FullListBuilding } from '../model/fullBuildingList';
+import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -22,6 +23,7 @@ import {
   MAP_SUBWAYS,
   SUPPLY_CALENDAR_CATEGORIES,
   SUPPLY_CALENDAR_LABELS,
+  isCommercialFutureSupply,
   type ActiveFilterChip,
   type MapStatsState,
   type RenderMode,
@@ -49,6 +51,7 @@ type MapWorkbenchViewProps = {
   stats: MapStatsState;
   futureSupplyCalendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   futureSuppliesCount: number;
+  futureSupplies: FullListBuilding[];
   activeFilterChips: ActiveFilterChip[];
   keyword: string;
   filterState: SidebarFilterState | null;
@@ -233,10 +236,14 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
 function SupplyPanel({
   calendar,
   total,
+  commercialProjects,
+  onSelect,
   onClose,
 }: {
   calendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   total: number;
+  commercialProjects: FullListBuilding[];
+  onSelect: (project: FullListBuilding) => void;
   onClose: () => void;
 }) {
   return (
@@ -255,7 +262,27 @@ function SupplyPanel({
           <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
         </button>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        {commercialProjects.length > 0 ? (
+          <section aria-labelledby="commercial-supply-heading" className="rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] px-3 pt-3">
+            <h3 id="commercial-supply-heading" className="text-sm font-semibold text-[var(--cd-color-text-primary)]">商业项目</h3>
+            <ul className="mt-1 divide-y divide-[var(--cd-color-border)]">
+              {commercialProjects.map(project => (
+                <li key={project.id} className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
+                  {hasBuildingLocation(project) ? (
+                    <button type="button" onClick={() => onSelect(project)} className="min-h-11 rounded-sm text-left font-medium text-[var(--cd-color-brand)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)]">
+                      <MaskedText>{project.name || '未命名项目'}</MaskedText>
+                    </button>
+                  ) : (
+                    <span className="py-2"><MaskedText>{project.name || '未命名项目'}</MaskedText></span>
+                  )}
+                  {project.launch_year ? <span className="text-[var(--cd-color-text-secondary)]">预计 {project.launch_year}{project.launch_quarter ?? ''}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        <div className="grid grid-cols-1 content-start gap-2 sm:grid-cols-2">
         {SUPPLY_CALENDAR_CATEGORIES.map(category => {
           const data = calendar[category];
           return (
@@ -267,10 +294,12 @@ function SupplyPanel({
               <div className="mt-2 flex items-center gap-3 border-t border-slate-200/70 pt-2 text-[10px] text-slate-400">
                 <span>办公 {data.office}</span>
                 <span>园区 {data.park}</span>
+                {data.commercial > 0 ? <span>商业 {data.commercial}</span> : null}
               </div>
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -280,6 +309,7 @@ export function MapWorkbenchView({
   stats,
   futureSupplyCalendar,
   futureSuppliesCount,
+  futureSupplies,
   activeFilterChips,
   keyword,
   filterState,
@@ -534,6 +564,11 @@ export function MapWorkbenchView({
           <SupplyPanel
             calendar={futureSupplyCalendar}
             total={futureSuppliesCount}
+            commercialProjects={futureSupplies.filter(isCommercialFutureSupply)}
+            onSelect={project => {
+              onSupplyOpenChange(false);
+              onBuildingClick({ ...project, _dataType: 'future' });
+            }}
             onClose={() => onSupplyOpenChange(false)}
           />
         ) : null}

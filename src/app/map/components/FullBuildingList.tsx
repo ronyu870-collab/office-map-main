@@ -4,7 +4,7 @@ import * as React from 'react';
 import { AppHeader, Button } from '@/src/components/ui';
 import { SearchBar } from '@/src/components/SearchBar';
 import { ChevronDown, X } from 'lucide-react';
-import type { ActiveFilterChip } from '../model/mapDomain';
+import { isCommercialFutureSupply, type ActiveFilterChip } from '../model/mapDomain';
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 import { MaskedText } from '@/src/components/demo';
 import { displayListGrade, hasBuildingLocation, listBuildingValues, listVacancyPercent, sortFullList, type FullListBuilding, type FullListSort } from '../model/fullBuildingList';
@@ -142,7 +142,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                     }}><MaskedText>{building.name || '未命名项目'}</MaskedText></button>
                     <div className={styles.meta}>
                       {year ? <span>{year}年{future ? '预计供应' : ''}</span> : null}
-                      {future ? <span>未来供应</span> : null}
+                      {future ? <span>{isCommercialFutureSupply(building) ? '商业未来供应' : '未来供应'}</span> : null}
                       {targetBuildingId === building.id ? <span>目标楼宇</span> : null}
                     </div>
                   </div>

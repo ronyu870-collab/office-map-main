@@ -39,11 +39,11 @@ vi.mock('@/src/components/SidebarFilter', () => ({
 import { MapWorkbenchView } from '@/src/app/map/components/MapWorkbenchView';
 
 const emptyCalendar = {
-  '2026': { total: 0, office: 0, park: 0 },
-  '2027': { total: 0, office: 0, park: 0 },
-  '2028': { total: 0, office: 0, park: 0 },
-  '2029AndAfter': { total: 0, office: 0, park: 0 },
-  noDate: { total: 0, office: 0, park: 0 },
+  '2026': { total: 0, office: 0, park: 0, commercial: 0 },
+  '2027': { total: 0, office: 0, park: 0, commercial: 0 },
+  '2028': { total: 0, office: 0, park: 0, commercial: 0 },
+  '2029AndAfter': { total: 0, office: 0, park: 0, commercial: 0 },
+  noDate: { total: 0, office: 0, park: 0, commercial: 0 },
 };
 
 type WorkbenchProps = ComponentProps<typeof MapWorkbenchView>;
@@ -77,6 +77,7 @@ function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
     },
     futureSupplyCalendar: emptyCalendar,
     futureSuppliesCount: 0,
+    futureSupplies: [],
     activeFilterChips: [],
     keyword: '',
     filterState: null,
@@ -100,11 +101,29 @@ function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
     ...overrides,
   };
 
-  render(<MapWorkbenchView {...props} />);
-  return callbacks;
+  const view = render(<MapWorkbenchView {...props} />);
+  return { ...callbacks, setSupplyOpen: (isSupplyOpen: boolean) => view.rerender(<MapWorkbenchView {...props} isSupplyOpen={isSupplyOpen} />) };
 }
 
 describe('MapWorkbenchView', () => {
+  it('lists commercial project names directly after opening future supply and lets users locate a project', () => {
+    const supply = { id: 'commercial-640', name: '玉渊潭640地块商业项目', type: '商业', location_lng: 116.29817, location_lat: 39.927218, launch_year: 2027, launch_quarter: 'Q1' };
+    const office = { ...supply, id: 'office-1', name: '测试办公供应', type: '办公' };
+    const callbacks = renderWorkbench({
+      futureSupplies: [office, supply], futureSuppliesCount: 2,
+      futureSupplyCalendar: { ...emptyCalendar, '2027': { total: 2, office: 1, park: 0, commercial: 1 } },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
+    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(true);
+    callbacks.setSupplyOpen(true);
+    expect(screen.getByRole('heading', { name: '商业项目' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '测试办公供应' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '玉渊潭640地块商业项目' }));
+    expect(callbacks.onSupplyOpenChange).toHaveBeenLastCalledWith(false);
+    expect(callbacks.onBuildingClick).toHaveBeenCalledWith({ ...supply, _dataType: 'future' });
+  });
+
+
   it('keeps the map canvas as the primary workbench surface', () => {
     renderWorkbench();
 

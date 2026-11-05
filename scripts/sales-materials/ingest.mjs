@@ -4,7 +4,7 @@ import { basename, resolve } from 'node:path';
 import { loadLocalCatalog } from './building-catalog.mjs';
 import JSZip from 'jszip';
 import { fileURLToPath } from 'node:url';
-import { materialImportSchema, materialMimeType, matchesMaterialSignature, MAX_MATERIAL_BYTES, SALES_MATERIAL_BUCKET, XLSX_MIME, PPTX_MIME, PPTM_MIME } from '../../src/lib/sales-materials/model.ts';
+import { materialImportSchema, materialMimeType, matchesMaterialSignature, MAX_MATERIAL_BYTES, SALES_MATERIAL_BUCKET, XLSX_MIME, PPTX_MIME, PPTM_MIME, DOCX_MIME } from '../../src/lib/sales-materials/model.ts';
 import { openLocalStore, importLocalMaterial, sha256 } from './local-store.mjs';
 
 export async function validateImport(manifestPath, filePath) {
@@ -19,6 +19,10 @@ export async function validateImport(manifestPath, filePath) {
   if ([PPTX_MIME,PPTM_MIME].includes(mimeType)) {
     const zip = await JSZip.loadAsync(bytes);
     if (!zip.file('ppt/presentation.xml') || !zip.file('[Content_Types].xml')) throw new Error('PowerPoint原件结构不完整');
+  }
+  if (mimeType === DOCX_MIME) {
+    const zip = await JSZip.loadAsync(bytes);
+    if (!zip.file('word/document.xml') || !zip.file('[Content_Types].xml')) throw new Error('Word 原件结构不完整');
   }
   if (sha256(bytes) !== manifest.extraction.source_sha256) throw new Error('原件与解析结果的 SHA-256 不匹配');
   return { manifest, bytes, mimeType };
@@ -40,7 +44,7 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
   if (!apply) return { dry_run: true, building: building.name, rows: manifest.details.length, source_sha256: sourceHash };
   const { randomUUID } = await import('node:crypto');
   const id = existing?.id || randomUUID();
-  const ext = { 'image/png':'png','image/jpeg':'jpg','image/webp':'webp','application/pdf':'pdf',[XLSX_MIME]:'xlsx',[PPTX_MIME]:'pptx',[PPTM_MIME]:'pptm' }[mimeType];
+  const ext = { 'image/png':'png','image/jpeg':'jpg','image/webp':'webp','application/pdf':'pdf',[XLSX_MIME]:'xlsx',[PPTX_MIME]:'pptx',[PPTM_MIME]:'pptm',[DOCX_MIME]:'docx' }[mimeType];
   const path = originalMode === 'cloud' ? `${building.id}/${id}/original.${ext}` : null;
   if (!existing) {
     const result = await client.from('building_sales_materials').insert({id,building_id:building.id,title:manifest.title,document_date:manifest.document_date,source:manifest.source,notes:manifest.notes,

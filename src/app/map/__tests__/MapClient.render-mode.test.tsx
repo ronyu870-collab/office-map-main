@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createDefaultFilterState } from '@/src/app/map/model/mapDomain';
+import type { SidebarFilterState } from '@/src/components/SidebarFilter';
 
 const controller = vi.hoisted(() => ({
   fetchMapData: vi.fn(),
@@ -71,14 +73,20 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
   MapWorkbenchView: ({
     onRenderModeChange,
     onSearch,
+    onFilterChange,
   }: {
     onRenderModeChange: (mode: 'rent') => void;
     onSearch: (value: string) => void;
+    onFilterChange: (state: SidebarFilterState) => void;
   }) => (
     <>
       <button type="button" onClick={() => onRenderModeChange('rent')}>
         switch-to-rent
       </button>
+      <button type="button" onClick={() => onFilterChange({
+        ...createDefaultFilterState(), districts: ['海淀区'], futureSupplyGrades: [], futureSupplyYears: [],
+      })}>close-layer-with-district-filter</button>
+      <button type="button" onClick={() => onSearch('玉渊潭 640')}>search-commercial</button>
       <button type="button" onClick={() => onSearch('华润')}>
         search-owner
       </button>
@@ -144,6 +152,20 @@ describe('MapClient render mode synchronization', () => {
     });
   });
 
+
+  it('renders a commercial result from global search with the future layer initially off', async () => {
+    const supply = { id: 'supply-640', name: '玉渊潭640地块商业项目', type: '商业', grade: null, submarket: null,
+      district: '海淀区', launch_year: '2027', location_lng: 116.29817, location_lat: 39.927218 };
+    controller.fetchFutureSupplies.mockResolvedValue([supply]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'close-layer-with-district-filter' }));
+    fireEvent.click(screen.getByRole('button', { name: 'search-commercial' }));
+    await waitFor(() => {
+      expect(controller.renderFutureMarkers).toHaveBeenLastCalledWith([supply], 'default');
+      expect(controller.fitToBuildings).toHaveBeenLastCalledWith([supply]);
+    });
+  });
 
   it('applies search before any filter state has been created', async () => {
     const otherBuilding = {
