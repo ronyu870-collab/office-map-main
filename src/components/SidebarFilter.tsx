@@ -122,7 +122,7 @@ export function SidebarFilter(props: SidebarFilterProps) {
 
   const [state, setState] = React.useState<SidebarFilterState>(() => ({
     districts: uniqStrings(props.initialState?.districts ?? districts),
-    submarkets: uniqStrings(props.initialState?.submarkets ?? submarkets),
+    submarkets: uniqStrings(props.initialState?.submarkets ?? allSubmarkets),
     leeds: uniqStrings(props.initialState?.leeds ?? leeds),
     projectTypes: props.initialState?.projectTypes ?? ['甲级写字楼', '乙级写字楼', '产业园区'],
     showBoundaries: false,
