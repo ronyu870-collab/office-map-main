@@ -68,7 +68,7 @@ export function OccupierInsightsReport() {
 
       <section id="overview" className={`${styles.scene} ${styles.paper}`} data-report-chapter="overview" data-source-slide="01">
         <div className={styles.frame}>
-          <Heading number="01" label="受访者画像" title={<>先看企业处在什么阶段，<br />再理解它为什么选择一处办公室。</>}>这组会议资料收集了来自高端写字楼需求行业的高级管理人员观点。行业和发展阶段，是理解后续办公策略的起点。</Heading>
+          <Heading number="01" label="受访者画像" title={<>先看企业处在什么阶段，<br />再理解它为什么选择一处办公室。</>}>受访者来自高端写字楼需求行业，提供了经营与行业观点。行业和发展阶段，是理解企业办公策略的起点。</Heading>
           <div className={styles.sampleGrid}>
             <Chart name="industries" variant="compact" />
             <div><Chart name="stages" variant="tiles" /><div className={styles.editorialNote}><h3>优化与整合，是这份样本的重要背景。</h3><p>初期增长阶段关注快速扩张，组织架构与商业模式仍在构建和完善；扩张阶段关注员工增长和业务覆盖；优化阶段聚焦增长效率与质量；整合阶段强调成本控制与业务组合调整；转型或重组阶段则面临新的组织安排。</p><p>这些比例描述的是受访群体，不是所有企业或北京租赁需求的行业分布。</p></div></div>
@@ -78,7 +78,7 @@ export function OccupierInsightsReport() {
 
       <section id="priorities" className={styles.scene} data-report-chapter="overview" data-source-slide="02">
         <div className={styles.frame}>
-          <Heading number="02" label="增长优先事项" title={<>更大的办公室，<br />不再是唯一的增长答案。</>}>生产力、成本控制和市场整合成为资料中的主要议题。房地产决策需要支持效率与风险管理，而不只是为员工扩张准备面积。</Heading>
+          <Heading number="02" label="增长优先事项" title={<>更大的办公室，<br />不再是唯一的增长答案。</>}>生产力、成本控制与市场整合，是受访企业更优先的经营议题。房地产决策需要支持效率与风险管理，而不只是为员工扩张准备面积。</Heading>
           <Chart name="growth" variant="columns" />
           <div className={styles.twoTextColumns}><div><h3>效率从哪里来？</h3><Tokens items={productivity} /><p>办公空间需要与流程和工具共同改变。面积只是投入之一，组织能否更顺畅地运转，才是要回答的问题。</p></div><div><h3>空间需要承接什么？</h3><Tokens items={futureWorkspace} /><p>人才、协作、智能化和体验并非四套独立要求，应当在同一办公方案中协调。</p></div></div>
           <Analysis>先写清“这次选址要解决的业务问题”，再制定面积与预算。提效、降本、整合和扩张，应该导向不同的空间配置，而不是套用同一份找楼清单。</Analysis>
@@ -87,7 +87,7 @@ export function OccupierInsightsReport() {
 
       <section id="factors" className={`${styles.scene} ${styles.paper}`} data-report-chapter="factors" data-source-slide="03">
         <div className={`${styles.frame} ${styles.split}`}>
-          <div><Heading number="03" label="选址因素" title={<>成本是起点，<br />不是全部答案。</>}>人才、客户、产业联系与政策条件共同影响区位判断。只比较租金单价，会遗漏企业实际使用空间时的差异。</Heading><div className={styles.heroMetric}><strong>86.4<small>%</small></strong><p>样本中列示“成本与租金方面的考量”</p></div><p className={styles.bodyCopy}>历史或遗留问题也占有一定比重：既有组织安排、长期形成的业务连接或原空间约束，都需要在决策中被看见。不能把所有选择都解释成主动追求某一种区位优势。</p></div>
+          <div><Heading number="03" label="选址因素" title={<>成本是起点，<br />不是全部答案。</>}>人才、客户、产业联系与政策条件共同影响区位判断。只比较租金单价，会遗漏企业实际使用空间时的差异。</Heading><div className={styles.heroMetric}><strong>86.4<small>%</small></strong><p>受访者关注成本与租金</p></div><p className={styles.bodyCopy}>历史或遗留问题也占有一定比重：既有组织安排、长期形成的业务连接或原空间约束，都需要在决策中被看见。不能把所有选择都解释成主动追求某一种区位优势。</p></div>
           <Chart name="factors" />
         </div>
       </section>
@@ -102,14 +102,14 @@ export function OccupierInsightsReport() {
 
       <section id="industry" className={styles.scene} data-report-chapter="factors" data-source-slide="04">
         <div className={styles.frame}>
-          <Heading number="05" label="行业差异" title={<>相同的一栋楼，<br />对不同行业意味着不同的价值。</>}>资料将三类行业的选址驱动因素分别展开。共同的判断框架，不应抹平企业在人才、客户与技术用途上的差异。</Heading>
+          <Heading number="05" label="行业差异" title={<>相同的一栋楼，<br />对不同行业意味着不同的价值。</>}>科技、金融与专业服务、生命科学及先进制造的选址驱动并不相同。共同的判断框架，不应抹平企业在人才、客户与技术用途上的差异。</Heading>
           <div className={styles.industryGrid}>{industryProfiles.map((item,index)=><article key={item.name}><p className={styles.industryIndex}>0{index+1}</p><p className={styles.industryName}>{item.name}</p><h3>{item.focus}</h3><Tokens items={item.drivers}/><p className={styles.industryQuestion}>{item.question}</p><p>{item.analysis}</p><div className={styles.proof}><span>应用核验</span>{item.proof}</div></article>)}</div>
         </div>
       </section>
 
       <section id="services" className={`${styles.scene} ${styles.paper}`} data-report-chapter="factors" data-source-slide="04">
         <div className={styles.frame}>
-          <Heading number="06" label="楼宇运营" title={<>竞争从提供空间，<br />走向支持企业经营。</>}>租户需求的变化，反过来推动写字楼运营升级。资料列出的七类价值，需要通过持续服务而非单次交付来实现。</Heading>
+          <Heading number="06" label="楼宇运营" title={<>竞争从提供空间，<br />走向支持企业经营。</>}>租户需求的变化，反过来推动写字楼运营升级。七类价值，需要通过持续服务而非单次交付来实现。</Heading>
           <div className={styles.serviceList}>{assetServices.map(([title,text],index)=><article key={title}><span className={styles.listNumber}>0{index+1}</span><h3>{title}</h3><p>{text}</p><ArrowUpRight size={22} aria-hidden="true" /></article>)}</div>
           <Analysis>比较楼宇时，把“有没有”进一步问成“谁来提供、如何使用、什么时间可用、是否另收费”。七项服务方向沿用资料，上述服务解释是将方向转化为可检验问题。</Analysis>
         </div>
@@ -125,7 +125,7 @@ export function OccupierInsightsReport() {
 
       <section id="risks" className={`${styles.scene} ${styles.paper}`} data-report-chapter="portfolio" data-source-slide="06">
         <div className={styles.frame}>
-          <div className={styles.split}><div><Heading number="08" label="租赁风险" title={<>怕的不只是贵，<br />还有被锁在不合适的选择里。</>}>资料中的风险关注集中在高于市场水平的成本、过早过度承诺，以及业务变化时失去调整空间。充分比较、提前规划和灵活条款应一起进入决策。</Heading><div className={styles.riskStatement}><span>价格</span><i>×</i><span>承诺期限</span><i>×</i><span>调整能力</span></div><p className={styles.smallCopy}>三个相互关联的判断维度；不是风险量化公式。</p></div><Chart name="risks" /></div>
+          <div className={styles.split}><div><Heading number="08" label="租赁风险" title={<>不只控制成本，<br />也要保留调整余地。</>}>受访者担心高于市场水平的成本、过早过度承诺，以及业务变化时失去调整空间。充分比较、提前规划和灵活条款应一起进入决策。</Heading><div className={styles.riskStatement}><span>价格</span><i>×</i><span>承诺期限</span><i>×</i><span>调整能力</span></div><p className={styles.smallCopy}>三个相互关联的判断维度；不是风险量化公式。</p></div><Chart name="risks" /></div>
           <div className={styles.offering}><h3>对业主与投资者的启示</h3><Tokens items={riskOffer}/></div>
           <Analysis>“便宜”需要可比基准，“灵活”需要具体条款。扩租、缩租、续租和退出的条件，应分别确认触发方式、通知期限和费用，不能被一句“可以协商”替代。</Analysis>
         </div>
@@ -133,7 +133,7 @@ export function OccupierInsightsReport() {
 
       <section id="cost" className={`${styles.scene} ${styles.costScene}`} data-report-chapter="portfolio" data-source-slide="06">
         <div className={`${styles.frame} ${styles.costLayout}`}>
-          <div className={styles.costSticky}><Heading number="09" label="总持有成本" title={<>看得见的租金，<br />只是成本的一层。</>}>资料提出八项全面成本评估内容。把现金支出与经营影响分开记录，再放回同一个决策框架。</Heading><div className={styles.costModel} aria-hidden="true"><span data-cost-layer="0">租约成本</span><span data-cost-layer="1">迁入投入</span><span data-cost-layer="2">经营影响</span></div><p className={styles.smallCopy}>随正文推进，逐层审视。三层归类及核验问题为应用分析。</p></div>
+          <div className={styles.costSticky}><Heading number="09" label="总持有成本" title={<>看得见的租金，<br />只是成本的一层。</>}>完整的成本评估，需要覆盖从租约到经营影响的八项内容。把现金支出与经营影响分开记录，再放回同一个决策框架。</Heading><div className={styles.costModel} aria-hidden="true"><span data-cost-layer="0">租约成本</span><span data-cost-layer="1">迁入投入</span><span data-cost-layer="2">经营影响</span></div><p className={styles.smallCopy}>随正文推进，逐层审视。三层归类及核验问题为应用分析。</p></div>
           <div className={styles.costSteps}>{costLayers.map((layer,index)=><article key={layer.title} data-cost-step={index}><p className={styles.eyebrow}>0{index+1} · {layer.subtitle}</p><h3>{layer.title}</h3><dl>{layer.items.map(([title,text])=><div key={title}><dt>{title}</dt><dd>{text}</dd></div>)}</dl></article>)}</div>
         </div>
         <div className={styles.frame}><Analysis>可计量支出用一致期间、面积定义和费用范围比较；通勤、生产力和灵活性单独评估。未经测算，不把“人才价值”随意折算成金额，也不把押金、可退回款项与最终费用混为一谈。</Analysis></div>
@@ -141,7 +141,7 @@ export function OccupierInsightsReport() {
 
       <section id="workplace" className={`${styles.scene} ${styles.paper}`} data-report-chapter="workplace" data-source-slide="07">
         <div className={styles.frame}>
-          <div className={styles.split}><div><Heading number="10" label="工作场所与人才" title={<>满足基本需求，<br />不等于形成竞争优势。</>}>资料中，许多办公室能够满足基础办公要求，但缺少突出亮点。混合办公仍处于谨慎、选择性的阶段；办公室依然重要，设计重点则转向协作、文化、员工体验和生产力。</Heading><div className={styles.heroMetric}><strong>61.7<small>%</small></strong><p>认为办公环境“满足基本需求但无突出亮点”</p></div></div><Chart name="workplace" /></div>
+          <div className={styles.split}><div><Heading number="10" label="工作场所与人才" title={<>满足基本需求，<br />不等于形成竞争优势。</>}>多数受访者认为，现有办公环境满足基本需求，但缺少突出亮点。混合办公仍处于谨慎、选择性的阶段；办公室依然重要，设计重点则转向协作、文化、员工体验和生产力。</Heading><div className={styles.heroMetric}><strong>61.7<small>%</small></strong><p>认为办公环境“满足基本需求但无突出亮点”</p></div></div><Chart name="workplace" /></div>
           <div className={styles.twoTextColumns}><div><h3>年轻员工更加重视</h3><Tokens items={employeePriorities}/></div><div><h3>资产可以形成的差异化</h3><Tokens items={workplaceOffer}/></div></div>
         </div>
       </section>
@@ -153,7 +153,7 @@ export function OccupierInsightsReport() {
 
       <section id="sustainability" className={`${styles.scene} ${styles.sage}`} data-report-chapter="workplace" data-source-slide="08">
         <div className={styles.frame}>
-          <div className={styles.split}><div><Heading number="12" label="可持续发展" title={<>绿色的价值，<br />要在日常运营中兑现。</>}>资料将可持续发展与成本降低、运营效率及绿色建筑的实际价值相联系。它正从差异化亮点走向基础门槛，也成为成本管理、ESG 落实与长期风险控制的组成部分。</Heading><Tokens items={greenBenefits}/></div><Chart name="sustainability" /></div>
+          <div className={styles.split}><div><Heading number="12" label="可持续发展" title={<>绿色的价值，<br />要在日常运营中兑现。</>}>可持续发展的关注点，正从标签转向成本、运营效率与建筑的实际表现。它正从差异化亮点走向基础门槛，也成为成本管理、ESG 落实与长期风险控制的组成部分。</Heading><Tokens items={greenBenefits}/></div><Chart name="sustainability" /></div>
           <h3 className={styles.subheading}>把五项资产特征，转成可核验的证据。</h3>
           <div className={styles.evidenceList}>{greenEvidence.map(([title,text],index)=><article key={title}><span>0{index+1}</span><div><h4>{title}</h4><p>{text}</p></div></article>)}</div>
           <p className={styles.sourceNote}>资产特征沿用资料；核验问题为应用分析。“走向基础门槛”是资料的趋势判断，不表示所有租户已有相同要求。</p>
@@ -162,7 +162,7 @@ export function OccupierInsightsReport() {
 
       <section id="advisory" className={styles.scene} data-report-chapter="advisory" data-source-slide="09">
         <div className={styles.frame}>
-          <div className={styles.split}><div><Heading number="13" label="战略决策" title={<>好的选址建议，<br />不止是一张房源清单。</>}>资料强调高层对办公决策的主导作用，并指出企业关注顾问的市场洞察、风险控制、执行与综合解决方案能力。房地产咨询由交易支持走向战略合作。</Heading><p className={styles.bodyCopy}>看懂租金、供应与业主策略，是理解机会的前提；把机会转化为可执行的商业条款和交付计划，才完成了从信息到决策的过程。</p></div><Chart name="advisory" /></div>
+          <div className={styles.split}><div><Heading number="13" label="战略决策" title={<>好的选址建议，<br />不止是一张房源清单。</>}>高层主导办公决策，顾问则以市场洞察、风险控制、执行与综合解决方案能力参与其中。房地产咨询由交易支持走向战略合作。</Heading><p className={styles.bodyCopy}>看懂租金、供应与业主策略，是理解机会的前提；把机会转化为可执行的商业条款和交付计划，才完成了从信息到决策的过程。</p></div><Chart name="advisory" /></div>
           <h3 className={styles.subheading}>六类信息，构成市场判断的基础。</h3><div className={styles.marketGrid}>{marketQuestions.map(([title,text])=><article key={title}><h4>{title}</h4><p>{text}</p></article>)}</div>
           <p className={styles.sourceNote}>六类信息沿用资料，比较口径为应用分析；本专题不提供未经核验的北京市场时点数据。</p>
         </div>
@@ -170,7 +170,7 @@ export function OccupierInsightsReport() {
 
       <section id="readiness" className={`${styles.scene} ${styles.paper}`} data-report-chapter="advisory" data-source-slide="10">
         <div className={styles.frame}>
-          <div className={styles.split}><div><Heading number="14" label="战略准备" title={<>对现状有信心，<br />仍然可以保留优化空间。</>}>多数受访企业对当前办公策略持积极态度，但资料也明确指出持续优化的必要性。对成本、灵活性、场所质量、可持续性和组合一致性的审视，不应只发生在租约到期前。</Heading><div className={styles.heroMetric}><strong>66.7<small>%</small></strong><p>认为现有策略支持发展，但仍有改进空间</p></div></div><Chart name="readiness" /></div>
+          <div className={styles.split}><div><Heading number="14" label="战略准备" title={<>对现状有信心，<br />仍然可以保留优化空间。</>}>多数受访企业对当前办公策略持积极态度，但信心与改进空间可以同时存在。对成本、灵活性、场所质量、可持续性和组合一致性的审视，不应只发生在租约到期前。</Heading><div className={styles.heroMetric}><strong>66.7<small>%</small></strong><p>认为现有策略支持发展，但仍有改进空间</p></div></div><Chart name="readiness" /></div>
           <div className={styles.reviewGrid}>{reviewAreas.map(([title,text])=><article key={title}><h3>{title}</h3><p>{text}</p></article>)}</div>
           <p className={styles.sourceNote}>六个优化领域沿用资料，复盘问题为应用分析。</p>
         </div>
@@ -193,14 +193,14 @@ export function OccupierInsightsReport() {
 
       <section id="conclusions" className={`${styles.scene} ${styles.paper}`} data-report-chapter="conclusions" data-source-slide="11">
         <div className={styles.frame}>
-          <Heading number="17" label="核心结论" title={<>重新定义办公价值。</>}>七个变化，构成这份资料的完整结论。选址从一项租赁交易，走向与企业经营相连的持续决策。</Heading>
+          <Heading number="17" label="核心结论" title={<>重新定义办公价值。</>}>七个变化，共同指向办公价值的重新定义。选址从一项租赁交易，走向与企业经营相连的持续决策。</Heading>
           <div className={styles.conclusions}>{conclusions.map(([title,text],index)=><article key={title}><span>0{index+1}</span><h3>{title}</h3><p>{text}</p></article>)}</div>
           <div className={styles.closing}><p>让空间服务业务。<br /><strong>让选择保留未来。</strong></p><a href="#report-top">回到开头<ArrowRight size={18} aria-hidden="true" /></a></div>
         </div>
       </section>
     </main>
     <footer id="sources" className={styles.sources} data-report-chapter="conclusions">
-      <div className={styles.frame}><h2>资料与口径</h2><p>本专题根据用户提供的 11 张会议资料照片重编。图号按“受访者画像—增长目标—区位生态—行业演进—办公布局—租赁风险—工作场所—可持续发展—咨询价值—战略准备—要点总结”的顺序对应。图表保留资料中的 11 组分布、62 个比例值；不将其表述为本平台自行开展的调查。</p><p>照片未完整披露样本量、调查时间、抽样方式与题目设置，因此比例仅反映资料所列受访样本，不代表北京企业的实际迁移、成交或未来供应，也不据此推断统计显著性。原始数值保留一位小数，不为凑足 100% 而调整；独立列示的各项不作合计。</p><p>标注“应用分析”“应用核验”的内容，是基于资料形成的决策框架与核验建议；不属于新增调研发现。67.9% 为 39.5% 与 28.4% 之和。场景图片与关系图用于视觉表达，不作为真实项目、地理分布或企业联系的证据。</p></div>
+      <div className={styles.frame}><h2>资料与口径</h2><p>本专题根据用户提供的 11 张会议资料照片重编。图号按“受访者画像—增长目标—区位生态—行业演进—办公布局—租赁风险—工作场所—可持续发展—咨询价值—战略准备—要点总结”的顺序对应。图表保留资料中的 11 组图表、62 个比例值；不将其表述为本平台自行开展的调查。</p><p>照片未完整披露样本量、调查时间、抽样方式与题目设置，因此比例仅反映资料所列受访样本，不代表北京企业的实际迁移、成交或未来供应，也不据此推断统计显著性。原始数值保留一位小数，不为凑足 100% 而调整；独立列示的各项不作合计。</p><p>标注“应用分析”“应用核验”的内容，是基于资料形成的决策框架与核验建议；不属于新增调研发现。67.9% 为 39.5% 与 28.4% 之和。场景图片与关系图用于视觉表达，不作为真实项目、地理分布或企业联系的证据。</p></div>
     </footer>
   </div>;
 }
