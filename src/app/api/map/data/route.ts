@@ -5,6 +5,7 @@ import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationA
 import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { resolveBuildingId } from '@/src/services/buildingIdentity';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { readBuildingPhotoCatalog } from '@/src/lib/building-photos/catalog';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,11 +127,12 @@ export async function GET(request: NextRequest) {
 
     if (mode === 'map') {
       const latestMetricsOnly = params.get('metrics') !== 'all';
-      const [buildingsResult, overridesResult] = await Promise.all([
+      const [buildingsResult, overridesResult, photos] = await Promise.all([
         loadTrackedBuildings(admin, MAP_BUILDING_SELECT, latestMetricsOnly),
         admin
           .from('building_display_overrides')
           .select('building_id, field_name, display_label, display_value'),
+        readBuildingPhotoCatalog(admin),
       ]);
 
       if (buildingsResult.error) {
@@ -142,7 +144,8 @@ export async function GET(request: NextRequest) {
         return noStoreJson({ error: '楼宇显示规则读取失败' }, { status: 500 });
       }
 
-      const buildings = filterRowsForRole(buildingsResult.data as Row[] | null, role);
+      const buildings = filterRowsForRole(buildingsResult.data as Row[] | null, role)
+        .map<Row>(row => ({ ...row, photos: photos.get(String(row.id)) ?? [] }));
       const allowedIds = new Set(buildings.map(row => String(row.id)));
       const displayOverrides = (overridesResult.data ?? [])
         .filter(row => allowedIds.has(String(row.building_id)));
@@ -151,17 +154,21 @@ export async function GET(request: NextRequest) {
     }
 
     if (mode === 'future') {
-      const { data, error } = await admin.from('future_supplies').select('*').limit(1000);
+      const [{ data, error }, photos] = await Promise.all([
+        admin.from('future_supplies').select('*').limit(1000),
+        readBuildingPhotoCatalog(admin),
+      ]);
       if (error) {
         console.error('[api/map/data] future supplies query failed:', error);
         return noStoreJson({ error: '未来供应读取失败' }, { status: 500 });
       }
       const authorized = filterRowsForRole(data as Row[] | null, role);
       // Older open maps classify every unknown grade as office in the calendar.
-      const future_supplies = params.get('include_pending') === '1'
+      const visibleSupplies = params.get('include_pending') === '1'
         ? authorized
         : authorized.filter(supply => !isPendingFutureSupply(supply));
-      return noStoreJson({ future_supplies });
+      return noStoreJson({ future_supplies: visibleSupplies
+        .map(row => ({ ...row, photos: photos.get(String(row.building_id)) ?? [] })) });
     }
 
     if (mode === 'compare') {

@@ -38,5 +38,11 @@
     "roots": ["src/app/compare/BuildingCompareWorkspace.tsx"],
     "file": "src/app/compare/__tests__/BuildingCompareWorkspace.test.tsx",
     "cases": ["continues typing in comparison search while results change and retains the caret"]
+  },
+  {
+    "id": "audit-object-filter",
+    "roots": ["src/components/admin/AuditLogPage.tsx"],
+    "file": "src/components/admin/AuditLogPage.focus.test.tsx",
+    "cases": ["keeps the audit object filter focused while translated photo rows refresh and the query is edited"]
   }
 ]

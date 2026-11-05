@@ -2,8 +2,11 @@ import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MapController } from '../MapController';
 
-const mocks = vi.hoisted(() => ({ loadPhoto: vi.fn() }));
+const mocks = vi.hoisted(() => ({ loadPhoto: vi.fn(), loadStoredPhoto: vi.fn(), from: vi.fn() }));
 vi.mock('../salesMaterialsClient', () => ({ loadBuildingPhoto: mocks.loadPhoto }));
+vi.mock('../buildingPhotosClient', () => ({ loadStoredBuildingPhoto: mocks.loadStoredPhoto }));
+vi.mock('../supabaseClient', () => ({ supabase: { from: mocks.from } }));
+vi.mock('../buildingIdentity', () => ({ resolveBuildingId: async (_client: unknown, id: string) => id }));
 vi.mock('../Auth', () => ({ getSessionFast: async () => null }));
 
 const existing = { id: '59f20a3a-4fc8-40d2-8270-f6a5c9784bee', name: '裕阜商务中心', location_lng: 116.29, location_lat: 39.92, metrics: [] };
@@ -47,6 +50,111 @@ function preview() {
 beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT', '1');
   mocks.loadPhoto.mockReset().mockResolvedValue(coverUrl);
+  mocks.loadStoredPhoto.mockReset().mockResolvedValue({ url: coverUrl, source_url: 'https://www.example.com/building', source_name: '项目官网' });
+  mocks.from.mockReset();
+});
+
+describe('通用楼宇图片', () => {
+  const photo = { id: '22222222-2222-4222-8222-222222222222', caption: '建筑外观' };
+  const collected = { ...existing, id: '11111111-1111-4111-8111-111111111111', name: '普通楼宇', photos: [photo] };
+
+  it.each(['existing', 'future'] as const)('opens a collected %s photo without the pilot flag and preserves its source', async kind => {
+    vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT', '0');
+    const { controller } = createMap();
+    Object.assign(controller, { _allBuildingsCache: [collected] });
+    if (kind === 'existing') controller.openBuildingInfoWindow(collected.id);
+    else controller.openFutureSupplyInfoWindow({ ...collected, building_id: collected.id });
+    const { trigger, image } = preview();
+    expect(mocks.loadStoredPhoto).not.toHaveBeenCalled();
+    expect(image).not.toHaveAttribute('src');
+    fireEvent.click(trigger);
+    await waitFor(() => expect(image).toHaveAttribute('src', coverUrl));
+    expect(mocks.loadStoredPhoto).toHaveBeenCalledExactlyOnceWith(collected.id, photo.id, expect.any(AbortSignal));
+    expect(mocks.loadPhoto).not.toHaveBeenCalled();
+    const source = document.querySelector('[data-building-photo-source]');
+    expect(source).toHaveAttribute('href', 'https://www.example.com/building');
+    expect(source).toHaveTextContent('来源：项目官网');
+    expect(source).toHaveAttribute('rel', 'noopener noreferrer');
+    fireEvent.load(image);
+    fireEvent.click(trigger);
+    fireEvent.click(trigger);
+    expect(mocks.loadStoredPhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it('escapes database captions and source names without creating event attributes or markup', async () => {
+    const caption = '\" onload=\"alert(1)\"><script>bad</script>';
+    mocks.loadStoredPhoto.mockResolvedValue({ url: coverUrl, source_url: 'javascript:alert(1)', source_name: '<img src=x onerror=alert(1)>' });
+    const { controller } = createMap();
+    Object.assign(controller, { _allBuildingsCache: [{ ...collected, photos: [{ ...photo, caption }] }] });
+    controller.openBuildingInfoWindow(collected.id);
+    const { trigger, image } = preview();
+    expect(image).toHaveAttribute('alt', `${collected.name}：${caption}`);
+    expect(image).not.toHaveAttribute('onload');
+    expect(document.querySelector('script')).toBeNull();
+    fireEvent.click(trigger);
+    await waitFor(() => expect(image).toHaveAttribute('src', coverUrl));
+    expect(document.querySelector('[data-building-photo-caption]')).toHaveTextContent(caption);
+    expect(document.querySelector('[data-building-photo-source]')).not.toHaveAttribute('href');
+    expect(document.querySelector('[data-building-photo-source]')).toHaveAttribute('hidden');
+  });
+
+  it('shows the photographer credit and license as safe text and a link', async () => {
+    const attribution = '摄影：N509FZ / CC BY-SA 4.0 <script>bad</script>';
+    mocks.loadStoredPhoto.mockResolvedValue({ url: coverUrl, source_url: 'https://commons.wikimedia.org/wiki/File:Photo.jpg', source_name: 'Wikimedia Commons', attribution_text: attribution, license_url: 'https://creativecommons.org/licenses/by-sa/4.0/' });
+    const { controller } = createMap();
+    Object.assign(controller, { _allBuildingsCache: [collected] });
+    controller.openBuildingInfoWindow(collected.id);
+    fireEvent.click(preview().trigger);
+    await waitFor(() => expect(document.querySelector('[data-building-photo-attribution]')).toHaveTextContent(attribution));
+    expect(document.querySelector('[data-building-photo-license]')).toHaveAttribute('href', 'https://creativecommons.org/licenses/by-sa/4.0/');
+    expect(document.querySelector('[data-building-photo-license]')).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(document.querySelector('script')).toBeNull();
+  });
+
+  it('aborts general-photo reads on close, ignores late responses and retries an image failure', async () => {
+    let resolve!: (access: unknown) => void;
+    mocks.loadStoredPhoto.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    const { controller, close } = createMap();
+    Object.assign(controller, { _allBuildingsCache: [collected] });
+    controller.openBuildingInfoWindow(collected.id);
+    const { trigger, image } = preview();
+    fireEvent.click(trigger);
+    await waitFor(() => expect(mocks.loadStoredPhoto).toHaveBeenCalledTimes(1));
+    const signal = mocks.loadStoredPhoto.mock.calls[0][2] as AbortSignal;
+    close();
+    expect(signal.aborted).toBe(true);
+    resolve({ url: coverUrl, source_url: 'https://www.example.com/building', source_name: '官网' });
+    await vi.dynamicImportSettled();
+    expect(image).not.toHaveAttribute('src');
+    controller.openBuildingInfoWindow(collected.id);
+    const reopened = preview();
+    fireEvent.click(reopened.trigger);
+    await waitFor(() => expect(reopened.image).toHaveAttribute('src', coverUrl));
+    fireEvent.error(reopened.image);
+    expect(document.querySelector('[data-building-photo-status]')).toHaveTextContent('图片加载失败');
+    fireEvent.click(document.querySelector('[data-building-photo-retry]')!);
+    await waitFor(() => expect(mocks.loadStoredPhoto).toHaveBeenCalledTimes(3));
+  });
+
+  it('keeps the photo summary when an ordinary metrics refresh replaces cached building data', async () => {
+    const { controller } = createMap();
+    Object.assign(controller, { _allBuildingsCache: [collected] });
+    const chain = { select: () => chain, eq: () => chain, single: async () => ({ data: { ...existing, id: collected.id, name: collected.name, building_metrics: [] }, error: null }) };
+    mocks.from.mockReturnValue(chain);
+    await controller.refreshBuildingData(collected.id);
+    controller.openBuildingInfoWindow(collected.id);
+    expect(preview().trigger).toBeInTheDocument();
+  });
+
+  it('keeps photo-free buildings unchanged and hides photos in demo mode', () => {
+    const { controller } = createMap();
+    Object.assign(controller, { _allBuildingsCache: [{ ...collected, photos: [] }] });
+    controller.openBuildingInfoWindow(collected.id);
+    expect(document.querySelector('[data-building-photo-trigger]')).toBeNull();
+    Object.assign(controller, { _allBuildingsCache: [collected], _isDemo: true });
+    controller.openBuildingInfoWindow(collected.id);
+    expect(document.querySelector('[data-building-photo-trigger]')).toBeNull();
+  });
 });
 
 afterEach(() => {

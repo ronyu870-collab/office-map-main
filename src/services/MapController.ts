@@ -14,7 +14,8 @@ import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
-import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from "./map/buildingPhotoGallery";
+import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger, type GalleryPhoto } from "./map/buildingPhotoGallery";
+import { photoSummaries } from "@/src/lib/building-photos/model";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
@@ -141,6 +142,7 @@ function transformBuildingRow(r: Record<string, unknown>): BuildingWithMetrics {
     owner: r.owner ? String(r.owner) : undefined,
     property_management: r.property_management ? String(r.property_management) : undefined,
     contact_phone: r.contact_phone ? String(r.contact_phone) : undefined,
+    photos: photoSummaries(r.photos),
     metrics,
   };
 }
@@ -1917,7 +1919,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       content: containerDiv,
     });
     this.infoWindow = info;
-    const pilot = this.getPhotoPilot(supply.building_id);
+    const pilot = this.getPhotoSet(supply.building_id, supply.photos);
     if (pilot) {
       const dispose = bindBuildingPhotoGallery(containerDiv, supply.building_id, pilot.photos);
       this.futurePhotoCleanup = dispose;
@@ -1930,7 +1932,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   private buildFutureSupplyInfoWindow(supply: any): string {
     const name = escapeHtml(supply.name);
-    const photoPilot = this.getPhotoPilot(supply.building_id);
+    const photoPilot = this.getPhotoSet(supply.building_id, supply.photos);
     const galleryId = photoPilot ? `building-gallery-${escapeHtml(supply.building_id)}` : "";
     const commercial = isCommercialFutureSupply(supply);
     const pending = isPendingFutureSupply(supply);
@@ -2414,8 +2416,14 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return this._displayOverridesCache;
   }
 
-  private getPhotoPilot(buildingId?: string) {
-    return !this._isDemo && buildingId ? getBuildingMediaPilot(buildingId) : null;
+  private getPhotoSet(buildingId?: string, storedPhotos?: unknown): { photos: GalleryPhoto[] } | null {
+    if (this._isDemo || !buildingId) return null;
+    const pilot = getBuildingMediaPilot(buildingId);
+    const photos: GalleryPhoto[] = [
+      ...(pilot?.photos.map((photo, pilotIndex) => ({ ...photo, pilotIndex })) ?? []),
+      ...photoSummaries(storedPhotos),
+    ];
+    return photos.length ? { photos } : null;
   }
 
   private releaseFuturePhotoGallery() {
@@ -2429,7 +2437,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   ): string {
     const name = escapeHtml(this._isDemo ? "***" : building.name);
     const id = escapeHtml(building.id);
-    const photoPilot = this.getPhotoPilot(building.id);
+    const photoPilot = this.getPhotoSet(building.id, building.photos);
     const galleryId = `building-gallery-${id}`;
     const grade = this.getDisplayOverride(building.id, "grade");
     const submarket = this.getDisplayOverride(building.id, "submarket");
@@ -2541,7 +2549,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
       }
     });
-    const pilot = this.getPhotoPilot(building.id);
+    const pilot = this.getPhotoSet(building.id, building.photos);
     const disposeGallery = pilot ? bindBuildingPhotoGallery(root, building.id, pilot.photos) : null;
     this.buildingPopupBinding = {
       ...popup,
@@ -2707,7 +2715,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       if (!data) return;
 
       // 用统一的转换函数清洗数据（与 fetchMapData 一致）
-      const building = transformBuildingRow(data as Record<string, unknown>);
+      const cached = this._allBuildingsCache.find(b => b.id === buildingId);
+      const building = transformBuildingRow({ ...data, photos: cached?.photos });
 
       // 更新缓存
       const index = this._allBuildingsCache.findIndex(b => b.id === buildingId);
