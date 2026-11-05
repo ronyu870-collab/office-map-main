@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runtime = vi.hoisted(() => ({ mounts: 0, cleanups: 0, role: 'viewer', fail: null as ((message: string) => void) | null }));
@@ -69,21 +70,66 @@ describe('map search retains the active input', () => {
   it('keeps focus while typing and preserves the caret and draft after the search settles', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
-    vi.useFakeTimers();
+    const user = userEvent.setup();
     const input = screen.getByRole<HTMLInputElement>('searchbox');
     input.focus();
-    fireEvent.change(input, { target: { value: 'd' } });
+    await user.keyboard('d');
     expect(screen.getByRole('searchbox')).toBe(input);
     expect(input).toHaveFocus();
     expect(screen.getByTitle('清除搜索：d')).toBeVisible();
-    fireEvent.change(input, { target: { value: 'CBD ' } });
-    input.setSelectionRange(2, 2);
-    await act(async () => { vi.advanceTimersByTime(250); });
+    await waitFor(() => expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'd', module: 'map' }));
+    expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(30);
+    await user.keyboard('{Backspace}CB {ArrowLeft}D{ArrowRight}{ArrowLeft}{ArrowLeft}');
+    await waitFor(() => expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'CBD', module: 'map' }));
     expect(input).toHaveFocus();
     expect(input).toHaveValue('CBD ');
     expect(input.selectionStart).toBe(2);
     expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(30);
-    expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'CBD', module: 'map' });
+  });
+
+  it('continues typing in the full list after the results update', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    const user = userEvent.setup();
+    const input = within(list).getByRole<HTMLInputElement>('searchbox');
+    await user.click(input);
+    await user.keyboard('0');
+    await within(list).findByText('13 栋楼宇');
+    expect(input).toHaveFocus();
+    await user.keyboard('1{ArrowLeft}');
+    await within(list).findByText('1 栋楼宇');
+    expect(within(list).getByRole('searchbox')).toBe(input);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('01');
+    expect(input.selectionStart).toBe(1);
+    await user.keyboard('{Delete}2');
+    await within(list).findByRole('button', { name: '项目02' });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('02');
+  });
+
+  it('keeps the text filter focused across map and full list result updates', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    const user = userEvent.setup();
+    await user.click(within(list).getByRole('button', { name: '更多筛选' }));
+    const panel = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
+    await user.click(within(panel).getByText('多重筛选', { exact: true }));
+    await user.click(within(panel).getByRole('button', { name: '添加条件' }));
+    const field = within(panel).getByRole('option', { name: '项目业主' }).closest('select')!;
+    await user.selectOptions(field, 'owner');
+    const input = within(panel).getByPlaceholderText<HTMLInputElement>('模糊搜索');
+    await user.click(input);
+    await user.keyboard('北');
+    await within(list).findByText('22 栋楼宇');
+    expect(input).toHaveFocus();
+    await user.keyboard('城业主{ArrowLeft}');
+    await within(list).findByText(/北城业主/);
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(22));
+    expect(within(panel).getByPlaceholderText('模糊搜索')).toBe(input);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('北城业主');
+    expect(input.selectionStart).toBe(3);
   });
 
   it('allows Chinese composition and submits only the completed text', async () => {
@@ -214,28 +260,28 @@ describe('complete list with the existing map workbench', () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
     const ui = within(list);
+    const user = userEvent.setup();
     fireEvent.click(ui.getByRole('button', { name: '行政区' }));
     fireEvent.click(ui.getByRole('checkbox', { name: '朝阳区' }));
     await ui.findByText('30 栋楼宇');
     const input = ui.getByRole<HTMLInputElement>('searchbox');
-    input.focus();
+    await user.click(input);
 
-    fireEvent.change(input, { target: { value: 'C' } });
+    await user.keyboard('C');
     await waitFor(() => expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'C', module: 'map' }));
     expect(ui.getByRole('searchbox')).toBe(input);
     expect(input).toHaveFocus();
 
-    fireEvent.change(input, { target: { value: 'CD' } });
+    await user.keyboard('D');
     await ui.findByText('未找到符合条件的楼宇');
     expect(input).toHaveFocus();
-    fireEvent.change(input, { target: { value: 'CBD' } });
-    input.setSelectionRange(2, 2);
+    await user.keyboard('{ArrowLeft}B');
     await ui.findByText('30 栋楼宇');
     expect(input).toHaveValue('CBD');
     expect(input).toHaveFocus();
     expect(input.selectionStart).toBe(2);
 
-    fireEvent.change(input, { target: { value: '' } });
+    await user.keyboard('{End}{Backspace}{Backspace}{Backspace}');
     expect(input).toHaveFocus();
     expect(input).toHaveValue('');
     expect(ui.getByRole('button', { name: '行政区' })).toHaveTextContent('朝阳区');
