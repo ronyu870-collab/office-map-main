@@ -29,13 +29,13 @@ function renderPair(grade: string, type: 'existing' | 'future', override?: strin
     if (type === 'future') controller.openFutureSupplyInfoWindow(building);
     else controller.openBuildingInfoWindow(building.id);
   };
-  render(<FullBuildingList active buildings={[row]} queryKey="grade-contract" activeFilterChips={[]} compareGroupCount={0} requirementContext={false} competitorContext={false} onRemoveFilterChip={vi.fn()} keyword="" loading={false} error={null} filtersOpen={false} displayOverrides={overrides} targetBuildingId={null} onBack={vi.fn()} onToggleFilters={vi.fn()} onKeywordChange={vi.fn()} onSearch={vi.fn()} onResetFilters={vi.fn()} onRetry={vi.fn()} onBuildingClick={select} />);
+  render(<FullBuildingList active buildings={[row]} queryKey="grade-contract" activeFilterChips={[]} compareGroupCount={0} requirementContext={false} competitorContext={false} filterState={null} onPatchFilters={vi.fn()} keyword="" loading={false} error={null} filtersOpen={false} displayOverrides={overrides} targetBuildingId={null} onBack={vi.fn()} onToggleFilters={vi.fn()} onKeywordChange={vi.fn()} onSearch={vi.fn()} onResetFilters={vi.fn()} onRetry={vi.fn()} onBuildingClick={select} />);
   const button = screen.getByRole('button', { name: row.name });
-  const listGrades = Array.from(button.nextElementSibling?.children ?? []).map(node => node.textContent);
+  const listGrade = screen.getByText('等级', { selector: 'dt' }).nextElementSibling?.textContent;
   fireEvent.click(button);
   if (!content) throw new Error('Original InfoWindow entry did not produce content');
   const label = within(content as HTMLElement).getByText(/^楼宇等级：?$/);
-  return { row, listGrades, detailGrade: label.nextElementSibling?.textContent };
+  return { row, listGrade, detailGrade: label.nextElementSibling?.textContent };
 }
 
 describe('full list uses the existing detail grade display contract', () => {
@@ -46,14 +46,14 @@ describe('full list uses the existing detail grade display contract', () => {
   ] as const)('%s grade %s matches the real original detail output %s', (type, grade, expected) => {
     const pair = renderPair(grade, type);
     expect(pair.detailGrade).toBe(expected);
-    expect(pair.listGrades).toContain(pair.detailGrade);
+    expect(pair.listGrade).toBe(pair.detailGrade);
     expect(pair.row.grade).toBe(grade);
   });
 
   it('preserves an explicit display override without reclassifying source data', () => {
     const pair = renderPair('P', 'existing', 'P（来源确认）');
     expect(pair.detailGrade).toBe('P（来源确认）');
-    expect(pair.listGrades).toContain(pair.detailGrade);
+    expect(pair.listGrade).toBe(pair.detailGrade);
     expect(pair.row.grade).toBe('P');
   });
 });

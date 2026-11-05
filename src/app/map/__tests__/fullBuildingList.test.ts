@@ -17,6 +17,18 @@ describe('complete list data projection',()=>{
   expect(sortFullList(rows,'rent').map(b=>b.id)).toEqual(['zero','same-1','same-2','missing']);
   expect(rows.map(b=>b.id)).toEqual(['missing','zero','same-1','same-2']);expect(sortFullList(rows,'default')).toBe(rows);
  });
+ it('keeps missing values last and sorts vacancy by the displayed scale in both directions',()=>{
+  const values: FullListBuilding[] = [
+   {id:'future',_dataType:'future',metrics:[metric(100)]},
+   {id:'zero',metrics:[metric(0)]},
+   {id:'ratio',metrics:[{...metric(20),vacancy_rate:0.12}]},
+   {id:'percent',metrics:[{...metric(5),vacancy_rate:2.5}]},
+   {id:'missing',metrics:[]},
+  ];
+  expect(sortFullList(values,'rent-desc').map(b=>b.id)).toEqual(['ratio','percent','zero','future','missing']);
+  expect(sortFullList(values,'vacancy-desc').map(b=>b.id)).toEqual(['ratio','percent','zero','future','missing']);
+  expect(sortFullList(values,'vacancy').map(b=>b.id)).toEqual(['zero','percent','ratio','future','missing']);
+ });
  it('uses the same latest-quarter helper while keeping future supply separate',()=>{
   expect(listBuildingValues({id:'stock',metrics:[metric(4,2025),metric(8)]}).rent).toBe(8);
   expect(listBuildingValues({id:'future',_dataType:'future',total_area:50000,metrics:[metric(8)]})).toMatchObject({area:50000,rent:null,period:null});
