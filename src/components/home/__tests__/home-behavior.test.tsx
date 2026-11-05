@@ -110,10 +110,14 @@ describe('Home workspace behavior', () => {
     );
   });
 
-  it('gives a viewer a direct route from the homepage to the occupier report', () => {
+  it('gives a viewer the occupier report as the fourth common workspace', () => {
     setSession('viewer');
     render(<HomeWorkspace />);
-    const report = screen.getByRole('link', { name: '企业选址洞察' });
+    const report = screen.getByRole('link', { name: '企业选址洞察报告' });
+    expect(Array.from(report.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
+      '/update', '/lease-submission', '/oss', '/occupier-insights',
+    ]);
+    expect(report).toHaveTextContent('专题');
     expect(report).toHaveAttribute('href', '/occupier-insights');
     expect(fireEvent.click(report)).toBe(true);
   });
