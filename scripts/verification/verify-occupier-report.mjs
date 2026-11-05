@@ -66,6 +66,13 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url, { waitUntil: 'load' });
     await page.evaluate(() => Promise.all([...document.images].map(image => image.decode())));
+    const photos = await page.locator('[data-scene-kind] img').evaluateAll(images => images.map(img => ({
+      width: img.naturalWidth, sourceRatio: img.naturalWidth / img.naturalHeight,
+      frameRatio: img.parentElement.clientWidth / img.parentElement.clientHeight,
+      fit: getComputedStyle(img).objectFit,
+    })));
+    assert.equal(photos.length, 4);
+    assert.ok(photos.every(photo => photo.width >= 2000 && Math.abs(photo.sourceRatio - photo.frameRatio) < .04 && photo.fit === 'contain'), 'All scene photographs must be high-resolution and displayed without cropping');
     assert.equal(await page.locator('main section').count(), 18);
     assert.equal(await page.locator('figure[data-study]').count(), 11);
     assert.equal(await page.locator('[data-survey-value]').count(), 62);
@@ -106,6 +113,12 @@ try {
       for (const id of await page.locator('main section').evaluateAll(els=>els.map(el=>el.id))) {
         await page.evaluate(id=>document.getElementById(id).scrollIntoView({block:'start',behavior:'instant'}),id);
         await page.waitForFunction(id => [...document.querySelectorAll('#'+id+' [data-reveal]')].every(el=>el.dataset.visible==='true'), id);
+        if (id === 'priorities') {
+          assert.ok((await page.locator('#priorities [data-survey-value] dd').nth(0).evaluate(el=>getComputedStyle(el).animationName)).includes('value-rise'));
+        }
+        if (id === 'ecosystem') {
+          assert.ok((await page.locator('#ecosystem figure > div > span').first().evaluate(el=>getComputedStyle(el).animationName)).includes('segment-arrive'));
+        }
         await page.screenshot({animations:'disabled',path:path.join(output, 'laptop-'+id+'.png')});
       }
     }

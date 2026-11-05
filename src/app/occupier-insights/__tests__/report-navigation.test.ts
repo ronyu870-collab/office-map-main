@@ -98,6 +98,26 @@ describe('occupier report native-scroll navigation', () => {
     expect(window.location.hash).toBe('#checklist');
   });
 
+  it('starts desktop chart motion only after the whole scene arrives', () => {
+    vi.stubGlobal('innerWidth', 1280);
+    vi.stubGlobal('IntersectionObserver', class {
+      observe() {} unobserve() {} disconnect() {}
+    });
+    const target = document.getElementById('factors')!;
+    target.innerHTML = '<figure data-study data-reveal></figure>';
+    root.querySelectorAll('section').forEach((section, index) => {
+      vi.mocked(section.getBoundingClientRect).mockImplementation(() => rect(76 + index * 824 - scroll, 824));
+    });
+    cleanup = mountReportNavigation(root); flush();
+    scroll = 600; window.dispatchEvent(new Event('scroll')); flush();
+    expect(target.querySelector<HTMLElement>('figure')!.dataset.visible).toBeUndefined();
+    scroll = 824; window.dispatchEvent(new Event('scroll')); flush();
+    expect(target.querySelector<HTMLElement>('figure')!.dataset.visible).toBe('true');
+    expect(target.dataset.entered).toBe('true');
+    cleanup(); cleanup = undefined;
+    expect(target.dataset.entered).toBeUndefined();
+  });
+
   it('ignores malformed and unrelated hashes', () => {
     for (const hash of ['#%E0%A4%A', '#not-a-chapter']) {
       window.history.replaceState(null, '', `/occupier-insights${hash}`);
