@@ -15,7 +15,7 @@ export type FullListBuilding = {
   total_area?: number | null;
   _dataType?: 'existing' | 'future';
 };
-export type FullListSort = 'default' | 'name' | 'area' | 'rent' | 'vacancy';
+export type FullListSort = 'default' | 'name' | 'area' | 'rent' | 'rent-desc' | 'vacancy' | 'vacancy-desc';
 /** Match the incumbent detail display only; raw grade and filtering stay unchanged. */
 export function displayListGrade(grade: string | null | undefined): string {
   const value = (grade || '—').trim();
@@ -43,14 +43,24 @@ export function listBuildingValues(building: FullListBuilding) {
     period: metric ? `${metric.record_year}Q${metric.record_quarter}` : null,
   };
 }
+export function listVacancyPercent(value: number | null) {
+  return value === null ? null : value <= 1 ? value * 100 : value;
+}
 export function sortFullList(buildings: FullListBuilding[], sort: FullListSort) {
   if (sort === 'default') return buildings;
-  return buildings.map((building, index) => ({ building, index, values: listBuildingValues(building) }))
+  if (sort === 'name') {
+    return [...buildings].sort((left, right) => (left.name ?? '').localeCompare(right.name ?? '', 'zh-CN'));
+  }
+  const field = sort === 'rent-desc' ? 'rent' : sort === 'vacancy-desc' ? 'vacancy' : sort;
+  const descending = sort === 'area' || sort === 'rent-desc' || sort === 'vacancy-desc';
+  return buildings.map((building, index) => {
+    const value = listBuildingValues(building)[field];
+    return { building, index, value: field === 'vacancy' ? listVacancyPercent(value) : value };
+  })
     .sort((left, right) => {
-      if (sort === 'name') return (left.building.name ?? '').localeCompare(right.building.name ?? '', 'zh-CN') || left.index - right.index;
-      const a = left.values[sort], b = right.values[sort];
+      const { value: a } = left, { value: b } = right;
       if (a === null) return b === null ? left.index - right.index : 1;
       if (b === null) return -1;
-      return (sort === 'area' ? b - a : a - b) || left.index - right.index;
+      return (descending ? b - a : a - b) || left.index - right.index;
     }).map(item => item.building);
 }
