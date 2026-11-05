@@ -23,7 +23,7 @@ describe('eleven-photo transcription contract',()=>{
   expect(ecosystem).toHaveLength(6); expect(industryProfiles).toHaveLength(3);
   industryProfiles.forEach(item=>expect(item.drivers).toHaveLength(4));
   expect(assetServices).toHaveLength(7);expect(portfolioReasons).toHaveLength(6);expect(portfolioOffer).toHaveLength(5);
-  expect(costLayers.flatMap(layer=>layer.items)).toHaveLength(8);
+  expect(costLayers.reduce((count,layer)=>count+layer.items.length,0)).toBe(8);
   expect(employeePriorities).toHaveLength(5);expect(workplaceOffer).toHaveLength(6);
   expect(greenBenefits).toHaveLength(5);expect(greenEvidence).toHaveLength(5);
   expect(marketQuestions).toHaveLength(6);expect(reviewAreas).toHaveLength(6);expect(conclusions).toHaveLength(7);
