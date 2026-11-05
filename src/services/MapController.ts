@@ -326,6 +326,7 @@ function findBuildingGroupColor(
 export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private AMap: any | null = null;
   private map: any | null = null;
+  private initialTilesReady = false;
   private infoWindow: any | null = null;
   private buildingPopupBinding: ReturnType<typeof bindBuildingPopup> | null = null;
   private futurePhotoCleanup: (() => void) | null = null;
@@ -746,6 +747,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (!isBrowser() || !containerId || !String(containerId).trim()) return;
     const resolvedCenter = center ?? DEFAULT_MAP_CENTER;
     this._destroyed = false;
+    this.initialTilesReady = false;
 
     try {
       const securityCode = getSafeAmapSecurityCode();
@@ -784,6 +786,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         center: [resolvedCenter.lng, resolvedCenter.lat],
         viewMode: options?.viewMode ?? "2D",
         mapStyle: options?.mapStyle ?? "amap://styles/whitesmoke",
+      });
+      const initialMap = this.map;
+      // A warm map can complete before the runtime resumes after awaiting initMap.
+      // Keep this listener until map destruction so other listeners see the same event.
+      initialMap.on("complete", () => {
+        if (!this._destroyed && this.map === initialMap) this.initialTilesReady = true;
       });
       this.infoWindow = new AMap.InfoWindow({
         isCustom: false,
@@ -2606,6 +2614,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return this.map;
   }
 
+  areInitialTilesReady(): boolean {
+    return this.initialTilesReady;
+  }
+
   clearMap(): void {
     if (!this.map) return;
     this.clearDistrictBoundaries();
@@ -2789,6 +2801,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   destroy(): void {
     this._destroyed = true;
+    this.initialTilesReady = false;
     this.releaseBuildingPopup();
     this.releaseFuturePhotoGallery();
     this.destroyHoverTooltip();

@@ -23,6 +23,7 @@ vi.mock('@/src/services/MapController', () => ({ MapController: class {
     (host.firstElementChild as HTMLElement).getBoundingClientRect = rect;
   }
   getMapInstance() { return this.map; }
+  areInitialTilesReady() { return false; }
   fetchMapData = async () => [building];
   fetchFutureSupplies = async () => [];
   getDisplayOverridesCache = () => new Map();

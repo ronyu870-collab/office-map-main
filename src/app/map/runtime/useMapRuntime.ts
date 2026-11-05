@@ -206,7 +206,7 @@ async function waitForInitialMapTiles(
   timeoutMs = 15000,
 ): Promise<void> {
   const map = getControllerMap(controller);
-  if (!map?.on) return;
+  if (!map?.on || controller.areInitialTilesReady()) return;
 
   await new Promise<void>((resolve, reject) => {
     let settled = false;
