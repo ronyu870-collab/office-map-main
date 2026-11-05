@@ -11,6 +11,7 @@ import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { clearMapReadCache } from "./mapReadCache";
+import { bindBuildingPopup } from "./map/buildingPopup";
 import { attachTitleTooltip } from "@/src/utils/titleTooltip";
 
 import type { BuildingMetric, BuildingWithMetrics } from "@/src/types";
@@ -44,40 +45,6 @@ export interface BuildingMarkerData {
 }
 
 export type RenderMode = "default" | "rent" | "vacancy" | "leed";
-
-/**
- * Action Module Configuration Interface
- * Defines the structure for bottom panel action modules
- */
-export interface ActionModule {
-  id: string;
-  label: string;
-  icon: string;
-  enabled: boolean;
-  onClick?: string; // JavaScript code for onclick handler
-}
-
-/**
- * Action Modules Configuration
- * Defines the core action modules in the bottom panel
- * - 周边项目对比: Active module with click handler
- * - 最新销控: Grayed/disabled module (future functionality)
- */
-export const ACTION_MODULES: ActionModule[] = [
-  {
-    id: "compare-nearby",
-    label: "周边项目对比",
-    icon: "🎯",
-    enabled: true,
-    // onClick will be dynamically generated with building-specific parameters
-  },
-  {
-    id: "latest-sales",
-    label: "最新销控",
-    icon: "📊",
-    enabled: false,
-  },
-];
 
 type AMapLike = unknown;
 
@@ -355,6 +322,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private AMap: any | null = null;
   private map: any | null = null;
   private infoWindow: any | null = null;
+  private buildingPopupBinding: ReturnType<typeof bindBuildingPopup> | null = null;
 
   private markers: any[] = [];
   private dotMarkers: any[] = []; // Level 3: 小圆点标记
@@ -547,7 +515,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
               
               <!-- 标题 -->
               <div style="margin-bottom: 20px;">
-                <h3 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 4px 0;">${buildingName}</h3>
+                <h3 style="font-size: 18px; font-weight: 900; color: #0f172a; margin: 0 0 4px 0;">${escapeHtml(buildingName)}</h3>
                 <p style="font-size: 14px; color: #64748b; margin: 0;">联系方式</p>
               </div>
               
@@ -578,10 +546,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                     </div>
                     <div style="flex: 1; min-width: 0;">
                       <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">联系电话</div>
-                      <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${contactPhone}</div>
+                      <div style="font-size: 20px; font-weight: 900; color: #0f172a;">${escapeHtml(contactPhone)}</div>
                     </div>
                     <a 
-                      href="tel:${contactPhone}"
+                      href="tel:${escapeHtml(contactPhone)}"
                       style="
                         flex-shrink: 0;
                         background: #3b82f6;
@@ -685,7 +653,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         fetchBuildingTrendPayload(buildingId)
           .then((data) => {
             // 竞态保护：如果用户已切换到其他楼宇，跳过渲染
-            if (trend.buildingId !== buildingId) return;
+            if (trend.buildingId !== buildingId || !panel.isConnected) return;
             if (!data?.length) {
               chartDom.innerHTML =
                 '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:12px;">暂无历史数据</div>';
@@ -723,7 +691,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             void trendRuntimePromise
               .then(({ initTrendChart }) => {
                 if (
-                  trend.buildingId !== buildingId ||
+                  trend.buildingId !== buildingId || !panel.isConnected ||
                   panel.style.display === "none"
                 ) {
                   return;
@@ -731,7 +699,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
                 requestAnimationFrame(() => {
                   if (
-                    trend.buildingId !== buildingId ||
+                    trend.buildingId !== buildingId || !panel.isConnected ||
                     panel.style.display === "none"
                   ) {
                     return;
@@ -744,7 +712,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
               })
               .catch((error) => {
                 if (
-                  trend.buildingId !== buildingId ||
+                  trend.buildingId !== buildingId || !panel.isConnected ||
                   panel.style.display === "none"
                 ) {
                   return;
@@ -755,7 +723,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
               });
           })
           .catch((error) => {
-            if (trend.buildingId !== buildingId || panel.style.display === "none") return;
+            if (trend.buildingId !== buildingId || !panel.isConnected || panel.style.display === "none") return;
             console.error("[MapController] 历史趋势读取失败:", error);
             chartDom.innerHTML =
               '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:12px;">历史数据读取失败，请稍后重试</div>';
@@ -826,7 +794,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       }
 
       // 🌟 CL-008: 点击地图空白区域自动关闭 InfoWindow（不退出周边项目对比模式）
-      this.map.on("click", () => {
+      this.map.on("click", (event?: { originEvent?: Event }) => {
+        const target = event?.originEvent?.target;
+        if (target instanceof Element && target.closest(".building-popup")) return;
         if (this.infoWindow) {
           this._isClearingCompetitor = true;
           this.infoWindow.close();
@@ -1082,36 +1052,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       marker.on("mouseout", () => {
         this.hoverTimeout = setTimeout(() => this.hideHoverTooltip(), 80);
       });
-      marker.on("click", () => {
-        // 切换 InfoWindow 时保护不退出周边项目对比模式
-        this._isClearingCompetitor = true;
-        this.infoWindow?.close?.();
-        this._isClearingCompetitor = false;
-        const latestMetric = pickLatestMetric(building.metrics);
-        const containerDiv = document.createElement("div");
-        containerDiv.innerHTML = this.buildInfoWindowContent(
-          building,
-          latestMetric,
-        );
-        const info = new this.AMap.InfoWindow({
-          isCustom: false,
-          content: containerDiv,
-          offset: new this.AMap.Pixel(0, -35),
-          autoMove: true,
-        });
-        this.infoWindow = info;
-        info.on("close", () => {
-          // 关闭时销毁图表
-          const trend = (window as any).__colliers_trend;
-          if (trend?.chart) {
-            trend.chart.dispose();
-            trend.chart = null;
-          }
-          const panel = document.getElementById("info-chart-panel");
-          if (panel) panel.style.display = "none";
-        });
-        info.open(this.map, [lng, lat]);
-      });
+      marker.on("click", () => this.showBuildingPopup(building, pickLatestMetric(building.metrics)));
 
       this.markers.push(marker);
     }
@@ -1508,6 +1449,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     x: number,
     y: number,
   ): void {
+    if (this.buildingPopupBinding) return;
     const tooltip = this.createHoverTooltip();
     const latestMetric = pickLatestMetric(building.metrics);
 
@@ -1957,6 +1899,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const lat = toNullableFiniteNumber(supply.location_lat);
     if (lng === null || lat === null) return;
 
+    if (this.buildingPopupBinding) {
+      this.infoWindow?.close?.();
+      this.releaseBuildingPopup();
+    }
     const containerDiv = document.createElement("div");
     containerDiv.innerHTML = this.buildFutureSupplyInfoWindow(supply);
     const info = new this.AMap.InfoWindow({
@@ -2078,35 +2024,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         this.hoverTimeout = setTimeout(() => this.hideHoverTooltip(), 80);
       });
 
-      marker.on("click", () => {
-        // 切换 InfoWindow 时保护不退出周边项目对比模式
-        this._isClearingCompetitor = true;
-        this.infoWindow?.close?.();
-        this._isClearingCompetitor = false;
-        const containerDiv = document.createElement("div");
-        containerDiv.innerHTML = this.buildInfoWindowContent(
-          building,
-          latestMetric,
-        );
-        const info = new AMap.InfoWindow({
-          isCustom: false,
-          content: containerDiv,
-          offset: new AMap.Pixel(0, -35),
-          autoMove: true,
-        });
-        this.infoWindow = info;
-        info.on("close", () => {
-          // 关闭时销毁图表
-          const trend = (window as any).__colliers_trend;
-          if (trend?.chart) {
-            trend.chart.dispose();
-            trend.chart = null;
-          }
-          const panel = document.getElementById("info-chart-panel");
-          if (panel) panel.style.display = "none";
-        });
-        info.open(this.map, [lng, lat]);
-      });
+      marker.on("click", () => this.showBuildingPopup(building, latestMetric));
       this.markers.push(marker);
     }
 
@@ -2388,28 +2306,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         this.map.setZoomAndCenter(14, [lng, lat]);
         // 延迟显示 InfoWindow，等待缩放动画完成
         setTimeout(() => {
-          const containerDiv = document.createElement("div");
-          containerDiv.innerHTML = this.buildInfoWindowContent(
-            building,
-            latestMetric,
-          );
-          const info = new AMap.InfoWindow({
-            isCustom: false,
-            content: containerDiv,
-            offset: new AMap.Pixel(0, -35),
-            autoMove: true,
-          });
-          this.infoWindow = info;
-          info.on("close", () => {
-            const trend = (window as any).__colliers_trend;
-            if (trend?.chart) {
-              trend.chart.dispose();
-              trend.chart = null;
-            }
-            const panel = document.getElementById("info-chart-panel");
-            if (panel) panel.style.display = "none";
-          });
-          info.open(this.map, [lng, lat]);
+          this.showBuildingPopup(building, latestMetric);
         }, 300);
       });
 
@@ -2486,12 +2383,6 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return `<span style="filter:blur(6px);user-select:none;cursor:default;" title="演示模式，数据已脱敏">${text}</span>`;
   }
 
-  /** 截断文本，超过 maxLen 个字符显示省略号 */
-  private _truncate(text: string, maxLen: number): string {
-    if (!text || text.length <= maxLen) return text;
-    return text.slice(0, maxLen) + "...";
-  }
-
   /** 获取楼宇字段的显示覆盖规则 */
   getDisplayOverride(buildingId: string, fieldName: string): { display_label: string; display_value: string } | null {
     return this._displayOverridesCache.get(buildingId)?.get(fieldName) ?? null;
@@ -2506,239 +2397,156 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     building: BuildingWithMetrics,
     latestMetric: BuildingMetric | null,
   ): string {
-    const name = escapeHtml(building.name);
-
-    // 检查显示覆盖规则
-    const gradeOverride = this.getDisplayOverride(building.id, 'grade');
-    const submarketOverride = this.getDisplayOverride(building.id, 'submarket');
-
-    const gradeLabel = gradeOverride?.display_label ?? '楼宇等级';
-    const gradeValue = escapeHtml(gradeOverride?.display_value ?? displayGrade(building.grade));
-    const submarketLabel = submarketOverride?.display_label ?? '子市场';
-    const submarketValue = escapeHtml(submarketOverride?.display_value ?? (building.submarket || "—"));
-
-    const completionYear = building.completion_year
-      ? escapeHtml(building.completion_year)
-      : "—";
-    const leed = building.leed_certification;
-    const ownerFull = escapeHtml(building.owner || "暂无");
-    const owner = this._truncate(ownerFull, 7);
-    const propertyMgmtFull = escapeHtml(building.property_management || "暂无");
-    const propertyMgmt = this._truncate(propertyMgmtFull, 7);
-    const contactPhone = building.contact_phone || "";
-
-    const currentRent = latestMetric
-      ? Number(latestMetric.net_effective_rent)
-      : 0;
-    const rentText = latestMetric ? `¥${formatZhNumber(currentRent)}` : "-";
-    const faceRentText =
-      latestMetric && latestMetric.face_rent
-        ? `¥${formatZhNumber(Number(latestMetric.face_rent))}`
-        : "-";
-    const vacText = latestMetric
-      ? formatVacancyRate(latestMetric.vacancy_rate)
-      : "-";
-    const mgtFeeText =
-      latestMetric && latestMetric.management_fee
-        ? `¥${formatZhNumber(latestMetric.management_fee)}`
-        : "-";
-    const latestQuarter = latestMetric
-      ? `${latestMetric.record_year}Q${latestMetric.record_quarter}`
-      : "无数据";
-
-    const leedBadgeHtml =
-      leed && leed !== "NULL" && leed !== ""
-        ? `<span style="padding:2px 8px; border-radius:4px; background:#dcfce3; color:#166534; font-size:10px; font-weight:800; border: 1px solid #bbf7d0;">LEED ${escapeHtml(leed)}</span>`
-        : "";
-
-    const ROW = (
-      label: string,
-      value: string,
-      color = "#0f172a",
-      titleText?: string,
-    ) => {
-      const title = titleText ? ` title="${escapeHtml(titleText)}"` : "";
-      return `<div style="display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid #f8fafc;">
-        <span style="font-size:11px; color:#64748b; white-space:nowrap;">${label}</span>
-        <span${title} style="font-size:11px; font-weight:800; color:${color}; text-align:right; max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${value}</span>
+    const name = escapeHtml(this._isDemo ? "***" : building.name);
+    const id = escapeHtml(building.id);
+    const grade = this.getDisplayOverride(building.id, "grade");
+    const submarket = this.getDisplayOverride(building.id, "submarket");
+    const protectedText = (value: string | null | undefined) => this._isDemo && value ? "***" : value || "暂无";
+    const row = (label: string, value: unknown) => `
+      <div class="building-popup__row">
+        <dt>${escapeHtml(label)}</dt><dd data-popup-value="${escapeHtml(label)}"><span class="building-popup__value">${escapeHtml(value)}</span></dd>
       </div>`;
-    };
+    const leed = building.leed_certification;
+    const currency = (value: number | null | undefined) => value == null ? "—" : formatZhNumber(Number(value));
+    const quarter = latestMetric ? `${latestMetric.record_year}Q${latestMetric.record_quarter}` : "无数据";
 
     return `
-      <div data-building-id="${building.id}" style="width:min(360px, calc(100vw - 72px)); max-width:360px; min-width:260px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
-
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-          <div title="${escapeHtml(name)}" style="font-size:16px; font-weight:900; color:#0f172a; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${this._mask(name)}</div>
-          ${this._isAdmin ? `
-            <button
-              onclick="window.__colliers_editBuildingMetrics('${building.id}', '${escapeHtml(name)}')"
-              title="编辑数据"
-              style="
-                background: transparent;
-                color: #059669;
-                border: 1px solid #d1d5db;
-                padding: 2px 6px;
-                border-radius: 4px;
-                font-size: 10px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.15s;
-                white-space: nowrap;
-                margin-left: 8px;
-                flex-shrink: 0;
-              "
-              onmouseover="this.style.background='#d1fae5'; this.style.borderColor='#059669';"
-              onmouseout="this.style.background='transparent'; this.style.borderColor='#d1d5db';"
-            >
-              编辑
-            </button>
-          ` : ''}
-        </div>
-
-        ${leedBadgeHtml ? `<div style="margin-bottom:8px;">${leedBadgeHtml}</div>` : ""}
-
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px; margin-bottom:10px;">
-          <div>
-            ${ROW(gradeLabel, gradeValue)}
-            ${ROW(submarketLabel, submarketValue, "#0f172a", submarketOverride ? submarketValue : building.submarket)}
-            ${ROW("入市时间", completionYear)}
-            ${ROW("项目业主", this._mask(owner), "#0f172a", building.owner)}
-            ${ROW("物业公司", this._mask(propertyMgmt), "#0f172a", building.property_management)}
+      <section class="building-popup" data-building-id="${id}" data-building-name="${name}" aria-label="${name}楼宇详情">
+        <header class="building-popup__titlebar">
+          <div class="building-popup__title">
+            <h2>${name}</h2>
+            ${leed && leed !== "NULL" ? `<span class="building-popup__certification">LEED ${escapeHtml(leed)}</span>` : ""}
           </div>
-          <div>
-            ${ROW("空置率", vacText)}
-            ${ROW("表面租金", faceRentText)}
-            ${ROW("净有效租金", rentText, "#003e7e")}
-            ${ROW("物业费", mgtFeeText)}
-            ${ROW("更新时间", latestQuarter, "#003e7e")}
-          </div>
-        </div>
-
-        <div id="info-chart-panel" style="display:none; border-top:1px dashed #e2e8f0; padding-top:10px; margin-bottom:10px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-size:12px; font-weight:800; color:#334155;">近五年趋势追踪</span>
-            <div style="display:flex; gap:4px;">
-              <button id="chart-btn-rent" data-chart="rent" style="
-                font-size:10px; font-weight:700; padding:3px 10px; border-radius:4px;
-                background:#003e7e; color:#fff; border:1px solid #003e7e;
-                cursor:pointer; transition:all 0.15s;
-              ">租金</button>
-              <button id="chart-btn-vac" data-chart="vac" style="
-                font-size:10px; font-weight:700; padding:3px 10px; border-radius:4px;
-                background:#fff; color:#64748b; border:1px solid #e2e8f0;
-                cursor:pointer; transition:all 0.15s;
-              ">空置率</button>
+          <button type="button" class="building-popup__quiet building-popup__close" data-popup-action="close" aria-label="关闭楼宇详情">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>
+        </header>
+        <div class="building-popup__body">
+          <div class="building-popup__summary">
+            <div class="building-popup__facts">
+              <section class="building-popup__group" aria-label="楼宇概况">
+                <div class="building-popup__group-head"><h3>楼宇概况</h3></div>
+                <dl>
+                  ${row(grade?.display_label ?? "楼宇等级", grade?.display_value ?? displayGrade(building.grade))}
+                  ${row(submarket?.display_label ?? "子市场", submarket?.display_value ?? (building.submarket || "—"))}
+                  ${row("入市时间", building.completion_year || "—")}
+                  ${row("项目业主", protectedText(building.owner))}
+                  ${row("物业公司", protectedText(building.property_management))}
+                </dl>
+              </section>
+              <section class="building-popup__group building-popup__metrics" aria-label="经营指标">
+                <div class="building-popup__group-head">
+                  <h3>经营指标</h3>
+                  <button type="button" class="building-popup__quiet building-popup__edit" data-popup-action="edit" aria-label="编辑指标"${this._isAdmin ? "" : " hidden"}>编辑</button>
+                </div>
+                <dl>
+                  ${row("空置率", latestMetric ? formatVacancyRate(latestMetric.vacancy_rate) : "—")}
+                  ${row("表面租金", currency(latestMetric?.face_rent))}
+                  ${row("净有效租金", currency(latestMetric?.net_effective_rent))}
+                  ${row("物业费", currency(latestMetric?.management_fee))}
+                  ${row("指标季度", quarter)}
+                </dl>
+                <p class="building-popup__units">租金及物业费：元/㎡/月</p>
+              </section>
             </div>
           </div>
-          <div id="info-chart-container" style="width: 100%; height: 220px;"></div>
+          <div class="building-popup__actions" role="group" aria-label="楼宇操作">
+            <button type="button" class="building-popup__action" data-map-action="nearby-compare" data-popup-action="nearby">周边项目对比</button>
+            <button type="button" class="building-popup__action" data-map-action="building-compare">楼宇对比</button>
+            <button type="button" class="building-popup__action" data-map-action="related-leases">关联成交</button>
+            <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">趋势追踪</button>
+            <button type="button" class="building-popup__action" data-map-action="contact" data-popup-action="contact">联系方式</button>
+            <button type="button" class="building-popup__action" data-map-action="building-sales-control"
+              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}">项目资料与佣金</button>
+          </div>
+          <div class="building-popup__proposal" data-map-proposal-slot hidden></div>
+          <div id="info-chart-panel" class="building-popup__trend" style="display:none">
+            <div class="building-popup__trend-head">
+              <h3>近五年趋势追踪</h3>
+              <div class="building-popup__trend-tabs">
+                <button type="button" id="chart-btn-rent" data-chart="rent" class="building-popup__action">租金</button>
+                <button type="button" id="chart-btn-vac" data-chart="vac" class="building-popup__action">空置率</button>
+              </div>
+            </div>
+            <div id="info-chart-container"></div>
+          </div>
         </div>
+      </section>`;
+  }
 
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-top: 10px;">
-          ${ACTION_MODULES.map((module) => {
-            const moduleDisabled = !module.enabled;
+  private createBuildingPopupContent(building: BuildingWithMetrics, metric: BuildingMetric | null) {
+    const content = document.createElement("div");
+    content.innerHTML = this.buildInfoWindowContent(building, metric);
+    const root = content.firstElementChild as HTMLElement;
+    this.buildingPopupBinding?.dispose();
+    this.buildingPopupBinding = bindBuildingPopup(root, action => {
+      switch (action) {
+        case "close":
+          this.infoWindow?.close?.();
+          break;
+        case "edit":
+          if (this._isAdmin) this._onEditBuildingMetrics?.(building.id, building.name);
+          break;
+        case "nearby":
+          (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, metric ? Number(metric.net_effective_rent) : 0);
+          break;
+        case "contact":
+          (window as any).__colliers_showContactModal?.(this._isDemo ? "***" : building.name, this._isDemo ? "***" : building.contact_phone || "");
+          break;
+        case "trend": {
+          (window as any).__colliers_toggleTrend?.(building.id);
+          const showing = root.querySelector<HTMLElement>("#info-chart-panel")?.style.display === "block";
+          root.toggleAttribute("data-trend-open", showing);
+          root.querySelector('[data-map-action="trend"]')?.setAttribute("aria-expanded", String(showing));
+          if (showing) {
+            const body = root.querySelector<HTMLElement>(".building-popup__body");
+            if (body) body.scrollTop = body.scrollHeight;
+          }
+          break;
+        }
+      }
+    });
+    return content;
+  }
 
-            if (!moduleDisabled) {
-              const onClickHandler =
-                module.id === "compare-nearby"
-                  ? `window.__colliers_analyzeCompetitors('${building.id}', ${building.location_lng}, ${building.location_lat}, ${currentRent})`
-                  : "";
+  private showBuildingPopup(building: BuildingWithMetrics, metric: BuildingMetric | null) {
+    if (!this.map || !this.AMap || this._destroyed) return;
+    this.hideHoverTooltip();
+    // Replacing the card must not clear an active nearby comparison.
+    this._isClearingCompetitor = true;
+    this.infoWindow?.close?.();
+    this._isClearingCompetitor = false;
+    this.releaseBuildingPopup();
+    const content = this.createBuildingPopupContent(building, metric);
+    const info = new this.AMap.InfoWindow({
+      isCustom: false,
+      content,
+      offset: new this.AMap.Pixel(0, -35),
+      // The workbench fits the card around its own controls without moving the map.
+      autoMove: false,
+    });
+    this.infoWindow = info;
+    info.on("close", () => {
+      if (this.infoWindow !== info) return;
+      this.releaseBuildingPopup();
+    });
+    info.open(this.map, [building.location_lng, building.location_lat]);
+  }
 
-              return `
-                <button
-                  onclick="${onClickHandler}"
-                  style="
-                    background: #fff;
-                    color: #f59e0b;
-                    border: 1px solid #fcd34d;
-                    padding: 6px 2px;
-                    border-radius: 5px;
-                    font-size: 9px;
-                    font-weight: 700;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    box-shadow: 0 1px 3px rgba(245,158,11,0.1);
-                    text-align: center;
-                    white-space: nowrap;
-                  "
-                  onmouseover="this.style.background='#fef3c7'; this.style.borderColor='#f59e0b';"
-                  onmouseout="this.style.background='#fff'; this.style.borderColor='#fcd34d';"
-                >
-                  ${module.label}
-                </button>
-              `;
-            } else {
-              return `
-                <div style="
-                  background: #f8fafc;
-                  color: #94a3b8;
-                  border: 1px solid #e2e8f0;
-                  padding: 6px 2px;
-                  border-radius: 5px;
-                  font-size: 9px;
-                  font-weight: 700;
-                  cursor: not-allowed;
-                  text-align: center;
-                  opacity: 0.6;
-                  white-space: nowrap;
-                ">
-                  ${module.label}
-                </div>
-              `;
-            }
-          }).join("")}
+  private releaseBuildingPopup() {
+    if (!this.buildingPopupBinding) return;
+    this.buildingPopupBinding.dispose();
+    this.buildingPopupBinding = null;
+    this.clearBuildingPopupTrend();
+  }
 
-          <button onclick="window.__colliers_toggleTrend('${building.id}')"
-            style="
-              background: #fff;
-              color: #8b5cf6;
-              border: 1px solid #c4b5fd;
-              padding: 6px 2px;
-              border-radius: 5px;
-              font-size: 9px;
-              font-weight: 700;
-              cursor: pointer;
-              transition: all 0.2s;
-              box-shadow: 0 1px 3px rgba(139,92,246,0.1);
-              text-align: center;
-              white-space: nowrap;
-            "
-            onmouseover="this.style.background='#f5f3ff'; this.style.borderColor='#8b5cf6';"
-            onmouseout="this.style.background='#fff'; this.style.borderColor='#c4b5fd';"
-          >
-            趋势追踪
-          </button>
-
-          <button
-            onclick="window.__colliers_showContactModal('${this._isDemo ? "***" : escapeHtml(name)}', '${this._isDemo ? "***" : escapeHtml(contactPhone)}')"
-            style="
-              background: #fff;
-              color: #3b82f6;
-              border: 1px solid #93c5fd;
-              padding: 6px 2px;
-              border-radius: 5px;
-              font-size: 9px;
-              font-weight: 700;
-              cursor: pointer;
-              transition: all 0.2s;
-              box-shadow: 0 1px 3px rgba(59,130,246,0.1);
-              text-align: center;
-              white-space: nowrap;
-            "
-            onmouseover="this.style.background='#dbeafe'; this.style.borderColor='#3b82f6';"
-            onmouseout="this.style.background='#fff'; this.style.borderColor='#93c5fd';"
-          >
-            联系方式
-          </button>
-
-          <button type="button" data-map-action="building-sales-control"
-            data-building-id="${escapeHtml(building.id)}" data-building-name="${name}"
-            style="background:var(--cd-color-surface);color:var(--cd-color-brand);border:1px solid var(--cd-color-border);grid-column:1/-1;min-height:44px;padding:8px;border-radius:5px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">
-            项目资料与佣金
-          </button>
-        </div>
-
-      </div>
-    `;
+  private clearBuildingPopupTrend() {
+    const trend = (window as any).__colliers_trend;
+    if (trend?.chart) {
+      trend.chart.dispose();
+      trend.chart = null;
+    }
+    if (trend) trend.buildingId = null;
   }
 
   getMapInstance(): unknown {
@@ -2809,32 +2617,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       return;
     }
 
-    const latestMetric = pickLatestMetric(building.metrics);
-    const containerDiv = document.createElement("div");
-    containerDiv.innerHTML = this.buildInfoWindowContent(
-      building,
-      latestMetric,
-    );
-
-    const info = new this.AMap.InfoWindow({
-      isCustom: false,
-      content: containerDiv,
-      offset: new this.AMap.Pixel(0, -35),
-      autoMove: true,
-    });
-    this.infoWindow = info;
-    info.on("close", () => {
-      // 关闭时销毁图表
-      const trend = (window as any).__colliers_trend;
-      if (trend?.chart) {
-        trend.chart.dispose();
-        trend.chart = null;
-      }
-      const panel = document.getElementById("info-chart-panel");
-      if (panel) panel.style.display = "none";
-    });
-    // 打开信息窗口
-    info.open(this.map, [lng, lat]);
+    this.showBuildingPopup(building, pickLatestMetric(building.metrics));
   }
 
   /**
@@ -2852,18 +2635,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this._currentUserId = userId || null;
     this._onEditBuildingMetrics = onEditCallback || null;
 
-    // 注册全局编辑函数
-    if (isBrowser()) {
-      if (isAdmin && onEditCallback) {
-        (window as any).__colliers_editBuildingMetrics = (
-          buildingId: string,
-          buildingName: string
-        ) => {
-          this._onEditBuildingMetrics?.(buildingId, buildingName);
-        };
-      } else {
-        delete (window as any).__colliers_editBuildingMetrics;
-      }
+    const content = this.infoWindow?.getContent?.();
+    if (content instanceof HTMLElement) {
+      const edit = content.querySelector<HTMLButtonElement>('.building-popup__edit');
+      if (edit) edit.hidden = !isAdmin;
     }
   }
 
@@ -2915,9 +2690,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
         if (matchesCurrentBuilding) {
           const latestMetric = pickLatestMetric(building.metrics);
-          const containerDiv = document.createElement('div');
-          containerDiv.innerHTML = this.buildInfoWindowContent(building, latestMetric);
-          this.infoWindow.setContent(containerDiv);
+          this.clearBuildingPopupTrend();
+          this.infoWindow.setContent(this.createBuildingPopupContent(building, latestMetric));
         }
       }
     } catch (err) {
@@ -2961,6 +2735,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   destroy(): void {
     this._destroyed = true;
+    this.releaseBuildingPopup();
     this.destroyHoverTooltip();
     this.clearMap();
     if (isBrowser()) {
@@ -2972,10 +2747,6 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       }
       if ((window as any).__colliers_toggleTrend) {
         delete (window as any).__colliers_toggleTrend;
-      }
-      // 清理编辑楼宇指标数据函数
-      if ((window as any).__colliers_editBuildingMetrics) {
-        delete (window as any).__colliers_editBuildingMetrics;
       }
       // 清理趋势图状态
       const trend = (window as any).__colliers_trend;
