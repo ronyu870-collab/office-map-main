@@ -210,6 +210,46 @@ describe('complete list with the existing map workbench', () => {
     expect(restored.getByRole('button', { name: '子市场' })).toHaveTextContent('全部');
   });
 
+  it('continues editing the list search across result updates with a quick filter applied', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    const list = await openList();
+    const ui = within(list);
+    fireEvent.click(ui.getByRole('button', { name: '行政区' }));
+    fireEvent.click(ui.getByRole('checkbox', { name: '朝阳区' }));
+    await ui.findByText('30 栋楼宇');
+    const input = ui.getByRole<HTMLInputElement>('searchbox');
+    input.focus();
+
+    fireEvent.change(input, { target: { value: 'C' } });
+    await waitFor(() => expect(logAction).toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'C', module: 'map' }));
+    expect(ui.getByRole('searchbox')).toBe(input);
+    expect(input).toHaveFocus();
+
+    fireEvent.change(input, { target: { value: 'CD' } });
+    await ui.findByText('未找到符合条件的楼宇');
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'CBD' } });
+    input.setSelectionRange(2, 2);
+    await ui.findByText('30 栋楼宇');
+    expect(input).toHaveValue('CBD');
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('');
+    expect(ui.getByRole('button', { name: '行政区' })).toHaveTextContent('朝阳区');
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'xiang' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(logAction).not.toHaveBeenCalledWith('test@example.com', 'SEARCH', { keyword: 'xiang', module: 'map' });
+    fireEvent.change(input, { target: { value: '项目0' } });
+    fireEvent.compositionEnd(input, { data: '项目0' });
+    await ui.findByText('9 栋楼宇');
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('项目0');
+  });
+
   it('sorts the whole result by descending rent and vacancy before paging', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
