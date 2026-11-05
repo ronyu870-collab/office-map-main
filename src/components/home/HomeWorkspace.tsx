@@ -42,6 +42,7 @@ type WorkspaceModule = {
   href: string;
   module: string;
   title: string;
+  badge?: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -50,13 +51,6 @@ const MAP_WORKSPACE: WorkspaceModule = {
   module: 'map',
   title: '北京办公楼市场地图',
   icon: Map,
-};
-
-const OCCUPIER_INSIGHTS_WORKSPACE: WorkspaceModule = {
-  href: '/occupier-insights',
-  module: 'occupier-insights',
-  title: '企业选址洞察',
-  icon: FileText,
 };
 
 const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
@@ -84,6 +78,13 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     module: 'oss',
     title: '研究资料库',
     icon: FileSearch,
+  },
+  {
+    href: '/occupier-insights',
+    module: 'occupier-insights',
+    title: '企业选址洞察报告',
+    icon: FileText,
+    badge: '专题',
   },
 ];
 
@@ -285,7 +286,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
     <Link
       href={workspace.href}
       onClick={(event) => onActivate(event, workspace)}
-      className={`group flex min-h-[64px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}`}
+      className={`group flex min-h-[64px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}${workspace.badge ? ' relative' : ''}`}
       title={canAccess ? undefined : '当前账号无访问权限'}
       {...accessibilityProps}
     >
@@ -295,6 +296,11 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       <div className="min-w-0 flex-1">
         <h3 className="text-[14px] font-medium text-[var(--cd-color-text-primary)] sm:text-[15px]">{workspace.title}</h3>
       </div>
+      {workspace.badge ? (
+        <span aria-hidden="true" className="absolute right-4 top-1.5 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-1.5 text-xs leading-4 text-[var(--cd-color-text-secondary)] sm:right-5">
+          {workspace.badge}
+        </span>
+      ) : null}
       {canAccess ? (
         <ArrowRight size={15} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" aria-hidden="true" />
       ) : (
@@ -390,8 +396,6 @@ export function HomeWorkspace() {
 
   const MapIcon = MAP_WORKSPACE.icon;
   const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeRole);
-  const OccupierInsightsIcon = OCCUPIER_INSIGHTS_WORKSPACE.icon;
-  const occupierInsightsAccessibilityProps = getAccessibilityProps(OCCUPIER_INSIGHTS_WORKSPACE.module, OCCUPIER_INSIGHTS_WORKSPACE.title, activeRole);
   const IntelligenceIcon = INTELLIGENCE_WORKSPACE.icon;
   const intelligenceAccessibilityProps = getAccessibilityProps(INTELLIGENCE_WORKSPACE.module, INTELLIGENCE_WORKSPACE.title, activeRole);
 
@@ -411,7 +415,7 @@ export function HomeWorkspace() {
       <div className="h-full overflow-y-auto overscroll-contain">
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
           <section className="min-w-0" aria-labelledby="home-heading">
-            <div className={`grid gap-3 sm:grid-cols-2 ${canSeeIntelligence ? 'xl:grid-cols-3' : ''}`}>
+            <div className={`grid gap-3 ${canSeeIntelligence ? 'sm:grid-cols-2' : ''}`}>
               <Link
                 href={MAP_WORKSPACE.href}
                 onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
@@ -423,21 +427,6 @@ export function HomeWorkspace() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
-                </div>
-                <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
-              </Link>
-
-              <Link
-                href={OCCUPIER_INSIGHTS_WORKSPACE.href}
-                onClick={(event) => handleWorkspaceActivation(event, OCCUPIER_INSIGHTS_WORKSPACE)}
-                className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
-                {...occupierInsightsAccessibilityProps}
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
-                  <OccupierInsightsIcon size={20} strokeWidth={1.6} aria-hidden="true" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-semibold text-[var(--cd-color-text-primary)]">{OCCUPIER_INSIGHTS_WORKSPACE.title}</h2>
                 </div>
                 <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
               </Link>
