@@ -334,19 +334,45 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)):has(.buil
   object-fit: contain;
 }
 .building-pilot-photo-message,
-.building-pilot-gallery figcaption,
+.building-photo-caption-row,
 .building-pilot-gallery nav {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-.building-pilot-gallery figcaption {
+.building-photo-caption-row {
   min-height: 28px;
   justify-content: space-between;
 }
 .building-pilot-gallery nav {
   flex: none;
   font-variant-numeric: tabular-nums;
+}
+.building-photo-description {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.building-photo-description a,
+.building-photo-attribution a {
+  margin-left: 6px;
+  color: var(--cd-color-brand, #0065b3);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.building-photo-attribution {
+  display: block;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 639px), (pointer: coarse) {
+  .building-photo-description a:not([hidden]),
+  .building-photo-attribution a:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    min-width: 44px;
+    min-height: 44px;
+    max-width: 100%;
+  }
 }
 @media (min-width: 640px) and (pointer: fine) {
   .building-pilot-photo-trigger {

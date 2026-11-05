@@ -74,6 +74,10 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `纠正了楼书归属并同步溯源${p.provenance_rows != null ? `（${p.provenance_rows} 条）` : ""}`;
     case "SALES_MATERIAL_ACCESS":
       return "查看了项目资料";
+    case "BUILDING_PHOTO_ACCESS":
+      return "查看了楼宇图片";
+    case "BUILDING_PHOTO_IMPORT":
+      return `导入了楼宇图片${p.photo_count != null ? `（${p.photo_count} 张）` : ''}`;
     case "SALES_MATERIAL_IMPORT": {
       const parts = [
         p.material_count != null ? `${p.material_count} 份资料` : p.material_id ? '1 份资料' : '',
@@ -350,6 +354,8 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   BROCHURE_ASSOCIATION_CORRECTION: { variant: "orange", label: "楼书纠正", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   SALES_MATERIAL_ACCESS: { variant: "blue", label: "查看资料", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   SALES_MATERIAL_IMPORT: { variant: "orange", label: "资料导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  BUILDING_PHOTO_ACCESS: { variant: "blue", label: "查看图片", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  BUILDING_PHOTO_IMPORT: { variant: "orange", label: "图片导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   // 导航 → 靛蓝
   ENTER_MODULE: { variant: "blue",    label: "进入板块", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" },
   ACCESS_DENIED: { variant: "red", label: "拒绝访问", className: "bg-red-50 text-red-700 ring-red-100" },

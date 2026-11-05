@@ -1,0 +1,24 @@
+// Deploy only with an explicitly reviewed, finite approved-batch.json and a
+// short-lived batch-config.json. Neither the plaintext token nor project keys
+// belongs in source control. Close the function after verified completion.
+import { createClient } from 'npm:@supabase/supabase-js@2.111.0';
+import { createTransferHandler } from './transfer-handler.mjs';
+import manifest from './approved-batch.json' with { type: 'json' };
+import config from './batch-config.json' with { type: 'json' };
+
+const url = Deno.env.get('SUPABASE_URL');
+const legacySecret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const secretKeys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') || '{}');
+const secret = legacySecret || secretKeys.default;
+if (!url || url !== config.projectUrl || typeof secret !== 'string' || !secret) {
+  throw new Error('Photo transfer runtime is not configured for the approved project');
+}
+const admin = createClient(url, secret, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+Deno.serve(createTransferHandler({
+  manifest,
+  tokenSha256: config.tokenSha256,
+  expiresAt: config.expiresAt,
+  storage: admin.storage.from('building-sales-materials'),
+}));
