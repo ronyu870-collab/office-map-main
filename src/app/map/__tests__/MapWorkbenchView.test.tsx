@@ -106,6 +106,17 @@ function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
 }
 
 describe('MapWorkbenchView', () => {
+  it('opens a pending project from its own group without labeling it commercial', () => {
+    const pending = { id: 'p', name: '裕惠大厦', status: 'pending', location_lng: 116.298679, location_lat: 39.925216 };
+    const c = renderWorkbench({ isSupplyOpen: true, futureSupplies: [pending], futureSuppliesCount: 0 });
+    fireEvent.click(screen.getByText('待核实项目（1）'));
+    expect(screen.queryByRole('heading', { name: '商业项目' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '裕惠大厦' }));
+    expect(c.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(c.onBuildingClick).toHaveBeenCalledWith({ ...pending, _dataType: 'future' });
+  });
+
+
   it('lists commercial project names directly after opening future supply and lets users locate a project', () => {
     const supply = { id: 'commercial-640', name: '玉渊潭640地块商业项目', type: '商业', location_lng: 116.29817, location_lat: 39.927218, launch_year: 2027, launch_quarter: 'Q1' };
     const office = { ...supply, id: 'office-1', name: '测试办公供应', type: '办公' };
@@ -171,7 +182,7 @@ describe('MapWorkbenchView', () => {
   it('keeps supply and project-list surfaces in the visual layer', () => {
     renderWorkbench({ isSupplyOpen: true, isListVisible: true, canOpenList: true });
 
-    expect(screen.getByText('共 0 个项目')).toBeInTheDocument();
+    expect(screen.getByText('已纳入统计 0 个项目')).toBeInTheDocument();
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
   });
 

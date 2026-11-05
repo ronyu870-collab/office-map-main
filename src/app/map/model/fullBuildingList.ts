@@ -7,6 +7,7 @@ export type FullListBuilding = {
   submarket?: string | null;
   grade?: string | null;
   type?: string | null;
+  status?: string | null;
   completion_year?: string | number | null;
   location_lng?: number | null;
   location_lat?: number | null;

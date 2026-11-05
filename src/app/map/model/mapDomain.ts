@@ -1,5 +1,6 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
 export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'];
@@ -102,11 +103,16 @@ export function getConfiguredCompareGroups(groups: CompareGroup[]): CompareGroup
   return groups.filter(isCompareGroupConfigured);
 }
 
-export const FUTURE_SUPPLY_TYPES = ['A', 'B', 'BP', 'commercial'] as const;
+export const FUTURE_SUPPLY_TYPES = ['A', 'B', 'BP', 'commercial', 'pending'] as const;
 export const STOCK_PROJECT_TYPES = ['甲级写字楼', '乙级写字楼', '产业园区'] as const;
 
 export function isCommercialFutureSupply(supply: { type?: unknown }): boolean {
   return supply.type === '商业';
+}
+
+export function futureSupplyDisplayLabel(supply: { status?: unknown; type?: unknown }): string {
+  if (isPendingFutureSupply(supply)) return '待核实项目';
+  return isCommercialFutureSupply(supply) ? '商业未来供应' : '未来供应';
 }
 
 export function filterFutureSupplies(
@@ -123,6 +129,7 @@ export function filterFutureSupplies(
   return supplies.filter((supply) => {
     const district = String(supply?.district ?? '').trim();
     const submarket = normalizeMapSubmarket(supply?.submarket);
+    const pending = isPendingFutureSupply(supply);
     const commercial = isCommercialFutureSupply(supply);
     if (!filterState.districts.includes(district) || (!selectedSubmarkets.has(submarket) && !(commercial && !submarket && allSubmarkets))) return false;
 
@@ -133,7 +140,8 @@ export function filterFutureSupplies(
 
     const grade = String(supply?.grade ?? '').trim().toUpperCase();
     if (filterState.futureSupplyGrades.length === 0) return false;
-    const gradeMatches = commercial ? filterState.futureSupplyGrades.includes('commercial') :
+    const gradeMatches = pending ? filterState.futureSupplyGrades.includes('pending')
+      : commercial ? filterState.futureSupplyGrades.includes('commercial') :
       (filterState.futureSupplyGrades.includes('BP') && grade.includes('BP'))
       || (filterState.futureSupplyGrades.includes('A') && (grade.includes('A') || grade.includes('P')) && !grade.includes('BP'))
       || (filterState.futureSupplyGrades.includes('B') && grade.includes('B') && !grade.includes('BP'));
@@ -280,6 +288,7 @@ export function buildFutureSupplyCalendar(supplies: Array<Record<string, any>>):
   };
 
   for (const supply of supplies) {
+    if (isPendingFutureSupply(supply)) continue;
     const category = categorizeSupply(supply);
     calendar[category].total += 1;
 
@@ -370,7 +379,7 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
   }
 
   if (filterState.showFutureSupply) {
-    const grades = filterState.futureSupplyGrades.length === FUTURE_SUPPLY_TYPES.length ? '全部类型' : filterState.futureSupplyGrades.map(type => type === 'commercial' ? '商业' : type).join('、');
+    const grades = filterState.futureSupplyGrades.length === FUTURE_SUPPLY_TYPES.length ? '全部类型' : filterState.futureSupplyGrades.map(type => type === 'commercial' ? '商业' : type === 'pending' ? '待核实' : type).join('、');
     const years = filterState.futureSupplyYears.length === 5
       ? '全部年份'
       : filterState.futureSupplyYears.map(formatSupplyYearLabel).join('、') || '未选择';
