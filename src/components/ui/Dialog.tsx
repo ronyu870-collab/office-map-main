@@ -21,7 +21,7 @@ type DialogProps = {
   closeLabel?: string;
   dismissible?: boolean;
   presentation?: "dialog" | "fullscreen";
-  layer?: "primary" | "child";
+  layer?: "primary" | "child" | "map";
   inactive?: boolean;
 };
 
@@ -96,7 +96,7 @@ export function Dialog({
   return createPortal(
     <div
       className={`fixed inset-0 flex items-center justify-center bg-[var(--cd-color-overlay)] ${presentation === 'fullscreen' ? 'p-0' : 'p-4'}`}
-      style={{ zIndex: layer === 'child' ? 62 : 'var(--cd-z-modal)', ...(presentation === 'fullscreen' && viewport ? { top: viewport.top, bottom: 'auto', height: viewport.height } : {}) }}
+      style={{ zIndex: layer === 'map' ? 1100 : layer === 'child' ? 62 : 'var(--cd-z-modal)', ...(presentation === 'fullscreen' && viewport ? { top: viewport.top, bottom: 'auto', height: viewport.height } : {}) }}
       inert={inactive || undefined}
       aria-hidden={inactive || undefined}
       onMouseDown={(event) => {

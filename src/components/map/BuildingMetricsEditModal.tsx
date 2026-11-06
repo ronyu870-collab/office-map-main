@@ -511,7 +511,7 @@ export function BuildingMetricsEditModal({
   const quarters = [1, 2, 3, 4];
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50">
+    <div data-building-metrics-edit className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50">
       <div className="mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--cd-color-border)] bg-white shadow-[var(--cd-shadow-overlay)]">
         {/* 头部 */}
         <div className="shrink-0 px-6 py-4 border-b border-zinc-200 bg-zinc-50">

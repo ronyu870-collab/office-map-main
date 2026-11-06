@@ -1,5 +1,7 @@
+import { MapSalesMaterialsBridge } from './MapSalesMaterialsBridge';
 import './map-workbench.css';
 import './map-native-overlays.css';
+import './map-building-popup.css';
 import { MapBuildingCompareBridge } from './MapBuildingCompareBridge';
 import { MapCompetitorModeGuard } from './MapCompetitorModeGuard';
 import { MapLeaseTransactionsBridge } from './MapLeaseTransactionsBridge';
@@ -31,6 +33,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
     <>
       <MapBuildingCompareBridge />
       <MapLeaseTransactionsBridge />
+      <MapSalesMaterialsBridge />
       {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
       <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} />

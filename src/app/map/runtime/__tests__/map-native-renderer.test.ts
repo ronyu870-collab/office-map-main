@@ -135,6 +135,71 @@ afterEach(() => {
 });
 
 describe('native map visual hierarchy', () => {
+  it('shows the supplied rent for the two designated areas and keeps metrics for other markets', async () => {
+    const harness = createNativeHarness();
+    const controller = {
+      AMap: harness.AMap, map: harness.map,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller as never, 'map-container');
+    const data = [
+      building('yufu', '玉渊潭', 116.294204, 39.92354, 205.8, 0.31),
+      building('other', 'CBD', 116.46, 39.91, 305, 0.08),
+    ];
+    try {
+      controller.renderMarkers(data, 'default', undefined, undefined, true);
+      await flushFrames();
+      const contents = harness.markerInstances.map(marker => marker.options.content as HTMLElement);
+      const populated = contents.find(node => node.title === '玉渊潭');
+      // The supplied rent replaces the weighted average and carries no vacancy.
+      expect(populated?.textContent).toBe('玉渊潭¥150');
+      expect(populated?.querySelector('.map-submarket-bubble__secondary')).toBeNull();
+      expect(contents.find(node => node.title === 'CBD')?.textContent).toContain('¥305');
+      const pending = contents.find(node => node.title === '四季青');
+      expect(pending?.textContent).toBe('四季青¥140');
+      expect(pending?.querySelector('.map-submarket-bubble__metrics')).not.toBeNull();
+      pending?.click();
+      expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.274193, 39.942414], false, 320);
+      expect(harness.massMarksInstances[0].data).toHaveLength(2);
+
+      const previousMarkers = harness.markerInstances.length;
+      controller.renderMarkers(data, 'default', undefined, undefined, false);
+      await flushFrames();
+      const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
+      expect(filtered).toEqual(['玉渊潭', 'CBD']);
+
+      const beforeEmpty = harness.markerInstances.length;
+      controller.renderMarkers([], 'default', undefined, undefined, true);
+      await flushFrames();
+      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭¥150', '四季青¥140']);
+    } finally { cleanup(); }
+  });
+
+  it('falls back to names only for the two designated areas in vacancy and LEED views', async () => {
+    const harness = createNativeHarness();
+    const controller = {
+      AMap: harness.AMap, map: harness.map,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller as never, 'map-container');
+    const data = [building('yufu', '玉渊潭', 116.294204, 39.92354, 205.8, 0.31)];
+    try {
+      for (const mode of ['vacancy', 'leed'] as const) {
+        const previous = harness.markerInstances.length;
+        controller.renderMarkers(data, mode, undefined, undefined, true);
+        await flushFrames();
+        const contents = harness.markerInstances.slice(previous).map(marker => marker.options.content as HTMLElement);
+        const yuyuantan = contents.find(node => node.title === '玉渊潭');
+        expect(yuyuantan?.textContent).toBe('玉渊潭');
+        expect(yuyuantan?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
+        const sijiqing = contents.find(node => node.title === '四季青');
+        expect(sijiqing?.textContent).toBe('四季青');
+        expect(sijiqing?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
+      }
+    } finally { cleanup(); }
+  });
+
+
   it('clears legacy markers once and keeps only the submarket tier visible at overview zoom', async () => {
     const harness = createNativeHarness();
     const originalRender = vi.fn();
@@ -218,7 +283,7 @@ describe('native map visual hierarchy', () => {
     cleanup();
   });
 
-  it('hides future-supply markers at overview zoom and restores them from the dot tier onward', async () => {
+  it('keeps future-supply markers hidden until the building tier', async () => {
     const harness = createNativeHarness();
     const renderFuture = vi.fn();
     const clearFuture = vi.fn();
@@ -238,6 +303,10 @@ describe('native map visual hierarchy', () => {
     expect(clearFuture).toHaveBeenCalled();
 
     harness.setZoom(11.8);
+    harness.emitMap('zoomend');
+    expect(renderFuture).not.toHaveBeenCalled();
+
+    harness.setZoom(13.18);
     harness.emitMap('zoomend');
     expect(renderFuture).toHaveBeenCalledWith([{ id: 'future-a' }], 'default');
 

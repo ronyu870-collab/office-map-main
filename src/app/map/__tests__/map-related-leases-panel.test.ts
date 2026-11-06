@@ -5,9 +5,7 @@ const source = readFileSync('src/app/map/MapLeaseTransactionsBridge.tsx', 'utf8'
 
 describe('map related deals presentation contract', () => {
   it('keeps the compact InfoWindow entry and governed building-id read path', () => {
-    expect(source).toContain("const RELATED_ACTION_LABEL = '关联成交';");
-    expect(source).toContain("ACTION_MODULES.findIndex(module => module.id === 'latest-sales')");
-    expect(source).toContain('button.dataset.mapAction = RELATED_ACTION_ID');
+    expect(source).toContain('readBuildingPopupContext(button)');
     expect(source).toContain('building_id: buildingId');
     expect(source).toContain('limit: String(PAGE_SIZE)');
     expect(source).toContain('offset: String(page * PAGE_SIZE)');

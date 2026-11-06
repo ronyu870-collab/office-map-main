@@ -8,7 +8,7 @@ const source = (file: string) => fs.readFileSync(path.join(root, file), 'utf8');
 describe('Cross-page product continuity', () => {
   it('keeps Home as the canonical Chinese product naming contract', () => {
     const home = source('src/components/home/HomeWorkspace.tsx');
-    for (const label of ['北京办公楼市场地图', '季度数据填报', '租赁成交填报', '研究资料库', '系统管理', '设置']) {
+    for (const label of ['北京办公楼市场地图', '季度数据填报', '租赁成交填报', '研究资料库', '系统管理', '修改密码']) {
       expect(home).toContain(label);
     }
   });
@@ -62,7 +62,7 @@ describe('Cross-page product continuity', () => {
     const settings = source('src/app/settings/page.tsx');
     const adminLayout = source('src/app/admin/layout.tsx');
     const adminSidebar = source('src/components/admin/AdminSidebar.tsx');
-    expect(settings).toContain('title="设置"');
+    expect(settings).toContain('title="修改密码"');
     expect(adminLayout).toContain('title="系统管理"');
     expect(adminLayout).not.toContain('>Administration</span>');
     expect(adminSidebar).not.toContain("label: 'Data Management'");

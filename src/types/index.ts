@@ -5,6 +5,7 @@
  * - `buildings`
  * - `building_metrics`
  */
+import type { BuildingPhotoSummary } from '@/src/lib/building-photos/model';
 
 export interface Building {
   id: string;
@@ -22,6 +23,7 @@ export interface Building {
   owner?: string;
   property_management?: string;
   contact_phone?: string;
+  photos?: BuildingPhotoSummary[];
 }
 
 export interface BuildingMetric {
@@ -54,6 +56,7 @@ export interface FutureSupply {
   name: string;
   former_names?: string[] | null;
   building_id?: string | null;
+  photos?: BuildingPhotoSummary[];
   owner: string | null;
   district: string | null;
   submarket: string | null;

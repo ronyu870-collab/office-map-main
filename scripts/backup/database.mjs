@@ -50,13 +50,14 @@ export async function exportDatabase(c, dir) {
     const snapshot = (await client.query('select pg_export_snapshot() as id')).rows[0].id;
     const evidence = await tableEvidence(client);
     const extensions = await extensionEvidence(client);
+    const bootstrapRole = (await client.query('select rolname from pg_roles where oid=10')).rows[0].rolname;
     const archive = path.join(dir, 'database.dump'); const roles = path.join(dir, 'roles.sql');
     await command(binary(c, 'pg_dump'), ['--format=custom', '--no-password', '--lock-wait-timeout=5s', `--snapshot=${snapshot}`, `--file=${archive}`], { env: pgEnvironment(c) });
     await client.query('commit');
     await command(binary(c, 'pg_dumpall'), ['--roles-only', '--no-role-passwords', '--no-password', `--file=${roles}`], { env: pgEnvironment(c) });
     await Promise.all([chmod(archive, 0o600), chmod(roles, 0o600)]);
     const schemas = [...new Set(evidence.map((x) => x.schema))];
-    return { files: [{ file: archive, kind: 'database' }, { file: roles, kind: 'roles' }], evidence,
+    return { files: [{ file: archive, kind: 'database' }, { file: roles, kind: 'roles' }], evidence, bootstrapRole,
       prerequisites: [
         'Restore into a separately isolated PostgreSQL17/Supabase environment with matching extensions.',
         'Role passwords, platform Auth settings/API keys and external configuration require separate protected recovery.',

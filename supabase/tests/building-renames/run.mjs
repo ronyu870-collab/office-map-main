@@ -36,6 +36,8 @@ const preservedSources = async () => (await db.setup.query(`select jsonb_build_o
  'submissions',(select jsonb_agg(to_jsonb(s)) from public.future_supply_submissions s)) as data`)).rows[0].data;
 try {
   console.log('Database: ' + db.version);
+  await db.setup.query('alter table public.user_roles add column email text,add column full_name text');
+  await db.setup.query(await source('../../migrations/20261102063824_audit_actor_identity.sql'));
   const base = await source('../../migrations/20260730043721_create_colliers_lite_schema.sql');
   await db.setup.query(base.slice(base.indexOf('create table public.buildings ('),base.indexOf('create table public.building_metrics (')));
   const restoration = await source('../../migrations/20260801110130_restore_quarterly_oss_admin.sql');
@@ -124,6 +126,7 @@ try {
     for (const name of ['New Tower','Synthetic Tower','Legacy alias']) assert.equal(s.maps.find(m=>m.alias_name===name).building_id,id(1));
     const events=await audit(); assert.equal(events.length,2);
     assert.ok(events.every(e=>e.user_id===ADMIN && e.request_source==='database_trigger'));
+    assert.ok(events.every(e=>e.actor_kind==='user' && e.actor_name==='Synthetic admin'));
     assert.equal(events[0].details.event_group,events[1].details.event_group);
     assert.equal(events[1].old_values.name,'Synthetic Tower'); assert.equal(events[1].new_values.name,'New Tower');
     assert.deepEqual(await preservedSources(),sourcesBefore);

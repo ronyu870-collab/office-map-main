@@ -12,6 +12,7 @@ vi.mock('@/src/services/MapController', () => ({
   MapController: class {
     initMap = controllerMocks.initMap;
     getMapInstance = controllerMocks.getMapInstance;
+    areInitialTilesReady() { return false; }
     setAdminMode = controllerMocks.setAdminMode;
     destroy = controllerMocks.destroy;
   },

@@ -1,5 +1,7 @@
 'use client';
 
+import { BUILDING_POPUP_LAYOUT_EVENT } from '@/src/services/map/buildingPopup';
+
 type MapViewportLike = {
   panBy?: (x: number, y: number, duration?: number) => void;
   on?: (eventName: string, handler: () => void) => void;
@@ -114,6 +116,25 @@ export function computeInfoWindowPan(container: HTMLElement, infoRect: DOMRect):
   };
 }
 
+export function computeBuildingPopupPlacement(viewport: DOMRect, popup: DOMRect, blockers: DOMRect[]) {
+  const margin = 12;
+  const left = Math.max(viewport.left + margin, Math.min(popup.left, viewport.right - popup.width - margin));
+  let top = viewport.top + margin;
+  let bottom = viewport.bottom - margin;
+  for (const blocker of blockers) {
+    if (blocker.right <= left || blocker.left >= left + popup.width) continue;
+    if (blocker.top < viewport.top + 100 && blocker.bottom > viewport.top) {
+      top = Math.max(top, blocker.bottom + margin);
+    } else if (blocker.bottom >= viewport.bottom - 40 && blocker.top >= viewport.top + 120) {
+      bottom = Math.min(bottom, blocker.top - margin);
+    }
+  }
+  // The native wrapper is about 10px taller than the card because of its arrow.
+  const height = Math.max(0, bottom - top);
+  const y = Math.max(top, Math.min(popup.top, bottom - Math.min(popup.height, height)));
+  return { x: left - popup.left, y: y - popup.top, maxHeight: Math.max(0, height - 10) };
+}
+
 function mutationTouchesInfoWindow(mutations: MutationRecord[]): boolean {
   for (const mutation of mutations) {
     if (mutation.target instanceof Element && mutation.target.closest('.amap-info')) return true;
@@ -132,6 +153,17 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
   let adjusting = false;
   let observedInfo: HTMLElement | null = null;
   let resizeObserver: ResizeObserver | null = null;
+  let placedWindow: HTMLElement | null = null;
+  let stockOffset = { x: 0, y: 0 };
+
+  const clearStockPlacement = () => {
+    placedWindow?.removeAttribute('data-building-popup-shifted');
+    placedWindow?.style.removeProperty('--building-popup-shift-x');
+    placedWindow?.style.removeProperty('--building-popup-shift-y');
+    placedWindow?.querySelector<HTMLElement>('.building-popup')?.style.removeProperty('--building-popup-available-height');
+    placedWindow = null;
+    stockOffset = { x: 0, y: 0 };
+  };
 
   const clearSchedule = () => {
     if (timer !== null) window.clearTimeout(timer);
@@ -153,11 +185,35 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
   };
 
   const adjust = () => {
-    if (adjusting) return;
-    const info = container.querySelector<HTMLElement>('.amap-info');
+    const windows = Array.from(container.querySelectorAll<HTMLElement>('.amap-info'));
+    // AMap may retain a closed shell ahead of the active window after a marker opens it.
+    const info = windows.find(node => node.querySelector('.building-popup') && isVisible(node))
+      ?? windows.find(isVisible)
+      ?? windows[0]
+      ?? null;
     observeInfoSize(info);
+    if (info !== placedWindow) clearStockPlacement();
     if (!info || !isVisible(info)) return;
 
+    const card = info.querySelector<HTMLElement>('.building-popup');
+    if (card) {
+      const viewport = container.getBoundingClientRect();
+      const unshifted = shiftedRect(info.getBoundingClientRect(), -stockOffset.x, -stockOffset.y);
+      const { x, y, maxHeight } = computeBuildingPopupPlacement(viewport, unshifted, workbenchBlockers(container));
+      const height = `${Math.floor(maxHeight)}px`;
+      if (card.style.getPropertyValue('--building-popup-available-height') !== height) {
+        card.style.setProperty('--building-popup-available-height', height);
+      }
+      placedWindow = info;
+      stockOffset = { x, y };
+      info.style.setProperty('--building-popup-shift-x', `${x}px`);
+      info.style.setProperty('--building-popup-shift-y', `${y}px`);
+      info.toggleAttribute('data-building-popup-shifted', Math.abs(x) >= 2 || Math.abs(y) >= 2);
+      return;
+    }
+
+    clearStockPlacement();
+    if (adjusting) return;
     const pan = computeInfoWindowPan(container, info.getBoundingClientRect());
     if ((Math.abs(pan.x) < 2 && Math.abs(pan.y) < 2) || typeof map.panBy !== 'function') return;
 
@@ -184,9 +240,14 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
   };
 
   const observer = new MutationObserver(mutations => {
-    if (mutationTouchesInfoWindow(mutations)) schedule();
+    if (!mutationTouchesInfoWindow(mutations)) return;
+    // Stock cards only adjust their CSS placement. Fit them on mount, without
+    // waiting behind the native renderer's queued selection and zoom frames.
+    if (container.querySelector('.amap-info .building-popup')) adjust();
+    else schedule();
   });
   observer.observe(container, { childList: true, subtree: true });
+  container.addEventListener(BUILDING_POPUP_LAYOUT_EVENT, adjust);
 
   const onMoveEnd = () => {
     if (container.querySelector('.amap-info')) schedule();
@@ -197,9 +258,11 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
   return () => {
     clearSchedule();
     observer.disconnect();
+    container.removeEventListener(BUILDING_POPUP_LAYOUT_EVENT, adjust);
     resizeObserver?.disconnect();
     map.off?.('moveend', onMoveEnd);
     window.removeEventListener('resize', schedule);
+    clearStockPlacement();
     container.classList.remove('map-info-avoiding');
   };
 }

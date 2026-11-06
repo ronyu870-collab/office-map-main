@@ -1,10 +1,11 @@
 import { required } from './common.mjs';
+import { selectedProfile } from './profiles.mjs';
 export function targetConfiguration(env = process.env, { synthetic = false } = {}) {
   const project = required(env, 'BACKUP_PROJECT_REF');
   const account = required(env, 'BACKUP_R2_ACCOUNT_ID');
   const bucket = required(env, 'BACKUP_R2_BUCKET');
   if (!/^[a-z0-9]{20}$/.test(project) || !/^[a-f0-9]{32}$/.test(account) || !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) throw new Error('INVALID_TARGET_CONFIGURATION');
-  return { project, account, bucket, prefix: `backups/${project}/`, synthetic,
+  return { project, account, bucket, profile: selectedProfile(env), prefix: `backups/${project}/`, synthetic,
     ageBin: env.BACKUP_AGE_BIN || 'age',
     cloudflareToken: synthetic ? undefined : required(env, 'BACKUP_CF_CONFIG_READ_TOKEN'),
     credentials: { accessKeyId: required(env, 'BACKUP_R2_ACCESS_KEY_ID'), secretAccessKey: required(env, 'BACKUP_R2_SECRET_ACCESS_KEY') },
@@ -27,8 +28,7 @@ export function configuration(env = process.env, { synthetic = false } = {}) {
   if (!synthetic && database.hostname !== `db.${project}.supabase.co` && !(database.hostname.endsWith('.pooler.supabase.com') && pg.user.endsWith(`.${project}`))) throw new Error('DATABASE_PROJECT_MISMATCH');
   const recipient = required(env, 'BACKUP_AGE_RECIPIENT');
   if (!/^age1[0-9a-z]{50,100}$/.test(recipient)) throw new Error('INVALID_AGE_RECIPIENT');
-  const profile = env.BACKUP_PROFILE || 'full';
-  if (!['full', 'database-only'].includes(profile)) throw new Error('INVALID_BACKUP_PROFILE');
+  const profile = selectedProfile(env);
   return {
     ...targetConfiguration(env, { synthetic }), pg,
     pgBin: env.BACKUP_PG_BIN || '',

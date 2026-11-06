@@ -4,38 +4,25 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 
-import { clearSessionCache, getSessionFast } from '@/src/services/Auth';
-import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
-import { supabase } from '@/src/services/supabaseClient';
+import { useAppSession } from '@/src/components/SessionProvider';
+import { completePasswordChange, discardPasswordChangeSession, PasswordChangedSessionError } from '@/src/services/passwordChange';
 import { AppHeader, Button, Input, LoadingState, Panel } from '@/src/components/ui';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [userEmail, setUserEmail] = React.useState('');
-  const [displayName, setDisplayName] = React.useState('');
+  const { session: appSession, status, refreshSession } = useAppSession();
+  const userEmail = appSession?.user.email ?? '';
+  const displayName = appSession?.displayName ?? '';
   const [newPassword, setNewPassword] = React.useState('');
   const [confirmPassword, setConfirmPassword] = React.useState('');
   const [submitting, setSubmitting] = React.useState(false);
-  const [passwordChangeRequired, setPasswordChangeRequired] = React.useState(false);
+  const passwordChangeRequired = Boolean(appSession?.user.app_metadata?.must_change_password);
   const [message, setMessage] = React.useState<{ type: 'error' | 'success'; text: string } | null>(null);
-  const isLoadingUser = !userEmail;
+  const isLoadingUser = status !== 'authenticated' || !userEmail;
 
   React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const session = await getSessionFast();
-        if (cancelled) return;
-        if (!session) { router.replace('/login'); return; }
-        setUserEmail(session.user.email ?? '');
-        setDisplayName(session.displayName ?? '');
-        setPasswordChangeRequired(Boolean(session.user.app_metadata?.must_change_password));
-      } catch {
-        if (!cancelled) router.replace('/login');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [router]);
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [router, status]);
 
   async function handleUpdatePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -48,28 +35,22 @@ export default function SettingsPage() {
     if (newPassword !== confirmPassword) { setMessage({ type: 'error', text: '两次输入的密码不一致' }); return; }
     setSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('登录状态已失效，请重新登录');
-      const response = await fetch('/api/auth/complete-password-change', {
-        method: 'POST',
-        headers: withImpersonationHeaders({
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        }),
-        body: JSON.stringify({ password: newPassword }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || '密码修改失败，请稍后重试');
-      await supabase.auth.refreshSession();
-      clearSessionCache();
-      setMessage({ type: 'success', text: '密码修改成功，下次请使用新密码登录。' });
+      const nextSession = await completePasswordChange(newPassword);
+      const resolved = await refreshSession();
+      if (!resolved || resolved.user.id !== nextSession.user.id || resolved.user.app_metadata?.must_change_password !== false) {
+        await discardPasswordChangeSession().catch(() => undefined);
+        throw new PasswordChangedSessionError();
+      }
       setNewPassword('');
       setConfirmPassword('');
-      if (passwordChangeRequired) {
-        setPasswordChangeRequired(false);
-        router.replace('/');
-      }
+      router.replace('/');
     } catch (err: unknown) {
+      if (err instanceof PasswordChangedSessionError) {
+        setNewPassword('');
+        setConfirmPassword('');
+        router.replace('/login');
+        return;
+      }
       const errorMessage = err instanceof Error ? err.message : '密码修改失败，请稍后重试';
       setMessage({ type: 'error', text: errorMessage });
     } finally {
@@ -81,12 +62,12 @@ export default function SettingsPage() {
     <div className="flex h-dvh flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
       <header className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="mx-auto w-full max-w-3xl">
-          <AppHeader title="设置" homeHref={passwordChangeRequired ? undefined : '/'} />
+          <AppHeader title="修改密码" homeHref={passwordChangeRequired ? undefined : '/'} />
         </div>
       </header>
       <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         {isLoadingUser ? (
-          <Panel><LoadingState label="正在加载账户设置" /></Panel>
+          <Panel><LoadingState label="正在加载修改密码页面" /></Panel>
         ) : (
           <Panel className="p-6">
             <div className="mb-6 flex items-center gap-3">

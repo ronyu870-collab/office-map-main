@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import OSS from 'ali-oss';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
+import { profileDefinition } from './profiles.mjs';
 
 const nameOK = (s) => typeof s === 'string' && s.length > 0 && !s.split('/').some((p) => p === '..' || p === '.') && !s.includes('\\') && !s.includes('\0');
 export function checkName(s) { if (!nameOK(s)) throw new Error('SOURCE_NAME_REJECTED'); return s; }
@@ -89,7 +90,5 @@ export function ossSource(c, { makeClient = (options) => new OSS(options) } = {}
   };
 }
 export function configuredSources(c) {
-  if (c.profile === 'database-only') return [];
-  if (c.profile !== 'full') throw new Error('INVALID_BACKUP_PROFILE');
-  return [supabaseSource(c.sources.supabase), ossSource(c.sources.oss)];
+  return profileDefinition(c.profile).sources.map((kind) => kind === 'supabase-storage' ? supabaseSource(c.sources.supabase) : ossSource(c.sources.oss));
 }

@@ -19,7 +19,10 @@
     "test:ui": "vitest --ui",
     "audit:coverage": "node scripts/check-audit-coverage.mjs",
     "check": "npm run audit:coverage && npm run typecheck && npm run lint && npm run test",
-    "verify": "npm run check && npm run build"
+    "verify": "npm run check && npm run build",
+    "sales:import": "node --experimental-strip-types scripts/sales-materials/ingest.mjs",
+    "sales:pdf-assets": "node scripts/sales-materials/pdf-assets.mjs",
+    "prebuild": "npm run sales:pdf-assets"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",
@@ -47,7 +50,8 @@
     "remark-gfm": "^4.0.1",
     "swr": "^2.4.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1105.0",

@@ -1,0 +1,8 @@
+'use client';
+import type { ProjectFact } from '@/src/lib/sales-materials/model';
+import { materialBusinessCopy as copy } from '@/src/lib/sales-materials/presentation';
+import styles from './SalesMaterials.module.css';
+export default function SalesProjectFacts({ facts, showSources = false }: {facts:ProjectFact[];showSources?:boolean}) {
+  if (!facts.length) return <p className={styles.empty}>暂无项目资料</p>;
+  return <><dl className={styles.projectFacts}>{facts.map((fact,index)=><div key={index}><dt>{copy(fact.label)}</dt><dd>{copy(fact.value)}</dd></div>)}</dl>{showSources ? <details className={styles.policyDisclosure}><summary>资料来源</summary>{facts.map((fact,index)=><p key={index}>{copy(fact.label)}：{fact.source_ref}</p>)}</details> : null}</>;
+}

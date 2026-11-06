@@ -5,11 +5,9 @@ import { ChevronDown, ChevronLeft, ChevronRight, Database, X } from 'lucide-reac
 
 import { getSessionFast } from '@/src/services/Auth';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
-import { ACTION_MODULES, type ActionModule } from '@/src/services/MapController';
+import { readBuildingPopupContext } from '@/src/services/map/buildingPopup';
 
-const NEARBY_COMPARE_HANDLER = '__colliers_analyzeCompetitors';
 const RELATED_ACTION_ID = 'related-leases';
-const RELATED_ACTION_LABEL = '关联成交';
 const PAGE_SIZE = 50;
 const CACHE_TTL_MS = 30_000;
 
@@ -43,59 +41,6 @@ type LeasePayload = {
   count: number;
   records: LeaseRow[];
 };
-
-function getInfoWindow(element: Element): HTMLElement | null {
-  return (element.closest('.amap-info-content') || element.closest('.amap-info-outer')) as HTMLElement | null;
-}
-
-function readBuildingContext(infoWindow: Element): BuildingContext | null {
-  const explicitId = infoWindow.getAttribute('data-building-id')?.trim();
-  const explicitName = infoWindow.getAttribute('data-building-name')?.trim();
-  if (explicitId) return { buildingId: explicitId, buildingName: explicitName || undefined };
-
-  const nearby = infoWindow.querySelector<HTMLButtonElement>(`button[onclick*="${NEARBY_COMPARE_HANDLER}"]`);
-  const handler = nearby?.getAttribute('onclick') || '';
-  const buildingId = handler.match(/__colliers_analyzeCompetitors\('([^']+)'/)?.[1]?.trim();
-  if (!buildingId) return null;
-
-  const buildingName = Array.from(infoWindow.querySelectorAll<HTMLElement>('[title]'))
-    .map(element => element.getAttribute('title')?.trim() || '')
-    .find(value => value && !['编辑数据', '删除', '收起筛选面板'].includes(value));
-
-  return { buildingId, buildingName: buildingName || undefined };
-}
-
-function decorateInfoWindow(root: ParentNode) {
-  root.querySelectorAll<HTMLElement>('.amap-info-content, .amap-info-outer').forEach(infoWindow => {
-    const context = readBuildingContext(infoWindow);
-    if (!context) return;
-
-    infoWindow.setAttribute('data-building-id', context.buildingId);
-    if (context.buildingName) infoWindow.setAttribute('data-building-name', context.buildingName);
-
-    let button = Array.from(infoWindow.querySelectorAll<HTMLButtonElement>('button'))
-      .find(item => item.dataset.mapAction === RELATED_ACTION_ID || item.textContent?.trim() === RELATED_ACTION_LABEL);
-
-    if (!button) {
-      const reference = Array.from(infoWindow.querySelectorAll<HTMLButtonElement>('button'))
-        .find(item => item.getAttribute('onclick')?.includes(NEARBY_COMPARE_HANDLER));
-      const container = reference?.parentElement;
-      if (!reference || !container) return;
-
-      button = reference.cloneNode(true) as HTMLButtonElement;
-      const placeholder = Array.from(container.children)
-        .find(child => child.textContent?.trim() === '最新销控');
-      if (placeholder) placeholder.replaceWith(button);
-      else container.appendChild(button);
-    }
-
-    button.removeAttribute('onclick');
-    button.dataset.mapAction = RELATED_ACTION_ID;
-    button.type = 'button';
-    button.textContent = RELATED_ACTION_LABEL;
-    button.setAttribute('aria-label', context.buildingName ? `查看${context.buildingName}关联成交` : RELATED_ACTION_LABEL);
-  });
-}
 
 function fmtNumber(value: number, maximumFractionDigits = 1) {
   return value.toLocaleString('zh-CN', { maximumFractionDigits });
@@ -190,54 +135,15 @@ export function MapLeaseTransactionsBridge() {
   const [expandedReadId, setExpandedReadId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const existingIndex = ACTION_MODULES.findIndex(module => module.id === RELATED_ACTION_ID);
-    let replaced: { index: number; module: ActionModule } | null = null;
-    let appended = false;
-
-    if (existingIndex < 0) {
-      const latestSalesIndex = ACTION_MODULES.findIndex(module => module.id === 'latest-sales');
-      const relatedModule: ActionModule = {
-        id: RELATED_ACTION_ID,
-        label: RELATED_ACTION_LABEL,
-        icon: '📋',
-        enabled: true,
-      };
-
-      if (latestSalesIndex >= 0) {
-        replaced = { index: latestSalesIndex, module: { ...ACTION_MODULES[latestSalesIndex] } };
-        ACTION_MODULES.splice(latestSalesIndex, 1, relatedModule);
-      } else {
-        ACTION_MODULES.push(relatedModule);
-        appended = true;
-      }
-    }
-
-    const decorateAll = () => decorateInfoWindow(document);
-    decorateAll();
-
-    const observer = new MutationObserver(records => {
-      for (const record of records) {
-        for (const node of record.addedNodes) {
-          if (!(node instanceof Element)) continue;
-          if (node.matches('.amap-info-content, .amap-info-outer') || node.querySelector('.amap-info-content, .amap-info-outer')) {
-            decorateInfoWindow(node.parentNode || document);
-          }
-        }
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
     const handleClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const button = target?.closest<HTMLButtonElement>(`button[data-map-action="${RELATED_ACTION_ID}"]`);
       if (!button) return;
 
+      const nextContext = readBuildingPopupContext(button);
+      if (!nextContext) return;
       event.preventDefault();
       event.stopPropagation();
-      const infoWindow = getInfoWindow(button);
-      if (!infoWindow) return;
-      const nextContext = readBuildingContext(infoWindow);
-      if (!nextContext) return;
 
       setPage(0);
       setExpandedReadId(null);
@@ -245,14 +151,7 @@ export function MapLeaseTransactionsBridge() {
     };
 
     document.addEventListener('click', handleClick, true);
-    return () => {
-      observer.disconnect();
-      document.removeEventListener('click', handleClick, true);
-
-      const relatedIndex = ACTION_MODULES.findIndex(module => module.id === RELATED_ACTION_ID);
-      if (relatedIndex >= 0 && replaced) ACTION_MODULES.splice(relatedIndex, 1, replaced.module);
-      else if (relatedIndex >= 0 && appended) ACTION_MODULES.splice(relatedIndex, 1);
-    };
+    return () => document.removeEventListener('click', handleClick, true);
   }, []);
 
   React.useEffect(() => {

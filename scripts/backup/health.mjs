@@ -10,13 +10,14 @@ import { pathToFileURL } from 'node:url';
 export async function health(c, target, { now = Date.now(), maxAgeMs = 30 * 3600_000 } = {}) {
   const keys = (await target.list(c.prefix)).filter((x) => x.Key?.endsWith('/complete.json'));
   let newest;
+  const expectedProfile = c.profile || 'supabase';
   await temporary('colliers-health-', async (dir) => {
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i].Key; const file = path.join(dir, `${i}.json`);
       await target.get(key, file);
       const marker = JSON.parse(await readFile(file, 'utf8'));
       const timestamp = Date.parse(marker.finished);
-      if (marker.format !== 1 || marker.profile !== 'full' || key !== `${marker.run}complete.json` || marker.manifest?.key !== `${marker.run}manifest.age` || !Number.isFinite(timestamp) || timestamp > now + 300_000) continue;
+      if (marker.format !== 1 || !['supabase', 'full'].includes(expectedProfile) || marker.profile !== expectedProfile || key !== `${marker.run}complete.json` || marker.manifest?.key !== `${marker.run}manifest.age` || !Number.isFinite(timestamp) || timestamp > now + 300_000) continue;
       if (!newest || timestamp > newest.timestamp) newest = { run: marker.run, timestamp };
     }
   });

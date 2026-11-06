@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {validateLibrary,libraryMetadataSQL,libraryPagesSQL} from './library-batch.mjs';
+const id='11111111-1111-4111-8111-111111111111';
+const r={id,source_sha256:'a'.repeat(64),original_name:'合成.pdf',batch_key:'synthetic',review_state:'needs_association',payload:{schema_version:1,source_sha256:'a'.repeat(64),originals:[{relative_path:'合成.pdf',original_name:'合成.pdf',size:123}],historical_context:{period_label:'历史',evidence:'合成',not_current:true},text_pages:[1],sections:[{scope:'楼座未知',candidate_building_ids:[],association_status:'unmapped',facts:[{label:'原文冲突',value:'100/110㎡未选值',source_ref:'第1页'}],commission_policies:[],notes:[],issue_ids:['synthetic'],kind:'historical_parameters'}],review:{scope:'合成',conclusion:'未确定',issue_ids:[],method:'synthetic',source_state:'ok',normalization:'none',revision:'1'}}};
+const page={extraction_id:id,page_number:1,content:{page:1,native_text:"source'); select 'escaped $verify$",ocr_layers:[{text:'1000 OCR',verified:false}]}};
+assert.equal(validateLibrary([r],[page]).length,1);
+assert.throws(()=>validateLibrary([r],[]));assert.throws(()=>validateLibrary([r,r],[page]));
+assert.throws(()=>validateLibrary([{...r,review_state:'excluded'}],[page]));
+assert.throws(()=>validateLibrary([r],[{...page,extraction_id:'22222222-2222-4222-8222-222222222222'}]));
+assert.throws(()=>validateLibrary([r],[{...page,content:{...page.content,ocr_layers:[{text:'OCR',verified:true}]}}]));
+assert.match(libraryMetadataSQL([r]),/on conflict\(source_sha256,payload_sha256\) do nothing/);
+assert.ok(libraryPagesSQL([page],'synthetic').includes("source''); select ''escaped"));
+assert.match(libraryPagesSQL([page],'synthetic'),/do \$verify_[a-f0-9]+\$/);
+console.log('PASS 9 library import checks: unassociated scope, complete evidence, excluded privacy, OCR provenance, SQL quoting.');

@@ -17,7 +17,7 @@ await temporary('colliers-backup-unit-', async (dir) => {
   const identity = path.join(dir, 'identity'); await command('age-keygen', ['-o', identity]);
   const recipient = (await command('age-keygen', ['-y', identity])).trim();
   const fixture = await s3Fixture();
-  const env = { BACKUP_PROJECT_REF: 'abcdefghijklmnopqrst', BACKUP_R2_ACCOUNT_ID: 'a'.repeat(32), BACKUP_R2_BUCKET: 'synthetic-backups', BACKUP_DATABASE_URL: 'postgres://synthetic:synthetic@127.0.0.1/postgres', BACKUP_AGE_RECIPIENT: recipient, BACKUP_R2_ACCESS_KEY_ID: 'synthetic', BACKUP_R2_SECRET_ACCESS_KEY: 'synthetic', BACKUP_TEST_S3_ENDPOINT: fixture.endpoint };
+  const env = { BACKUP_PROFILE: 'full', BACKUP_PROJECT_REF: 'abcdefghijklmnopqrst', BACKUP_R2_ACCOUNT_ID: 'a'.repeat(32), BACKUP_R2_BUCKET: 'synthetic-backups', BACKUP_DATABASE_URL: 'postgres://synthetic:synthetic@127.0.0.1/postgres', BACKUP_AGE_RECIPIENT: recipient, BACKUP_R2_ACCESS_KEY_ID: 'synthetic', BACKUP_R2_SECRET_ACCESS_KEY: 'synthetic', BACKUP_TEST_S3_ENDPOINT: fixture.endpoint };
   const c = configuration(env, { synthetic: true }); const target = store(c, { requestHandler: fixture.requestHandler });
   // Stub the database only in this transport/crypto suite. PG behavior is
   // mandatory in tests/run.mjs and CI; these assertions cannot replace it.
@@ -62,6 +62,38 @@ await temporary('colliers-backup-unit-', async (dir) => {
         assert.ok(bytes.toString().startsWith('age-encryption.org/v1'));
         assert.ok(!bytes.includes(Buffer.from('synthetic-file')));
       }
+    });
+    await test('Supabase profile requires exactly Storage, round-trips its files, and isolates freshness coverage', async () => {
+      const scoped = configuration({ ...env, BACKUP_PROFILE: undefined }, { synthetic: true });
+      assert.equal(scoped.profile, 'supabase');
+      const configured = configuredSources({ ...scoped, sources: { supabase: { url: 'https://synthetic.supabase.co', key: 'synthetic' } } });
+      assert.equal(configured.length, 1); assert.equal(configured[0].kind, 'supabase-storage');
+      await assert.rejects(backup(scoped, { target, sources: [], exportDB }), /FULL_COVERAGE_REQUIRED/);
+      await assert.rejects(backup(scoped, { target, sources, exportDB }), /FULL_COVERAGE_REQUIRED/);
+      const completed = await backup(scoped, { target, sources: [sources[0]], exportDB });
+      await temporary('colliers-supabase-', async (tmp) => {
+        const restored = await readBackup(scoped, target, completed.run, tmp, identity);
+        assert.equal(restored.files.length, 3);
+        assert.equal(restored.manifest.coverage, 'database-and-supabase-storage');
+        assert.deepEqual(restored.manifest.inventories.map(i => i.source), ['supabase-storage']);
+        assert.throws(() => validateManifest({ ...restored.manifest, inventories: [] }, scoped, completed.run), /BACKUP_MANIFEST_INVALID/);
+        assert.throws(() => validateManifest({ ...restored.manifest, coverage: 'database-only' }, scoped, completed.run), /BACKUP_MANIFEST_INVALID/);
+      });
+      assert.equal((await health(scoped, target)).run, completed.run);
+      assert.equal((await health(c, target)).run, completion.run);
+      const empty = { ...sources[0], inventory: async () => [{ kind: 'bucket', bucket: 'empty', config: { id: 'empty' } }] };
+      const emptyCompleted = await backup(scoped, { target, sources: [empty], exportDB });
+      await temporary('colliers-empty-storage-', async (tmp) => {
+        const restored = await readBackup(scoped, target, emptyCompleted.run, tmp, identity);
+        assert.equal(restored.files.length, 2);
+        assert.equal(restored.manifest.inventories[0].items[0].bucket, 'empty');
+      });
+      const later = Date.now() + 31 * 3600_000;
+      const key = `${completion.run}complete.json`; const previous = fixture.objects.get(key);
+      const legacy = JSON.parse(previous); legacy.finished = new Date(later).toISOString();
+      fixture.objects.set(key, Buffer.from(JSON.stringify(legacy)));
+      try { await assert.rejects(health(scoped, target, { now: later }), /NO_RECENT_FULL_BACKUP/); }
+      finally { fixture.objects.set(key, previous); }
     });
     await test('conditions reject duplicate key and SDK pagination returns all objects', async () => {
       const file = path.join(dir, 'duplicate'); await writeFile(file, 'synthetic');

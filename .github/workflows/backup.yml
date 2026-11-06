@@ -41,7 +41,7 @@ jobs:
           BACKUP_PROJECT_REF: qhgxougfzzmgqjzzwudf
           BACKUP_R2_ACCOUNT_ID: 4440a5c01319452ed211b43521a5bd4f
           BACKUP_R2_BUCKET: colliers-reports-data
-          BACKUP_PROFILE: full
+          BACKUP_PROFILE: supabase
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
           BACKUP_DB_ALLOWED_HOSTS: ${{ vars.BACKUP_DB_ALLOWED_HOSTS }}
           BACKUP_PG_BIN: /usr/lib/postgresql/17/bin
@@ -51,10 +51,6 @@ jobs:
           BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
           BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
           BACKUP_STORAGE_SERVICE_KEY: ${{ secrets.BACKUP_STORAGE_SERVICE_KEY }}
-          BACKUP_OSS_ACCESS_KEY_ID: ${{ secrets.BACKUP_OSS_ACCESS_KEY_ID }}
-          BACKUP_OSS_ACCESS_KEY_SECRET: ${{ secrets.BACKUP_OSS_ACCESS_KEY_SECRET }}
-          BACKUP_OSS_REGION: ${{ vars.BACKUP_OSS_REGION }}
-          BACKUP_OSS_BUCKET: ${{ vars.BACKUP_OSS_BUCKET }}
       - name: Remove trust certificate
         if: always()
         run: rm -f "$RUNNER_TEMP/backup-ca.pem"

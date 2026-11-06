@@ -21,9 +21,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Require a full completion from the last 30 hours
+      - name: Require a Supabase completion from the last 30 hours
         run: node scripts/backup/health.mjs
         env:
+          BACKUP_PROFILE: supabase
           BACKUP_PROJECT_REF: qhgxougfzzmgqjzzwudf
           BACKUP_R2_ACCOUNT_ID: 4440a5c01319452ed211b43521a5bd4f
           BACKUP_R2_BUCKET: colliers-reports-data

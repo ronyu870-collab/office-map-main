@@ -16,6 +16,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  search-focus:
+    name: Search and filter focus coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify the coverage contract
+        run: node --test scripts/verify-search-focus-gate.mjs
+      - name: Run regressions for affected entrypoints
+        run: node scripts/search-focus-gate.mjs
+        env:
+          SEARCH_FOCUS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+
   verify:
     name: Typecheck, lint, test and build
     runs-on: ubuntu-24.04
@@ -64,6 +84,12 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Archived original ingestion regression
+        run: |
+          node --experimental-strip-types scripts/sales-materials/verify-local.mjs
+          node --experimental-strip-types scripts/sales-materials/verify-data-only.mjs
+          node --experimental-strip-types scripts/sales-materials/verify-library.mjs
+
       - name: Isolated quarterly SQL regressions
         shell: bash
         run: |
@@ -95,6 +121,63 @@ jobs:
         env:
           BACKUP_TEST_PG_BIN: /usr/lib/postgresql/17/bin
 
+      - name: Real PostgreSQL historical project material regressions
+        run: |
+          node supabase/tests/project-materials/run.mjs
+          node --experimental-strip-types supabase/tests/material-library/run.mjs
+        env:
+          MATERIAL_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL audit identity regressions
+        run: node supabase/tests/audit-identity/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL 17 building photo constraints and access regressions
+        run: node supabase/tests/building-photos/run.mjs
+        env:
+          PHOTO_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Building photo transfer safety and idempotency regressions
+        run: node --test scripts/building-photos/transfer-handler.node-test.mjs
+
       - name: Production build
         run: npm run build
 
+      - name: Browser measurement calibration and anonymous production-build regression
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/performance-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/performance-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          export PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/performance-browser/node_modules/playwright-core"
+          export PERF_BROWSER_CHANNEL=chromium
+          node scripts/performance/verify-summary.mjs
+          node scripts/performance/verify-capture.mjs
+          node scripts/verification/verify-building-photos.mjs
+          node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/performance-server.log" 2>&1 &
+          performance_server_pid=$!
+          trap 'kill "$performance_server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3210/login > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
+          node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
+
+      - name: Retain isolated report verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: occupier-report-verification
+          path: verification/occupier-report
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retain isolated building photo verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: building-photo-verification
+          path: verification/building-photos
+          if-no-files-found: ignore
+          retention-days: 7

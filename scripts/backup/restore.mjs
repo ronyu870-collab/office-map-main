@@ -1,10 +1,11 @@
 import path from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import pg from 'pg';
 import { temporary, command } from './common.mjs';
 import { binary, tableEvidence, extensionEvidence } from './database.mjs';
 import { readBackup } from './pipeline.mjs';
+import { rolesForBootstrap } from './roles.mjs';
 
 // Own a fresh cluster, not just a database: globals.sql modifies cluster roles.
 // Native execution is restricted to trusted, synthetic fixtures. Production
@@ -14,7 +15,8 @@ export async function freshCluster(c, action) {
   return temporary('colliers-restore-', async (dir) => {
     const data = path.join(dir, 'pg'); const socket = path.join(dir, 's');
     await mkdir(socket, { mode: 0o700 });
-    const user = `drill_${randomBytes(8).toString('hex')}`;
+    const user = c.bootstrapRole || `drill_${randomBytes(8).toString('hex')}`;
+    if (!/^[a-z_][a-z0-9_]{0,62}$/.test(user)) throw new Error('RESTORE_BOOTSTRAP_ROLE_INVALID');
     const password = randomBytes(32).toString('hex'); const pwfile = path.join(dir, 'pw');
     await writeFile(pwfile, password, { mode: 0o600 });
     await command(binary(c, 'initdb'), ['-D', data, '-U', user, '--pwfile', pwfile, '--auth-local=scram-sha-256', '--auth-host=reject', '--encoding=UTF8', '--locale=C']);
@@ -28,7 +30,11 @@ export async function freshCluster(c, action) {
 export async function restoreFiles(c, files, cluster) {
   const roles = files.find((f) => f.kind === 'roles'); const database = files.find((f) => f.kind === 'database');
   if (!roles || !database) throw new Error('BACKUP_DATABASE_REQUIRED');
-  await command(binary(c, 'psql'), ['-X', '--no-password', '--set=ON_ERROR_STOP=1', '--file', roles.file], { env: cluster.env });
+  const bootstrap = (await cluster.client.query('select rolname from pg_roles where oid=10')).rows[0].rolname;
+  const prepared = `${roles.file}.bootstrap.sql`;
+  await writeFile(prepared, rolesForBootstrap(await readFile(roles.file, 'utf8'), bootstrap), { mode: 0o600 });
+  try { await command(binary(c, 'psql'), ['-X', '--no-password', '--set=ON_ERROR_STOP=1', '--file', prepared], { env: cluster.env }); }
+  finally { await rm(prepared, { force: true }); }
   await command(binary(c, 'pg_restore'), ['--no-password', '--exit-on-error', '--single-transaction', '--dbname=postgres', database.file], { env: cluster.env });
 }
 export async function syntheticDrill(c, target, run, identity, assertions = async () => {}) {

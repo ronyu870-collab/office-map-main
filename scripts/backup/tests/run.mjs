@@ -3,10 +3,10 @@ import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { configuration } from '../config.mjs';
 import { command, temporary, safeCode, digest } from '../common.mjs';
-import { tableEvidence } from '../database.mjs';
+import { tableEvidence, exportDatabase } from '../database.mjs';
 import { store, verifyPrivateTarget } from '../r2.mjs';
 import { backup, readBackup, checkedDownload, encrypt } from '../pipeline.mjs';
-import { freshCluster, syntheticDrill } from '../restore.mjs';
+import { freshCluster, syntheticDrill, restoreFiles } from '../restore.mjs';
 import { configuredSources, checkName, sameInventory } from '../sources.mjs';
 import { s3Fixture } from './s3-fixture.mjs';
 import { roleBoundary } from './role-boundary.mjs';
@@ -20,7 +20,7 @@ await temporary('colliers-test-', async (dir) => {
   const recipient = (await command('age-keygen', ['-y', identity])).trim();
   const fixture = await s3Fixture();
   const env = {
-    BACKUP_PROJECT_REF: 'abcdefghijklmnopqrst', BACKUP_R2_ACCOUNT_ID: 'a'.repeat(32), BACKUP_R2_BUCKET: 'synthetic-backups',
+    BACKUP_PROFILE: 'full', BACKUP_PROJECT_REF: 'abcdefghijklmnopqrst', BACKUP_R2_ACCOUNT_ID: 'a'.repeat(32), BACKUP_R2_BUCKET: 'synthetic-backups',
     BACKUP_DATABASE_URL: 'postgres://fixture:synthetic@127.0.0.1:5432/postgres', BACKUP_AGE_RECIPIENT: recipient,
     BACKUP_R2_ACCESS_KEY_ID: 'synthetic-only', BACKUP_R2_SECRET_ACCESS_KEY: 'synthetic-secret',
     BACKUP_TEST_S3_ENDPOINT: fixture.endpoint, BACKUP_PG_BIN: pgBin,
@@ -53,6 +53,22 @@ await temporary('colliers-test-', async (dir) => {
       fixture.corruptGet();
       await assert.rejects(checkedDownload(remote, `${c.prefix}fixture-0`, path.join(dir, 'corrupt'), await digest(file)), /BACKUP_HASH_MISMATCH/);
     });
+    await test('matching bootstrap role restores original ADMIN/INHERIT/SET grant provenance', async () => {
+      const matched = { ...c, bootstrapRole: 'synthetic_bootstrap' };
+      await freshCluster(matched, async (source) => {
+        await source.client.query('create role synthetic_member; create role synthetic_reader; grant synthetic_reader to synthetic_member with inherit false, set true;');
+        await temporary('colliers-bootstrap-', async (tmp) => {
+          const sourceConfig = { ...matched, pg: { host: source.socket, port: 5432, user: source.user, password: source.password, database: 'postgres' } };
+          const archive = await exportDatabase(sourceConfig, tmp);
+          assert.equal(archive.bootstrapRole, 'synthetic_bootstrap');
+          await freshCluster(matched, async (restored) => {
+            await restoreFiles(matched, archive.files, restored);
+            const result = (await restored.client.query("select g.rolname grantor,m.admin_option,m.inherit_option,m.set_option from pg_auth_members m join pg_roles g on g.oid=m.grantor join pg_roles r on r.oid=m.roleid join pg_roles member on member.oid=m.member where r.rolname='synthetic_reader' and member.rolname='synthetic_member'")).rows;
+            assert.deepEqual(result, [{ grantor: 'synthetic_bootstrap', admin_option: false, inherit_option: false, set_option: true }]);
+          });
+        });
+      });
+    });
     await freshCluster(c, async (source) => {
       // The export client uses a private socket too; c.synthetic alone does not
       // allow a production host. No fixture or key is written to the repo.
@@ -78,6 +94,16 @@ await temporary('colliers-test-', async (dir) => {
         inventory: async () => [{ kind: 'object', bucket: 'synthetic', name: `${kind}/中文 空格.txt`, etag: 'synthetic', size: 14 }],
         download: async (_o, file) => writeFile(file, 'synthetic-file', { flag: 'wx', mode: 0o600 }),
       }));
+      await test('Supabase-only PG17 export and restore covers Storage without OSS credentials', async () => {
+        const scoped = { ...sourceConfig, profile: 'supabase' };
+        const completed = await backup(scoped, { target: remote, sources: [sources[0]] });
+        const drill = await syntheticDrill(scoped, remote, completed.run, identity, async (client, files) => {
+          assert.equal(files.filter(f => f.kind === 'object').length, 1);
+          assert.equal(files.find(f => f.kind === 'object').source, 'supabase-storage');
+          assert.equal((await client.query('select count(*)::int n from public.deals')).rows[0].n, 2);
+        });
+        assert.equal(drill.verifiedObjects, 1);
+      });
       let completed;
       await test('PG17 snapshot → age → actual SDK upload/readback completes without changing source', async () => {
         await source.client.query('begin'); const before = await tableEvidence(source.client); await source.client.query('commit');

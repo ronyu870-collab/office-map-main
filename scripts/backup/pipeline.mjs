@@ -6,6 +6,7 @@ import { exportDatabase } from './database.mjs';
 import { store, verifyPrivateTarget, writeCompletion } from './r2.mjs';
 import { configuredSources, sameInventory } from './sources.mjs';
 import { validateManifest, validDigest } from './manifest.mjs';
+import { profileDefinition } from './profiles.mjs';
 
 export async function encrypt(c, input, output) {
   await command(c.ageBin, ['--encrypt', '--recipient', c.recipient, '--output', output, input]);
@@ -21,7 +22,8 @@ export async function checkedDownload(target, key, file, expected) {
 export async function backup(c, { target, sources, exportDB = exportDatabase } = {}) {
   // Preflight all required sources and target before opening the database.
   const adapters = sources ?? configuredSources(c);
-  if (c.profile === 'full' && (adapters.length !== 2 || !['supabase-storage', 'ali-oss'].every((k) => adapters.some((s) => s.kind === k)))) throw new Error('FULL_COVERAGE_REQUIRED');
+  const profile = profileDefinition(c.profile);
+  if (adapters.length !== profile.sources.length || !profile.sources.every((k) => adapters.some((s) => s.kind === k))) throw new Error('FULL_COVERAGE_REQUIRED');
   await verifyPrivateTarget(c);
   const remote = target ?? store(c);
   const started = new Date().toISOString();
@@ -53,10 +55,10 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
       }
       const manifest = {
         format: 1, project: c.project, run, started, captured: new Date().toISOString(), profile: c.profile,
-        coverage: c.profile === 'full' ? 'database-and-current-objects' : 'database-only',
+        coverage: profile.coverage,
         recoveryReady: false, restoreDrill: 'not-yet-performed',
         limitations: ['Database and object services are not an atomic application snapshot.', 'Object version history, platform secrets/settings and Vault root key are not included.'],
-        prerequisites: db.prerequisites, evidence: db.evidence, schemas: db.schemas, serverVersion: db.version, extensions: db.extensions ?? [],
+        prerequisites: db.prerequisites, bootstrapRole: db.bootstrapRole, evidence: db.evidence, schemas: db.schemas, serverVersion: db.version, extensions: db.extensions ?? [],
         inventories: adapters.map((a, i) => ({ source: a.kind, descriptor: a.descriptor, items: inventory[i] })), entries,
       };
       const manifestFile = path.join(dir, 'manifest.json'); const encryptedManifest = path.join(dir, 'manifest.age');
