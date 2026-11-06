@@ -23,6 +23,7 @@ beforeEach(() => {
         { id: 'future-row', building_id: building },
         { id: 'unlinked-future-row', building_id: null },
         { id: 'pending-future-row', building_id: building, status: 'pending' },
+        { id: 'entered-future-row', building_id: building, status: 'pending', is_entered_market: true },
       ]
       : [{ id: building, name: '楼宇' }, { id: 'without-photos', name: '暂无图片' }];
     chain.then = (resolve: (value: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve);
@@ -56,6 +57,10 @@ describe('photo summaries in authenticated map data', () => {
       expect.objectContaining({ id: 'unlinked-future-row', photos: [] }),
       expect.objectContaining({ id: 'pending-future-row', status: 'pending', photos: [photo] }),
     ]);
+  });
+  it('never returns supplies that already entered the market, even when pending rows are requested', async () => {
+    const body = await (await GET(new NextRequest('https://synthetic.invalid/api/map/data?mode=future&include_pending=1'))).json();
+    expect(body.future_supplies.map((row: { id: string }) => row.id)).not.toContain('entered-future-row');
   });
   it('does not query photo summaries for an anonymous caller or an unknown role', async () => {
     mocks.identity.mockResolvedValueOnce({ response: NextResponse.json({}, { status: 401 }) });

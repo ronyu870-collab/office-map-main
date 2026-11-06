@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { resolveBuildingId } from '@/src/services/buildingIdentity';
-import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { isEnteredFutureSupply, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { readBuildingPhotoCatalog } from '@/src/lib/building-photos/catalog';
 
 export const dynamic = 'force-dynamic';
@@ -162,7 +162,10 @@ export async function GET(request: NextRequest) {
         console.error('[api/map/data] future supplies query failed:', error);
         return noStoreJson({ error: '未来供应读取失败' }, { status: 500 });
       }
-      const authorized = filterRowsForRole(data as Row[] | null, role);
+      const authorized = filterRowsForRole(data as Row[] | null, role)
+        // Entered projects remain here for history but the stock list now owns them,
+        // so showing them again would draw a second marker on the same building.
+        .filter(supply => !isEnteredFutureSupply(supply));
       // Older open maps classify every unknown grade as office in the calendar.
       const visibleSupplies = params.get('include_pending') === '1'
         ? authorized
