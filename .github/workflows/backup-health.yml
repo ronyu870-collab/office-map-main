@@ -1,0 +1,37 @@
+name: Backup freshness check
+
+on:
+  schedule:
+    - cron: '15 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freshness:
+    if: github.ref == 'refs/heads/main' && vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: production-backup-health
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scripts/backup/package-lock.json
+      - run: npm ci --prefix scripts/backup --ignore-scripts --no-audit --no-fund
+      - name: Require a Supabase completion from the last 30 hours
+        run: node scripts/backup/health.mjs
+        env:
+          BACKUP_PROFILE: supabase
+          BACKUP_PROJECT_REF: qhgxougfzzmgqjzzwudf
+          BACKUP_R2_ACCOUNT_ID: 4440a5c01319452ed211b43521a5bd4f
+          BACKUP_R2_BUCKET: colliers-reports-data
+          BACKUP_CF_CONFIG_READ_TOKEN: ${{ secrets.BACKUP_CF_CONFIG_READ_TOKEN }}
+          BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_HEALTH_R2_ACCESS_KEY_ID }}
+          BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_HEALTH_R2_SECRET_ACCESS_KEY }}
+      - name: Record unhealthy state
+        if: failure()
+        run: echo 'No recent full backup completion could be verified. Follow the backup runbook; do not restore production automatically.' >> "$GITHUB_STEP_SUMMARY"

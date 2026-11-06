@@ -111,6 +111,19 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Install isolated backup dependencies
+        run: npm ci --prefix scripts/backup --ignore-scripts --no-audit --no-fund
+
+      - name: Install isolated backup regression tools
+        run: bash scripts/backup/install-ci-tools.sh server
+
+      - name: Encrypted backup and fresh PostgreSQL 17 restore regressions
+        run: |
+          npm --prefix scripts/backup run test:unit
+          npm --prefix scripts/backup run test:postgres
+        env:
+          BACKUP_TEST_PG_BIN: /usr/lib/postgresql/17/bin
+
       - name: Real PostgreSQL historical project material regressions
         run: |
           node supabase/tests/project-materials/run.mjs

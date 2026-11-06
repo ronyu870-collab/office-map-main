@@ -1,0 +1,60 @@
+name: Encrypted backup to R2
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-r2-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.ref == 'refs/heads/main' && vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: production-backup
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scripts/backup/package-lock.json
+      - name: Install pinned Node dependencies
+        run: npm ci --prefix scripts/backup --ignore-scripts --no-audit --no-fund
+      - name: Install PostgreSQL 17 client and age
+        run: bash scripts/backup/install-ci-tools.sh
+      - name: Prepare database trust certificate
+        env:
+          BACKUP_PG_CA_PEM: ${{ secrets.BACKUP_PG_CA_PEM }}
+        shell: bash
+        run: |
+          umask 077
+          printf '%s' "$BACKUP_PG_CA_PEM" > "$RUNNER_TEMP/backup-ca.pem"
+      - name: Create, encrypt and verify new backup
+        run: npm --prefix scripts/backup run create
+        env:
+          BACKUP_PROJECT_REF: qhgxougfzzmgqjzzwudf
+          BACKUP_R2_ACCOUNT_ID: 4440a5c01319452ed211b43521a5bd4f
+          BACKUP_R2_BUCKET: colliers-reports-data
+          BACKUP_PROFILE: supabase
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_DB_ALLOWED_HOSTS: ${{ vars.BACKUP_DB_ALLOWED_HOSTS }}
+          BACKUP_PG_BIN: /usr/lib/postgresql/17/bin
+          BACKUP_PG_CA_FILE: ${{ runner.temp }}/backup-ca.pem
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          BACKUP_CF_CONFIG_READ_TOKEN: ${{ secrets.BACKUP_CF_CONFIG_READ_TOKEN }}
+          BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+          BACKUP_STORAGE_SERVICE_KEY: ${{ secrets.BACKUP_STORAGE_SERVICE_KEY }}
+      - name: Remove trust certificate
+        if: always()
+        run: rm -f "$RUNNER_TEMP/backup-ca.pem"
+      - name: Record failure without business data
+        if: failure()
+        run: echo 'Backup failed. No recovery readiness has been established. Check the sanitized stage/code and operator runbook.' >> "$GITHUB_STEP_SUMMARY"
