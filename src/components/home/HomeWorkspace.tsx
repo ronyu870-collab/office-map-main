@@ -27,6 +27,7 @@ import { useAppSession } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
+import { canSeeOccupierReportCard } from '@/src/config/occupierReportCard';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
@@ -43,6 +44,8 @@ type WorkspaceModule = {
   module: string;
   title: string;
   badge?: string;
+  /** 首页入口的可见范围；缺省表示所有合法角色都能看到。 */
+  homeVisibility?: 'occupier-report';
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -83,6 +86,7 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     href: '/occupier-insights',
     module: 'occupier-insights',
     title: '企业选址洞察报告',
+    homeVisibility: 'occupier-report',
     icon: FileText,
     badge: '专题',
   },
@@ -367,6 +371,11 @@ export function HomeWorkspace() {
     impersonationActive: isImpersonating,
   });
   const canSeeIntelligence = isIntelligencePreviewEnabled(activeRole);
+  // 报告链接保持公开；只决定首页是否出现入口板块，不允许名单内的用户看不到卡片。
+  const visibleBusinessWorkspaces = BUSINESS_WORKSPACES.filter(workspace =>
+    workspace.homeVisibility !== 'occupier-report'
+    || canSeeOccupierReportCard(activeRole, activeSession.user.email),
+  );
 
   async function handleLogout() {
     try {
@@ -456,7 +465,7 @@ export function HomeWorkspace() {
               <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
             </div>
             <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-              {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
+              {visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
             </div>
           </section>
 
