@@ -20,7 +20,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci --ignore-scripts --no-audit --no-fund
+          cache-dependency-path: scripts/backup/package-lock.json
+      - run: npm ci --prefix scripts/backup --ignore-scripts --no-audit --no-fund
       - name: Require a Supabase completion from the last 30 hours
         run: node scripts/backup/health.mjs
         env:

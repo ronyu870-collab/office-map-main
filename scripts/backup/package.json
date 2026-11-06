@@ -1,0 +1,21 @@
+{
+  "name": "colliers-backup",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test:unit": "node tests/unit.mjs",
+    "test:postgres": "node tests/run.mjs",
+    "create": "node cli.mjs create",
+    "inspect": "node inspect.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1105.0",
+    "@supabase/supabase-js": "2.111.0",
+    "ali-oss": "6.23.0",
+    "pg": "8.20.0"
+  }
+}

@@ -47,11 +47,11 @@ PostgreSQL17要求GRANTED BY指定grantor有ADMIN OPTION，bootstrap超级角色
 
 ## 执行与验证
 
-- npm run backup:create：创建加密归档，无生产恢复或删除命令，不上传明文Actions artifact。
-- npm run backup:inspect -- '<完整run前缀>'：以只读R2及BACKUP_IDENTITY_FILE下载、解密、校验后清理，不执行SQL。
+- npm --prefix scripts/backup run create：创建加密归档，无生产恢复或删除命令，不上传明文Actions artifact。
+- npm --prefix scripts/backup run inspect -- '<完整run前缀>'：以只读R2及BACKUP_IDENTITY_FILE下载、解密、校验后清理，不执行SQL。
 - node scripts/backup/health.mjs：默认要求30小时内supabase完成标记，不能证明可恢复。
-- npm run test:backup:unit：真实age／SDK协议、范围、加密、完整性、分页、覆盖保护及健康检查；云传输为替身。
-- BACKUP_TEST_PG_BIN=<PG17目录> npm run test:backup：一次性真实PG17导出／恢复、授权来源、RLS、触发器、审计和错误保护；全部合成数据，原生恢复入口拒绝生产配置。
+- npm --prefix scripts/backup run test:unit：真实age／SDK协议、范围、加密、完整性、分页、覆盖保护及健康检查；云传输为替身。
+- BACKUP_TEST_PG_BIN=<PG17目录> npm --prefix scripts/backup run test:postgres：一次性真实PG17导出／恢复、授权来源、RLS、触发器、审计和错误保护；全部合成数据，原生恢复入口拒绝生产配置。
 
 ## 调度与恢复边界
 
@@ -62,3 +62,5 @@ PostgreSQL17要求GRANTED BY指定grantor有ADMIN OPTION，bootstrap超级角色
 临时明文权限0600、目录0700，结束清理；强制终止或掉电不保证安全擦除，依赖受保护磁盘及一次性runner。数据库和Storage没有跨服务原子快照，前后清单不能保证任意并发下的应用时间点一致性。平台OAuth／SMTP／JWT／API密钥、角色密码、外部设置、对象版本历史及Vault根密钥需要单独保护；当前Vault0行，未来密文须另证可解密。本次不接入其他云文件源。
 
 官方依据：[pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html)、[GRANT](https://www.postgresql.org/docs/17/sql-grant.html)、[Supabase备份](https://supabase.com/docs/guides/platform/backups)、[恢复依赖](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、[R2兼容](https://developers.cloudflare.com/r2/api/s3/api/)、[Bucket Lock](https://developers.cloudflare.com/r2/buckets/bucket-locks/)。
+
+备份依赖独立锁定在scripts/backup/package.json及package-lock.json；安装使用npm ci --prefix scripts/backup --ignore-scripts，不修改网页应用的依赖或脚本。CI与定时备份使用同一独立运行环境。

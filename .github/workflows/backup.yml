@@ -24,8 +24,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: scripts/backup/package-lock.json
       - name: Install pinned Node dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
+        run: npm ci --prefix scripts/backup --ignore-scripts --no-audit --no-fund
       - name: Install PostgreSQL 17 client and age
         run: bash scripts/backup/install-ci-tools.sh
       - name: Prepare database trust certificate
@@ -36,7 +37,7 @@ jobs:
           umask 077
           printf '%s' "$BACKUP_PG_CA_PEM" > "$RUNNER_TEMP/backup-ca.pem"
       - name: Create, encrypt and verify new backup
-        run: npm run backup:create
+        run: npm --prefix scripts/backup run create
         env:
           BACKUP_PROJECT_REF: qhgxougfzzmgqjzzwudf
           BACKUP_R2_ACCOUNT_ID: 4440a5c01319452ed211b43521a5bd4f
