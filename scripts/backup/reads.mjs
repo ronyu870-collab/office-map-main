@@ -13,12 +13,12 @@ function transient(error, seen = new Set()) {
 }
 // Only repeat read operations. Permission, integrity and local disk errors must
 // fail immediately; create-only writes are never retried here.
-export async function retryRead(action) {
+export async function retryRead(action, stage = 'source-read') {
   for (let attempt = 0; ; attempt++) {
     try { return await action(); }
     catch (error) {
       if (attempt === 2 || !transient(error)) throw error;
-      console.error(JSON.stringify({ stage: 'source-read', code: 'TRANSIENT_READ_RETRY', attempt: attempt + 2, maxAttempts: 3 }));
+      console.error(JSON.stringify({ stage: stage === 'r2-read' ? 'r2-read' : 'source-read', code: 'TRANSIENT_READ_RETRY', attempt: attempt + 2, maxAttempts: 3 }));
       await pause([250, 1000][attempt]);
     }
   }

@@ -7,6 +7,7 @@ import { store, verifyPrivateTarget, writeCompletion } from './r2.mjs';
 import { configuredSources, sameInventory } from './sources.mjs';
 import { validateManifest, validDigest } from './manifest.mjs';
 import { profileDefinition } from './profiles.mjs';
+import { stageFailure } from './diagnostics.mjs';
 
 export async function encrypt(c, input, output) {
   await command(c.ageBin, ['--encrypt', '--recipient', c.recipient, '--output', output, input]);
@@ -28,18 +29,24 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
   const remote = target ?? store(c);
   const started = new Date().toISOString();
   const run = `${c.prefix}${started.replaceAll(/[:.]/g, '-')}-${randomUUID()}/`;
+  let stage = 'source-inventory';
   try {
     return await temporary('colliers-backup-', async (dir) => {
       const inventory = await Promise.all(adapters.map((a) => a.inventory()));
+      stage = 'database-export';
       const db = await exportDB(c, dir);
       const entries = [];
       const upload = async (file, metadata) => {
         const id = randomUUID(); const encrypted = path.join(dir, `${id}.age`);
-        const plain = await digest(file);
+        stage = 'local-file'; const plain = await digest(file);
+        stage = 'encrypt';
         await encrypt(c, file, encrypted);
+        stage = 'r2-upload';
         const key = `${run}${id}.age`; const cipher = await remote.put(key, encrypted);
         const verification = path.join(dir, `${id}.readback`);
+        stage = 'r2-readback';
         await checkedDownload(remote, key, verification, cipher);
+        stage = 'local-cleanup';
         await rm(verification); await rm(encrypted); await rm(file);
         entries.push({ ...metadata, key, plain, cipher });
       };
@@ -47,12 +54,15 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
       for (let i = 0; i < adapters.length; i++) {
         for (const object of inventory[i].filter((x) => x.kind === 'object')) {
           const file = path.join(dir, `${randomUUID()}.source`);
+          stage = 'source-download';
           await adapters[i].download(object, file);
+          stage = 'source-size';
           const expectedSize = object.size ?? object.metadata?.size;
           if (Number.isFinite(expectedSize) && (await digest(file)).bytes !== expectedSize) throw new Error('SOURCE_SIZE_MISMATCH');
           await upload(file, { kind: 'object', source: adapters[i].kind, object });
         }
-        sameInventory(inventory[i], await adapters[i].inventory());
+        stage = 'source-inventory'; const after = await adapters[i].inventory();
+        stage = 'source-consistency'; sameInventory(inventory[i], after);
       }
       const manifest = {
         format: 1, project: c.project, run, started, captured: new Date().toISOString(), profile: c.profile,
@@ -63,17 +73,20 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
         inventories: adapters.map((a, i) => ({ source: a.kind, descriptor: a.descriptor, items: inventory[i] })), entries,
       };
       const manifestFile = path.join(dir, 'manifest.json'); const encryptedManifest = path.join(dir, 'manifest.age');
-      validateManifest(manifest, c, run);
+      stage = 'manifest'; validateManifest(manifest, c, run);
       await writeFile(manifestFile, JSON.stringify(manifest), { mode: 0o600 });
-      await encrypt(c, manifestFile, encryptedManifest);
+      stage = 'encrypt'; await encrypt(c, manifestFile, encryptedManifest);
+      stage = 'manifest-upload';
       const manifestKey = `${run}manifest.age`; const cipher = await remote.put(manifestKey, encryptedManifest);
+      stage = 'manifest-readback';
       await checkedDownload(remote, manifestKey, path.join(dir, 'manifest.readback'), cipher);
       // This marker certifies storage integrity only, never tested restorability.
       const completion = { format: 1, run, finished: new Date().toISOString(), profile: c.profile, recoveryReady: false, manifest: { key: manifestKey, ...cipher } };
-      await writeCompletion(remote, `${run}complete.json`, completion, path.join(dir, 'complete.json'));
+      stage = 'completion-upload'; await writeCompletion(remote, `${run}complete.json`, completion, path.join(dir, 'complete.json'));
       return completion;
     });
-  } finally { if (!target) remote.close(); }
+  } catch (error) { throw stageFailure(error, stage); }
+  finally { if (!target) remote.close(); }
 }
 export async function readBackup(c, remote, run, dir, identity) {
   if (!run.startsWith(c.prefix) || !/^backups\/[a-z0-9]{20}\/[0-9TZ-]+-[a-f0-9-]{36}\/$/.test(run)) throw new Error('BACKUP_RUN_REJECTED');
