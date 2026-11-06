@@ -20,7 +20,7 @@
 
 `function-baseline.json` 与 `security-baseline.json` 是目标的13个相关函数定义／ACL元数据，不含业务行、用户身份或凭据；测试会核对历史迁移加载的反馈／审计函数正文与盘点一致，缺失依赖使用合成结构。它们不是全库恢复副本。主版本 PG17、PostgREST16.5；生产网关版本与真实用户会话仍未由此证明。
 
-`npm run test:db:backup-permissions` 复用 localhost-only PG17 专用临时数据库入口，要求CI或 `LEASE_TEST_ALLOW_LOCAL=disposable` 与专用 `LEASE_TEST_PG_PORT`。结束删除合成数据库与临时角色；不接受生产 URL 或 ambient PG 凭据。实际 PostgREST 必需，从 `POSTGREST_PATH` 或 PATH 加载，没有跳过开关。
+`node supabase/tests/backup-permissions/run.mjs` 复用 localhost-only PG17 专用临时数据库入口，要求CI或 `LEASE_TEST_ALLOW_LOCAL=disposable` 与专用 `LEASE_TEST_PG_PORT`。结束删除合成数据库与临时角色；不接受生产 URL 或 ambient PG 凭据。实际 PostgREST 必需，从 `POSTGREST_PATH` 或 PATH 加载，没有跳过开关。
 
 16组执行回归覆盖：原错误真实复现；正文漂移／业务授权缺失时整笔回滚；迁移前后业务行、函数正文／owner、表权限／RLS和触发器不变；九项PUBLIC撤销且明确授权不变；真实原生备份身份无法调用、提权、直接写或绑定高权限触发器；完整读取保持；普通用户已读、其他人／匿名拒绝、管理员回复／解决、原用户重开、嵌套函数和三类反馈触发器；失败数据保持；注册资料、草稿和成交审计；重复应用；真实Supabase SDK→JWT验证→PostgREST→PG的回复／已读／重开／回读及越权／错误JWT拒绝。
 
@@ -33,3 +33,7 @@ Verify 已接入本命令。Linux网关来自官方固定v16.5发布资产，先
 若确需回退，先停用新增备份身份登录并停止使用其凭据，按权限前像仅恢复本批九项PUBLIC EXECUTE；不重置业务密码、不覆盖业务行、不删除审计或触发器。回退会恢复已知间接写入边界，只作紧急兼容撤回，不是日常备份方案。不能在备份凭据仍可使用时先恢复PUBLIC授权。
 
 生产备份／恢复、GitHub启用和密钥配置均为后续独立步骤；真实归档须在匹配扩展、无生产写入通道的环境恢复，最终由用户确认上线。
+
+2026-11-06：用户已明确授权实际生产ACL修复，9项PUBLIC EXECUTE撤销已执行并核验；函数正文与明确角色授权不变。该事实不代表PR已合并或迁移历史已记录，定时备份仍关闭。此次同步main保留全部必需CI，直接Node入口避免改变网页根脚本。
+
+最新主线合并后，16组真实PG17及SDK／PostgREST执行回归再次通过；生产业务行未参与该合成测试。完整verify与精确CI结果在本轮交付记录中分别保留。

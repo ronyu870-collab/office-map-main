@@ -56,9 +56,9 @@ vi.mock('@/src/utils/audit', () => ({
 
 import { HomeWorkspace } from '@/src/components/home/HomeWorkspace';
 
-function setSession(role: 'viewer' | 'editor' | 'admin') {
+function setSession(role: 'viewer' | 'editor' | 'admin', email = `${role}@colliers.com`) {
   state.session = {
-    user: { email: `${role}@colliers.com` },
+    user: { email },
     role,
     displayName: `${role} user`,
   };
@@ -84,7 +84,7 @@ describe('Home workspace behavior', () => {
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
 
     const menu = await screen.findByRole('menu', { name: '账户操作' });
-    const settings = screen.getByRole('menuitem', { name: '设置' });
+    const settings = screen.getByRole('menuitem', { name: '修改密码' });
     const admin = screen.getByRole('menuitem', { name: '系统管理' });
 
     await waitFor(() => expect(settings).toHaveFocus());
@@ -108,6 +108,36 @@ describe('Home workspace behavior', () => {
       'ACCESS_DENIED',
       expect.anything(),
     );
+  });
+
+  it('hides the occupier report card from users outside its audience', () => {
+    setSession('viewer');
+    render(<HomeWorkspace />);
+
+    expect(screen.queryByRole('link', { name: '企业选址洞察报告' })).not.toBeInTheDocument();
+    const lease = screen.getByRole('link', { name: '租赁成交填报' });
+    expect(Array.from(lease.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
+      '/update', '/lease-submission', '/oss',
+    ]);
+  });
+
+  it('shows the occupier report card to the named report owner', () => {
+    setSession('editor', 'tony.yan@colliers.com');
+    render(<HomeWorkspace />);
+
+    const report = screen.getByRole('link', { name: '企业选址洞察报告' });
+    expect(Array.from(report.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
+      '/update', '/lease-submission', '/oss', '/occupier-insights',
+    ]);
+    expect(report).toHaveTextContent('专题');
+    expect(report).toHaveAttribute('href', '/occupier-insights');
+    expect(fireEvent.click(report)).toBe(true);
+  });
+
+  it('shows the occupier report card to administrators', () => {
+    render(<HomeWorkspace />);
+
+    expect(screen.getByRole('link', { name: '企业选址洞察报告' })).toHaveAttribute('href', '/occupier-insights');
   });
 
   it('does not expose the admin entry while impersonating', () => {

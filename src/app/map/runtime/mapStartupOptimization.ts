@@ -3,6 +3,7 @@
 import type { MapController } from '@/src/services/MapController';
 import { fetchMapBuildingPayload } from '@/src/services/mapDataClient';
 import type { BuildingMetric, BuildingWithMetrics } from '@/src/types';
+import { photoSummaries } from '@/src/lib/building-photos/model';
 
 type DisplayOverride = {
   display_label: string;
@@ -75,6 +76,7 @@ function transformBuildingRow(row: Record<string, unknown>): BuildingWithMetrics
     owner: row.owner ? String(row.owner) : undefined,
     property_management: row.property_management ? String(row.property_management) : undefined,
     contact_phone: row.contact_phone ? String(row.contact_phone) : undefined,
+    photos: photoSummaries(row.photos),
     metrics,
   };
 }

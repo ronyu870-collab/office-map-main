@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { BUILDING_POPUP, readBuildingPopupContext } from '@/src/services/map/buildingPopup';
 
 import {
   addProposalCandidate,
@@ -10,27 +11,7 @@ import {
   readProposalDraft,
 } from '@/src/lib/intelligence/proposalDraft';
 
-const NEARBY_COMPARE_HANDLER = '__colliers_analyzeCompetitors';
 const ACTION_ID = 'proposal-add';
-
-type BuildingContext = { buildingId: string; buildingName?: string };
-
-function readBuildingContext(infoWindow: Element): BuildingContext | null {
-  const explicitId = infoWindow.getAttribute('data-building-id')?.trim();
-  const explicitName = infoWindow.getAttribute('data-building-name')?.trim();
-  if (explicitId) return { buildingId: explicitId, buildingName: explicitName || undefined };
-
-  const nearby = infoWindow.querySelector<HTMLButtonElement>(`button[onclick*="${NEARBY_COMPARE_HANDLER}"]`);
-  const handler = nearby?.getAttribute('onclick') || '';
-  const idMatch = handler.match(/__colliers_analyzeCompetitors\('([^']+)'/);
-  const buildingId = idMatch?.[1]?.trim();
-  if (!buildingId) return null;
-
-  const buildingName = Array.from(infoWindow.querySelectorAll<HTMLElement>('[title]'))
-    .map(element => element.getAttribute('title')?.trim() || '')
-    .find(value => value && !['编辑数据', '删除', '收起筛选面板'].includes(value));
-  return { buildingId, buildingName: buildingName || undefined };
-}
 
 function proposalButtonState(buildingId: string) {
   const draft = readProposalDraft();
@@ -40,24 +21,20 @@ function proposalButtonState(buildingId: string) {
 }
 
 function decorateProposalActions(root: ParentNode) {
-  root.querySelectorAll<HTMLElement>('.amap-info-content, .amap-info-outer').forEach(infoWindow => {
-    const context = readBuildingContext(infoWindow);
-    if (!context) return;
+  const windows = [...root.querySelectorAll<HTMLElement>(BUILDING_POPUP)];
+  if (root instanceof HTMLElement && root.matches(BUILDING_POPUP)) windows.unshift(root);
+  for (const popup of windows) {
+    const context = readBuildingPopupContext(popup);
+    const slot = popup.querySelector<HTMLElement>('[data-map-proposal-slot]');
+    if (!context || !slot) continue;
 
-    infoWindow.setAttribute('data-building-id', context.buildingId);
-    if (context.buildingName) infoWindow.setAttribute('data-building-name', context.buildingName);
-
-    let button = infoWindow.querySelector<HTMLButtonElement>(`button[data-map-action="${ACTION_ID}"]`);
+    let button = slot.querySelector<HTMLButtonElement>('button');
     if (!button) {
-      const reference = Array.from(infoWindow.querySelectorAll<HTMLButtonElement>('button'))
-        .find(item => ['楼宇对比', '周边项目对比'].includes(item.textContent?.trim() || ''));
-      const container = reference?.parentElement;
-      if (!reference || !container) return;
-      button = reference.cloneNode(true) as HTMLButtonElement;
-      button.removeAttribute('onclick');
+      button = document.createElement('button');
+      button.className = 'building-popup__action';
       button.dataset.mapAction = ACTION_ID;
       button.type = 'button';
-      container.appendChild(button);
+      slot.append(button);
     }
 
     const state = proposalButtonState(context.buildingId);
@@ -67,10 +44,9 @@ function decorateProposalActions(root: ParentNode) {
       : state.full
         ? `方案已满 ${state.count}/${MAX_PROPOSAL_CANDIDATES}`
         : '＋ 加入客户方案';
-    button.setAttribute('aria-label', state.selected ? '已加入客户方案' : '加入客户方案');
-    button.style.opacity = button.disabled ? '0.58' : '1';
-    button.style.cursor = button.disabled ? 'default' : 'pointer';
-  });
+    button.setAttribute('aria-label', state.selected ? '已加入客户方案' : state.full ? button.textContent : '加入客户方案');
+    slot.hidden = false;
+  }
 }
 
 export function MapProposalBridge({ enabled }: { enabled: boolean }) {
@@ -87,9 +63,7 @@ export function MapProposalBridge({ enabled }: { enabled: boolean }) {
       for (const record of records) {
         for (const node of record.addedNodes) {
           if (!(node instanceof Element)) continue;
-          if (node.matches('.amap-info-content, .amap-info-outer') || node.querySelector('.amap-info-content, .amap-info-outer')) {
-            decorateProposalActions(node.parentNode || document);
-          }
+          if (node.matches(BUILDING_POPUP) || node.querySelector(BUILDING_POPUP)) decorateProposalActions(node);
         }
       }
     });
@@ -99,12 +73,10 @@ export function MapProposalBridge({ enabled }: { enabled: boolean }) {
       const target = event.target instanceof Element ? event.target : null;
       const button = target?.closest<HTMLButtonElement>(`button[data-map-action="${ACTION_ID}"]`);
       if (!button || button.disabled) return;
+      const context = readBuildingPopupContext(button);
+      if (!context) return;
       event.preventDefault();
       event.stopPropagation();
-      const infoWindow = button.closest('.amap-info-content, .amap-info-outer');
-      if (!infoWindow) return;
-      const context = readBuildingContext(infoWindow);
-      if (!context) return;
 
       const result = addProposalCandidate(context.buildingId, context.buildingName || '未命名楼宇');
       if (result.status === 'full') window.alert(`客户方案最多选择 ${MAX_PROPOSAL_CANDIDATES} 个项目。`);

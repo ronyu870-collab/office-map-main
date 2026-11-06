@@ -1,0 +1,12 @@
+import {describe,it,expect} from 'vitest';
+import {materialImportSchema,PPTX_MIME,PPTM_MIME,materialMimeType,matchesMaterialSignature, type SalesMaterial} from '../model';
+import {currentMaterials} from '../catalog';
+const historical_context={period_label:'2023年讲盘资料；日期未明确',evidence:'用户要求按历史资料收录，原件未给完整日期',not_current:true as const};
+const manifest={schema_version:2,building_id:'11111111-1111-4111-8111-111111111111',building_name:'合成楼宇',title:'历史政策',document_date:null,source:'合成原件',historical_context,content_types:['brochure'],details:[],project_facts:[{label:'净高',value:'3米',source_ref:'PDF第8页'}],extraction:{method:'codex-document',reviewed:true,source_sha256:'a'.repeat(64),historical_import_authorized:true,uncertainties:[]}};
+describe('按用户指示收录历史资料',()=>{
+ it('retains unknown source dates without inventing an as-of date',()=>{const x=materialImportSchema.parse(manifest);expect(x.document_date).toBeNull();expect(x.source_timing?.as_of).toBeUndefined();expect(x.historical_context?.period_label).toBe(historical_context.period_label);});
+ it('requires explicit historical import authorization and real context',()=>{expect(materialImportSchema.safeParse({...manifest,extraction:{...manifest.extraction,historical_import_authorized:false}}).success).toBe(false);expect(materialImportSchema.safeParse({...manifest,historical_context:{...historical_context,evidence:''}}).success).toBe(false);});
+ it('does not permit a historical sheet to become live availability',()=>{expect(materialImportSchema.safeParse({...manifest,content_types:['brochure','availability']}).success).toBe(false);});
+ it('keeps every historical policy in one series instead of hiding old versions',()=>{const a={id:'old',title:'旧政策',document_date:null,source:'合成',notes:'',original_name:'owner.pdf',mime_type:'application/pdf',file_size:10,created_at:'2026-10-01',series_key:'same',content_types:['commission'],historical_context} as SalesMaterial;const b={...a,id:'new',created_at:'2026-10-02'};expect(currentMaterials([a,b],'commission').map(x=>x.id)).toEqual(['old','new']);});
+ it('recognizes PowerPoint originals as ZIP without executing macros',()=>{expect(materialMimeType('owner.pptx','')).toBe(PPTX_MIME);expect(materialMimeType('owner.pptm','')).toBe(PPTM_MIME);expect(matchesMaterialSignature(new Uint8Array([80,75,3,4]),PPTM_MIME)).toBe(true);expect(materialMimeType('owner.html','text/html')).toBeNull();});
+});

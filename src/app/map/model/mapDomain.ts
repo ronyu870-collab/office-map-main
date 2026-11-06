@@ -1,8 +1,9 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
-export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园'];
+export const MAP_SUBMARKETS_SECONDARY: string[] = ['上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'];
 export const MAP_DISTRICTS: string[] = ['朝阳区', '海淀区', '西城区', '东城区', '丰台区', '石景山区', '大兴区', '通州区', '昌平区'];
 export const MAP_LEEDS: string[] = ['Platinum', 'Gold', 'Silver', 'NULL'];
 export const MAP_SUBWAYS: string[] = [
@@ -54,6 +55,7 @@ export type SupplyCalendarBucket = {
   total: number;
   office: number;
   park: number;
+  commercial: number;
 };
 
 export type ActiveFilterChip = {
@@ -73,8 +75,8 @@ export function createDefaultFilterState(): SidebarFilterState {
     subwayStation: null,
     subwayDistance: 1000,
     numericFilters: [],
-    showFutureSupply: false,
-    futureSupplyGrades: ['A', 'B', 'BP'],
+    showFutureSupply: true,
+    futureSupplyGrades: [...FUTURE_SUPPLY_TYPES],
     futureSupplyYears: ['2026', '2027', '2028', '2029AndAfter', 'noDate'],
   };
 }
@@ -101,6 +103,18 @@ export function getConfiguredCompareGroups(groups: CompareGroup[]): CompareGroup
   return groups.filter(isCompareGroupConfigured);
 }
 
+export const FUTURE_SUPPLY_TYPES = ['A', 'B', 'BP', 'commercial', 'pending'] as const;
+export const STOCK_PROJECT_TYPES = ['甲级写字楼', '乙级写字楼', '产业园区'] as const;
+
+export function isCommercialFutureSupply(supply: { type?: unknown }): boolean {
+  return supply.type === '商业';
+}
+
+export function futureSupplyDisplayLabel(supply: { status?: unknown; type?: unknown }): string {
+  if (isPendingFutureSupply(supply)) return '待核实项目';
+  return isCommercialFutureSupply(supply) ? '商业未来供应' : '未来供应';
+}
+
 export function filterFutureSupplies(
   supplies: Array<Record<string, any>>,
   filterState: SidebarFilterState,
@@ -108,21 +122,26 @@ export function filterFutureSupplies(
   calculateDistance?: (buildingPoint: [number, number], stationPoint: [number, number]) => number,
 ): Array<Record<string, any>> {
   const selectedSubmarkets = new Set(filterState.submarkets.map(normalizeMapSubmarket));
-  const query = keyword.trim().toLocaleLowerCase();
+  const normalizeQuery = (value: unknown) => String(value ?? '').replace(/\s+/g, '').toLocaleLowerCase();
+  const query = normalizeQuery(keyword);
+  const allSubmarkets = hasSameSelections(filterState.submarkets, [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]);
 
   return supplies.filter((supply) => {
     const district = String(supply?.district ?? '').trim();
     const submarket = normalizeMapSubmarket(supply?.submarket);
-    if (!filterState.districts.includes(district) || !selectedSubmarkets.has(submarket)) return false;
+    const pending = isPendingFutureSupply(supply);
+    const commercial = isCommercialFutureSupply(supply);
+    if (!filterState.districts.includes(district) || (!selectedSubmarkets.has(submarket) && !(commercial && !submarket && allSubmarkets))) return false;
 
     if (query && ![supply?.name, ...(Array.isArray(supply?.former_names) ? supply.former_names : []), supply?.submarket, supply?.district, supply?.owner]
-      .some(value => String(value ?? '').toLocaleLowerCase().includes(query))) {
+      .some(value => normalizeQuery(value).includes(query))) {
       return false;
     }
 
     const grade = String(supply?.grade ?? '').trim().toUpperCase();
     if (filterState.futureSupplyGrades.length === 0) return false;
-    const gradeMatches =
+    const gradeMatches = pending ? filterState.futureSupplyGrades.includes('pending')
+      : commercial ? filterState.futureSupplyGrades.includes('commercial') :
       (filterState.futureSupplyGrades.includes('BP') && grade.includes('BP'))
       || (filterState.futureSupplyGrades.includes('A') && (grade.includes('A') || grade.includes('P')) && !grade.includes('BP'))
       || (filterState.futureSupplyGrades.includes('B') && grade.includes('B') && !grade.includes('BP'));
@@ -158,18 +177,27 @@ function hasSameSelections(selected: string[], options: readonly string[]): bool
   return selected.length === options.length && options.every(option => selected.includes(option));
 }
 
-export function isDefaultFilterState(state: SidebarFilterState): boolean {
+export function isDefaultStockFilterState(state: SidebarFilterState): boolean {
   return (
     hasSameSelections(state.districts, MAP_DISTRICTS) &&
     hasSameSelections(state.submarkets, [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]) &&
     hasSameSelections(state.leeds, MAP_LEEDS) &&
-    hasSameSelections(state.projectTypes, ['甲级写字楼', '乙级写字楼', '产业园区']) &&
+    hasSameSelections(state.projectTypes, STOCK_PROJECT_TYPES) &&
     !state.showBoundaries &&
     !state.subwayLine &&
     !state.subwayStation &&
-    state.numericFilters.length === 0 &&
-    !state.showFutureSupply
+    state.numericFilters.length === 0
   );
+}
+
+function hasDefaultFutureSupply(state: SidebarFilterState): boolean {
+  return state.showFutureSupply
+    && hasSameSelections(state.futureSupplyGrades, FUTURE_SUPPLY_TYPES)
+    && hasSameSelections(state.futureSupplyYears, SUPPLY_CALENDAR_CATEGORIES);
+}
+
+export function isDefaultFilterState(state: SidebarFilterState): boolean {
+  return isDefaultStockFilterState(state) && hasDefaultFutureSupply(state);
 }
 
 export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsState {
@@ -261,19 +289,21 @@ export function categorizeSupply(supply: Record<string, any>): SupplyCalendarCat
 
 export function buildFutureSupplyCalendar(supplies: Array<Record<string, any>>): Record<SupplyCalendarCategory, SupplyCalendarBucket> {
   const calendar: Record<SupplyCalendarCategory, SupplyCalendarBucket> = {
-    '2026': { total: 0, office: 0, park: 0 },
-    '2027': { total: 0, office: 0, park: 0 },
-    '2028': { total: 0, office: 0, park: 0 },
-    '2029AndAfter': { total: 0, office: 0, park: 0 },
-    'noDate': { total: 0, office: 0, park: 0 },
+    '2026': { total: 0, office: 0, park: 0, commercial: 0 },
+    '2027': { total: 0, office: 0, park: 0, commercial: 0 },
+    '2028': { total: 0, office: 0, park: 0, commercial: 0 },
+    '2029AndAfter': { total: 0, office: 0, park: 0, commercial: 0 },
+    'noDate': { total: 0, office: 0, park: 0, commercial: 0 },
   };
 
   for (const supply of supplies) {
+    if (isPendingFutureSupply(supply)) continue;
     const category = categorizeSupply(supply);
     calendar[category].total += 1;
 
     const grade = (supply.grade || '').toUpperCase();
-    if (grade.includes('BP')) calendar[category].park += 1;
+    if (isCommercialFutureSupply(supply)) calendar[category].commercial += 1;
+    else if (grade.includes('BP')) calendar[category].park += 1;
     else calendar[category].office += 1;
   }
 
@@ -357,15 +387,15 @@ export function buildActiveFilterChips(filterState: SidebarFilterState | null): 
     chips.push({ id: 'boundaries', label: '行政区边界', patch: { showBoundaries: false } });
   }
 
-  if (filterState.showFutureSupply) {
-    const grades = filterState.futureSupplyGrades.length === 3 ? '全部类型' : filterState.futureSupplyGrades.join('、');
+  if (filterState.showFutureSupply && !hasDefaultFutureSupply(filterState)) {
+    const grades = filterState.futureSupplyGrades.length === FUTURE_SUPPLY_TYPES.length ? '全部类型' : filterState.futureSupplyGrades.map(type => type === 'commercial' ? '商业' : type === 'pending' ? '待核实' : type).join('、');
     const years = filterState.futureSupplyYears.length === 5
       ? '全部年份'
       : filterState.futureSupplyYears.map(formatSupplyYearLabel).join('、') || '未选择';
     chips.push({
       id: 'futureSupply',
       label: `未来供应：${grades} · ${years}`,
-      patch: { showFutureSupply: false },
+      patch: { showFutureSupply: true, futureSupplyGrades: [...FUTURE_SUPPLY_TYPES], futureSupplyYears: [...SUPPLY_CALENDAR_CATEGORIES] },
     });
   }
 

@@ -1,0 +1,1 @@
+export const MAP_BUILDING_TIER_MIN_ZOOM = 13.18;

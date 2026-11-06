@@ -165,7 +165,7 @@ export function IntelligenceWorkspace() {
         supabase.from('lease_transactions').select('id', { count: 'exact', head: true }),
         supabase.from('lease_transactions').select('id', { count: 'exact', head: true }).not('lease_term_months', 'is', null),
         supabase.from('building_brochure_data').select('id', { count: 'exact', head: true }),
-        supabase.from('future_supplies').select('id', { count: 'exact', head: true }),
+        supabase.from('future_supplies').select('id', { count: 'exact', head: true }).or('status.is.null,status.neq.pending'),
         supabase.from('building_current_data').select('building_id', { count: 'exact', head: true }),
         supabase
           .from('building_metrics')

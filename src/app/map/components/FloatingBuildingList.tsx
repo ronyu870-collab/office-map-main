@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { BuildingBasicCard } from './BuildingBasicCard';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 interface DisplayOverride {
   display_label: string;
@@ -32,6 +33,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]'))) return;
       if (event.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -58,6 +60,17 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
   const visibleBuildings = buildings.slice(0, visibleCount);
   const hasMore = visibleCount < buildings.length;
 
+  const materialAction = (building: any) => {
+    if (building._dataType === 'future' && isPendingFutureSupply(building)) return null;
+    const id=building._dataType === 'future' ? building.building_id : building.id;
+    if (!id) return null;
+    return <button type="button" data-map-action="building-sales-control" data-building-id={id}
+      data-building-name={building.name || '当前楼宇'} aria-label={`查看${building.name || '当前楼宇'}资料与佣金`}
+      className="min-h-11 w-full border-t border-[#e7ebf0] px-3 py-2 text-left text-sm font-semibold text-[#003e7e] hover:bg-[#edf4fb] focus-visible:outline-2 focus-visible:outline-offset-[-2px]">
+      查看资料与佣金
+    </button>;
+  };
+
   const renderCompactRow = (building: any) => {
     const metric = getLatestMetric(building.metrics ?? []);
     const rent = metric?.net_effective_rent !== undefined && metric?.net_effective_rent !== null
@@ -71,8 +84,8 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
     const isTarget = targetBuildingId === building.id;
 
     return (
+      <div key={building.id}>
       <div
-        key={building.id}
         role="button"
         tabIndex={0}
         onClick={() => onBuildingClick?.(building)}
@@ -89,13 +102,15 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-[11px] font-semibold text-[#172033]">{building.name || '未命名项目'}</span>
-            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">未来</span> : null}
+            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">{isPendingFutureSupply(building) ? '待核实' : '未来'}</span> : null}
           </div>
           <div className="mt-0.5 truncate text-[10px] text-[#8a94a6]">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}</div>
         </div>
         <div className="text-right"><div className="text-[10px] text-[#8a94a6]">净租金</div><div className="mt-0.5 text-[10px] font-semibold tabular-nums text-[#003e7e]">{rent}</div></div>
         <div className="text-right"><div className="text-[10px] text-[#8a94a6]">空置率</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{vacancy}</div></div>
         <div className="text-right"><div className="text-[10px] text-[#8a94a6]">面积㎡</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{area}</div></div>
+      </div>
+      {materialAction(building)}
       </div>
     );
   };
@@ -142,6 +157,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
             {visibleBuildings.map(building => (
               <div key={building.id} className={targetBuildingId === building.id ? 'outline outline-2 outline-[#003e7e]/25' : ''} onMouseEnter={() => onBuildingHover?.(building.id)} onMouseLeave={() => onBuildingHover?.(null)}>
                 <BuildingBasicCard building={building} displayOverrides={displayOverrides} onClick={() => onBuildingClick?.(building)} />
+                {materialAction(building)}
               </div>
             ))}
           </div>

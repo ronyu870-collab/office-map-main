@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import pg from 'pg';
+assert.ok(process.env.GITHUB_ACTIONS==='true'||process.env.MATERIAL_TEST_LOCAL==='disposable','Disposable PostgreSQL only');
+const port=Number(process.env.MATERIAL_TEST_PG_PORT);assert.ok(port>0&&port<65536);
+const config={host:'127.0.0.1',port,user:'postgres',password:'synthetic_ci_only',connectionTimeoutMillis:5000};
+const admin=new pg.Client({...config,database:'postgres'});await admin.connect();
+const name='material_synthetic_'+randomUUID().replaceAll('-','');let db;let count=0;
+const bid=randomUUID(),mid=randomUUID();
+try{
+ const version=(await admin.query("select current_setting('server_version_num')::int n")).rows[0].n;assert.ok(version>=170000&&version<180000);
+ await admin.query(`create database ${name}`);db=new pg.Client({...config,database:name});await db.connect();
+ for(const role of ['anon','authenticated','service_role'])if(!(await admin.query('select 1 from pg_roles where rolname=$1',[role])).rowCount)await admin.query(`create role ${role}`);
+ await admin.query('alter role service_role bypassrls');
+ await db.query(`create schema auth;create table auth.users(id uuid primary key);create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table public.buildings(id uuid primary key);create table public.building_assignments(id integer primary key,owner text);create table public.quarterly_submissions(id integer primary key,value numeric);insert into public.building_assignments values(1,'synthetic owner');insert into public.quarterly_submissions values(1,123.45);`);
+ const protectedRows=async()=> (await db.query("select jsonb_build_object('assignment',(select jsonb_agg(to_jsonb(x)) from public.building_assignments x),'submission',(select jsonb_agg(to_jsonb(x)) from public.quarterly_submissions x)) data")).rows[0].data;
+ const before=await protectedRows();await db.query(await readFile(new URL('../../migrations/20261030025403_historical_project_materials.sql',import.meta.url),'utf8'));
+ await db.query(await readFile(new URL('../../migrations/20261030080736_historical_material_data_only.sql',import.meta.url),'utf8'));
+ assert.deepEqual(await protectedRows(),before);count++;
+ await db.query('insert into public.buildings values($1)',[bid]);
+ const manifest={extraction:{method:'codex-document',reviewed:true,source_sha256:'a'.repeat(64)}};
+ const insert=`insert into public.building_sales_materials(id,building_id,title,source,original_name,storage_path,mime_type,file_size,source_sha256,extraction_sha256,extraction,content_types,historical_context,commission_policies,status,published_at) values($1::uuid,$2::uuid,'历史佣金','合成测试','owner.pptx',($2::uuid)::text||'/'||($1::uuid)::text||'/original.pptx','application/vnd.openxmlformats-officedocument.presentationml.presentation',30000000,$3,$4,$5,'{commission}',$6,'[{"key":"old","summary":"历史参考"}]','ready',now())`;
+ await db.query(insert,[mid,bid,'a'.repeat(64),'b'.repeat(64),manifest,{period_label:'2023年资料；月份未知',evidence:'合成原件',not_current:true}]);count++;
+ assert.equal((await db.query('select historical_context from public.building_sales_materials')).rows[0].historical_context.period_label,'2023年资料；月份未知');count++;
+ const fails=async(sql,args=[])=>{await assert.rejects(db.query(sql,args));count++;};
+ await fails(insert,[randomUUID(),bid,'a'.repeat(64),'b'.repeat(64),manifest,{period_label:'2023年',evidence:'合成',not_current:true}]);
+ await fails("update public.building_sales_materials set historical_context='{}'");
+ await fails("update public.building_sales_materials set historical_context='{\"not_current\":true,\"period_label\":\"2023年\"}'");
+ await fails("update public.building_sales_materials set historical_context='{\"not_current\":false,\"period_label\":\"2023年\",\"evidence\":\"x\"}'");
+ await fails("update public.building_sales_materials set details='[{\"area_sqm\":100}]'");
+ await fails("update public.building_sales_materials set content_types='{availability}'");
+ await fails("update public.building_sales_materials set association_status='unconfirmed'");
+ await fails("update public.building_sales_materials set storage_path='wrong'");
+ await fails("update public.building_sales_materials set file_size=536870913");
+ await fails("update public.building_sales_materials set mime_type='text/html'");
+ for(const role of ['anon','authenticated']){await db.query(`set role ${role}`);await fails('select * from public.building_sales_materials');await db.query('reset role');}
+ await db.query('set role service_role');assert.equal((await db.query('select count(*)::int n from public.building_sales_materials')).rows[0].n,1);await db.query('reset role');count++;
+ await fails("update public.building_sales_materials set storage_path=null");
+ await fails("update public.building_sales_materials set original_location='local_archive',storage_path=null,archive_reference='sha256:'||source_sha256");
+ await db.query("update public.building_sales_materials set original_location='local_archive',storage_path=null,archive_reference='sha256:'||source_sha256,extraction=jsonb_set(extraction,'{extraction,historical_import_authorized}','true')");count++;
+ assert.equal((await db.query('select storage_path from public.building_sales_materials')).rows[0].storage_path,null);count++;
+ await fails("update public.building_sales_materials set archive_reference='sha256:wrong'");
+ await fails("update public.building_sales_materials set historical_context=null");
+ await fails("update public.building_sales_materials set storage_path='pretend-cloud-original.pdf'");
+ const bucket=(await db.query('select * from storage.buckets')).rows[0];assert.equal(bucket.public,false);assert.equal(Number(bucket.file_size_limit),536870912);count++;
+ const docxMime='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+ const wordId=randomUUID();
+ const docxPath=`${bid}/${wordId}/original.docx`;
+ const docxInsert=`insert into public.building_sales_materials(id,building_id,title,source,original_name,storage_path,mime_type,file_size,source_sha256,extraction_sha256,extraction,content_types,project_facts,status,published_at)
+   values($1,$2,'Word project brochure','synthetic','source.docx',$3,$4,1000,$5,$6,$7,'{brochure}','[{"label":"物业类型","value":"商业","source_ref":"p1"}]','ready',now())`;
+ const docxArgs=[wordId,bid,docxPath,docxMime,'c'.repeat(64),'d'.repeat(64),{extraction:{method:'codex-document',reviewed:true,source_sha256:'c'.repeat(64)}}];
+ await fails(docxInsert,docxArgs);
+ await db.query(await readFile(new URL('../../migrations/20261105073001_support_word_project_originals.sql',import.meta.url),'utf8'));
+ await db.query('set role service_role');
+ await db.query(docxInsert,docxArgs);count++;
+ await fails("update public.building_sales_materials set storage_path=replace(storage_path,'.docx','.pdf') where id=$1",[wordId]);
+ assert.equal((await db.query('select mime_type,storage_path from public.building_sales_materials where id=$1',[wordId])).rows[0].storage_path,docxPath);count++;
+ await db.query('reset role');
+ for(const role of ['anon','authenticated']){await db.query(`set role ${role}`);await fails('select * from public.building_sales_materials where id=$1',[wordId]);await db.query('reset role');}
+ const nextBucket=(await db.query('select public,allowed_mime_types from storage.buckets')).rows[0];
+ assert.equal(nextBucket.public,false);
+ assert.deepEqual(nextBucket.allowed_mime_types,[...bucket.allowed_mime_types,docxMime]);count++;
+ assert.deepEqual(await protectedRows(),before);count++;
+ console.log(`PASS ${count} real PostgreSQL 17 material scenarios: private original, historical-only data, idempotency, scope, constraints, business preservation.`);
+}finally{await db?.end();await admin.query(`drop database if exists ${name} with(force)`);await admin.end();}

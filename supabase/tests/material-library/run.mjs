@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import pg from 'pg';
+import {libraryMetadataSQL,libraryPagesSQL,brochureRelinkSQL} from '../../../scripts/sales-materials/library-batch.mjs';
+assert.ok(process.env.GITHUB_ACTIONS==='true'||process.env.MATERIAL_TEST_LOCAL==='disposable','Disposable PostgreSQL only');
+const port=Number(process.env.MATERIAL_TEST_PG_PORT);assert.ok(port>0&&port<65536);
+const admin=new pg.Client({host:'127.0.0.1',port,user:'postgres',password:'synthetic_ci_only',database:'postgres'});await admin.connect();
+const name='library_synthetic_'+randomUUID().replaceAll('-','');let db;let count=0;
+try{
+ const v=(await admin.query("select current_setting('server_version_num')::int v")).rows[0].v;assert.ok(v>=170000&&v<180000);
+ await admin.query(`create database ${name}`);db=new pg.Client({host:'127.0.0.1',port,user:'postgres',password:'synthetic_ci_only',database:name});await db.connect();await db.query("set timezone='UTC'");
+ for(const role of ['anon','authenticated','service_role'])if(!(await admin.query('select 1 from pg_roles where rolname=$1',[role])).rowCount)await admin.query(`create role ${role}`);
+ await admin.query('alter role service_role bypassrls');
+ // Supabase grants ALL on newly created public tables to service_role by default.
+ // Reproduce that real target environment before applying our migrations.
+ await db.query('alter default privileges in schema public grant all on tables to service_role');
+ await db.query("create table public.audit_logs(user_id text,action_type text,module text,page_url text,target_name text,request_source text,details jsonb)");
+ await db.query(await readFile(new URL('../../migrations/20261102064528_preserve_project_material_library.sql',import.meta.url),'utf8'));
+ await db.query(await readFile(new URL('../../migrations/20261102104720_enforce_material_library_append_only.sql',import.meta.url),'utf8'));
+ const payload={source_sha256:'a'.repeat(64),originals:[{relative:'synthetic.pdf'}],historical_context:{not_current:true},text_pages:[1],sections:[{scope:'归属未确认',facts:[{label:'原文面积',value:'100/110㎡冲突，未选值',source_ref:'合成第1页'}]}],review:{association_status:'unmapped'}};
+ const insert=`insert into public.project_material_library(source_sha256,payload_sha256,original_name,archive_reference,review_state,batch_key,payload) select $1,encode(sha256(convert_to($2::jsonb::text,'UTF8')),'hex'),'synthetic.pdf','sha256:'||$1,'needs_association','synthetic',$2::jsonb on conflict(source_sha256,payload_sha256) do nothing returning id`;
+ const id=(await db.query(insert,['a'.repeat(64),payload])).rows[0].id;count++;
+ assert.equal((await db.query(insert,['a'.repeat(64),payload])).rowCount,0);count++;
+ const p={page:1,native_text:"原文100/110㎡ quote' $verify$ $relink$",ocr_layers:[{method:'synthetic',text:'OCR 1000',verified:false}]};
+ const insPage=`insert into public.project_material_library_pages(extraction_id,page_number,content,content_sha256) values($1,1,$2,encode(sha256(convert_to($2::jsonb::text,'UTF8')),'hex')) on conflict do nothing`;
+ await db.query(insPage,[id,p]);assert.deepEqual((await db.query('select content from public.project_material_library_pages')).rows[0].content,p);count++;
+ await db.query(insPage,[id,p]);assert.equal((await db.query('select count(*)::int n from public.project_material_library_pages')).rows[0].n,1);count++;
+ const record={id,source_sha256:'a'.repeat(64),original_name:'synthetic.pdf',review_state:'needs_association',batch_key:'synthetic',payload};
+ await db.query(libraryMetadataSQL([record]));await db.query(libraryPagesSQL([{extraction_id:id,page_number:1,content:p}],'synthetic'));assert.equal((await db.query('select count(*)::int n from public.audit_logs')).rows[0].n,2);count++;
+ await assert.rejects(db.query(libraryPagesSQL([{extraction_id:id,page_number:1,content:{...p,native_text:'different'}}],'synthetic')));await db.query('rollback');assert.deepEqual((await db.query('select content from public.project_material_library_pages')).rows[0].content,p);count++;
+ const fails=async(sql,args=[])=>{await assert.rejects(db.query(sql,args));count++;};
+ await fails(insert,['b'.repeat(64),payload]);
+ await fails(insert,['a'.repeat(64),{...payload,historical_context:{not_current:false}}]);
+ await fails(insert,['a'.repeat(64),{...payload,sections:null}]);
+ await fails("update public.project_material_library set payload_sha256=repeat('b',64)");
+ await fails("update public.project_material_library set archive_reference='unverified'");
+ await fails("update public.project_material_library set review_state='excluded'");
+ await fails("insert into public.project_material_library_pages values($1,2,$2,repeat('b',64))",[id,p]);
+ await fails('delete from public.project_material_library where id=$1',[id]);
+ await fails("insert into project_material_library_pages values($1,2,$2,encode(sha256(convert_to($2::jsonb::text,'UTF8')),'hex'))",[id,{native_text:'missing page',ocr_layers:[]}]);
+ await fails("insert into project_material_library_pages values($1,2,$2,encode(sha256(convert_to($2::jsonb::text,'UTF8')),'hex'))",[id,{page:2,native_text:'bad OCR',ocr_layers:[{text:'OCR',verified:true}]}]);
+ for(const role of ['anon','authenticated']){
+  await db.query(`set role ${role}`);await fails('select * from public.project_material_library');await fails('select * from public.project_material_library_pages');await fails(insert,['a'.repeat(64),payload]);await db.query('reset role');
+ }
+ await db.query('set role service_role');assert.equal((await db.query('select count(*)::int n from public.project_material_library')).rows[0].n,1);count++;
+ await db.query(insert,['a'.repeat(64),payload]);await db.query(insPage,[id,p]);count++;
+ await fails("update public.project_material_library set review_state='reviewed'");
+ await fails('delete from public.project_material_library where false');
+ await fails("update public.project_material_library_pages set content=content where false");
+ await fails('delete from public.project_material_library_pages');
+ await fails('truncate public.project_material_library_pages,public.project_material_library');
+ await db.query('reset role');
+ for(const table of ['project_material_library','project_material_library_pages']){
+  const acl=(await db.query("select has_table_privilege('service_role',$1,'SELECT') r,has_table_privilege('service_role',$1,'INSERT') i,has_table_privilege('service_role',$1,'UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER,MAINTAIN') extra",['public.'+table])).rows[0];
+  assert.deepEqual(acl,{r:true,i:true,extra:false});count++;
+ }
+ const second=(await db.query(insert,['a'.repeat(64),{...payload,review:{association_status:'unmapped',revision:2}}])).rows[0].id;assert.notEqual(id,second);assert.equal((await db.query('select count(*)::int n from public.project_material_library')).rows[0].n,2);count++;
+ await db.query('begin');await db.query(insert,['c'.repeat(64),{...payload,source_sha256:'c'.repeat(64)}]);await fails('select 1/0');await db.query('rollback');assert.equal((await db.query("select count(*)::int n from public.project_material_library where source_sha256=repeat('c',64)")).rows[0].n,0);count++;
+ assert.equal((await db.query("select count(*)::int n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname like 'project_material_library%' and c.relkind='r' and c.relrowsecurity")).rows[0].n,2);count++;
+
+ await db.query("create table public.buildings(id uuid primary key,name text,is_active boolean default true,tracking_scope text default 'tracked',merged_into_id uuid);create table public.building_brochure_data(id uuid primary key,building_id uuid unique references buildings(id),name_cn text,gfa_total numeric,updated_at timestamptz default now());create table public.building_data_field_provenance(id uuid primary key,brochure_data_id uuid references building_brochure_data(id),building_id uuid references buildings(id),field_name text,field_value jsonb)");
+ await db.query("create schema if not exists private;create schema if not exists auth;create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$");
+ const mergeMigration=await readFile(new URL('../../migrations/20261027151600_preserve_merged_building_identities.sql',import.meta.url),'utf8');
+ const canonical=mergeMigration.slice(mergeMigration.indexOf('create function private.canonicalize_building_reference()'),mergeMigration.indexOf('revoke all on function private.canonicalize_building_reference()'));
+ await db.query(canonical);await db.query("create trigger canonicalize_building_identity before insert or update of building_id on public.building_brochure_data for each row execute function private.canonicalize_building_reference('building_id');create trigger canonicalize_building_identity before insert or update of building_id on public.building_data_field_provenance for each row execute function private.canonicalize_building_reference('building_id');create function public.set_building_brochure_data_updated_at() returns trigger language plpgsql set search_path='' as $$ begin new.updated_at=now();return new;end; $$;create trigger set_building_brochure_data_updated_at before update on public.building_brochure_data for each row execute function public.set_building_brochure_data_updated_at()");
+ const f=randomUUID(),t=randomUUID(),bi=randomUUID();await db.query("insert into buildings(id,name) values($1,'wrong'),($2,'right')",[f,t]);await db.query("insert into building_brochure_data(id,building_id,name_cn,gfa_total) values($1,$2,'source',123)",[bi,f]);await db.query("insert into building_data_field_provenance values($1,$2,$3,'gfa_total','123')",[randomUUID(),bi,f]);
+ const expected=(await db.query('select to_jsonb(d) v from building_brochure_data d where id=$1',[bi])).rows[0].v;
+ const plan={from:{id:f,name:'wrong'},to:{id:t,name:'right'},brochure_id:bi,expected_brochure:expected,expected_provenance_count:1,batch_key:'synthetic',evidence:['synthetic']};
+ await db.query(brochureRelinkSQL(plan));assert.equal((await db.query('select building_id from building_brochure_data where id=$1',[bi])).rows[0].building_id,t);assert.equal((await db.query('select building_id from building_data_field_provenance')).rows[0].building_id,t);count++;
+ await db.query(brochureRelinkSQL(plan));assert.equal((await db.query("select count(*)::int n from audit_logs where action_type='BROCHURE_ASSOCIATION_CORRECTION'")).rows[0].n,1);count++;
+ await db.query('update building_brochure_data set gfa_total=124 where id=$1',[bi]);await fails(brochureRelinkSQL(plan));await db.query('rollback');assert.equal((await db.query('select gfa_total from building_brochure_data')).rows[0].gfa_total,'124');count++;
+ console.log(`PASS ${count} real PostgreSQL 17 material-library scenarios: append-only evidence, unmapped sources, versioning, hashes, RLS, grants, rollback.`);
+}finally{await db?.end();await admin.query(`drop database if exists ${name} with(force)`);await admin.end();}

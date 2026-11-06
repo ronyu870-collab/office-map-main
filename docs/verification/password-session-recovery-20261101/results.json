@@ -1,0 +1,91 @@
+{
+  "browser": "156.0.8078.75",
+  "build": "Next production/webpack, actual root layout, login/settings/home, API route, SDK and storage",
+  "fixture": "Synthetic local Auth/PostgREST; production Auth issuance and physical phones not tested",
+  "results": [
+    {
+      "width": 1280,
+      "trusted": false,
+      "required": true,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 1280,
+      "trusted": false,
+      "required": false,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 1280,
+      "trusted": true,
+      "required": true,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 1280,
+      "trusted": true,
+      "required": false,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 390,
+      "trusted": false,
+      "required": true,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 390,
+      "trusted": false,
+      "required": false,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 390,
+      "trusted": true,
+      "required": true,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    },
+    {
+      "width": 390,
+      "trusted": true,
+      "required": false,
+      "saveAndHome": true,
+      "reload": true,
+      "logoutAndReload": true,
+      "oldPasswordRejected": true,
+      "newPasswordLogin": true
+    }
+  ],
+  "recovery": true,
+  "pageErrors": [],
+  "externalRequests": [],
+  "unknownRequests": []
+}

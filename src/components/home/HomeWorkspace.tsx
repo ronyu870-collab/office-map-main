@@ -10,10 +10,11 @@ import {
   ClipboardList,
   Database,
   FileSearch,
+  FileText,
   Handshake,
   LogOut,
   Map,
-  Settings,
+  Lock,
   Sparkles,
   UserRound,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ import { useAppSession } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
+import { canSeeOccupierReportCard } from '@/src/config/occupierReportCard';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
@@ -41,6 +43,9 @@ type WorkspaceModule = {
   href: string;
   module: string;
   title: string;
+  badge?: string;
+  /** 首页入口的可见范围；缺省表示所有合法角色都能看到。 */
+  homeVisibility?: 'occupier-report';
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -76,6 +81,14 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     module: 'oss',
     title: '研究资料库',
     icon: FileSearch,
+  },
+  {
+    href: '/occupier-insights',
+    module: 'occupier-insights',
+    title: '企业选址洞察报告',
+    homeVisibility: 'occupier-report',
+    icon: FileText,
+    badge: '专题',
   },
 ];
 
@@ -227,8 +240,8 @@ function HomeHeader({
                 onClick={() => setMenuOpen(false)}
                 className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
               >
-                <Settings size={14} strokeWidth={1.55} aria-hidden="true" />
-                设置
+                <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
+                修改密码
               </Link>
 
               {canSeeAdminWorkspace ? (
@@ -277,7 +290,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
     <Link
       href={workspace.href}
       onClick={(event) => onActivate(event, workspace)}
-      className={`group flex min-h-[64px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}`}
+      className={`group flex min-h-[64px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}${workspace.badge ? ' relative' : ''}`}
       title={canAccess ? undefined : '当前账号无访问权限'}
       {...accessibilityProps}
     >
@@ -287,6 +300,11 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       <div className="min-w-0 flex-1">
         <h3 className="text-[14px] font-medium text-[var(--cd-color-text-primary)] sm:text-[15px]">{workspace.title}</h3>
       </div>
+      {workspace.badge ? (
+        <span aria-hidden="true" className="absolute right-4 top-1.5 rounded-[var(--cd-radius-sm)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-1.5 text-xs leading-4 text-[var(--cd-color-text-secondary)] sm:right-5">
+          {workspace.badge}
+        </span>
+      ) : null}
       {canAccess ? (
         <ArrowRight size={15} strokeWidth={1.55} className="shrink-0 text-[var(--cd-color-text-muted)] transition-colors group-hover:text-[var(--cd-color-brand)]" aria-hidden="true" />
       ) : (
@@ -353,6 +371,11 @@ export function HomeWorkspace() {
     impersonationActive: isImpersonating,
   });
   const canSeeIntelligence = isIntelligencePreviewEnabled(activeRole);
+  // 报告链接保持公开；只决定首页是否出现入口板块，不允许名单内的用户看不到卡片。
+  const visibleBusinessWorkspaces = BUSINESS_WORKSPACES.filter(workspace =>
+    workspace.homeVisibility !== 'occupier-report'
+    || canSeeOccupierReportCard(activeRole, activeSession.user.email),
+  );
 
   async function handleLogout() {
     try {
@@ -442,7 +465,7 @@ export function HomeWorkspace() {
               <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
             </div>
             <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-              {BUSINESS_WORKSPACES.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
+              {visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
             </div>
           </section>
 

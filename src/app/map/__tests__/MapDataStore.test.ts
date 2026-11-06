@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
-import { MAP_DISTRICTS, MAP_LEEDS, MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY } from '@/src/app/map/model/mapDomain';
+import { MAP_DISTRICTS, MAP_LEEDS, MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY, createDefaultFilterState, filterFutureSupplies } from '@/src/app/map/model/mapDomain';
 import { MapDataStore } from '@/src/app/map/model/MapDataStore';
 import type { BuildingWithMetrics } from '@/src/types';
 
@@ -58,6 +58,33 @@ function defaultFilter(): SidebarFilterState {
 }
 
 describe('MapDataStore', () => {
+  it('finds reassigned Yuyuantan stock and commercial supply without relaxing other submarket filters', () => {
+    const yufu = building('yufu', { name: '裕阜商务中心', submarket: '玉渊潭', district: '海淀区', grade: 'B' });
+    const cetc = building('cetc', { name: '中国电科科技创新园（海淀）', submarket: '玉渊潭', district: '海淀区', grade: '' });
+    const market = new MapDataStore([yufu, cetc, building('other')]);
+    const supply = { id: '640', name: '玉渊潭640地块商业项目', submarket: '玉渊潭', district: '海淀区', type: '商业', grade: null, launch_year: '2027' };
+    const filterState = createDefaultFilterState();
+
+    for (const target of [yufu, cetc]) {
+      expect(market.filter({ filterState, compareGroups: [], keyword: target.name })).toEqual([target]);
+    }
+    expect(filterFutureSupplies([supply], filterState, '640')).toEqual([supply]);
+    const excluded = { ...filterState, submarkets: ['中关村'] };
+    expect(market.filter({ filterState: excluded, compareGroups: [], keyword: yufu.name })).toEqual([]);
+    expect(filterFutureSupplies([supply], excluded, '640')).toEqual([]);
+  });
+
+
+  it('finds an ungraded property by name without including it in a selected grade', () => {
+    const target = building('ungraded', { name: '中国电科科技创新园（海淀）', grade: '', district: '海淀区', submarket: '', leed_certification: '' });
+    const store = new MapDataStore([target]);
+    const keyword = '中国电科科技创新园';
+    const filterState = defaultFilter();
+    expect(store.filter({ filterState, compareGroups: [], keyword }).map(row => row.id)).toEqual(['ungraded']);
+    expect(store.filter({ filterState: { ...filterState, projectTypes: ['甲级写字楼'] }, compareGroups: [], keyword })).toEqual([]);
+    expect(store.filter({ filterState, compareGroups: [] })).toEqual([]);
+  });
+
   it('finds the same canonical ID by its current or former name while preserving other filters', () => {
     const store = new MapDataStore([
       building('renamed', { name: '新名称', former_names: ['Legacy Name'] }),

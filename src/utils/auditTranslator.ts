@@ -23,7 +23,7 @@ const MODULE_LABELS: Record<string, string> = {
   admin: '管理后台',
   bi: '商业分析',
   intelligence: '业务智能',
-  settings: '设置',
+  settings: '修改密码',
   login: '登录页',
 };
 
@@ -66,6 +66,26 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   const p = payload ?? {};
 
   switch (action) {
+    case "PROJECT_MATERIAL_LIBRARY_IMPORT":
+      return `处理了历史资料提取批次${p.planned_rows != null ? `（${p.planned_rows} 份来源）` : ""}`;
+    case "PROJECT_MATERIAL_PAGE_IMPORT":
+      return `保存并核验了资料逐页证据${p.planned_rows != null ? `（${p.planned_rows} 页）` : ""}`;
+    case "BROCHURE_ASSOCIATION_CORRECTION":
+      return `纠正了楼书归属并同步溯源${p.provenance_rows != null ? `（${p.provenance_rows} 条）` : ""}`;
+    case "SALES_MATERIAL_ACCESS":
+      return "查看了项目资料";
+    case "BUILDING_PHOTO_ACCESS":
+      return "查看了楼宇图片";
+    case "BUILDING_PHOTO_IMPORT":
+      return `导入了楼宇图片${p.photo_count != null ? `（${p.photo_count} 张）` : ''}`;
+    case "SALES_MATERIAL_IMPORT": {
+      const parts = [
+        p.material_count != null ? `${p.material_count} 份资料` : p.material_id ? '1 份资料' : '',
+        (p.commission_policy_count ?? p.policy_count) != null ? `${p.commission_policy_count ?? p.policy_count} 条佣金政策` : '',
+        (p.parameter_and_note_count ?? p.row_count) != null ? `${p.parameter_and_note_count ?? p.row_count} 条参数与说明` : '',
+      ].filter(Boolean);
+      return `导入了项目资料${parts.length ? `（${parts.join('、')}）` : ''}`;
+    }
     // 搜索 / 查询
     case "SEARCH":
       return `在「${moduleLabel(p.module)}」搜索了关键词："${p.keyword ?? p.query ?? ""}"`;
@@ -329,6 +349,13 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 // ─── Badge 样式映射 ───────────────────────────────────────────────────────────
 
 const BADGE_MAP: Record<string, BadgeStyle> = {
+  PROJECT_MATERIAL_LIBRARY_IMPORT: { variant: "orange", label: "资料归档", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  PROJECT_MATERIAL_PAGE_IMPORT: { variant: "blue", label: "保存证据", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  BROCHURE_ASSOCIATION_CORRECTION: { variant: "orange", label: "楼书纠正", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  SALES_MATERIAL_ACCESS: { variant: "blue", label: "查看资料", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  SALES_MATERIAL_IMPORT: { variant: "orange", label: "资料导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
+  BUILDING_PHOTO_ACCESS: { variant: "blue", label: "查看图片", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  BUILDING_PHOTO_IMPORT: { variant: "orange", label: "图片导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   // 导航 → 靛蓝
   ENTER_MODULE: { variant: "blue",    label: "进入板块", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" },
   ACCESS_DENIED: { variant: "red", label: "拒绝访问", className: "bg-red-50 text-red-700 ring-red-100" },
