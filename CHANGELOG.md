@@ -1,3 +1,9 @@
+# 2026-11-06 — 玉渊潭待核实项目转入存量并去重显示
+
+- 21 个玉渊潭待核实项目（除 640 地块商业项目与中国电科科技创新园）写入存量楼宇：`project_type=stock`、`grade=B`、`is_active=true`、`is_entered_market=true`，原表面积写入 `leasable_area`，合计 832,000㎡；`future_supplies` 行保留用于追溯。
+- `/api/map/data?mode=future` 剔除 `is_entered_market=true` 的记录，`include_pending=1` 同样不返回；地图圆圈、供给日历与待核实列表共用该接口，避免同一栋楼叠加两个圆圈。
+- 新增接口回归；本地类型检查、Lint（0 errors，809 条既有 warning）、160 个测试文件 / 1,074 项测试与生产构建通过。
+
 # 2026-11-06 — 企业选址报告配图与动效精修
 
 - 替换四张配图为高清 3:1 全景素材，修复旧图放大失真和固定高度造成的过度裁切，保持已认可的整体版式。
