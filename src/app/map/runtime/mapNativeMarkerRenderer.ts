@@ -1,7 +1,7 @@
 'use client';
 
 import type { MapController } from '@/src/services/MapController';
-import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerMode = 'submarket' | 'dot' | 'building';
@@ -648,7 +648,8 @@ export function installNativeMarkerRenderer(
           ? (item.vacantArea / item.totalArea) * 100
           : Number.NaN;
       const leed = item.count > 0 ? (item.leedCount / item.count) * 100 : 0;
-      const accent = submarketAccent(mode, rent, vacancy, leed);
+      const fixedRent = getAreaFixedRent(item.name);
+      const accent = submarketAccent(mode, fixedRent ?? rent, vacancy, leed);
       const size = 78 + Math.min(10, Math.round(Math.sqrt(item.count) * 1.35));
 
       let primary = `¥${rent > 0 ? rent.toFixed(0) : '–'}`;
@@ -668,10 +669,15 @@ export function installNativeMarkerRenderer(
         separator = '';
       }
 
-      const nameOnly = isNameOnlyArea(item.name);
+      const nameOnly = isNameOnlyArea(item.name, mode);
       const bubbleClass = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       const accentStyle = nameOnly ? '' : `--sm-accent:${accent};`;
-      const metrics = nameOnly ? '' : `
+      // A fixed rent has no vacancy figure, so the bubble shows the rent alone
+      // instead of pairing it with a dash.
+      const metrics = nameOnly ? '' : fixedRent !== null ? `
+        <div class="map-submarket-bubble__metrics">
+          <span class="map-submarket-bubble__primary">¥${fixedRent}</span>
+        </div>` : `
         <div class="map-submarket-bubble__metrics">
           <span class="map-submarket-bubble__primary">${primary}</span>${separator}
           <span class="map-submarket-bubble__secondary">${secondary}</span>
@@ -699,7 +705,7 @@ export function installNativeMarkerRenderer(
     for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
       const content = createAreaPlaceholder(name, () => {
         if (activeTier === 'submarket') map.setZoomAndCenter?.(12.15, center, false, 320);
-      });
+      }, mode);
       result.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92 }));
     }
     return result;

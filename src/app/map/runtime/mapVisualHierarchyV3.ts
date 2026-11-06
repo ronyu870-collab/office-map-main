@@ -3,7 +3,7 @@
 import type { MapController } from '@/src/services/MapController';
 import { MAP_BUILDING_TIER_MIN_ZOOM } from './mapMarkerZoom';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
-import { createAreaPlaceholder, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
+import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 type MarkerTier = 'submarket' | 'dot' | 'building';
@@ -419,8 +419,10 @@ export function installMapVisualHierarchyV3(
       const rent = aggregate.rentArea > 0 ? aggregate.rentSum / aggregate.rentArea : 0;
       const vacancy = aggregate.area > 0 ? (aggregate.vacant / aggregate.area) * 100 : Number.NaN;
       const leedPercent = aggregate.count > 0 ? (aggregate.leed / aggregate.count) * 100 : 0;
+      const fixedRent = getAreaFixedRent(aggregate.name);
+      const accentRent = fixedRent ?? rent;
       let accent: string = PALETTE.brand;
-      if (mode === 'rent') accent = rent <= 0 ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
+      if (mode === 'rent') accent = accentRent <= 0 ? PALETTE.neutral : accentRent >= 300 ? PALETTE.extreme : accentRent >= 200 ? PALETTE.high : accentRent >= 100 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'leed') accent = leedPercent >= 60 ? '#3f715f' : leedPercent >= 40 ? '#537f6c' : leedPercent >= 20 ? '#6f927f' : leedPercent > 0 ? '#88a493' : PALETTE.neutral;
 
@@ -433,13 +435,16 @@ export function installMapVisualHierarchyV3(
       const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
 
       const element = document.createElement('div');
-      const nameOnly = isNameOnlyArea(aggregate.name);
+      const nameOnly = isNameOnlyArea(aggregate.name, mode);
       element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       element.dataset.renderMode = mode;
       element.title = aggregate.name;
       if (!nameOnly) element.style.setProperty('--sm-accent', accent);
       element.style.setProperty('--sm-size', `${size}px`);
-      const metrics = nameOnly ? '' : `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
+      // A fixed rent has no vacancy figure, so the bubble shows the rent alone.
+      const metrics = nameOnly ? '' : fixedRent !== null
+        ? `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">¥${fixedRent}</span></div>`
+        : `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
       element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div>${metrics}`;
 
       const marker = new Marker({
@@ -462,7 +467,7 @@ export function installMapVisualHierarchyV3(
     for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
       const content = createAreaPlaceholder(name, () => {
         if (currentTier === 'submarket' && !zooming) map.setZoomAndCenter?.(12.15, center, false, 320);
-      });
+      }, mode);
       submarkets.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, 20], zIndex: 92, opacity: 0 }));
     }
     if (submarkets.length) map.add?.(submarkets);
