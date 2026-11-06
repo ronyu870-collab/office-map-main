@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import OSS from 'ali-oss';
 import { createWriteStream } from 'node:fs';
+import { open, rm } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { profileDefinition } from './profiles.mjs';
+import { retryRead } from './reads.mjs';
 
 const nameOK = (s) => typeof s === 'string' && s.length > 0 && !s.split('/').some((p) => p === '..' || p === '.') && !s.includes('\\') && !s.includes('\0');
 export function checkName(s) { if (!nameOK(s)) throw new Error('SOURCE_NAME_REJECTED'); return s; }
@@ -19,14 +21,23 @@ export function supabaseSource(c) {
     return fetch(url, { ...options, redirect: 'error', signal: AbortSignal.timeout(120_000) });
   };
   const client = createClient(c.url, c.key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }, global: { fetch: guardedFetch } });
+  const listed = async (action, code) => {
+    try {
+      return await retryRead(async () => {
+        const result = await action();
+        if (result.error) throw result.error;
+        if (!Array.isArray(result.data)) throw new Error(code);
+        return result.data;
+      });
+    } catch (cause) { throw new Error(code, { cause }); }
+  };
   return {
     kind: 'supabase-storage',
     descriptor: { projectUrl: c.url },
     async inventory() {
-      const buckets = await client.storage.listBuckets();
-      if (buckets.error || !Array.isArray(buckets.data)) throw new Error('STORAGE_BUCKET_LIST_FAILED');
+      const buckets = await listed(() => client.storage.listBuckets(), 'STORAGE_BUCKET_LIST_FAILED');
       const all = [];
-      for (const bucket of buckets.data) {
+      for (const bucket of buckets) {
         checkName(bucket.id);
         // Empty buckets and configuration must be represented too.
         all.push({ bucket: bucket.id, kind: 'bucket', config: bucket });
@@ -35,9 +46,8 @@ export function supabaseSource(c) {
           if (visited.has(prefix)) throw new Error('STORAGE_FOLDER_CYCLE');
           visited.add(prefix);
           for (let offset = 0; ; offset += 100) {
-            const page = await client.storage.from(bucket.id).list(prefix, { limit: 100, offset, sortBy: { column: 'name', order: 'asc' } });
-            if (page.error || !Array.isArray(page.data)) throw new Error('STORAGE_LIST_FAILED');
-            for (const o of page.data) {
+            const page = await listed(() => client.storage.from(bucket.id).list(prefix, { limit: 100, offset, sortBy: { column: 'name', order: 'asc' } }), 'STORAGE_LIST_FAILED');
+            for (const o of page) {
               const name = checkName(prefix ? `${prefix}/${o.name}` : o.name);
               if (o.id === null) await walk(name);
               else {
@@ -46,7 +56,7 @@ export function supabaseSource(c) {
                 all.push({ bucket: bucket.id, name, id: o.id, updated: o.updated_at, metadata: o.metadata, kind: 'object' });
               }
             }
-            if (page.data.length < 100) break;
+            if (page.length < 100) break;
           }
         };
         await walk('');
@@ -55,9 +65,19 @@ export function supabaseSource(c) {
     },
     async download(o, file) {
       const route = [o.bucket, ...o.name.split('/')].map(encodeURIComponent).join('/');
-      const response = await guardedFetch(`${c.url}/storage/v1/object/authenticated/${route}`, { headers: { apikey: c.key, Authorization: `Bearer ${c.key}` } });
-      if (!response.ok || !response.body) throw new Error('STORAGE_DOWNLOAD_FAILED');
-      await pipeline(response.body, createWriteStream(file, { flags: 'wx', mode: 0o600 }));
+      // Reserve the private destination exclusively before fetching. Only this
+      // operation's own partial file may be truncated on a bounded retry.
+      const reservation = await open(file, 'wx', 0o600); await reservation.close();
+      try {
+        await retryRead(async () => {
+          const response = await guardedFetch(`${c.url}/storage/v1/object/authenticated/${route}`, { headers: { apikey: c.key, Authorization: `Bearer ${c.key}` } });
+          if (!response.ok || !response.body) {
+            await response.body?.cancel().catch(() => {});
+            throw Object.assign(new Error('STORAGE_DOWNLOAD_FAILED'), { status: response.status });
+          }
+          await pipeline(response.body, createWriteStream(file, { flags: 'w', mode: 0o600 }));
+        });
+      } catch (error) { await rm(file, { force: true }); throw error; }
     },
   };
 }

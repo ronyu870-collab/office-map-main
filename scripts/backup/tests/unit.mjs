@@ -5,7 +5,7 @@ import { configuration } from '../config.mjs';
 import { temporary, command, safeCode } from '../common.mjs';
 import { store, verifyPrivateTarget } from '../r2.mjs';
 import { backup, readBackup } from '../pipeline.mjs';
-import { sameInventory, checkName, configuredSources } from '../sources.mjs';
+import { sameInventory, checkName, configuredSources, supabaseSource } from '../sources.mjs';
 import { s3Fixture } from './s3-fixture.mjs';
 import { health } from '../health.mjs';
 import { sourceRegressions } from './sources.mjs';
@@ -125,6 +125,21 @@ await temporary('colliers-backup-unit-', async (dir) => {
       await temporary('colliers-invalid-', async (tmp) => assert.rejects(readBackup(c, target, `${c.prefix}../`, tmp, identity), /BACKUP_RUN_REJECTED/));
       assert.throws(() => checkName('../private'), /SOURCE_NAME_REJECTED/);
       assert.throws(() => sameInventory([{ name: 'a' }], [{ name: 'b' }]), /SOURCE_CHANGED/);
+    });
+    await test('exhausted Storage stream retries never publish a completion marker', async () => {
+      const original = globalThis.fetch; let calls = 0;
+      const markers = () => [...fixture.objects.keys()].filter(key => key.endsWith('/complete.json'));
+      const before = markers();
+      try {
+        globalThis.fetch = async () => { calls++; return new Response(new ReadableStream({
+          start(controller) { controller.enqueue(new TextEncoder().encode('partial')); },
+          pull(controller) { controller.error(new TypeError('terminated', { cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }) })); },
+        })); };
+        const adapter = supabaseSource({ url: 'https://abcdefghijklmnopqrst.supabase.co', key: 'synthetic-only' });
+        const source = { ...adapter, inventory: sources[0].inventory };
+        await assert.rejects(backup({ ...c, profile: 'supabase' }, { target, sources: [source], exportDB }));
+        assert.equal(calls, 3); assert.deepEqual(markers(), before);
+      } finally { globalThis.fetch = original; }
     });
     await test('database-only remains partial; errors do not expose credentials', async () => {
       const partial = await backup({ ...c, profile: 'database-only' }, { target, sources: [], exportDB });

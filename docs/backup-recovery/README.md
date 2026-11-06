@@ -6,7 +6,7 @@
 
 默认 BACKUP_PROFILE=supabase：原生PG17 custom archive、pg_dumpall --roles-only --no-role-passwords，以及当前项目Storage全部桶和当前对象。全部非系统表的数量、规范JSON SHA256与dump共用只读repeatable-read快照；没有完整RLS读取能力即失败。Storage前后清单一致才完成，空桶配置也保存。
 
-明文仅在私有临时目录处理，使用age公钥加密后写入R2独立随机目录。逐对象上传后回读校验密文SHA256和长度；数据库、角色、全部Storage文件与清单成功后才写complete.json。条件创建和备份前缀锁保护已有对象，程序无覆盖或删除入口。
+明文仅在私有临时目录处理，使用age公钥加密后写入R2独立随机目录。源列举与下载发生已知临时断流／超时或可重试HTTP错误时，最多3次从头读取；权限、磁盘、路径及哈希错误即失败，部分文件不会发布。逐对象上传后回读校验密文SHA256和长度；数据库、角色、全部Storage文件与清单成功后才写complete.json。条件创建和备份前缀锁保护已有对象，程序无覆盖或删除入口。
 
 新清单为profile=supabase、coverage=database-and-supabase-storage，缺Storage清单或对象即拒绝。database-only仍是部分归档。旧full profile仅为原含OSS方案兼容保留；本次工作流不传递OSS凭据，健康检查不接受旧full或database-only替代supabase标记。完成标记始终recoveryReady=false，只证明完整存储；真实恢复验收独立记录。
 
