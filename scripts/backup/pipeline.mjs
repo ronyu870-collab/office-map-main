@@ -48,7 +48,8 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
         for (const object of inventory[i].filter((x) => x.kind === 'object')) {
           const file = path.join(dir, `${randomUUID()}.source`);
           await adapters[i].download(object, file);
-          if (Number.isFinite(object.size) && (await digest(file)).bytes !== object.size) throw new Error('SOURCE_SIZE_MISMATCH');
+          const expectedSize = object.size ?? object.metadata?.size;
+          if (Number.isFinite(expectedSize) && (await digest(file)).bytes !== expectedSize) throw new Error('SOURCE_SIZE_MISMATCH');
           await upload(file, { kind: 'object', source: adapters[i].kind, object });
         }
         sameInventory(inventory[i], await adapters[i].inventory());

@@ -141,6 +141,12 @@ await temporary('colliers-backup-unit-', async (dir) => {
         assert.equal(calls, 3); assert.deepEqual(markers(), before);
       } finally { globalThis.fetch = original; }
     });
+    await test('Supabase metadata size rejects a short successful response before completion', async () => {
+      const before = [...fixture.objects.keys()].filter(key => key.endsWith('/complete.json'));
+      const source = { ...sources[0], inventory: async () => [{ kind: 'object', bucket: 'synthetic', name: 'file', metadata: { size: 15 } }] };
+      await assert.rejects(backup({ ...c, profile: 'supabase' }, { target, sources: [source], exportDB }), /SOURCE_SIZE_MISMATCH/);
+      assert.deepEqual([...fixture.objects.keys()].filter(key => key.endsWith('/complete.json')), before);
+    });
     await test('database-only remains partial; errors do not expose credentials', async () => {
       const partial = await backup({ ...c, profile: 'database-only' }, { target, sources: [], exportDB });
       assert.equal(partial.profile, 'database-only'); assert.equal(partial.recoveryReady, false);
