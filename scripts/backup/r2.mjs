@@ -1,8 +1,9 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { createReadStream } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, open, rm } from 'node:fs/promises';
 import { digest } from './common.mjs';
 import { Transform } from 'node:stream';
+import { retryRead } from './reads.mjs';
 
 export function store(c, { requestHandler } = {}) {
   if (requestHandler && !c.synthetic) throw new Error('PRODUCTION_TRANSPORT_OVERRIDE_REJECTED');
@@ -17,20 +18,28 @@ export function store(c, { requestHandler } = {}) {
       return metadata;
     },
     async get(name, file, { maxBytes = 1024 * 1024 } = {}) {
-      const response = await client.send(new GetObjectCommand({ Bucket: c.bucket, Key: key(name) }));
-      if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || (Number.isFinite(response.ContentLength) && response.ContentLength > maxBytes)) {
-        response.Body?.destroy(); throw new Error('BACKUP_HASH_MISMATCH');
+      // Reserve once: a retry may truncate only this operation's own partial
+      // destination, never a caller's pre-existing file. Writes stay create-only.
+      const reserved = await open(file, 'wx', 0o600); await reserved.close();
+      try {
+        return await retryRead(async () => {
+          const response = await client.send(new GetObjectCommand({ Bucket: c.bucket, Key: key(name) }));
+          if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || (Number.isFinite(response.ContentLength) && response.ContentLength > maxBytes)) {
+            response.Body?.destroy(); throw new Error('BACKUP_HASH_MISMATCH');
+          }
+          // SDK stream writes are bounded by disk, not a whole-backup memory buffer.
+          const { pipeline } = await import('node:stream/promises');
+          const { createWriteStream } = await import('node:fs');
+          let bytes = 0;
+          const limit = new Transform({ transform(chunk, _encoding, callback) {
+            bytes += chunk.length;
+            callback(bytes > maxBytes ? new Error('BACKUP_HASH_MISMATCH') : null, chunk);
+          } });
+          await pipeline(response.Body, limit, createWriteStream(file, { mode: 0o600, flags: 'w' }));
+          return digest(file);
+        }, 'r2-read');
       }
-      // SDK stream writes are bounded by disk, not a whole-backup memory buffer.
-      const { pipeline } = await import('node:stream/promises');
-      const { createWriteStream } = await import('node:fs');
-      let bytes = 0;
-      const limit = new Transform({ transform(chunk, _encoding, callback) {
-        bytes += chunk.length;
-        callback(bytes > maxBytes ? new Error('BACKUP_HASH_MISMATCH') : null, chunk);
-      } });
-      await pipeline(response.Body, limit, createWriteStream(file, { mode: 0o600, flags: 'wx' }));
-      return digest(file);
+      catch (error) { await rm(file, { force: true }); throw error; }
     },
     async list(prefix) {
       const all = []; let token; const seen = new Set();

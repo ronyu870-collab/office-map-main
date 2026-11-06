@@ -1,6 +1,6 @@
 # Supabase → Cloudflare R2 加密备份
 
-日期：2026-11-06。用户明确本次范围为 **Supabase数据库和Supabase Storage → Cloudflare R2**。定时仍关闭，合并与启用分别确认；真实执行证据见[本轮记录](2026-11-06-verification.md)。
+日期：2026-11-06。用户明确本次范围为 **Supabase数据库和Supabase Storage → Cloudflare R2**。PR85／86已合并，用户已确认离线私钥和启用；导入后正式运行遇到通用传输错误，调度暂时暂停诊断。真实执行证据见[本轮记录](2026-11-06-verification.md)。
 
 ## 备份范围与完成条件
 
@@ -12,13 +12,13 @@
 
 ## 当前接入与权限
 
-- Supabase项目qhgxougfzzmgqjzzwudf，PostgreSQL17.6；当前盘点2桶431对象，357,320,294字节。
+- Supabase项目qhgxougfzzmgqjzzwudf，PostgreSQL17.6；首次完整恢复验收2桶481对象，383,567,820字节；导入后只读盘点531对象、396,535,718字节。每份归档以自身清单为准。
 - R2账户4440a5c01319452ed211b43521a5bd4f，桶colliers-reports-data；仅backups/qhgxougfzzmgqjzzwudf/设置30天Age锁，业务目录与生命周期未改。
 - r2.dev关闭，无自定义公开域。每次管理面预检检查公开状态和锁；公开、未知或缺锁即失败。早期账户Worker盘点为空，不能仅凭CORS推断应用代理。
 - 三个独立Cloudflare凭据分别为指定桶对象读写、指定桶对象只读、R2配置元数据读取。对象读写本身有删除能力，保留锁提供期内保护；管理员仍能改锁，并非不可撤销WORM。
 - colliers_backup具备pg_read_all_data/BYPASSRLS以完整读取，默认只读、连接上限2，非超级用户／建角色／建库／复制角色，不继承应用身份、不拥有业务对象。严格TLS登录和有效权限预检已通过。
 
-账号预检检查全部非系统schema的有效写权限和可调用高权限函数，仅允许四个正文、owner、语言、类型、search_path一致的稳定只读帮助函数；权限或函数漂移即拒绝，不自动修源库权限。九项PUBLIC EXECUTE前置修复在独立PR#85，已按授权实际执行并回查，函数正文和明确业务授权未变；代码合并与迁移历史对齐分别记录。默认只读不是账号级不可写保证，不能省略该预检。
+账号预检检查全部非系统schema的有效写权限和可调用高权限函数，仅允许四个正文、owner、语言、类型、search_path一致的稳定只读帮助函数；权限或函数漂移即拒绝，不自动修源库权限。九项PUBLIC EXECUTE前置修复在独立PR#85，已按授权实际执行并回查，函数正文和明确业务授权未变；代码已随PR85合并，且仅对齐已执行迁移20261027155909历史。默认只读不是账号级不可写保证，不能省略该预检。
 
 ## GitHub配置
 
@@ -29,7 +29,7 @@
 | production-backup Secrets | BACKUP_DATABASE_URL、BACKUP_PG_CA_PEM、BACKUP_STORAGE_SERVICE_KEY、BACKUP_CF_CONFIG_READ_TOKEN、BACKUP_R2_ACCESS_KEY_ID、BACKUP_R2_SECRET_ACCESS_KEY |
 | production-backup Variables | BACKUP_DB_ALLOWED_HOSTS、BACKUP_AGE_RECIPIENT |
 | production-backup-health Secrets | BACKUP_CF_CONFIG_READ_TOKEN、BACKUP_HEALTH_R2_ACCESS_KEY_ID、BACKUP_HEALTH_R2_SECRET_ACCESS_KEY |
-| repository Variable | BACKUP_ENABLED，当前缺失；最终验收和用户确认后才设true |
+| repository Variable | BACKUP_ENABLED，true启用、false暂停；按批准的启用／故障处理清单维护 |
 
 数据库使用session pooler、sslmode=verify-full，主机白名单与用户名项目后缀均校验。官方CA由客户端和pg_dump检查证书与主机名，CI将CA写入临时0600文件，结束移除；不关闭TLS校验，不重置业务密码。Storage服务凭据本身有数据写能力，用户明确允许存入专用Environment，备份只列举和读取。
 
@@ -37,7 +37,7 @@
 
 ## 密钥保管与真实恢复
 
-日常作业只持有age公钥。恢复私钥保存在本机受保护目录与Mac钥匙串，不进入Git、GitHub或R2；用户的独立离线副本仍待确认，同机两份不等于异地保管。不要因重跑接入而重新生成或覆盖恢复身份。源连接和Cloudflare专用凭据另有age加密的本机恢复副本。
+日常作业只持有age公钥。恢复私钥保存在本机受保护目录与Mac钥匙串，不进入Git、GitHub或R2；用户已确认独立离线副本保存，同机两份不等于异地保管。不要因重跑接入而重新生成或覆盖恢复身份。源连接和Cloudflare专用凭据另有age加密的本机恢复副本。
 
 生产归档含可执行SQL，必须在无生产网络、无生产凭据、无敏感宿主挂载的容器恢复，不能直接放入共享开发库。本轮使用现有public.ecr.aws/supabase/postgres:17.6.1.155，六项扩展版本一致；network=none、只读根文件系统、仅临时内存目录可写、丢弃ALL capabilities、no-new-privileges。
 
@@ -64,3 +64,9 @@ PostgreSQL17要求GRANTED BY指定grantor有ADMIN OPTION，bootstrap超级角色
 官方依据：[pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html)、[GRANT](https://www.postgresql.org/docs/17/sql-grant.html)、[Supabase备份](https://supabase.com/docs/guides/platform/backups)、[恢复依赖](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)、[R2兼容](https://developers.cloudflare.com/r2/api/s3/api/)、[Bucket Lock](https://developers.cloudflare.com/r2/buckets/bucket-locks/)。
 
 备份依赖独立锁定在scripts/backup/package.json及package-lock.json；安装使用npm ci --prefix scripts/backup --ignore-scripts，不修改网页应用的依赖或脚本。CI与定时备份使用同一独立运行环境。
+
+## R2回读与失败诊断
+
+GET响应体流失败发生在SDK返回响应之后，SDK的请求重试不能覆盖这一步。回读仅对已知临时网络错误限3轮从字节0重读（每轮SDK请求最多2次，总请求尝试上限6次），目的文件先以wx／0600独占保留；已有文件不发送GET、不覆盖。失败清理本次部分文件，403、路径／磁盘／大小／哈希错误不重复读取。PUT仍使用条件创建，回读耗尽不得发布完成标记。
+
+CLI失败JSON含固定stage及允许的code、httpStatus、transportCode、ioCode；不输出原始message、stack、请求、SQL、路径或业务对象名。阶段区分源下载、R2上传／回读、清单复核和完成标记写入；新增诊断不把历史BACKUP_FAILED自动解释为已修复。

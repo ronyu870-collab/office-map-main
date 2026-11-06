@@ -10,6 +10,8 @@ import { s3Fixture } from './s3-fixture.mjs';
 import { health } from '../health.mjs';
 import { sourceRegressions } from './sources.mjs';
 import { validateManifest } from '../manifest.mjs';
+import { r2ReadRegressions } from './r2-reads.mjs';
+import { safeFailure } from '../diagnostics.mjs';
 
 let passed = 0;
 const test = async (name, action) => { await action(); console.log(`PASS UNIT ${++passed} ${name}`); };
@@ -32,6 +34,31 @@ await temporary('colliers-backup-unit-', async (dir) => {
   let completion;
   try {
     await sourceRegressions(test, dir);
+    await r2ReadRegressions(test, dir, c, target, fixture);
+    await test('exhausted R2 body resets retain the failed readback stage and never publish completion', async () => {
+      const markers = () => [...fixture.objects.keys()].filter(key => key.endsWith('/complete.json'));
+      const before = markers(); fixture.interruptGet(Infinity);
+      try {
+        await assert.rejects(backup(c, { target, sources, exportDB }), error => {
+          assert.deepEqual(safeFailure(error), { status: 'failed', stage: 'r2-readback', code: 'BACKUP_FAILED', transportCode: 'ECONNRESET' });
+          return true;
+        });
+        assert.deepEqual(markers(), before);
+      } finally { fixture.interruptGet(0); }
+    });
+    await test('pipeline diagnostics allow only fixed stages, HTTP status and known codes without secrets', async () => {
+      const secret = 'postgres://synthetic:NEVER_LOG_THIS@private.invalid/business.sql';
+      const cause = Object.assign(new Error(secret), { code: 'ECONNRESET', $metadata: { httpStatusCode: 503 }, request: secret });
+      cause.originalError = cause;
+      const denied = { ...target, put: async () => { throw cause; } };
+      await assert.rejects(backup(c, { target: denied, sources, exportDB }), error => {
+        const report = safeFailure(error);
+        assert.deepEqual(report, { status: 'failed', stage: 'r2-upload', code: 'BACKUP_FAILED', httpStatus: 503, transportCode: 'ECONNRESET' });
+        assert.ok(!JSON.stringify(report).includes('NEVER_LOG_THIS')); return true;
+      });
+      assert.deepEqual(safeFailure(Object.assign(new Error(secret), { backupStage: secret, code: secret, status: secret })), { status: 'failed', stage: 'preflight', code: 'BACKUP_FAILED' });
+      assert.equal(safeFailure(Object.assign(new Error(secret), { code: 'ENOSPC' })).ioCode, 'ENOSPC');
+    });
     await test('configuration rejects unsafe host/profile/endpoint and missing coverage', async () => {
       assert.throws(() => configuration(env), /DATABASE_HOST_NOT_APPROVED/);
       assert.throws(() => configuration({ ...env, BACKUP_PROFILE: 'typo' }, { synthetic: true }), /INVALID_BACKUP_PROFILE/);
