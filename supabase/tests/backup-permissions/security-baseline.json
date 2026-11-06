@@ -1,0 +1,480 @@
+[
+  {
+    "signature": "feedback_admin_reply(uuid,text,text[],text)",
+    "schema": "public",
+    "name": "feedback_admin_reply",
+    "args": "p_issue_id uuid, p_content text, p_images text[], p_next_status text",
+    "returns": "admin_issues",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=public, private, pg_temp"
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "feedback_comment_touch_activity()",
+    "schema": "public",
+    "name": "feedback_comment_touch_activity",
+    "args": "",
+    "returns": "trigger",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=public, pg_temp"
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "feedback_mark_read(uuid)",
+    "schema": "public",
+    "name": "feedback_mark_read",
+    "args": "p_issue_id uuid",
+    "returns": "void",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=public, private, pg_temp"
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "feedback_prepare_status_change()",
+    "schema": "public",
+    "name": "feedback_prepare_status_change",
+    "args": "",
+    "returns": "trigger",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=public, pg_temp"
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "feedback_record_status_change()",
+    "schema": "public",
+    "name": "feedback_record_status_change",
+    "args": "",
+    "returns": "trigger",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=public, private, pg_temp"
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "feedback_reopen(uuid,text)",
+    "schema": "public",
+    "name": "feedback_reopen",
+    "args": "p_issue_id uuid, p_message text",
+    "returns": "admin_issues",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=public, private, pg_temp"
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "anon",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "service_role",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.audit_lease_transaction_update()",
+    "schema": "private",
+    "name": "audit_lease_transaction_update",
+    "args": "",
+    "returns": "trigger",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.current_submission_quarter()",
+    "schema": "private",
+    "name": "current_submission_quarter",
+    "args": "",
+    "returns": "integer",
+    "owner": "postgres",
+    "language": "sql",
+    "volatility": "s",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.current_submission_year()",
+    "schema": "private",
+    "name": "current_submission_year",
+    "args": "",
+    "returns": "integer",
+    "owner": "postgres",
+    "language": "sql",
+    "volatility": "s",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.fill_update_draft_identity_period()",
+    "schema": "private",
+    "name": "fill_update_draft_identity_period",
+    "args": "",
+    "returns": "trigger",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.handle_new_user()",
+    "schema": "private",
+    "name": "handle_new_user",
+    "args": "",
+    "returns": "trigger",
+    "owner": "postgres",
+    "language": "plpgsql",
+    "volatility": "v",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.is_admin()",
+    "schema": "private",
+    "name": "is_admin",
+    "args": "",
+    "returns": "boolean",
+    "owner": "postgres",
+    "language": "sql",
+    "volatility": "s",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "authenticated",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  },
+  {
+    "signature": "private.is_current_submission_period(integer,integer)",
+    "schema": "private",
+    "name": "is_current_submission_period",
+    "args": "p_year integer, p_quarter integer",
+    "returns": "boolean",
+    "owner": "postgres",
+    "language": "sql",
+    "volatility": "s",
+    "proconfig": [
+      "search_path=\"\""
+    ],
+    "extension": null,
+    "acl": [
+      {
+        "grantee": "PUBLIC",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      },
+      {
+        "grantee": "postgres",
+        "grantor": "postgres",
+        "grantable": false,
+        "privilege": "EXECUTE"
+      }
+    ]
+  }
+]
