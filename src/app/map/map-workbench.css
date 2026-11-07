@@ -129,12 +129,9 @@ body:has(#map-container) #map-container [data-building-id][style*="width: 10px"]
   transform: scale(1.35) !important;
 }
 
-body:has(#map-container) #map-container .amap-marker > div[style*="width:26px;height:26px"]:not([data-building-id]) {
-  width: 24px !important;
-  height: 24px !important;
-  border-radius: 4px !important;
-  border-width: 1px !important;
-  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.22) !important;
+/* Future supply markers are circular; stock marker density rules must not reshape them. */
+body:has(#map-container) #map-container .amap-marker .map-future-supply-marker {
+  border-radius: 50% !important;
 }
 
 body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; height: 82px"] {
