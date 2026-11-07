@@ -71,9 +71,33 @@ it('only attaches future points at the building tier and restores them after zoo
     add: (markers: unknown[]) => markers.forEach(marker => points.add(marker)),
     remove: (markers: unknown[]) => markers.forEach(marker => points.delete(marker)),
   };
-  class Overlay { on() {} }
+  class Overlay {
+    readonly content: string | undefined;
+    constructor(options?: { content?: string }) { this.content = options?.content; }
+    on() {}
+  }
   Object.assign(controller, { map, AMap: { Marker: Overlay, Pixel: Overlay, Size: Overlay, LabelsLayer: Overlay, LabelMarker: Overlay, MassMarks: Overlay } });
   const dispose = installMapVisualHierarchyV3(controller, container);
+  const expectCircularF = () => {
+    expect(points.size).toBe(1);
+    const marker = Array.from(points)[0] as Overlay;
+    const host = document.createElement('div');
+    host.innerHTML = marker.content ?? '';
+    const badge = host.querySelector<HTMLElement>('.map-future-supply-marker');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent?.trim()).toBe('F');
+    expect(badge?.style.width).toBe('26px');
+    expect(badge?.style.height).toBe('26px');
+    expect(badge?.style.borderRadius).toBe('50%');
+    expect(badge?.style.borderTopStyle).toBe('dashed');
+    expect(badge?.style.backgroundColor).toBe('rgb(16, 185, 129)');
+    expect(badge?.getAttribute('onmouseover')).toBe("this.style.transform='scale(1.15)'");
+    expect(badge?.getAttribute('onmouseout')).toBe("this.style.transform='scale(1)'");
+    fireEvent.mouseOver(badge!);
+    expect(badge?.style.borderRadius).toBe('50%');
+    fireEvent.mouseOut(badge!);
+    expect(badge?.style.borderRadius).toBe('50%');
+  };
   expect(dispose).toBeTypeOf('function');
   const move = (value: number) => {
     for (const cb of listeners.get('zoomstart') ?? []) cb();
@@ -88,11 +112,17 @@ it('only attaches future points at the building tier and restores them after zoo
     expect(container.dataset.markerTier).toBe('dot');
     expect(points.size).toBe(0);
     move(14);
-    expect(points.size).toBe(1);
+    expectCircularF();
     move(12.15);
     expect(points.size).toBe(0);
     move(14);
-    expect(points.size).toBe(1);
+    expectCircularF();
+    controller.renderFutureMarkers([future]); // Repaint the same set of projects.
+    expectCircularF();
+    controller.renderFutureMarkers([]); // Filter future supply out.
+    expect(points.size).toBe(0);
+    controller.renderFutureMarkers([future]); // Re-enable the future-supply filter.
+    expectCircularF();
     controller.clearFutureMarkers();
     move(12.15);
     move(14);

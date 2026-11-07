@@ -1854,7 +1854,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const borderStyle = renderMode === "default" ? "dashed" : "solid";
 
       const markerEl = `
-        <div style="
+        <div class="map-future-supply-marker" style="
           width:26px;height:26px;border-radius:50%;
           background:${style.bgColor};border:2px ${borderStyle} ${style.borderColor};
           box-shadow:0 6px 14px rgba(0,0,0,0.18);
