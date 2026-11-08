@@ -97,13 +97,13 @@ export async function getBuildings(params?: {
   requirePosition?: boolean;
   /** 仅拉取某负责人名下楼宇（用于 update.html 的“我的楼宇”） */
   ownerUser?: string;
-  /** Fetch only these canonical IDs; [] returns no buildings without a request. */
-  buildingIds?: readonly string[];
 }): Promise<BuildingRow[]> {
   // 🚨 修复：使用数据库实际的字段名（移除 total_area，该字段不存在）
   const select =
     params?.select ??
     "id,name,district,submarket,completion_year,grade,leed_certification,location_lng,location_lat,owner,property_management,sort_order,leasable_area";
+
+  console.log("🚨 [getBuildings] 开始执行, select:", select);
 
   // 关键修改：默认值改为 false，防止无经纬度的数据在 API 层被过滤
   const requirePosition = params?.requirePosition ?? false;
@@ -111,23 +111,12 @@ export async function getBuildings(params?: {
   if (params?.ownerUser) {
     console.warn("[getBuildings] ownerUser is deprecated; assignments define ownership");
   }
-  // Scope quarter-entry reads to assigned IDs; bound IN query length while
-  // retaining complete pagination/failure semantics for every batch.
-  const ids = params?.buildingIds === undefined
-    ? null
-    : [...new Set(params.buildingIds)].sort();
-  if (ids?.length === 0) return [];
-  const batches: (string[] | null)[] = ids === null
-    ? [null]
-    : Array.from({ length: Math.ceil(ids.length / 100) }, (_, index) => ids.slice(index * 100, (index + 1) * 100));
-  const pages = await Promise.all(batches.map(batch => readPagedRows<Record<string, any>>((from, to) => {
+  const data = await readPagedRows<Record<string, any>>((from, to) => {
     let query = supabase.from("buildings").select(select)
       .eq("is_active", true).eq("tracking_scope", "tracked");
-    if (batch) query = query.in('id', batch);
     if (requirePosition) query = query.not("location_lng", "is", null).not("location_lat", "is", null);
     return query.order("id").range(from, to);
-  })));
-  const data = pages.flat();
+  });
 
   const result = data.map((b: any) => ({
     id: b.id,
@@ -151,6 +140,10 @@ export async function getBuildings(params?: {
     vacancy_area: null,
   })) as unknown as BuildingRow[];
 
+  console.log("🚨 [getBuildings] 映射完成，返回", result.length, "条记录");
+  if (result.length > 0) {
+    console.log("🚨 [getBuildings] 第一条记录示例:", result[0]);
+  }
   return result;
 }
 

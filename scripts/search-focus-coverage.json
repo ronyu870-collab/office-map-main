@@ -111,5 +111,15 @@
     "cases": [
       "keeps the grid toolbar search input focused during result updates"
     ]
+  },
+  {
+    "id": "quarterly-entry-form-focus",
+    "roots": [
+      "src/app/update/components/QuarterlyUpdateWorkspace.tsx"
+    ],
+    "file": "src/app/update/components/QuarterlyUpdateWorkspace.reliability.test.tsx",
+    "cases": [
+      "retains the quarterly entry field focus and caret as form values update"
+    ]
   }
 ]

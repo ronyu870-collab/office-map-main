@@ -6,6 +6,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from: () => {
   const query: any = { select: (columns: string) => { db.selects.push(columns); return query }, range: () => query, order: (column: string) => { db.orders.push(column); return query }, eq: () => query, then: (resolve: any, reject: any) => db.read().then(resolve, reject) }; return query
 } } }))
 import { useGridData } from '../useGridData'
+import { getGridReadPlan } from '../gridReadPlan'
 const config: TableConfig = { table: 'synthetic', label: '合成数据', cols: [] }
 const dicts = {}; const toast = vi.fn()
 describe('complete grid reads', () => {
@@ -22,19 +23,19 @@ describe('complete grid reads', () => {
     db.read.mockReset().mockResolvedValue({ data: [{ id: 'known' }], error: null });
     db.selects.length = 0; db.orders.length = 0;
     const projected: TableConfig = {
-      ...config, readColumns: 'id,name,updated_at', readOrderTieBreaker: 'id', orderBy: 'updated_at',
+      ...config, table: 'building_metrics', orderBy: 'record_year',
     };
     const hook = renderHook(() => useGridData(projected, dicts, toast));
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
-    expect(db.selects).toEqual(['id,name,updated_at']);
-    expect(db.orders).toEqual(['updated_at', 'id']);
+    expect(db.selects).toEqual([getGridReadPlan('building_metrics')?.columns]);
+    expect(db.orders).toEqual(['record_year', 'id']);
     hook.unmount();
   });
   it('does not project source-table columns onto a distinct view', async () => {
     db.read.mockReset().mockResolvedValue({ data: [{ id: 'known' }], error: null });
     db.selects.length = 0;
     const viewed: TableConfig = {
-      ...config, readColumns: 'id,name', viewMode: { enabled: true, views: [{ key: 'latest', label: 'Latest', table: 'synthetic_view' }] },
+      ...config, table: 'building_metrics', viewMode: { enabled: true, views: [{ key: 'latest', label: 'Latest', table: 'synthetic_view' }] },
     };
     const hook = renderHook(() => useGridData(viewed, dicts, toast));
     await waitFor(() => expect(hook.result.current.loading).toBe(false));

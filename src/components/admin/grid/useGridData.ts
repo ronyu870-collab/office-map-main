@@ -1,6 +1,7 @@
 'use client'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
+import { getGridReadPlan } from './gridReadPlan'
 import type { TableConfig, DictBundle } from '../types'
 
 /**
@@ -42,7 +43,8 @@ export function useGridData(
       const tableName = config.viewMode?.views.find(v => v.key === viewMode)?.table ?? config.table
       const PAGE = 1000
       let allData: any[] = []
-      const selectFields = tableName === config.table ? config.readColumns ?? '*' : '*'
+      const readPlan = tableName === config.table ? getGridReadPlan(tableName) : null
+      const selectFields = readPlan?.columns ?? '*'
       for (let offset = 0; ; offset += PAGE) {
         if (gen !== generationRef.current) return false
         const query = supabase.from(tableName).select(selectFields).range(offset, offset + PAGE - 1)
@@ -54,9 +56,8 @@ export function useGridData(
         const sortFields = Array.isArray(config.orderBy)
           ? config.orderBy.map(order => order.col)
           : config.orderBy ? [config.orderBy] : []
-        if (tableName === config.table && config.readOrderTieBreaker &&
-          !sortFields.includes(config.readOrderTieBreaker)) {
-          query.order(config.readOrderTieBreaker, { ascending: true })
+        if (readPlan?.tieBreaker && !sortFields.includes(readPlan.tieBreaker)) {
+          query.order(readPlan.tieBreaker, { ascending: true })
         }
         const { data, error } = await query
         if (gen !== generationRef.current) return false

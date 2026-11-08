@@ -9,7 +9,7 @@ import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
 import { canWriteBusinessData } from '@/src/utils/accessControl';
-import { useBuildings } from '@/src/hooks/useBuildings';
+import { useAssignedBuildings } from './useAssignedBuildings';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { handleDataFetchError } from '@/src/utils/errorHandler';
 import { retryAsync } from '@/src/utils/retryAsync';
@@ -223,11 +223,7 @@ export function QuarterlyUpdateWorkspace() {
     currentUser?.id ?? '', draftUserId, userRole, isPreview, isImpersonating,
     [...assignedBuildingIds].sort(),
   ]), [assignedBuildingIds, currentUser?.id, draftUserId, userRole, isPreview, isImpersonating]);
-  const { buildings, error: buildingsError, mutate } = useBuildings({
-    buildingIds: assignedBuildingIds,
-    cacheScope: buildingReadScope ?? undefined,
-    revalidateOnMount: true,
-  });
+  const { buildings, error: buildingsError, mutate } = useAssignedBuildings(assignedBuildingIds, buildingReadScope);
   const lastSuccessfulBuildings = React.useRef<{ scope: string; rows: any[] } | null>(null);
   React.useEffect(() => {
     if (buildings !== undefined && buildingReadScope !== null) {
