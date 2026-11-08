@@ -1,6 +1,5 @@
 import { supabase } from '@/src/services/supabaseClient';
 import type { BuildingRow } from '@/src/services/apiClient';
-import { readPagedRows } from '@/src/utils/readPagedRows';
 
 const SELECT = 'id,name,district,submarket,completion_year,grade,leed_certification,location_lng,location_lat,owner,property_management,sort_order,leasable_area';
 
@@ -12,11 +11,16 @@ export async function readAssignedBuildings(assignedIds: readonly string[]): Pro
   const batches = Array.from({ length: Math.ceil(ids.length / 100) }, (_, index) =>
     ids.slice(index * 100, (index + 1) * 100),
   );
-  const pages = await Promise.all(batches.map(batch => readPagedRows<Record<string, any>>((from, to) =>
-    supabase.from('buildings').select(SELECT)
+  // Each batch contains at most 100 unique primary keys, below the Data API
+  // row cap. A single bounded read avoids the empty-page round trip.
+  const pages = await Promise.all(batches.map(async batch => {
+    const { data, error } = await supabase.from('buildings').select(SELECT)
       .eq('is_active', true).eq('tracking_scope', 'tracked')
-      .in('id', batch).order('id').range(from, to),
-  )));
+      .in('id', batch).order('id');
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('楼宇数据返回格式异常，请重新读取。');
+    return data;
+  }));
   return pages.flat().map((row: any) => ({
     id: row.id,
     name: row.name,
