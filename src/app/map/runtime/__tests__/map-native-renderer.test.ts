@@ -392,6 +392,44 @@ describe('native map visual hierarchy', () => {
     }
   });
 
+  it('shares the same hover tooltip between a round building icon and its right-hand name', async () => {
+    const harness = createNativeHarness();
+    harness.setZoom(14.4);
+    const controller: any = {
+      AMap: harness.AMap, map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+      showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+      openBuildingInfoWindow: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller, 'map-container');
+    const item = building('hover-a', 'CBD', 116.46, 39.91, 305, 0.08);
+    try {
+      controller.renderMarkers([item], 'default');
+      await flushFrames();
+      controller.hideHoverTooltip.mockClear();
+      const icon = harness.labelMarkerInstances.find(marker => marker.options.name === 'hover-a');
+      const name = harness.labelMarkerInstances.find(marker => marker.options.name === 'hover-a:name');
+      expect(icon).toBeDefined();
+      expect(name).toBeDefined();
+      icon.handlers.emit('mouseover', { originEvent: { clientX: 30, clientY: 40 } });
+      expect(controller.showHoverTooltip).toHaveBeenLastCalledWith(item, 30, 40);
+      icon.handlers.emit('mouseout');
+      name.handlers.emit('mouseover', { originEvent: { clientX: 50, clientY: 60 } });
+      expect(controller.showHoverTooltip).toHaveBeenLastCalledWith(item, 50, 60);
+      await new Promise(resolve => window.setTimeout(resolve, 100));
+      expect(controller.hideHoverTooltip).not.toHaveBeenCalled();
+      name.handlers.emit('mouseout');
+      await new Promise(resolve => window.setTimeout(resolve, 100));
+      expect(controller.hideHoverTooltip).toHaveBeenCalledTimes(1);
+      name.handlers.emit('click');
+      expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('hover-a');
+      name.handlers.emit('mouseover', { originEvent: { clientX: 60, clientY: 70 } });
+      harness.emitMap('zoomstart');
+      expect(controller.hideHoverTooltip).toHaveBeenCalledTimes(2);
+    } finally { cleanup(); }
+  });
+
   it('forgets future supply after clear and never resurrects it on zoom (V3/fallback)', async () => {
     for (const version of ['v3', 'fallback'] as const) {
       const harness = createNativeHarness();
