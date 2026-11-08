@@ -1,6 +1,5 @@
 'use client'
 import { useCallback } from 'react'
-import * as XLSX from 'xlsx'
 import { supabase } from '@/src/services/supabaseClient'
 import { logAction } from '@/src/utils/audit'
 import { getSession } from '@/src/services/Auth'
@@ -21,8 +20,10 @@ export function useExcelExport(
   viewMode: string,
   showToast: (msg: string, ok?: boolean) => void,
 ) {
-  const exportToExcel = useCallback(() => {
+  const exportToExcel = useCallback(async () => {
     if (filtered.length === 0) { showToast('没有数据可导出', false); return }
+    const XLSX = await import('xlsx').catch(() => null)
+    if (!XLSX) { showToast('Excel 工具加载失败，请重试', false); return }
 
     const activeView = config.viewMode?.views.find(v => v.key === viewMode)
     let filenamePrefix = config.label

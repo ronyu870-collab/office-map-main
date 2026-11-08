@@ -75,6 +75,8 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
           makeQuery().range(PAGE, PAGE * 2 - 1),
           makeQuery().range(PAGE * 2, PAGE * 3 - 1),
         ]);
+        if (r2.error) throw r2.error;
+        if (r3.error) throw r3.error;
         let all = [...(page1 || []), ...(r2.data || []), ...(r3.data || [])];
         if (r3.data && r3.data.length >= PAGE) {
           let offset = PAGE * 3;
@@ -92,8 +94,11 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
       // 并行获取三张表（建筑全量，不限制 is_active）
       const [bRes, metrics, currentData] = await Promise.all([
         supabase.from("buildings").select("id,name,former_names,completion_year,system_entry_date,submarket,grade,city,district,owner,property_management,contact_phone,location_lng,location_lat,leed_certification,leasable_area,is_active,tracking_scope,is_entered_market,notes").limit(3000),
-        fetchAll(() => supabase.from("building_metrics").select("*").order("record_year", { ascending: false }).order("record_quarter", { ascending: false })),
-        fetchAll(() => supabase.from("building_current_data").select("*")),
+        fetchAll(() => supabase.from("building_metrics")
+          .select("id,building_id,record_year,record_quarter,updated_at,is_locked,total_area,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent,rent_qoq_change,rent_yoy_change,vacant_area,vacant_area_qoq_change,vacancy_rate")
+          .order("record_year", { ascending: false }).order("record_quarter", { ascending: false }).order("id")),
+        fetchAll(() => supabase.from("building_current_data")
+          .select("building_id,updated_at,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent,vacant_area,vacancy_rate,data_source,source_detail,updated_by").order("building_id")),
       ]);
 
       if (bRes.error) throw new Error(`buildings 查询失败: ${bRes.error.message}`);

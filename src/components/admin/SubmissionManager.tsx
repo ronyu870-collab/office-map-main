@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import * as XLSX from "xlsx";
 import { supabase } from "@/src/services/supabaseClient";
 import { GenericTablePanel } from "./GenericTablePanel";
 import { ASSIGNMENTS_CONFIG, FUTURE_SUPPLY_ASSIGNMENTS_CONFIG } from "./tableConfigs";
@@ -415,6 +414,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
       }
     }
 
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(excelRows);
 
     // 设置列宽
@@ -1227,7 +1227,7 @@ function FutureSupplySubmissionsSection({ dicts, period }: { dicts: DictBundle; 
 
   const years = [...new Set([...Array.from({ length: 5 }, (_, i) => dq.year - 2 + i), year, configured.data?.year ?? year])].sort();
 
-  function handleExport() {
+  async function handleExport() {
     if (loading || result.error || rows.length === 0) return;
     const exportRows = rows.map((r) => ({
       项目名称: dicts.future_supplies?.[r.future_supply_id] || r.future_supply_id,
@@ -1243,6 +1243,7 @@ function FutureSupplySubmissionsSection({ dicts, period }: { dicts: DictBundle; 
       备注: r.notes || "",
       提交时间: r.created_at ? new Date(r.created_at).toLocaleString("zh-CN", { hour12: false }) : "",
     }));
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(exportRows);
     ws['!cols'] = [
       { wch: 24 }, { wch: 10 }, { wch: 10 }, { wch: 8 },

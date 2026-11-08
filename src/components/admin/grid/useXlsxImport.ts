@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef, useCallback } from 'react'
-import * as XLSX from 'xlsx'
 import { supabase } from '@/src/services/supabaseClient'
 import { logAction } from '@/src/utils/audit'
 import { getSession } from '@/src/services/Auth'
@@ -30,7 +29,7 @@ export function useXlsxImport(
   const writableCols = config.cols.filter(c => !c.readOnly)
 
   // ── XLSX 模板下载 ──
-  const downloadTemplate = useCallback(() => {
+  const downloadTemplate = useCallback(async () => {
     const visibleWritable = writableCols.filter(c => !c.hidden)
     const header = visibleWritable.map(c => c.label)
 
@@ -60,6 +59,8 @@ export function useXlsxImport(
       return parts.join('；')
     })
 
+    const XLSX = await import('xlsx').catch(() => null)
+    if (!XLSX) { showToast('Excel 工具加载失败，请重试', false); return }
     const ws = XLSX.utils.aoa_to_sheet([header, instructions])
     ws['!cols'] = visibleWritable.map(() => ({ wch: 22 }))
     const wb = XLSX.utils.book_new()
@@ -73,7 +74,7 @@ export function useXlsxImport(
       file_name: filename,
       target_name: filename,
     })
-  }, [config, dicts, writableCols])
+  }, [config, dicts, writableCols, showToast])
 
   const triggerUpload = useCallback(() => {
     setImportErrors([])
@@ -93,8 +94,9 @@ export function useXlsxImport(
     }
 
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await import('xlsx')
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, {
           type: 'array',

@@ -6,7 +6,6 @@ import { supabase } from '@/src/services/supabaseClient'
 import { logAction } from '@/src/utils/audit'
 import { getSession } from '@/src/services/Auth'
 import { MaskedCell } from '@/src/components/demo'
-import * as XLSX from 'xlsx'
 import type { TableConfig, ColDef, DictBundle, SpecialAction } from './types'
 import { DataDiagnosticModal } from './DataDiagnosticModal'
 import { TagInput } from '@/src/components/admin-memo/TagInput'
@@ -823,7 +822,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
 
   const writableCols = config.cols.filter(c => !c.readOnly)
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const visibleWritable = writableCols.filter(c => !c.hidden)
     const header = visibleWritable.map(c => c.label)
 
@@ -854,6 +853,8 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
       return parts.join('；')
     })
 
+    const XLSX = await import('xlsx').catch(() => null)
+    if (!XLSX) { showToast('Excel 工具加载失败，请重试', false); return }
     const ws = XLSX.utils.aoa_to_sheet([header, instructions])
     ws['!cols'] = visibleWritable.map(() => ({ wch: 22 }))
     const wb = XLSX.utils.book_new()
@@ -876,8 +877,9 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
     if (!file) return
     e.target.value = ''
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await import('xlsx')
         const data = new Uint8Array(ev.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -1079,7 +1081,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
 
   // ─── Excel 导出 ────────────────────────────────────────────────────────────
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (filtered.length === 0) { showToast('没有数据可导出', false); return }
 
     const activeView = config.viewMode?.views.find(v => v.key === viewMode)
@@ -1107,6 +1109,8 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
       return exportRow
     })
 
+    const XLSX = await import('xlsx').catch(() => null)
+    if (!XLSX) { showToast('Excel 工具加载失败，请重试', false); return }
     const ws = XLSX.utils.json_to_sheet(exportData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, config.label)
