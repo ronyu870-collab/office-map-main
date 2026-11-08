@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installMapInteractionHardening } from '../mapInteractionHardening';
+import { installNativeMarkerRenderer } from '../mapNativeMarkerRenderer';
 
 type HandlerMap = Map<string, Set<(event?: any) => void>>;
 
@@ -311,6 +312,89 @@ describe('native map visual hierarchy', () => {
     expect(renderFuture).toHaveBeenCalledWith([{ id: 'future-a' }], 'default');
 
     cleanup();
+  });
+
+
+  it('ranks BP below A/P and above B at the same location in V3 and fallback renderers', async () => {
+    for (const version of ['v3', 'fallback'] as const) {
+      const harness = createNativeHarness();
+      const controller: any = {
+        AMap: harness.AMap, map: harness.map,
+        markers: [], dotMarkers: [], submarketMarkers: [],
+        renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+      };
+      const cleanup = version === 'v3'
+        ? installMapInteractionHardening(controller, 'map-container')
+        : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+      const atSameLocation = (id: string, grade: string) => ({
+        ...building(id, 'CBD', 116.46, 39.91, 200, 0.1),
+        grade,
+      });
+      try {
+        controller.renderMarkers([
+          atSameLocation('grade-a', 'A'),
+          atSameLocation('grade-p', 'P'),
+          atSameLocation('grade-bp', 'BP'),
+          atSameLocation('grade-b', 'B'),
+        ], 'default');
+        await flushFrames(4);
+        const ranks = new Map<string, number>(
+          harness.labelMarkerInstances
+            .filter(marker => Boolean(marker.options.icon))
+            .map(marker => [marker.options.name as string, marker.options.rank as number]),
+        );
+        expect(ranks.get('grade-a')).toBe(2100);
+        expect(ranks.get('grade-p')).toBe(2100);
+        expect(ranks.get('grade-bp')).toBe(1300);
+        expect(ranks.get('grade-b')).toBe(800);
+        expect(ranks.get('grade-bp')).toBeLessThan(ranks.get('grade-a')!);
+        expect(ranks.get('grade-bp')).toBeGreaterThan(ranks.get('grade-b')!);
+      } finally {
+        cleanup?.();
+      }
+    }
+  });
+
+  it('forgets future supply on competitor-layer clear and never resurrects it on zoom (V3/fallback)', async () => {
+    for (const version of ['v3', 'fallback'] as const) {
+      const harness = createNativeHarness();
+      harness.setZoom(14);
+      const renderFuture = vi.fn();
+      const clearFuture = vi.fn();
+      const controller: any = {
+        AMap: harness.AMap, map: harness.map,
+        markers: [], dotMarkers: [], submarketMarkers: [],
+        renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+        renderFutureMarkers: renderFuture, clearFutureMarkers: clearFuture,
+      };
+      const cleanup = version === 'v3'
+        ? installMapInteractionHardening(controller, 'map-container')
+        : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+      const supply = [{ id: 'future-project' }];
+      try {
+        controller.renderFutureMarkers(supply, 'default');
+        expect(renderFuture).toHaveBeenCalledTimes(1);
+
+        // Entering competitor mode clears both native F overlays and cached future arguments.
+        controller.clearFutureMarkers();
+        expect(clearFuture).toHaveBeenCalled();
+
+        harness.setZoom(11.8);
+        harness.emitMap('zoomstart');
+        harness.emitMap('zoomend');
+        harness.setZoom(14);
+        harness.emitMap('zoomstart');
+        harness.emitMap('zoomend');
+        await flushFrames();
+        expect(renderFuture).toHaveBeenCalledTimes(1);
+
+        // Exiting competitor mode explicitly restores the prior filtered list.
+        controller.renderFutureMarkers(supply, 'default');
+        expect(renderFuture).toHaveBeenCalledTimes(2);
+      } finally {
+        cleanup?.();
+      }
+    }
   });
 
   it('deduplicates identical renders and swaps data without exposing two visual tiers', async () => {

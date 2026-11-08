@@ -87,4 +87,47 @@ describe('competitor-map first-batch regression', () => {
       vi.useRealTimers();
     }
   });
+  it('removes an independently rendered F overlay when entering or refiltering competitor mode', () => {
+    vi.useFakeTimers();
+    try {
+      class Overlay {
+        on() {}
+        constructor(public options: unknown) {}
+      }
+      class Pixel { constructor(public x: number, public y: number) {} }
+      const map = {
+        add: vi.fn(), remove: vi.fn(), setFitView: vi.fn(),
+        getZoom: () => 14, setZoom: vi.fn(),
+      };
+      const controller = new MapController();
+      Object.assign(controller, {
+        map,
+        AMap: { Marker: Overlay, Circle: Overlay, Pixel },
+        _allBuildingsCache: [sample('target', 0.08), sample('nearby', 0.12)],
+        clearSubwayElements: vi.fn(),
+        hideCompExitButton: vi.fn(),
+        showCompExitButton: vi.fn(),
+        _renderDistanceMarkers: vi.fn(),
+        calculateDistance: () => 200,
+      });
+      const future = { id: 'future-project', name: '未来项目', grade: 'A', location_lng: 116.46, location_lat: 39.91 };
+      controller.renderFutureMarkers([future]);
+      const futureOverlays = map.add.mock.calls[0]?.[0];
+      expect(futureOverlays).toHaveLength(1);
+      const clearFuture = vi.spyOn(controller, 'clearFutureMarkers');
+
+      controller.analyzeCompetitors('target', 116.45, 39.91, 200);
+      expect(clearFuture).toHaveBeenCalledTimes(1);
+      expect(map.remove).toHaveBeenCalledWith(futureOverlays);
+      expect((controller as unknown as { futureMarkers: unknown[] }).futureMarkers).toHaveLength(0);
+
+      // Radius/grade changes must not bring the original F layer back.
+      (controller as unknown as { _renderCompetitorsByRadius(): void })._renderCompetitorsByRadius();
+      expect(clearFuture).toHaveBeenCalledTimes(2);
+      expect((controller as unknown as { futureMarkers: unknown[] }).futureMarkers).toHaveLength(0);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
 });
