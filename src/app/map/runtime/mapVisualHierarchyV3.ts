@@ -16,6 +16,8 @@ type LayerSet = {
   names: any | null;
   labels: Map<string, any>;
   ranks: Map<string, number>;
+  future: any[];
+  futureSignature: string;
 };
 
 type OpacityState = {
@@ -176,6 +178,36 @@ function detailImage(visual: ReturnType<typeof visualFor>): string {
   return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="16" fill="#fff" fill-opacity=".97"/><circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="800" fill="${visual.textColor}">${escapeHtml(visual.text)}</text></svg>`);
 }
 
+
+/* V3 draws F through the same collision-aware LabelsLayer as A/B buildings.
+ * Keep the 26px green circle, white dashed outline and F from the legacy marker.
+ * Other render modes retain the legacy neutral / LEED semantics. */
+function futureSupplyImage(supply: any, mode: RenderMode): string {
+  let background = '#10b981';
+  let border = '#ffffff';
+  let foreground = '#ffffff';
+  let text = 'F';
+  let fontSize = 12;
+  if (mode === 'rent' || mode === 'vacancy') {
+    background = '#94a3b8';
+    text = '-';
+    fontSize = 10;
+  } else if (mode === 'leed') {
+    const leed = String(supply?.leed_certification ?? supply?.leed ?? '').toUpperCase();
+    if (leed.includes('PLATINUM')) {
+      background = '#e0f2fe'; border = '#38bdf8'; foreground = '#0369a1'; text = 'P';
+    } else if (leed.includes('GOLD')) {
+      background = '#fef3c7'; border = '#fbbf24'; foreground = '#b45309'; text = 'G';
+    } else if (leed.includes('SILVER')) {
+      background = '#f1f5f9'; border = '#94a3b8'; foreground = '#475569'; text = 'S';
+    } else {
+      background = '#f8fafc'; border = '#e2e8f0'; foreground = '#94a3b8'; text = 'N';
+    }
+  }
+  const dash = mode === 'default' ? ' stroke-dasharray="3 2"' : '';
+  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="12" fill="${background}" stroke="${border}" stroke-width="2"${dash}/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${fontSize}" font-weight="800" fill="${foreground}">${text}</text></svg>`);
+}
+
 function tierForZoom(zoom: number): MarkerTier {
   if (zoom < BREAKPOINTS.submarketToDot) return 'submarket';
   if (zoom < BREAKPOINTS.dotToBuilding) return 'dot';
@@ -299,16 +331,30 @@ export function installMapVisualHierarchyV3(
   let suppressMapClearUntil = 0;
   let navigationToken = 0;
   let futureArgs: { supplies: any[]; mode: RenderMode } | null = null;
-  let futureVisible = false;
+  let futureRevision = 0;
+  let hoverHideTimer: number | null = null;
 
-  const syncFutureVisibility = () => {
-    if (!originalFutureRender || !originalFutureClear || !futureArgs) return;
-    const shouldShow = tierForZoom(map.getZoom?.() ?? 11) === 'building';
-    if (shouldShow === futureVisible) return;
-    futureVisible = shouldShow;
-    if (shouldShow) originalFutureRender(futureArgs.supplies, futureArgs.mode);
-    else originalFutureClear();
+  const cancelHoverHide = () => {
+    if (hoverHideTimer !== null) window.clearTimeout(hoverHideTimer);
+    hoverHideTimer = null;
   };
+  const dismissHover = () => {
+    cancelHoverHide();
+    c.hideHoverTooltip?.();
+  };
+  // A short grace period prevents flicker when the pointer crosses the
+  // round icon / adjacent name label (or a future supply marker).
+  const queueHoverHide = () => {
+    cancelHoverHide();
+    hoverHideTimer = window.setTimeout(() => {
+      hoverHideTimer = null;
+      c.hideHoverTooltip?.();
+    }, 80);
+  };
+  const hoverPosition = (event: any): [number, number] => [
+    event?.originEvent?.clientX ?? event?.pixel?.getX?.() ?? 0,
+    event?.originEvent?.clientY ?? event?.pixel?.getY?.() ?? 0,
+  ];
 
   const clearSelection = () => {
     if (selectedMarker) {
@@ -374,6 +420,53 @@ export function installMapVisualHierarchyV3(
     map.on?.('zoomend', finishOnce);
     map.setZoomAndCenter?.(14, center, false, 320);
     timer = window.setTimeout(finishOnce, 600);
+  };
+
+
+  // AMap collision is per LabelsLayer. F must share the existing detail
+  // layer (not a separate AMap.Marker or another LabelsLayer) to avoid A/B
+  // and F-vs-F overlap. Rank 3100 puts F above the highest stock rank (2999).
+  const syncFutureLayer = (set: LayerSet | null, mode: RenderMode, visible: boolean) => {
+    if (!set?.detail) return;
+    const nextSignature = visible && futureArgs?.supplies.length ? `${futureRevision}:${mode}` : 'hidden';
+    if (set.futureSignature === nextSignature) return;
+    if (set.future.length) set.detail.remove?.(set.future);
+    set.future = [];
+    set.futureSignature = nextSignature;
+    if (nextSignature === 'hidden' || !futureArgs) return;
+
+    const markers: any[] = [];
+    for (const [index, supply] of futureArgs.supplies.entries()) {
+      const lng = supply?.location_lng == null ? Number.NaN : Number(supply.location_lng);
+      const lat = supply?.location_lat == null ? Number.NaN : Number(supply.location_lat);
+      if (!finite(lng) || !finite(lat)) continue;
+      const marker = new LabelMarker({
+        name: `future:${String(supply?.id ?? supply?.building_id ?? index)}:${index}`,
+        position: [lng, lat],
+        zooms: [12.8, 20],
+        opacity: 1,
+        rank: 3100,
+        zIndex: 3100,
+        anchor: 'center',
+        extData: { id: supply?.id, type: 'future' },
+        icon: { type: 'image', image: futureSupplyImage(supply, mode), size: [34, 34], anchor: 'center' },
+      });
+      marker.on?.('mouseover', (event: any) => {
+        if (currentTier !== 'building' || zooming) return;
+        cancelHoverHide();
+        const [x, y] = hoverPosition(event);
+        c.showFutureSupplyHoverTooltip?.(supply, x, y);
+      });
+      marker.on?.('mouseout', queueHoverHide);
+      marker.on?.('click', () => {
+        if (currentTier !== 'building' || zooming) return;
+        clearSelection();
+        c.openFutureSupplyInfoWindow?.(supply);
+      });
+      markers.push(marker);
+    }
+    if (markers.length) set.detail.add?.(markers);
+    set.future = markers;
   };
 
   const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean): LayerSet => {
@@ -570,19 +663,19 @@ export function installMapVisualHierarchyV3(
         extData: { id: building.id },
         icon: { type: 'image', image: detailImage(visual), size: [34, 34], anchor: 'center' },
       });
-      icon.on?.('mouseover', (event: any) => {
-        if (currentTier !== 'building' && !zooming) return;
+      const showBuildingHover = (event: any) => {
+        if (currentTier !== 'building' || zooming) return;
+        cancelHoverHide();
         icon.setzIndex?.(999999);
-        c.showHoverTooltip?.(
-          building,
-          event?.originEvent?.clientX ?? event?.pixel?.getX?.() ?? 0,
-          event?.originEvent?.clientY ?? event?.pixel?.getY?.() ?? 0,
-        );
-      });
-      icon.on?.('mouseout', () => {
+        const [x, y] = hoverPosition(event);
+        c.showHoverTooltip?.(building, x, y);
+      };
+      const hideBuildingHover = () => {
         icon.setzIndex?.(rank);
-        c.hideHoverTooltip?.();
-      });
+        queueHoverHide();
+      };
+      icon.on?.('mouseover', showBuildingHover);
+      icon.on?.('mouseout', hideBuildingHover);
       icon.on?.('click', () => {
         if (currentTier !== 'building' && !zooming) return;
         showSelection(building);
@@ -617,8 +710,10 @@ export function installMapVisualHierarchyV3(
           },
         },
       });
+      nameLabel.on?.('mouseover', showBuildingHover);
+      nameLabel.on?.('mouseout', hideBuildingHover);
       nameLabel.on?.('click', () => {
-        if (currentTier !== 'building' && !zooming) return;
+        if (currentTier !== 'building' || zooming) return;
         showSelection(building);
         c.openBuildingInfoWindow?.(building.id);
       });
@@ -627,9 +722,11 @@ export function installMapVisualHierarchyV3(
 
     detail.add?.(detailItems);
     names.add?.(nameItems);
+    const set: LayerSet = { submarkets, mass, detail, names, labels, ranks, future: [], futureSignature: '' };
+    syncFutureLayer(set, mode, tierForZoom(map.getZoom?.() ?? 11) === 'building');
     map.add?.(detail);
     map.add?.(names);
-    return { submarkets, mass, detail, names, labels, ranks };
+    return set;
   };
 
   const apply = () => {
@@ -638,6 +735,7 @@ export function installMapVisualHierarchyV3(
     c.currentRenderMode = currentTier;
     container.dataset.markerTier = currentTier;
 
+    syncFutureLayer(current, lastMode, tierForZoom(zoom) === 'building');
     const state = zooming ? gestureOpacity(zoom) : idleOpacity(currentTier, zoom);
     applyOpacity(current, state, 1);
     applyOpacity(outgoing, state, 0);
@@ -646,10 +744,10 @@ export function installMapVisualHierarchyV3(
       c.infoWindow?.close?.();
       clearSelection();
     }
-    syncFutureVisibility();
   };
 
   const swap = (next: LayerSet, signature: string, buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean) => {
+    dismissHover();
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     if (outgoing) removeLayerSet(map, outgoing);
     outgoing = current;
@@ -704,6 +802,7 @@ export function installMapVisualHierarchyV3(
     outgoing = null;
     current = null;
     clearSelection();
+    dismissHover();
     originalClear();
     lastSignature = '';
     lastBuildings = [];
@@ -746,22 +845,26 @@ export function installMapVisualHierarchyV3(
   }
 
   if (originalFutureRender && originalFutureClear) {
+    // Remove any fallback DOM supply overlays mounted before V3 starts.
+    originalFutureClear();
     c.renderFutureMarkers = ((input: any[], mode: RenderMode = 'default') => {
       futureArgs = { supplies: Array.isArray(input) ? input : [], mode };
-      const shouldShow = tierForZoom(map.getZoom?.() ?? 11) === 'building';
-      futureVisible = shouldShow;
-      if (shouldShow) originalFutureRender(futureArgs.supplies, mode);
-      else originalFutureClear();
+      futureRevision += 1;
+      syncFutureLayer(current, mode, tierForZoom(map.getZoom?.() ?? 11) === 'building');
+      syncFutureLayer(outgoing, mode, false);
     }) as ControllerInternals['renderFutureMarkers'];
     c.clearFutureMarkers = (() => {
       futureArgs = null;
-      futureVisible = false;
+      futureRevision += 1;
+      syncFutureLayer(current, lastMode, false);
+      syncFutureLayer(outgoing, lastMode, false);
       originalFutureClear();
     }) as ControllerInternals['clearFutureMarkers'];
   }
 
   const onZoomStart = () => {
     zooming = true;
+    dismissHover();
     container.classList.add('map-is-zooming');
   };
   const onZoomChange = () => apply();
@@ -771,7 +874,7 @@ export function installMapVisualHierarchyV3(
     apply();
     requestAnimationFrame(() => container.classList.remove('map-is-zooming'));
   };
-  const onMoveStart = () => container.classList.add('map-is-moving');
+  const onMoveStart = () => { dismissHover(); container.classList.add('map-is-moving'); };
   const onMoveEnd = () => requestAnimationFrame(() => container.classList.remove('map-is-moving'));
   const onMapClick = () => {
     if (performance.now() < suppressMapClearUntil) return;
@@ -791,6 +894,7 @@ export function installMapVisualHierarchyV3(
     removeLayerSet(map, outgoing);
     removeLayerSet(map, current);
     clearSelection();
+    dismissHover();
     map.off?.('zoomstart', onZoomStart);
     map.off?.('zoomchange', onZoomChange);
     map.off?.('zoomend', onZoomEnd);
