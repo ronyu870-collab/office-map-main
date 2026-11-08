@@ -63,6 +63,10 @@ function createNativeHarness() {
     markers: any[] = [];
     constructor(options: any) { this.options = options; labelsLayerInstances.push(this); }
     add = vi.fn((markers: any[] | any) => { this.markers.push(...(Array.isArray(markers) ? markers : [markers])); });
+    remove = vi.fn((markers: any[] | any) => {
+      const removed = Array.isArray(markers) ? markers : [markers];
+      this.markers = this.markers.filter(marker => !removed.includes(marker));
+    });
     clear = vi.fn(() => { this.markers = []; });
     setOpacity = vi.fn();
   }
@@ -284,36 +288,69 @@ describe('native map visual hierarchy', () => {
     cleanup();
   });
 
-  it('keeps future-supply markers hidden until the building tier', async () => {
+  it('shares stock collision layer with F and restores future supply after zoom and filter changes', async () => {
     const harness = createNativeHarness();
-    const renderFuture = vi.fn();
-    const clearFuture = vi.fn();
     const controller: any = {
       AMap: harness.AMap, map: harness.map,
       markers: [], dotMarkers: [], submarketMarkers: [],
-      renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {},
-      renderFutureMarkers: renderFuture, clearFutureMarkers: clearFuture,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+      renderFutureMarkers: vi.fn(), clearFutureMarkers: vi.fn(),
       openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+      showFutureSupplyHoverTooltip: vi.fn(), openFutureSupplyInfoWindow: vi.fn(),
     };
+    const first = { id: 'future-a', location_lng: 116.4601, location_lat: 39.9101 };
+    const second = { id: 'future-b', location_lng: 116.46, location_lat: 39.91 };
     const cleanup = installMapInteractionHardening(controller, 'map-container');
-    controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
-    await flushFrames();
+    const getF = () => harness.labelsLayerInstances[0]?.markers.filter(
+      marker => String(marker.options.name).startsWith('future:'),
+    ) ?? [];
+    try {
+      controller.renderFutureMarkers([first, second], 'default');
+      controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
+      await flushFrames();
+      const detailLayer = harness.labelsLayerInstances[0];
+      expect(detailLayer.options).toMatchObject({ collision: true, allowCollision: false });
+      expect(getF()).toHaveLength(0);
+      expect(detailLayer.markers.some(marker => marker.options.name === 'a')).toBe(true);
 
-    controller.renderFutureMarkers([{ id: 'future-a' }], 'default');
-    expect(renderFuture).not.toHaveBeenCalled();
-    expect(clearFuture).toHaveBeenCalled();
+      harness.setZoom(14);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(2);
+      expect(detailLayer.markers.some(marker => marker.options.name === 'a')).toBe(true);
+      expect(getF().every(marker => marker.options.rank > 2999)).toBe(true);
+      const svg = decodeURIComponent(getF()[0].options.icon.image.split(',')[1]);
+      expect(svg).toContain('fill="#10b981"');
+      expect(svg).toContain('stroke-dasharray="3 2"');
+      expect(svg).toContain('>F</text>');
+      expect(getF()[0].options.icon.size).toEqual([34, 34]);
+      getF()[0].handlers.emit('mouseover', { originEvent: { clientX: 71, clientY: 85 } });
+      expect(controller.showFutureSupplyHoverTooltip).toHaveBeenCalledWith(first, 71, 85);
+      getF()[0].handlers.emit('click');
+      expect(controller.openFutureSupplyInfoWindow).toHaveBeenCalledWith(first);
 
-    harness.setZoom(11.8);
-    harness.emitMap('zoomend');
-    expect(renderFuture).not.toHaveBeenCalled();
+      harness.setZoom(11.8);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(0);
+      harness.setZoom(14);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(2);
 
-    harness.setZoom(13.18);
-    harness.emitMap('zoomend');
-    expect(renderFuture).toHaveBeenCalledWith([{ id: 'future-a' }], 'default');
-
-    cleanup();
+      controller.renderFutureMarkers([second], 'default');
+      expect(getF()).toHaveLength(1);
+      expect(getF()[0].options.name).toContain('future-b');
+      controller.renderFutureMarkers([second], 'rent');
+      const rentSvg = decodeURIComponent(getF()[0].options.icon.image.split(',')[1]);
+      expect(rentSvg).toContain('fill="#94a3b8"');
+      expect(rentSvg).not.toContain('stroke-dasharray');
+      controller.clearFutureMarkers();
+      expect(getF()).toHaveLength(0);
+      harness.setZoom(11.8);
+      harness.emitMap('zoomend');
+      harness.setZoom(14);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(0);
+    } finally { cleanup(); }
   });
-
 
   it('ranks BP below A/P and above B at the same location in V3 and fallback renderers', async () => {
     for (const version of ['v3', 'fallback'] as const) {
