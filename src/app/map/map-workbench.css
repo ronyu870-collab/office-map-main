@@ -147,12 +147,9 @@ body:has(#map-container) #map-container .amap-marker > div[style*="width: 82px; 
   text-shadow: none !important;
 }
 
-body:has(#map-container) #map-container [data-building-id][style*="flex-direction:column"] > div[style*="width:26px"] {
-  width: 24px !important;
-  height: 24px !important;
-  border-radius: 4px !important;
-  border-width: 1px !important;
-  box-shadow: 0 1px 3px rgba(23, 32, 51, 0.22) !important;
+/* Competitor and target points remain round even when stock marker density styles are active. */
+body:has(#map-container) #map-container .map-competitor-marker__core {
+  border-radius: 50% !important;
 }
 
 body:has(#map-container) #map-container > div:has(.comp-dist-btns) {

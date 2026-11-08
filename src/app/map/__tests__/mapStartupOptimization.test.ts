@@ -94,6 +94,28 @@ describe('map startup optimization', () => {
     cleanup();
   });
 
+
+  it('keeps null and zero vacancy observations distinct in the optimized map payload', async () => {
+    const unknown = {
+      ...BUILDING_ROW,
+      building_metrics: [{ ...BUILDING_ROW.building_metrics[0], vacancy_rate: null, vacant_area: null }],
+    };
+    const knownZero = {
+      ...BUILDING_ROW,
+      id: 'building-zero',
+      building_metrics: [{ ...BUILDING_ROW.building_metrics[0], id: 'metric-zero', building_id: 'building-zero', vacancy_rate: 0, vacant_area: 0 }],
+    };
+    mocks.fetchMapBuildingPayload.mockResolvedValueOnce({ buildings: [unknown, knownZero], displayOverrides: [] });
+    const { controller, raw } = createController();
+    installMapStartupOptimization(controller);
+
+    const [missing, zero] = await raw.fetchMapData();
+    expect(Number.isNaN(missing.metrics[0].vacancy_rate)).toBe(true);
+    expect(Number.isNaN(missing.metrics[0].vacant_area)).toBe(true);
+    expect(zero.metrics[0].vacancy_rate).toBe(0);
+    expect(zero.metrics[0].vacant_area).toBe(0);
+  });
+
   it('suppresses only the init-time local map-data warmup', async () => {
     const { controller, raw, localLoader } = createController();
     const cleanup = installMapStartupOptimization(controller);

@@ -4,6 +4,7 @@ import type { MapController } from '@/src/services/MapController';
 import { fetchMapBuildingPayload } from '@/src/services/mapDataClient';
 import type { BuildingMetric, BuildingWithMetrics } from '@/src/types';
 import { photoSummaries } from '@/src/lib/building-photos/model';
+import { mapOptionalNumber } from '@/src/app/map/model/vacancyMetrics';
 
 type DisplayOverride = {
   display_label: string;
@@ -55,8 +56,8 @@ function transformBuildingRow(row: Record<string, unknown>): BuildingWithMetrics
       face_rent: toFiniteNumber(metric.face_rent),
       rent_free_period: toFiniteNumber(metric.rent_free_period),
       net_effective_rent: toFiniteNumber(metric.net_effective_rent),
-      vacancy_rate: toFiniteNumber(metric.vacancy_rate),
-      vacant_area: toFiniteNumber(metric.vacant_area),
+      vacancy_rate: mapOptionalNumber(metric.vacancy_rate),
+      vacant_area: mapOptionalNumber(metric.vacant_area),
       record_year: toFiniteNumber(metric.record_year),
       record_quarter: toFiniteNumber(metric.record_quarter),
     }))

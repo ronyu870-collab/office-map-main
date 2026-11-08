@@ -1,6 +1,7 @@
 'use client';
 
 import type { MapController } from '@/src/services/MapController';
+import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
 import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
@@ -257,7 +258,7 @@ function buildingVisual(
     background = scaleColor(rent, hasRent);
     fontSize = text.length >= 3 ? 9.5 : 10.5;
   } else if (mode === 'vacancy') {
-    const vacancy = Number(metric?.vacancy_rate);
+    const vacancy = mapOptionalNumber(metric?.vacancy_rate);
     const hasVacancy = Number.isFinite(vacancy);
     const pct = hasVacancy ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
     text = hasVacancy ? `${Math.round(pct)}%` : '–';
@@ -608,11 +609,11 @@ export function installNativeMarkerRenderer(
 
       const metric = latestMetric(building, metricCache);
       const area = Number(metric?.total_area);
-      const vacantArea = Number(metric?.vacant_area);
+      const vacantArea = observedVacantArea(metric);
       const rent = Number(metric?.net_effective_rent);
-      if (Number.isFinite(area) && area > 0) {
+      if (Number.isFinite(area) && area > 0 && Number.isFinite(vacantArea)) {
         item.totalArea += area;
-        if (Number.isFinite(vacantArea)) item.vacantArea += vacantArea;
+        item.vacantArea += vacantArea;
       }
       if (
         Number.isFinite(area) &&

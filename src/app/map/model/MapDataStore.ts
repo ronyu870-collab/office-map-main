@@ -120,9 +120,12 @@ function matchesNumericFilters(building: BuildingWithMetrics, filterState: Sideb
     if (!latest) return false;
     if (Number.isNaN(Number(condition.value))) continue;
 
-    let metricValue = Number(latest[condition.field as keyof typeof latest]);
+    const raw = latest[condition.field as keyof typeof latest];
+    if (raw === null || raw === undefined || raw === '') return false;
+    let metricValue = Number(raw);
     const filterValue = Number(condition.value);
     if (!Number.isFinite(metricValue)) return false;
+    // building_metrics stores a 0–1 fraction; the filter input is in percent.
     if (condition.field === 'vacancy_rate') metricValue *= 100;
 
     switch (condition.operator) {

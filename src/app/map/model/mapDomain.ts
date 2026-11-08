@@ -1,5 +1,6 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { observedVacantArea } from './vacancyMetrics';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
 export const MAP_SUBMARKETS: string[] = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他'];
@@ -206,6 +207,7 @@ export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsSta
   let visibleProjectCount = 0;
   let totalArea = 0;
   let vacantArea = 0;
+  let vacancyObservedArea = 0;
   let rentWeightSum = 0;
   let rentWeightAreaSum = 0;
 
@@ -219,11 +221,14 @@ export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsSta
 
     const area = Number(latest.total_area);
     const rent = Number(latest.net_effective_rent);
-    const vacArea = Number(latest.vacant_area);
+    const vacArea = observedVacantArea(latest);
 
     if (Number.isFinite(area) && area > 0) {
       totalArea += area;
-      vacantArea += Number.isFinite(vacArea) ? vacArea : 0;
+      if (Number.isFinite(vacArea)) {
+        vacantArea += vacArea;
+        vacancyObservedArea += area;
+      }
     }
 
     if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) {
@@ -233,7 +238,7 @@ export function computeStatsFromBuildings(buildingsData: unknown[]): MapStatsSta
   }
 
   const avgRent = rentWeightAreaSum > 0 ? (rentWeightSum / rentWeightAreaSum).toFixed(1) : '-';
-  const overallVacancyPct = totalArea > 0 ? ((vacantArea / totalArea) * 100).toFixed(1) : '-';
+  const overallVacancyPct = vacancyObservedArea > 0 ? ((vacantArea / vacancyObservedArea) * 100).toFixed(1) : '-';
 
   return {
     totalArea: totalArea > 0 ? Math.round(totalArea).toLocaleString('zh-CN') : '-',

@@ -2,6 +2,7 @@
 
 import type { MapController } from '@/src/services/MapController';
 import { MAP_BUILDING_TIER_MIN_ZOOM } from './mapMarkerZoom';
+import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
 import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
@@ -135,7 +136,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     fontSize = text.length >= 3 ? 9.5 : 10.5;
     background = !hasValue ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
   } else if (mode === 'vacancy') {
-    const vacancy = Number(metric?.vacancy_rate);
+    const vacancy = mapOptionalNumber(metric?.vacancy_rate);
     const hasValue = Number.isFinite(vacancy);
     const percent = hasValue ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
     text = hasValue ? `${Math.round(percent)}%` : '–';
@@ -396,11 +397,11 @@ export function installMapVisualHierarchyV3(
       }
       const metric = latestMetric(building);
       const area = Number(metric?.total_area);
-      const vacant = Number(metric?.vacant_area);
+      const vacant = observedVacantArea(metric);
       const rent = Number(metric?.net_effective_rent);
-      if (Number.isFinite(area) && area > 0) {
+      if (Number.isFinite(area) && area > 0 && Number.isFinite(vacant)) {
         aggregate.area += area;
-        if (Number.isFinite(vacant)) aggregate.vacant += vacant;
+        aggregate.vacant += vacant;
       }
       if (Number.isFinite(area) && area > 0 && Number.isFinite(rent) && rent > 0) {
         aggregate.rentSum += rent * area;

@@ -10,6 +10,7 @@ import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
+import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { clearMapReadCache } from "./mapReadCache";
@@ -123,8 +124,8 @@ function transformBuildingRow(r: Record<string, unknown>): BuildingWithMetrics {
       face_rent: toFiniteNumber(rm.face_rent),
       rent_free_period: toFiniteNumber(rm.rent_free_period),
       net_effective_rent: toFiniteNumber(rm.net_effective_rent),
-      vacancy_rate: toFiniteNumber(rm.vacancy_rate),
-      vacant_area: toFiniteNumber(rm.vacant_area),
+      vacancy_rate: mapOptionalNumber(rm.vacancy_rate),
+      vacant_area: mapOptionalNumber(rm.vacant_area),
       record_year: toFiniteNumber(rm.record_year),
       record_quarter: toFiniteNumber(rm.record_quarter),
     }))
@@ -229,9 +230,9 @@ function getMarkerStyle(
       else bgColor = "#10b981"; // 较低租金 - 绿色
     }
   } else if (mode === "vacancy") {
-    const vac = latestMetric ? Number(latestMetric.vacancy_rate) : null;
+    const vac = mapOptionalNumber(latestMetric?.vacancy_rate);
     fontSize = "10px";
-    if (vac === null || !Number.isFinite(vac) || isFuture) {
+    if (!Number.isFinite(vac) || isFuture) {
       bgColor = "#94a3b8";
       text = "-";
     } else {
@@ -922,10 +923,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         const latest = pickLatestMetric(b.metrics);
         if (!latest) return false;
         for (const cond of this._compFilterConds) {
-          let val: number;
-          if (cond.field === "vacancy_rate")
-            val = Number(latest.vacancy_rate) * 100;
-          else val = Number((latest as any)[cond.field]);
+          const raw = (latest as unknown as Record<string, unknown>)[cond.field];
+          if (raw === null || raw === undefined || raw === "") return false;
+          // building_metrics.vacancy_rate is a 0-1 fraction; the filter UI uses percent.
+          const val = Number(raw) * (cond.field === "vacancy_rate" ? 100 : 1);
           if (!Number.isFinite(val)) return false;
           switch (cond.op) {
             case ">=":
@@ -1028,11 +1029,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const textColor = "#fff";
 
       const markerEl = `
-        <div data-building-id="${building.id}" style="
+        <div class="map-competitor-marker" data-building-id="${building.id}" style="
           display:flex;flex-direction:column;align-items:center;gap:2px;
           transition: transform 0.2s;
         " onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-          <div style="
+          <div class="map-competitor-marker__core" style="
             width:26px;height:26px;border-radius:50%;
             background:${bgColor};border:2px solid #fff;
             box-shadow:0 4px 12px rgba(0,0,0,0.2);
@@ -2095,10 +2096,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       if (latest) {
         const area = Number(latest.total_area);
         const rent = Number(latest.net_effective_rent);
-        const vacArea = Number(latest.vacant_area);
-        if (Number.isFinite(area) && area > 0) {
+        const vacArea = observedVacantArea(latest);
+        if (Number.isFinite(area) && area > 0 && Number.isFinite(vacArea)) {
           agg.totalArea += area;
-          agg.vacantArea += Number.isFinite(vacArea) ? vacArea : 0;
+          agg.vacantArea += vacArea;
         }
         if (
           Number.isFinite(area) &&
@@ -2161,7 +2162,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
       let extraContent = `
         <div style="font-size: 10px; font-weight: 700; opacity: 0.95;">¥${avgRent}</div>
-        <div style="font-size: 10px; font-weight: 700; color: #fcd34d;">${vacRate}%</div>
+        <div style="font-size: 10px; font-weight: 700; color: #fcd34d;">${vacRate === "-" ? "—" : `${vacRate}%`}</div>
       `;
 
       if (renderMode === "rent") {
@@ -2206,7 +2207,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
         extraContent = `
           <div style="font-size: 10px; font-weight: 700; color: #fcd34d; margin-top: 2px;">空置率</div>
-          <div style="font-size: 11px; font-weight: 800; opacity: 0.95;">${vacRate}%</div>
+          <div style="font-size: 11px; font-weight: 800; opacity: 0.95;">${vacRate === "-" ? "—" : `${vacRate}%`}</div>
         `;
       } else if (renderMode === "leed") {
         // 直接从子市场的楼宇计算 LEED 认证率
@@ -2788,8 +2789,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       ...marker.getExtData(),
       ...building,
       rent: latestMetric?.net_effective_rent || 0,
-      vacancyRate: latestMetric?.vacancy_rate || 0,
-      vacancyArea: latestMetric?.vacant_area || 0,
+      vacancyRate: mapOptionalNumber(latestMetric?.vacancy_rate),
+      vacancyArea: mapOptionalNumber(latestMetric?.vacant_area),
       totalArea: latestMetric?.total_area || 0,
     };
 
