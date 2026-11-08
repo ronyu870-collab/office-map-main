@@ -1380,7 +1380,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   }
 
   // 显示未来供应悬停提示框
-  private showFutureSupplyHoverTooltip(
+  public showFutureSupplyHoverTooltip(
     supply: any,
     x: number,
     y: number,
