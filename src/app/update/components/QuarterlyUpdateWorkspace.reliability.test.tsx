@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => state.router, useSearchParams: () => ({ get: () => state.preview }) }));
 vi.mock('@/src/services/Auth', () => ({ getSessionFast: async () => state.loggedIn ? ({ user: { id: state.userId, email: 'synthetic@example.invalid', user_metadata: { full_name: 'Synthetic Person' } } }) : null }));
-vi.mock('@/src/hooks/useBuildings', () => ({ useBuildings: () => ({ buildings: state.buildings, error: null, mutate: vi.fn() }) }));
+vi.mock('./useAssignedBuildings', () => ({ useAssignedBuildings: () => ({ buildings: state.buildings, error: null, mutate: vi.fn() }) }));
 vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: state.impersonating }) }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: {

@@ -17,7 +17,7 @@ describe('shared record fields', () => {
         table: 'synthetic', label: '合成记录',
         cols: [{ key: 'name', label: '名称', type: 'text' }],
       };
-      return <RecordFields config={columns} values={values} onChange={setValues} dicts={{}} />;
+      return <RecordFields config={columns} values={values} onChange={(next) => setValues({ name: String(next.name ?? '') })} dicts={{}} />;
     }
     render(<Harness />);
     const input = screen.getByRole('textbox', { name: '名称' }) as HTMLInputElement;
