@@ -302,7 +302,7 @@ describe('native map visual hierarchy', () => {
     const second = { id: 'future-b', location_lng: 116.46, location_lat: 39.91 };
     const cleanup = installMapInteractionHardening(controller, 'map-container');
     const getF = () => harness.labelsLayerInstances[0]?.markers.filter(
-      marker => String(marker.options.name).startsWith('future:'),
+      (marker: any) => String(marker.options.name).startsWith('future:'),
     ) ?? [];
     try {
       controller.renderFutureMarkers([first, second], 'default');
@@ -311,13 +311,13 @@ describe('native map visual hierarchy', () => {
       const detailLayer = harness.labelsLayerInstances[0];
       expect(detailLayer.options).toMatchObject({ collision: true, allowCollision: false });
       expect(getF()).toHaveLength(0);
-      expect(detailLayer.markers.some(marker => marker.options.name === 'a')).toBe(true);
+      expect(detailLayer.markers.some((marker: any) => marker.options.name === 'a')).toBe(true);
 
       harness.setZoom(14);
       harness.emitMap('zoomend');
       expect(getF()).toHaveLength(2);
-      expect(detailLayer.markers.some(marker => marker.options.name === 'a')).toBe(true);
-      expect(getF().every(marker => marker.options.rank > 2999)).toBe(true);
+      expect(detailLayer.markers.some((marker: any) => marker.options.name === 'a')).toBe(true);
+      expect(getF().every((marker: any) => marker.options.rank > 2999)).toBe(true);
       const svg = decodeURIComponent(getF()[0].options.icon.image.split(',')[1]);
       expect(svg).toContain('fill="#10b981"');
       expect(svg).toContain('stroke-dasharray="3 2"');
@@ -447,7 +447,7 @@ describe('native map visual hierarchy', () => {
         : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
       const supply = [{ id: 'future-project', location_lng: 116.46, location_lat: 39.91 }];
       const getF = () => harness.labelsLayerInstances[0]?.markers.filter(
-        marker => String(marker.options.name).startsWith('future:'),
+        (marker: any) => String(marker.options.name).startsWith('future:'),
       ) ?? [];
       try {
         if (version === 'v3') {
