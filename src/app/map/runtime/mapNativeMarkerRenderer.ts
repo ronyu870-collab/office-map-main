@@ -866,11 +866,12 @@ export function installNativeMarkerRenderer(
       const visual = buildingVisual(building, mode, metric, groups);
       const area = Number(metric?.total_area);
       const grade = String(building?.grade ?? '').toUpperCase();
+      // BP includes "P", so it must be classified before A/P for collision priority.
       const gradeRank =
-        grade.includes('A') || grade.includes('P')
-          ? 2000
-          : grade.includes('BP')
-            ? 1200
+        grade.includes('BP')
+          ? 1200
+          : grade.includes('A') || grade.includes('P')
+            ? 2000
             : 700;
       const rank =
         gradeRank +

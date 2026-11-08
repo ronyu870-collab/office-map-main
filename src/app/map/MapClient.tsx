@@ -69,6 +69,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   // 🌟 竞品分析模式：当有值时，列表显示竞品楼宇而非过滤结果
   const [competitorBuildings, setCompetitorBuildings] = React.useState<any[] | null>(null);
   const [targetBuildingId, setTargetBuildingId] = React.useState<string | null>(null);
+  // Update synchronously on native map events so delayed supply reads cannot redraw F while comparing.
+  const competitorModeRef = React.useRef(false);
 
   // 监听竞品分析事件（联动地图与列表）
   React.useEffect(() => {
@@ -76,14 +78,16 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       const detail = (e as CustomEvent).detail;
       // CL-013: 新格式 { buildings, targetBuildingId }，兼容旧格式
       if (Array.isArray(detail)) {
+        competitorModeRef.current = true;
         setCompetitorBuildings(detail);
         setTargetBuildingId(null);
       } else if (detail && Array.isArray(detail.buildings)) {
+        competitorModeRef.current = true;
         setCompetitorBuildings(detail.buildings);
         setTargetBuildingId(detail.targetBuildingId || null);
       }
     };
-    const onCleared = () => { setCompetitorBuildings(null); setTargetBuildingId(null); };
+    const onCleared = () => { competitorModeRef.current = false; setCompetitorBuildings(null); setTargetBuildingId(null); };
     window.addEventListener('competitors-found', onFound);
     window.addEventListener('competitors-cleared', onCleared);
     return () => {
@@ -120,8 +124,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     const futureWithType = filteredFutureSupplies.map(f => ({ ...f, _dataType: 'future' }));
     return [...existingWithType, ...futureWithType];
   }, [filteredBuildings, filteredFutureSupplies, competitorBuildings]);
-  // 竞品分析模式标记（ref，避免影响 useEffect 依赖）
-  const competitorModeRef = React.useRef(false);
+  // Keep the synchronous event ref aligned with the committed React state.
   React.useEffect(() => {
     competitorModeRef.current = competitorBuildings !== null;
   }, [competitorBuildings]);

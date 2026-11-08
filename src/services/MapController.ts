@@ -866,6 +866,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     )
       return;
 
+    // Future supply has a separate marker layer; clear via the public method so
+    // V3 and fallback renderers also forget their pending future-marker state.
+    this.clearFutureMarkers();
+
     const centerPoint = this._compCenterPoint;
     const buildingId = this._compBuildingId;
     const radius = this._compRadius;
