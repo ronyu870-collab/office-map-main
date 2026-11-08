@@ -554,7 +554,9 @@ export function installMapVisualHierarchyV3(
       const metric = latestMetric(building);
       const area = Number(metric?.total_area);
       const grade = String(building?.grade ?? '').toUpperCase();
-      const rank = (grade.includes('A') || grade.includes('P') ? 2000 : grade.includes('BP') ? 1200 : 700) +
+      // BP includes "P", so test the industrial-park grade before A/P.
+      const gradeRank = grade.includes('BP') ? 1200 : grade.includes('A') || grade.includes('P') ? 2000 : 700;
+      const rank = gradeRank +
         (Number.isFinite(area) ? Math.min(999, Math.round(area / 1000)) : 0);
 
       const icon = new LabelMarker({

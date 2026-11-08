@@ -169,6 +169,54 @@ describe('MapClient render mode synchronization', () => {
     expect(controller.renderFutureMarkers).not.toHaveBeenCalled();
   });
 
+
+  it('restores the current future-supply filter after exiting competitor mode', async () => {
+    const supply = {
+      id: 'supply-640', name: '玉渊潭640地块商业项目', type: '商业', grade: null,
+      submarket: null, district: '海淀区', launch_year: '2027',
+      location_lng: 116.29817, location_lat: 39.927218,
+    };
+    controller.fetchFutureSupplies.mockResolvedValue([supply]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderFutureMarkers).toHaveBeenCalledWith([supply], 'default'));
+
+    controller.renderFutureMarkers.mockClear();
+    fireEvent(window, new CustomEvent('competitors-found', {
+      detail: { buildings: BUILDINGS, targetBuildingId: BUILDINGS[0].id },
+    }));
+    expect(controller.renderFutureMarkers).not.toHaveBeenCalled();
+
+    fireEvent(window, new Event('competitors-cleared'));
+    await waitFor(() => expect(controller.renderFutureMarkers).toHaveBeenCalledWith([supply], 'default'));
+
+    // After the user has disabled F, leaving another competitor session must not re-enable it.
+    fireEvent.click(screen.getByRole('button', { name: 'close-layer-with-district-filter' }));
+    await waitFor(() => expect(controller.clearFutureMarkers).toHaveBeenCalled());
+    controller.renderFutureMarkers.mockClear();
+    fireEvent(window, new CustomEvent('competitors-found', { detail: { buildings: BUILDINGS, targetBuildingId: BUILDINGS[0].id } }));
+    fireEvent(window, new Event('competitors-cleared'));
+    expect(controller.renderFutureMarkers).not.toHaveBeenCalled();
+  });
+
+  it('does not render a delayed future-supply response while competitor mode is active', async () => {
+    let resolveSupplies!: (supplies: any[]) => void;
+    const pending = new Promise<any[]>(resolve => { resolveSupplies = resolve; });
+    controller.fetchFutureSupplies.mockReturnValue(pending);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.fetchFutureSupplies).toHaveBeenCalled());
+
+    fireEvent(window, new CustomEvent('competitors-found', {
+      detail: { buildings: BUILDINGS, targetBuildingId: BUILDINGS[0].id },
+    }));
+    resolveSupplies([{
+      id: 'future-a', name: '新增供应A', grade: 'A', type: '办公',
+      submarket: 'CBD', district: '朝阳区', launch_year: '2027',
+      location_lng: 116.46, location_lat: 39.91,
+    }]);
+    await waitFor(() => expect(controller.fetchFutureSupplies).toHaveBeenCalled());
+    expect(controller.renderFutureMarkers).not.toHaveBeenCalled();
+  });
+
   it('applies search before any filter state has been created', async () => {
     const otherBuilding = {
       ...BUILDINGS[0],
