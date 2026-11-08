@@ -1,7 +1,6 @@
 import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MapController } from '../MapController';
-import { installMapVisualHierarchyV3 } from '@/src/app/map/runtime/mapVisualHierarchyV3';
 
 const mocks = vi.hoisted(() => ({ loadPhoto: vi.fn(), loadStoredPhoto: vi.fn(), from: vi.fn() }));
 vi.mock('../salesMaterialsClient', () => ({ loadBuildingPhoto: mocks.loadPhoto }));
@@ -55,79 +54,37 @@ beforeEach(() => {
   mocks.from.mockReset();
 });
 
-it('only attaches future points at the building tier and restores them after zooming out and back', () => {
+it('keeps the legacy fallback F marker a round green badge with dashed border', () => {
   const controller = new MapController();
-  const container = document.createElement('div');
-  const listeners = new Map<string, Set<() => void>>();
-  let zoom = 10.8;
   const points = new Set<unknown>();
   const map = {
-    getZoom: () => zoom,
-    on: (event: string, callback: () => void) => {
-      const handlers = listeners.get(event) ?? new Set();
-      handlers.add(callback); listeners.set(event, handlers);
-    },
-    off: (event: string, callback: () => void) => listeners.get(event)?.delete(callback),
     add: (markers: unknown[]) => markers.forEach(marker => points.add(marker)),
     remove: (markers: unknown[]) => markers.forEach(marker => points.delete(marker)),
   };
-  class Overlay {
-    readonly content: string | undefined;
-    constructor(options?: { content?: string }) { this.content = options?.content; }
+  class Marker {
+    readonly content: string;
+    constructor(options: { content: string }) { this.content = options.content; }
     on() {}
   }
-  Object.assign(controller, { map, AMap: { Marker: Overlay, Pixel: Overlay, Size: Overlay, LabelsLayer: Overlay, LabelMarker: Overlay, MassMarks: Overlay } });
-  const dispose = installMapVisualHierarchyV3(controller, container);
-  const expectCircularF = () => {
-    expect(points.size).toBe(1);
-    const marker = Array.from(points)[0] as Overlay;
-    const host = document.createElement('div');
-    host.innerHTML = marker.content ?? '';
-    const badge = host.querySelector<HTMLElement>('.map-future-supply-marker');
-    expect(badge).not.toBeNull();
-    expect(badge?.textContent?.trim()).toBe('F');
-    expect(badge?.style.width).toBe('26px');
-    expect(badge?.style.height).toBe('26px');
-    expect(badge?.style.borderRadius).toBe('50%');
-    expect(badge?.style.borderTopStyle).toBe('dashed');
-    expect(badge?.style.backgroundColor).toBe('rgb(16, 185, 129)');
-    expect(badge?.getAttribute('onmouseover')).toBe("this.style.transform='scale(1.15)'");
-    expect(badge?.getAttribute('onmouseout')).toBe("this.style.transform='scale(1)'");
-    fireEvent.mouseOver(badge!);
-    expect(badge?.style.borderRadius).toBe('50%');
-    fireEvent.mouseOut(badge!);
-    expect(badge?.style.borderRadius).toBe('50%');
-  };
-  expect(dispose).toBeTypeOf('function');
-  const move = (value: number) => {
-    for (const cb of listeners.get('zoomstart') ?? []) cb();
-    zoom = value;
-    for (const cb of listeners.get('zoomchange') ?? []) cb();
-    for (const cb of listeners.get('zoomend') ?? []) cb();
-  };
-  try {
-    controller.renderFutureMarkers([future]);
-    expect(points.size).toBe(0);
-    move(12.15);
-    expect(container.dataset.markerTier).toBe('dot');
-    expect(points.size).toBe(0);
-    move(14);
-    expectCircularF();
-    move(12.15);
-    expect(points.size).toBe(0);
-    move(14);
-    expectCircularF();
-    controller.renderFutureMarkers([future]); // Repaint the same set of projects.
-    expectCircularF();
-    controller.renderFutureMarkers([]); // Filter future supply out.
-    expect(points.size).toBe(0);
-    controller.renderFutureMarkers([future]); // Re-enable the future-supply filter.
-    expectCircularF();
-    controller.clearFutureMarkers();
-    move(12.15);
-    move(14);
-    expect(points.size).toBe(0);
-  } finally { dispose?.(); }
+  Object.assign(controller, { map, AMap: { Marker, Pixel: class {} } });
+  controller.renderFutureMarkers([future]);
+  expect(points.size).toBe(1);
+  const marker = Array.from(points)[0] as Marker;
+  const host = document.createElement('div');
+  host.innerHTML = marker.content;
+  const badge = host.querySelector<HTMLElement>('.map-future-supply-marker');
+  expect(badge).not.toBeNull();
+  expect(badge?.textContent?.trim()).toBe('F');
+  expect(badge?.style.width).toBe('26px');
+  expect(badge?.style.height).toBe('26px');
+  expect(badge?.style.borderRadius).toBe('50%');
+  expect(badge?.style.borderTopStyle).toBe('dashed');
+  expect(badge?.style.backgroundColor).toBe('rgb(16, 185, 129)');
+  fireEvent.mouseOver(badge!);
+  fireEvent.mouseOut(badge!);
+  expect(badge?.style.borderRadius).toBe('50%');
+  controller.clearFutureMarkers();
+  expect(points.size).toBe(0);
 });
 
 it('shows a pending project area and omits an empty remarks row', () => {

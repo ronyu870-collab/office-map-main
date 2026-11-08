@@ -63,6 +63,10 @@ function createNativeHarness() {
     markers: any[] = [];
     constructor(options: any) { this.options = options; labelsLayerInstances.push(this); }
     add = vi.fn((markers: any[] | any) => { this.markers.push(...(Array.isArray(markers) ? markers : [markers])); });
+    remove = vi.fn((markers: any[] | any) => {
+      const removed = Array.isArray(markers) ? markers : [markers];
+      this.markers = this.markers.filter(marker => !removed.includes(marker));
+    });
     clear = vi.fn(() => { this.markers = []; });
     setOpacity = vi.fn();
   }
@@ -284,36 +288,69 @@ describe('native map visual hierarchy', () => {
     cleanup();
   });
 
-  it('keeps future-supply markers hidden until the building tier', async () => {
+  it('shares stock collision layer with F and restores future supply after zoom and filter changes', async () => {
     const harness = createNativeHarness();
-    const renderFuture = vi.fn();
-    const clearFuture = vi.fn();
     const controller: any = {
       AMap: harness.AMap, map: harness.map,
       markers: [], dotMarkers: [], submarketMarkers: [],
-      renderMarkers() {}, clearMarkers() {}, updateVisibilityByZoom() {},
-      renderFutureMarkers: renderFuture, clearFutureMarkers: clearFuture,
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+      renderFutureMarkers: vi.fn(), clearFutureMarkers: vi.fn(),
       openBuildingInfoWindow: vi.fn(), showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+      showFutureSupplyHoverTooltip: vi.fn(), openFutureSupplyInfoWindow: vi.fn(),
     };
+    const first = { id: 'future-a', location_lng: 116.4601, location_lat: 39.9101 };
+    const second = { id: 'future-b', location_lng: 116.46, location_lat: 39.91 };
     const cleanup = installMapInteractionHardening(controller, 'map-container');
-    controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
-    await flushFrames();
+    const getF = () => harness.labelsLayerInstances[0]?.markers.filter(
+      (marker: any) => String(marker.options.name).startsWith('future:'),
+    ) ?? [];
+    try {
+      controller.renderFutureMarkers([first, second], 'default');
+      controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
+      await flushFrames();
+      const detailLayer = harness.labelsLayerInstances[0];
+      expect(detailLayer.options).toMatchObject({ collision: true, allowCollision: false });
+      expect(getF()).toHaveLength(0);
+      expect(detailLayer.markers.some((marker: any) => marker.options.name === 'a')).toBe(true);
 
-    controller.renderFutureMarkers([{ id: 'future-a' }], 'default');
-    expect(renderFuture).not.toHaveBeenCalled();
-    expect(clearFuture).toHaveBeenCalled();
+      harness.setZoom(14);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(2);
+      expect(detailLayer.markers.some((marker: any) => marker.options.name === 'a')).toBe(true);
+      expect(getF().every((marker: any) => marker.options.rank > 2999)).toBe(true);
+      const svg = decodeURIComponent(getF()[0].options.icon.image.split(',')[1]);
+      expect(svg).toContain('fill="#10b981"');
+      expect(svg).toContain('stroke-dasharray="3 2"');
+      expect(svg).toContain('>F</text>');
+      expect(getF()[0].options.icon.size).toEqual([34, 34]);
+      getF()[0].handlers.emit('mouseover', { originEvent: { clientX: 71, clientY: 85 } });
+      expect(controller.showFutureSupplyHoverTooltip).toHaveBeenCalledWith(first, 71, 85);
+      getF()[0].handlers.emit('click');
+      expect(controller.openFutureSupplyInfoWindow).toHaveBeenCalledWith(first);
 
-    harness.setZoom(11.8);
-    harness.emitMap('zoomend');
-    expect(renderFuture).not.toHaveBeenCalled();
+      harness.setZoom(11.8);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(0);
+      harness.setZoom(14);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(2);
 
-    harness.setZoom(13.18);
-    harness.emitMap('zoomend');
-    expect(renderFuture).toHaveBeenCalledWith([{ id: 'future-a' }], 'default');
-
-    cleanup();
+      controller.renderFutureMarkers([second], 'default');
+      expect(getF()).toHaveLength(1);
+      expect(getF()[0].options.name).toContain('future-b');
+      controller.renderFutureMarkers([second], 'rent');
+      const rentSvg = decodeURIComponent(getF()[0].options.icon.image.split(',')[1]);
+      expect(rentSvg).toContain('fill="#94a3b8"');
+      expect(rentSvg).not.toContain('stroke-dasharray');
+      controller.clearFutureMarkers();
+      expect(getF()).toHaveLength(0);
+      harness.setZoom(11.8);
+      harness.emitMap('zoomend');
+      harness.setZoom(14);
+      harness.emitMap('zoomend');
+      expect(getF()).toHaveLength(0);
+    } finally { cleanup(); }
   });
-
 
   it('ranks BP below A/P and above B at the same location in V3 and fallback renderers', async () => {
     for (const version of ['v3', 'fallback'] as const) {
@@ -355,7 +392,45 @@ describe('native map visual hierarchy', () => {
     }
   });
 
-  it('forgets future supply on competitor-layer clear and never resurrects it on zoom (V3/fallback)', async () => {
+  it('shares the same hover tooltip between a round building icon and its right-hand name', async () => {
+    const harness = createNativeHarness();
+    harness.setZoom(14.4);
+    const controller: any = {
+      AMap: harness.AMap, map: harness.map,
+      markers: [], dotMarkers: [], submarketMarkers: [],
+      renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+      showHoverTooltip: vi.fn(), hideHoverTooltip: vi.fn(),
+      openBuildingInfoWindow: vi.fn(),
+    };
+    const cleanup = installMapInteractionHardening(controller, 'map-container');
+    const item = building('hover-a', 'CBD', 116.46, 39.91, 305, 0.08);
+    try {
+      controller.renderMarkers([item], 'default');
+      await flushFrames();
+      controller.hideHoverTooltip.mockClear();
+      const icon = harness.labelMarkerInstances.find(marker => marker.options.name === 'hover-a');
+      const name = harness.labelMarkerInstances.find(marker => marker.options.name === 'hover-a:name');
+      expect(icon).toBeDefined();
+      expect(name).toBeDefined();
+      icon.handlers.emit('mouseover', { originEvent: { clientX: 30, clientY: 40 } });
+      expect(controller.showHoverTooltip).toHaveBeenLastCalledWith(item, 30, 40);
+      icon.handlers.emit('mouseout');
+      name.handlers.emit('mouseover', { originEvent: { clientX: 50, clientY: 60 } });
+      expect(controller.showHoverTooltip).toHaveBeenLastCalledWith(item, 50, 60);
+      await new Promise(resolve => window.setTimeout(resolve, 100));
+      expect(controller.hideHoverTooltip).not.toHaveBeenCalled();
+      name.handlers.emit('mouseout');
+      await new Promise(resolve => window.setTimeout(resolve, 100));
+      expect(controller.hideHoverTooltip).toHaveBeenCalledTimes(1);
+      name.handlers.emit('click');
+      expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('hover-a');
+      name.handlers.emit('mouseover', { originEvent: { clientX: 60, clientY: 70 } });
+      harness.emitMap('zoomstart');
+      expect(controller.hideHoverTooltip).toHaveBeenCalledTimes(2);
+    } finally { cleanup(); }
+  });
+
+  it('forgets future supply after clear and never resurrects it on zoom (V3/fallback)', async () => {
     for (const version of ['v3', 'fallback'] as const) {
       const harness = createNativeHarness();
       harness.setZoom(14);
@@ -370,15 +445,22 @@ describe('native map visual hierarchy', () => {
       const cleanup = version === 'v3'
         ? installMapInteractionHardening(controller, 'map-container')
         : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
-      const supply = [{ id: 'future-project' }];
+      const supply = [{ id: 'future-project', location_lng: 116.46, location_lat: 39.91 }];
+      const getF = () => harness.labelsLayerInstances[0]?.markers.filter(
+        (marker: any) => String(marker.options.name).startsWith('future:'),
+      ) ?? [];
       try {
+        if (version === 'v3') {
+          controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)]);
+          await flushFrames();
+        }
         controller.renderFutureMarkers(supply, 'default');
-        expect(renderFuture).toHaveBeenCalledTimes(1);
+        expect(renderFuture).toHaveBeenCalledTimes(version === 'v3' ? 0 : 1);
+        if (version === 'v3') expect(getF()).toHaveLength(1);
 
-        // Entering competitor mode clears both native F overlays and cached future arguments.
         controller.clearFutureMarkers();
         expect(clearFuture).toHaveBeenCalled();
-
+        if (version === 'v3') expect(getF()).toHaveLength(0);
         harness.setZoom(11.8);
         harness.emitMap('zoomstart');
         harness.emitMap('zoomend');
@@ -386,14 +468,13 @@ describe('native map visual hierarchy', () => {
         harness.emitMap('zoomstart');
         harness.emitMap('zoomend');
         await flushFrames();
-        expect(renderFuture).toHaveBeenCalledTimes(1);
+        expect(renderFuture).toHaveBeenCalledTimes(version === 'v3' ? 0 : 1);
+        if (version === 'v3') expect(getF()).toHaveLength(0);
 
-        // Exiting competitor mode explicitly restores the prior filtered list.
         controller.renderFutureMarkers(supply, 'default');
-        expect(renderFuture).toHaveBeenCalledTimes(2);
-      } finally {
-        cleanup?.();
-      }
+        expect(renderFuture).toHaveBeenCalledTimes(version === 'v3' ? 0 : 2);
+        if (version === 'v3') expect(getF()).toHaveLength(1);
+      } finally { cleanup?.(); }
     }
   });
 
