@@ -6,7 +6,6 @@ import { supabase } from "@/src/services/supabaseClient";
 import { logAction } from "@/src/utils/audit";
 import { getSession } from "@/src/services/Auth";
 import { MaskedCell } from "@/src/components/demo";
-import * as XLSX from "xlsx";
 import { ImportErrorsModal } from "@/src/components/admin/grid/modals/ImportErrorsModal";
 import { Button, Dialog, EmptyState, LoadingState } from "@/src/components/ui";
 
@@ -1176,7 +1175,9 @@ function TablePanel({
   // ── XLSX 导入 ──
   const writableCols = config.cols.filter((c) => !c.readOnly);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx').catch(() => null);
+    if (!XLSX) { showToast('Excel 工具加载失败，请重试', false); return; }
     const header = writableCols.map((c) => c.label)
     const ws = XLSX.utils.aoa_to_sheet([header])
     ws['!cols'] = writableCols.map(() => ({ wch: 22 }))
@@ -1195,8 +1196,9 @@ function TablePanel({
     if (!file) return;
     e.target.value = "";
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(ev.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -1319,8 +1321,9 @@ function TablePanel({
     if (!file) return;
     e.target.value = "";
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await import('xlsx');
         const data = new Uint8Array(ev.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -1451,7 +1454,7 @@ function TablePanel({
   )?.key;
 
   // ── 导出 Excel ──
-  const exportToExcel = (mode: "latest" | "all" = "latest") => {
+  const exportToExcel = async (mode: "latest" | "all" = "latest") => {
     // 🔥 新增：根据模式决定导出数据源
     let exportRows = filtered;
     let filenamePrefix = config.label;
@@ -1512,7 +1515,9 @@ function TablePanel({
       return exportRow;
     });
 
-    // 创建工作簿
+    // XLSX is only needed after the user requests an export.
+    const XLSX = await import('xlsx').catch(() => null);
+    if (!XLSX) { showToast('Excel 工具加载失败，请重试', false); return; }
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, config.label);

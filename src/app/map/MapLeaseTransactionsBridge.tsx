@@ -99,27 +99,32 @@ function DetailItem({
 }
 
 async function loadBuildingLeases(buildingId: string, page: number): Promise<LeasePayload> {
-  const cacheKey = `${buildingId}:${page}`;
-  const cached = cache.get(cacheKey);
-  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.payload;
-
   const session = await getSessionFast();
   const token = session?.session?.access_token;
   if (!token) throw new Error('登录状态异常，请重新登录');
+  const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
+  const scope = JSON.stringify([session.user.id, session.role, token, headers.get('X-Colliers-Impersonate-User')]);
+  const cacheKey = `${scope}:${buildingId}:${page}`;
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) return cached.payload;
+  const first = cache.get(`${scope}:${buildingId}:0`);
+  const reusedCount = page > 0 && first && Date.now() - first.cachedAt < CACHE_TTL_MS
+    ? first.payload.count : null;
 
   const params = new URLSearchParams({
     building_id: buildingId,
     limit: String(PAGE_SIZE),
     offset: String(page * PAGE_SIZE),
   });
+  if (reusedCount !== null) params.set('include_count', '0');
   const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-    headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
+    headers,
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || '关联成交读取失败');
 
   const payload = {
-    count: Number(body.count ?? 0),
+    count: typeof body.count === 'number' ? body.count : (reusedCount ?? 0),
     records: (body.records ?? []) as LeaseRow[],
   };
   cache.set(cacheKey, { payload, cachedAt: Date.now() });
@@ -253,7 +258,7 @@ export function MapLeaseTransactionsBridge() {
             <button
               type="button"
               onClick={() => {
-                cache.delete(`${context.buildingId}:${page}`);
+                cache.clear();
                 setContext({ ...context });
               }}
               className="mt-4 text-[12px] font-medium leading-5 text-[var(--cd-color-brand)] hover:underline"

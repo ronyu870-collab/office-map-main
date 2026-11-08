@@ -17,7 +17,7 @@ beforeEach(() => {
   mocks.catalog.mockResolvedValue(new Map([[building, [photo]], ['invisible-building', [photo]]]));
   mocks.from.mockImplementation((table: string) => {
     const chain: Record<string, unknown> = {};
-    for (const op of ['select', 'eq', 'or', 'order', 'limit']) chain[op] = () => chain;
+    for (const op of ['select', 'eq', 'or', 'order', 'limit', 'in']) chain[op] = () => chain;
     const data = table === 'building_display_overrides' ? [] : table === 'future_supplies'
       ? [
         { id: 'future-row', building_id: building },
@@ -47,6 +47,10 @@ describe('photo summaries in authenticated map data', () => {
       expect.objectContaining({ id: 'future-row', photos: [photo] }),
       expect.objectContaining({ id: 'unlinked-future-row', photos: [] }),
     ]);
+  });
+  it('restricts future photo reads to visible canonical building IDs', async () => {
+    await GET(new NextRequest('https://synthetic.invalid/api/map/data?mode=future'));
+    expect(mocks.catalog).toHaveBeenCalledWith(expect.anything(), [building]);
   });
   it('includes pending supplies with their photos only when the map opts in', async () => {
     const response = await GET(new NextRequest('https://synthetic.invalid/api/map/data?mode=future&include_pending=1'));

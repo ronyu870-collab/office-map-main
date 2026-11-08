@@ -2,14 +2,20 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { BUILDING_PHOTO_TABLE, photoSummaries, type BuildingPhotoSummary } from './model';
 
 /** Paginate instead of silently losing photographs after the Data API row cap. */
-export async function readBuildingPhotoCatalog(admin: SupabaseClient): Promise<Map<string, BuildingPhotoSummary[]>> {
+export async function readBuildingPhotoCatalog(
+  admin: SupabaseClient,
+  buildingIds?: readonly string[],
+): Promise<Map<string, BuildingPhotoSummary[]>> {
   const catalog = new Map<string, BuildingPhotoSummary[]>();
+  if (buildingIds?.length === 0) return catalog;
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await admin.from(BUILDING_PHOTO_TABLE)
+    let query = admin.from(BUILDING_PHOTO_TABLE)
       .select('id,building_id,caption,buildings!inner(id)')
       .eq('status', 'ready')
-      .eq('buildings.is_active', true).eq('buildings.tracking_scope', 'tracked')
+      .eq('buildings.is_active', true).eq('buildings.tracking_scope', 'tracked');
+    if (buildingIds) query = query.in('building_id', [...buildingIds]);
+    const { data, error } = await query
       .order('building_id').order('sort_order').order('id')
       .range(offset, offset + pageSize - 1);
     if (error) throw error;

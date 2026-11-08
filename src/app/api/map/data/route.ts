@@ -154,10 +154,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (mode === 'future') {
-      const [{ data, error }, photos] = await Promise.all([
-        admin.from('future_supplies').select('*').limit(1000),
-        readBuildingPhotoCatalog(admin),
-      ]);
+      const { data, error } = await admin.from('future_supplies').select('*').limit(1000);
       if (error) {
         console.error('[api/map/data] future supplies query failed:', error);
         return noStoreJson({ error: '未来供应读取失败' }, { status: 500 });
@@ -170,6 +167,11 @@ export async function GET(request: NextRequest) {
       const visibleSupplies = params.get('include_pending') === '1'
         ? authorized
         : authorized.filter(supply => !isPendingFutureSupply(supply));
+      // Only read photo summaries for returned supplies, not the entire stock catalog.
+      const photoIds = [...new Set(visibleSupplies
+        .map(row => row.building_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0))];
+      const photos = await readBuildingPhotoCatalog(admin, photoIds);
       return noStoreJson({ future_supplies: visibleSupplies
         .map(row => ({ ...row, photos: photos.get(String(row.building_id)) ?? [] })) });
     }

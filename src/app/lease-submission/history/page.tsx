@@ -126,8 +126,11 @@ export default function LeaseHistoryPage() {
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [selectedRecord, setSelectedRecord] = React.useState<LeaseReadRecord | null>(null);
   const [canReadHistory, setCanReadHistory] = React.useState<boolean | null>(null);
+  const knownCountsRef = React.useRef(new Map<string, { count: number; savedAt: number }>());
+  const loadGenerationRef = React.useRef(0);
 
   const load = React.useCallback(async (pageIndex: number, queryFilters: FilterState) => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
     setError(null);
     setSelectedRecord(null);
@@ -147,25 +150,34 @@ export default function LeaseHistoryPage() {
       if (queryFilters.source) params.set('record_source', queryFilters.source);
       if (queryFilters.areaMin) params.set('area_min', queryFilters.areaMin);
       if (queryFilters.areaMax) params.set('area_max', queryFilters.areaMax);
+      const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
+      const countKey = JSON.stringify([session.user.id, session.role, token, headers.get('X-Colliers-Impersonate-User'), params.toString().replace(/&?offset=\d+/, '')]);
+      const previousCount = pageIndex > 0 ? knownCountsRef.current.get(countKey) : undefined;
+      const reusedCount = previousCount && Date.now() - previousCount.savedAt < 30_000
+        ? previousCount.count : undefined;
+      if (reusedCount !== undefined) params.set('include_count', '0');
 
       const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-        headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
+        headers,
       });
       const body = await response.json().catch(() => ({}));
+      if (generation !== loadGenerationRef.current) return;
       if (!response.ok) {
         if (response.status === 403) setCanReadHistory(false);
         throw new Error(body.error || '查询失败');
       }
+      if (typeof body.count === 'number') knownCountsRef.current.set(countKey, { count: body.count, savedAt: Date.now() });
       setCanReadHistory(body?.access?.canReadHistory === true);
       setRecords(body.records ?? []);
-      setCount(body.count ?? 0);
+      setCount(typeof body.count === 'number' ? body.count : (reusedCount ?? 0));
       setPage(pageIndex);
     } catch (loadError) {
+      if (generation !== loadGenerationRef.current) return;
       setError(loadError instanceof Error ? loadError.message : '查询失败');
       setRecords([]);
       setCount(0);
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, []);
 

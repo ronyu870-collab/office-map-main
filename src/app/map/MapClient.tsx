@@ -279,13 +279,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       setEditingBuilding({ id: buildingId, name: buildingName });
     },
     onReady: async (controller, isCancelled) => {
-      await loadMapData(controller, isCancelled);
-      if (isCancelled()) return;
-      try {
-        const supplies = await controller.fetchFutureSupplies();
-        if (!isCancelled()) setFutureSupplies(supplies);
-      } catch {
-        // Future supply is a secondary layer; preserve current fail-open behavior.
+      // Both reads are independent; future supply must not delay stock startup.
+      const [_, future] = await Promise.allSettled([
+        loadMapData(controller, isCancelled),
+        controller.fetchFutureSupplies(),
+      ]);
+      if (!isCancelled() && future.status === 'fulfilled') {
+        setFutureSupplies(future.value);
       }
     },
     onError: setMapError,

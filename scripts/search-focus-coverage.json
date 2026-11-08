@@ -1,7 +1,10 @@
 [
   {
     "id": "map-search",
-    "roots": ["src/app/map/MapClient.tsx", "src/app/map/components/MapWorkbenchView.tsx"],
+    "roots": [
+      "src/app/map/MapClient.tsx",
+      "src/app/map/components/MapWorkbenchView.tsx"
+    ],
     "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
     "cases": [
       "keeps focus while typing and preserves the caret and draft after the search settles",
@@ -11,38 +14,102 @@
   },
   {
     "id": "full-building-list-search",
-    "roots": ["src/app/map/components/FullBuildingList.tsx"],
+    "roots": [
+      "src/app/map/components/FullBuildingList.tsx"
+    ],
     "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
-    "cases": ["continues typing in the full list after the results update"]
+    "cases": [
+      "continues typing in the full list after the results update"
+    ]
   },
   {
     "id": "full-list-quick-filter",
-    "roots": ["src/app/map/components/FullListQuickFilters.tsx"],
+    "roots": [
+      "src/app/map/components/FullListQuickFilters.tsx"
+    ],
     "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
-    "cases": ["continues editing the list search across result updates with a quick filter applied"]
+    "cases": [
+      "continues editing the list search across result updates with a quick filter applied"
+    ]
   },
   {
     "id": "map-and-list-text-filter",
-    "roots": ["src/components/SidebarFilter.tsx"],
+    "roots": [
+      "src/components/SidebarFilter.tsx"
+    ],
     "file": "src/app/map/__tests__/FullBuildingList.integration.test.tsx",
-    "cases": ["keeps the text filter focused across map and full list result updates"]
+    "cases": [
+      "keeps the text filter focused across map and full list result updates"
+    ]
   },
   {
     "id": "admin-diagnostic-text-filter",
-    "roots": ["src/components/admin/DebugFilter.tsx"],
+    "roots": [
+      "src/components/admin/DebugFilter.tsx"
+    ],
     "file": "src/components/admin/__tests__/DebugFilter.focus.test.tsx",
-    "cases": ["retains the text filter focus and caret after matching rows refresh"]
+    "cases": [
+      "retains the text filter focus and caret after matching rows refresh"
+    ]
   },
   {
     "id": "building-compare-search",
-    "roots": ["src/app/compare/BuildingCompareWorkspace.tsx"],
+    "roots": [
+      "src/app/compare/BuildingCompareWorkspace.tsx"
+    ],
     "file": "src/app/compare/__tests__/BuildingCompareWorkspace.test.tsx",
-    "cases": ["continues typing in comparison search while results change and retains the caret"]
+    "cases": [
+      "continues typing in comparison search while results change and retains the caret"
+    ]
   },
   {
     "id": "audit-object-filter",
-    "roots": ["src/components/admin/AuditLogPage.tsx"],
+    "roots": [
+      "src/components/admin/AuditLogPage.tsx"
+    ],
     "file": "src/components/admin/AuditLogPage.focus.test.tsx",
-    "cases": ["keeps the audit object filter focused while translated photo rows refresh and the query is edited"]
+    "cases": [
+      "keeps the audit object filter focused while translated photo rows refresh and the query is edited"
+    ]
+  },
+  {
+    "id": "lease-history-query-focus",
+    "roots": [
+      "src/app/lease-submission/history/page.tsx"
+    ],
+    "file": "src/app/lease-submission/history/__tests__/history-search.focus.test.tsx",
+    "cases": [
+      "preserves the history company input caret and focus when filtered results return"
+    ]
+  },
+  {
+    "id": "database-manager-search-focus",
+    "roots": [
+      "src/components/DatabaseManager.tsx"
+    ],
+    "file": "src/components/admin/__tests__/database-manager-search.focus.test.tsx",
+    "cases": [
+      "retains the database ledger search focus and caret as rows are filtered"
+    ]
+  },
+  {
+    "id": "generic-table-search-focus",
+    "roots": [
+      "src/components/admin/GenericTablePanel.tsx"
+    ],
+    "file": "src/components/admin/__tests__/generic-table-search.focus.test.tsx",
+    "cases": [
+      "retains generic table search focus and caret across result changes"
+    ]
+  },
+  {
+    "id": "admin-grid-search-focus",
+    "roots": [
+      "src/components/admin/grid/GridPanel.tsx"
+    ],
+    "file": "src/components/admin/grid/__tests__/GridPanel.reliability.test.tsx",
+    "cases": [
+      "keeps the grid toolbar search input focused during result updates"
+    ]
   }
 ]
