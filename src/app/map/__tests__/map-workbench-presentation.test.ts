@@ -32,4 +32,14 @@ describe('Map 2.0 presentation seam', () => {
     expect(css).not.toContain('.amap-marker > div[style*="width:26px;height:26px"]:not([data-building-id])');
     expect(css).toContain('[data-building-id][style*="width:26px"]');
   });
+  it('preserves round competitor markers without overriding stock or future-supply styles', () => {
+    const css = read('src/app/map/map-workbench.css');
+    const controller = read('src/services/MapController.ts');
+    expect(controller).toContain('class="map-competitor-marker" data-building-id=');
+    expect(controller).toContain('class="map-competitor-marker__core" style="');
+    expect(css).toMatch(/\.map-competitor-marker__core\s*\{\s*border-radius:\s*50%\s*!important;/);
+    expect(css).not.toContain('[data-building-id][style*="flex-direction:column"] > div[style*="width:26px"]');
+    expect(css).toContain('.map-future-supply-marker');
+    expect(css).toContain('[data-building-id][style*="width:26px"]');
+  });
 });

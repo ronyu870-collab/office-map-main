@@ -923,7 +923,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         const latest = pickLatestMetric(b.metrics);
         if (!latest) return false;
         for (const cond of this._compFilterConds) {
-          const raw = (latest as Record<string, unknown>)[cond.field];
+          const raw = (latest as unknown as Record<string, unknown>)[cond.field];
           if (raw === null || raw === undefined || raw === "") return false;
           // building_metrics.vacancy_rate is a 0-1 fraction; the filter UI uses percent.
           const val = Number(raw) * (cond.field === "vacancy_rate" ? 100 : 1);

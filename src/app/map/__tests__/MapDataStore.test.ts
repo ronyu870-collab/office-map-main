@@ -154,6 +154,29 @@ describe('MapDataStore', () => {
     expect(result.map(item => item.id)).toEqual(['target']);
   });
 
+
+  it('uses building_metrics fractional vacancy for percentage filters and rejects missing instead of treating it as 0%', () => {
+    const sample = (id: string, fraction: number | null) => {
+      const row = building(id);
+      row.metrics[0].vacancy_rate = fraction as number;
+      return row;
+    };
+    const store = new MapDataStore([
+      sample('eight-percent', 0.08),
+      sample('fifteen-percent', 0.15),
+      sample('zero-percent', 0),
+      sample('missing-null', null),
+      sample('missing-nan', Number.NaN),
+    ]);
+    const filterState = defaultFilter();
+    filterState.numericFilters = [{ id: 'vacancy-filter', field: 'vacancy_rate', operator: '<=', value: 10 }];
+
+    expect(store.filter({ filterState, compareGroups: [] }).map(row => row.id))
+      .toEqual(['eight-percent', 'zero-percent']);
+    filterState.numericFilters = [{ id: 'vacancy-filter', field: 'vacancy_rate', operator: '=', value: 0 }];
+    expect(store.filter({ filterState, compareGroups: [] }).map(row => row.id)).toEqual(['zero-percent']);
+  });
+
   it('intersects configured comparison groups with global filters and role visibility', () => {
     const store = new MapDataStore([
       building('a', { grade: 'A', district: '朝阳区', submarket: 'CBD' }),
