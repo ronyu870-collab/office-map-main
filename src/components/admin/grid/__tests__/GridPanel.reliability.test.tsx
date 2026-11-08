@@ -74,6 +74,23 @@ describe('mobile record controller and confirmation', () => {
     fireEvent.click(screen.getByRole('button', { name: '导出' }))
     expect(db.exported.map(row => row.id)).toEqual(['a'])
   })
+  it('keeps the grid toolbar search input focused during result updates', async () => {
+    render(<GridPanel config={config} dicts={dicts} />)
+    await screen.findByRole('button', { name: '合成甲' })
+    const input = screen.getByPlaceholderText('搜索') as HTMLInputElement
+    input.focus()
+    fireEvent.change(input, { target: { value: '甲' } })
+    input.setSelectionRange(1, 1)
+    await waitFor(() => expect(screen.queryByRole('button', { name: '合成乙' })).toBeNull())
+    expect(input).toHaveFocus()
+    expect(input.selectionStart).toBe(1)
+    fireEvent.change(input, { target: { value: '乙' } })
+    input.setSelectionRange(1, 1)
+    await waitFor(() => expect(screen.queryByRole('button', { name: '合成甲' })).toBeNull())
+    expect(screen.getByRole('button', { name: '合成乙' })).toBeVisible()
+    expect(input).toHaveFocus()
+    expect(input.selectionStart).toBe(1)
+  })
   it('native unload warns and keeps a recoverable account-scoped snapshot', async () => {
     const editor = await open()
     fireEvent.change(within(editor).getByLabelText(/名称/), { target: { value: '返回恢复' } })
