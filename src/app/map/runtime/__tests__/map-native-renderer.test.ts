@@ -392,7 +392,7 @@ describe('native map visual hierarchy', () => {
     }
   });
 
-  it('forgets future supply on competitor-layer clear and never resurrects it on zoom (V3/fallback)', async () => {
+  it('forgets future supply after clear and never resurrects it on zoom (V3/fallback)', async () => {
     for (const version of ['v3', 'fallback'] as const) {
       const harness = createNativeHarness();
       harness.setZoom(14);
@@ -407,15 +407,22 @@ describe('native map visual hierarchy', () => {
       const cleanup = version === 'v3'
         ? installMapInteractionHardening(controller, 'map-container')
         : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
-      const supply = [{ id: 'future-project' }];
+      const supply = [{ id: 'future-project', location_lng: 116.46, location_lat: 39.91 }];
+      const getF = () => harness.labelsLayerInstances[0]?.markers.filter(
+        marker => String(marker.options.name).startsWith('future:'),
+      ) ?? [];
       try {
+        if (version === 'v3') {
+          controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)]);
+          await flushFrames();
+        }
         controller.renderFutureMarkers(supply, 'default');
-        expect(renderFuture).toHaveBeenCalledTimes(1);
+        expect(renderFuture).toHaveBeenCalledTimes(version === 'v3' ? 0 : 1);
+        if (version === 'v3') expect(getF()).toHaveLength(1);
 
-        // Entering competitor mode clears both native F overlays and cached future arguments.
         controller.clearFutureMarkers();
         expect(clearFuture).toHaveBeenCalled();
-
+        if (version === 'v3') expect(getF()).toHaveLength(0);
         harness.setZoom(11.8);
         harness.emitMap('zoomstart');
         harness.emitMap('zoomend');
@@ -423,14 +430,13 @@ describe('native map visual hierarchy', () => {
         harness.emitMap('zoomstart');
         harness.emitMap('zoomend');
         await flushFrames();
-        expect(renderFuture).toHaveBeenCalledTimes(1);
+        expect(renderFuture).toHaveBeenCalledTimes(version === 'v3' ? 0 : 1);
+        if (version === 'v3') expect(getF()).toHaveLength(0);
 
-        // Exiting competitor mode explicitly restores the prior filtered list.
         controller.renderFutureMarkers(supply, 'default');
-        expect(renderFuture).toHaveBeenCalledTimes(2);
-      } finally {
-        cleanup?.();
-      }
+        expect(renderFuture).toHaveBeenCalledTimes(version === 'v3' ? 0 : 2);
+        if (version === 'v3') expect(getF()).toHaveLength(1);
+      } finally { cleanup?.(); }
     }
   });
 
