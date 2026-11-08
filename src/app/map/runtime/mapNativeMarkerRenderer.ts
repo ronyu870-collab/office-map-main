@@ -78,6 +78,8 @@ export type ControllerInternals = {
   stopBounceMarker?: (buildingId: string) => void;
   refreshBuildingData?: (buildingId: string) => Promise<void>;
   showHoverTooltip?: (building: any, x: number, y: number) => void;
+  showFutureSupplyHoverTooltip?: (supply: any, x: number, y: number) => void;
+  openFutureSupplyInfoWindow?: (supply: any) => void;
   hideHoverTooltip?: () => void;
   _allBuildingsCache?: any[];
 };
