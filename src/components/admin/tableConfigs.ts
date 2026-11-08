@@ -393,6 +393,8 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
   {
     table: "building_metrics",
     label: "季度更新数据",
+    readColumns: "id,building_id,record_year,record_quarter,total_area,is_locked,updated_at,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent,rent_qoq_change,rent_yoy_change,vacant_area,vacant_area_qoq_change,vacancy_rate",
+    readOrderTieBreaker: "id",
     group: "数据更新",
     emoji: "",
     orderBy: [
@@ -465,6 +467,8 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
   {
     table: "building_current_data",
     label: "实时动态数据",
+    readColumns: "building_id,updated_at,leasable_area,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent,vacant_area,vacancy_rate,data_source,source_detail,updated_by",
+    readOrderTieBreaker: "building_id",
     group: "数据更新",
     emoji: "",
     orderBy: "updated_at",
@@ -491,6 +495,8 @@ export const CORE_TABLE_CONFIGS: TableConfig[] = [
   {
     table: "lease_transactions",
     label: "租赁成交",
+    readColumns: "id,company,suspected_company_fullname,enterprise_type,industry,sub_industry,demand_type,new_building,sub_market,district,building_grade,floor_info,floor,old_address,old_sub_market,old_building_grade,area_sqm,face_rent,is_face_rent_estimated,effective_rent,is_effective_rent_estimated,lease_term_months,fit_out_months,rent_free_months,relocation_area_change,transaction_date,transaction_year,transaction_quarter,remarks,data_source,submitter_id,submitter_name,created_at,updated_at",
+    readOrderTieBreaker: "id",
     emoji: "",
     orderBy: "created_at",
     cols: [

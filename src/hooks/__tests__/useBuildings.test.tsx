@@ -116,6 +116,22 @@ describe('useBuildings Hook', () => {
     expect(typeof result.current.mutate).toBe('function');
   });
 
+  it('does not read all buildings before assignments are resolved, then fetches the scoped IDs', async () => {
+    vi.mocked(getBuildings).mockResolvedValue([{ id: 'a', name: 'Scoped A' }] as any);
+    const { result, rerender } = renderHook(
+      ({ ids, scope }: { ids: readonly string[] | null; scope: string }) =>
+        useBuildings({ buildingIds: ids, cacheScope: scope, revalidateOnMount: true }),
+      { wrapper, initialProps: { ids: null, scope: 'owner-a' } },
+    );
+    expect(result.current.buildings).toBeUndefined();
+    expect(getBuildings).not.toHaveBeenCalled();
+    rerender({ ids: ['b', 'a', 'a'], scope: 'owner-a' });
+    await waitFor(() => expect(result.current.buildings).toHaveLength(1));
+    expect(getBuildings).toHaveBeenCalledWith(expect.objectContaining({ buildingIds: ['a', 'b'] }));
+    rerender({ ids: ['b', 'a'], scope: 'owner-b' });
+    await waitFor(() => expect(getBuildings).toHaveBeenCalledTimes(2));
+  });
+
   it('默认情况下不应在挂载时重新验证（性能优化）', async () => {
     const mockData = [{ id: '1', name: 'Building A', district: 'Chaoyang', grade: 'A' }];
     vi.mocked(getBuildings).mockResolvedValue(mockData as any);

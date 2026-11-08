@@ -96,48 +96,11 @@ export function useGridFilters(
     return result
   }, [rows, search, columnFilters, config.cols, config.showInactiveFilter, showInactive, dicts])
 
-  // 为每列计算筛选下拉选项
-  const filterOptions = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const col of config.cols) {
-      if (col.hidden) continue
-      const vals = new Set<string>()
-      for (const r of rows) {
-        const lookupVal = getLookupValue(col, r)
-        let display: string
-        if (col.displayMap) {
-          display = col.displayMap[String(lookupVal)] ?? String(lookupVal ?? '')
-        } else if (col.foreignKey && dicts[col.foreignKey]) {
-          const resolved = dicts[col.foreignKey][lookupVal]
-          if (!resolved) continue
-          display = resolved
-        } else if (col.type === 'number' && lookupVal != null) {
-          const num = Number(lookupVal)
-          if (col.suffix) {
-            display = (num * 100).toLocaleString('zh-CN', {
-              minimumFractionDigits: col.decimals ?? 0,
-              maximumFractionDigits: col.decimals ?? 0,
-            }) + col.suffix
-          } else if (col.decimals != null) {
-            display = num.toLocaleString('zh-CN', { minimumFractionDigits: col.decimals, maximumFractionDigits: col.decimals })
-          } else {
-            display = Number.isInteger(num) ? num.toLocaleString('zh-CN') : num.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
-          }
-        } else {
-          display = String(lookupVal ?? '')
-        }
-        if (display) vals.add(display)
-      }
-      map[col.key] = [...vals].sort((a, b) => a.localeCompare(b, 'zh-CN'))
-    }
-    return map
-  }, [rows, config.cols, dicts])
 
   return {
     search, setSearch,
     columnFilters, setColumnFilter, clearColumnFilter, clearAllFilters,
     showInactive, setShowInactive,
     filtered,
-    filterOptions,
   }
 }

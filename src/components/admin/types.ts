@@ -39,6 +39,10 @@ export interface TableConfig {
   emoji?: string
   cols: ColDef[]
   orderBy?: string | { col: string; asc?: boolean }[]
+  /** Opt-in audited read projection; other tables retain full rows. */
+  readColumns?: string
+  /** Unique tie-breaker for stable offset pagination (verified tables only). */
+  readOrderTieBreaker?: string
   /** 数据过滤：WHERE field = value */
   filterField?: string
   filterValue?: string
