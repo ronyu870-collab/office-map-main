@@ -10,6 +10,29 @@ const config: TableConfig = { table: 'synthetic', label: '测试', cols: [
   { key: 'readonly', label: '来源', type: 'text', readOnly: true },
 ] }
 describe('shared record fields', () => {
+  it('preserves the editable text field focus and caret while the parent rerenders after input', () => {
+    function Harness() {
+      const [values, setValues] = React.useState({ name: '' });
+      const columns: TableConfig = {
+        table: 'synthetic', label: '合成记录',
+        cols: [{ key: 'name', label: '名称', type: 'text' }],
+      };
+      return <RecordFields config={columns} values={values} onChange={(next) => setValues({ name: String(next.name ?? '') })} dicts={{}} />;
+    }
+    render(<Harness />);
+    const input = screen.getByRole('textbox', { name: '名称' }) as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: '合成甲' } });
+    input.setSelectionRange(2, 2);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    expect(input).toHaveValue('合成甲');
+    fireEvent.change(input, { target: { value: '合成甲乙' } });
+    input.setSelectionRange(3, 3);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(3);
+    expect(input).toHaveValue('合成甲乙');
+  });
   it('edits former names one per line, preserving punctuation inside a single project name', () => {
     const change = vi.fn()
     const tags: TableConfig = { table: 'buildings', label: '楼宇', cols: [{ key: 'former_names', label: '曾用名', type: 'tags' }] }

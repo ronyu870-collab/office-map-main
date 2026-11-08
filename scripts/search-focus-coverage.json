@@ -111,5 +111,45 @@
     "cases": [
       "keeps the grid toolbar search input focused during result updates"
     ]
+  },
+  {
+    "id": "quarterly-entry-form-focus",
+    "roots": [
+      "src/app/update/components/QuarterlyUpdateWorkspace.tsx"
+    ],
+    "file": "src/app/update/components/QuarterlyUpdateWorkspace.reliability.test.tsx",
+    "cases": [
+      "retains the quarterly entry field focus and caret as form values update"
+    ]
+  },
+  {
+    "id": "admin-record-fields-input-focus",
+    "roots": [
+      "src/components/admin/grid/RecordFields.tsx"
+    ],
+    "file": "src/components/admin/grid/__tests__/RecordFields.test.tsx",
+    "cases": [
+      "preserves the editable text field focus and caret while the parent rerenders after input"
+    ]
+  },
+  {
+    "id": "admin-foreign-key-editor-focus",
+    "roots": [
+      "src/components/admin/grid/renderers/ForeignKeyEditor.tsx"
+    ],
+    "file": "src/components/admin/grid/renderers/__tests__/ForeignKeyEditor.focus.test.tsx",
+    "cases": [
+      "preserves focus and caret while the visible foreign-key choices update"
+    ]
+  },
+  {
+    "id": "admin-grid-toolbar-search-focus",
+    "roots": [
+      "src/components/admin/grid/toolbar/TableToolbar.tsx"
+    ],
+    "file": "src/components/admin/grid/toolbar/__tests__/TableToolbar.focus.test.tsx",
+    "cases": [
+      "retains search focus and caret when the parent updates the visible record count"
+    ]
   }
 ]

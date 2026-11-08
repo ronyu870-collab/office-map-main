@@ -9,7 +9,7 @@ import { getSessionFast } from '@/src/services/Auth';
 import { supabase } from '@/src/services/supabaseClient';
 import { logAction } from '@/src/utils/audit';
 import { canWriteBusinessData } from '@/src/utils/accessControl';
-import { useBuildings } from '@/src/hooks/useBuildings';
+import { useAssignedBuildings } from './useAssignedBuildings';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { handleDataFetchError } from '@/src/utils/errorHandler';
 import { retryAsync } from '@/src/utils/retryAsync';
@@ -217,14 +217,24 @@ export function QuarterlyUpdateWorkspace() {
   const [submitYear, setSubmitYear] = React.useState(now.getFullYear());
   const [submitQuarter, setSubmitQuarter] = React.useState(Math.ceil((now.getMonth() + 1) / 3));
 
-  const lastSuccessfulBuildings = React.useRef<any[] | null>(null);
-  const { buildings, error: buildingsError, mutate } = useBuildings({ revalidateOnMount: true });
-
+  // Fetch only assigned projects after ownership resolves. Changing accounts or
+  // preview targets must never expose a previous scope's fallback records.
+  const buildingReadScope = React.useMemo(() => assignedBuildingIds === null ? null : JSON.stringify([
+    currentUser?.id ?? '', draftUserId, userRole, isPreview, isImpersonating,
+    [...assignedBuildingIds].sort(),
+  ]), [assignedBuildingIds, currentUser?.id, draftUserId, userRole, isPreview, isImpersonating]);
+  const { buildings, error: buildingsError, mutate } = useAssignedBuildings(assignedBuildingIds, buildingReadScope);
+  const lastSuccessfulBuildings = React.useRef<{ scope: string; rows: any[] } | null>(null);
   React.useEffect(() => {
-    if (buildings !== undefined) lastSuccessfulBuildings.current = buildings;
-  }, [buildings]);
-
-  const protectedBuildings = buildings !== undefined ? buildings : lastSuccessfulBuildings.current ?? undefined;
+    if (buildings !== undefined && buildingReadScope !== null) {
+      lastSuccessfulBuildings.current = { scope: buildingReadScope, rows: buildings };
+    }
+  }, [buildings, buildingReadScope]);
+  const protectedBuildings = buildings !== undefined
+    ? buildings
+    : lastSuccessfulBuildings.current?.scope === buildingReadScope
+      ? lastSuccessfulBuildings.current.rows
+      : undefined;
 
   const myBuildings = React.useMemo(() => {
     if (!protectedBuildings || assignedBuildingIds === null) return [];

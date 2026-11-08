@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => state.router, useSearchParams: () => ({ get: () => state.preview }) }));
 vi.mock('@/src/services/Auth', () => ({ getSessionFast: async () => state.loggedIn ? ({ user: { id: state.userId, email: 'synthetic@example.invalid', user_metadata: { full_name: 'Synthetic Person' } } }) : null }));
-vi.mock('@/src/hooks/useBuildings', () => ({ useBuildings: () => ({ buildings: state.buildings, error: null, mutate: vi.fn() }) }));
+vi.mock('./useAssignedBuildings', () => ({ useAssignedBuildings: () => ({ buildings: state.buildings, error: null, mutate: vi.fn() }) }));
 vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: state.impersonating }) }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
@@ -101,6 +101,25 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     await act(async () => { release(); });
     await ready();
     expect(quoteInputs().length).toBeGreaterThan(0);
+  });
+
+  it('retains the quarterly entry field focus and caret as form values update', async () => {
+    render(<QuarterlyUpdateWorkspace />); await ready();
+    const mobile = document.querySelector('.md\\:hidden');
+    expect(mobile).not.toBeNull();
+    const owner = within(mobile as HTMLElement).getByLabelText('业主') as HTMLTextAreaElement;
+    owner.focus();
+    fireEvent.change(owner, { target: { value: '合成业主甲' } });
+    owner.setSelectionRange(2, 2);
+    await waitFor(() => expect(owner).toHaveValue('合成业主甲'));
+    expect(owner).toHaveFocus();
+    expect(owner.selectionStart).toBe(2);
+    fireEvent.change(owner, { target: { value: '合成业主甲乙' } });
+    owner.setSelectionRange(3, 3);
+    await waitFor(() => expect(owner).toHaveValue('合成业主甲乙'));
+    expect(owner).toHaveFocus();
+    expect(owner.selectionStart).toBe(3);
+    expect(quoteInputs()).toHaveLength(2);
   });
 
   it('refuses to switch category after failed save and retains local input', async () => {

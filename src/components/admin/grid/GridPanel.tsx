@@ -194,7 +194,7 @@ export function GridPanel({ config, dicts = {}, onRefreshDicts, active = true, o
     search, setSearch,
     columnFilters, setColumnFilter, clearColumnFilter, clearAllFilters,
     showInactive, setShowInactive,
-    filtered, filterOptions,
+    filtered,
   } = useGridFilters(rows, config, dicts)
 
   const [modelKeys, setModelKeys] = useState<string[] | null>(null)
