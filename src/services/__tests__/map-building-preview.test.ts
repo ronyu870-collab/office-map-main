@@ -100,7 +100,11 @@ describe('通用楼宇图片', () => {
   const photo = { id: '22222222-2222-4222-8222-222222222222', caption: '建筑外观' };
   const collected = { ...existing, id: '11111111-1111-4111-8111-111111111111', name: '普通楼宇', photos: [photo] };
 
-  it.each(['existing', 'future'] as const)('opens a collected %s photo without the pilot flag and preserves its source', async kind => {
+  it.each(['existing', 'future'] as const)('opens a collected %s photo without the pilot flag and shows only its caption when no license is listed', async kind => {
+    mocks.loadStoredPhoto.mockResolvedValue({
+      url: coverUrl, source_url: 'https://www.example.com/building', source_name: '项目官网',
+      attribution_text: '摄影者与商用授权未确认。', license_url: null,
+    });
     vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT', '0');
     const { controller } = createMap();
     Object.assign(controller, { _allBuildingsCache: [collected] });
@@ -113,19 +117,19 @@ describe('通用楼宇图片', () => {
     await waitFor(() => expect(image).toHaveAttribute('src', coverUrl));
     expect(mocks.loadStoredPhoto).toHaveBeenCalledExactlyOnceWith(collected.id, photo.id, expect.any(AbortSignal));
     expect(mocks.loadPhoto).not.toHaveBeenCalled();
-    const source = document.querySelector('[data-building-photo-source]');
-    expect(source).toHaveAttribute('href', 'https://www.example.com/building');
-    expect(source).toHaveTextContent('来源：项目官网');
-    expect(source).toHaveAttribute('rel', 'noopener noreferrer');
     fireEvent.load(image);
+    const caption = within(image.closest('figure')!.querySelector('figcaption')!);
+    expect(caption.getByText(photo.caption, { exact: true })).toBeVisible();
+    expect(caption.queryByRole('link')).not.toBeInTheDocument();
+    expect(caption.queryByText(/项目官网|摄影者与商用授权/)).not.toBeInTheDocument();
     fireEvent.click(trigger);
     fireEvent.click(trigger);
     expect(mocks.loadStoredPhoto).toHaveBeenCalledTimes(1);
   });
 
-  it('escapes database captions and source names without creating event attributes or markup', async () => {
+  it('escapes database captions and rejects unsafe source URLs even when a license is listed', async () => {
     const caption = '\" onload=\"alert(1)\"><script>bad</script>';
-    mocks.loadStoredPhoto.mockResolvedValue({ url: coverUrl, source_url: 'javascript:alert(1)', source_name: '<img src=x onerror=alert(1)>' });
+    mocks.loadStoredPhoto.mockResolvedValue({ url: coverUrl, source_url: 'javascript:alert(1)', source_name: '<img src=x onerror=alert(1)>', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/' });
     const { controller } = createMap();
     Object.assign(controller, { _allBuildingsCache: [{ ...collected, photos: [{ ...photo, caption }] }] });
     controller.openBuildingInfoWindow(collected.id);
@@ -148,6 +152,10 @@ describe('通用楼宇图片', () => {
     controller.openBuildingInfoWindow(collected.id);
     fireEvent.click(preview().trigger);
     await waitFor(() => expect(document.querySelector('[data-building-photo-attribution]')).toHaveTextContent(attribution));
+    const source = document.querySelector('[data-building-photo-source]');
+    expect(source).toHaveAttribute('href', 'https://commons.wikimedia.org/wiki/File:Photo.jpg');
+    expect(source).toHaveTextContent('来源：Wikimedia Commons');
+    expect(source).toHaveAttribute('rel', 'noopener noreferrer');
     expect(document.querySelector('[data-building-photo-license]')).toHaveAttribute('href', 'https://creativecommons.org/licenses/by-sa/4.0/');
     expect(document.querySelector('[data-building-photo-license]')).toHaveAttribute('rel', 'noopener noreferrer');
     expect(document.querySelector('script')).toBeNull();

@@ -54,7 +54,10 @@ const server = http.createServer((request, response) => {
     reads.push(id);
     if (id.startsWith('3333') && failSecond) { failSecond = false; response.statusCode = 502; return response.end(JSON.stringify({ error: 'synthetic retry' })); }
     response.setHeader('Content-Type', 'application/json');
-    return response.end(JSON.stringify({ url: '/image.svg?id='+id, source_url: 'https://commons.wikimedia.org/wiki/File:Fixture.jpg', source_name: 'Wikimedia Commons', attribution_text: '摄影者署名与原作品名称 Photograph by Example Photographer / CC BY-SA 4.0（合成验证）', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/' }));
+    const provenance = id.startsWith('2222')
+      ? { source_url: 'https://www.example.com/building', source_name: '项目报道', attribution_text: '摄影者与商用授权未确认。', license_url: null }
+      : { source_url: 'https://commons.wikimedia.org/wiki/File:Fixture.jpg', source_name: 'Wikimedia Commons', attribution_text: '摄影者署名与原作品名称 Photograph by Example Photographer / CC BY-SA 4.0（合成验证）', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/' };
+    return response.end(JSON.stringify({ url: '/image.svg?id='+id, ...provenance }));
   }
   response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.end(html);
 });
@@ -78,6 +81,21 @@ try {
     const images = page.locator('[data-building-photo]');
     await images.nth(0).waitFor({ state: 'visible' });
     assert.equal(reads.length, 1);
+    const captionRow = page.locator('.building-photo-caption-row');
+    const description = captionRow.locator('.building-photo-description');
+    const gallery = page.locator('[data-building-photo-gallery]');
+    const assertCaptionOnly = async () => {
+      assert.equal(await description.innerText(), '建筑外观');
+      assert.equal(await gallery.getByRole('link').count(), 0);
+      assert.equal(await page.locator('[data-building-photo-attribution]').innerText(), '');
+    };
+    await assertCaptionOnly();
+    await page.screenshot({ path: path.join(output, `${width}-expanded.png`) });
+    await page.getByRole('button', { name: '下一张' }).click();
+    await page.getByRole('button', { name: '重试' }).waitFor({ state: 'visible' });
+    await page.getByRole('button', { name: '重试' }).click();
+    await images.nth(1).waitFor({ state: 'visible' });
+    assert.equal(reads.length, 3);
     assert.equal(await page.locator('[data-building-photo-license]').getAttribute('href'), 'https://creativecommons.org/licenses/by-sa/4.0/');
     const credit = await page.locator('[data-building-photo-attribution]').innerText();
     assert.ok(credit.replace(/\s+/g, ' ').includes('CC BY-SA 4.0'), JSON.stringify({ credit }));
@@ -85,16 +103,11 @@ try {
       const box = await page.locator(selector).boundingBox();
       assert.ok(box.width >= 44 && box.height >= 44, 'Source and license links need touch targets');
     }
-    await page.getByRole('button', { name: '下一张' }).click();
-    await page.getByRole('button', { name: '重试' }).waitFor({ state: 'visible' });
-    await page.getByRole('button', { name: '重试' }).click();
-    await images.nth(1).waitFor({ state: 'visible' });
-    assert.equal(reads.length, 3);
     await page.getByRole('button', { name: '上一张' }).click();
     await images.nth(0).waitFor({ state: 'visible' });
     assert.equal(reads.length, 3);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    await page.screenshot({ path: path.join(output, `${width}-expanded.png`) });
+    await assertCaptionOnly();
     await trigger.click(); await trigger.click();
     assert.equal(reads.length, 3);
     await page.getByRole('button', { name: '下一张' }).focus();
@@ -102,7 +115,7 @@ try {
     assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
     assert.equal(await trigger.evaluate(button => button === document.activeElement), true);
     assert.deepEqual(errors, []);
-    results.push({ width, height, touch: mobile, idleRequests: 0, lazyReadRetryAndReuse: true, attributionAndLicense: true, escapeReturnsFocus: true, horizontalOverflow: false });
+    results.push({ width, height, touch: mobile, idleRequests: 0, lazyReadRetryAndReuse: true, captionOnlyWithoutLicense: true, attributionAndLicense: true, escapeReturnsFocus: true, horizontalOverflow: false });
     await page.close();
   }
   console.log(JSON.stringify({ status: 'passed', fixtures: 'synthetic only', results }, null, 2));
