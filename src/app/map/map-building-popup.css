@@ -317,6 +317,9 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)):has(.buil
   color: var(--cd-color-text-secondary, #475569);
   font-size: 12px;
 }
+.building-photo-figure {
+  margin: 0;
+}
 .building-pilot-photo-stage {
   position: relative;
   display: grid;
@@ -332,6 +335,88 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)):has(.buil
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+.building-pilot-photo-stage .building-photo-enlarge:not([hidden]) {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: end;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--cd-color-text-primary, #172033);
+  cursor: zoom-in;
+}
+.building-photo-enlarge span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  background: var(--cd-color-surface, #f6f8fa);
+}
+.building-photo-enlarge:focus-visible {
+  outline: 2px solid var(--cd-color-brand, #0065b3);
+  outline-offset: -2px;
+}
+.building-photo-viewer {
+  box-sizing: border-box;
+  width: min(1152px, calc(100% - 32px));
+  max-width: none;
+  max-height: min(88dvh, 760px);
+  padding: 0;
+  border: 1px solid var(--cd-color-border, #d5dde5);
+  border-radius: 8px;
+  background: var(--cd-color-surface, #f6f8fa);
+  color: var(--cd-color-text-primary, #172033);
+  font-size: 14px;
+  overscroll-behavior: contain;
+}
+.building-photo-viewer::backdrop {
+  background: var(--cd-color-overlay, rgb(15 23 42 / 56%));
+}
+.building-photo-viewer__content {
+  padding: 0 16px 12px;
+}
+.building-photo-viewer__header {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: var(--cd-color-surface, #f6f8fa);
+}
+.building-photo-viewer__header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.building-photo-viewer__header button {
+  flex: none;
+}
+.building-photo-viewer .building-pilot-photo-stage {
+  height: auto;
+  max-height: min(68dvh, 624px);
+  aspect-ratio: var(--building-photo-ratio, 3 / 2);
+  touch-action: pan-y pinch-zoom;
+}
+.building-photo-viewer .building-photo-enlarge:not([hidden]) {
+  display: none;
+}
+.building-photo-viewer .building-photo-caption-row {
+  min-height: 36px;
+}
+@media (max-width: 639px) {
+  .building-photo-viewer__content {
+    padding-inline: 8px;
+  }
+  .building-photo-viewer .building-pilot-photo-stage {
+    max-height: min(65dvh, 480px);
+  }
 }
 .building-pilot-photo-message,
 .building-photo-caption-row,

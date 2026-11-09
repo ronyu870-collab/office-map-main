@@ -43,11 +43,12 @@ const css = fs.readFileSync('src/app/map/map-building-popup.css', 'utf8');
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>楼宇图片隔离验证</title><style>*{box-sizing:border-box}body{margin:0;padding:16px;font-family:system-ui;background:#edf2f7}h2{margin:0;font-size:16px}button{font:inherit}[data-fixture]{padding:12px;background:white;border-radius:8px;width:min(340px,100%)}${css}</style><body><section data-fixture></section><script src="/fixture.js"></script></body></html>`;
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#e2e8f0"/><rect x="300" y="150" width="600" height="650" fill="#0b446e"/><path d="M400 150V800M600 150V800M800 150V800" stroke="#7dd3fc" stroke-width="20"/></svg>';
 let reads = [];
+let imageReads = 0;
 let failSecond = false;
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, 'http://fixture.local');
   if (url.pathname === '/fixture.js') { response.setHeader('Content-Type', 'text/javascript'); return response.end(bootstrap); }
-  if (url.pathname === '/image.svg') { response.setHeader('Content-Type', 'image/svg+xml'); return response.end(svg); }
+  if (url.pathname === '/image.svg') { imageReads++; response.setHeader('Content-Type', 'image/svg+xml'); return response.end(svg); }
   if (url.pathname === '/api/map/building-photos') {
     assert.equal(request.headers.authorization, 'Bearer synthetic-browser-token');
     const id = url.searchParams.get('photo_id');
@@ -72,7 +73,7 @@ try {
     const page = await browser.newPage({ viewport: { width, height }, isMobile: mobile, hasTouch: mobile });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    reads = []; failSecond = true;
+    reads = []; imageReads = 0; failSecond = true;
     await page.goto(`http://127.0.0.1:${server.address().port}`, { waitUntil: 'load' });
     assert.equal(reads.length, 0);
     const trigger = page.getByRole('button', { name: '看图' });
@@ -91,7 +92,28 @@ try {
     };
     await assertCaptionOnly();
     await page.screenshot({ path: path.join(output, `${width}-expanded.png`) });
-    await page.getByRole('button', { name: '下一张' }).click();
+    const enlarge = page.getByRole('button', { name: '查看大图' });
+    const previewHeight = (await images.nth(0).boundingBox()).height;
+    if (mobile) await enlarge.tap();
+    else { await enlarge.focus(); await page.keyboard.press('Enter'); }
+    const viewer = page.getByRole('dialog', { name: '合成楼宇' });
+    await viewer.waitFor({ state: 'visible' });
+    assert.equal(await viewer.evaluate(dialog => dialog.matches(':modal')), true);
+    const closeViewer = viewer.getByRole('button', { name: '关闭大图' });
+    assert.equal(await closeViewer.evaluate(button => button === document.activeElement), true);
+    assert.ok((await images.nth(0).boundingBox()).height > previewHeight);
+    assert.equal(reads.length, 1);
+    assert.equal(imageReads, 1);
+    await assertCaptionOnly();
+    await page.screenshot({ path: path.join(output, `${width}-enlarged.png`) });
+    if (mobile) {
+      await viewer.locator('.building-pilot-photo-stage').evaluate(stage => {
+        const start = new Touch({ identifier: 0, target: stage, clientX: 210, clientY: 120 });
+        const end = new Touch({ identifier: 0, target: stage, clientX: 120, clientY: 125 });
+        stage.dispatchEvent(new TouchEvent('touchstart', { touches: [start], bubbles: true }));
+        stage.dispatchEvent(new TouchEvent('touchend', { changedTouches: [end], bubbles: true }));
+      });
+    } else await page.keyboard.press('ArrowRight');
     await page.getByRole('button', { name: '重试' }).waitFor({ state: 'visible' });
     await page.getByRole('button', { name: '重试' }).click();
     await images.nth(1).waitFor({ state: 'visible' });
@@ -103,6 +125,15 @@ try {
       const box = await page.locator(selector).boundingBox();
       assert.ok(box.width >= 44 && box.height >= 44, 'Source and license links need touch targets');
     }
+    if (mobile) await closeViewer.tap();
+    else await page.keyboard.press('Escape');
+    await viewer.waitFor({ state: 'hidden' });
+    assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
+    assert.equal(await enlarge.evaluate(button => button === document.activeElement), true);
+    assert.equal(await description.locator('[data-building-photo-caption]').innerText(), '室内空间');
+    assert.ok(await images.nth(1).isVisible());
+    assert.equal(reads.length, 3);
+    assert.equal(imageReads, 2);
     await page.getByRole('button', { name: '上一张' }).click();
     await images.nth(0).waitFor({ state: 'visible' });
     assert.equal(reads.length, 3);
@@ -115,7 +146,7 @@ try {
     assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
     assert.equal(await trigger.evaluate(button => button === document.activeElement), true);
     assert.deepEqual(errors, []);
-    results.push({ width, height, touch: mobile, idleRequests: 0, lazyReadRetryAndReuse: true, captionOnlyWithoutLicense: true, attributionAndLicense: true, escapeReturnsFocus: true, horizontalOverflow: false });
+    results.push({ width, height, touch: mobile, idleRequests: 0, lazyReadRetryAndReuse: true, captionOnlyWithoutLicense: true, enlargedViewReusesImage: true, enlargedViewRestoresPhotoAndFocus: true, attributionAndLicense: true, escapeReturnsFocus: true, horizontalOverflow: false });
     await page.close();
   }
   console.log(JSON.stringify({ status: 'passed', fixtures: 'synthetic only', results }, null, 2));
