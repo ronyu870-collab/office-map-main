@@ -2,24 +2,29 @@ import { Readable } from 'node:stream';
 // Handles the serialized HTTP requests produced by the real AWS SDK, without
 // opening a listener. This is not evidence of real R2 transport, IAM or locks.
 export async function s3Fixture() {
-  const objects = new Map(); const requests = []; let corruptNextGet = false; let failPutAt = Infinity; let puts = 0; let interruptedGets = 0; let getStatus;
+  const objects = new Map(); const modified = new Map(); const requests = []; let corruptNextGet = false; let failPutAt = Infinity; let puts = 0; let interruptedGets = 0; let getStatus; let deletePrefix; let deleteFailure;
   const response = (statusCode, data, headers = {}) => ({ response: { statusCode, headers: { 'content-type': 'application/xml', ...headers }, body: Readable.from([Buffer.from(data)]) } });
   const requestHandler = {
     async handle(req) {
       const key = decodeURIComponent(req.path.split('/').slice(2).join('/'));
-      requests.push({ method: req.method, key, condition: req.headers['if-none-match'], signed: req.headers.authorization?.startsWith('AWS4-HMAC-SHA256 ') });
+      requests.push({ method: req.method, key, condition: req.headers['if-none-match'], signed: req.headers.authorization?.startsWith('AWS4-HMAC-SHA256 '), session: Boolean(req.headers['x-amz-security-token']) });
       if (req.method === 'PUT') {
         if (++puts >= failPutAt) return response(403, '<Error><Code>AccessDenied</Code></Error>');
         if (req.headers['if-none-match'] !== '*' || objects.has(key)) return response(412, '<Error><Code>PreconditionFailed</Code></Error>');
         const parts = []; for await (const p of req.body) parts.push(p);
-        objects.set(key, Buffer.concat(parts)); return response(200, '', { etag: '"fixture"' });
+        objects.set(key, Buffer.concat(parts)); modified.set(key, new Date().toISOString()); return response(200, '', { etag: '"fixture"' });
       }
       if (req.query?.['list-type']) {
         const prefix = req.query.prefix || '';
         const keys = [...objects.keys()].filter((k) => k.startsWith(prefix)).sort();
         const start = Number(req.query['continuation-token'] || 0); const batch = keys.slice(start, start + 2);
         const truncated = start + 2 < keys.length;
-        return response(200, `<ListBucketResult><IsTruncated>${truncated}</IsTruncated>${truncated ? `<NextContinuationToken>${start + 2}</NextContinuationToken>` : ''}${batch.map((k) => `<Contents><Key>${k}</Key><Size>${objects.get(k).length}</Size></Contents>`).join('')}</ListBucketResult>`);
+        return response(200, `<ListBucketResult><IsTruncated>${truncated}</IsTruncated>${truncated ? `<NextContinuationToken>${start + 2}</NextContinuationToken>` : ''}${batch.map((k) => `<Contents><Key>${k}</Key><Size>${objects.get(k).length}</Size><LastModified>${modified.get(k) || '2026-01-01T00:00:00.000Z'}</LastModified></Contents>`).join('')}</ListBucketResult>`);
+      }
+      if (req.method === 'DELETE') {
+        if (!deletePrefix || !key.startsWith(deletePrefix) || !req.headers['x-amz-security-token']) return response(403, '<Error><Code>AccessDenied</Code></Error>');
+        if (key === deleteFailure) return response(409, '<Error><Code>ObjectLockedByBucketPolicy</Code></Error>');
+        objects.delete(key); return response(204, '');
       }
       if (req.method === 'GET' && objects.has(key)) {
         if (getStatus) return response(getStatus, '<Error><Code>AccessDenied</Code></Error>');
@@ -38,8 +43,9 @@ export async function s3Fixture() {
     },
     destroy() {},
   };
-  return { endpoint: 'http://127.0.0.1:9', requestHandler, objects, requests,
+  return { endpoint: 'http://127.0.0.1:9', requestHandler, objects, modified, requests,
     corruptGet() { corruptNextGet = true; }, failPut(n) { puts = 0; failPutAt = n; }, close: async () => {},
     interruptGet(n) { interruptedGets = n; }, denyGet(status) { getStatus = status; },
+    scopeDelete(prefix, failure) { deletePrefix = prefix; deleteFailure = failure; },
   };
 }

@@ -2,7 +2,9 @@ name: Encrypted backup to R2
 
 on:
   schedule:
-    - cron: '0 18 * * *'
+    # Monday 02:00 Asia/Shanghai and a same-week fallback at noon.
+    - cron: '0 18 * * 0'
+    - cron: '0 4 * * 1'
   workflow_dispatch:
 
 permissions:

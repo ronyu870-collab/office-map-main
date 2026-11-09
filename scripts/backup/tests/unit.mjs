@@ -12,6 +12,7 @@ import { sourceRegressions } from './sources.mjs';
 import { validateManifest } from '../manifest.mjs';
 import { r2ReadRegressions } from './r2-reads.mjs';
 import { safeFailure } from '../diagnostics.mjs';
+import { weeklyRegressions } from './weekly.mjs';
 
 let passed = 0;
 const test = async (name, action) => { await action(); console.log(`PASS UNIT ${++passed} ${name}`); };
@@ -35,6 +36,7 @@ await temporary('colliers-backup-unit-', async (dir) => {
   try {
     await sourceRegressions(test, dir);
     await r2ReadRegressions(test, dir, c, target, fixture);
+    await weeklyRegressions(test, dir, c, sources[0], exportDB, identity);
     await test('exhausted R2 body resets retain the failed readback stage and never publish completion', async () => {
       const markers = () => [...fixture.objects.keys()].filter(key => key.endsWith('/complete.json'));
       const before = markers(); fixture.interruptGet(Infinity);

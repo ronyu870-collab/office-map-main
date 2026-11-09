@@ -8,6 +8,7 @@ import { configuredSources, sameInventory } from './sources.mjs';
 import { validateManifest, validDigest } from './manifest.mjs';
 import { profileDefinition } from './profiles.mjs';
 import { stageFailure } from './diagnostics.mjs';
+import { checkAdmission, COMPLETE_MAX_BYTES, inventoryHash, slotAt, weeklyState } from './weekly.mjs';
 
 export async function encrypt(c, input, output) {
   await command(c.ageBin, ['--encrypt', '--recipient', c.recipient, '--output', output, input]);
@@ -20,8 +21,10 @@ export async function checkedDownload(target, key, file, expected) {
   const actual = await target.get(key, file, { maxBytes: expected.bytes });
   if (actual.sha256 !== expected.sha256 || actual.bytes !== expected.bytes) throw new Error('BACKUP_HASH_MISMATCH');
 }
-export async function backup(c, { target, sources, exportDB = exportDatabase } = {}) {
+export async function backup(c, { target, sources, exportDB = exportDatabase, weeklySlot, admissionCeiling } = {}) {
   // Preflight all required sources and target before opening the database.
+  if (!c.synthetic && (!weeklySlot || admissionCeiling !== undefined || target)) throw new Error('WEEKLY_PRODUCTION_GUARD_REQUIRED');
+  if (weeklySlot && (weeklySlot !== slotAt(Date.now()) || c.profile !== 'supabase')) throw new Error('WEEKLY_SLOT_INVALID');
   const adapters = sources ?? configuredSources(c);
   const profile = profileDefinition(c.profile);
   if (adapters.length !== profile.sources.length || !profile.sources.every((k) => adapters.some((s) => s.kind === k))) throw new Error('FULL_COVERAGE_REQUIRED');
@@ -35,22 +38,18 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
       const inventory = await Promise.all(adapters.map((a) => a.inventory()));
       stage = 'database-export';
       const db = await exportDB(c, dir);
-      const entries = [];
-      const upload = async (file, metadata) => {
+      const entries = []; const staged = [];
+      const stageFile = async (file, metadata) => {
         const id = randomUUID(); const encrypted = path.join(dir, `${id}.age`);
         stage = 'local-file'; const plain = await digest(file);
         stage = 'encrypt';
         await encrypt(c, file, encrypted);
-        stage = 'r2-upload';
-        const key = `${run}${id}.age`; const cipher = await remote.put(key, encrypted);
-        const verification = path.join(dir, `${id}.readback`);
-        stage = 'r2-readback';
-        await checkedDownload(remote, key, verification, cipher);
-        stage = 'local-cleanup';
-        await rm(verification); await rm(encrypted); await rm(file);
+        const key = `${run}${id}.age`; const cipher = await digest(encrypted);
+        staged.push({ key, file: encrypted, cipher });
+        stage = 'local-cleanup'; await rm(file);
         entries.push({ ...metadata, key, plain, cipher });
       };
-      for (const item of db.files) await upload(item.file, { kind: item.kind });
+      for (const item of db.files) await stageFile(item.file, { kind: item.kind });
       for (let i = 0; i < adapters.length; i++) {
         for (const object of inventory[i].filter((x) => x.kind === 'object')) {
           const file = path.join(dir, `${randomUUID()}.source`);
@@ -59,7 +58,7 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
           stage = 'source-size';
           const expectedSize = object.size ?? object.metadata?.size;
           if (Number.isFinite(expectedSize) && (await digest(file)).bytes !== expectedSize) throw new Error('SOURCE_SIZE_MISMATCH');
-          await upload(file, { kind: 'object', source: adapters[i].kind, object });
+          await stageFile(file, { kind: 'object', source: adapters[i].kind, object });
         }
         stage = 'source-inventory'; const after = await adapters[i].inventory();
         stage = 'source-consistency'; sameInventory(inventory[i], after);
@@ -76,12 +75,41 @@ export async function backup(c, { target, sources, exportDB = exportDatabase } =
       stage = 'manifest'; validateManifest(manifest, c, run);
       await writeFile(manifestFile, JSON.stringify(manifest), { mode: 0o600 });
       stage = 'encrypt'; await encrypt(c, manifestFile, encryptedManifest);
-      stage = 'manifest-upload';
-      const manifestKey = `${run}manifest.age`; const cipher = await remote.put(manifestKey, encryptedManifest);
-      stage = 'manifest-readback';
-      await checkedDownload(remote, manifestKey, path.join(dir, 'manifest.readback'), cipher);
+      const manifestKey = `${run}manifest.age`; const cipher = await digest(encryptedManifest);
+      const files = [...staged, { key: manifestKey, file: encryptedManifest, cipher }];
+      const expected = files.map(f => ({ Key: f.key, Size: f.cipher.bytes }));
+      if (weeklySlot) {
+        stage = 'r2-budget';
+        const state = await weeklyState(c, remote);
+        if (state.slot !== weeklySlot) throw new Error('WEEKLY_SLOT_INVALID');
+        if (state.weeks.has(weeklySlot)) return { alreadyComplete: true, ...state.weeks.get(weeklySlot).marker };
+        const reservationKey = `${run}reservation.json`; const reservationFile = path.join(dir, 'reservation.json');
+        const bytes = files.reduce((sum, f) => sum + f.cipher.bytes, COMPLETE_MAX_BYTES);
+        await writeFile(reservationFile, JSON.stringify({ format: 1, run, bytes }), { mode: 0o600 });
+        const reservation = await digest(reservationFile);
+        checkAdmission(state, bytes + reservation.bytes, admissionCeiling);
+        // Never start payload writes before the durable reservation is acknowledged and verified.
+        await remote.put(reservationKey, reservationFile);
+        await checkedDownload(remote, reservationKey, path.join(dir, 'reservation.readback'), reservation);
+        expected.push({ Key: reservationKey, Size: reservation.bytes });
+      }
+      for (const [i, f] of files.entries()) {
+        const isManifest = f.key === manifestKey;
+        stage = isManifest ? 'manifest-upload' : 'r2-upload';
+        await remote.put(f.key, f.file);
+        stage = isManifest ? 'manifest-readback' : 'r2-readback';
+        const verification = path.join(dir, `${i}.readback`);
+        await checkedDownload(remote, f.key, verification, f.cipher);
+        stage = 'local-cleanup'; await rm(verification); await rm(f.file);
+      }
       // This marker certifies storage integrity only, never tested restorability.
       const completion = { format: 1, run, finished: new Date().toISOString(), profile: c.profile, recoveryReady: false, manifest: { key: manifestKey, ...cipher } };
+      if (weeklySlot) {
+        stage = 'completion-upload';
+        if (slotAt(Date.parse(completion.finished)) !== weeklySlot) throw new Error('WEEKLY_SLOT_INVALID');
+        Object.assign(completion, { weeklySlot, snapshotStarted: started, inventorySha256: inventoryHash(expected) });
+        if (Buffer.byteLength(JSON.stringify(completion)) > COMPLETE_MAX_BYTES) throw new Error('WEEKLY_COMPLETION_INVALID');
+      }
       stage = 'completion-upload'; await writeCompletion(remote, `${run}complete.json`, completion, path.join(dir, 'complete.json'));
       return completion;
     });
