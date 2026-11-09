@@ -56,7 +56,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const listeners = new AbortController();
   const eventOptions = { signal: listeners.signal };
   const loaded = new Set<number>();
-  const sources = new Map<number, { url: string; name: string; attribution: string; license: string | null }>();
+  const sources = new Map<number, { url: string; name: string; attribution: string; license: string }>();
   const showSource = (selected: number) => {
     if (!source) return;
     const provenance = sources.get(selected);
@@ -124,9 +124,11 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
         const access = await loadStoredBuildingPhoto(buildingId, photo.id, controller.signal);
         if (!isCurrent()) return;
         const sourceUrl = publicPhotoUrl(access.source_url, true);
-        if (sourceUrl) sources.set(selected, {
+        const licenseUrl = publicPhotoUrl(access.license_url);
+        // Keep attribution visible for licensed photos; other photos show the caption alone.
+        if (sourceUrl && licenseUrl) sources.set(selected, {
           url: sourceUrl, name: access.source_name, attribution: access.attribution_text || '',
-          license: publicPhotoUrl(access.license_url),
+          license: licenseUrl,
         });
         showSource(selected);
         image.src = access.url;
