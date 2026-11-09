@@ -252,3 +252,42 @@
   .report * { animation:none!important; transition:none!important; }
   .report[data-animated=true] [data-reveal],.report[data-animated=true] [data-study] .barTrack > span { transform:none; }
 }
+
+/* Editorial visual candidate: only enabled via ?visual=editorial. */
+.report[data-visual-preview="editorial"] .cover {
+  background: #edf2f5;
+}
+.report[data-visual-preview="editorial"] .cover > .background {
+  object-position: 66% center;
+  filter: saturate(.78) contrast(1.03);
+}
+.report[data-visual-preview="editorial"] .coverShade {
+  background: linear-gradient(90deg, #f6f8fa 0%, rgba(246,248,250,.97) 33%, rgba(246,248,250,.62) 55%, rgba(246,248,250,.03) 81%);
+}
+.report[data-visual-preview="editorial"] .coverInner {
+  padding-block: clamp(64px, 8vh, 108px);
+}
+.report[data-visual-preview="editorial"] .coverKicker {
+  color: var(--muted);
+  margin-bottom: 30px !important;
+}
+.report[data-visual-preview="editorial"] .cover h1 {
+  font-weight: 600;
+  letter-spacing: -.035em;
+  max-width: 8em;
+}
+.report[data-visual-preview="editorial"] .coverDeck {
+  max-width: 18em;
+  font-size: clamp(21px, 2.25vw, 30px);
+}
+.report[data-visual-preview="editorial"] [data-scene-kind="ecosystem"] .scenePhoto {
+  border-block: 1px solid var(--line);
+}
+@media (max-width: 640px) {
+  .report[data-visual-preview="editorial"] .cover > .background {
+    object-position: 70% center;
+  }
+  .report[data-visual-preview="editorial"] .coverShade {
+    background: linear-gradient(90deg, rgba(246,248,250,.98), rgba(246,248,250,.84));
+  }
+}

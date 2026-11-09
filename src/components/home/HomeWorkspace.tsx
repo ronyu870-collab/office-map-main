@@ -32,6 +32,7 @@ import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
+import { isEditorialVisualPreview } from '@/src/utils/visualPreview';
 import { logAction, logActionImmediate } from '@/src/utils/audit';
 import {
   canAccessModule,
@@ -354,6 +355,10 @@ export function HomeWorkspace() {
   const { session: ctx, status } = useAppSession();
   const { isImpersonating } = useImpersonation();
   const [showCommunication, setShowCommunication] = React.useState(false);
+  const [editorialPreview, setEditorialPreview] = React.useState(false);
+
+  // Only expose this unapproved design behind an explicit preview parameter.
+  React.useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.href)); }, []);
 
   React.useEffect(() => { if (status === 'unauthenticated') router.replace('/login'); }, [router, status]);
   React.useEffect(() => {
@@ -428,35 +433,47 @@ export function HomeWorkspace() {
               <Link
                 href={MAP_WORKSPACE.href}
                 onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
-                className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+                className={`group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${editorialPreview ? 'relative isolate overflow-hidden' : ''}`}
                 {...mapAccessibilityProps}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
+                {editorialPreview ? (
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[48%] sm:block">
+                    <Image src="/occupier-insights/office-cover.webp" alt="" fill sizes="(min-width: 1280px) 260px, 190px" className="object-cover object-center" />
+                    <span className="absolute inset-0 bg-[linear-gradient(90deg,#fff_0%,rgba(255,255,255,0.92)_32%,rgba(255,255,255,0.7)_100%)]" />
+                  </span>
+                ) : null}
+                <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
                   <MapIcon size={20} strokeWidth={1.6} aria-hidden="true" />
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="relative z-10 min-w-0 flex-1">
                   <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
                 </div>
-                <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
+                <ArrowRight size={16} strokeWidth={1.6} className="relative z-10 shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
               </Link>
 
               {canSeeIntelligence ? (
                 <Link
                   href={INTELLIGENCE_WORKSPACE.href}
                   onClick={(event) => handleWorkspaceActivation(event, INTELLIGENCE_WORKSPACE)}
-                  className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.24)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
+                  className={`group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.24)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${editorialPreview ? 'relative isolate overflow-hidden' : ''}`}
                   {...intelligenceAccessibilityProps}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
+                {editorialPreview ? (
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-0 hidden w-[48%] sm:block">
+                    <Image src="/occupier-insights/office-workplace.webp" alt="" fill sizes="(min-width: 1280px) 260px, 190px" className="object-cover object-center" />
+                    <span className="absolute inset-0 bg-[linear-gradient(90deg,#fff_0%,rgba(255,255,255,0.92)_32%,rgba(255,255,255,0.7)_100%)]" />
+                  </span>
+                ) : null}
+                  <div className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]">
                     <IntelligenceIcon size={20} strokeWidth={1.6} aria-hidden="true" />
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="relative z-10 min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <h2 className="text-base font-semibold text-[var(--cd-color-text-primary)]">{INTELLIGENCE_WORKSPACE.title}</h2>
                       <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-brand-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--cd-color-brand)]">Pilot Preview</span>
                     </div>
                   </div>
-                  <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
+                  <ArrowRight size={16} strokeWidth={1.6} className="relative z-10 shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
                 </Link>
               ) : null}
             </div>
