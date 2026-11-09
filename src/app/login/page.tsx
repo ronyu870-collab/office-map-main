@@ -26,7 +26,7 @@ export default function LoginPage() {
   const [passwordChanged, setPasswordChanged] = React.useState(false);
   const [editorialPreview, setEditorialPreview] = React.useState(false);
 
-  React.useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.search)); }, []);
+  React.useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.href)); }, []);
 
   React.useEffect(() => {
     let cancelled = false;

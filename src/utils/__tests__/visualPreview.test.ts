@@ -8,5 +8,6 @@ describe('editorial visual preview switch', () => {
     expect(isEditorialVisualPreview('?visual=editorialish')).toBe(false);
     expect(isEditorialVisualPreview('?visual=editorial')).toBe(true);
     expect(isEditorialVisualPreview('?foo=bar&visual=editorial')).toBe(true);
+    expect(isEditorialVisualPreview('https://example.test/login?visual=editorial')).toBe(true);
   });
 });

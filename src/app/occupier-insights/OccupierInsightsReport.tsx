@@ -192,7 +192,7 @@ export function OccupierInsightsReport() {
   const canNavigateInternally = status === 'authenticated' && session !== null;
   const reportRef = useRef<HTMLDivElement>(null);
   const [editorialPreview, setEditorialPreview] = useState(false);
-  useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.search)); }, []);
+  useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.href)); }, []);
   useEffect(() => { if (reportRef.current) return mountReportNavigation(reportRef.current); }, []);
   return <div className={styles.report} data-visual-preview={editorialPreview ? 'editorial' : undefined} ref={reportRef}>
     <a className={styles.skipLink} href="#factors">跳至研究内容</a>

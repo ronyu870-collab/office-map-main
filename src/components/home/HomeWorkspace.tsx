@@ -358,7 +358,7 @@ export function HomeWorkspace() {
   const [editorialPreview, setEditorialPreview] = React.useState(false);
 
   // Only expose this unapproved design behind an explicit preview parameter.
-  React.useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.search)); }, []);
+  React.useEffect(() => { setEditorialPreview(isEditorialVisualPreview(window.location.href)); }, []);
 
   React.useEffect(() => { if (status === 'unauthenticated') router.replace('/login'); }, [router, status]);
   React.useEffect(() => {
