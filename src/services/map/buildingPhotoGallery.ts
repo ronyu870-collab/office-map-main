@@ -7,6 +7,8 @@ const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g,
 
 const photoIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3a2 2 0 0 0-2.8 0L6 21"/></svg>';
 const arrow = (path: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+const enlargeIcon = arrow('M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4');
+const closeIcon = arrow('m6 6 12 12M18 6 6 18');
 
 export function buildPhotoTrigger(galleryId: string): string {
   return `<button type="button" class="building-pilot-photo-trigger" data-building-photo-trigger aria-expanded="false" aria-controls="${galleryId}">
@@ -16,9 +18,11 @@ export function buildPhotoTrigger(galleryId: string): string {
 
 // The info window already escapes the building name; database captions need their own escaping.
 export function buildPhotoGallery(galleryId: string, name: string, photos: readonly GalleryPhoto[]): string {
-  return `<figure id="${galleryId}" class="building-pilot-gallery" data-building-photo-gallery hidden>
+  return `<div id="${galleryId}" class="building-pilot-gallery" data-building-photo-gallery hidden>
+    <figure class="building-photo-figure">
     <div class="building-pilot-photo-stage">
       ${photos.map(photo => `<img data-building-photo hidden alt="${name}：${escapeHtml(photo.caption)}" decoding="async" referrerpolicy="no-referrer">`).join('')}
+      <button type="button" class="building-photo-enlarge" data-building-photo-enlarge aria-label="查看大图" aria-haspopup="dialog" aria-controls="${galleryId}-viewer" hidden><span>${enlargeIcon}</span></button>
       <div class="building-pilot-photo-message">
         <span data-building-photo-status role="status"></span>
         <button type="button" class="building-pilot-photo-control" data-building-photo-retry hidden>重试</button>
@@ -35,12 +39,27 @@ export function buildPhotoGallery(galleryId: string, name: string, photos: reado
       </div>
       <span class="building-photo-attribution"><span data-building-photo-attribution></span><a data-building-photo-license hidden target="_blank" rel="noopener noreferrer">许可</a></span>
     </figcaption>
-  </figure>`;
+    </figure>
+    <dialog id="${galleryId}-viewer" class="building-photo-viewer" aria-labelledby="${galleryId}-viewer-title">
+      <div class="building-photo-viewer__content">
+        <header class="building-photo-viewer__header">
+          <h2 id="${galleryId}-viewer-title">${name}</h2>
+          <button type="button" class="building-pilot-photo-control" data-building-photo-viewer-close aria-label="关闭大图" autofocus>${closeIcon}</button>
+        </header>
+      </div>
+    </dialog>
+  </div>`;
 }
 
 export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, photos: readonly GalleryPhoto[]): (() => void) | null {
   const trigger = root.querySelector<HTMLButtonElement>('[data-building-photo-trigger]');
   const gallery = root.querySelector<HTMLElement>('[data-building-photo-gallery]');
+  const figure = gallery?.querySelector<HTMLElement>('figure');
+  const stage = figure?.querySelector<HTMLElement>('.building-pilot-photo-stage');
+  const enlarge = gallery?.querySelector<HTMLButtonElement>('[data-building-photo-enlarge]');
+  const viewer = gallery?.querySelector<HTMLDialogElement>('.building-photo-viewer');
+  const viewerContent = viewer?.querySelector<HTMLElement>('.building-photo-viewer__content');
+  const viewerClose = viewer?.querySelector<HTMLButtonElement>('[data-building-photo-viewer-close]');
   const images = Array.from(gallery?.querySelectorAll<HTMLImageElement>('[data-building-photo]') ?? []);
   const status = gallery?.querySelector<HTMLElement>('[data-building-photo-status]');
   const caption = gallery?.querySelector<HTMLElement>('[data-building-photo-caption]');
@@ -51,7 +70,8 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const source = gallery?.querySelector<HTMLAnchorElement>('[data-building-photo-source]');
   const attribution = gallery?.querySelector<HTMLElement>('[data-building-photo-attribution]');
   const license = gallery?.querySelector<HTMLAnchorElement>('[data-building-photo-license]');
-  if (!trigger || !gallery || !status || !caption || !retry || !images.length || images.length !== photos.length) return null;
+  if (!trigger || !gallery || !figure || !stage || !enlarge || !viewer || !viewerContent || !viewerClose
+    || !status || !caption || !retry || !images.length || images.length !== photos.length) return null;
 
   const listeners = new AbortController();
   const eventOptions = { signal: listeners.signal };
@@ -73,6 +93,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     }
   };
   let index = 0;
+  let touchStart: { x: number; y: number } | null = null;
   let pending: { controller: AbortController; image: HTMLImageElement } | null = null;
   const cancel = () => {
     if (!pending) return;
@@ -80,6 +101,11 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     pending.image.onload = pending.image.onerror = null;
     pending.image.removeAttribute('src');
     pending = null;
+  };
+  const fitViewer = (image: HTMLImageElement) => {
+    if (image.naturalWidth && image.naturalHeight) {
+      stage.style.setProperty('--building-photo-ratio', `${image.naturalWidth} / ${image.naturalHeight}`);
+    }
   };
 
   const show = () => {
@@ -95,7 +121,8 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     if (document.activeElement === retry) (next ?? trigger).focus();
     retry.hidden = true;
     status.hidden = loaded.has(selected);
-    if (loaded.has(selected)) return;
+    enlarge.hidden = !loaded.has(selected);
+    if (loaded.has(selected)) { fitViewer(image); return; }
 
     const controller = new AbortController();
     pending = { controller, image };
@@ -113,8 +140,10 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       pending = null;
       image.onload = image.onerror = null;
       loaded.add(selected);
+      fitViewer(image);
       status.hidden = true;
       image.hidden = false;
+      enlarge.hidden = false;
     };
     image.onerror = fail;
     const photo = photos[selected];
@@ -143,7 +172,18 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     }
   };
 
+  const closeViewer = (returnFocus = true) => {
+    if (!viewer.open) return;
+    touchStart = null;
+    gallery.insertBefore(figure, viewer);
+    gallery.style.minHeight = '';
+    viewer.close();
+    if (returnFocus && root.isConnected) {
+      (enlarge.hidden ? (!retry.hidden ? retry : (next ?? trigger)) : enlarge).focus();
+    }
+  };
   const close = () => {
+    closeViewer(false);
     gallery.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
     cancel();
@@ -170,16 +210,46 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   previous?.addEventListener('click', event => { event.stopPropagation(); move(-1); }, eventOptions);
   next?.addEventListener('click', event => { event.stopPropagation(); move(1); }, eventOptions);
   retry.addEventListener('click', event => { event.stopPropagation(); show(); }, eventOptions);
+  enlarge.addEventListener('click', event => {
+    event.stopPropagation();
+    if (gallery.hidden || viewer.open || !loaded.has(index) || !root.isConnected) return;
+    // Keep the map popup's layout and reuse the current image, caption and navigation in the top layer.
+    gallery.style.minHeight = `${figure.offsetHeight}px`;
+    viewerContent.append(figure);
+    viewer.showModal();
+    viewer.scrollTop = 0;
+  }, eventOptions);
+  viewer.addEventListener('click', event => {
+    event.stopPropagation();
+    if (event.target === viewer || viewerClose.contains(event.target as Node)) closeViewer();
+  }, eventOptions);
+  viewer.addEventListener('cancel', event => { event.preventDefault(); closeViewer(); }, eventOptions);
+  stage.addEventListener('touchstart', event => {
+    const point = event.touches.length === 1 && viewer.open ? event.touches[0] : null;
+    touchStart = point ? { x: point.clientX, y: point.clientY } : null;
+  }, { ...eventOptions, passive: true });
+  stage.addEventListener('touchcancel', () => { touchStart = null; }, eventOptions);
+  stage.addEventListener('touchend', event => {
+    const start = touchStart;
+    touchStart = null;
+    const point = event.changedTouches[0];
+    if (!start || !point || event.touches.length) return;
+    const dx = point.clientX - start.x;
+    const dy = point.clientY - start.y;
+    if (Math.abs(dx) >= 48 && Math.abs(dx) > Math.abs(dy) * 1.5) move(dx < 0 ? 1 : -1);
+  }, { ...eventOptions, passive: true });
   gallery.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight', 'Escape'].includes(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.key === 'Escape') {
+      if (viewer.open) { closeViewer(); return; }
       close();
       trigger.focus();
     } else move(event.key === 'ArrowLeft' ? -1 : 1);
   }, eventOptions);
   return () => {
+    closeViewer(false);
     listeners.abort();
     cancel();
   };
