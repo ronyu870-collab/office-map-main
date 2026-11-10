@@ -45,9 +45,10 @@
   {
     "id": "admin-diagnostic-text-filter",
     "roots": [
-      "src/components/admin/DebugFilter.tsx"
+      "src/components/admin/DebugFilter.tsx",
+      "src/components/admin/DataDebugPanel.tsx"
     ],
-    "file": "src/components/admin/__tests__/DebugFilter.focus.test.tsx",
+    "file": "src/components/admin/__tests__/DataDebugPanel.test.tsx",
     "cases": [
       "retains the text filter focus and caret after matching rows refresh"
     ]
