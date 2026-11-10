@@ -36,6 +36,8 @@ async function measure([variant, base], spec, round) {
     mapSdkRequests: 0, activityRequests: 0, earlyProtectedRequests: 0, roleComplete: false };
   const localEpoch = Date.now();
   let profileMs = null;
+  let releaseNavigation = () => {};
+  const delayedNavigation = new Promise(resolve => { releaseNavigation = resolve; });
   try {
     const saved = session(spec.mode === 'required', spec.mode === 'expired' || spec.mode === 'rejected' ? -10 : 3600);
     const refreshed = session(false, 3600);
@@ -45,6 +47,7 @@ async function measure([variant, base], spec, round) {
       const u = new URL(request.url());
       const method = request.method();
       if (u.origin === origin) {
+        if (spec.verifyProgress && u.pathname === '/map') await delayedNavigation;
         if (u.pathname === '/api/map/data') {
           row.mapDataRequests++;
           if (!row.roleComplete) row.earlyProtectedRequests++;
@@ -143,7 +146,10 @@ async function measure([variant, base], spec, round) {
         const map = page.getByRole('link', { name: '北京办公楼市场地图', exact: true });
         const protectedRead = spec.behavior ? page.waitForRequest(request =>
           new URL(request.url()).pathname === '/api/map/data', { timeout: 10_000 }).catch(() => null) : null;
-        await map.click({ timeout: 6_000 });
+        const progress = spec.verifyProgress
+          ? page.locator('#nprogress .bar').waitFor({ timeout: 3_000 }).finally(releaseNavigation)
+          : Promise.resolve();
+        await Promise.all([map.click({ timeout: 6_000 }), progress]);
         row.roleCompleteAtClick = row.roleComplete;
         await page.waitForURL('**/map', { timeout: 8_000 });
         await page.locator('header h1').filter({ hasText: '北京办公楼市场地图' }).waitFor({ timeout: 6_000 });
@@ -151,6 +157,7 @@ async function measure([variant, base], spec, round) {
         row.roleCompleteAtMapNavigation = row.roleComplete;
         row.mapNavigation = await page.evaluate(() => Math.round(performance.timeOrigin + performance.now() -
           Number(sessionStorage.getItem('__colliers_perf_home_document_start'))));
+        if (spec.verifyProgress) await page.locator('#nprogress').waitFor({ state: 'hidden', timeout: 4_000 });
         if (protectedRead) {
           assert.ok(await protectedRead, 'the authenticated map must start its real data path after recovery');
           assert.equal(row.roleComplete, true);
@@ -186,6 +193,7 @@ async function measure([variant, base], spec, round) {
   } catch (error) {
     row.failure = String(error).slice(0, 350);
   } finally {
+    releaseNavigation();
     await context.close();
   }
   return row;
@@ -215,7 +223,7 @@ try {
       { ...desktop, name: 'anonymous', mode: 'anonymous', behavior: true },
       { ...desktop, name: 'reopen', behavior: true },
       { ...desktop, name: 'refresh', mode: 'expired' },
-      { ...desktop, name: 'click', roleMs: 1800, click: true, behavior: true },
+      { ...desktop, name: 'click', roleMs: 1800, click: true, behavior: true, verifyProgress: true },
       { ...desktop, name: 'force-password', mode: 'required' },
       { ...desktop, name: 'rejected-refresh', mode: 'rejected', behavior: true },
     ];

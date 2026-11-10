@@ -3,6 +3,7 @@ import {
   type SupabaseMutationNotice,
   type SupabaseMutationOperation,
 } from '@/src/utils/auditMutationBridge';
+import { invalidateCompareSnapshot } from './compareSnapshot';
 
 const EXCLUDED_TABLES = new Set(['audit_logs', 'update_drafts']);
 const READ_ONLY_RPCS = new Set([
@@ -15,6 +16,8 @@ const READ_ONLY_RPCS = new Set([
   'get_quarterly_submission_summary',
 ]);
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const COMPARE_TABLES = new Set(['buildings', 'building_metrics', 'building_brochure_data']);
+const COMPARE_RPCS = new Set(['admin_rename_building', 'submit_quarterly_batch_v2']);
 
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input;
@@ -116,7 +119,11 @@ export function createAuditAwareFetch(baseFetch?: typeof fetch): typeof fetch {
       const status = response.status;
       queueMicrotask(() => {
         const notice = describeMutation(input, init, status);
-        if (notice) reportSupabaseMutation(notice);
+        if (!notice) return;
+        reportSupabaseMutation(notice);
+        if ((notice.kind === 'table' ? COMPARE_TABLES : COMPARE_RPCS).has(notice.target)) {
+          invalidateCompareSnapshot();
+        }
       });
     }
     return response;
