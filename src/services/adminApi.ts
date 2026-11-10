@@ -31,12 +31,15 @@ export async function publishNotice(
  * 将指定 id 的公告设为 inactive（软删除）。
  */
 export async function deactivateNotice(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('notices')
     .update({ is_active: false })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('is_active', true)
+    .select('id')
+    .single();
 
-  if (error) throw new Error(`删除公告失败：${error.message}`);
+  if (error || !data) throw new Error(`删除公告失败：${error?.message ?? '未找到生效公告'}`);
 }
 
 /**

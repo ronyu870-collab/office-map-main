@@ -49,7 +49,7 @@ function AdminPageContent() {
           {activeSection === 'submissions' && <SubmissionManager />}
           {activeSection === 'schema' && <div className="h-full min-h-0 w-full overflow-hidden"><SchemaMap /></div>}
           {activeSection === 'oss' && <div className="h-full min-h-0 w-full overflow-hidden"><OSSManager userEmail={adminEmail || 'unknown'} /></div>}
-          {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager adminEmail={adminEmail} /></div>}
+          {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager key={adminEmail} adminEmail={adminEmail} /></div>}
           {activeSection === 'memo' && <div className="h-full min-h-0 w-full overflow-hidden"><MemoManager adminEmail={adminEmail || 'unknown'} /></div>}
           {activeSection === 'issues' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><IssueManager key={adminEmail} adminEmail={adminEmail} /></div>}
           {activeSection === 'changelog' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><ChangelogManager key={adminEmail} adminEmail={adminEmail} /></div>}

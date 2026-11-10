@@ -32,16 +32,18 @@ export function NoticeBanner() {
 
   React.useEffect(() => {
     let active = true;
+    const request = new AbortController();
     let visibleFrameId: number | null = null;
     const timeoutId = setTimeout(() => {
       if (!active) return;
+      request.abort();
       setLoadError(true);
       setNotices([]);
     }, 3000);
 
-    getAllActiveNotices()
+    getAllActiveNotices(request.signal)
       .then((data) => {
-        if (!active) return;
+        if (!active || request.signal.aborted) return;
         clearTimeout(timeoutId);
         setLoadError(false);
         setNotices(data);
@@ -54,7 +56,7 @@ export function NoticeBanner() {
         }
       })
       .catch(() => {
-        if (!active) return;
+        if (!active || request.signal.aborted) return;
         clearTimeout(timeoutId);
         setLoadError(true);
         setNotices([]);
@@ -62,6 +64,7 @@ export function NoticeBanner() {
 
     return () => {
       active = false;
+      request.abort();
       clearTimeout(timeoutId);
       if (visibleFrameId !== null) cancelAnimationFrame(visibleFrameId);
     };
