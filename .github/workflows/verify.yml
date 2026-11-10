@@ -208,6 +208,7 @@ jobs:
           node scripts/performance/verify-admin-database-discovery.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-debug-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-memo-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-user-directory.mjs http://127.0.0.1:3210
           node scripts/performance/verify-quarterly-reference.mjs http://127.0.0.1:3210
           node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210

@@ -100,61 +100,85 @@ async function updateAssignmentsInChunks(
   return { error: null, completedIds }
 }
 
+type RequestTiming = ReturnType<typeof createIsolatedRequestTiming>
+
+async function readUserDirectory(client: SupabaseClient, timing: RequestTiming) {
+  const [profilesResult, authResult] = await Promise.all([
+    timing.measure('profiles', () => client.from('user_roles').select('user_id, role, chinese_name, full_name, email, phone, gender, title, internal_number, created_at').order('created_at', { ascending: false })),
+    timing.measure('auth-directory', () => client.auth.admin.listUsers({ page: 1, perPage: 1000 })),
+  ])
+  if (profilesResult.error) throw profilesResult.error
+  if (authResult.error) throw authResult.error
+
+  const authById = new Map(authResult.data.users.map((user) => [user.id, user]))
+  return (profilesResult.data ?? []).map((profile) => {
+    const authUser = authById.get(profile.user_id)
+    const bannedUntil = authUser?.banned_until ?? null
+    return {
+      ...profile,
+      role: toAdminRole(profile.role),
+      email: authUser?.email ?? profile.email,
+      disabled: Boolean(bannedUntil && new Date(bannedUntil).getTime() > Date.now()),
+      banned_until: bannedUntil,
+      last_sign_in_at: authUser?.last_sign_in_at ?? null,
+    }
+  })
+}
+
+async function readAssignmentCounts(client: SupabaseClient, timing: RequestTiming) {
+  const [stockResult, futureResult] = await Promise.all([
+    timing.measure('stock-assignments', () => client.from('building_assignments').select('user_id')),
+    timing.measure('future-assignments', () => client.from('future_supply_assignments').select('user_id, record_year, record_quarter')),
+  ])
+  if (stockResult.error) throw stockResult.error
+  if (futureResult.error) throw futureResult.error
+
+  const counts = new Map<string, { stock_assignment_count: number; future_assignment_count: number }>()
+  const period = currentQuarter()
+  function count(userId: string, field: 'stock_assignment_count' | 'future_assignment_count') {
+    const current = counts.get(userId) ?? { stock_assignment_count: 0, future_assignment_count: 0 }
+    current[field]++
+    counts.set(userId, current)
+  }
+  for (const row of stockResult.data ?? []) {
+    if (row.user_id) count(row.user_id, 'stock_assignment_count')
+  }
+  for (const row of futureResult.data ?? []) {
+    const isCurrentOrFuture = Number(row.record_year) > period.year
+      || (Number(row.record_year) === period.year && Number(row.record_quarter) >= period.quarter)
+    if (row.user_id && isCurrentOrFuture) count(row.user_id, 'future_assignment_count')
+  }
+  return counts
+}
+
 export async function GET(request: NextRequest) {
   const timing = createIsolatedRequestTiming(request)
+  const view = request.nextUrl.searchParams.get('view')
+  const respond = (body: object) => timing.response(() => NextResponse.json(body, {
+    headers: { 'Cache-Control': 'private, no-store' },
+  }))
   try {
     const context = await timing.measure('auth', () => requireAdmin(request))
     if (!isAdminContext(context)) return context
     const { client } = context
 
-    const [profilesResult, authResult, stockResult, futureResult] = await Promise.all([
-      timing.measure('profiles', () => client.from('user_roles').select('user_id, role, chinese_name, full_name, email, phone, gender, title, internal_number, created_at').order('created_at', { ascending: false })),
-      timing.measure('auth-directory', () => client.auth.admin.listUsers({ page: 1, perPage: 1000 })),
-      timing.measure('stock-assignments', () => client.from('building_assignments').select('user_id')),
-      timing.measure('future-assignments', () => client.from('future_supply_assignments').select('user_id, record_year, record_quarter')),
-    ])
-
-    if (profilesResult.error) throw profilesResult.error
-    if (authResult.error) throw authResult.error
-    if (stockResult.error) throw stockResult.error
-    if (futureResult.error) throw futureResult.error
-
-    const authById = new Map(authResult.data.users.map((user) => [user.id, user]))
-    const stockCounts = new Map<string, number>()
-    const futureCounts = new Map<string, number>()
-    const period = currentQuarter()
-
-    for (const row of stockResult.data ?? []) {
-      if (row.user_id) stockCounts.set(row.user_id, (stockCounts.get(row.user_id) ?? 0) + 1)
+    if (view === 'directory') return respond({ users: await readUserDirectory(client, timing) })
+    if (view === 'assignments') {
+      const counts = await readAssignmentCounts(client, timing)
+      return respond({ assignments: Array.from(counts, ([user_id, values]) => ({ user_id, ...values })) })
     }
-    for (const row of futureResult.data ?? []) {
-      const isCurrentOrFuture = Number(row.record_year) > period.year
-        || (Number(row.record_year) === period.year && Number(row.record_quarter) >= period.quarter)
-      if (row.user_id && isCurrentOrFuture) {
-        futureCounts.set(row.user_id, (futureCounts.get(row.user_id) ?? 0) + 1)
-      }
-    }
+    if (view !== null) return NextResponse.json({ error: '不支持的用户列表视图' }, { status: 400 })
 
-    const users = (profilesResult.data ?? []).map((profile) => {
-      const authUser = authById.get(profile.user_id)
-      const bannedUntil = authUser?.banned_until ?? null
-      const disabled = Boolean(bannedUntil && new Date(bannedUntil).getTime() > Date.now())
-      return {
-        ...profile,
-        role: toAdminRole(profile.role),
-        email: authUser?.email ?? profile.email,
-        disabled,
-        banned_until: bannedUntil,
-        last_sign_in_at: authUser?.last_sign_in_at ?? null,
-        stock_assignment_count: stockCounts.get(profile.user_id) ?? 0,
-        future_assignment_count: futureCounts.get(profile.user_id) ?? 0,
-      }
-    })
-
-    return timing.response(() => NextResponse.json({ users }))
+    // Retain the full response for clients using the original GET contract.
+    const [directory, counts] = await Promise.all([readUserDirectory(client, timing), readAssignmentCounts(client, timing)])
+    const users = directory.map(user => ({
+      ...user,
+      ...(counts.get(user.user_id) ?? { stock_assignment_count: 0, future_assignment_count: 0 }),
+    }))
+    return respond({ users })
   } catch (error) {
     console.error('[admin/users] 获取用户失败:', error)
-    return NextResponse.json({ error: '用户列表加载失败' }, { status: 500 })
+    return NextResponse.json({ error: view === 'assignments' ? '任务统计加载失败' : '用户列表加载失败' }, { status: 500 })
   }
 }
 
