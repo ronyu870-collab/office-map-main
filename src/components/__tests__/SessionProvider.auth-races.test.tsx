@@ -1,10 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { Session } from '@supabase/supabase-js';
 import type { AuthSessionResult } from '@/src/services/Auth';
 
 const state = vi.hoisted(() => ({
   getSessionFast: vi.fn(), clearSessionCache: vi.fn(),
-  callback: null as null | ((event: string) => void),
+  callback: null as null | ((event: string, authSession?: Session | null) => void),
   push: vi.fn(), replace: vi.fn(), pathname: '/settings',
   signOut: vi.fn(async () => undefined),
   idleLogout: null as null | (() => Promise<void>),
@@ -21,11 +22,11 @@ vi.mock('@/src/services/SessionManager', () => ({
 vi.mock('@/src/services/trustedDevice', () => ({ isTrustedDevice: () => state.trustedMs !== null, getTrustedDeviceRemainingMs: () => state.trustedMs }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: { auth: {
   signOut: state.signOut,
-  onAuthStateChange(callback: (event: string) => void) {
+  onAuthStateChange(callback: (event: string, authSession?: Session | null) => void) {
     state.callback = callback; return { data: { subscription: { unsubscribe() {} } } };
   },
 } } }));
-import { SessionProvider, useAppSession } from '@/src/components/SessionProvider';
+import { SessionProvider, useAppSession, useCanStartHomeNavigation } from '@/src/components/SessionProvider';
 
 const session = (required: boolean) => ({ user: { app_metadata: { must_change_password: required } } }) as unknown as AuthSessionResult;
 function deferred() {
@@ -33,12 +34,37 @@ function deferred() {
   const promise = new Promise<AuthSessionResult | null>(done => { resolve = done; });
   return { promise, resolve };
 }
+function NavigationConsumer() {
+  return <p>{useCanStartHomeNavigation() ? 'navigation ready' : 'navigation unavailable'}</p>;
+}
+
 function Consumer() {
   const { session: current, status, refreshSession } = useAppSession();
   return <><output>{status}:{String(current?.user.app_metadata?.must_change_password)}</output><button onClick={() => void refreshSession()}>刷新会话</button></>;
 }
 beforeEach(() => { vi.clearAllMocks(); state.callback = null; state.pathname = '/settings'; state.idleLogout = null; state.trustedMs = null; });
 afterEach(cleanup);
+
+it('allows the home link during a delayed profile only for a current credential and clears it on sign-out', async () => {
+  const old = deferred();
+  state.pathname = '/';
+  state.getSessionFast.mockReturnValueOnce(old.promise);
+  render(<SessionProvider><Consumer /><NavigationConsumer /></SessionProvider>);
+  const browserSession = (required: boolean, expiry: number) => ({
+    access_token: 'synthetic', expires_at: Date.now() / 1000 + expiry,
+    user: { id: 'user-a', app_metadata: { must_change_password: required } },
+  }) as unknown as Session;
+  for (const invalid of [browserSession(true, 60), browserSession(false, -1), null]) {
+    await act(async () => { state.callback?.('INITIAL_SESSION', invalid); });
+    expect(screen.getByText('navigation unavailable')).toBeInTheDocument();
+  }
+  await act(async () => { state.callback?.('INITIAL_SESSION', browserSession(false, 60)); });
+  expect(screen.getByText('navigation ready')).toBeInTheDocument();
+  expect(screen.getByText('loading:undefined')).toBeInTheDocument();
+  await act(async () => { state.callback?.('SIGNED_OUT'); old.resolve(session(false)); });
+  expect(screen.getByText('navigation unavailable')).toBeInTheDocument();
+  expect(screen.getByText('unauthenticated:undefined')).toBeInTheDocument();
+});
 
 it('a forced post-change refresh supersedes an older in-flight session read', async () => {
   const old = deferred();

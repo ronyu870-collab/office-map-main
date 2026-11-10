@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   },
   status: 'authenticated' as 'loading' | 'authenticated' | 'unauthenticated',
   impersonating: false,
+  earlyNavigation: false,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -21,7 +22,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: React.ReactNode }) => (
+  default: ({ href, children, prefetch: _prefetch, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children: React.ReactNode; prefetch?: boolean }) => (
     <a href={href} {...props}>{children}</a>
   ),
 }));
@@ -34,6 +35,7 @@ vi.mock('next/image', () => ({
 }));
 
 vi.mock('@/src/components/SessionProvider', () => ({
+  useCanStartHomeNavigation: () => state.earlyNavigation,
   useAppSession: () => ({
     session: state.session,
     status: state.status,
@@ -72,10 +74,34 @@ describe('Home workspace behavior', () => {
     state.signOut.mockReset();
     state.status = 'authenticated';
     state.impersonating = false;
+    state.earlyNavigation = false;
     setSession('admin');
   });
 
   afterEach(() => cleanup());
+
+  it('makes just the map link actionable during profile recovery and keeps its keyboard focus when the profile arrives', () => {
+    state.status = 'loading';
+    state.session = null;
+    const { rerender } = render(<HomeWorkspace />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+
+    state.earlyNavigation = true;
+    rerender(<HomeWorkspace />);
+    const map = screen.getByRole('link', { name: '北京办公楼市场地图' });
+    map.focus();
+    expect(map).toHaveAttribute('href', '/map');
+    expect(fireEvent.click(map)).toBe(true);
+    expect(screen.getAllByRole('link')).toEqual([map]);
+    expect(screen.queryByRole('button', { name: '用户菜单' })).not.toBeInTheDocument();
+
+    setSession('viewer');
+    state.status = 'authenticated';
+    rerender(<HomeWorkspace />);
+    expect(screen.getByRole('link', { name: '北京办公楼市场地图' })).toBe(map);
+    expect(map).toHaveFocus();
+    expect(screen.getByRole('link', { name: '租赁成交填报' })).toBeInTheDocument();
+  });
 
   it('implements the user-menu keyboard contract and returns focus on Escape', async () => {
     render(<HomeWorkspace />);

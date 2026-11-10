@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { deviceAwareAuthStorage } from './trustedDevice';
 import { createAuditAwareFetch } from './supabaseAuditFetch';
+import { getAuthStorageKey, PUBLIC_SUPABASE_URL } from './authStorageKey';
 
 /**
  * Supabase 客户端单例
@@ -20,11 +21,12 @@ let _supabase: SupabaseClient | null = null;
 export function getSupabaseClient(): SupabaseClient {
   if (_supabase) return _supabase;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co';
+  const supabaseUrl = PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_not_configured';
 
   _supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
+      storageKey: getAuthStorageKey(supabaseUrl),
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,

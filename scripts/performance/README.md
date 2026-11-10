@@ -10,11 +10,22 @@ CI Verify 在构建后安装隔离的 Playwright Core/Chromium，执行：
 node scripts/performance/verify-summary.mjs
 node scripts/performance/verify-capture.mjs
 node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
+node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
 ```
 
 本机复用已安装 Chrome，外部准备的 `playwright-core@1.58.2` 通过 `PERF_PLAYWRIGHT_MODULE` 指向模块目录。不要从业务检出下载或复用生产会话。CI 使用 `PERF_BROWSER_CHANNEL=chromium`，本机默认 Chrome。匿名回归只接受 localhost，只验证新上下文首页/地图/资料库的登录重定向和地图/目录资源边界，不代替真实账号、过期令牌、模拟身份与手机验收。
 
 校准在真实浏览器合成夹具中区分外框、业务内容、新鲜数据、错误与超时。合成夹具的时间不进入产品性能报告。
+
+## 首页冷启动 A/B
+
+两个候选都用无凭据配置运行本地生产构建。回归脚本使用真实浏览器、新浏览器上下文和隔离的 Supabase 响应，覆盖匿名直达登录、可信设备新标签页、过期刷新、拒绝刷新、强制改密，以及角色未完成时实际点击地图且无保护数据请求。功能断言进入 CI；计时不作 CI 阈值。
+
+```sh
+node scripts/performance/verify-home-cold-start.mjs --benchmark http://127.0.0.1:3211 http://127.0.0.1:3210 /tmp/home-cold-pairs.json 20
+```
+
+默认基线/候选交替顺序，每次用新的浏览器上下文。分别记录地图链接可用、完整工作台和登录表单时间，另有真实点击进入地图路由的样本。角色接口/令牌刷新延迟为固定实验输入；报告桌面与手机条件模拟，不把这些时间当作办公网络、真机、生产认证或地图瓦片结果。
 
 ## 单次导航采样
 

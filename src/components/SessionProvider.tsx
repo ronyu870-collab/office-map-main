@@ -1,5 +1,7 @@
 'use client';
 
+import type { Session } from '@supabase/supabase-js';
+
 import {
   createContext,
   useCallback,
@@ -29,6 +31,17 @@ export type AppSessionContextValue = {
 };
 
 const AppSessionContext = createContext<AppSessionContextValue | null>(null);
+const HomeNavigationContext = createContext(false);
+
+/** This allows navigation only; destination guards still require AppSessionContext. */
+export function useCanStartHomeNavigation(): boolean {
+  return useContext(HomeNavigationContext);
+}
+
+function canStartHomeNavigation(session: Session | null): boolean {
+  return !!(session?.user?.id && session.access_token && session.expires_at &&
+    session.expires_at * 1000 > Date.now() && !session.user.app_metadata?.must_change_password);
+}
 
 function useStandaloneSession(enabled: boolean): AppSessionContextValue {
   const [session, setSession] = useState<AuthSessionResult | null>(null);
@@ -84,6 +97,7 @@ export function useAppSession(): AppSessionContextValue {
  */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [showWarning, setShowWarning] = useState(false);
+  const [allowHomeNavigation, setAllowHomeNavigation] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(120);
   const [session, setSession] = useState<AuthSessionResult | null>(null);
   const [status, setStatus] = useState<AppSessionStatus>('loading');
@@ -228,8 +242,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, authSession) => {
       if (event === 'SIGNED_OUT') {
+        setAllowHomeNavigation(false);
         sessionGenerationRef.current += 1;
         inFlightSessionRef.current = null;
         clearSessionCache();
@@ -240,8 +255,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        setAllowHomeNavigation(canStartHomeNavigation(authSession));
+      }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        clearSessionCache();
+        if (event !== 'USER_UPDATED' && authSession) {
+          clearSessionCache({ reuseInFlightProfileFor: authSession });
+        } else {
+          clearSessionCache();
+        }
         sessionGenerationRef.current += 1;
         inFlightSessionRef.current = null;
         queueMicrotask(() => {
@@ -270,7 +292,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         remainingSeconds={remainingSeconds}
         onContinue={handleContinue}
       />
-      {children}
+      <HomeNavigationContext.Provider value={status === 'loading' && allowHomeNavigation}>
+        {children}
+      </HomeNavigationContext.Provider>
     </AppSessionContext.Provider>
   );
 }
