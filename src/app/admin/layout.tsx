@@ -9,7 +9,7 @@ import { isDemoMode } from '@/src/config/demoMode';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 import { AppHeader, Button, LoadingState } from '@/src/components/ui';
-import { AdminOperatorEmailContext } from './adminOperatorEmail';
+import { AdminOperatorContext, type AdminOperator } from './adminOperatorEmail';
 
 function AdminGuardLoading() {
   return (
@@ -27,7 +27,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   const { requestNavigation } = useAdminEditProtection();
   const router = useRouter();
   const { isImpersonating } = useImpersonation();
-  const [verifiedOperatorEmail, setVerifiedOperatorEmail] = React.useState<string | null>(null);
+  const [verifiedOperator, setVerifiedOperator] = React.useState<AdminOperator | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -48,7 +48,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        setVerifiedOperatorEmail(session.user.email ?? '');
+        setVerifiedOperator({ userId: session.user.id, email: session.user.email ?? '' });
       } catch {
         if (!cancelled) router.replace('/');
       }
@@ -74,7 +74,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (verifiedOperatorEmail === null || isImpersonating) return <AdminGuardLoading />;
+  if (verifiedOperator === null || isImpersonating) return <AdminGuardLoading />;
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
@@ -86,7 +86,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
         />
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <AdminOperatorEmailContext.Provider value={verifiedOperatorEmail}>{children}</AdminOperatorEmailContext.Provider>
+        <AdminOperatorContext.Provider value={verifiedOperator}>{children}</AdminOperatorContext.Provider>
       </div>
     </div>
   );

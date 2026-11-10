@@ -2,8 +2,17 @@
 
 import { createContext, useContext } from 'react';
 
-export const AdminOperatorEmailContext = createContext('');
+export interface AdminOperator {
+  userId: string;
+  email: string;
+}
+
+export const AdminOperatorContext = createContext<AdminOperator | null>(null);
+
+export function useAdminOperator() {
+  return useContext(AdminOperatorContext);
+}
 
 export function useAdminOperatorEmail() {
-  return useContext(AdminOperatorEmailContext);
+  return useAdminOperator()?.email ?? '';
 }

@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 import { clearMapReadCache } from './mapReadCache';
 import { clearCompareSnapshot } from './compareSnapshot';
 import { isPasswordSignInPending, runPasswordSignIn } from './passwordSignInTransition';
+import { isAdminRole } from '@/src/utils/adminAccess';
 
 export const DEFAULT_APP_ROLE = 'viewer' as const;
 
@@ -339,7 +340,9 @@ export async function getSessionFast(): Promise<AuthSessionResult | null> {
         const imp = JSON.parse(impRaw);
         if (imp.targetUserId && imp.targetEmail) {
           const realSession = await getRealSession();
-          if (realSession) {
+          if (sessionStorage.getItem('__impersonation_state') !== impRaw) return realSession;
+          if (realSession && isAdminRole(realSession.role) &&
+            imp.adminUserId === realSession.user.id && imp.adminEmail === realSession.user.email) {
             // 使用邮箱前缀作为 full_name，与 update_drafts.user_name 一致
             const emailPrefix = imp.targetEmail ? imp.targetEmail.split('@')[0] : '';
             return {
@@ -358,6 +361,8 @@ export async function getSessionFast(): Promise<AuthSessionResult | null> {
               sessionId: realSession.sessionId,
             };
           }
+          clearImpersonationCache();
+          return realSession;
         }
       }
     } catch {
