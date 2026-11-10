@@ -1,6 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { clearMapReadCache } from './mapReadCache';
+import { clearCompareSnapshot } from './compareSnapshot';
 
 export const DEFAULT_APP_ROLE = 'viewer' as const;
 
@@ -365,6 +366,7 @@ export function prewarmSessionCache(session: AuthSessionResult): void {
   pendingRealSession = null;
   pendingRestoredProfile = null;
   clearMapReadCache();
+  clearCompareSnapshot();
   writeSessionCache(session);
 }
 
@@ -401,6 +403,7 @@ export function clearSessionCache({ reuseInFlightProfileFor }: { reuseInFlightPr
       pendingRestoredProfile = null;
     }
     clearMapReadCache();
+    clearCompareSnapshot();
     try {
       sessionStorage.removeItem(AUTH_SESSION_CACHE_KEY);
     } catch (err) {
@@ -429,6 +432,7 @@ export function clearSessionCacheOnRoleChange(): void {
 export function clearImpersonationCache(): void {
   if (typeof window !== 'undefined') {
     clearMapReadCache();
+    clearCompareSnapshot();
     try {
       sessionStorage.removeItem('__impersonation_state');
     } catch {}
