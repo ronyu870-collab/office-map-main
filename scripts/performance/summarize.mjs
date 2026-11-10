@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const metrics = ['feedback_ms', 'shell_ms', 'content_usable_ms', 'fresh_data_ms', 'map_markers_ms', 'map_tiles_ms'];
+export const metrics = ['feedback_ms', 'shell_ms', 'content_usable_ms', 'fresh_data_ms', 'map_markers_ms', 'map_tiles_ms',
+  'long_task_count', 'long_task_total_ms', 'request_count'];
 export function quantile(values, percentile) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -17,7 +18,8 @@ export function summarize(samples) {
       }
     }
     const identity = Object.fromEntries(['commit', 'deployment', 'environment', 'data_origin', 'device', 'browser',
-      'network', 'proxy_state', 'role_class', 'scenario', 'cache_state'].map((key) => [key, sample[key] ?? null]));
+      'network', 'proxy_state', 'role_class', 'scenario', 'cache_state', 'capture_action', 'resource_cache']
+      .map((key) => [key, sample[key] ?? null]));
     const key = JSON.stringify(identity);
     if (!groups.has(key)) groups.set(key, { identity, samples: [] });
     groups.get(key).samples.push(sample);
