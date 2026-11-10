@@ -21,6 +21,7 @@ export function useGridData(
   }, [])
   const getLatestRows = useCallback(() => rowsRef.current, [])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [viewMode, setViewMode] = useState<string>(
     config.viewMode?.views[0]?.key ?? ''
   )
@@ -29,7 +30,11 @@ export function useGridData(
   const [loadError, setLoadError] = useState('')
   const fetchRows = useCallback(async (forceRefresh = false): Promise<boolean> => {
     const gen = ++generationRef.current
-    setLoading(true); setLoadError('')
+    const previousCompleteRows = rowsRef.current
+    let firstBatchDisplayed = false
+    setLoading(true)
+    setLoadingMore(false)
+    setLoadError('')
     try {
       if (config.customFetch) {
         if (forceRefresh) {
@@ -42,9 +47,10 @@ export function useGridData(
       }
       const tableName = config.viewMode?.views.find(v => v.key === viewMode)?.table ?? config.table
       const PAGE = 1000
-      let allData: any[] = []
       const readPlan = tableName === config.table ? getGridReadPlan(tableName) : null
       const selectFields = readPlan?.columns ?? '*'
+      // Show the first page immediately. Subsequent batches hydrate the same
+      // table incrementally without waiting for the last network round trip.
       for (let offset = 0; ; offset += PAGE) {
         if (gen !== generationRef.current) return false
         const query = supabase.from(tableName).select(selectFields).range(offset, offset + PAGE - 1)
@@ -62,26 +68,41 @@ export function useGridData(
         const { data, error } = await query
         if (gen !== generationRef.current) return false
         if (error) throw error
-        allData = allData.concat(data ?? [])
-        if ((data ?? []).length < PAGE) break
+        const page = data ?? []
+        if (!firstBatchDisplayed) {
+          setRows(page)
+          firstBatchDisplayed = true
+          setLoading(false)
+        } else if (page.length > 0) {
+          // Keep any edits made to previously delivered rows rather than
+          // replacing the full grid when the next read completes.
+          setRows(current => [...current, ...page])
+        }
+        if (page.length < PAGE) break
+        setLoadingMore(true)
       }
-      setRows(allData)
       if (tableName === 'building_metrics' || tableName === 'building_current_data') {
         try { sessionStorage.removeItem('__project_ledger_cache_v4') } catch {}
       }
       return true
     } catch (error) {
       if (gen === generationRef.current) {
+        // Never publish an incomplete refresh as the final authoritative table.
+        if (firstBatchDisplayed) setRows(previousCompleteRows)
         const message = String((error as any)?.message ?? '请求失败')
-        setLoadError(message); showToast(`读取失败: ${message}`, false)
+        setLoadError(message)
+        showToast(`读取失败: ${message}`, false)
       }
       return false
     } finally {
-      if (gen === generationRef.current) setLoading(false)
+      if (gen === generationRef.current) {
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
   }, [config, viewMode, dicts, showToast, setRows])
 
   useEffect(() => { void fetchRows(); return () => { generationRef.current++ } }, [fetchRows])
 
-  return { rows, setRows, getLatestRows, loading, loadError, fetchRows, viewMode, setViewMode }
+  return { rows, setRows, getLatestRows, loading, loadingMore, loadError, fetchRows, viewMode, setViewMode }
 }

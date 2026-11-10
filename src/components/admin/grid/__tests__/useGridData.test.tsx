@@ -19,6 +19,24 @@ describe('complete grid reads', () => {
     expect(result.current.rows).toEqual([{ id: 'known' }])
     expect(result.current.loadError).toBe('第二页失败')
   })
+  it('displays the first page while later pages load, then exposes the full result', async () => {
+    let finishSecond!: (value: unknown) => void
+    db.read.mockReset()
+      .mockResolvedValueOnce({ data: Array.from({ length: 1000 }, (_, id) => ({ id })), error: null })
+      .mockImplementationOnce(() => new Promise(resolve => { finishSecond = resolve }))
+    const hook = renderHook(() => useGridData(config, dicts, toast))
+    await waitFor(() => {
+      expect(hook.result.current.loading).toBe(false)
+      expect(hook.result.current.loadingMore).toBe(true)
+      expect(hook.result.current.rows).toHaveLength(1000)
+    })
+    await act(async () => { finishSecond({ data: [{ id: 1000 }], error: null }) })
+    expect(hook.result.current.loadingMore).toBe(false)
+    expect(hook.result.current.rows).toHaveLength(1001)
+    expect(hook.result.current.rows[1000].id).toBe(1000)
+    hook.unmount()
+  })
+
   it('uses audited projections and deterministic secondary ordering on their original tables', async () => {
     db.read.mockReset().mockResolvedValue({ data: [{ id: 'known' }], error: null });
     db.selects.length = 0; db.orders.length = 0;
