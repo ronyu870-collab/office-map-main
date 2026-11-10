@@ -6,6 +6,7 @@ import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { resolveBuildingId } from '@/src/services/buildingIdentity';
 import { isEnteredFutureSupply, isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { readBuildingPhotoCatalog } from '@/src/lib/building-photos/catalog';
+import { MAX_COMPARE_SELECTION } from '@/src/lib/compareReadContract';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,9 @@ const COMPARE_BUILDING_SELECT = `
     vacant_area
   )
 `;
+const COMPARE_CATALOG_SELECT = 'id,name,grade,submarket,district';
+const COMPARE_PAGE_SIZE = 1000;
+const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 type Row = Record<string, any>;
 
@@ -83,7 +87,7 @@ function filterRowsForRole(rows: Row[] | null | undefined, role: UserRole): Row[
   return (rows ?? []).filter(row => rowVisibleForRole(row, role));
 }
 
-async function loadTrackedBuildings(
+function loadTrackedBuildings(
   admin: SupabaseClient,
   selectClause: string,
   latestMetricsOnly: boolean,
@@ -177,6 +181,35 @@ export async function GET(request: NextRequest) {
     }
 
     if (mode === 'compare') {
+      const scope = params.get('scope');
+      if (scope === 'catalog') {
+        const buildings: Row[] = [];
+        for (let offset = 0; ; offset += COMPARE_PAGE_SIZE) {
+          const page = await loadTrackedBuildings(admin, COMPARE_CATALOG_SELECT, false)
+            .order('id').range(offset, offset + COMPARE_PAGE_SIZE - 1);
+          if (page.error) return noStoreJson({ error: '候选楼宇读取失败' }, { status: 500 });
+          buildings.push(...filterRowsForRole(page.data as Row[] | null, role));
+          if ((page.data?.length ?? 0) < COMPARE_PAGE_SIZE) break;
+        }
+        return noStoreJson({ buildings, brochures: [] });
+      }
+      if (scope === 'selected') {
+        const selection = params.getAll('id');
+        if (!selection.length || selection.length > MAX_COMPARE_SELECTION || selection.some(id => !UUID.test(id))) {
+          return noStoreJson({ error: '所选项目无效' }, { status: 400 });
+        }
+        const ids = [...new Set(selection.map(id => id.toLowerCase()))];
+        const buildingsResult = await loadTrackedBuildings(admin, COMPARE_BUILDING_SELECT, true).in('id', ids);
+        if (buildingsResult.error) return noStoreJson({ error: '所选楼宇读取失败' }, { status: 500 });
+        const buildings = filterRowsForRole(buildingsResult.data as Row[] | null, role);
+        const allowedIds = buildings.map(row => String(row.id));
+        if (!allowedIds.length) return noStoreJson({ buildings, brochures: [] });
+        const brochureResult = await admin.from('building_brochure_data').select('*')
+          .in('building_id', allowedIds).order('created_at', { ascending: false }).limit(3000);
+        if (brochureResult.error) return noStoreJson({ error: '所选楼宇的楼书参数读取失败' }, { status: 500 });
+        return noStoreJson({ buildings, brochures: brochureResult.data ?? [] });
+      }
+      if (scope !== null) return noStoreJson({ error: '不支持的对比数据范围' }, { status: 400 });
       const [buildingsResult, brochureResult] = await Promise.all([
         loadTrackedBuildings(admin, COMPARE_BUILDING_SELECT, true),
         admin
