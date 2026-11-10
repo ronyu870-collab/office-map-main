@@ -1,6 +1,6 @@
 # Supabase → Cloudflare R2 加密备份
 
-日期：2026-11-06。用户明确本次范围为 **Supabase数据库和Supabase Storage → Cloudflare R2**。PR85／86已合并，用户已确认离线私钥和启用；导入后正式运行遇到通用传输错误，调度暂时暂停诊断。真实执行证据见[本轮记录](2026-11-06-verification.md)。
+生产范围为 **Supabase 数据库和 Supabase Storage → Cloudflare R2**。11 月 9 日已验证完整归档作为周备份切换基线，原 30 天防删锁继续适用。历史隔离恢复和接入验收见[执行记录](2026-11-06-verification.md)。
 
 ## 备份范围与完成条件
 
@@ -47,17 +47,19 @@ PostgreSQL17要求GRANTED BY指定grantor有ADMIN OPTION，bootstrap超级角色
 
 ## 执行与验证
 
-- npm --prefix scripts/backup run create：创建加密归档，无生产恢复或删除命令，不上传明文Actions artifact。
+- 生产 `npm --prefix scripts/backup run create` 只在 main 的备份 Actions 工作流执行。工作流串行运行，不从本机并行调用生产写入；不上传明文 artifact。
 - npm --prefix scripts/backup run inspect -- '<完整run前缀>'：以只读R2及BACKUP_IDENTITY_FILE下载、解密、校验后清理，不执行SQL。
-- node scripts/backup/health.mjs：默认要求30小时内supabase完成标记，不能证明可恢复。
+- `node scripts/backup/health.mjs`：独立核验周完成标记、加密清单哈希和 R2 对象列表摘要，并生成只读轮换预览。它不能证明已做恢复演练。
 - npm --prefix scripts/backup run test:unit：真实age／SDK协议、范围、加密、完整性、分页、覆盖保护及健康检查；云传输为替身。
 - BACKUP_TEST_PG_BIN=<PG17目录> npm --prefix scripts/backup run test:postgres：一次性真实PG17导出／恢复、授权来源、RLS、触发器、审计和错误保护；全部合成数据，原生恢复入口拒绝生产配置。
 
 ## 调度与恢复边界
 
-计划每日北京时间02:00备份，每6小时独立检测；GitHub调度可能延后。首次真实完整备份、隔离恢复、离线私钥副本及失败通知验收后，再由用户确认main合并和BACKUP_ENABLED=true。新鲜度失败不会自动恢复或改生产。
-
-失败在GitHub Actions及脱敏summary可见，维护者的Actions通知仍需实际确认，没有接通外部邮件／Slack。失败重试使用新目录，不删旧快照；没有完成标记的对象不是恢复点。当前没有自动删除策略，后续生命周期单独审阅。
+- 北京时间周一 02:00 主备份、12:00 同周补跑；同一个周次以周一 02:00 为边界。补跑如果已找到可验证的本周归档则只读退出；否则重新备份。GitHub 可能延迟，时间是计划而不是 SLA。独立健康仍每 6 小时运行，周一 12:00 后缺本周归档或最新快照已超过 7 天即失败。11 月 9 日成功归档以固定标记、清单哈希和对象列表指纹接入首周，无需重复上传。
+- 源文件和数据库先在私有临时目录生成并加密，核对源前后清单后才准入上传。5.80 GB（十进制）准入、6.00 GB 备份硬预算；计入该前缀所有已提交对象、失败残留、持久未结预留和本次加密文件及标记。预留对象写入和回读后才上传数据，失败的预留不会因任务退出而释放；仅完整标记或经过批准的清理能释放未用预留。账号其他内容的 4 GB 预算及 10 GB-month 免费额度独立核对。
+- 新周归档成功且至少 6 份有效周归档时，健康作业只预览最老一份；只考虑对象全部满 30 天的批次，保留最近 5 份和 11 月 6 日已演练归档。失败、无本周完成、清单不一致或候选未解锁时不生成可执行轮换。历史日备和失败残留不混入每周计数；按另行审阅的名单在解锁后处理。
+- `node scripts/backup/retention.mjs preview` 使用现有 R2 只读和配置只读凭据生成完整名单和 SHA256。首次生产删除按名单另行确认；获批后本地 `retention.mjs apply <完整run前缀> <预览摘要>` 重新验证当前状态、计划、精确 30 天锁及对象年龄。需要临时 R2 session（`BACKUP_ROTATION_ACCESS_KEY_ID`、`BACKUP_ROTATION_SECRET_ACCESS_KEY`、`BACKUP_ROTATION_SESSION_TOKEN`）仅覆盖这一归档；不得用长期全桶凭据，不能在 Actions 中 apply。操作端固定使用同一私有 0700 目录 `BACKUP_ROTATION_JOURNAL_DIR`；本周审计文件写入并同步后先删完成标记、核对消失，再删其余对象。中断保留清单与本周排他记录，剩余对象只按原批准名单人工核对续做。自动删除尚未启用，直到第一份实际候选和限权凭据通过核验。
+- 失败在 Actions 和脱敏 summary 可见，沿用维护者已开启的失败通知。备份上限不足会告警且不上传；不为腾空间降低防删锁或移除受保护恢复点。没有设置覆盖整个前缀的到期删除策略。
 
 临时明文权限0600、目录0700，结束清理；强制终止或掉电不保证安全擦除，依赖受保护磁盘及一次性runner。数据库和Storage没有跨服务原子快照，前后清单不能保证任意并发下的应用时间点一致性。平台OAuth／SMTP／JWT／API密钥、角色密码、外部设置、对象版本历史及Vault根密钥需要单独保护；当前Vault0行，未来密文须另证可解密。本次不接入其他云文件源。
 

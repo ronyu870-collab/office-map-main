@@ -1,7 +1,7 @@
 import { safeCode } from './common.mjs';
 
 const stages = new Set(['source-inventory', 'database-export', 'source-download', 'source-size',
-  'local-file', 'encrypt', 'r2-upload', 'r2-readback', 'local-cleanup', 'source-consistency',
+  'local-file', 'encrypt', 'r2-budget', 'r2-upload', 'r2-readback', 'local-cleanup', 'source-consistency',
   'manifest', 'manifest-upload', 'manifest-readback', 'completion-upload']);
 const transport = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'EAI_AGAIN',
   'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT',

@@ -22,7 +22,7 @@ jobs:
           cache: npm
           cache-dependency-path: scripts/backup/package-lock.json
       - run: npm ci --prefix scripts/backup --ignore-scripts --no-audit --no-fund
-      - name: Require a Supabase completion from the last 30 hours
+      - name: Verify weekly Supabase completion and preview rotation
         run: node scripts/backup/health.mjs
         env:
           BACKUP_PROFILE: supabase
@@ -34,4 +34,4 @@ jobs:
           BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_HEALTH_R2_SECRET_ACCESS_KEY }}
       - name: Record unhealthy state
         if: failure()
-        run: echo 'No recent full backup completion could be verified. Follow the backup runbook; do not restore production automatically.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'Weekly backup is missing, stale or could not be verified. Follow the backup runbook; do not delete or restore automatically.' >> "$GITHUB_STEP_SUMMARY"

@@ -4,6 +4,7 @@ import { targetConfiguration } from './config.mjs';
 import { store, verifyPrivateTarget } from './r2.mjs';
 import { temporary, safeCode } from './common.mjs';
 import { pathToFileURL } from 'node:url';
+import { rotationPlan, weeklyHealth, weeklyState } from './weekly.mjs';
 
 // A missing/late full completion must fail independently of the backup job.
 // This detects scheduling/storage failures; it does not certify restorability.
@@ -28,7 +29,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   let target;
   try {
     const c = targetConfiguration(); await verifyPrivateTarget(c); target = store(c);
-    console.log(JSON.stringify(await health(c, target)));
+    const now = Date.now(); const state = await weeklyState(c, target, { now });
+    console.log(JSON.stringify(weeklyHealth(state, now)));
+    const plan = rotationPlan(c, state, now);
+    // Production health remains read-only. Report one candidate for review.
+    if (plan.status === 'rotation-preview') {
+      console.log(JSON.stringify({ status: plan.status, slot: plan.slot, run: plan.run, objects: plan.objects.length, bytes: plan.bytes, planSha256: plan.planSha256 }));
+    } else console.log(JSON.stringify(plan));
   } catch (error) { console.error(JSON.stringify({ status: 'failed', code: safeCode(error) })); process.exitCode = 1; }
   finally { target?.close(); }
 }

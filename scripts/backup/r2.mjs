@@ -1,15 +1,19 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { createReadStream } from 'node:fs';
 import { writeFile, open, rm } from 'node:fs/promises';
 import { digest } from './common.mjs';
 import { Transform } from 'node:stream';
 import { retryRead } from './reads.mjs';
+import { validRun, pinnedRun } from './weekly.mjs';
 
-export function store(c, { requestHandler } = {}) {
+function clientFor(c, requestHandler) {
   if (requestHandler && !c.synthetic) throw new Error('PRODUCTION_TRANSPORT_OVERRIDE_REJECTED');
   const url = new URL(c.endpoint);
   if (c.synthetic ? !['127.0.0.1', 'localhost'].includes(url.hostname) : url.href !== `https://${c.account}.r2.cloudflarestorage.com/`) throw new Error('R2_ENDPOINT_REJECTED');
-  const client = new S3Client({ region: 'auto', endpoint: c.endpoint, credentials: c.credentials, forcePathStyle: true, maxAttempts: 2, requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED', requestHandler: requestHandler ?? { connectionTimeout: 15_000, socketTimeout: 120_000, requestTimeout: 900_000, throwOnRequestTimeout: true }, logger: { trace() {}, debug() {}, info() {}, warn() {}, error() {} } });
+  return new S3Client({ region: 'auto', endpoint: c.endpoint, credentials: c.credentials, forcePathStyle: true, maxAttempts: 2, requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED', requestHandler: requestHandler ?? { connectionTimeout: 15_000, socketTimeout: 120_000, requestTimeout: 900_000, throwOnRequestTimeout: true }, logger: { trace() {}, debug() {}, info() {}, warn() {}, error() {} } });
+}
+export function store(c, { requestHandler } = {}) {
+  const client = clientFor(c, requestHandler);
   const key = (value) => { if (!value.startsWith(c.prefix) || value.includes('..')) throw new Error('R2_PREFIX_REJECTED'); return value; };
   return {
     async put(name, file) {
@@ -55,6 +59,20 @@ export function store(c, { requestHandler } = {}) {
     close() { client.destroy(); },
   };
 }
+
+// A separate operator capability: the scheduled writer and read-only client
+// never expose DeleteObject. Cloudflare must also enforce the short session scope.
+export function scopedDeleter(c, run, credentials, { requestHandler } = {}) {
+  if (!validRun(c, run) || run === pinnedRun(c) || !credentials?.accessKeyId || !credentials?.secretAccessKey || !credentials?.sessionToken) throw new Error('ROTATION_SCOPE_REJECTED');
+  const client = clientFor({ ...c, credentials }, requestHandler);
+  return {
+    async remove(key) {
+      if (!key.startsWith(run) || !/^(?:[a-f0-9-]{36}\.age|manifest\.age|reservation\.json|complete\.json)$/.test(key.slice(run.length))) throw new Error('ROTATION_SCOPE_REJECTED');
+      await client.send(new DeleteObjectCommand({ Bucket: c.bucket, Key: key }));
+    },
+    close() { client.destroy(); },
+  };
+}
 export async function verifyPrivateTarget(c) {
   if (c.synthetic) return;
   const base = `https://api.cloudflare.com/client/v4/accounts/${c.account}/r2/buckets/${encodeURIComponent(c.bucket)}`;
@@ -67,6 +85,7 @@ export async function verifyPrivateTarget(c) {
   if (managed.enabled !== false || !Array.isArray(custom.domains) || custom.domains.some((x) => x.enabled !== false)) throw new Error('R2_PUBLIC_OR_UNKNOWN');
   const lock = await get('/lock');
   if (!Array.isArray(lock.rules) || !lock.rules.some((r) => r.enabled === true && c.prefix.startsWith(r.prefix || '') && r.condition?.type === 'Age' && r.condition.maxAgeSeconds >= 30 * 86400)) throw new Error('R2_RETENTION_LOCK_REQUIRED');
+  return lock.rules;
 }
 export async function writeCompletion(storeClient, key, data, file) {
   await writeFile(file, JSON.stringify(data), { mode: 0o600 });

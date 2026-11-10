@@ -10,6 +10,7 @@ import { freshCluster, syntheticDrill, restoreFiles } from '../restore.mjs';
 import { configuredSources, checkName, sameInventory } from '../sources.mjs';
 import { s3Fixture } from './s3-fixture.mjs';
 import { roleBoundary } from './role-boundary.mjs';
+import { slotAt, weeklyState } from '../weekly.mjs';
 
 let passed = 0;
 async function test(name, action) { await action(); console.log(`PASS ${++passed} ${name}`); }
@@ -96,7 +97,9 @@ await temporary('colliers-test-', async (dir) => {
       }));
       await test('Supabase-only PG17 export and restore covers Storage without OSS credentials', async () => {
         const scoped = { ...sourceConfig, profile: 'supabase' };
-        const completed = await backup(scoped, { target: remote, sources: [sources[0]] });
+        const weeklySlot = slotAt(Date.now());
+        const completed = await backup(scoped, { target: remote, sources: [sources[0]], weeklySlot });
+        assert.equal((await weeklyState(scoped, remote)).weeks.get(weeklySlot).run, completed.run);
         const drill = await syntheticDrill(scoped, remote, completed.run, identity, async (client, files) => {
           assert.equal(files.filter(f => f.kind === 'object').length, 1);
           assert.equal(files.find(f => f.kind === 'object').source, 'supabase-storage');
