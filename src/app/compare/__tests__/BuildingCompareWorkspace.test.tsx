@@ -1,15 +1,21 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ push: vi.fn(), fetch: vi.fn() }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: state.push }), useSearchParams: () => new URLSearchParams('buildingId=target&name=Target') }));
+const state = vi.hoisted(() => ({ push: vi.fn(), fetch: vi.fn(), search: '', token: '' }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: state.push }), useSearchParams: () => new URLSearchParams(state.search) }));
 vi.mock('@/src/services/mapDataClient', () => ({ fetchComparePayload: () => state.fetch() }));
+vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => state.token
+  ? { status: 'authenticated', session: { user: { id: 'viewer' }, role: 'viewer', session: { access_token: state.token } } }
+  : { status: 'unauthenticated', session: null } }));
 vi.mock('@/src/components/ErrorBoundary/PageErrorBoundary', () => ({ PageErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+import { invalidateCompareSnapshot } from '@/src/services/compareSnapshot';
 import BuildingCompareWorkspace from '../BuildingCompareWorkspace';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.search = 'buildingId=target&name=Target';
+  state.token = 'synthetic-viewer-token';
   state.fetch.mockResolvedValue({ buildings: [{ id: 'target', name: 'Target', grade: 'A', submarket: 'CBD' }, ...Array.from({ length: 7 }, (_, i) => ({ id: `b${i}`, name: `Candidate ${i}`, grade: 'A', submarket: 'CBD' }))], metrics: [], brochures: [] });
 });
 afterEach(cleanup);
@@ -69,5 +75,37 @@ describe('building comparison mobile selection', () => {
     const collapse = results.getByRole('button', { name: '收起项目定位' });
     fireEvent.click(collapse);
     expect(results.getByRole('button', { name: '展开项目定位' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('changes the comparison target without requesting the same dataset again or hiding the table', async () => {
+    const { rerender } = render(<BuildingCompareWorkspace />);
+    const results = within(screen.getByRole('main'));
+    await results.findByRole('columnheader', { name: /Target/ });
+    for (const i of [3, 4]) fireEvent.click(screen.getByRole('button', { name: new RegExp(`Candidate ${i}`) }));
+    state.search = 'buildingId=b6&name=Candidate+6';
+    rerender(<BuildingCompareWorkspace />);
+    expect(results.getByRole('columnheader', { name: /Candidate 6/ })).toBeInTheDocument();
+    expect(results.getByRole('columnheader', { name: /Candidate 4/ })).toBeInTheDocument();
+    expect(screen.getByText('已选 5 / 5 个竞品')).toBeInTheDocument();
+    expect(state.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('labels the old read while refreshing and removes it immediately when the authenticated scope changes', async () => {
+    const { rerender } = render(<BuildingCompareWorkspace />);
+    await screen.findByRole('columnheader', { name: /Target/ });
+    let finishOld!: (value: unknown) => void;
+    state.fetch.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+    act(() => invalidateCompareSnapshot());
+    expect(screen.getByRole('status')).toHaveTextContent('当前显示上次结果');
+    state.fetch.mockResolvedValueOnce({ buildings: [{ id: 'target', name: 'Other account result' }], brochures: [] });
+    state.token = 'another-synthetic-viewer-token';
+    rerender(<BuildingCompareWorkspace />);
+    expect(screen.queryByRole('columnheader', { name: /^Target/ })).not.toBeInTheDocument();
+    await screen.findByRole('columnheader', { name: /Other account result/ });
+    await act(async () => finishOld({ buildings: [{ id: 'target', name: 'Old request' }], brochures: [] }));
+    expect(screen.queryByRole('columnheader', { name: /Old request/ })).not.toBeInTheDocument();
+    state.token = '';
+    rerender(<BuildingCompareWorkspace />);
+    expect(screen.queryByRole('columnheader', { name: /Other account result/ })).not.toBeInTheDocument();
   });
 });

@@ -170,6 +170,8 @@ jobs:
 
       - name: Production build
         run: npm run build
+        env:
+          NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
       - name: Browser measurement calibration and anonymous production-build regression
         shell: bash
@@ -190,6 +192,10 @@ jobs:
           done
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-map-startup-stages.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
 
       - name: Retain isolated report verification evidence

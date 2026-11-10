@@ -1,12 +1,14 @@
 'use client';
 
 import { getSessionFast } from '@/src/services/Auth';
-import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
+import { IMPERSONATION_REQUEST_HEADER, withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { readMapDataWithCache } from './mapReadCache';
+import { readCompareSnapshot } from './compareSnapshot';
 
 type JsonObject = Record<string, any>;
+export type CompareReadIdentity = { token: string; userId: string; role: string; targetUserId: string | null };
 
-async function fetchMapJson(path: string, reuseSnapshot = false): Promise<JsonObject> {
+async function getMapRequest(path: string) {
   const session = await getSessionFast();
   const token = session?.session?.access_token;
   if (!token) throw new Error('未登录，无法读取地图数据');
@@ -28,10 +30,15 @@ async function fetchMapJson(path: string, reuseSnapshot = false): Promise<JsonOb
     }
     return payload as JsonObject;
   };
-  if (!reuseSnapshot) return load();
   // Include real credentials and effective identity; impersonation never shares results.
-  const scope = JSON.stringify([process.env.NEXT_PUBLIC_SUPABASE_URL, token, session.user.id, session.role, Array.from(headers.entries())]);
-  return readMapDataWithCache(scope, path, load);
+  const identity = { token, userId: session.user.id, role: session.role, targetUserId: headers.get(IMPERSONATION_REQUEST_HEADER) };
+  const scope = () => JSON.stringify([process.env.NEXT_PUBLIC_SUPABASE_URL, identity, Array.from(headers.entries())]);
+  return { scope, load, identity, sessionExpiresAt: session.session.expires_at ? session.session.expires_at * 1000 : undefined };
+}
+
+async function fetchMapJson(path: string, reuseSnapshot = false): Promise<JsonObject> {
+  const { scope, load } = await getMapRequest(path);
+  return reuseSnapshot ? readMapDataWithCache(scope(), path, load) : load();
 }
 
 export async function fetchMapBuildingPayload(metrics: 'latest' | 'all' = 'latest') {
@@ -47,11 +54,21 @@ export async function fetchFutureSupplyPayload() {
   return Array.isArray(payload.future_supplies) ? payload.future_supplies : [];
 }
 
-export async function fetchComparePayload() {
-  const payload = await fetchMapJson('/api/map/data?mode=compare');
+export async function fetchComparePayload(expected?: CompareReadIdentity) {
+  const { scope, load, identity, sessionExpiresAt } = await getMapRequest('/api/map/data?mode=compare');
+  if (expected && (expected.token !== identity.token || expected.userId !== identity.userId ||
+    expected.role !== identity.role || expected.targetUserId !== identity.targetUserId)) {
+    throw new Error('登录身份已变化，请重试');
+  }
+  if (sessionExpiresAt !== undefined && sessionExpiresAt <= Date.now()) throw new Error('登录状态已失效，请重新登录');
+  const { payload, expiresAt } = await readCompareSnapshot(scope(), async () => {
+    const result = await load();
+    if (!Array.isArray(result.buildings) || !Array.isArray(result.brochures)) throw new Error('楼宇对比数据不完整');
+    return { buildings: result.buildings, brochures: result.brochures };
+  });
   return {
-    buildings: Array.isArray(payload.buildings) ? payload.buildings : [],
-    brochures: Array.isArray(payload.brochures) ? payload.brochures : [],
+    ...payload,
+    expiresAt: Math.min(expiresAt, sessionExpiresAt ?? Infinity),
   };
 }
 
