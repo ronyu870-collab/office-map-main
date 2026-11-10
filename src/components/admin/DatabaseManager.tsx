@@ -87,7 +87,6 @@ export function DatabaseManager() {
   const autoTableDropdownRef = React.useRef<HTMLDivElement>(null);
   const [autoTablePos, setAutoTablePos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [selectedAutoTable, setSelectedAutoTable] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(true);
   const [dictsReady, setDictsReady] = React.useState(false);
 
   // 新增/编辑/删除 buildings 后刷新字典
@@ -106,7 +105,27 @@ export function DatabaseManager() {
   const [visitedTabs, setVisitedTabs] = React.useState<Set<number>>(new Set([0]));
 
   React.useEffect(() => {
-    void init();
+    let active = true;
+    // Optional table discovery can include many sequential metadata reads. It
+    // must not prevent the configured tables from starting once dictionaries are ready.
+    void discoverAutoTables(ALL_CORE_TABLE_NAMES).then(auto => {
+      if (active) setAutoTables(auto);
+    }).catch(error => console.error('[DatabaseManager] table discovery failed:', error));
+
+    const cached = getCachedDicts();
+    if (cached && Date.now() - cached.timestamp < DICT_CACHE_TTL) {
+      setDicts(cached.dicts);
+      setDictsReady(true);
+    } else {
+      void Promise.all([fetchBuildingDicts(), fetchUserDict()]).then(([buildingDicts, userDict]) => {
+        if (!active) return;
+        const newDicts = { ...buildingDicts, user_roles: userDict };
+        setDicts(newDicts);
+        setCachedDicts(newDicts);
+        setDictsReady(true);
+      });
+    }
+    return () => { active = false; };
   }, []);
 
   // 点击外部关闭"更多表"下拉
@@ -121,35 +140,6 @@ export function DatabaseManager() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [autoTableOpen]);
-
-  async function init() {
-    setLoading(true);
-
-    // 检查缓存
-    const cached = getCachedDicts();
-    if (cached && Date.now() - cached.timestamp < DICT_CACHE_TTL) {
-      setDicts(cached.dicts);
-      setDictsReady(true);
-      setLoading(false); // 字典就绪立即显示，不等 autoTables
-      // 后台静默刷新 autoTables
-      discoverAutoTables(ALL_CORE_TABLE_NAMES).then(auto => setAutoTables(auto));
-      return;
-    }
-
-    // 并行加载字典和表发现
-    const [buildingDicts, userDict, auto] = await Promise.all([
-      fetchBuildingDicts(),
-      fetchUserDict(),
-      discoverAutoTables(ALL_CORE_TABLE_NAMES),
-    ]);
-
-    const newDicts = { ...buildingDicts, user_roles: userDict };
-    setDicts(newDicts);
-    setDictsReady(true);
-    setAutoTables(auto);
-    setCachedDicts(newDicts);
-    setLoading(false);
-  }
 
   const handleTabChange = React.useCallback((idx: number) => {
     setActiveTab(idx);
@@ -174,7 +164,7 @@ export function DatabaseManager() {
   }, []);
 
   // 初始加载：显示骨架屏
-  if (loading && !dictsReady) {
+  if (!dictsReady) {
     return <TableSkeleton />;
   }
 

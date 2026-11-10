@@ -5,6 +5,7 @@ import * as React from 'react';
 import type { MapController } from '@/src/services/MapController';
 import { installMapInteractionHardening } from './mapInteractionHardening';
 import { installMapStartupOptimization } from './mapStartupOptimization';
+import { recordMapStartup } from '@/src/utils/mapStartupProbe';
 
 type MapRuntimeOptions = {
   enabled: boolean;
@@ -287,10 +288,12 @@ export function useMapRuntime({
 
     void (async () => {
       try {
+        recordMapStartup('authorized');
         const mapControllerModule = await import('@/src/services/MapController');
         if (cancelled) return;
 
         const controller = new mapControllerModule.MapController();
+        recordMapStartup('controller_ready');
         ownedController = controller;
         controllerRef.current = controller;
         errorRef.current(null);
@@ -315,6 +318,7 @@ export function useMapRuntime({
 
         await repairAndVerifyMapVisuals(controller, containerId, () => cancelled);
         if (cancelled) return;
+        recordMapStartup('visual_ready');
 
         hardeningCleanup = installMapInteractionHardening(controller, containerId);
 
