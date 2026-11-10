@@ -18,9 +18,10 @@ import {
   XCircle,
 } from 'lucide-react';
 
-import { getSessionFast } from '@/src/services/Auth';
 import { getImpersonationRequestHeaders } from '@/src/services/impersonationHeaders';
 import { supabase } from '@/src/services/supabaseClient';
+import { useAppSession } from '@/src/components/SessionProvider';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { logAction } from '@/src/utils/audit';
 import { isResearchLibraryManager } from '@/src/utils/adminAccess';
 import { Button } from '@/src/components/ui/Button';
@@ -37,10 +38,20 @@ import {
   type LibraryTypeFilter,
   type ResearchLibraryItem,
 } from '@/src/components/oss/libraryModel';
+import { beginResearchDirectoryRead, clearResearchDirectories, invalidateResearchDirectories, researchDirectoryParent, subscribeResearchDirectoryChanges } from '@/src/components/oss/directorySnapshot';
 
 type UploadStatus = 'queued' | 'uploading' | 'success' | 'error' | 'duplicate' | 'unsupported';
 type UploadEntry = { id: string; name: string; status: UploadStatus; progress: number; message?: string };
 type Notice = { tone: 'success' | 'error' | 'warning'; text: string } | null;
+type DirectoryRequest = {
+  controller: AbortController;
+  prefix: string;
+  rows: ResearchLibraryItem[];
+  marker: string | null;
+  seenMarkers: Set<string>;
+  paging: boolean;
+  read: ReturnType<typeof beginResearchDirectoryRead> | null;
+};
 
 const UPLOAD_STATUS_LABELS: Record<UploadStatus, string> = {
   queued: '等待上传',
@@ -112,13 +123,29 @@ function uploadToOSS(host: string, formData: FormData, onProgress: (progress: nu
 }
 
 export function OSSManager({ userEmail }: { userEmail: string }) {
+  const { session, status } = useAppSession();
+  const { targetUserId, targetRole } = useImpersonation();
+  const token = session?.session.access_token;
+  React.useEffect(() => { if (status === 'unauthenticated') clearResearchDirectories(); }, [status]);
+  if (status !== 'authenticated' || !session || !token || session.user.app_metadata?.must_change_password) {
+    return status === 'unauthenticated' ? <ErrorState title="登录状态已失效" /> : <LoadingState label="正在加载研究资料" />;
+  }
+  const userId = session.session.user.id;
+  const scope = JSON.stringify([process.env.NEXT_PUBLIC_SUPABASE_URL, userId, session.user.id, session.role, token, targetUserId, targetRole]);
+  return <OSSWorkspace key={scope} scope={scope} userId={userId} token={token} userEmail={session.user.email || userEmail} role={session.role} targetUserId={targetUserId} />;
+}
+
+function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
+  userEmail: string; scope: string; token: string; userId: string; role: string; targetUserId: string | null;
+}) {
   const [currentPrefix, setCurrentPrefix] = React.useState('');
   const [items, setItems] = React.useState<ResearchLibraryItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState('');
   const [truncated, setTruncated] = React.useState(false);
-  const [userRole, setUserRole] = React.useState('viewer');
-  const [isImpersonating, setIsImpersonating] = React.useState(false);
+  const [nextMarker, setNextMarker] = React.useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [moreError, setMoreError] = React.useState('');
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
   const [query, setQuery] = React.useState('');
   const [typeFilter, setTypeFilter] = React.useState<LibraryTypeFilter>('all');
@@ -136,75 +163,144 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   const [newName, setNewName] = React.useState('');
   const [folderName, setFolderName] = React.useState('');
   const currentPrefixRef = React.useRef('');
-  const listRequest = React.useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
+  const listRequest = React.useRef<DirectoryRequest | null>(null);
   const mounted = React.useRef(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const canManage = isResearchLibraryManager(userRole) && !isImpersonating;
+  const isImpersonating = targetUserId !== null;
+  const canManage = isResearchLibraryManager(role) && !isImpersonating;
   const visibleItems = React.useMemo(
     () => filterAndSortLibraryItems(items, { query, type: typeFilter, sort }),
     [items, query, typeFilter, sort],
   );
   const filtersActive = Boolean(query.trim()) || typeFilter !== 'all';
 
-  React.useEffect(() => {
-    let cancelled = false;
-    void getSessionFast().then((session) => {
-      if (!cancelled) setUserRole(session?.role ?? 'viewer');
-    });
-    try {
-      setIsImpersonating(Boolean(sessionStorage.getItem('__impersonation_state')));
-    } catch {
-      setIsImpersonating(false);
-    }
-    return () => { cancelled = true; };
+  const isCurrent = React.useCallback((request: DirectoryRequest) => (
+    mounted.current && listRequest.current === request && !request.controller.signal.aborted
+  ), []);
+
+  const resetPaging = React.useCallback(() => {
+    setTruncated(false);
+    setNextMarker(null);
+    setLoadingMore(false);
+    setMoreError('');
   }, []);
 
-  const loadReports = React.useCallback(async (prefix: string) => {
+  const denyDirectory = React.useCallback((message: string) => {
+    clearResearchDirectories();
+    listRequest.current?.controller.abort();
+    listRequest.current = null;
+    setItems([]);
+    setSelectedItems(new Set());
+    resetPaging();
+    setLoading(false);
+    setLoadError(message);
+  }, [resetPaging]);
+
+  const listAuthorization = React.useCallback(async () => {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    const impersonationHeaders = getImpersonationRequestHeaders();
+    const expiresAt = (session?.expires_at ?? 0) * 1000;
+    if (error || session?.access_token !== token || session.user.id !== userId || expiresAt <= Date.now()
+      || (impersonationHeaders['X-Colliers-Impersonate-User'] ?? null) !== targetUserId) return null;
+    return { headers: { Authorization: `Bearer ${token}`, ...impersonationHeaders }, expiresAt };
+  }, [targetUserId, token, userId]);
+
+  const readPage = React.useCallback(async (request: DirectoryRequest, authorization: NonNullable<Awaited<ReturnType<typeof listAuthorization>>>, marker?: string) => {
+    const params = new URLSearchParams({ action: 'get-list', prefix: request.prefix });
+    if (marker) params.set('marker', marker);
+    const response = await fetch(`/api/oss?${params}`, { headers: authorization.headers, cache: 'no-store', signal: request.controller.signal });
+    const result = await response.json().catch(() => ({}));
+    if (!isCurrent(request)) return;
+    if (response.status === 401 || response.status === 403) return denyDirectory(result.message || '资料访问权限已失效');
+    if (!response.ok || result.status !== 'success') throw new Error(result.message || '资料列表加载失败');
+    if (!Array.isArray(result.data)) throw new Error('资料列表响应不完整');
+    const hasMore = Boolean(result.truncated);
+    const next = hasMore && typeof result.nextMarker === 'string' && result.nextMarker && result.nextMarker.startsWith(request.prefix) ? result.nextMarker : null;
+    if (marker && hasMore && (!next || request.seenMarkers.has(next))) throw new Error('目录分页未能继续，请重试或刷新目录');
+    if (next) request.seenMarkers.add(next);
+    request.marker = next;
+    request.rows = marker
+      ? [...new Map([...request.rows, ...result.data as ResearchLibraryItem[]].map(item => [item.name, item])).values()]
+      : result.data;
+    request.read?.remember(request.rows, hasMore, authorization.expiresAt);
+    setItems(request.rows);
+    setTruncated(hasMore);
+    setNextMarker(next);
+  }, [denyDirectory, isCurrent]);
+
+  const loadReports = React.useCallback(async (prefix: string, force = false) => {
     if (!mounted.current) return;
-    listRequest.current.controller?.abort();
-    const controller = new AbortController();
-    const id = listRequest.current.id + 1;
-    listRequest.current = { id, controller };
+    listRequest.current?.controller.abort();
+    const request: DirectoryRequest = { controller: new AbortController(), prefix, rows: [], marker: null, seenMarkers: new Set(), paging: false, read: null };
+    listRequest.current = request;
     currentPrefixRef.current = prefix;
-    const isCurrent = () => mounted.current && listRequest.current.id === id && !controller.signal.aborted;
     setLoading(true);
     setLoadError('');
-    setTruncated(false);
+    resetPaging();
     setCurrentPrefix(prefix);
     setSelectedItems(new Set());
     try {
-      const headers = await authHeaders();
-      if (!isCurrent()) return;
-      const response = await fetch(`/api/oss?action=get-list&prefix=${encodeURIComponent(prefix)}`, { headers, signal: controller.signal });
-      const result = await response.json().catch(() => ({}));
-      if (!isCurrent()) return;
-      if (!response.ok || result.status !== 'success') throw new Error(result.message || '资料列表加载失败');
-      setItems(Array.isArray(result.data) ? result.data : []);
-      setTruncated(Boolean(result.truncated));
+      const authorization = await listAuthorization();
+      if (!isCurrent(request)) return;
+      if (!authorization) return denyDirectory('登录身份已变化，请重试');
+      // The editing path always loads a fresh directory so upload checks never use a snapshot.
+      request.read = canManage ? null : beginResearchDirectoryRead(scope, prefix);
+      if (force) request.read?.discard();
+      if (!force && request.read?.cached) {
+        request.rows = request.read.cached.items;
+        setItems(request.rows);
+        return;
+      }
+      await readPage(request, authorization);
     } catch (error) {
-      if (!isCurrent()) return;
+      if (!isCurrent(request)) return;
       setItems([]);
       setLoadError(error instanceof Error ? error.message : '资料列表加载失败');
     } finally {
-      if (isCurrent()) setLoading(false);
+      if (isCurrent(request)) setLoading(false);
     }
-  }, []);
+  }, [canManage, denyDirectory, isCurrent, listAuthorization, readPage, resetPaging, scope]);
+
+  const loadMore = async () => {
+    const request = listRequest.current;
+    if (!request?.marker || request.paging || !isCurrent(request)) return;
+    const marker = request.marker;
+    request.paging = true;
+    setLoadingMore(true);
+    setMoreError('');
+    try {
+      const authorization = await listAuthorization();
+      if (!isCurrent(request)) return;
+      if (!authorization) return denyDirectory('登录身份已变化，请重试');
+      await readPage(request, authorization, marker);
+    } catch (error) {
+      if (isCurrent(request)) setMoreError(error instanceof Error ? error.message : '更多资料加载失败');
+    } finally {
+      if (isCurrent(request)) {
+        request.paging = false;
+        setLoadingMore(false);
+      }
+    }
+  };
 
   React.useEffect(() => {
     mounted.current = true;
     void loadReports('');
+    const unsubscribe = subscribeResearchDirectoryChanges(() => { void loadReports(currentPrefixRef.current, true); });
     return () => {
+      unsubscribe();
       mounted.current = false;
-      listRequest.current.controller?.abort();
-      listRequest.current.id += 1;
+      listRequest.current?.controller.abort();
+      listRequest.current = null;
     };
   }, [loadReports]);
 
   // A completed upload/edit refreshes its original directory only if the
   // user is still there; it must never navigate them back to an old folder.
-  const refreshDirectory = (prefix: string) => {
-    if (mounted.current && currentPrefixRef.current === prefix) return loadReports(prefix);
+  const refreshDirectory = (prefix: string, additional: string[] = [], subtrees: string[] = []) => {
+    const affects = invalidateResearchDirectories([prefix, ...additional], subtrees);
+    if (mounted.current && affects(currentPrefixRef.current)) return loadReports(currentPrefixRef.current, true);
   };
 
   const goUp = () => {
@@ -244,6 +340,9 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
           }),
         });
         const result = await response.json().catch(() => ({}));
+        if ((response.status === 401 || response.status === 403) && mounted.current) {
+          denyDirectory(result.message || '资料访问权限已失效');
+        }
         if (!response.ok || result.status !== 'success' || typeof result.url !== 'string') {
           throw new Error(result.message || '资料访问失败');
         }
@@ -253,7 +352,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
         setNotice({ tone: 'error', text: error instanceof Error ? error.message : '资料访问失败' });
       }
     })();
-  }, []);
+  }, [denyDirectory]);
 
   const toggleSelected = (name: string) => {
     setSelectedItems((current) => {
@@ -294,7 +393,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   const executeUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!files.length) return;
+    if (!files.length || loading || loadError || truncated) return;
     if (!canManage) return setNotice({ tone: 'warning', text: isImpersonating ? '用户模拟期间为只读模式。' : '只有管理员可以上传文件。' });
 
     const queue: UploadEntry[] = files.map((file) => ({
@@ -357,19 +456,25 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
 
   const renameItem = async () => {
     if (!targetItem || !newName.trim() || newName.trim() === targetItem.name) return;
+    const oldKey = targetItem.name;
+    const newKey = newName.trim();
+    const refreshMove = () => refreshDirectory(researchDirectoryParent(oldKey), [researchDirectoryParent(newKey)], oldKey.endsWith('/') ? [oldKey, newKey] : []);
     setOperationInProgress(true);
     try {
       const headers = await authHeaders();
       const response = await fetch('/api/oss?action=move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ oldKey: targetItem.name, newKey: newName.trim() }),
+        body: JSON.stringify({ oldKey, newKey }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.status !== 'success') throw new Error(result.message || '重命名失败');
+      if (!response.ok || result.status !== 'success') {
+        if (result.stats?.copied || result.stats?.deleted) await refreshMove();
+        throw new Error(result.message || '重命名失败');
+      }
       setShowRenameModal(false);
       setNotice({ tone: 'success', text: result.message || '名称已更新。' });
-      await refreshDirectory(currentPrefix);
+      await refreshMove();
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '重命名失败' });
     } finally {
@@ -385,15 +490,20 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
 
   const deleteOne = async () => {
     if (!targetItem) return;
+    const key = targetItem.name;
+    const refreshDelete = () => refreshDirectory(researchDirectoryParent(key), [], key.endsWith('/') ? [key] : []);
     setOperationInProgress(true);
     try {
       const headers = await authHeaders();
-      const response = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(targetItem.name)}`, { method: 'POST', headers });
+      const response = await fetch(`/api/oss?action=delete&file=${encodeURIComponent(key)}`, { method: 'POST', headers });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.status !== 'success') throw new Error(result.message || '删除失败');
+      if (!response.ok || result.status !== 'success') {
+        if (result.stats?.deleted) await refreshDelete();
+        throw new Error(result.message || '删除失败');
+      }
       setShowDeleteModal(false);
       setNotice({ tone: 'success', text: result.message || '项目已删除。' });
-      await refreshDirectory(currentPrefix);
+      await refreshDelete();
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '删除失败' });
     } finally {
@@ -404,6 +514,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   const deleteSelected = async () => {
     if (!selectedItems.size) return;
     const attempted = selectedItems.size;
+    const refreshSelection = () => refreshDirectory(currentPrefix, [], [...selectedItems].filter(key => key.endsWith('/')));
     setOperationInProgress(true);
     let success = 0;
     let failed = 0;
@@ -425,9 +536,10 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       setShowBatchDeleteModal(false);
       setSelectedItems(new Set());
       setNotice({ tone: failed ? 'warning' : 'success', text: `批量删除完成：成功 ${success} 个，失败 ${failed} 个。` });
-      await refreshDirectory(currentPrefix);
+      await refreshSelection();
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '批量删除失败' });
+      if (success || failed) await refreshSelection();
     } finally {
       setOperationInProgress(false);
     }
@@ -450,11 +562,11 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
           </nav>
           <div className="flex flex-wrap items-center gap-2">
             {currentPrefix ? <Button variant="secondary" size="sm" onClick={goUp}><ArrowUp size={14} />上一级</Button> : null}
-            <Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix)} disabled={loading}><RefreshCw size={14} />刷新</Button>
+            <Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix, true)} disabled={loading}><RefreshCw size={14} />刷新</Button>
             {canManage ? <>
               <Button variant="secondary" size="sm" onClick={openCreateFolder}><FolderPlus size={14} />新建文件夹</Button>
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(event) => void executeUpload(event)} />
-              <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Upload size={14} />{uploading ? '上传中…' : '上传文件'}</Button>
+              <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || loading || Boolean(loadError) || truncated}><Upload size={14} />{uploading ? '上传中…' : '上传文件'}</Button>
             </> : null}
           </div>
         </div>
@@ -479,7 +591,12 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       </div>
 
       {notice ? <div className={`mx-3 mt-3 flex shrink-0 items-start justify-between gap-3 rounded-md border px-3 py-2 text-xs sm:mx-4 ${notice.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : notice.tone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}><span>{notice.text}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭状态"><X size={14} /></button></div> : null}
-      {truncated ? <div className="mx-3 mt-3 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800 sm:mx-4">当前目录超过云端存储单次返回上限，页面仅显示本次返回结果。建议进入子目录缩小范围。</div> : null}
+      {truncated ? <div className="mx-3 mt-3 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:mx-4">
+        <span>当前目录超过云端存储单次返回上限，搜索、排序和全选只针对已加载项目。</span>
+        {canManage ? <span>上传前请加载完整目录，以便检查同名文件。</span> : null}
+        {nextMarker ? <Button variant="secondary" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? '加载中…' : '加载更多'}</Button> : <span>请刷新目录，或进入子目录缩小范围。</span>}
+        {moreError ? <span role="status">{moreError}</span> : null}
+      </div> : null}
 
       {uploads.length ? <div className="mx-3 mt-3 shrink-0 rounded-md border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)] sm:mx-4">
         <div className="mb-2 flex items-center justify-between"><span className="text-[11px] font-semibold text-slate-700">上传状态</span><button type="button" onClick={() => setUploads([])} disabled={uploading} className="text-[10px] text-slate-500 transition hover:text-slate-800">清除</button></div>
@@ -493,7 +610,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       </div> : null}
 
       <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-        {loading ? <LoadingState label="正在加载研究资料" /> : loadError ? <ErrorState title="资料库加载失败" description={loadError} action={<Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix)}>重试</Button>} /> : visibleItems.length === 0 ? <EmptyState title={filtersActive ? '没有匹配的资料' : '当前目录为空'} description={filtersActive ? '请调整搜索词或文件类型筛选。' : '此目录暂时没有可浏览的研究资料。'} action={filtersActive ? <Button variant="secondary" size="sm" onClick={clearFilters}>清除筛选</Button> : undefined} /> : <>
+        {loading ? <LoadingState label="正在加载研究资料" /> : loadError ? <ErrorState title="资料库加载失败" description={loadError} action={<Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix, true)}>重试</Button>} /> : visibleItems.length === 0 ? <EmptyState title={filtersActive ? '没有匹配的资料' : '当前目录为空'} description={filtersActive ? '请调整搜索词或文件类型筛选。' : '此目录暂时没有可浏览的研究资料。'} action={filtersActive ? <Button variant="secondary" size="sm" onClick={clearFilters}>清除筛选</Button> : undefined} /> : <>
           <div className="hidden overflow-hidden rounded-md border border-slate-200 bg-white md:block">
             <table className="w-full table-fixed text-left text-xs">
               <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-[10px] font-semibold text-slate-500"><tr>{canManage ? <th className="w-10 px-3 py-2.5"><input type="checkbox" aria-label="全选" checked={visibleItems.length > 0 && visibleItems.every((item) => selectedItems.has(item.name))} onChange={() => setSelectedItems((current) => visibleItems.every((item) => current.has(item.name)) ? new Set() : new Set(visibleItems.map((item) => item.name)))} /></th> : null}<th className="px-3 py-2.5">名称</th><th className="w-28 px-3 py-2.5">类型</th><th className="w-28 px-3 py-2.5">大小</th><th className="w-32 px-3 py-2.5">修改时间</th><th className="w-52 px-3 py-2.5 text-right">操作</th></tr></thead>

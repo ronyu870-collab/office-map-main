@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveLeaseReadAccess } from './access';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -22,6 +23,7 @@ function parseOptionalNumber(raw: string | null) {
 }
 
 export async function GET(req: NextRequest) {
+  const timing = createIsolatedRequestTiming(req);
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+    const identityResult = await timing.measure('auth', () => resolveEffectiveRequestIdentity(req, supabaseAdmin));
     if ('response' in identityResult) return identityResult.response;
     const { identity } = identityResult;
 
@@ -85,18 +87,18 @@ export async function GET(req: NextRequest) {
     if (areaMin !== null) query = query.gte('area_sqm', areaMin);
     if (areaMax !== null) query = query.lte('area_sqm', areaMax);
 
-    const { data, error, count } = await query
+    const { data, error, count } = await timing.measure('database', () => query
       .order('transaction_year', { ascending: false })
       .order('transaction_quarter', { ascending: false })
       .order('read_id', { ascending: true })
-      .range(offset, offset + limit - 1);
+      .range(offset, offset + limit - 1));
 
     if (error) {
       console.error('[lease-read] query failed', error);
       return NextResponse.json({ error: '查询租赁成交失败' }, { status: 500 });
     }
 
-    return NextResponse.json(
+    return timing.response(() => NextResponse.json(
       {
         records: data ?? [],
         count: includeCount ? count ?? 0 : null,
@@ -110,7 +112,7 @@ export async function GET(req: NextRequest) {
         },
       },
       { headers: { 'Cache-Control': 'private, no-store' } },
-    );
+    ));
   } catch (error) {
     console.error('[lease-read] unexpected error', error);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });

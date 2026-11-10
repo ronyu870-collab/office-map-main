@@ -115,7 +115,7 @@ it('keeps the report open after inactivity clears an active session', async () =
   state.getSessionFast.mockResolvedValueOnce({ ...session(false), session: { access_token: 'synthetic' } });
   render(<SessionProvider><Consumer /></SessionProvider>);
   await screen.findByText('authenticated:false');
-  expect(state.idleLogout).toBeTypeOf('function');
+  await waitFor(() => expect(state.idleLogout).toBeTypeOf('function'));
   await act(async () => { await state.idleLogout?.(); });
   expect(state.signOut).toHaveBeenCalledTimes(1);
   expect(screen.getByText('unauthenticated:undefined')).toBeInTheDocument();
