@@ -219,5 +219,23 @@
     "roots": ["src/app/lease-submission/components/LeaseColumnMenu.tsx"],
     "file": "src/app/lease-submission/__tests__/lease-table-interaction.test.tsx",
     "cases": ["keeps team column option search focused during a correction and restores focus on close"]
+  },
+  {
+    "id": "admin-memo-title-search",
+    "roots": ["src/components/admin-memo/MemoList.tsx"],
+    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "cases": ["keeps memo title search editable while the result list loads and returns"]
+  },
+  {
+    "id": "admin-memo-preview-focus",
+    "roots": ["src/components/admin-memo/MarkdownPreview.tsx"],
+    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "cases": ["supports keyboard focus in a memo preview and keeps the internal links intact"]
+  },
+  {
+    "id": "admin-schema-table-search",
+    "roots": ["src/components/admin/SchemaMap.tsx"],
+    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "cases": ["keeps schema search and its caret while a corrected table name becomes selectable"]
   }
 ]
