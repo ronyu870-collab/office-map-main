@@ -3,13 +3,20 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompareReadSlice } from '@/src/lib/compareReadContract';
 
-const state = vi.hoisted(() => ({ push: vi.fn(), fetch: vi.fn(), search: '', token: '' }));
+const state = vi.hoisted(() => ({ push: vi.fn(), fetch: vi.fn(), search: '', token: '', onLayout: null as null | (() => void) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: state.push }), useSearchParams: () => new URLSearchParams(state.search) }));
 vi.mock('@/src/services/mapDataClient', () => ({ fetchComparePayload: (_identity: unknown, slice?: CompareReadSlice) => state.fetch(slice) }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => state.token
   ? { status: 'authenticated', session: { user: { id: 'viewer' }, role: 'viewer', session: { access_token: state.token } } }
   : { status: 'unauthenticated', session: null } }));
 vi.mock('@/src/components/ErrorBoundary/PageErrorBoundary', () => ({ PageErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock('../CompareHeader', async (importOriginal) => {
+  const { CompareHeader } = await importOriginal<typeof import('../CompareHeader')>();
+  return { CompareHeader: (props: React.ComponentProps<typeof CompareHeader>) => {
+    React.useLayoutEffect(() => { state.onLayout?.(); });
+    return <CompareHeader {...props} />;
+  } };
+});
 import { invalidateCompareSnapshot } from '@/src/services/compareSnapshot';
 import BuildingCompareWorkspace from '../BuildingCompareWorkspace';
 
@@ -20,6 +27,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.search = 'buildingId=target&name=Target';
   state.token = 'synthetic-viewer-token';
+  state.onLayout = null;
   state.fetch.mockImplementation(async (slice?: CompareReadSlice) => ({
     buildings: slice?.scope === 'selected' ? buildings.filter(row => slice.ids.includes(row.id)) : buildings,
     brochures: slice?.scope === 'catalog' ? [] : [{ building_id: 'b6', developer: '合成开发商', elevator_vip: 2 }],
@@ -82,6 +90,22 @@ describe('building comparison mobile selection', () => {
     const collapse = results.getByRole('button', { name: '收起项目定位' });
     fireEvent.click(collapse);
     expect(results.getByRole('button', { name: '展开项目定位' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('keeps the three defaults when a candidate is clicked on the first available render', async () => {
+    let clicked = false;
+    state.onLayout = () => {
+      const candidate = screen.queryByRole('button', { name: /Candidate 3/ });
+      if (!candidate) return;
+      state.onLayout = null;
+      clicked = true;
+      candidate.click();
+    };
+    render(<BuildingCompareWorkspace />);
+    await screen.findByRole('button', { name: /Candidate 3/ });
+    expect(clicked).toBe(true);
+    expect(screen.getByText('已选 4 / 5 个竞品')).toBeInTheDocument();
+    expect(within(screen.getByRole('main')).getAllByRole('columnheader')).toHaveLength(6);
   });
 
   it('changes the comparison target without requesting the same dataset again or hiding the table', async () => {

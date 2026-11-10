@@ -19,6 +19,7 @@ type Operator = 'contains' | 'equals' | 'gt' | 'gte' | 'lt' | 'lte' | 'between' 
 type Field = { key: string; label: string; source: Source; unit?: string; kind: Kind };
 type Group = { label: string; fields: Field[] };
 type Filter = { id: string; key: string; operator: Operator; value: string; valueTo?: string };
+type Selection = { target: string | null; ids: Set<string> };
 type Row = {
   id: string;
   name: string;
@@ -132,11 +133,33 @@ function shapeRows(payload: ReturnType<typeof useComparePayload>['value']): Row[
   });
 }
 
+function reconcileSelection(previous: Selection, rows: Row[], rowsById: ReadonlyMap<string, Row>, target?: Row): Selection {
+  if (!rows.length) return previous;
+  const next = new Set<string>();
+  if (target) next.add(target.id);
+  const limit = MAX_COMPARE_COMPETITORS + (target ? 1 : 0);
+  for (const id of previous.ids) {
+    if (next.size >= limit) break;
+    if (id !== previous.target && rowsById.has(id)) next.add(id);
+  }
+  // Keep the former target only if there is room after the chosen competitors.
+  if (previous.target && next.size < limit && rowsById.has(previous.target)) next.add(previous.target);
+  if (target && target.id !== previous.target && next.size === 1) {
+    for (const row of rows) {
+      if (row.submarket === target.submarket || row.grade === target.grade) next.add(row.id);
+      if (next.size >= 4) break;
+    }
+  }
+  const nextTarget = target?.id ?? null;
+  if (nextTarget === previous.target && next.size === previous.ids.size && [...next].every(id => previous.ids.has(id))) return previous;
+  return { target: nextTarget, ids: next };
+}
+
 function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
   const params = useSearchParams();
   const targetId = params.get('buildingId') || '';
   const targetName = params.get('name') || '楼宇对比';
-  const [{ ids: selected }, setSelection] = useState<{ target: string | null; ids: Set<string> }>(() => ({ target: null, ids: new Set() }));
+  const [selection, setSelection] = useState<Selection>(() => ({ target: null, ids: new Set() }));
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Filter[]>([]);
   const [fieldKey, setFieldKey] = useState('elevator_vip');
@@ -157,26 +180,11 @@ function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
   const rows = useMemo(() => shapeRows(catalog.value).sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')), [catalog.value]);
   const rowsById = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
   const target = rowsById.get(targetId);
+  // Seed the selection in the same render as the catalog so the first click
+  // has the same starting set even before the passive effect commits it.
+  const selected = useMemo(() => reconcileSelection(selection, rows, rowsById, target).ids, [selection, rows, rowsById, target]);
   useEffect(() => {
-    if (!rows.length) return;
-    setSelection((previous) => {
-      const next = new Set<string>();
-      if (target) next.add(target.id);
-      const limit = MAX_COMPARE_COMPETITORS + (target ? 1 : 0);
-      for (const id of previous.ids) {
-        if (next.size >= limit) break;
-        if (id !== previous.target && rowsById.has(id)) next.add(id);
-      }
-      // Keep the former target only if there is room after the chosen competitors.
-      if (previous.target && next.size < limit && rowsById.has(previous.target)) next.add(previous.target);
-      if (target && target.id !== previous.target && next.size === 1) {
-        for (const row of rows) {
-          if (row.submarket === target.submarket || row.grade === target.grade) next.add(row.id);
-          if (next.size >= 4) break;
-        }
-      }
-      return { target: target?.id ?? null, ids: next };
-    });
+    setSelection(previous => reconcileSelection(previous, rows, rowsById, target));
   }, [rows, rowsById, target]);
 
   const field = FIELD_MAP.get(fieldKey) || FIELDS[0];
@@ -249,10 +257,11 @@ function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
   const toggle = (id: string) => {
     if (id === targetId) return;
     setSelection((previous) => {
-      const next = new Set(previous.ids);
+      const current = reconcileSelection(previous, rows, rowsById, target);
+      const next = new Set(current.ids);
       if (next.has(id)) next.delete(id);
       else if (next.size - (targetId && next.has(targetId) ? 1 : 0) < MAX_COMPARE_COMPETITORS) next.add(id);
-      return { ...previous, ids: next };
+      return { target: current.target, ids: next };
     });
   };
 
