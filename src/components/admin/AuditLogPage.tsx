@@ -144,6 +144,13 @@ export function AuditLogPage() {
   const [logs,setLogs] = useState<AuditLogWithUser[]>([]); const [loading,setLoading] = useState(true); const [loadError,setLoadError] = useState('');
   const [filterUser,setFilterUser] = useState('ALL'); const [filterAction,setFilterAction] = useState('ALL'); const [filterModule,setFilterModule] = useState('ALL'); const [timeRange,setTimeRange] = useState('week'); const [highRiskOnly,setHighRiskOnly] = useState(false); const [excludeAdmins,setExcludeAdmins] = useState(false);
   const [objectSearch,setObjectSearch] = useState(''); const [ipSearch,setIpSearch] = useState(''); const [deviceSearch,setDeviceSearch] = useState(''); const [sessionSearch,setSessionSearch] = useState(''); const [deviceType,setDeviceType] = useState('ALL');
+  const [settledSearch,setSettledSearch] = useState({objectSearch:'',ipSearch:'',deviceSearch:'',sessionSearch:''});
+  const fetchGeneration = React.useRef(0);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettledSearch({objectSearch,ipSearch,deviceSearch,sessionSearch}), 280);
+    return () => window.clearTimeout(timer);
+  }, [objectSearch,ipSearch,deviceSearch,sessionSearch]);
+  useEffect(() => () => { fetchGeneration.current++; }, []);
   const [page,setPage] = useState(0); const [totalCount,setTotalCount] = useState(0); const [historyTotal,setHistoryTotal] = useState(0); const [isDemo,setIsDemo] = useState(false); const [lastUpdated,setLastUpdated] = useState<Date|null>(null); const [authRefresh,setAuthRefresh] = useState(0);
   const [tabCounts,setTabCounts] = useState({user:0,files:0,admin:0,database:0,trail:0,security:0}); const [userOptions,setUserOptions] = useState<UserOption[]>([]);
 
@@ -177,20 +184,72 @@ export function AuditLogPage() {
 
     if(filterAction!=='ALL') query=query.eq('action_type',filterAction);
     if(filterModule!=='ALL') query=query.eq('module',filterModule);
-    if(objectSearch.trim()) query=query.ilike('target_name',`%${objectSearch.trim()}%`);
+    if(settledSearch.objectSearch.trim()) query=query.ilike('target_name',`%${settledSearch.objectSearch.trim()}%`);
     if(highRiskOnly&&tab!=='security') query=query.or(HIGH_RISK_FILTER);
     if(timeRange!=='all'){ const now=new Date(); const start=timeRange==='today'?new Date(now.getFullYear(),now.getMonth(),now.getDate()):timeRange==='week'?new Date(now.getTime()-7*86400000):new Date(now.getFullYear(),now.getMonth(),1); query=query.gte('occurred_at',start.toISOString()); }
-    if(ipSearch.trim()) query=query.ilike('ip_address',`%${ipSearch.trim()}%`);
-    if(deviceSearch.trim()) query=query.ilike('client_device_id',`%${deviceSearch.trim()}%`);
-    if(sessionSearch.trim()) query=query.eq('auth_session_id',sessionSearch.trim());
+    if(settledSearch.ipSearch.trim()) query=query.ilike('ip_address',`%${settledSearch.ipSearch.trim()}%`);
+    if(settledSearch.deviceSearch.trim()) query=query.ilike('client_device_id',`%${settledSearch.deviceSearch.trim()}%`);
+    if(settledSearch.sessionSearch.trim()) query=query.eq('auth_session_id',settledSearch.sessionSearch.trim());
     if(deviceType!=='ALL') query=query.eq('device_type',deviceType);
     return query;
-  },[adminAuditIds,deviceSearch,deviceType,excludeAdmins,filterAction,filterModule,filterUser,highRiskOnly,ipSearch,logTab,objectSearch,sessionSearch,timeRange,userOptions]);
+  },[adminAuditIds,deviceType,excludeAdmins,filterAction,filterModule,filterUser,highRiskOnly,logTab,settledSearch,timeRange,userOptions]);
 
-  const fetchLogs = useCallback(async(nextPage:number) => { if(logTab==='auth'){setLoading(false);return;} setLoading(true);setLoadError(''); try { const query=applyFilters(supabase.from('audit_logs').select('*',{count:'exact'}),logTab).order('occurred_at',{ascending:false}); const {data,count,error}=await query.range(nextPage*PAGE_SIZE,(nextPage+1)*PAGE_SIZE-1); if(error) throw error; setLogs((data||[]).map((log:AuditLog)=>({...log,user_name:userNames.get(log.user_id)}))); setTotalCount(count||0);setLastUpdated(new Date()); } catch(error){console.error('获取审计日志失败:',error);setLogs([]);setTotalCount(0);setLoadError('日志暂时无法加载，请刷新后重试。');} finally{setLoading(false);} },[applyFilters,logTab,userNames]);
-  useEffect(()=>{ if(logTab==='auth'){setLoading(false);return;} queueMicrotask(()=>{setPage(0);void fetchLogs(0);}); },[fetchLogs,logTab]);
-  useEffect(()=>{ Promise.all((['user','files','admin','database','trail','security'] as const).map(tab=>applyFilters(supabase.from('audit_logs').select('*',{count:'exact',head:true}),tab))).then(([user,files,admin,database,trail,security])=>setTabCounts({user:user.count||0,files:files.count||0,admin:admin.count||0,database:database.count||0,trail:trail.count||0,security:security.count||0})); },[applyFilters]);
-  useEffect(()=>{supabase.from('audit_logs').select('*',{count:'exact',head:true}).then(({count})=>setHistoryTotal(count||0));},[]);
+  const fetchLogs = useCallback(async (nextPage: number) => {
+    const generation = ++fetchGeneration.current;
+    if (logTab === 'auth') { setLoading(false); return; }
+    setLoading(true);
+    setLoadError('');
+    try {
+      const query = applyFilters(supabase.from('audit_logs').select('*', { count: 'exact' }), logTab)
+        .order('occurred_at', { ascending: false });
+      const { data, count, error } = await query.range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
+      if (generation !== fetchGeneration.current) return;
+      if (error) throw error;
+      setLogs((data || []).map((log: AuditLog) => ({ ...log, user_name: userNames.get(log.user_id) })));
+      setTotalCount(count || 0);
+      setTabCounts(previous => ({ ...previous, [logTab]: count || 0 }));
+      setLastUpdated(new Date());
+    } catch (error) {
+      if (generation !== fetchGeneration.current) return;
+      console.error('获取审计日志失败:', error);
+      setLogs([]);
+      setTotalCount(0);
+      setLoadError('日志暂时无法加载，请刷新后重试。');
+    } finally {
+      if (generation === fetchGeneration.current) setLoading(false);
+    }
+  }, [applyFilters, logTab, userNames]);
+  useEffect(() => {
+    if (logTab === 'auth') { fetchGeneration.current++; setLoading(false); return; }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setPage(0);
+      void fetchLogs(0);
+    });
+    return () => { cancelled = true; fetchGeneration.current++; };
+  }, [fetchLogs, logTab]);
+  useEffect(() => {
+    let cancelled = false;
+    // The active tab already receives its exact count with its page data.
+    const otherTabs = (['user','files','admin','database','trail','security'] as const)
+      .filter(tab => tab !== logTab);
+    void Promise.all(otherTabs.map(tab =>
+      applyFilters(supabase.from('audit_logs').select('id', { count: 'exact', head: true }), tab)
+    )).then(results => {
+      if (cancelled) return;
+      setTabCounts(previous => {
+        const next = { ...previous };
+        otherTabs.forEach((tab, index) => { next[tab] = results[index].count || 0; });
+        return next;
+      });
+    }).catch(error => { if (!cancelled) console.error('审计分类统计失败:', error); });
+    return () => { cancelled = true; };
+  }, [applyFilters, logTab]);
+  useEffect(() => {
+    supabase.from('audit_logs').select('id', { count: 'exact', head: true })
+      .then(({ count }) => setHistoryTotal(count || 0));
+  }, []);
 
   const totalPages=Math.ceil(totalCount/PAGE_SIZE); const hasFilters=filterUser!=='ALL'||filterAction!=='ALL'||filterModule!=='ALL'||timeRange!=='week'||highRiskOnly||excludeAdmins||Boolean(objectSearch||ipSearch||deviceSearch||sessionSearch)||deviceType!=='ALL';
   const resetFilters=()=>{setFilterUser('ALL');setFilterAction('ALL');setFilterModule('ALL');setTimeRange('week');setHighRiskOnly(false);setExcludeAdmins(false);setObjectSearch('');setIpSearch('');setDeviceSearch('');setSessionSearch('');setDeviceType('ALL');};

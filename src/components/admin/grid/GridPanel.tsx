@@ -188,7 +188,7 @@ export function GridPanel({ config, dicts = {}, onRefreshDicts, active = true, o
 
   // ─── Hooks ───
 
-  const { rows, setRows, getLatestRows, loading, loadError, fetchRows, viewMode, setViewMode } = useGridData(config, dicts, showToast)
+  const { rows, setRows, getLatestRows, loading, loadingMore, loadError, fetchRows, viewMode, setViewMode } = useGridData(config, dicts, showToast)
 
   const {
     search, setSearch,
@@ -459,7 +459,8 @@ export function GridPanel({ config, dicts = {}, onRefreshDicts, active = true, o
         viewMode={viewMode}
         onViewModeChange={value => requestAction('切换数据视图', () => setViewMode(value))}
         onRefresh={() => requestAction('刷新记录', () => { void fetchRows(true) })}
-        onExport={exportToExcel}
+        onExport={() => { if (!loading && !loadingMore) exportToExcel() }}
+        exportDisabled={loading || loadingMore}
         onDownloadTemplate={downloadTemplate}
         onTriggerUpload={() => {
           captureInput()
@@ -474,6 +475,7 @@ export function GridPanel({ config, dicts = {}, onRefreshDicts, active = true, o
       />
 
 
+      {loadingMore && <p role="status" className="mb-2 px-2 text-xs text-[var(--cd-color-text-secondary)]">已加载 {rows.length} 条记录，正在继续同步剩余数据。筛选与统计暂时仅针对已加载部分，完整导出将在同步结束后开放。</p>}
       {uploadReady && <p role="status" className="mb-2 p-2 text-sm">编辑内容已处理，请点击“上传”选择文件。</p>}
       {recovery && !editingId && !adding && <div className="mb-2 flex flex-wrap items-center gap-2 rounded border border-[var(--cd-color-border)] p-3 text-sm"><span>此数据表有未保存的暂存内容。</span><Button variant="secondary" className="min-h-11" disabled={loading} onClick={() => {
         if (recovery.kind === 'add') { startAdd(); setNewRow(recovery.values); return }

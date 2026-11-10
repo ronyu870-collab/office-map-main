@@ -111,12 +111,20 @@ function uploadToOSS(host: string, formData: FormData, onProgress: (progress: nu
   });
 }
 
+const DIRECTORY_TTL_MS = 30_000;
+const MAX_DIRECTORY_ENTRIES = 12;
+const UPLOAD_PARALLELISM = 3;
+type DirectorySnapshot = { items: ResearchLibraryItem[]; truncated: boolean; nextMarker: string | null; savedAt: number };
+
 export function OSSManager({ userEmail }: { userEmail: string }) {
   const [currentPrefix, setCurrentPrefix] = React.useState('');
   const [items, setItems] = React.useState<ResearchLibraryItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState('');
   const [truncated, setTruncated] = React.useState(false);
+  const [nextMarker, setNextMarker] = React.useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [moreError, setMoreError] = React.useState('');
   const [userRole, setUserRole] = React.useState('viewer');
   const [isImpersonating, setIsImpersonating] = React.useState(false);
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
@@ -138,6 +146,9 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   const currentPrefixRef = React.useRef('');
   const listRequest = React.useRef<{ id: number; controller: AbortController | null }>({ id: 0, controller: null });
   const mounted = React.useRef(true);
+  const cachedDirectories = React.useRef(new Map<string, DirectorySnapshot>());
+  const currentCacheKey = React.useRef('');
+  const paginationBusy = React.useRef(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const canManage = isResearchLibraryManager(userRole) && !isImpersonating;
@@ -160,36 +171,106 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
     return () => { cancelled = true; };
   }, []);
 
-  const loadReports = React.useCallback(async (prefix: string) => {
+  const scopedCacheKey = React.useCallback(async (prefix: string) => {
+    const identity = await getSessionFast();
+    // No credentials stored: scope by account, role and effective impersonation.
+    return JSON.stringify([userEmail, identity?.user?.id ?? null, identity?.role ?? null, getImpersonationRequestHeaders(), prefix]);
+  }, [userEmail]);
+
+  const rememberDirectory = React.useCallback((key: string, value: DirectorySnapshot) => {
+    cachedDirectories.current.delete(key);
+    cachedDirectories.current.set(key, value);
+    while (cachedDirectories.current.size > MAX_DIRECTORY_ENTRIES) {
+      const first = cachedDirectories.current.keys().next().value;
+      if (first === undefined) break;
+      cachedDirectories.current.delete(first);
+    }
+  }, []);
+
+  const loadReports = React.useCallback(async (prefix: string, force = false) => {
     if (!mounted.current) return;
     listRequest.current.controller?.abort();
     const controller = new AbortController();
     const id = listRequest.current.id + 1;
     listRequest.current = { id, controller };
     currentPrefixRef.current = prefix;
-    const isCurrent = () => mounted.current && listRequest.current.id === id && !controller.signal.aborted;
+    currentCacheKey.current = '';
+    paginationBusy.current = false;
+    const current = () => mounted.current && listRequest.current.id === id && !controller.signal.aborted;
     setLoading(true);
+    setLoadingMore(false);
     setLoadError('');
+    setMoreError('');
     setTruncated(false);
+    setNextMarker(null);
     setCurrentPrefix(prefix);
     setSelectedItems(new Set());
     try {
       const headers = await authHeaders();
-      if (!isCurrent()) return;
+      const key = await scopedCacheKey(prefix);
+      if (!current()) return;
+      currentCacheKey.current = key;
+      const cached = cachedDirectories.current.get(key);
+      if (!force && cached && Date.now() - cached.savedAt < DIRECTORY_TTL_MS) {
+        setItems(cached.items);
+        setTruncated(cached.truncated);
+        setNextMarker(cached.nextMarker);
+        return;
+      }
       const response = await fetch(`/api/oss?action=get-list&prefix=${encodeURIComponent(prefix)}`, { headers, signal: controller.signal });
       const result = await response.json().catch(() => ({}));
-      if (!isCurrent()) return;
+      if (!current()) return;
       if (!response.ok || result.status !== 'success') throw new Error(result.message || '资料列表加载失败');
-      setItems(Array.isArray(result.data) ? result.data : []);
-      setTruncated(Boolean(result.truncated));
+      const entries = Array.isArray(result.data) ? result.data as ResearchLibraryItem[] : [];
+      const hasMore = Boolean(result.truncated);
+      const marker = hasMore && typeof result.nextMarker === 'string' && result.nextMarker ? result.nextMarker : null;
+      setItems(entries);
+      setTruncated(hasMore);
+      setNextMarker(marker);
+      rememberDirectory(key, { items: entries, truncated: hasMore, nextMarker: marker, savedAt: Date.now() });
     } catch (error) {
-      if (!isCurrent()) return;
+      if (!current()) return;
       setItems([]);
       setLoadError(error instanceof Error ? error.message : '资料列表加载失败');
     } finally {
-      if (isCurrent()) setLoading(false);
+      if (current()) setLoading(false);
     }
-  }, []);
+  }, [scopedCacheKey, rememberDirectory]);
+
+  const loadMore = React.useCallback(async () => {
+    const request = listRequest.current;
+    const prefix = currentPrefixRef.current;
+    const key = currentCacheKey.current;
+    if (!nextMarker || paginationBusy.current || !request.controller || !key) return;
+    paginationBusy.current = true;
+    setLoadingMore(true);
+    setMoreError('');
+    const current = () => mounted.current && request.id === listRequest.current.id && !request.controller?.signal.aborted;
+    try {
+      const headers = await authHeaders();
+      if (!current() || await scopedCacheKey(prefix) !== key) return;
+      const url = new URLSearchParams({ action: 'get-list', prefix, marker: nextMarker });
+      const response = await fetch(`/api/oss?${url.toString()}`, { headers, signal: request.controller.signal });
+      const result = await response.json().catch(() => ({}));
+      if (!current()) return;
+      if (!response.ok || result.status !== 'success') throw new Error(result.message || '继续读取失败');
+      const previous = cachedDirectories.current.get(key)?.items ?? [];
+      const seen = new Set(previous.map(item => item.name));
+      const merged = [...previous, ...(Array.isArray(result.data) ? result.data as ResearchLibraryItem[] : []).filter(item => !seen.has(item.name))];
+      const hasMore = Boolean(result.truncated);
+      const marker = hasMore && typeof result.nextMarker === 'string' && result.nextMarker ? result.nextMarker : null;
+      if (hasMore && (!marker || marker === nextMarker)) throw new Error('云端分页游标没有前进，请刷新目录。');
+      setItems(merged);
+      setTruncated(hasMore);
+      setNextMarker(marker);
+      rememberDirectory(key, { items: merged, truncated: hasMore, nextMarker: marker, savedAt: Date.now() });
+    } catch (error) {
+      if (current()) setMoreError(error instanceof Error ? error.message : '继续读取失败');
+    } finally {
+      paginationBusy.current = false;
+      if (current()) setLoadingMore(false);
+    }
+  }, [nextMarker, scopedCacheKey, rememberDirectory]);
 
   React.useEffect(() => {
     mounted.current = true;
@@ -204,7 +285,8 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
   // A completed upload/edit refreshes its original directory only if the
   // user is still there; it must never navigate them back to an old folder.
   const refreshDirectory = (prefix: string) => {
-    if (mounted.current && currentPrefixRef.current === prefix) return loadReports(prefix);
+    cachedDirectories.current.clear();
+    if (mounted.current && currentPrefixRef.current === prefix) return loadReports(prefix, true);
   };
 
   const goUp = () => {
@@ -315,30 +397,39 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       const signature = await signatureResponse.json().catch(() => ({}));
       if (!signatureResponse.ok || signature.status !== 'success') throw new Error(signature.message || '获取上传签名失败');
 
-      for (const file of files) {
-        const id = `${file.name}-${file.size}-${file.lastModified}`;
-        const entry = queue.find((candidate) => candidate.id === id);
-        if (!entry || entry.status !== 'queued') continue;
-        setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'uploading', progress: 1 } : item));
-        try {
-          const formData = new FormData();
-          const fullKey = `${currentPrefix}${file.name}`;
-          formData.append('key', fullKey);
-          formData.append('policy', signature.policy);
-          formData.append('OSSAccessKeyId', signature.accessid);
-          formData.append('signature', signature.signature);
-          formData.append('success_action_status', '200');
-          formData.append('file', file);
-          await uploadToOSS(signature.host, formData, (progress) => {
-            setUploads((current) => current.map((item) => item.id === id ? { ...item, progress } : item));
-          });
-          logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
-          setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'success', progress: 100 } : item));
-        } catch (error) {
-          setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'error', message: error instanceof Error ? error.message : '上传失败' } : item));
-        }
-      }
-      setNotice({ tone: 'success', text: '上传队列已处理完成；请查看每个文件的状态。' });
+      const pending = files.filter(file => queue.some(entry =>
+        entry.id === `${file.name}-${file.size}-${file.lastModified}` && entry.status === 'queued'));
+        let cursor = 0;
+        const lastProgress = new Map<string, number>();
+        const worker = async () => {
+          while (cursor < pending.length) {
+            const file = pending[cursor++];
+            const id = `${file.name}-${file.size}-${file.lastModified}`;
+            setUploads(current => current.map(item => item.id === id ? { ...item, status: 'uploading', progress: 1 } : item));
+            try {
+              const formData = new FormData();
+              const fullKey = `${currentPrefix}${file.name}`;
+              formData.append('key', fullKey);
+              formData.append('policy', signature.policy);
+              formData.append('OSSAccessKeyId', signature.accessid);
+              formData.append('signature', signature.signature);
+              formData.append('success_action_status', '200');
+              formData.append('file', file);
+              await uploadToOSS(signature.host, formData, progress => {
+                const now = Date.now();
+                if (progress < 100 && now - (lastProgress.get(id) ?? 0) < 120) return;
+                lastProgress.set(id, now);
+                setUploads(current => current.map(item => item.id === id ? { ...item, progress } : item));
+              });
+              logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
+              setUploads(current => current.map(item => item.id === id ? { ...item, status: 'success', progress: 100 } : item));
+            } catch (error) {
+              setUploads(current => current.map(item => item.id === id ? { ...item, status: 'error', message: error instanceof Error ? error.message : '上传失败' } : item));
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(UPLOAD_PARALLELISM, pending.length) }, () => worker()));
+        setNotice({ tone: 'success', text: '上传队列已处理完成；请查看每个文件的状态。' });
       await refreshDirectory(currentPrefix);
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : '上传失败' });
@@ -450,7 +541,7 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
           </nav>
           <div className="flex flex-wrap items-center gap-2">
             {currentPrefix ? <Button variant="secondary" size="sm" onClick={goUp}><ArrowUp size={14} />上一级</Button> : null}
-            <Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix)} disabled={loading}><RefreshCw size={14} />刷新</Button>
+            <Button variant="secondary" size="sm" onClick={() => void loadReports(currentPrefix, true)} disabled={loading || loadingMore}><RefreshCw size={14} />刷新</Button>
             {canManage ? <>
               <Button variant="secondary" size="sm" onClick={openCreateFolder}><FolderPlus size={14} />新建文件夹</Button>
               <input ref={fileInputRef} type="file" multiple accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" className="hidden" onChange={(event) => void executeUpload(event)} />
@@ -479,7 +570,8 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
       </div>
 
       {notice ? <div className={`mx-3 mt-3 flex shrink-0 items-start justify-between gap-3 rounded-md border px-3 py-2 text-xs sm:mx-4 ${notice.tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : notice.tone === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`}><span>{notice.text}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭状态"><X size={14} /></button></div> : null}
-      {truncated ? <div className="mx-3 mt-3 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-800 sm:mx-4">当前目录超过云端存储单次返回上限，页面仅显示本次返回结果。建议进入子目录缩小范围。</div> : null}
+      {truncated ? <div className="mx-3 mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-xs text-[var(--cd-color-text-secondary)] sm:mx-4"><span>当前目录还有未加载的项目，搜索、排序和全选只针对已加载数据。</span>{nextMarker ? <Button variant="secondary" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore ? '加载中…' : '加载更多'}</Button> : <span role="alert">分页游标缺失，请刷新目录。</span>}</div> : null}
+      {moreError ? <p role="alert" className="mx-3 mt-2 text-xs text-[var(--cd-color-danger)] sm:mx-4">{moreError}</p> : null}
 
       {uploads.length ? <div className="mx-3 mt-3 shrink-0 rounded-md border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(23,32,51,0.03)] sm:mx-4">
         <div className="mb-2 flex items-center justify-between"><span className="text-[11px] font-semibold text-slate-700">上传状态</span><button type="button" onClick={() => setUploads([])} disabled={uploading} className="text-[10px] text-slate-500 transition hover:text-slate-800">清除</button></div>

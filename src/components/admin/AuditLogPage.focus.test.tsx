@@ -32,6 +32,20 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from(table: string
 
 beforeEach(() => { fixture.objectQueries = []; });
 
+test('coalesces rapid search edits into one query refresh', async () => {
+  render(<AuditLogPage />);
+  await screen.findByText('Alpha 东楼');
+  fixture.objectQueries.length = 0;
+  const input = screen.getByPlaceholderText('搜索对象 / 文件名') as HTMLInputElement;
+  input.focus();
+  fireEvent.change(input, { target: { value: 'A' } });
+  fireEvent.change(input, { target: { value: 'Al' } });
+  fireEvent.change(input, { target: { value: 'Alpha' } });
+  await waitFor(() => expect(fixture.objectQueries).toContain('Alpha'));
+  expect(fixture.objectQueries.filter(Boolean)).toEqual(['Alpha']);
+  expect(input).toHaveFocus();
+});
+
 test('keeps the audit object filter focused while translated photo rows refresh and the query is edited', async () => {
   render(<AuditLogPage />);
   await screen.findByText('Alpha 东楼');

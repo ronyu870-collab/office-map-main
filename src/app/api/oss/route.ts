@@ -290,7 +290,11 @@ export async function GET(request: Request) {
 
       const client = getOSSClient();
       const prefix = searchParams.get('prefix') || '';
-      const result = await client.list({ prefix, delimiter: '/', 'max-keys': 1000 }, {});
+      const marker = searchParams.get('marker') || undefined;
+      if (marker && !marker.startsWith(prefix)) {
+        return NextResponse.json({ status: 'error', message: '目录分页游标无效' }, { status: 400 });
+      }
+      const result = await client.list({ prefix, marker, delimiter: '/', 'max-keys': 1000 }, {});
 
       const folders = (result.prefixes ?? []).map((folder: string) => ({
         name: folder,
@@ -313,6 +317,7 @@ export async function GET(request: Request) {
         status: 'success',
         currentPath: prefix,
         truncated: Boolean(result.isTruncated),
+        nextMarker: result.isTruncated ? result.nextMarker ?? null : null,
         data: [...folders, ...files],
       });
     }
