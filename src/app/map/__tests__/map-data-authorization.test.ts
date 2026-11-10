@@ -26,7 +26,7 @@ describe('map data authorization boundary', () => {
     expect(controller).toContain('fetchFutureSupplyPayload()');
     expect(controller).toContain('fetchBuildingTrendPayload(buildingId)');
     expect(startup).toContain("fetchMapBuildingPayload('latest')");
-    expect(compare).toContain('fetchComparePayload()');
+    expect(compare).toContain('fetchComparePayload(');
 
     expect(compare).not.toContain("from('buildings')");
     expect(compare).not.toContain("from('building_metrics')");

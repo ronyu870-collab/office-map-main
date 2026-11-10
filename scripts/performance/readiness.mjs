@@ -1,13 +1,41 @@
 // Runs inside the browser. Selectors are an explicit, reviewed scenario contract;
 // absence of a spinner alone never proves business content is usable.
 export function observeNavigation(contract) {
+  const documentStart = contract.action === 'open' || contract.action === 'reload';
+  if (documentStart && (location.origin !== contract.destination_origin ||
+    location.pathname !== contract.destination_pathname || window !== window.top)) return;
   const result = {
-    time_origin: performance.timeOrigin, start: null,
+    time_origin: performance.timeOrigin, start: documentStart ? 0 : null,
     feedback_ms: null, shell_ms: null, content_usable_ms: null,
-    fresh_data_ms: null, status: 'waiting',
+    fresh_data_ms: null, map_tiles_ms: null, map_markers_ms: null,
+    long_task_count: null, long_task_total_ms: null, status: documentStart ? 'running' : 'waiting',
   };
   let stopped = false;
   let frame;
+  let longTasks;
+  const recordLongTasks = (entries) => {
+    for (const entry of entries) {
+      if (result.start === null || entry.startTime + entry.duration <= result.start) continue;
+      result.long_task_count += 1;
+      result.long_task_total_ms += entry.startTime + entry.duration - Math.max(result.start, entry.startTime);
+    }
+  };
+  if (typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
+    result.long_task_count = 0;
+    result.long_task_total_ms = 0;
+    longTasks = new PerformanceObserver(list => recordLongTasks(list.getEntries()));
+    longTasks.observe({ type: 'longtask', buffered: documentStart });
+  }
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    cancelAnimationFrame(frame);
+    document.removeEventListener('click', start, true);
+    if (longTasks) {
+      recordLongTasks(longTasks.takeRecords());
+      longTasks.disconnect();
+    }
+  };
   const visible = (selector) => {
     if (!selector) return false;
     return [...document.querySelectorAll(selector)].some((element) => {
@@ -23,20 +51,22 @@ export function observeNavigation(contract) {
       const elapsed = performance.now() - result.start;
       if (contract.error && visible(contract.error)) {
         result.status = 'application_error';
-        stopped = true;
+        stop();
       } else {
         for (const [field, selector] of [
           ['feedback_ms', contract.feedback], ['shell_ms', contract.shell],
           ['content_usable_ms', contract.content], ['fresh_data_ms', contract.fresh],
+          ['map_tiles_ms', contract.map_tiles], ['map_markers_ms', contract.map_markers],
         ]) {
           if (result[field] === null && visible(selector)) result[field] = elapsed;
         }
-        if (result.content_usable_ms !== null && (!contract.fresh || result.fresh_data_ms !== null)) {
+        if (result.content_usable_ms !== null && (!contract.fresh || result.fresh_data_ms !== null)
+          && (!contract.map_tiles || result.map_tiles_ms !== null) && (!contract.map_markers || result.map_markers_ms !== null)) {
           result.status = 'success';
-          stopped = true;
+          stop();
         } else if (elapsed >= contract.timeout_ms) {
           result.status = 'timeout';
-          stopped = true;
+          stop();
         }
       }
     }
@@ -45,17 +75,18 @@ export function observeNavigation(contract) {
   const start = (event) => {
     if (result.start !== null || !event.target?.closest?.(contract.trigger)) return;
     result.start = performance.now();
+    if (contract.require_content_transition && visible(contract.content)) {
+      result.status = 'preexisting_content';
+      stop();
+      return;
+    }
     result.status = 'running';
   };
-  document.addEventListener('click', start, true);
+  if (!documentStart) document.addEventListener('click', start, true);
   frame = requestAnimationFrame(paint);
   // Deliberately nonpersistent; only this controlled collector reads it.
   window.__colliersNavigationProbe = {
     result,
-    stop() {
-      stopped = true;
-      cancelAnimationFrame(frame);
-      document.removeEventListener('click', start, true);
-    },
+    stop,
   };
 }
