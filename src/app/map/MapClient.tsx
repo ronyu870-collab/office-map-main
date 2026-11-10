@@ -27,6 +27,7 @@ import {
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
 import { useMapRuntime } from './runtime/useMapRuntime';
+import { recordMapStartup } from '@/src/utils/mapStartupProbe';
 import { useMapWorkspaceView } from './runtime/useMapWorkspaceView';
 import { hasBuildingLocation, type FullListBuilding } from './model/fullBuildingList';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
@@ -245,6 +246,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     setMapError(null);
 
     try {
+      recordMapStartup('stock_read_start');
       const buildings = await retryAsync(
         () => controller.fetchMapData(),
         { attempts: 3, baseDelayMs: 300, maxDelayMs: 800 },
@@ -258,6 +260,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
       const role = userRoleRef.current;
       mapDataStoreRef.current.replaceBuildings(buildings);
       const visible = mapDataStoreRef.current.getRoleVisible(role);
+      recordMapStartup('stock_data_ready');
       setAllBuildings(visible);
       setDisplayOverrides(controller.getDisplayOverridesCache());
     } catch (error) {
@@ -392,7 +395,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
+      if (filtered.length > 0) recordMapStartup('stock_render_start');
       ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
+      if (filtered.length > 0) recordMapStartup('stock_render_returned');
     }
     setStats(computeStatsFromBuildings(filtered));
 

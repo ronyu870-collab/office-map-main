@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth'
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -100,16 +101,17 @@ async function updateAssignmentsInChunks(
 }
 
 export async function GET(request: NextRequest) {
+  const timing = createIsolatedRequestTiming(request)
   try {
-    const context = await requireAdmin(request)
+    const context = await timing.measure('auth', () => requireAdmin(request))
     if (!isAdminContext(context)) return context
     const { client } = context
 
     const [profilesResult, authResult, stockResult, futureResult] = await Promise.all([
-      client.from('user_roles').select('user_id, role, chinese_name, full_name, email, phone, gender, title, internal_number, created_at').order('created_at', { ascending: false }),
-      client.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-      client.from('building_assignments').select('user_id'),
-      client.from('future_supply_assignments').select('user_id, record_year, record_quarter'),
+      timing.measure('profiles', () => client.from('user_roles').select('user_id, role, chinese_name, full_name, email, phone, gender, title, internal_number, created_at').order('created_at', { ascending: false })),
+      timing.measure('auth-directory', () => client.auth.admin.listUsers({ page: 1, perPage: 1000 })),
+      timing.measure('stock-assignments', () => client.from('building_assignments').select('user_id')),
+      timing.measure('future-assignments', () => client.from('future_supply_assignments').select('user_id, record_year, record_quarter')),
     ])
 
     if (profilesResult.error) throw profilesResult.error
@@ -149,7 +151,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ users })
+    return timing.response(() => NextResponse.json({ users }))
   } catch (error) {
     console.error('[admin/users] 获取用户失败:', error)
     return NextResponse.json({ error: '用户列表加载失败' }, { status: 500 })

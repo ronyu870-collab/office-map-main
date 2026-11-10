@@ -45,9 +45,10 @@
   {
     "id": "admin-diagnostic-text-filter",
     "roots": [
-      "src/components/admin/DebugFilter.tsx"
+      "src/components/admin/DebugFilter.tsx",
+      "src/components/admin/DataDebugPanel.tsx"
     ],
-    "file": "src/components/admin/__tests__/DebugFilter.focus.test.tsx",
+    "file": "src/components/admin/__tests__/DataDebugPanel.test.tsx",
     "cases": [
       "retains the text filter focus and caret after matching rows refresh"
     ]
@@ -171,5 +172,71 @@
     "cases": [
       "retains search focus and caret when the parent updates the visible record count"
     ]
+  },
+  {
+    "id": "admin-display-rule-search",
+    "roots": ["src/app/admin/display-overrides/page.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["keeps the display-rule search focused while filtering and correcting a term"]
+  },
+  {
+    "id": "admin-update-module-filter",
+    "roots": ["src/components/ChangelogManager.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["keeps the update module filter focused when switching between populated and empty results"]
+  },
+  {
+    "id": "admin-feedback-search",
+    "roots": ["src/components/admin/IssueManager.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["continues editing feedback search after a delayed list and while a source filter is active"]
+  },
+  {
+    "id": "admin-user-directory-search",
+    "roots": ["src/components/admin/UserManager.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["keeps user-directory search focused across a delayed response and a mid-word correction"]
+  },
+  {
+    "id": "lease-change-history-search",
+    "roots": ["src/app/lease-submission/components/LeaseTransactionHistoryDrawer.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-history-drawer.focus.test.tsx",
+    "cases": ["keeps lease-change search editable while records arrive and the caret moves within the keyword"]
+  },
+  {
+    "id": "lease-building-selector-search",
+    "roots": ["src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": ["keeps the actual lease building selector focused through results and a mid-word correction"]
+  },
+  {
+    "id": "lease-form-select-search",
+    "roots": ["src/app/lease-submission/components/FormField.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": ["keeps the enterprise type search focused through empty and corrected results"]
+  },
+  {
+    "id": "lease-team-column-option-search",
+    "roots": ["src/app/lease-submission/components/LeaseColumnMenu.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-table-interaction.test.tsx",
+    "cases": ["keeps team column option search focused during a correction and restores focus on close"]
+  },
+  {
+    "id": "admin-memo-title-search",
+    "roots": ["src/components/admin-memo/MemoList.tsx"],
+    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "cases": ["keeps memo title search editable while the result list loads and returns"]
+  },
+  {
+    "id": "admin-memo-preview-focus",
+    "roots": ["src/components/admin-memo/MarkdownPreview.tsx"],
+    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "cases": ["supports keyboard focus in a memo preview and keeps the internal links intact"]
+  },
+  {
+    "id": "admin-schema-table-search",
+    "roots": ["src/components/admin/SchemaMap.tsx"],
+    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "cases": ["keeps schema search and its caret while a corrected table name becomes selectable"]
   }
 ]

@@ -197,12 +197,18 @@ export class QuarterlyDraftStore {
         }
         this.persist();
       } catch (error) {
+        if (generation !== this.generation) return;
         if (this.quarantine(error)) return;
         this.publish({ error: '云端草稿读取失败；已保留本页及本机副本，重试读取后才能同步。', retryCount: this.snapshot.retryCount + 1 });
-      } finally { this.loading = null; }
+      } finally { if (generation === this.generation) this.loading = null; }
     })();
     return this.loading;
   };
+  cancelLoad(): void {
+    if (!this.loading) return;
+    this.generation += 1;
+    this.loading = null;
+  }
   flush = (): Promise<boolean> => {
     if (this.inFlight) return this.inFlight;
     this.inFlight = this.drain().finally(() => { this.inFlight = null; });
