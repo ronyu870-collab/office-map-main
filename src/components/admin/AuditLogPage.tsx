@@ -147,7 +147,14 @@ export function AuditLogPage() {
   const [settledSearch,setSettledSearch] = useState({objectSearch:'',ipSearch:'',deviceSearch:'',sessionSearch:''});
   const fetchGeneration = React.useRef(0);
   useEffect(() => {
-    const timer = window.setTimeout(() => setSettledSearch({objectSearch,ipSearch,deviceSearch,sessionSearch}), 280);
+    const timer = window.setTimeout(() => setSettledSearch(previous =>
+      previous.objectSearch === objectSearch &&
+      previous.ipSearch === ipSearch &&
+      previous.deviceSearch === deviceSearch &&
+      previous.sessionSearch === sessionSearch
+        ? previous
+        : { objectSearch, ipSearch, deviceSearch, sessionSearch }
+    ), 280);
     return () => window.clearTimeout(timer);
   }, [objectSearch,ipSearch,deviceSearch,sessionSearch]);
   useEffect(() => () => { fetchGeneration.current++; }, []);
