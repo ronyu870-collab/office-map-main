@@ -16,7 +16,10 @@ vi.mock('../Toast', () => ({ ToastContainer: () => null, showToast: vi.fn() }));
 
 async function openEditor() {
   render(<MemoManager adminEmail="admin@example.test" />);
-  await act(async () => { fireEvent.click(screen.getByText('打开甲')); });
+  await act(async () => {
+    fireEvent.click(screen.getByText('打开甲'));
+    await vi.dynamicImportSettled();
+  });
   fireEvent.click(screen.getByText('编辑'));
 }
 

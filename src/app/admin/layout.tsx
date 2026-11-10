@@ -9,6 +9,7 @@ import { isDemoMode } from '@/src/config/demoMode';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
 import { AppHeader, Button, LoadingState } from '@/src/components/ui';
+import { AdminOperatorEmailContext } from './adminOperatorEmail';
 
 function AdminGuardLoading() {
   return (
@@ -26,8 +27,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
   const { requestNavigation } = useAdminEditProtection();
   const router = useRouter();
   const { isImpersonating } = useImpersonation();
-  const [ready, setReady] = React.useState(false);
-  const [allowed, setAllowed] = React.useState(false);
+  const [verifiedOperatorEmail, setVerifiedOperatorEmail] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -39,19 +39,16 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
         const session = await getSession();
         if (cancelled) return;
 
-        const permitted = Boolean(session) && canAccessAdminConsole({
-          role: session?.role,
-          isDemo: isDemoMode(session?.user?.email),
+        if (!session || !canAccessAdminConsole({
+          role: session.role,
+          isDemo: isDemoMode(session.user.email),
           impersonationActive: isImpersonating,
-        });
-
-        if (!permitted) {
+        })) {
           router.replace('/');
           return;
         }
 
-        setAllowed(true);
-        setReady(true);
+        setVerifiedOperatorEmail(session.user.email ?? '');
       } catch {
         if (!cancelled) router.replace('/');
       }
@@ -77,7 +74,7 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
     }
   }
 
-  if (!ready || !allowed) return <AdminGuardLoading />;
+  if (verifiedOperatorEmail === null || isImpersonating) return <AdminGuardLoading />;
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
@@ -88,7 +85,9 @@ function ProtectedAdminLayout({ children }: { children: React.ReactNode }) {
           actions={<Button variant="ghost" size="sm" onClick={() => { void requestNavigation(() => { void handleLogout(); }); }}>退出登录</Button>}
         />
       </header>
-      <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <AdminOperatorEmailContext.Provider value={verifiedOperatorEmail}>{children}</AdminOperatorEmailContext.Provider>
+      </div>
     </div>
   );
 }
