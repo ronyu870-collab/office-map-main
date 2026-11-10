@@ -9,6 +9,7 @@ import { parseServerTiming } from './server-timing.mjs';
 const require = createRequire(import.meta.url);
 const fixtureId = '11111111-1111-4111-8111-111111111111';
 const adminId = '22222222-2222-4222-8222-222222222222';
+const leaseCalls = [];
 const directoryCalls = { profiles: 0, authDirectory: 0, stock: 0, future: 0 };
 let releaseAssignments;
 const heldAssignments = new Promise(resolve => { releaseAssignments = resolve; });
@@ -51,6 +52,19 @@ const fixture = createServer((req, res) => {
   if (pathname === '/rest/v1/buildings') {
     queries++;
     return setTimeout(() => respond(200, [{ id: fixtureId, name: '隔离候选楼宇', grade: 'A' }]), lag.database);
+  }
+  if (pathname === '/rest/v1/lease_transactions_read_v1') {
+    const source = searchParams.get('record_source');
+    leaseCalls.push({ method: req.method, prefer: req.headers.prefer ?? null, source,
+      company: searchParams.get('company'), area: searchParams.get('area_sqm'), year: searchParams.get('transaction_year'),
+      select: searchParams.get('select'), order: searchParams.get('order'), building: searchParams.get('related_building_ids') });
+    const total = source === 'eq.live' ? 60 : 73;
+    if (req.method === 'HEAD') {
+      res.writeHead(200, { 'Content-Range': `0-0/${total}` });
+      return res.end();
+    }
+    if (req.headers.prefer?.includes('count=exact')) res.setHeader('Content-Range', `0-0/${total}`);
+    return respond(200, [{ read_id: 'synthetic-record', record_source: source === 'eq.live' ? 'live' : 'history' }]);
   }
   return respond(404, { error: 'unhandled fixture route' });
 });
@@ -143,8 +157,44 @@ try {
   assert.equal(counts.headers.get('cache-control'), 'private, no-store');
   assert.deepEqual(await counts.json(), { assignments: [{ user_id: fixtureId, stock_assignment_count: 2, future_assignment_count: 1 }] });
   assert.deepEqual(Object.keys(parseServerTiming(adminRoute, counts.headers.get('server-timing'))).sort(), ['auth', 'future-assignments', 'handler', 'json', 'stock-assignments']);
+  const leaseRoute = '/api/lease-transactions/read';
+  const viewerHeaders = { Authorization: 'Bearer synthetic-access' };
+  const impersonated = { ...adminHeaders, 'x-colliers-impersonate-user': fixtureId };
+  const getLease = (query, headers) => fetch(`${origin}${leaseRoute}?${query}`, { headers, signal: AbortSignal.timeout(7000) });
+  assert.equal((await getLease('count_only=1')).status, 401);
+  assert.equal((await getLease('count_only=1&record_source=history', viewerHeaders)).status, 403);
+  assert.equal((await getLease('count_only=1&record_source=history', impersonated)).status, 403);
+  assert.equal(leaseCalls.length, 0);
+  const leaseFilters = 'company=Alpha&year_from=2020&area_max=100';
+  const rows = await getLease(`include_count=0&limit=50&offset=0&${leaseFilters}`, adminHeaders);
+  assert.equal(rows.status, 200);
+  assert.deepEqual(await rows.json(), { records: [{ read_id: 'synthetic-record', record_source: 'history' }], count: null, limit: 50, offset: 0,
+    access: { canReadHistory: true, effectiveSource: 'all', effectiveRole: 'admin', impersonating: false } });
+  const total = await getLease(`count_only=1&${leaseFilters}`, adminHeaders);
+  assert.equal(total.status, 200);
+  assert.equal(total.headers.get('cache-control'), 'private, no-store');
+  assert.deepEqual(await total.json(), { records: [], count: 73, limit: 30, offset: 0,
+    access: { canReadHistory: true, effectiveSource: 'all', effectiveRole: 'admin', impersonating: false } });
+  const viewerTotal = await getLease(`count_only=1&${leaseFilters}`, impersonated);
+  assert.equal(viewerTotal.status, 200);
+  assert.deepEqual(await viewerTotal.json(), { records: [], count: 60, limit: 30, offset: 0,
+    access: { canReadHistory: false, effectiveSource: 'live', effectiveRole: 'viewer', impersonating: true } });
+  const map = await getLease(`building_id=${fixtureId}`, viewerHeaders);
+  assert.equal(map.status, 200);
+  assert.equal((await map.json()).count, 60);
+  assert.deepEqual(leaseCalls.map(({ method, prefer, source }) => [method, prefer, source]), [
+    ['GET', null, null], ['HEAD', 'count=exact', null], ['HEAD', 'count=exact', 'eq.live'], ['GET', 'count=exact', 'eq.live'],
+  ]);
+  for (const call of leaseCalls.slice(0, 3)) {
+    assert.deepEqual([call.company, call.area, call.year], ['ilike.%Alpha%', 'lte.100', 'gte.2020']);
+  }
+  assert.equal(leaseCalls[1].select, 'read_id');
+  assert.equal(leaseCalls[1].order, null);
+  assert.equal(leaseCalls[3].building, `cs.{${fixtureId}}`);
+
   console.log(JSON.stringify({ status: 'pass', environment: 'local production build with loopback Supabase fixture', observations,
-    adminDirectory: { listBeforeAssignments: true, directoryCalls, deniedRoles: ['anonymous', 'viewer', 'simulated-viewer'] } }));
+    adminDirectory: { listBeforeAssignments: true, directoryCalls, deniedRoles: ['anonymous', 'viewer', 'simulated-viewer'] },
+    leaseHistory: { isolatedCount: 73, simulatedViewerCount: 60, deniedBeforeDatabase: true, legacyCombinedRead: true } }));
 } finally {
   releaseAssignments();
   if (child && child.exitCode === null) {
