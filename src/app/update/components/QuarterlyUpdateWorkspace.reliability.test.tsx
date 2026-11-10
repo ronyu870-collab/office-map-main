@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   router: { replace: vi.fn() }, rpc: vi.fn(),
   draftRead: vi.fn<(tab: string) => Promise<{ data: unknown; error: unknown }>>(),
   assignmentRead: vi.fn<() => Promise<void>>(),
+  metricRead: vi.fn<() => Promise<void>>(),
   formal: [] as Record<string, unknown>[], reads: [] as Array<{ table: string; filters: Record<string, unknown> }>,
   metrics: [] as Record<string, unknown>[],
   buildings: [
@@ -31,6 +32,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
     const resolve = async () => {
       state.reads.push({ table, filters: { ...filters } });
       if (table === 'building_assignments') await state.assignmentRead();
+      if (table === 'building_metrics') await state.metricRead();
       if (table === 'app_settings' && state.settingsFailure) return { data: null, error: new Error('synthetic settings failure') };
       if (table === 'app_settings' && state.missingSettings) return { data: [], error: null };
       if (table === 'future_supply_assignments' && state.supplyFailure) return { data: null, error: new Error('synthetic assignment failure') };
@@ -84,6 +86,7 @@ beforeEach(() => {
   state.rpc.mockReset().mockImplementation(async (_name: string, args: Record<string, unknown>) => ({ data: [{ revision: Number(args.p_expected_revision ?? 0) + 1, updated_at: '2026-10-08T00:00:00.000Z' }], error: null }));
   state.draftRead.mockReset().mockResolvedValue({ data: null, error: null });
   state.assignmentRead.mockReset().mockResolvedValue(undefined);
+  state.metricRead.mockReset().mockResolvedValue(undefined);
   window.localStorage.clear();
   window.localStorage.setItem('quarterly-client-ack:20261008-v2:synthetic-user', 'saved-closed-legacy-pages');
 });
@@ -101,6 +104,36 @@ describe('QuarterlyUpdateWorkspace reliability integration', () => {
     await act(async () => { release(); });
     await ready();
     expect(quoteInputs().length).toBeGreaterThan(0);
+  });
+
+  it('shows the authorized draft while historical metrics are held and keeps validation and writes locked', async () => {
+    let release!: () => void;
+    state.metricRead.mockReturnValue(new Promise<void>(resolve => { release = resolve; }));
+    state.draftRead.mockResolvedValue(draft('321'));
+    render(<QuarterlyUpdateWorkspace />);
+    await waitFor(() => expect(state.metricRead).toHaveBeenCalled());
+    await ready();
+    await waitFor(() => expect(quoteInputs()[0]?.value).toBe('321'));
+    expect(quoteInputs().every(input => input.readOnly)).toBe(true);
+    expect(screen.getByText('正在读取历史参考，暂时只读。')).toBeInTheDocument();
+    expect(screen.getAllByText('确认中').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: '保存草稿' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '提交当前分类' })).not.toBeInTheDocument();
+    expect(state.rpc).not.toHaveBeenCalled();
+    await act(async () => { release(); });
+    expect(await screen.findByText('参考期 2026 Q3')).toBeInTheDocument();
+    expect(quoteInputs()[0].readOnly).toBe(false);
+    expect(quoteInputs()[0]).toHaveValue(321);
+  });
+
+  it('keeps the prior fallback to building area if the optional history read fails', async () => {
+    state.metricRead.mockRejectedValue(new Error('历史读取失败'));
+    render(<QuarterlyUpdateWorkspace />);
+    await ready();
+    expect(await screen.findByText('历史参考暂不可用，按已有楼宇资料显示。', {}, { timeout: 2200 })).toBeInTheDocument();
+    expect(quoteInputs()[0].readOnly).toBe(false);
+    expect(state.metricRead).toHaveBeenCalledTimes(3);
+    expect(state.rpc).not.toHaveBeenCalled();
   });
 
   it('retains the quarterly entry field focus and caret as form values update', async () => {
@@ -385,13 +418,17 @@ describe('recovery boundary regressions', () => {
   });
   it('leaves and reenters admin preview with the correct owner and no preview writes', async () => {
     state.role = 'admin'; state.preview = 'synthetic-preview';
+    let finishOwnerRead!: (value: { data: null; error: null }) => void;
+    const ownerRead = new Promise<{ data: null; error: null }>(resolve => { finishOwnerRead = resolve; });
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem');
     const view = render(<QuarterlyUpdateWorkspace />); await ready();
     expect(quoteInputs().every((input) => input.readOnly)).toBe(true);
     expect(setItem).not.toHaveBeenCalled(); expect(removeItem).not.toHaveBeenCalled();
+    state.draftRead.mockReturnValueOnce(ownerRead);
     state.preview = null; view.rerender(<QuarterlyUpdateWorkspace />);
     await screen.findByRole('button', { name: '保存草稿' });
+    await waitFor(() => expect(state.reads.some(read => read.table === 'update_drafts' && read.filters.user_id === 'synthetic-user')).toBe(true));
     expect(quoteInputs().every((input) => !input.readOnly)).toBe(true);
     expect(screen.queryByText(/管理员预览模式/)).not.toBeInTheDocument();
     fireEvent.change(quoteInputs()[0], { target: { value: '123' } });
@@ -399,6 +436,7 @@ describe('recovery boundary regressions', () => {
     setItem.mockClear(); removeItem.mockClear();
     state.preview = 'synthetic-preview'; view.rerender(<QuarterlyUpdateWorkspace />);
     await screen.findByText(/管理员预览模式/);
+    await act(async () => finishOwnerRead({ data: null, error: null }));
     expect(quoteInputs().every((input) => input.readOnly && input.value === '')).toBe(true);
     expect(setItem).not.toHaveBeenCalled(); expect(removeItem).not.toHaveBeenCalled();
     expect(window.localStorage.getItem('quarterly-draft:v1:synthetic-user:2026:Q4:GradeA')).toBe(ownerCache);

@@ -8,6 +8,7 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FileDown, Trash2 } from 'luc
 
 import { WorkspaceShell } from '@/src/components/layout';
 import { useAppSession } from '@/src/components/SessionProvider';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
@@ -37,6 +38,7 @@ type LoadedCandidate = ProposalCandidateData & {
   wellCertification: string | null;
   greenBuildingStandard: string | null;
 };
+type CandidateRead = { key: string; values: ReadonlyMap<string, LoadedCandidate>; error: string | null };
 
 function finite(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -76,12 +78,11 @@ function EmptyProposal() {
 export function ProposalWorkspace() {
   const router = useRouter();
   const { session, status } = useAppSession();
+  const { targetUserId } = useImpersonation();
   const [draft, setDraft] = React.useState<ProposalDraft | null>(null);
   const [draftReady, setDraftReady] = React.useState(false);
   const [clientName, setClientName] = React.useState('');
-  const [candidates, setCandidates] = React.useState<LoadedCandidate[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [read, setRead] = React.useState<CandidateRead | null>(null);
 
   const previewEnabled = isIntelligencePreviewEnabled(session?.role);
 
@@ -101,43 +102,45 @@ export function ProposalWorkspace() {
     return () => window.removeEventListener(PROPOSAL_DRAFT_EVENT, sync);
   }, []);
 
-  const idsKey = draft?.items.map(item => item.buildingId).join('|') || '';
+  const idsKey = draft?.items.length ? JSON.stringify([...new Set(draft.items.map(item => item.buildingId))].sort()) : '';
+  // Presentation-only draft changes do not invalidate facts. Account, role,
+  // token and simulated scope changes must never reuse a previous response.
+  const readKey = status === 'authenticated' && previewEnabled && session?.session.access_token && idsKey
+    ? JSON.stringify([session.user.id, session.role, session.session.access_token, targetUserId, idsKey]) : '';
+  const currentRead = read?.key === readKey ? read : null;
+  const loading = Boolean(readKey && !currentRead);
+  const error = currentRead?.error ?? null;
+  const candidates = draft?.items.flatMap(item => {
+    const candidate = currentRead?.values.get(item.buildingId);
+    return candidate ? [{ ...candidate, name: candidate.name || item.buildingName }] : [];
+  }) ?? [];
 
   React.useEffect(() => {
-    if (!draft || draft.items.length === 0 || !previewEnabled) {
-      setCandidates([]);
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
+    if (!readKey) return;
+    const controller = new AbortController();
     void (async () => {
-      setLoading(true);
-      setError(null);
-      const ids = draft.items.map(item => item.buildingId);
+      const ids = JSON.parse(idsKey) as string[];
       const [buildingResult, metricResult, brochureResult] = await Promise.all([
         supabase.from('buildings')
           .select('id,name,grade,submarket,district')
           .eq('tracking_scope', 'tracked')
-          .in('id', ids),
+          .in('id', ids).abortSignal(controller.signal),
         supabase.from('building_metrics')
           .select('building_id,record_year,record_quarter,created_at,net_effective_rent,asking_rent,vacancy_rate,management_fee,total_area')
           .in('building_id', ids)
           .order('record_year', { ascending: false })
           .order('record_quarter', { ascending: false })
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false }).abortSignal(controller.signal),
         supabase.from('building_brochure_data')
           .select('building_id,address,developer,metro_access,standard_floor_area,property_management,completion_date,leed_certification,well_certification,green_building_standard,created_at')
           .in('building_id', ids)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false }).abortSignal(controller.signal),
       ]);
-      if (!active) return;
+      if (controller.signal.aborted) return;
 
       const firstError = buildingResult.error || metricResult.error || brochureResult.error;
       if (firstError) {
-        setError(firstError.message || '候选方案数据读取失败');
-        setCandidates([]);
-        setLoading(false);
+        setRead({ key: readKey, values: new Map(), error: firstError.message || '候选方案数据读取失败' });
         return;
       }
 
@@ -149,18 +152,15 @@ export function ProposalWorkspace() {
       for (const raw of brochureResult.data || []) {
         if (raw.building_id && !brochures.has(raw.building_id)) brochures.set(raw.building_id, raw as Record<string, unknown>);
       }
-      const buildings = new Map((buildingResult.data || []).map(item => [item.id, item]));
-
-      const loaded: LoadedCandidate[] = draft.items.flatMap(item => {
-        const building = buildings.get(item.buildingId);
-        if (!building) return [];
-        const metric = metrics.get(item.buildingId) || null;
-        const brochure = brochures.get(item.buildingId) || null;
+      const loaded = new Map<string, LoadedCandidate>();
+      for (const building of buildingResult.data || []) {
+        const metric = metrics.get(building.id) || null;
+        const brochure = brochures.get(building.id) || null;
         const year = finite(metric?.record_year);
         const quarter = finite(metric?.record_quarter);
-        return [{
+        loaded.set(building.id, {
           id: building.id,
-          name: building.name || item.buildingName,
+          name: building.name || '',
           grade: building.grade || '',
           submarket: building.submarket || '',
           district: building.district || '',
@@ -182,14 +182,15 @@ export function ProposalWorkspace() {
           leedCertification: brochure?.leed_certification ? String(brochure.leed_certification) : null,
           wellCertification: brochure?.well_certification ? String(brochure.well_certification) : null,
           greenBuildingStandard: brochure?.green_building_standard ? String(brochure.green_building_standard) : null,
-        }];
-      });
-      setCandidates(loaded);
-      setLoading(false);
-    })();
+        });
+      }
+      setRead({ key: readKey, values: loaded, error: null });
+    })().catch(() => {
+      if (!controller.signal.aborted) setRead({ key: readKey, values: new Map(), error: '候选方案数据读取失败' });
+    });
 
-    return () => { active = false; };
-  }, [draft, idsKey, previewEnabled]);
+    return () => controller.abort();
+  }, [idsKey, readKey]);
 
   if (status === 'loading' || !session || !draftReady) {
     return (
@@ -246,7 +247,7 @@ export function ProposalWorkspace() {
               target_name: clientName ? `客户候选方案 · ${clientName}` : '客户候选方案',
             });
             window.print();
-          }} disabled={selectedCount === 0}>
+          }} disabled={loading || scored.length === 0 || Boolean(error)}>
             <FileDown size={14} aria-hidden="true" /> 打印 / 导出 PDF
           </Button>
         </div>

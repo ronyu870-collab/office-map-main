@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-import { getSessionFast } from '@/src/services/Auth';
+import { useAppSession } from '@/src/components/SessionProvider';
 import { isUserAdmin } from '@/src/utils/accessControl';
 import { ComponentErrorBoundary } from '@/src/components/ErrorBoundary/ComponentErrorBoundary';
 import { TeamSubmissionMonitor } from '../components/TeamSubmissionMonitor';
@@ -23,40 +23,17 @@ import { AppHeader, LoadingState } from '@/src/components/ui';
  */
 export default function TeamMonitoringPage() {
   const router = useRouter();
-  const [ready, setReady] = React.useState(false);
-  const [userRole, setUserRole] = React.useState<string>('');
+  const { session, status } = useAppSession();
+  const role = session?.role ?? '';
+  const allowed = status === 'authenticated' && session !== null && isUserAdmin(role);
 
   React.useEffect(() => {
-    setReady(true);
+    if (status === 'unauthenticated') router.replace('/login');
+    if (status !== 'authenticated') return;
+    if (!isUserAdmin(role)) router.replace('/');
+  }, [role, router, status]);
 
-    let cancelled = false;
-    void (async () => {
-      try {
-        const session = await getSessionFast();
-        if (cancelled) return;
-
-        if (!session) {
-          router.replace('/login');
-          return;
-        }
-
-        const role = session.role ?? '';
-        setUserRole(role);
-
-        if (!isUserAdmin(role)) {
-          router.replace('/');
-          return;
-        }
-      } catch (e) {
-        console.error('Failed to check session', e);
-        if (!cancelled) router.replace('/login');
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [router]);
-
-  if (!ready || !userRole) {
+  if (!allowed || !session) {
     return (
       <div className="flex h-screen items-center justify-center bg-[var(--cd-color-workspace)] p-4"><LoadingState label="正在进入团队监控" rows={0} /></div>
     );
@@ -74,7 +51,7 @@ export default function TeamMonitoringPage() {
 
       <main className="mx-auto w-full max-w-[1500px] p-3 sm:p-5">
         <ComponentErrorBoundary componentName="团队提交监控">
-          <TeamSubmissionMonitor userRole={userRole} />
+          <TeamSubmissionMonitor key={JSON.stringify([session.user.id, session.sessionId])} userRole={role} />
         </ComponentErrorBoundary>
       </main>
     </div>
