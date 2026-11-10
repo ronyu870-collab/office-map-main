@@ -31,28 +31,51 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
 }
 
+function usePersonalRead<T>(read: (userId: string) => Promise<T>) {
+  const [state, setState] = React.useState<{ userId: string; data: T | null; pending: boolean; error: string | null }>({
+    userId: '', data: null, pending: true, error: null,
+  });
+  const generation = React.useRef(0);
+  React.useEffect(() => () => { generation.current += 1; }, []);
+
+  const load = React.useCallback(async (userId: string) => {
+    if (!userId) return;
+    const request = ++generation.current;
+    setState(previous => ({ userId, data: previous.userId === userId ? previous.data : null, pending: true, error: null }));
+    try {
+      const data = await retryAsync(() => read(userId), { attempts: 3, baseDelayMs: 250, shouldRetry: () => request === generation.current });
+      if (request === generation.current) setState({ userId, data, pending: false, error: null });
+    } catch (error) {
+      if (request === generation.current) setState(previous => ({ ...previous, pending: false, error: errorMessage(error) }));
+    }
+  }, [read]);
+
+  return { ...state, load };
+}
+
 interface HistoryProps {
-  items: LeaseTransaction[];
+  items: LeaseTransaction[] | null;
+  pending: boolean;
   userName: string;
   canWrite: boolean;
   onEdit: (record: LeaseTransaction) => void;
   onTransfer: (record: LeaseTransaction) => void;
 }
 
-function MySubmissionTable({ items, userName, canWrite, onEdit, onTransfer }: HistoryProps) {
+function MySubmissionTable({ items, pending, userName, canWrite, onEdit, onTransfer }: HistoryProps) {
   const [page, setPage] = React.useState(1);
   const pageSize = 12;
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const current = React.useMemo(() => items.slice((page - 1) * pageSize, page * pageSize), [items, page]);
+  const totalPages = Math.max(1, Math.ceil((items?.length ?? 0) / pageSize));
+  const current = React.useMemo(() => items?.slice((page - 1) * pageSize, page * pageSize) ?? [], [items, page]);
 
   React.useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.04)]" aria-label="我的提交记录">
+    <section className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.04)]" aria-label="我的提交记录" aria-busy={pending}>
       <div className="flex min-h-14 items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3 sm:px-5">
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900">我的提交记录</h2>
-          <p className="mt-0.5 text-[10px] text-slate-400">{userName || '用户'} · 共 {items.length} 条成交记录</p>
+          <p className="mt-0.5 text-[10px] text-slate-400">{userName || '用户'}{items ? ` · 共 ${items.length} 条成交记录` : ''}</p>
         </div>
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
@@ -62,9 +85,9 @@ function MySubmissionTable({ items, userName, canWrite, onEdit, onTransfer }: Hi
           </div>
         )}
       </div>
-      {items.length === 0 ? (
+      {!items?.length ? (
         <div className="px-4 py-12 text-center">
-          <div className="text-xs font-medium text-slate-500">暂无提交记录</div>
+          <div className="text-xs font-medium text-slate-500">{pending ? '正在加载提交记录…' : items ? '暂无提交记录' : '暂时无法显示提交记录'}</div>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -104,14 +127,11 @@ export default function LeaseSubmissionPage() {
   const [userId, setUserId] = React.useState('');
   const [userName, setUserName] = React.useState('');
   const [userRole, setUserRole] = React.useState('');
-  const [progress, setProgress] = React.useState<WeeklyProgress | null>(null);
-  const [submissions, setSubmissions] = React.useState<LeaseTransaction[]>([]);
+  const { data: progress, pending: progressPending, error: progressError, load: loadProgress } = usePersonalRead<WeeklyProgress>(getWeeklyProgress);
+  const { data: submissions, pending: submissionsPending, error: submissionsError, load: loadSubmissions } = usePersonalRead<LeaseTransaction[]>(getMySubmissions);
   const [teamSubmissions, setTeamSubmissions] = React.useState<LeaseTransaction[]>([]);
   const [teamAccessEnabled, setTeamAccessEnabled] = React.useState(false);
-  const [coreLoading, setCoreLoading] = React.useState(true);
   const [teamLoading, setTeamLoading] = React.useState(false);
-  const [progressError, setProgressError] = React.useState<string | null>(null);
-  const [submissionsError, setSubmissionsError] = React.useState<string | null>(null);
   const [teamError, setTeamError] = React.useState<string | null>(null);
   const [showForm, setShowForm] = React.useState(false);
   const [editingRecord, setEditingRecord] = React.useState<LeaseTransaction | null>(null);
@@ -122,24 +142,12 @@ export default function LeaseSubmissionPage() {
   const [transferring, setTransferring] = React.useState(false);
   const [transferError, setTransferError] = React.useState<string | null>(null);
   const canWrite = canWriteBusinessData(userRole);
+  const coreLoading = progressPending || submissionsPending;
+  const coreError = progressError || submissionsError;
 
   const loadCoreData = React.useCallback(async (uid: string) => {
-    setCoreLoading(true);
-    setProgressError(null);
-    setSubmissionsError(null);
-
-    try {
-      const [progressResult, submissionsResult] = await Promise.allSettled([
-        retryAsync(() => getWeeklyProgress(uid), { attempts: 3, baseDelayMs: 250 }),
-        retryAsync(() => getMySubmissions(uid), { attempts: 3, baseDelayMs: 250 }),
-      ]);
-
-      if (progressResult.status === 'fulfilled') setProgress(progressResult.value as WeeklyProgress); else setProgressError(errorMessage(progressResult.reason));
-      if (submissionsResult.status === 'fulfilled') setSubmissions(submissionsResult.value as LeaseTransaction[]); else setSubmissionsError(errorMessage(submissionsResult.reason));
-    } finally {
-      setCoreLoading(false);
-    }
-  }, []);
+    await Promise.all([loadProgress(uid), loadSubmissions(uid)]);
+  }, [loadProgress, loadSubmissions]);
 
   const loadTeamData = React.useCallback(async (role: string) => {
     setTeamError(null);
@@ -252,16 +260,15 @@ export default function LeaseSubmissionPage() {
     );
   }
 
-  const target = progress?.targetCount ?? 2;
-  const submitted = progress?.submittedCount ?? 0;
-  const complete = submitted >= target;
+  const complete = Boolean(progress && progress.submittedCount >= progress.targetCount);
+  const progressLabel = progress ? complete ? '本周已完成' : '本周进行中' : progressPending ? '周进度加载中' : '周进度暂不可用';
   const admin = isUserAdmin(userRole);
 
   return (
     <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
       <header className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <AppHeader
-          title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{complete ? '本周已完成' : '本周进行中'}</Badge></span>}
+          title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge></span>}
           homeHref="/"
           actions={(
             <>
@@ -276,16 +283,18 @@ export default function LeaseSubmissionPage() {
         <section className="flex flex-wrap items-stretch overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]" aria-label="租赁成交填报状态">
           <div className="min-w-[150px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">本周目标</div>
-            <div className="mt-1 flex items-baseline gap-1"><strong className={`text-xl tabular-nums ${complete ? 'text-emerald-700' : 'text-[#003e7e]'}`}>{submitted}</strong><span className="text-xs text-slate-400">/ {target} 条</span></div>
-            <div className="mt-1 text-[10px] text-slate-400">{complete ? '本周目标已完成' : `还需 ${Math.max(0, target - submitted)} 条`}</div>
+            {progress ? <>
+              <div className="mt-1 flex items-baseline gap-1"><strong className={`text-xl tabular-nums ${complete ? 'text-emerald-700' : 'text-[#003e7e]'}`}>{progress.submittedCount}</strong><span className="text-xs text-slate-400">/ {progress.targetCount} 条</span></div>
+              <div className="mt-1 text-[10px] text-slate-400">{complete ? '本周目标已完成' : `还需 ${Math.max(0, progress.targetCount - progress.submittedCount)} 条`}</div>
+            </> : <span className="mt-1.5 block text-xs text-slate-500">{progressPending ? '正在加载…' : '暂不可用'}</span>}
           </div>
           <div className="min-w-[150px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">我的记录</div>
-            <strong className="mt-1 block text-xl tabular-nums text-slate-900">{submissions.length}</strong>
+            <strong className="mt-1 block text-xl tabular-nums text-slate-900">{submissions?.length ?? '—'}</strong>
           </div>
           <div className="min-w-[170px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
             <div className="text-[10px] font-medium text-slate-400">工作区状态</div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{coreLoading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : <CheckCircle2 size={13} className="text-emerald-600" />}{coreLoading ? '正在刷新数据' : '数据已就绪'}</div>
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{coreLoading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : coreError ? null : <CheckCircle2 size={13} className="text-emerald-600" />}{coreLoading ? '正在刷新数据' : coreError ? '有数据未更新' : '数据已就绪'}</div>
           </div>
           <div className="min-w-[150px] flex-1 px-3.5 py-3">
             <div className="text-[10px] font-medium text-slate-400">最近写入</div>
@@ -293,9 +302,9 @@ export default function LeaseSubmissionPage() {
           </div>
         </section>
 
-        {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
+        {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadProgress(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadSubmissions(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
 
-        <MySubmissionTable items={submissions} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
+        <MySubmissionTable items={submissions} pending={submissionsPending} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
 
         {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
       </main>
