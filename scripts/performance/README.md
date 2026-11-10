@@ -14,6 +14,7 @@ node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
 node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
 node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
 node scripts/performance/verify-map-startup-stages.mjs http://127.0.0.1:3210
+node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
 ```
 
 本机复用已安装 Chrome，外部准备的 `playwright-core@1.58.2` 通过 `PERF_PLAYWRIGHT_MODULE` 指向模块目录。不要从业务检出下载或复用生产会话。CI 使用 `PERF_BROWSER_CHANNEL=chromium`，本机默认 Chrome。匿名回归只接受 localhost，只验证新上下文首页/地图/资料库的登录重定向和地图/目录资源边界，不代替真实账号、过期令牌、模拟身份与手机验收。

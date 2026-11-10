@@ -195,6 +195,7 @@ jobs:
           node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
           node scripts/performance/verify-map-startup-stages.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
 
       - name: Retain isolated report verification evidence
