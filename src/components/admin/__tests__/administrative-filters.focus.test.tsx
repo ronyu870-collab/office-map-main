@@ -1,15 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ rows: {} as Record<string, unknown[]>, issues: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rows: {} as Record<string, unknown[]>, issues: vi.fn(), read: vi.fn<(table: string, signal?: AbortSignal) => Promise<{ data: unknown[] | null; error: unknown }> | undefined>() }));
 vi.mock('@/src/components/admin/AdminSidebar', () => ({ AdminSidebar: () => null }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('@/src/services/feedbackAdminApi', async (load) => ({ ...await load<object>(), getAdminFeedbackIssues: mocks.issues }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: {
   auth: { getSession: async () => ({ data: { session: { access_token: 'fixture' } }, error: null }) },
   from(table: string) {
-    const result = Promise.resolve({ data: mocks.rows[table] ?? [], error: null });
-    const query = { select: () => query, eq: () => query, in: () => query, order: () => query, then: result.then.bind(result) };
+    let signal: AbortSignal | undefined;
+    const query = {
+      select: () => query, eq: () => query, in: () => query, order: () => query, returns: () => query,
+      abortSignal: (next: AbortSignal) => { signal = next; return query; },
+      then: (resolve: (result: unknown) => unknown) =>
+        (mocks.read(table, signal) ?? Promise.resolve({ data: mocks.rows[table] ?? [], error: null })).then(resolve),
+    };
     return query;
   },
 } }));
@@ -19,7 +24,7 @@ import { ChangelogManager } from '@/src/components/ChangelogManager';
 import IssueManager from '../IssueManager';
 import { UserManager } from '../UserManager';
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); mocks.read.mockReset(); vi.unstubAllGlobals(); });
 
 function enter(input: HTMLInputElement, value: string, caret = value.length) {
   fireEvent.change(input, { target: { value, selectionStart: caret, selectionEnd: caret } });
@@ -32,8 +37,14 @@ it('keeps the display-rule search focused while filtering and correcting a term'
   const date = '2026-10-01T00:00:00Z';
   mocks.rows = {
     buildings: [{ id: 'a', name: 'Alpha Tower' }, { id: 'b', name: 'Beta Plaza' }],
-    building_display_overrides: ['a', 'b'].map(id => ({ id, building_id: id, field_name: 'grade', display_label: '等级', display_value: '甲级', created_at: date })),
+    building_display_overrides: ['a', 'b'].map((id, index) => ({
+      id, building_id: id, field_name: 'grade', display_label: '等级', display_value: '甲级', created_at: date,
+      building: { name: index === 0 ? 'Alpha Tower' : 'Beta Plaza' },
+    })),
   };
+  // Keep the unrelated picker unresolved. The actual page and search input must
+  // still show and filter rows, and opening the picker must be what starts it.
+  mocks.read.mockImplementation(table => table === 'buildings' ? new Promise(() => {}) : undefined);
   render(<DisplayOverridesPage />);
   await screen.findByText('Alpha Tower');
   const input = screen.getByPlaceholderText('搜索楼宇名称、字段、标签或值') as HTMLInputElement;
@@ -45,6 +56,63 @@ it('keeps the display-rule search focused while filtering and correcting a term'
   expect(screen.getByText('暂无覆盖规则')).toBeInTheDocument();
   enter(input, 'Alpha', 2);
   expect(screen.getByText('Alpha Tower')).toBeInTheDocument();
+  expect(mocks.read.mock.calls.filter(([table]) => table === 'buildings')).toHaveLength(0);
+});
+
+it('distinguishes a failed display-rule read from an empty list and retries without the picker', async () => {
+  mocks.rows = { building_display_overrides: [] };
+  let reads = 0;
+  mocks.read.mockImplementation(table => {
+    if (table !== 'building_display_overrides') return undefined;
+    if (++reads === 1) return Promise.resolve({ data: null, error: new Error('rules unavailable') });
+    return undefined;
+  });
+  render(<DisplayOverridesPage />);
+  expect(await screen.findByText('显示覆盖规则加载失败')).toBeInTheDocument();
+  expect(screen.queryByText('暂无覆盖规则')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '重试列表' }));
+  expect(await screen.findByText('暂无覆盖规则')).toBeInTheDocument();
+  expect(reads).toBe(2);
+  expect(mocks.read.mock.calls.filter(([table]) => table === 'buildings')).toHaveLength(0);
+});
+
+it('keeps the selected historical building in edit and isolates a failed or cancelled create picker', async () => {
+  mocks.rows = { building_display_overrides: [{
+    id: 'r', building_id: 'historical', field_name: 'grade', display_label: '等级', display_value: '甲级',
+    created_at: '2026-10-01T00:00:00Z', building: { name: '历史楼宇' },
+  }] };
+  let attempt = 0;
+  let held: AbortSignal | undefined;
+  let resolveOld!: (result: { data: unknown[]; error: null }) => void;
+  mocks.read.mockImplementation((table, signal) => {
+    if (table !== 'buildings') return undefined;
+    if (++attempt === 1) return Promise.resolve({ data: null, error: new Error('picker unavailable') });
+    if (attempt === 2) {
+      held = signal;
+      return new Promise(resolve => { resolveOld = resolve; });
+    }
+    return Promise.resolve({ data: [{ id: 'active', name: '当前在跟楼宇' }], error: null });
+  });
+  render(<DisplayOverridesPage />);
+  fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  const [building, field] = screen.getAllByRole('combobox');
+  expect(building).toHaveValue('historical');
+  expect(building).toBeDisabled();
+  expect(field).toBeDisabled();
+  expect(attempt).toBe(0);
+  fireEvent.click(screen.getByRole('button', { name: '取消' }));
+  fireEvent.click(screen.getByRole('button', { name: '新增规则' }));
+  expect(await screen.findByText('可选楼宇加载失败')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^新增$/ })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: '重试楼宇' }));
+  await waitFor(() => expect(attempt).toBe(2));
+  fireEvent.click(screen.getByRole('button', { name: '取消' }));
+  expect(held?.aborted).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: '新增规则' }));
+  expect(await screen.findByRole('option', { name: '当前在跟楼宇' })).toBeInTheDocument();
+  await act(async () => resolveOld({ data: [{ id: 'old', name: '过期结果' }], error: null }));
+  expect(screen.queryByRole('option', { name: '过期结果' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^新增$/ })).toBeDisabled();
 });
 
 it('keeps the update module filter focused when switching between populated and empty results', async () => {
