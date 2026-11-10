@@ -207,5 +207,17 @@
     "roots": ["src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx"],
     "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
     "cases": ["keeps the actual lease building selector focused through results and a mid-word correction"]
+  },
+  {
+    "id": "lease-form-select-search",
+    "roots": ["src/app/lease-submission/components/FormField.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": ["keeps the enterprise type search focused through empty and corrected results"]
+  },
+  {
+    "id": "lease-team-column-option-search",
+    "roots": ["src/app/lease-submission/components/LeaseColumnMenu.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-table-interaction.test.tsx",
+    "cases": ["keeps team column option search focused during a correction and restores focus on close"]
   }
 ]

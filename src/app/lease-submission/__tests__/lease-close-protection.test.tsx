@@ -29,6 +29,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('lease close protection', () => {
+  it('keeps the enterprise type search focused through empty and corrected results', async () => {
+    openForm(); await ready();
+    const input = screen.getByRole('combobox', { name: /企业类型/ }) as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: '央企国', selectionStart: 2, selectionEnd: 2 } });
+    expect(screen.getByText('无匹配选项')).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: '央国企', selectionStart: 2, selectionEnd: 2 } });
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    fireEvent.click(screen.getByRole('option', { name: '央国企' }));
+    expect(input).toHaveValue('央国企');
+  });
+
   it('keeps the actual lease building selector focused through results and a mid-word correction', async () => {
     openForm(); await ready();
     const input = screen.getByPlaceholderText('搜索楼宇名称…') as HTMLInputElement;
