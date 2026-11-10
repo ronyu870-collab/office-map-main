@@ -26,6 +26,13 @@ async function verifyDocumentCollector() {
     }
     if (req.url.startsWith('/api/private-case')) {
       res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Server-Timing', 'colliers-auth;dur=222');
+      return res.end('{"items":[1]}');
+    }
+    if (req.url.startsWith('/api/map/data')) {
+      res.statusCode = req.url.endsWith('deny=1') ? 401 : 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Server-Timing', 'colliers-auth;dur=12.4, colliers-database;dur=45, colliers-model;dur=777, colliers-json;dur=1;desc="private-timing-description", cdn-cache;desc="fixture-secret"');
       return res.end('{"items":[1]}');
     }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -35,7 +42,8 @@ async function verifyDocumentCollector() {
       const probe = window.__colliersNavigationProbe;
       probe?.recordMapStage?.('authorized');
       probe?.recordMapStage?.('private-business-value');
-      fetch('/api/private-case?secret=fixture-secret').then(r => r.json()).then(() => {
+      Promise.all(['/api/private-case?secret=fixture-secret', '/api/map/data?scope=fixture-secret', '/api/map/data?deny=1']
+        .map(url => fetch(url).then(r => r.json()))).then(() => {
         requestAnimationFrame(() => {
           probe?.recordMapStage?.('authorized');
           probe?.recordMapStage?.('tiles_complete');
@@ -62,7 +70,7 @@ async function verifyDocumentCollector() {
       await run(process.execPath, [fileURLToPath(new URL('./capture-navigation.mjs', import.meta.url)), input, output],
         { env: { ...process.env, PERF_CAPTURE_HEADLESS: '1' }, timeout: 20_000 });
       const raw = await readFile(output, 'utf8');
-      assert.ok(!raw.includes('fixture-secret') && !raw.includes('private-case') && !raw.includes('private-business-value'), '非白名单内容不能进入样本');
+      assert.ok(!raw.includes('fixture-secret') && !raw.includes('private-case') && !raw.includes('private-business-value') && !raw.includes('private-timing-description'), '非白名单内容不能进入样本');
       return JSON.parse(raw);
     };
     const sample = await capture('/measure');
@@ -73,11 +81,14 @@ async function verifyDocumentCollector() {
     assert.ok(sample.map_tiles_ms <= sample.map_markers_ms);
     assert.ok(sample.map_markers_ms > sample.content_usable_ms, '业务列表出现不代表地图标记已可点');
     assert.ok(sample.requests.some(r => r.category === 'api:other' && r.encoded_body_bytes > 0));
+    assert.ok(sample.requests.every(r => !Object.hasOwn(r, 'server_timing_ms')), '服务端阶段须主动启用');
     assert.equal(sample.map_stages_ms, undefined, '地图阶段须主动启用');
-    const mapSample = await capture('/map', { map_stages: true });
+    const mapSample = await capture('/map', { map_stages: true, server_timing: true });
     assert.equal(mapSample.status, 'success');
     assert.ok(mapSample.map_stages_ms.authorized < mapSample.map_stages_ms.tiles_complete, '不以重复事件覆盖首次阶段');
     assert.equal(mapSample.map_stages_ms.sdk_ready, null, '缺少阶段必须保留为缺测');
+    assert.deepEqual(mapSample.requests.filter(r => Object.hasOwn(r, 'server_timing_ms')).map(r => r.server_timing_ms),
+      [{ auth: 12.4, database: 45 }], '只保存同源已知接口成功响应的允许阶段及数字');
     const redirected = await capture('/redirect');
     assert.equal(redirected.status, 'document_replaced');
     assert.equal(redirected.document_requests, 2);
@@ -141,7 +152,7 @@ try {
   await verifyDocumentCollector();
   console.log(JSON.stringify({ status: 'pass', browser: await browser.version(),
     coverage: ['shell_vs_content', 'cached_vs_fresh', 'missing_metric', 'application_error', 'timeout',
-      'preexisting_content', 'document_start', 'map_readiness', 'redirect_boundary', 'request_privacy'] }));
+      'preexisting_content', 'document_start', 'map_readiness', 'redirect_boundary', 'request_privacy', 'server_timing_allowlist'] }));
 } finally {
   await browser.close();
 }

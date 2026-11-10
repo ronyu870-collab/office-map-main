@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { resolveBuildingId } from '@/src/services/buildingIdentity';
 import { isEnteredFutureSupply, isPendingFutureSupply } from '@/src/lib/future-supply-status';
@@ -116,11 +117,13 @@ function noStoreJson(body: unknown, init?: ResponseInit) {
 }
 
 export async function GET(request: NextRequest) {
+  const timing = createIsolatedRequestTiming(request);
+  const success = (body: unknown) => timing.response(() => noStoreJson(body));
   try {
     const admin = createAdminClient();
     if (!admin) return noStoreJson({ error: 'Server misconfiguration' }, { status: 500 });
 
-    const identityResult = await resolveEffectiveRequestIdentity(request, admin);
+    const identityResult = await timing.measure('auth', () => resolveEffectiveRequestIdentity(request, admin));
     if ('response' in identityResult) return identityResult.response;
 
     const role = parseUserRole(identityResult.identity.effectiveRole);
@@ -132,11 +135,11 @@ export async function GET(request: NextRequest) {
     if (mode === 'map') {
       const latestMetricsOnly = params.get('metrics') !== 'all';
       const [buildingsResult, overridesResult, photos] = await Promise.all([
-        loadTrackedBuildings(admin, MAP_BUILDING_SELECT, latestMetricsOnly),
-        admin
+        timing.measure('database', () => loadTrackedBuildings(admin, MAP_BUILDING_SELECT, latestMetricsOnly)),
+        timing.measure('overrides', () => admin
           .from('building_display_overrides')
-          .select('building_id, field_name, display_label, display_value'),
-        readBuildingPhotoCatalog(admin),
+          .select('building_id, field_name, display_label, display_value')),
+        timing.measure('photos', () => readBuildingPhotoCatalog(admin)),
       ]);
 
       if (buildingsResult.error) {
@@ -154,11 +157,11 @@ export async function GET(request: NextRequest) {
       const displayOverrides = (overridesResult.data ?? [])
         .filter(row => allowedIds.has(String(row.building_id)));
 
-      return noStoreJson({ buildings, display_overrides: displayOverrides });
+      return success({ buildings, display_overrides: displayOverrides });
     }
 
     if (mode === 'future') {
-      const { data, error } = await admin.from('future_supplies').select('*').limit(1000);
+      const { data, error } = await timing.measure('database', () => admin.from('future_supplies').select('*').limit(1000));
       if (error) {
         console.error('[api/map/data] future supplies query failed:', error);
         return noStoreJson({ error: '未来供应读取失败' }, { status: 500 });
@@ -175,14 +178,15 @@ export async function GET(request: NextRequest) {
       const photoIds = [...new Set(visibleSupplies
         .map(row => row.building_id)
         .filter((id): id is string => typeof id === 'string' && id.length > 0))];
-      const photos = await readBuildingPhotoCatalog(admin, photoIds);
-      return noStoreJson({ future_supplies: visibleSupplies
+      const photos = await timing.measure('photos', () => readBuildingPhotoCatalog(admin, photoIds));
+      return success({ future_supplies: visibleSupplies
         .map(row => ({ ...row, photos: photos.get(String(row.building_id)) ?? [] })) });
     }
 
     if (mode === 'compare') {
       const scope = params.get('scope');
       if (scope === 'catalog') {
+        const databaseStarted = timing.start();
         const buildings: Row[] = [];
         for (let offset = 0; ; offset += COMPARE_PAGE_SIZE) {
           const page = await loadTrackedBuildings(admin, COMPARE_CATALOG_SELECT, false)
@@ -191,7 +195,8 @@ export async function GET(request: NextRequest) {
           buildings.push(...filterRowsForRole(page.data as Row[] | null, role));
           if ((page.data?.length ?? 0) < COMPARE_PAGE_SIZE) break;
         }
-        return noStoreJson({ buildings, brochures: [] });
+        timing.finish('database', databaseStarted);
+        return success({ buildings, brochures: [] });
       }
       if (scope === 'selected') {
         const selection = params.getAll('id');
@@ -199,24 +204,24 @@ export async function GET(request: NextRequest) {
           return noStoreJson({ error: '所选项目无效' }, { status: 400 });
         }
         const ids = [...new Set(selection.map(id => id.toLowerCase()))];
-        const buildingsResult = await loadTrackedBuildings(admin, COMPARE_BUILDING_SELECT, true).in('id', ids);
+        const buildingsResult = await timing.measure('database', () => loadTrackedBuildings(admin, COMPARE_BUILDING_SELECT, true).in('id', ids));
         if (buildingsResult.error) return noStoreJson({ error: '所选楼宇读取失败' }, { status: 500 });
         const buildings = filterRowsForRole(buildingsResult.data as Row[] | null, role);
         const allowedIds = buildings.map(row => String(row.id));
-        if (!allowedIds.length) return noStoreJson({ buildings, brochures: [] });
-        const brochureResult = await admin.from('building_brochure_data').select('*')
-          .in('building_id', allowedIds).order('created_at', { ascending: false }).limit(3000);
+        if (!allowedIds.length) return success({ buildings, brochures: [] });
+        const brochureResult = await timing.measure('brochures', () => admin.from('building_brochure_data').select('*')
+          .in('building_id', allowedIds).order('created_at', { ascending: false }).limit(3000));
         if (brochureResult.error) return noStoreJson({ error: '所选楼宇的楼书参数读取失败' }, { status: 500 });
-        return noStoreJson({ buildings, brochures: brochureResult.data ?? [] });
+        return success({ buildings, brochures: brochureResult.data ?? [] });
       }
       if (scope !== null) return noStoreJson({ error: '不支持的对比数据范围' }, { status: 400 });
       const [buildingsResult, brochureResult] = await Promise.all([
-        loadTrackedBuildings(admin, COMPARE_BUILDING_SELECT, true),
-        admin
+        timing.measure('database', () => loadTrackedBuildings(admin, COMPARE_BUILDING_SELECT, true)),
+        timing.measure('brochures', () => admin
           .from('building_brochure_data')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(3000),
+          .limit(3000)),
       ]);
 
       if (buildingsResult.error) {
@@ -233,12 +238,13 @@ export async function GET(request: NextRequest) {
       const brochures = (brochureResult.data ?? [])
         .filter(row => allowedIds.has(String(row.building_id)));
 
-      return noStoreJson({ buildings, brochures });
+      return success({ buildings, brochures });
     }
 
     if (mode === 'trend') {
       const requestedId = params.get('building_id')?.trim() || '';
       if (!requestedId) return noStoreJson({ error: '缺少 building_id' }, { status: 400 });
+      const databaseStarted = timing.start();
       const buildingId = await resolveBuildingId(admin, requestedId);
 
       const { data: building, error: buildingError } = await admin
@@ -270,7 +276,8 @@ export async function GET(request: NextRequest) {
         return noStoreJson({ error: '历史趋势读取失败' }, { status: 500 });
       }
 
-      return noStoreJson({ building_id: buildingId, metrics: metrics ?? [] });
+      timing.finish('database', databaseStarted);
+      return success({ building_id: buildingId, metrics: metrics ?? [] });
     }
 
     return noStoreJson({ error: 'Unsupported map data mode' }, { status: 400 });

@@ -9,6 +9,7 @@ CI Verify 在构建后安装隔离的 Playwright Core/Chromium，执行：
 ```sh
 node scripts/performance/verify-summary.mjs
 node scripts/performance/verify-capture.mjs
+node scripts/performance/verify-api-server-timing.mjs
 node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
 node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
 node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
@@ -47,7 +48,11 @@ node scripts/performance/bundle-inventory.mjs /path/to/bundle.json
 
 目标为 `/map` 时可设 `map_stages: true`：另记录授权后开始初始化、Controller 构造、SDK 等待前后、SDK 首次 `complete` 事件、渲染容器检查、存量读数和整理、首次非空存量标记绘制调用起止。阶段以本次点击或文档起点计时，未观察到则保留 null。SDK 完成事件、检查结束和绘制方法返回各自是诊断信号；实际高德瓦片可见和标记可点需要独立验收。现有 CI 地图夹具以合成 SDK 及数据响应分别校准两条并行路径，构建用 `NEXT_PUBLIC_AMAP_KEY=syntheticfixture`，本机运行该夹具时也须用同一个合成键构建。
 
-selector 必须按实际页面校准：目标内容不能在源页已经可见，必须是完整结果与核心操作可用的状态；空列表、只读、管理等状态需各自定义，不能拿 spinner 消失或标题出现代替内容。需要新鲜数据时必须单独定义 fresh，且证明它来自本次回读。该采集器不判断缓存事实，不应由快慢推断缓存命中。真实地图瓦片与完整标记需要专项采集，不拿普通 DOM 表格就绪替代。
+隔离样本可设 `server_timing: true`，按请求保存同源 API 的白名单耗时。本机回环 `next start` 的服务器可设 `PERF_ISOLATED_SERVER_TIMING=local`；明确隔离的 Vercel Preview 可用 `PERF_ISOLATED_SERVER_TIMING=preview`，且部署必须报告 `VERCEL_ENV=preview`。默认关闭，Vercel Production 不返回这些计时，401/403 等未成功请求也不返回。采集器只保存允许的阶段名称及毫秒数，不保存原始响应头、描述、查询值、签名或业务数据。
+
+这组阶段覆盖 `/api/map/data` 的存量、未来、对比和趋势，`/api/oss` 的目录和访问，`/api/lease-transactions/read`、`/api/admin/users` 及 `/api/intelligence/recommend`。`handler` 从进入业务函数起计，`json` 含生成响应；鉴权、数据库/对象存储、外部模型等阶段可能并行，不能相加。`database` 包含应用到 PostgREST 的 I/O 及部分本地组装，不能当成 PostgreSQL 执行时间；`handler` 不含函数启动和发往浏览器的时间。缺 header 只记缺测。
+
+selector 必须按实际页面校准：目标内容不能在源页已经可见，必须是完整结果与核心操作可用的状态；空列表、只读、管理等状态需各自定义，不能拿 spinner 消失或标题出现代替内容。需要新鲜数据时必须单独定义 fresh，且证明它来自本次回读。该采集器不判断缓存事实，不应由快慢推断缓存命中。真实地图瓦片与完整标记需要专项采集，不拿普通 DOM 表格就绪代替。
 
 点击模式从真实 DOM 事件开始，意外替换文档作失败；直开和刷新以指定文档的 Navigation Timing 起点计时，发生多个主文档也作失败，不能拿最终跳转页的局部时钟冒充全程。用 `resource_cache: "disabled"` 可以关闭 Chrome HTTP 缓存，但不等于冷 DNS/TLS/CDN、应用存储或真 C0。浏览器长任务只记录数量与累计阻塞区间；不支持则记 null。request_count 包括采集窗口中新发起的请求；尚未完成的请求保留 null timing/status，失败单独记录。只保存白名单分类及可得的编码响应正文大小，不保存 query、请求头、业务对象路径或正文；它不等同于完整 HAR。
 

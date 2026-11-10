@@ -39,4 +39,9 @@ assert.equal(withoutStages.metrics.map_sdk_ready_ms.p75, null);
 assert.equal(withStages.metrics.map_sdk_ready_ms.p75, 260);
 assert.equal(withStages.metrics.map_stock_data_ready_ms.missing_success_count, 1);
 assert.ok(!('map_private_extra_ms' in withStages.metrics));
+const byServerTiming = summarize([
+  { ...samples[0], server_timing_enabled: false },
+  { ...samples[0], server_timing_enabled: true, content_usable_ms: 26 },
+]);
+assert.deepEqual(byServerTiming.map(group => group.metrics.content_usable_ms.p50), [1, 26], '隔离诊断样本不能和普通样本混算');
 console.log('PASS: scenario isolation, missing values, failure denominator, nearest-rank quantiles, invalid input rejection');

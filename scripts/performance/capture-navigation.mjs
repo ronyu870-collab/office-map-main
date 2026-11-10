@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
 import { mapStartupStages, observeNavigation } from './readiness.mjs';
+import { isMeasuredApi, parseServerTiming } from './server-timing.mjs';
 
 // One explicitly prepared journey per invocation. Bulk production sampling is excluded.
 const [contractFile, outputFile] = process.argv.slice(2);
@@ -29,6 +30,7 @@ if (!['manual', 'none'].includes(prepare) || (prepare === 'none' && action !== '
 }
 const resourceCache = contract.resource_cache ?? 'default';
 if (!['default', 'disabled'].includes(resourceCache)) throw new Error('Invalid resource cache mode');
+if (contract.server_timing !== undefined && typeof contract.server_timing !== 'boolean') throw new Error('Invalid server timing mode');
 const timeout = contract.timeout_ms ?? 30_000;
 if (!Number.isInteger(timeout) || timeout <= 0 || timeout > 120_000) throw new Error('Invalid sample timeout');
 const require = createRequire(import.meta.url);
@@ -59,7 +61,7 @@ try {
   }
   const requests = [];
   const requestRecords = new Map();
-  const sizeReads = [];
+  const responseReads = [];
   let documentRequests = 0;
   const publicRoutes = new Set(['/', '/map', '/compare', '/oss', '/update', '/lease-submission',
     '/lease-submission/history', '/lease-submission/monitoring', '/admin', '/admin/display-overrides',
@@ -93,13 +95,20 @@ try {
   });
   page.on('response', (response) => {
     const record = requestRecords.get(response.request());
-    if (record) record.status = response.status();
+    if (!record) return;
+    record.status = response.status();
+    if (!contract.server_timing || !response.ok()) return;
+    const url = new URL(response.url());
+    if (url.origin !== source.origin || !isMeasuredApi(url.pathname)) return;
+    responseReads.push(response.headerValue('server-timing').then(header => {
+      record.server_timing_ms = parseServerTiming(url.pathname, header);
+    }).catch(() => { record.server_timing_ms = null; }));
   });
   page.on('requestfinished', (request) => {
     const record = requestRecords.get(request);
     if (record) {
       record.timing = request.timing();
-      sizeReads.push(request.sizes().then(sizes => {
+      responseReads.push(request.sizes().then(sizes => {
         if (sizes.responseBodySize >= 0) record.encoded_body_bytes = sizes.responseBodySize;
       }).catch(() => undefined));
     }
@@ -132,7 +141,7 @@ try {
   }).catch(() => null);
   const replaced = documentRequests !== (action === 'click' ? 0 : 1);
   const measured = replaced ? null : observed;
-  await Promise.all(sizeReads);
+  await Promise.all(responseReads);
   const sample = {
     schema_version: 1, collected_at: new Date().toISOString(),
     commit: contract.commit, environment: contract.environment,
@@ -143,6 +152,7 @@ try {
     capture_action: action, resource_cache: resourceCache, document_requests: documentRequests,
     data_origin: contract.data_origin ?? 'unverified',
     map_stages_enabled: contract.map_stages === true,
+    server_timing_enabled: contract.server_timing === true,
     metric_contract: { trigger: contract.trigger ?? null, shell: contract.shell, content: contract.content,
       feedback: contract.feedback ?? null, fresh: contract.fresh ?? null,
       map_tiles: contract.map_tiles ?? null, map_markers: contract.map_markers ?? null },

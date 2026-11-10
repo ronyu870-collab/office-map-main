@@ -23,7 +23,7 @@ export function summarize(samples) {
       }
     }
     const identity = Object.fromEntries(['commit', 'deployment', 'environment', 'data_origin', 'device', 'browser',
-      'network', 'proxy_state', 'role_class', 'scenario', 'cache_state', 'capture_action', 'resource_cache', 'map_stages_enabled']
+      'network', 'proxy_state', 'role_class', 'scenario', 'cache_state', 'capture_action', 'resource_cache', 'map_stages_enabled', 'server_timing_enabled']
       .map((key) => [key, sample[key] ?? null]));
     const key = JSON.stringify(identity);
     if (!groups.has(key)) groups.set(key, { identity, samples: [] });

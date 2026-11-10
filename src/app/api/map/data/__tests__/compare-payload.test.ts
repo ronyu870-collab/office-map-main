@@ -68,4 +68,25 @@ describe('authorized comparison data split', () => {
     expect((await GET(request('&scope=catalog'))).status).toBe(401);
     expect(calls.queries).toHaveLength(0);
   });
+
+  it('adds only isolated timing metadata and preserves the response body and access boundary', async () => {
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    vi.stubEnv('PERF_ISOLATED_SERVER_TIMING', '0');
+    const normal = await GET(request(`&scope=selected&id=${target}`));
+    expect(normal.headers.get('server-timing')).toBeNull();
+    vi.stubEnv('PERF_ISOLATED_SERVER_TIMING', 'preview');
+    const measured = await GET(request(`&scope=selected&id=${target}`));
+    expect(measured.status).toBe(200);
+    expect(await measured.json()).toEqual(await normal.json());
+    expect(measured.headers.get('cache-control')).toBe(normal.headers.get('cache-control'));
+    expect(measured.headers.get('server-timing')).toMatch(/^colliers-auth;dur=[\d.]+, colliers-database;dur=[\d.]+, colliers-brochures;dur=[\d.]+, colliers-json;dur=[\d.]+, colliers-handler;dur=[\d.]+$/);
+    calls.identity.mockResolvedValueOnce({ response: NextResponse.json({}, { status: 401 }) });
+    const denied = await GET(request('&scope=catalog'));
+    expect(denied.status).toBe(401);
+    expect(denied.headers.get('server-timing')).toBeNull();
+    vi.stubEnv('VERCEL_ENV', 'production');
+    const production = await GET(request('&scope=catalog'));
+    expect(production.status).toBe(200);
+    expect(production.headers.get('server-timing')).toBeNull();
+  });
 });
