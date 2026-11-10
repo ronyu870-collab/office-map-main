@@ -5,15 +5,17 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff, Lock, Mail, Phone } from 'lucide-react';
 
-import { getSessionFast, signInWithPassword } from '@/src/services/Auth';
+import { signInWithPassword } from '@/src/services/Auth';
+import { useAppSession } from '@/src/components/SessionProvider';
 import { logActionImmediate } from '@/src/utils/audit';
 import { perfStart, perfEnd, perfMark } from '@/src/utils/performanceLogger';
 import { setTrustedDevice } from '@/src/services/trustedDevice';
-import { hasPasswordChangeNotice, setPasswordChangeNotice } from '@/src/services/passwordChangeNotice';
+import { hasPasswordChangeNotice, setPasswordChangeNotice, subscribeToPasswordChangeNotice } from '@/src/services/passwordChangeNotice';
 import { Button, IconButton, Input } from '@/src/components/ui';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { session } = useAppSession();
   const [email, setEmail] = React.useState('');
   const [phone, setPhone] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -21,27 +23,18 @@ export default function LoginPage() {
   const [trustDevice, setTrustDevice] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [passwordChanged, setPasswordChanged] = React.useState(false);
+  const passwordChanged = React.useSyncExternalStore(subscribeToPasswordChangeNotice, hasPasswordChangeNotice, () => false);
 
+  const destination = session ? (session.user.app_metadata?.must_change_password ? '/settings?required=1' : '/') : null;
   React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const session = await getSessionFast();
-        if (cancelled) return;
-        setPasswordChanged(hasPasswordChangeNotice());
-        if (session) {
-          router.replace(session.user.app_metadata?.must_change_password ? '/settings?required=1' : '/');
-        }
-      } catch {
-        if (!cancelled) setPasswordChanged(hasPasswordChangeNotice());
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [router]);
+    if (!destination || submitting) return;
+    perfMark('登录-开始客户端跳转');
+    router.replace(destination);
+  }, [destination, router, submitting]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setError(null);
     if (!/^\d{11}$/.test(phone.trim())) {
       setError('请输入有效的 11 位手机号码');
@@ -54,7 +47,7 @@ export default function LoginPage() {
     try {
       perfStart('登录-验证凭据');
       setTrustedDevice(trustDevice);
-      const result = await signInWithPassword({ email: email.trim(), password, phone: phone.trim() });
+      await signInWithPassword({ email: email.trim(), password, phone: phone.trim() });
       setPasswordChangeNotice(false);
       perfEnd('登录-验证凭据');
 
@@ -63,8 +56,6 @@ export default function LoginPage() {
       perfEnd('登录-记录日志');
 
       perfEnd('登录-总耗时');
-      perfMark('登录-开始客户端跳转');
-      router.replace(result.user.app_metadata?.must_change_password ? '/settings?required=1' : '/');
     } catch (err) {
       perfEnd('登录-总耗时');
       setError(err instanceof Error ? err.message : '登录失败，请检查邮箱与密码');

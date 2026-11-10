@@ -5,6 +5,7 @@ import { Menu, Plus } from 'lucide-react';
 
 import { AdminSidebar } from '@/src/components/admin/AdminSidebar';
 import { Badge, Button, Dialog, EmptyState, IconButton, Input, LoadingState, PageHeader } from '@/src/components/ui';
+import { DISPLAY_OVERRIDE_LIST_FIELDS } from '@/src/services/displayOverrideFields.mjs';
 import { supabase } from '@/src/services/supabaseClient';
 
 interface DisplayOverride {
@@ -14,8 +15,11 @@ interface DisplayOverride {
   display_label: string;
   display_value: string;
   created_at: string;
-  updated_at: string;
-  building_name?: string;
+  building: { name: string } | null;
+}
+
+function buildingName(override: DisplayOverride) {
+  return override.building?.name || '未知楼宇';
 }
 
 interface Building {
@@ -26,7 +30,10 @@ interface Building {
 export default function DisplayOverridesPage() {
   const [overrides, setOverrides] = React.useState<DisplayOverride[]>([]);
   const [buildings, setBuildings] = React.useState<Building[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const [listStatus, setListStatus] = React.useState<'loading' | 'ready' | 'error'>('loading');
+  const activeList = React.useRef<AbortController | null>(null);
+  const [pickerStatus, setPickerStatus] = React.useState<'loading' | 'ready' | 'error'>('loading');
+  const [pickerAttempt, retryPicker] = React.useReducer(attempt => attempt + 1, 0);
   const [showModal, setShowModal] = React.useState(false);
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [editingOverride, setEditingOverride] = React.useState<DisplayOverride | null>(null);
@@ -38,57 +45,69 @@ export default function DisplayOverridesPage() {
   const [displayValue, setDisplayValue] = React.useState('');
   const [searchTerm, setSearchTerm] = React.useState('');
 
-  // 加载数据
   const fetchData = React.useCallback(async () => {
-    setLoading(true);
+    activeList.current?.abort();
+    const request = new AbortController();
+    activeList.current = request;
     try {
-      // 并行查询覆盖规则和楼宇列表
-      const [overridesResult, buildingsResult] = await Promise.all([
-        supabase
-          .from('building_display_overrides')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('buildings')
-          .select('id, name')
-          .eq('is_active', true)
-          .eq('tracking_scope', 'tracked')
-          .order('name'),
-      ]);
-
-      if (overridesResult.data) {
-        // 获取楼宇名称
-        const buildingIds = Array.from(new Set(overridesResult.data.map(o => o.building_id)));
-        const { data: buildingsData } = await supabase
-          .from('buildings')
-          .select('id, name')
-          .in('id', buildingIds);
-
-        const buildingMap = new Map(buildingsData?.map(b => [b.id, b.name]) || []);
-        const enrichedOverrides = overridesResult.data.map(o => ({
-          ...o,
-          building_name: buildingMap.get(o.building_id) || '未知楼宇',
-        }));
-        setOverrides(enrichedOverrides);
-      }
-
-      if (buildingsResult.data) {
-        setBuildings(buildingsResult.data);
-      }
-    } catch (error) {
-      console.error('加载数据失败:', error);
-    } finally {
-      setLoading(false);
+      const { data, error } = await supabase
+        .from('building_display_overrides')
+        .select(DISPLAY_OVERRIDE_LIST_FIELDS)
+        .order('created_at', { ascending: false })
+        .abortSignal(request.signal)
+        .returns<DisplayOverride[]>();
+      if (request.signal.aborted) return;
+      if (error) throw error;
+      setOverrides(data ?? []);
+      setListStatus('ready');
+    } catch {
+      if (!request.signal.aborted) setListStatus('error');
     }
   }, []);
 
   React.useEffect(() => {
-    fetchData();
+    void fetchData();
+    return () => {
+      activeList.current?.abort();
+      activeList.current = null;
+    };
   }, [fetchData]);
+
+  const refreshList = () => {
+    if (!activeList.current) return;
+    setListStatus('loading');
+    void fetchData();
+  };
+
+  React.useEffect(() => {
+    if (!showModal || editingOverride) return;
+    const request = new AbortController();
+    async function loadPicker() {
+      try {
+        const { data, error } = await supabase
+          .from('buildings')
+          .select('id, name')
+          .eq('is_active', true)
+          .eq('tracking_scope', 'tracked')
+          .order('name')
+          .abortSignal(request.signal);
+        if (request.signal.aborted) return;
+        if (error) throw error;
+        setBuildings(data ?? []);
+        setPickerStatus('ready');
+      } catch {
+        if (!request.signal.aborted) setPickerStatus('error');
+      }
+    }
+    void loadPicker();
+    return () => request.abort();
+  }, [showModal, editingOverride, pickerAttempt]);
 
   // 打开新增模态框
   const handleAdd = () => {
     setEditingOverride(null);
+    setBuildings([]);
+    setPickerStatus('loading');
     setSelectedBuildingId('');
     setSelectedFieldName('submarket');
     setDisplayLabel('');
@@ -108,6 +127,7 @@ export default function DisplayOverridesPage() {
 
   // 保存（新增/编辑）
   const handleSave = async () => {
+    if (!editingOverride && (pickerStatus !== 'ready' || !buildings.some(building => building.id === selectedBuildingId))) return;
     if (!selectedBuildingId || !displayLabel || !displayValue) {
       alert('请填写所有必填字段');
       return;
@@ -141,7 +161,7 @@ export default function DisplayOverridesPage() {
       }
 
       setShowModal(false);
-      fetchData();
+      refreshList();
     } catch (error: any) {
       console.error('保存失败:', error);
       if (error.code === '23505') {
@@ -163,7 +183,7 @@ export default function DisplayOverridesPage() {
         .eq('id', id);
 
       if (error) throw error;
-      fetchData();
+      refreshList();
     } catch (error: any) {
       console.error('删除失败:', error);
       alert(`删除失败: ${error.message}`);
@@ -175,7 +195,7 @@ export default function DisplayOverridesPage() {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
-      o.building_name?.toLowerCase().includes(term) ||
+      buildingName(o).toLowerCase().includes(term) ||
       o.field_name.toLowerCase().includes(term) ||
       o.display_label.toLowerCase().includes(term) ||
       o.display_value.toLowerCase().includes(term)
@@ -209,8 +229,10 @@ export default function DisplayOverridesPage() {
         </div>
 
         {/* 表格 */}
-        {loading ? (
+        {listStatus === 'loading' ? (
           <LoadingState label="正在加载显示覆盖规则" />
+        ) : listStatus === 'error' ? (
+          <EmptyState title="显示覆盖规则加载失败" action={<Button variant="secondary" onClick={refreshList}>重试列表</Button>} />
         ) : filteredOverrides.length === 0 ? (
           <EmptyState title="暂无覆盖规则" action={<Button variant="secondary" onClick={handleAdd}>添加第一条规则</Button>} />
         ) : (
@@ -229,7 +251,7 @@ export default function DisplayOverridesPage() {
               <tbody className="divide-y divide-zinc-100">
                 {filteredOverrides.map((override) => (
                   <tr key={override.id} className="hover:bg-zinc-50">
-                    <td className="px-4 py-3 font-medium text-zinc-900">{override.building_name}</td>
+                    <td className="px-4 py-3 font-medium text-zinc-900">{buildingName(override)}</td>
                     <td className="px-4 py-3 text-zinc-600">
                       <Badge>
                         {override.field_name === 'submarket' ? '子市场' : '楼宇等级'}
@@ -262,7 +284,7 @@ export default function DisplayOverridesPage() {
         footer={(
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>取消</Button>
-            <Button onClick={() => void handleSave()}>{editingOverride ? '保存' : '新增'}</Button>
+            <Button disabled={!editingOverride && (pickerStatus !== 'ready' || !selectedBuildingId)} onClick={() => void handleSave()}>{editingOverride ? '保存' : '新增'}</Button>
           </>
         )}
       >
@@ -275,14 +297,27 @@ export default function DisplayOverridesPage() {
                 <select
                   value={selectedBuildingId}
                   onChange={(e) => setSelectedBuildingId(e.target.value)}
-                  disabled={!!editingOverride}
+                  disabled={!!editingOverride || pickerStatus !== 'ready'}
                   className="h-9 w-full rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-[var(--cd-font-size-md)] text-[var(--cd-color-text-primary)] outline-none focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)] disabled:bg-[var(--cd-color-surface-alt)]"
                 >
-                  <option value="">请选择楼宇</option>
-                  {buildings.map((b) => (
-                    <option key={b.id} value={b.id}>{b.name}</option>
-                  ))}
+                  {editingOverride ? (
+                    <option value={editingOverride.building_id}>{buildingName(editingOverride)}</option>
+                  ) : (
+                    <>
+                      <option value="">请选择楼宇</option>
+                      {buildings.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </>
+                  )}
                 </select>
+                {!editingOverride && pickerStatus === 'loading' && <p role="status" className="mt-2 text-xs">正在加载可选楼宇</p>}
+                {!editingOverride && pickerStatus === 'error' && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span role="alert" className="text-xs">可选楼宇加载失败</span>
+                    <Button variant="secondary" size="sm" onClick={() => { setPickerStatus('loading'); retryPicker(); }}>重试楼宇</Button>
+                  </div>
+                )}
               </div>
 
               {/* 字段选择 */}

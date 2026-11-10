@@ -1,14 +1,14 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import dynamic from "next/dynamic";
 import { Menu } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
 import { AdminSidebar, ADMIN_SECTION_META, type AdminSection } from "@/src/components/admin/AdminSidebar";
 import { PageErrorBoundary } from "@/src/components/ErrorBoundary/PageErrorBoundary";
-import { getSession } from "@/src/services/Auth";
 import { IconButton, LoadingState } from "@/src/components/ui";
+import { useAdminOperatorEmail } from "./adminOperatorEmail";
 
 function AdminSectionLoading() {
   return <div className="flex min-h-0 flex-1 items-center justify-center px-6"><LoadingState label="正在加载管理栏目" rows={0} /></div>;
@@ -30,19 +30,11 @@ const DataDebugPanel = dynamic(() => import("@/src/components/admin/DataDebugPan
 function AdminPageContent() {
   const searchParams = useSearchParams();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('');
+  const adminEmail = useAdminOperatorEmail();
   const requestedSection = searchParams.get('section');
   const activeSection: AdminSection = requestedSection && requestedSection in ADMIN_SECTION_META && requestedSection !== 'display-overrides'
     ? requestedSection as AdminSection
     : 'database';
-
-  useEffect(() => {
-    let cancelled = false;
-    void getSession().then((session) => {
-      if (!cancelled) setAdminEmail(session?.user?.email ?? '');
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden">
@@ -59,7 +51,7 @@ function AdminPageContent() {
           {activeSection === 'oss' && <div className="h-full min-h-0 w-full overflow-hidden"><OSSManager userEmail={adminEmail || 'unknown'} /></div>}
           {activeSection === 'notice' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><NoticeManager adminEmail={adminEmail} /></div>}
           {activeSection === 'memo' && <div className="h-full min-h-0 w-full overflow-hidden"><MemoManager adminEmail={adminEmail || 'unknown'} /></div>}
-          {activeSection === 'issues' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><IssueManager adminEmail={adminEmail} /></div>}
+          {activeSection === 'issues' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><IssueManager key={adminEmail} adminEmail={adminEmail} /></div>}
           {activeSection === 'changelog' && <div className="h-full min-h-0 w-full overflow-auto p-4 sm:p-6"><ChangelogManager adminEmail={adminEmail} /></div>}
           {activeSection === 'logs' && <AuditLogPage />}
           {activeSection === 'impersonate' && <ImpersonationPanel />}

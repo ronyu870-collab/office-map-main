@@ -15,9 +15,7 @@ import {
 import {
   addFeedbackComment,
   createFeedback,
-  getFeedbackComments,
   getMyFeedback,
-  markFeedbackRead,
   reopenFeedback,
   uploadFeedbackImage,
   type FeedbackCategory,
@@ -25,6 +23,8 @@ import {
   type FeedbackIssue,
   type FeedbackStatus,
 } from '@/src/services/feedbackApi';
+import { isLaterFeedbackActivity, mergeFeedbackReadAt } from '@/src/services/feedbackThread';
+import { useFeedbackThread, type FeedbackThreadSelection } from '@/src/hooks/useFeedbackThread';
 import { logAction } from '@/src/utils/audit';
 
 type FeedbackTab = 'submit' | 'mine';
@@ -33,6 +33,11 @@ interface FeedbackPanelProps {
   userId: string;
   userEmail: string;
   userName: string;
+}
+
+function mergeReceipt(issue: FeedbackIssue, readAt: string | null): FeedbackIssue {
+  const lastReadAt = mergeFeedbackReadAt(issue.last_read_at, readAt);
+  return { ...issue, last_read_at: lastReadAt, has_unread_admin_activity: isLaterFeedbackActivity(issue.last_admin_activity_at, lastReadAt) };
 }
 
 const CATEGORY_OPTIONS: Array<{ value: FeedbackCategory; label: string }> = [
@@ -261,8 +266,9 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
   const [issuesLoaded, setIssuesLoaded] = React.useState(false);
   const [issuesError, setIssuesError] = React.useState('');
   const [selectedIssue, setSelectedIssue] = React.useState<FeedbackIssue | null>(null);
-  const [comments, setComments] = React.useState<FeedbackComment[]>([]);
-  const [commentsLoading, setCommentsLoading] = React.useState(false);
+  const thread = useFeedbackThread();
+  const { comments, loading: commentsLoading, error: commentsError, clear: clearThread } = thread;
+  const listGeneration = React.useRef(0);
   const [reply, setReply] = React.useState('');
   const [replyFiles, setReplyFiles] = React.useState<File[]>([]);
   const [replying, setReplying] = React.useState(false);
@@ -276,24 +282,33 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
   );
 
   const loadIssues = React.useCallback(async () => {
+    const generation = ++listGeneration.current;
     setIssuesLoading(true);
     setIssuesError('');
     try {
       const data = await getMyFeedback(userEmail, userId);
-      setIssues(data);
+      if (generation !== listGeneration.current) return;
+      setIssues(current => {
+        const readByIssue = new Map(current.map(issue => [issue.id, issue.last_read_at]));
+        return data.map(issue => mergeReceipt(issue, readByIssue.get(issue.id) ?? null));
+      });
+      setSelectedIssue(current => {
+        if (!current) return current;
+        const refreshed = data.find(issue => issue.id === current.id);
+        return refreshed ? mergeReceipt(refreshed, current.last_read_at) : current;
+      });
       setIssuesLoaded(true);
-      return data;
     } catch (error) {
-      setIssuesError(error instanceof Error ? error.message : '反馈列表暂时无法加载。');
-      return [];
+      if (generation === listGeneration.current) setIssuesError(error instanceof Error ? error.message : '反馈列表暂时无法加载。');
     } finally {
-      setIssuesLoading(false);
+      if (generation === listGeneration.current) setIssuesLoading(false);
     }
   }, [userEmail, userId]);
 
   React.useEffect(() => { void loadIssues(); }, [loadIssues]);
 
   const closeDialog = React.useCallback(() => {
+    clearThread();
     setOpen(false);
     setSelectedIssue(null);
     setDetailError('');
@@ -301,7 +316,7 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
     setReplyFiles([]);
     setReopenMessage('');
     requestAnimationFrame(() => triggerRef.current?.focus());
-  }, []);
+  }, [clearThread]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -335,31 +350,26 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
     return urls;
   };
 
-  const openIssue = async (issue: FeedbackIssue) => {
-    setSelectedIssue({ ...issue, has_unread_admin_activity: false, last_read_at: new Date().toISOString() });
-    setIssues((current) => current.map((item) => item.id === issue.id ? { ...item, has_unread_admin_activity: false, last_read_at: new Date().toISOString() } : item));
-    setComments([]);
-    setCommentsLoading(true);
-    setDetailError('');
-    try {
-      await markFeedbackRead(issue.id);
-      setComments(await getFeedbackComments(issue.id));
-    } catch (error) {
-      setDetailError(error instanceof Error ? error.message : '沟通记录暂时无法加载。');
-    } finally {
-      setCommentsLoading(false);
-    }
+  const loadThread = (issue: FeedbackIssue, selection: FeedbackThreadSelection) => {
+    return thread.load(selection, (readAt) => {
+      const receipt = readAt ?? issue.last_admin_activity_at;
+      setIssues(current => current.map(item => item.id === issue.id ? mergeReceipt(item, receipt) : item));
+      setSelectedIssue(current => current?.id === issue.id ? mergeReceipt(current, receipt) : current);
+    });
   };
 
-  const refreshSelected = async (issueId: string) => {
-    const nextIssues = await loadIssues();
-    const nextIssue = nextIssues.find((item) => item.id === issueId) ?? null;
-    if (nextIssue) {
-      await markFeedbackRead(issueId).catch(() => undefined);
-      setSelectedIssue({ ...nextIssue, has_unread_admin_activity: false, last_read_at: new Date().toISOString() });
-      setIssues((current) => current.map((item) => item.id === issueId ? { ...item, has_unread_admin_activity: false, last_read_at: new Date().toISOString() } : item));
-      setComments(await getFeedbackComments(issueId));
-    }
+  const openIssue = (issue: FeedbackIssue) => {
+    const selection = thread.select(issue.id);
+    setSelectedIssue(issue);
+    setReply('');
+    setReplyFiles([]);
+    setReopenMessage('');
+    setDetailError('');
+    return loadThread(issue, selection);
+  };
+
+  const refreshSelected = async (issue: FeedbackIssue, selection: FeedbackThreadSelection) => {
+    await Promise.all([loadIssues(), loadThread(issue, selection)]);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -400,34 +410,38 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
 
   const handleReply = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selectedIssue || replying || (!reply.trim() && replyFiles.length === 0)) return;
+    const selection = thread.current();
+    if (!selectedIssue || selection?.issueId !== selectedIssue.id || replying || (!reply.trim() && replyFiles.length === 0)) return;
     setReplying(true);
     setDetailError('');
     try {
       const images = await uploadFiles(replyFiles);
       await addFeedbackComment(selectedIssue.id, reply, images, userEmail);
       logAction(userEmail, 'FEEDBACK_USER_REPLIED', { issue_id: selectedIssue.id, has_images: images.length > 0 });
-      setReply('');
-      setReplyFiles([]);
-      await refreshSelected(selectedIssue.id);
+      if (thread.isCurrent(selection)) {
+        setReply('');
+        setReplyFiles([]);
+      }
+      await refreshSelected(selectedIssue, selection);
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : '补充说明发送失败，请重试。');
+      if (thread.isCurrent(selection)) setDetailError(error instanceof Error ? error.message : '补充说明发送失败，请重试。');
     } finally {
       setReplying(false);
     }
   };
 
   const handleReopen = async () => {
-    if (!selectedIssue || reopening) return;
+    const selection = thread.current();
+    if (!selectedIssue || selection?.issueId !== selectedIssue.id || reopening) return;
     setReopening(true);
     setDetailError('');
     try {
       await reopenFeedback(selectedIssue.id, reopenMessage);
       logAction(userEmail, 'FEEDBACK_REOPENED', { issue_id: selectedIssue.id });
-      setReopenMessage('');
-      await refreshSelected(selectedIssue.id);
+      if (thread.isCurrent(selection)) setReopenMessage('');
+      await refreshSelected(selectedIssue, selection);
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : '重新打开反馈失败，请重试。');
+      if (thread.isCurrent(selection)) setDetailError(error instanceof Error ? error.message : '重新打开反馈失败，请重试。');
     } finally {
       setReopening(false);
     }
@@ -490,7 +504,7 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                   type="button"
                   role="tab"
                   aria-selected={tab === value}
-                  onClick={() => { setTab(value); setSelectedIssue(null); if (value === 'mine') void loadIssues(); }}
+                  onClick={() => { clearThread(); setTab(value); setSelectedIssue(null); if (value === 'mine') void loadIssues(); }}
                   className={`flex min-h-8 flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--cd-radius-md)-2px)] px-3 text-xs font-medium transition-colors ${tab === value ? 'bg-[var(--cd-color-surface)] text-[var(--cd-color-text-primary)] shadow-sm' : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'}`}
                 >
                   {label}
@@ -555,7 +569,7 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                 </form>
               ) : selectedIssue ? (
                 <div>
-                  <button type="button" onClick={() => { setSelectedIssue(null); setComments([]); }} className="mb-4 inline-flex min-h-8 items-center gap-1 rounded-[var(--cd-radius-sm)] px-1.5 text-xs text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]">
+                  <button type="button" onClick={() => { clearThread(); setSelectedIssue(null); }} className="mb-4 inline-flex min-h-8 items-center gap-1 rounded-[var(--cd-radius-sm)] px-1.5 text-xs text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-surface-alt)]">
                     <ChevronLeft size={14} />返回
                   </button>
 
@@ -582,7 +596,10 @@ export function FeedbackPanel({ userId, userEmail }: FeedbackPanelProps) {
                       <h4 className="text-[12px] font-semibold text-[var(--cd-color-text-secondary)]">沟通记录</h4>
                       <span className="text-[10px] text-[var(--cd-color-text-muted)]">处理进度与回复都会保留在这里</span>
                     </div>
-                    {commentsLoading ? <p className="py-6 text-center text-xs text-[var(--cd-color-text-muted)]">正在加载…</p> : comments.length === 0 ? <p className="py-6 text-center text-xs text-[var(--cd-color-text-muted)]">管理员暂未回复</p> : (
+                    {commentsError && <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-xs text-red-700">
+                      <span>{commentsError}</span><button type="button" className="min-h-9 underline" onClick={() => { const selection = thread.current(); if (selection) void loadThread(selectedIssue, selection); }}>重试沟通记录</button>
+                    </div>}
+                    {commentsLoading ? <p className="py-6 text-center text-xs text-[var(--cd-color-text-muted)]">正在加载…</p> : comments.length === 0 ? (!commentsError && <p className="py-6 text-center text-xs text-[var(--cd-color-text-muted)]">管理员暂未回复</p>) : (
                       <div className="relative mt-4 space-y-4 before:absolute before:bottom-2 before:left-[13px] before:top-2 before:w-px before:bg-[var(--cd-color-border)]">
                         {comments.map((comment) => <TimelineItem key={comment.id} comment={comment} />)}
                       </div>
