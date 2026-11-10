@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
@@ -27,6 +27,7 @@ beforeEach(() => {
   vi.stubEnv('SUPABASE_SECRET_KEY', 'synthetic');
   mocks.identity.mockResolvedValue({ identity: { effectiveRole: 'admin', isImpersonating: false } });
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe('lease history exact count reuse', () => {
   it('preserves the exact count for default callers and the first page', async () => {
@@ -47,9 +48,21 @@ describe('lease history exact count reuse', () => {
   });
 
   it('does not change server-side source permission for a count-free request', async () => {
+    vi.stubEnv('PERF_ISOLATED_SERVER_TIMING', 'preview');
+    vi.stubEnv('VERCEL_ENV', 'preview');
     mocks.identity.mockResolvedValue({ identity: { effectiveRole: 'viewer', isImpersonating: false } });
     const response = await GET(new NextRequest('https://synthetic.invalid/api/lease-transactions/read?record_source=history&include_count=0'));
     expect(response.status).toBe(403);
+    expect(response.headers.get('server-timing')).toBeNull();
     expect(mocks.selects).toHaveLength(0);
+  });
+
+  it('can time a permitted page without changing the exact count', async () => {
+    vi.stubEnv('PERF_ISOLATED_SERVER_TIMING', 'preview');
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    const response = await GET(new NextRequest('https://synthetic.invalid/api/lease-transactions/read?offset=0'));
+    expect(response.status).toBe(200);
+    expect((await response.json()).count).toBe(63);
+    expect(response.headers.get('server-timing')).toMatch(/colliers-auth;dur=[\d.]+, colliers-database;dur=[\d.]+/);
   });
 });

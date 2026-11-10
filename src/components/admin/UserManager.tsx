@@ -24,9 +24,15 @@ type UserRow = {
   disabled: boolean
   banned_until: string | null
   last_sign_in_at: string | null
+}
+
+type AssignmentCounts = {
+  user_id: string
   stock_assignment_count: number
   future_assignment_count: number
 }
+
+type AssignmentState = { status: 'loading' | 'failed' } | { status: 'ready'; byUser: Map<string, AssignmentCounts> }
 
 type UserForm = {
   role: UserRole
@@ -116,6 +122,7 @@ function generateTemporaryPassword(): string {
 
 async function authFetch(path: string, options: RequestInit = {}) {
   const { data: { session }, error } = await supabase.auth.getSession()
+  options.signal?.throwIfAborted()
   if (error || !session?.access_token) throw new Error('登录状态已失效，请重新登录后重试')
   const response = await fetch(path, {
     ...options,
@@ -204,6 +211,9 @@ export function UserManager() {
   const [rows, setRows] = React.useState<UserRow[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState('')
+  const [assignmentState, setAssignmentState] = React.useState<AssignmentState>({ status: 'loading' })
+  const directoryRequest = React.useRef<AbortController | null>(null)
+  const assignmentRequest = React.useRef<AbortController | null>(null)
   const [search, setSearch] = React.useState('')
   const [showCreate, setShowCreate] = React.useState(false)
   const [createForm, setCreateForm] = React.useState<UserForm>(EMPTY_FORM)
@@ -224,25 +234,53 @@ export function UserManager() {
     window.setTimeout(() => setNotice(null), 5000)
   }, [])
 
+  const fetchAssignmentCounts = React.useCallback(async () => {
+    assignmentRequest.current?.abort()
+    const controller = new AbortController()
+    assignmentRequest.current = controller
+    setAssignmentState({ status: 'loading' })
+    try {
+      const data = await authFetch('/api/admin/users?view=assignments', { signal: controller.signal })
+      if (!Array.isArray(data.assignments)) throw new Error('任务统计加载失败')
+      const byUser = new Map((data.assignments as AssignmentCounts[]).map(row => [row.user_id, row]))
+      if (!controller.signal.aborted) setAssignmentState({ status: 'ready', byUser })
+    } catch {
+      if (!controller.signal.aborted) setAssignmentState({ status: 'failed' })
+    }
+  }, [])
+
   const fetchUsers = React.useCallback(async (): Promise<UserRow[]> => {
+    directoryRequest.current?.abort()
+    const controller = new AbortController()
+    directoryRequest.current = controller
     setLoading(true)
     setError('')
+    void fetchAssignmentCounts()
     try {
-      const data = await authFetch('/api/admin/users')
-      const users = Array.isArray(data.users) ? data.users as UserRow[] : []
+      const data = await authFetch('/api/admin/users?view=directory', { signal: controller.signal })
+      if (controller.signal.aborted) return []
+      if (!Array.isArray(data.users)) throw new Error('用户列表加载失败')
+      const users = data.users as UserRow[]
       setRows(users)
       return users
     } catch (fetchError) {
+      if (controller.signal.aborted) return []
       setRows([])
       setError(fetchError instanceof Error ? fetchError.message : '用户列表加载失败')
       return []
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
-  }, [])
+  }, [fetchAssignmentCounts])
 
   React.useEffect(() => {
-    queueMicrotask(() => { void fetchUsers() })
+    let cancelled = false
+    queueMicrotask(() => { if (!cancelled) void fetchUsers() })
+    return () => {
+      cancelled = true
+      directoryRequest.current?.abort()
+      assignmentRequest.current?.abort()
+    }
   }, [fetchUsers])
 
   const visibleRows = React.useMemo(() => {
@@ -461,7 +499,7 @@ export function UserManager() {
               className="pl-9"
             />
           </label>
-          <Badge>{visibleRows.length} 名用户</Badge>
+          {!loading && !error && <Badge>{visibleRows.length} 名用户</Badge>}
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="secondary" onClick={() => void fetchUsers()} disabled={loading}>
@@ -474,6 +512,13 @@ export function UserManager() {
       {notice && (
         <div role="status" className={`rounded-[var(--cd-radius-md)] border px-3 py-2.5 text-[var(--cd-font-size-sm)] ${notice.success ? 'border-[color:rgb(22_133_91_/_0.15)] bg-[var(--cd-color-success-soft)] text-[var(--cd-color-success)]' : 'border-[color:rgb(201_54_43_/_0.15)] bg-[var(--cd-color-danger-soft)] text-[var(--cd-color-danger)]'}`}>
           {notice.text}
+        </div>
+      )}
+
+      {!loading && !error && assignmentState.status === 'failed' && (
+        <div className="flex items-center gap-3" role="status">
+          <span className="text-sm">任务统计加载失败</span>
+          <Button type="button" variant="secondary" size="sm" onClick={() => void fetchAssignmentCounts()}>重试统计</Button>
         </div>
       )}
 
@@ -498,29 +543,37 @@ export function UserManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {visibleRows.map((row) => (
-                <tr key={row.user_id} className="hover:bg-slate-50/70">
-                  <td className="px-5 py-3.5">
-                    <div className="font-medium text-slate-800">{displayName(row)}</div>
-                    {row.full_name && row.chinese_name && <div className="mt-0.5 text-xs text-slate-400">{row.full_name}</div>}
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <Badge tone={row.disabled ? 'neutral' : 'success'}>{row.disabled ? '已停用' : '正常'}</Badge>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <Badge tone="neutral">{getUserRoleLabel(row.role)}</Badge>
-                  </td>
-                  <td className="px-4 py-3.5 text-slate-600">{row.email || '—'}</td>
-                  <td className="px-4 py-3.5 text-slate-600">
-                    <span>{row.stock_assignment_count} 个存量</span>
-                    {row.future_assignment_count > 0 && <span className="ml-2 text-slate-400">· {row.future_assignment_count} 个未来</span>}
-                  </td>
-                  <td className="px-4 py-3.5 text-slate-500">{formatDateTime(row.last_sign_in_at)}</td>
-                  <td className="px-5 py-3.5 text-right">
-                    <Button type="button" variant="secondary" size="sm" onClick={() => openManager(row)}>管理</Button>
-                  </td>
-                </tr>
-              ))}
+              {visibleRows.map((row) => {
+                const counts = assignmentState.status === 'ready' ? assignmentState.byUser.get(row.user_id) : undefined
+                const futureCount = counts?.future_assignment_count ?? 0
+                return (
+                  <tr key={row.user_id} className="hover:bg-slate-50/70">
+                    <td className="px-5 py-3.5">
+                      <div className="font-medium text-slate-800">{displayName(row)}</div>
+                      {row.full_name && row.chinese_name && <div className="mt-0.5 text-xs text-slate-400">{row.full_name}</div>}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <Badge tone={row.disabled ? 'neutral' : 'success'}>{row.disabled ? '已停用' : '正常'}</Badge>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <Badge tone="neutral">{getUserRoleLabel(row.role)}</Badge>
+                    </td>
+                    <td className="px-4 py-3.5 text-slate-600">{row.email || '—'}</td>
+                    <td className="px-4 py-3.5 text-slate-600">
+                      {assignmentState.status === 'loading' ? '统计加载中…' : assignmentState.status === 'failed' ? '—' : (
+                        <>
+                          <span>{counts?.stock_assignment_count ?? 0} 个存量</span>
+                          {futureCount > 0 && <span className="ml-2 text-slate-400">· {futureCount} 个未来</span>}
+                        </>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-slate-500">{formatDateTime(row.last_sign_in_at)}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <Button type="button" variant="secondary" size="sm" onClick={() => openManager(row)}>管理</Button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

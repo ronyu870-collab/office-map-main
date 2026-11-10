@@ -26,11 +26,10 @@ function load(file, resolver = nodeRequire) {
   new Function('require', 'module', 'exports', compile(file))(resolver, evaluatedModule, evaluatedModule.exports);
   return evaluatedModule.exports;
 }
-const assets = load(path.join(cwd, 'src/constants/brandAssets.ts'));
 function inlineImage(src) {
   if (src.startsWith('data:')) return src;
-  assert.ok(/^\/occupier-insights\/[a-z-]+\.webp$/.test(src), `Unexpected fixture image: ${src}`);
-  return `data:image/webp;base64,${fs.readFileSync(path.join(cwd, 'public', src)).toString('base64')}`;
+  assert.ok(src === '/colliers-logo.png' || /^\/occupier-insights\/[a-z-]+\.(?:webp|avif)$/.test(src), `Unexpected fixture image: ${src}`);
+  return `data:image/${src.split('.').at(-1)};base64,${fs.readFileSync(path.join(cwd, 'public', src)).toString('base64')}`;
 }
 const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => {
   if (name === 'next/image') return { __esModule: true, default: ({ src, fill, ...input }) => {
@@ -43,14 +42,15 @@ const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => 
   if (name === 'next/link') return { __esModule: true, default: props => React.createElement('a', props) };
   if (name === 'next/navigation') return { useRouter: () => ({ replace() {} }) };
   if (name.includes('SessionProvider')) return { useAppSession: () => ({ status: 'authenticated', session: { user: { id: 'synthetic-reader' } } }) };
-  if (name.includes('brandAssets')) return assets;
   if (name === './reportNavigation') return { mountReportNavigation() {} };
   if (name === './reportContent') return load(path.join(directory, 'reportContent.ts'));
   if (name.endsWith('.css')) return { __esModule: true, default: new Proxy({}, { get: (_, key) => key }) };
   return nodeRequire(name);
 });
 const css = fs.readFileSync(path.join(directory, 'report.module.css'), 'utf8').replaceAll(':global(html)', 'html');
-const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>企业选址洞察 · 隔离验证</title><style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}html{--cd-header-height:54px;scroll-padding-top:54px}body{display:flex;flex-direction:column}img{max-width:100%;height:auto}${css}</style><body>${renderToStaticMarkup(React.createElement(report.OccupierInsightsReport))}<script>const exports={};${compile(path.join(directory, 'reportNavigation.ts'))};exports.mountReportNavigation(document.querySelector('[data-report-header]').parentElement);</script></body></html>`;
+const markup = renderToStaticMarkup(React.createElement(report.OccupierInsightsReport))
+  .replace(/srcSet="(\/occupier-insights\/[a-z-]+\.avif)"/gi, (_, src) => `srcset="${inlineImage(src)}"`);
+const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>企业选址洞察 · 隔离验证</title><style>*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%}html{--cd-header-height:54px;scroll-padding-top:54px}body{display:flex;flex-direction:column}img{max-width:100%;height:auto}${css}</style><body>${markup}<script>const exports={};${compile(path.join(directory, 'reportNavigation.ts'))};exports.mountReportNavigation(document.querySelector('[data-report-header]').parentElement);</script></body></html>`;
 fs.writeFileSync(path.join(output, 'report.html'), html);
 const server = http.createServer((_request, response) => { response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.end(html); });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -147,6 +147,29 @@ try {
     assert.equal(await anonymous.locator('main section').count(), 18);
     assert.equal(await anonymous.locator('[data-survey-value]').count(), 62);
     assert.equal(await anonymous.locator('a[href="/"], a[href="/map"]').count(), 0);
+    const cover = anonymous.locator('#report-top img');
+    assert.deepEqual(await cover.evaluate(async image => {
+      await image.decode();
+      return [new URL(image.currentSrc).pathname, image.naturalWidth, image.naturalHeight, image.loading, image.fetchPriority, getComputedStyle(image).transform, getComputedStyle(image).objectPosition];
+    }), ['/occupier-insights/office-cover.avif', 1600, 900, 'eager', 'high', 'none', '65% 50%']);
+    assert.equal(await anonymous.locator('main [data-scene-kind] img[loading="lazy"]').count(), 4);
+    assert.deepEqual(await anonymous.evaluate(() => performance.getEntriesByType('resource')
+      .map(entry => new URL(entry.name).pathname).filter(name => name.startsWith('/occupier-insights/'))),
+    ['/occupier-insights/office-cover.avif'], 'Only one cover image belongs to the initial report load');
+    assert.deepEqual(await cover.evaluate(async image => {
+      image.parentElement.querySelector('source').remove();
+      // Wait until the picture algorithm has selected the WebP fallback.
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      await image.decode();
+      return [new URL(image.currentSrc).pathname, image.naturalWidth, image.naturalHeight];
+    }), ['/occupier-insights/office-cover.webp', 1600, 900]);
+    assert.ok(await anonymous.evaluate(() => {
+      const assets = performance.getEntriesByType('resource');
+      const avif = assets.find(entry => entry.name.endsWith('/office-cover.avif'))?.encodedBodySize;
+      const webp = assets.find(entry => entry.name.endsWith('/office-cover.webp'))?.encodedBodySize;
+      return avif > 0 && avif < webp;
+    }), 'The selected cover is smaller than its WebP fallback');
+
     await anonymous.locator('nav a[href="#options"]').click();
     await anonymous.waitForURL('**/occupier-insights#options');
     await anonymous.waitForFunction(() => document.querySelector('nav [aria-current]')?.getAttribute('href') === '#options');
@@ -157,7 +180,7 @@ try {
     await anonymous.goto(app + '/map');
     await anonymous.waitForURL('**/login', { timeout: 15000 });
     await anonymous.close();
-    results.push({ anonymousReport: true, anonymousChapterNavigation: true, anonymousInternalLinks: 0, homeAndMapRequireLogin: true });
+    results.push({ anonymousReport: true, anonymousChapterNavigation: true, anonymousInternalLinks: 0, homeAndMapRequireLogin: true, avifCover: true, webpFallback: true, initialReportPhotos: 1 });
   }
   results.push({ reducedMotionAndDeepLink: true });
   console.log(JSON.stringify({ status: 'passed', results }, null, 2));
