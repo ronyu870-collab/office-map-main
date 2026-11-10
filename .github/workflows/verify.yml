@@ -186,6 +186,12 @@ jobs:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
 
+      - name: PostgreSQL 17 and PostgREST feedback thread regression
+        run: node supabase/tests/feedback-thread/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: Production build
         run: npm run build
         env:
@@ -218,6 +224,7 @@ jobs:
           node scripts/performance/verify-lease-workspace-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-history-count.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-team-monitor.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-feedback-thread.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-operator.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-database-discovery.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-debug-read.mjs http://127.0.0.1:3210
