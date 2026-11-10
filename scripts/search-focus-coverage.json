@@ -151,5 +151,15 @@
     "cases": [
       "retains search focus and caret when the parent updates the visible record count"
     ]
+  },
+  {
+    "id": "research-library-directory-filter",
+    "roots": [
+      "src/components/OSSManager.tsx"
+    ],
+    "file": "src/components/__tests__/OSSManager.test.tsx",
+    "cases": [
+      "keeps the directory search focused across cache-backed navigation and pagination"
+    ]
   }
 ]

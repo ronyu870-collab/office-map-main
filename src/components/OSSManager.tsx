@@ -249,6 +249,11 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
     try {
       const headers = await authHeaders();
       if (!current() || await scopedCacheKey(prefix) !== key) return;
+      const cached = cachedDirectories.current.get(key);
+      if (!cached || Date.now() - cached.savedAt > DIRECTORY_TTL_MS) {
+        await loadReports(prefix, true);
+        return;
+      }
       const url = new URLSearchParams({ action: 'get-list', prefix, marker: nextMarker });
       const response = await fetch(`/api/oss?${url.toString()}`, { headers, signal: request.controller.signal });
       const result = await response.json().catch(() => ({}));
@@ -267,10 +272,12 @@ export function OSSManager({ userEmail }: { userEmail: string }) {
     } catch (error) {
       if (current()) setMoreError(error instanceof Error ? error.message : '继续读取失败');
     } finally {
-      paginationBusy.current = false;
-      if (current()) setLoadingMore(false);
+      if (current()) {
+        paginationBusy.current = false;
+        setLoadingMore(false);
+      }
     }
-  }, [nextMarker, scopedCacheKey, rememberDirectory]);
+  }, [nextMarker, scopedCacheKey, rememberDirectory, loadReports]);
 
   React.useEffect(() => {
     mounted.current = true;

@@ -171,6 +171,11 @@ describe('research library directory request ordering', () => {
     expect(input.selectionStart).toBe(2);
     expect(screen.getAllByText('Alpha.pdf')).toHaveLength(2);
     expect(screen.getAllByText('Alps.pdf')).toHaveLength(2);
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: 'Al中', selectionStart: 3, selectionEnd: 3 } });
+    fireEvent.compositionEnd(input, { data: '中' });
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue('Al中');
   });
 
   it('aborts the list request when unmounted', async () => {
