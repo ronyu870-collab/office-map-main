@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import { useAppSession } from '@/src/components/SessionProvider';
-import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { mountReportNavigation } from './reportNavigation';
 import {
   surveyPlots, industryDrivers, strategyPaths,
@@ -131,7 +130,10 @@ const chartScenes: ChartScene[] = [
 ];
 
 function Background({ src, eager = false }: { src: string; eager?: boolean }) {
-  return <Image src={src} alt="" fill sizes="100vw" className={styles.background} unoptimized loading={eager ? 'eager' : 'lazy'} fetchPriority={eager ? 'high' : 'auto'} aria-hidden="true" />;
+  return <picture className={styles.picture}>
+    <source type="image/avif" srcSet={src.replace(/\.webp$/, '.avif')} />
+    <Image src={src} alt="" fill sizes="100vw" className={styles.background} unoptimized loading={eager ? 'eager' : 'lazy'} fetchPriority={eager ? 'high' : 'auto'} aria-hidden="true" />
+  </picture>;
 }
 type PlotMode = 'bars' | 'columns' | 'dots' | 'composition' | 'portfolio';
 const plotModes: Record<ChartKey, PlotMode> = {
@@ -194,11 +196,11 @@ export function OccupierInsightsReport() {
   return <div className={styles.report} ref={reportRef}>
     <a className={styles.skipLink} href="#factors">跳至研究内容</a>
     <header className={styles.masthead} data-report-header>
-      <div className={styles.brand}><a href="#report-top" aria-label="回到报告开头"><Image src={COLLIERS_LOGO_DATA_URI} alt="Colliers 高力国际" width={592} height={337} className={styles.logo} unoptimized /></a><span>企业选址洞察</span></div>
+      <div className={styles.brand}><a href="#report-top" aria-label="回到报告开头"><Image src="/colliers-logo.png" alt="Colliers 高力国际" width={592} height={337} className={styles.logo} unoptimized /></a><span>企业选址洞察</span></div>
       <nav className={styles.chapters} aria-label="报告章节">
         {chapters.map(([id,label])=><a key={id} href={'#'+id} data-chapter-link={id}>{label}</a>)}
       </nav>
-      {canNavigateInternally && <Link href="/" className={styles.back}><ArrowLeft size={16} aria-hidden="true" /><span>返回首页</span></Link>}
+      {canNavigateInternally && <Link href="/" className={styles.back} aria-label="返回首页"><ArrowLeft size={16} aria-hidden="true" /><span>返回首页</span></Link>}
       <div className={styles.readingTrack} aria-hidden="true"><span data-reading-progress /></div>
     </header>
     <main>

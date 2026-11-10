@@ -10,7 +10,7 @@ import { AdminLeaseExportButton } from './AdminLeaseExportButton';
 import { LeaseTransactionHistoryDrawer } from './LeaseTransactionHistoryDrawer';
 import { LeaseColumnMenu } from './LeaseColumnMenu';
 import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
-import { LEASE_TABLE_FIELDS, isLeaseFilterActive, leaseFilterOptions, leaseFilterSummary, queryLeaseTable, type LeaseColumnKey, type LeaseColumnFilter, type LeaseTableFilters, type LeaseTableSort } from '../leaseTableQuery';
+import { LEASE_TABLE_FIELDS, isLeaseFilterActive, leaseFilterOptions, leaseFilterSummary, queryLeaseTable, type LeaseColumnKey, type LeaseColumnFilter, type LeaseFilterOption, type LeaseTableFilters, type LeaseTableSort } from '../leaseTableQuery';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -288,10 +288,17 @@ export function SubmissionDetailTable({
 
   const [filters, setFilters] = React.useState<LeaseTableFilters>({});
   const [sort, setSort] = React.useState<LeaseTableSort>(null);
-  const [activeMenu, setActiveMenu] = React.useState<string | null>(null);
-  const options = React.useMemo(() => Object.fromEntries(
-    (Object.keys(LEASE_TABLE_FIELDS) as LeaseColumnKey[]).map((key) => [key, leaseFilterOptions(submissions, key)]),
-  ), [submissions]);
+  const [activeMenu, setActiveMenu] = React.useState<LeaseColumnKey | null>(null);
+  const options = React.useMemo(() => {
+    const needed = new Set<LeaseColumnKey>();
+    if (activeMenu && LEASE_TABLE_FIELDS[activeMenu].type !== 'number') needed.add(activeMenu);
+    for (const [key, filter] of Object.entries(filters) as [LeaseColumnKey, LeaseColumnFilter][]) {
+      if (filter.values?.length) needed.add(key);
+    }
+    const result: Partial<Record<LeaseColumnKey, LeaseFilterOption[]>> = {};
+    for (const key of needed) result[key] = leaseFilterOptions(submissions, key);
+    return result;
+  }, [activeMenu, filters, submissions]);
   const filteredSubmissions = React.useMemo(() => queryLeaseTable(submissions, filters, sort), [submissions, filters, sort]);
 
   React.useEffect(() => {
@@ -323,7 +330,7 @@ export function SubmissionDetailTable({
   const activeFilters = (Object.entries(filters) as [LeaseColumnKey, LeaseColumnFilter][]).filter(([, filter]) => isLeaseFilterActive(filter));
   const activeFilterCount = activeFilters.length;
   const renderColumnMenu = (key: LeaseColumnKey) => {
-    return <LeaseColumnMenu columnKey={key} filter={filters[key]} sort={sort} options={options[key]} open={activeMenu === key} onOpenChange={(open) => setActiveMenu(open ? key : null)} onFilter={(filter) => updateFilter(key, filter)} onSort={setSort} />;
+    return <LeaseColumnMenu columnKey={key} filter={filters[key]} sort={sort} options={options[key] ?? []} open={activeMenu === key} onOpenChange={(open) => setActiveMenu(open ? key : null)} onFilter={(filter) => updateFilter(key, filter)} onSort={setSort} />;
   };
 
   // 总列数（用于 colSpan）
@@ -398,7 +405,7 @@ export function SubmissionDetailTable({
         </div>
         {(activeFilterCount > 0 || sort) && <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
           {activeFilters.map(([key, filter]) => {
-            const summary = `${LEASE_TABLE_FIELDS[key].label}：${leaseFilterSummary(key, filter, options[key])}`;
+            const summary = `${LEASE_TABLE_FIELDS[key].label}：${leaseFilterSummary(key, filter, options[key] ?? [])}`;
             return <button key={key} type="button" title={summary} aria-label={`清除${summary}`} onClick={() => updateFilter(key, {})} className="max-w-64 truncate rounded border border-blue-100 bg-blue-50 px-2 py-1 text-[#003e7e]">{summary} ×</button>;
           })}
           {sort && <button type="button" onClick={() => setSort(null)} className="rounded bg-zinc-100 px-2 py-1 text-zinc-500">{LEASE_TABLE_FIELDS[sort.key].label} · {sort.direction === 'asc' ? '升序' : '降序'} ×</button>}

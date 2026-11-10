@@ -4,12 +4,16 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Pin, Trash2, Search, Loader2 } from 'lucide-react';
 import { TagFilter } from './TagFilter';
 import type { MemoListItem } from '@/src/types/memo';
-import { Button, Dialog, IconButton } from '@/src/components/ui';
+import { Button, Dialog, ErrorState, IconButton } from '@/src/components/ui';
 
 interface MemoListProps {
   memos: MemoListItem[];
   tags: string[];
   loading: boolean;
+  error?: string | null;
+  tagError?: boolean;
+  onRetryList?: () => void;
+  onRetryTags?: () => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -22,7 +26,7 @@ interface MemoListProps {
 }
 
 export function MemoList({
-  memos, tags, loading, selectedId, onSelect, onCreate, onDelete,
+  memos, tags, loading, error, tagError, onRetryList, onRetryTags, selectedId, onSelect, onCreate, onDelete,
   onTogglePin, onTagFilter, onSearch, selectedTag, creating,
 }: MemoListProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -91,6 +95,12 @@ export function MemoList({
 
         {/* 标签筛选 */}
         <TagFilter tags={tags} selected={selectedTag} onChange={onTagFilter} />
+        {tagError && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1 text-sm" role="status">
+            <span>标签加载失败</span>
+            <Button size="sm" variant="secondary" onClick={onRetryTags}>重试标签</Button>
+          </div>
+        )}
 
         {/* 列表 */}
         <div className="flex-1 overflow-auto px-2 py-1">
@@ -98,6 +108,8 @@ export function MemoList({
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-5 w-5 animate-spin text-[var(--cd-color-brand)]" />
             </div>
+          ) : error ? (
+            <ErrorState title="备忘录加载失败" action={<Button size="sm" variant="secondary" onClick={onRetryList}>重试列表</Button>} />
           ) : memos.length === 0 ? (
             <div className="py-12 text-center text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-muted)]">
               {searchInput || selectedTag ? '没有匹配的备忘录' : '暂无备忘录'}

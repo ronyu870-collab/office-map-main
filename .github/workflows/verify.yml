@@ -168,8 +168,28 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: PostgreSQL 17 and PostgREST memo preview regression
+        run: node supabase/tests/memo-list-preview/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST display override regression
+        run: node supabase/tests/display-overrides/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST lease history count regression
+        run: node supabase/tests/lease-history-count/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: Production build
         run: npm run build
+        env:
+          NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
       - name: Browser measurement calibration and anonymous production-build regression
         shell: bash
@@ -180,6 +200,7 @@ jobs:
           export PERF_BROWSER_CHANNEL=chromium
           node scripts/performance/verify-summary.mjs
           node scripts/performance/verify-capture.mjs
+          node scripts/performance/verify-api-server-timing.mjs
           node scripts/verification/verify-building-photos.mjs
           node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/performance-server.log" 2>&1 &
           performance_server_pid=$!
@@ -190,6 +211,21 @@ jobs:
           done
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-map-startup-stages.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-lease-workspace-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-lease-history-count.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-lease-team-monitor.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-operator.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-database-discovery.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-debug-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-memo-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-user-directory.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-display-overrides.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-quarterly-reference.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
 
       - name: Retain isolated report verification evidence

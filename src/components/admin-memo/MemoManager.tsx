@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { lazy, Suspense, useState, useCallback, useRef } from 'react';
 import { FileText, Loader2 } from 'lucide-react';
 import { useMemos } from '@/src/hooks/useMemos';
 import { MemoList } from './MemoList';
-import { MemoEditor, type MemoEditorHandle } from './MemoEditor';
+import type { MemoEditorHandle } from './MemoEditor';
 import { ToastContainer, showToast } from './Toast';
-import { Button, EmptyState } from '@/src/components/ui';
+import { Button, EmptyState, LoadingState } from '@/src/components/ui';
+
+const MemoEditor = lazy(() => import('./MemoEditor').then(module => ({ default: module.MemoEditor })));
 
 interface MemoManagerProps {
   adminEmail: string;
@@ -21,7 +23,7 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
   const changingMemo = useRef(false);
   const [leaving, setLeaving] = useState(false);
 
-  const { memos, loading, tags, refresh, createNew, remove, togglePin } = useMemos({
+  const { memos, loading, error, tags, tagError, refresh, refreshList, refreshTags, createNew, remove, togglePin } = useMemos({
     tag: selectedTag ?? undefined,
     search: search || undefined,
   });
@@ -91,6 +93,10 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
           memos={memos}
           tags={tags}
           loading={loading}
+          error={error}
+          tagError={tagError}
+          onRetryList={refreshList}
+          onRetryTags={refreshTags}
           selectedId={selectedId}
           onSelect={handleSelect}
           onCreate={handleCreate}
@@ -105,15 +111,17 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
         {/* 右侧编辑区 */}
         <div className="flex min-w-0 flex-1 flex-col" inert={leaving}>
           {selectedId ? (
-            <MemoEditor
-              key={selectedId}
-              ref={editorRef}
-              memoId={selectedId}
-              userEmail={adminEmail}
-              allTags={tags}
-              onSaved={refresh}
-              onDeleted={() => { setSelectedId(null); refresh(); }}
-            />
+            <Suspense fallback={<LoadingState className="p-4" label="正在打开备忘录" rows={0} />}>
+              <MemoEditor
+                key={selectedId}
+                ref={editorRef}
+                memoId={selectedId}
+                userEmail={adminEmail}
+                allTags={tags}
+                onSaved={refresh}
+                onDeleted={() => { setSelectedId(null); refresh(); }}
+              />
+            </Suspense>
           ) : (
             <div className="flex flex-1 items-center justify-center p-6">
               <EmptyState

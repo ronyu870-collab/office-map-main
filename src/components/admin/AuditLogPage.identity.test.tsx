@@ -20,7 +20,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from(table: string
         ], count: 3, error: null}).then(resolve);
     },
   };
-  for (const method of ['eq','in','neq','gte','order','range','ilike']) query[method] = () => query;
+  for (const method of ['eq','in','neq','gte','order','range','ilike','abortSignal']) query[method] = () => query;
   return query;
 } } }));
 
