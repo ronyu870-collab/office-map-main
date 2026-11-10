@@ -11,15 +11,20 @@ import {
   RECOMMENDATION_RANKING_VERSION,
   type RecommendationResponse,
 } from '@/src/lib/intelligence/recommendationEngine';
-import { loadRecommendationUniverse } from '@/src/lib/intelligence/recommendationServer';
+import {
+  buildRecommendationUniverse,
+  loadActiveRecommendationBuildings,
+  loadRecommendationEvidence,
+} from '@/src/lib/intelligence/recommendationServer';
 import { RequirementParseInputSchema, type RequirementParseResult } from '@/src/lib/intelligence/requirementSchema';
 import {
   normalizeRequirementAgainstVocabulary,
   resolveRequirementCapabilities,
 } from '@/src/lib/intelligence/requirementResolver';
 import {
+  createIntelligenceRequestScope,
   isIntelligenceContext,
-  loadVocabularyAndPeriod,
+  recommendationVocabulary,
   requireIntelligenceAccess,
 } from '@/src/lib/intelligence/serverContext';
 
@@ -74,11 +79,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
   }
 
-  const context = await timing.measure('auth', () => requireIntelligenceAccess(request));
-  if (!isIntelligenceContext(context)) return context;
-
-  const startedAt = Date.now();
+  const { signal, deadline, close } = createIntelligenceRequestScope(request);
   try {
+    const context = await timing.measure('auth', () => requireIntelligenceAccess(request));
+    if (!isIntelligenceContext(context)) return context;
+    signal.throwIfAborted();
+    const startedAt = Date.now();
     const raw = await request.text();
     if (raw.length > MAX_BODY_BYTES) return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
 
@@ -94,26 +100,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: input.error.issues[0]?.message || '客户需求格式无效' }, { status: 400 });
     }
 
-    const [{ vocabulary, latestMetricPeriod }, universe] = await Promise.all([
-      timing.measure('vocabulary', () => loadVocabularyAndPeriod(context.client)),
-      timing.measure('candidates', () => loadRecommendationUniverse(context.client)),
-    ]);
+    const buildings = loadActiveRecommendationBuildings(context.client, signal);
+    const facts = timing.measure('candidates', () => Promise.all([buildings, loadRecommendationEvidence(context.client, signal)]));
+    const parsing = (async () => {
+      const vocabulary = await timing.measure('vocabulary', async () => recommendationVocabulary(await buildings));
+      signal.throwIfAborted();
+      const aiStartedAt = Date.now();
+      const aiResult = await timing.measure('model', () => parseRequirementWithDeepSeek(input.data.requirement, vocabulary, signal));
+      return {
+        parsed: normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary),
+        meta: { ...aiResult.meta, durationMs: Date.now() - aiStartedAt },
+      };
+    })();
 
-    const aiStartedAt = Date.now();
-    const aiResult = await timing.measure('model', () => parseRequirementWithDeepSeek(input.data.requirement, vocabulary));
-    const parsed = normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary);
-    const capabilities = resolveRequirementCapabilities(parsed, { latestMetricPeriod });
-
-    const result: RequirementParseResult = {
-      parsed,
-      capabilities,
-      meta: {
-        ...aiResult.meta,
-        durationMs: Date.now() - aiStartedAt,
-      },
-    };
+    const [[catalog, evidence], ai] = await Promise.all([facts, parsing]);
+    signal.throwIfAborted();
 
     const rankStarted = timing.start();
+    const { latestMetricPeriod } = evidence;
+    const universe = buildRecommendationUniverse(catalog, evidence);
+    const result: RequirementParseResult = {
+      ...ai,
+      capabilities: resolveRequirementCapabilities(ai.parsed, { latestMetricPeriod }),
+    };
+
     const fullPlan = buildRecommendationPlan(result, input.data.requirement, universe);
     const returnedRecommendations = fullPlan.recommendations.slice(0, MAX_RETURNED_RECOMMENDATIONS);
     const response: RecommendationResponse = {
@@ -131,6 +141,7 @@ export async function POST(request: NextRequest) {
     };
 
     timing.finish('rank', rankStarted);
+    signal.throwIfAborted();
     const auditStarted = timing.start();
     await auditRecommendation(
       context.client,
@@ -144,10 +155,14 @@ export async function POST(request: NextRequest) {
 
     return timing.response(() => NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } }));
   } catch (error) {
+    if (request.signal.aborted) return new NextResponse(null, { status: 499 });
+    if (deadline.aborted) return NextResponse.json({ error: '推荐生成超时，请稍后重试' }, { status: 504 });
     if (error instanceof IntelligenceAIError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error('[intelligence] recommend failed', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'AI 推荐生成失败，请稍后重试' }, { status: 500 });
+  } finally {
+    close();
   }
 }
