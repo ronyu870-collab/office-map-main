@@ -7,29 +7,29 @@ const MEMO_IMAGE_PREFIX = 'memos/';
 
 // ─── 列表查询（仅摘要字段） ──────────────────────────────────────────────────
 
+const MEMO_LIST_FIELDS = 'id,title,tags,is_pinned,updated_at,updated_by';
+
 export async function listMemos(options?: {
   tag?: string;
   search?: string;
   sort?: 'updated_at' | 'created_at' | 'title';
   ascending?: boolean;
-}): Promise<MemoListItem[]> {
-  let query = supabase
-    .from('memos')
-    .select('id, title, tags, is_pinned, updated_at, updated_by, content');
-
-  if (options?.tag) {
-    query = query.contains('tags', [options.tag]);
-  }
-  if (options?.search) {
-    query = query.ilike('title', `%${options.search}%`);
+}, signal?: AbortSignal): Promise<MemoListItem[]> {
+  function read(field: string) {
+    let query = supabase.from('memos').select(`${MEMO_LIST_FIELDS},${field}`);
+    if (options?.tag) query = query.contains('tags', [options.tag]);
+    if (options?.search) query = query.ilike('title', `%${options.search}%`);
+    query = query.order('is_pinned', { ascending: false })
+      .order(options?.sort ?? 'updated_at', { ascending: options?.ascending ?? false });
+    return signal ? query.abortSignal(signal) : query;
   }
 
-  const sortCol = options?.sort ?? 'updated_at';
-  const asc = options?.ascending ?? false;
-  // 置顶优先，再按指定字段排序
-  query = query.order('is_pinned', { ascending: false }).order(sortCol, { ascending: asc });
-
-  const { data, error } = await query;
+  let { data, error } = await read('content_preview:memo_content_preview');
+  // A build may run before the migration or PostgREST's schema reload.
+  // Authorization and other query errors must still fail visibly.
+  if (!signal?.aborted && error?.code === '42703' && /\bmemo_content_preview\b/.test(error.message)) {
+    ({ data, error } = await read('content'));
+  }
   if (error) throw new Error(`获取备忘录列表失败：${error.message}`);
 
   return (data ?? []).map((row: any) => ({
@@ -39,7 +39,7 @@ export async function listMemos(options?: {
     is_pinned: row.is_pinned,
     updated_at: row.updated_at,
     updated_by: row.updated_by,
-    content_preview: (row.content ?? '').slice(0, 100),
+    content_preview: (row.content_preview ?? row.content ?? '').slice(0, 100),
   }));
 }
 
@@ -206,11 +206,15 @@ export async function restoreMemoVersion(
 
 // ─── 标签 ─────────────────────────────────────────────────────────────────────
 
-export async function getAllTags(): Promise<string[]> {
-  const { data, error } = await supabase.rpc('get_all_memo_tags');
+export async function getAllTags(signal?: AbortSignal): Promise<string[]> {
+  const query = supabase.rpc('get_all_memo_tags');
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
   if (error) {
+    if (signal?.aborted) return [];
     // fallback: 直接查询
-    const { data: memos } = await supabase.from('memos').select('tags');
+    const fallback = supabase.from('memos').select('tags');
+    const { data: memos, error: fallbackError } = await (signal ? fallback.abortSignal(signal) : fallback);
+    if (fallbackError) throw new Error(`获取备忘录标签失败：${fallbackError.message}`);
     const tagSet = new Set<string>();
     (memos ?? []).forEach((m: any) => (m.tags ?? []).forEach((t: string) => tagSet.add(t)));
     return Array.from(tagSet).sort();

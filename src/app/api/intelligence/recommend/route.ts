@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 import {
   IntelligenceAIError,
@@ -67,12 +68,13 @@ async function auditRecommendation(
 }
 
 export async function POST(request: NextRequest) {
+  const timing = createIsolatedRequestTiming(request);
   const contentLength = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
   }
 
-  const context = await requireIntelligenceAccess(request);
+  const context = await timing.measure('auth', () => requireIntelligenceAccess(request));
   if (!isIntelligenceContext(context)) return context;
 
   const startedAt = Date.now();
@@ -93,12 +95,12 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ vocabulary, latestMetricPeriod }, universe] = await Promise.all([
-      loadVocabularyAndPeriod(context.client),
-      loadRecommendationUniverse(context.client),
+      timing.measure('vocabulary', () => loadVocabularyAndPeriod(context.client)),
+      timing.measure('candidates', () => loadRecommendationUniverse(context.client)),
     ]);
 
     const aiStartedAt = Date.now();
-    const aiResult = await parseRequirementWithDeepSeek(input.data.requirement, vocabulary);
+    const aiResult = await timing.measure('model', () => parseRequirementWithDeepSeek(input.data.requirement, vocabulary));
     const parsed = normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary);
     const capabilities = resolveRequirementCapabilities(parsed, { latestMetricPeriod });
 
@@ -111,6 +113,7 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    const rankStarted = timing.start();
     const fullPlan = buildRecommendationPlan(result, input.data.requirement, universe);
     const returnedRecommendations = fullPlan.recommendations.slice(0, MAX_RETURNED_RECOMMENDATIONS);
     const response: RecommendationResponse = {
@@ -127,6 +130,8 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    timing.finish('rank', rankStarted);
+    const auditStarted = timing.start();
     await auditRecommendation(
       context.client,
       context.caller.id,
@@ -135,8 +140,9 @@ export async function POST(request: NextRequest) {
       input.data.requirement.length,
       Date.now() - startedAt,
     );
+    timing.finish('audit', auditStarted);
 
-    return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } });
+    return timing.response(() => NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } }));
   } catch (error) {
     if (error instanceof IntelligenceAIError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });

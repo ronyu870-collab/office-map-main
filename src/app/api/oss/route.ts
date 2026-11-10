@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 export const dynamic = 'force-dynamic';
 
@@ -284,13 +285,24 @@ export async function GET(request: Request) {
     }
 
     if (action === 'get-list') {
+      const timing = createIsolatedRequestTiming(request);
       // 列表只返回对象元数据；实际预览/下载 URL 由 access 接口按次签发并完成服务端审计。
-      const auth = await requireUser(request);
-      if (auth.response) return auth.response;
+      const auth = await timing.measure('auth', () => requireUser(request));
+      const privateHeaders = { 'Cache-Control': 'private, no-store, max-age=0' };
+      if (auth.response) {
+        auth.response.headers.set('Cache-Control', privateHeaders['Cache-Control']);
+        return auth.response;
+      }
 
-      const client = getOSSClient();
       const prefix = searchParams.get('prefix') || '';
-      const result = await client.list({ prefix, delimiter: '/', 'max-keys': 1000 }, {});
+      const marker = searchParams.get('marker') || undefined;
+      if (marker && !marker.startsWith(prefix)) {
+        return NextResponse.json({ status: 'error', message: '目录分页游标无效' }, { status: 400, headers: privateHeaders });
+      }
+      const client = getOSSClient();
+      const listStarted = timing.start();
+      const result = await client.list({ prefix, marker, delimiter: '/', 'max-keys': 1000 }, {});
+      timing.finish('object-list', listStarted);
 
       const folders = (result.prefixes ?? []).map((folder: string) => ({
         name: folder,
@@ -309,12 +321,13 @@ export async function GET(request: Request) {
           type: 'file' as const,
         }));
 
-      return NextResponse.json({
+      return timing.response(() => NextResponse.json({
         status: 'success',
         currentPath: prefix,
         truncated: Boolean(result.isTruncated),
+        nextMarker: result.isTruncated ? result.nextMarker ?? null : null,
         data: [...folders, ...files],
-      });
+      }, { headers: privateHeaders }));
     }
 
     return NextResponse.json({ status: 'error', message: 'Invalid action' }, { status: 400 });
@@ -329,7 +342,8 @@ export async function POST(request: Request) {
   const requestMode: OssRequestMode = searchParams.get('batch') === '1' ? 'batch' : 'single';
 
   if (action === 'access') {
-    const auth = await requireUser(request);
+    const timing = createIsolatedRequestTiming(request);
+    const auth = await timing.measure('auth', () => requireUser(request));
     if (auth.response) return auth.response;
     const verified = auth.verified;
     if (!verified) return NextResponse.json({ status: 'error', message: '未授权：请先登录' }, { status: 401 });
@@ -354,8 +368,11 @@ export async function POST(request: Request) {
           'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(displayName)}`,
         };
       }
+      const signStarted = timing.start();
       const url = client.signatureUrl(fileKey, urlOptions);
+      timing.finish('sign', signStarted);
 
+      const auditStarted = timing.start();
       await writeOssAudit(verified, 'OSS_FILE_ACCESS', {
         file_name: fileKey,
         display_name: displayName,
@@ -366,8 +383,9 @@ export async function POST(request: Request) {
         source,
         outcome: 'success',
       }, 'oss/file-access', displayName);
+      timing.finish('audit', auditStarted);
 
-      return NextResponse.json({ status: 'success', url });
+      return timing.response(() => NextResponse.json({ status: 'success', url }));
     } catch (error) {
       return NextResponse.json({ status: 'error', message: errorMessage(error) }, { status: 500 });
     }

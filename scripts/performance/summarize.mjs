@@ -1,7 +1,13 @@
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { mapStartupStages } from './readiness.mjs';
 
-export const metrics = ['feedback_ms', 'shell_ms', 'content_usable_ms', 'fresh_data_ms', 'map_markers_ms', 'map_tiles_ms'];
+export const metrics = ['feedback_ms', 'shell_ms', 'content_usable_ms', 'fresh_data_ms', 'map_markers_ms', 'map_tiles_ms',
+  'long_task_count', 'long_task_total_ms', 'request_count'];
+const measurements = [
+  ...metrics.map(metric => [metric, sample => sample[metric]]),
+  ...mapStartupStages.map(stage => [`map_${stage}_ms`, sample => sample.map_stages_ms?.[stage]]),
+];
 export function quantile(values, percentile) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -10,14 +16,15 @@ export function quantile(values, percentile) {
 export function summarize(samples) {
   const groups = new Map();
   for (const sample of samples) {
-    for (const metric of metrics) {
-      const value = sample[metric];
+    for (const [metric, read] of measurements) {
+      const value = read(sample);
       if (value != null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
         throw new Error(`Invalid measurement: ${metric}`);
       }
     }
     const identity = Object.fromEntries(['commit', 'deployment', 'environment', 'data_origin', 'device', 'browser',
-      'network', 'proxy_state', 'role_class', 'scenario', 'cache_state'].map((key) => [key, sample[key] ?? null]));
+      'network', 'proxy_state', 'role_class', 'scenario', 'cache_state', 'capture_action', 'resource_cache', 'map_stages_enabled', 'server_timing_enabled']
+      .map((key) => [key, sample[key] ?? null]));
     const key = JSON.stringify(identity);
     if (!groups.has(key)) groups.set(key, { identity, samples: [] });
     groups.get(key).samples.push(sample);
@@ -27,8 +34,8 @@ export function summarize(samples) {
     return { ...identity, sample_count: group.length, success_count: succeeded.length,
       failure_count: group.length - succeeded.length,
       failure_rate: (group.length - succeeded.length) / group.length,
-      metrics: Object.fromEntries(metrics.map((metric) => {
-        const values = succeeded.map((sample) => sample[metric]).filter((value) => value != null);
+      metrics: Object.fromEntries(measurements.map(([metric, read]) => {
+        const values = succeeded.map(read).filter((value) => value != null);
         return [metric, { measured_success_count: values.length, missing_success_count: succeeded.length - values.length,
           below_screening_sample_minimum: values.length < 20,
           below_final_desktop_sample_minimum: values.length < 100,
