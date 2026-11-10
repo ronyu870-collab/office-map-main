@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { createInterface } from 'node:readline/promises';
-import { observeNavigation } from './readiness.mjs';
+import { mapStartupStages, observeNavigation } from './readiness.mjs';
 
 // One explicitly prepared journey per invocation. Bulk production sampling is excluded.
 const [contractFile, outputFile] = process.argv.slice(2);
@@ -21,6 +21,8 @@ const destination = new URL(contract.destination_url ?? source.href, source);
 if (destination.origin !== source.origin || destination.username || destination.password) {
   throw new Error('Document destination must be on the source origin');
 }
+if (contract.map_stages !== undefined && (typeof contract.map_stages !== 'boolean' ||
+  (contract.map_stages && destination.pathname !== '/map'))) throw new Error('Map stages require a /map destination');
 const prepare = contract.prepare ?? 'manual';
 if (!['manual', 'none'].includes(prepare) || (prepare === 'none' && action !== 'open')) {
   throw new Error('Skipping preparation requires an open action');
@@ -107,7 +109,8 @@ try {
     if (record) record.failed = true;
   });
   const browserContract = { ...contract, action, timeout_ms: timeout,
-    destination_origin: destination.origin, destination_pathname: destination.pathname };
+    destination_origin: destination.origin, destination_pathname: destination.pathname,
+    map_stage_names: contract.map_stages ? mapStartupStages : null };
   if (action === 'click') await page.evaluate(observeNavigation, browserContract);
   else await page.addInitScript(observeNavigation, browserContract);
   let failure = null;
@@ -139,6 +142,7 @@ try {
     cache_state: contract.cache_state, deployment: contract.deployment ?? null,
     capture_action: action, resource_cache: resourceCache, document_requests: documentRequests,
     data_origin: contract.data_origin ?? 'unverified',
+    map_stages_enabled: contract.map_stages === true,
     metric_contract: { trigger: contract.trigger ?? null, shell: contract.shell, content: contract.content,
       feedback: contract.feedback ?? null, fresh: contract.fresh ?? null,
       map_tiles: contract.map_tiles ?? null, map_markers: contract.map_markers ?? null },

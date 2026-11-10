@@ -32,8 +32,13 @@ async function verifyDocumentCollector() {
     res.end(`<div id="shell">外框</div><div id="tiles" hidden>瓦片</div>
       <div id="records" hidden>真实结果</div><div id="markers" hidden>可点标记</div>
       <script>
+      const probe = window.__colliersNavigationProbe;
+      probe?.recordMapStage?.('authorized');
+      probe?.recordMapStage?.('private-business-value');
       fetch('/api/private-case?secret=fixture-secret').then(r => r.json()).then(() => {
         requestAnimationFrame(() => {
+          probe?.recordMapStage?.('authorized');
+          probe?.recordMapStage?.('tiles_complete');
           document.querySelector('#tiles').hidden = false;
           document.querySelector('#records').hidden = false;
           setTimeout(() => { document.querySelector('#markers').hidden = false }, 60);
@@ -52,12 +57,12 @@ async function verifyDocumentCollector() {
       timeout_ms: 2000, shell: '#shell', content: '#records', map_tiles: '#tiles', map_markers: '#markers',
       scenario: 'document-calibration', environment: 'fixture', commit: 'fixture', role_class: 'anonymous',
       device: 'desktop', network: 'loopback', cache_state: 'document' };
-    const capture = async pathname => {
-      await writeFile(input, JSON.stringify({ ...base, destination_url: origin + pathname }));
+    const capture = async (pathname, extra = {}) => {
+      await writeFile(input, JSON.stringify({ ...base, destination_url: origin + pathname, ...extra }));
       await run(process.execPath, [fileURLToPath(new URL('./capture-navigation.mjs', import.meta.url)), input, output],
         { env: { ...process.env, PERF_CAPTURE_HEADLESS: '1' }, timeout: 20_000 });
       const raw = await readFile(output, 'utf8');
-      assert.ok(!raw.includes('fixture-secret') && !raw.includes('private-case'), '请求隐私字段不能进入样本');
+      assert.ok(!raw.includes('fixture-secret') && !raw.includes('private-case') && !raw.includes('private-business-value'), '非白名单内容不能进入样本');
       return JSON.parse(raw);
     };
     const sample = await capture('/measure');
@@ -68,6 +73,11 @@ async function verifyDocumentCollector() {
     assert.ok(sample.map_tiles_ms <= sample.map_markers_ms);
     assert.ok(sample.map_markers_ms > sample.content_usable_ms, '业务列表出现不代表地图标记已可点');
     assert.ok(sample.requests.some(r => r.category === 'api:other' && r.encoded_body_bytes > 0));
+    assert.equal(sample.map_stages_ms, undefined, '地图阶段须主动启用');
+    const mapSample = await capture('/map', { map_stages: true });
+    assert.equal(mapSample.status, 'success');
+    assert.ok(mapSample.map_stages_ms.authorized < mapSample.map_stages_ms.tiles_complete, '不以重复事件覆盖首次阶段');
+    assert.equal(mapSample.map_stages_ms.sdk_ready, null, '缺少阶段必须保留为缺测');
     const redirected = await capture('/redirect');
     assert.equal(redirected.status, 'document_replaced');
     assert.equal(redirected.document_requests, 2);

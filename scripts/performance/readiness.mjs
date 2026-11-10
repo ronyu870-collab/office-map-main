@@ -1,3 +1,6 @@
+export const mapStartupStages = ['authorized', 'controller_ready', 'sdk_start', 'sdk_ready', 'tiles_complete',
+  'visual_ready', 'stock_read_start', 'stock_data_ready', 'stock_render_start', 'stock_render_returned'];
+
 // Runs inside the browser. Selectors are an explicit, reviewed scenario contract;
 // absence of a spinner alone never proves business content is usable.
 export function observeNavigation(contract) {
@@ -10,6 +13,14 @@ export function observeNavigation(contract) {
     fresh_data_ms: null, map_tiles_ms: null, map_markers_ms: null,
     long_task_count: null, long_task_total_ms: null, status: documentStart ? 'running' : 'waiting',
   };
+  const mapStages = contract.map_stage_names ? new Set(contract.map_stage_names) : null;
+  if (mapStages) result.map_stages_ms = Object.fromEntries([...mapStages].map(stage => [stage, null]));
+  const recordMapStage = mapStages ? (stage) => {
+    if (stopped || result.status !== 'running' || result.start === null || !mapStages.has(stage)
+      || result.map_stages_ms[stage] !== null || location.origin !== contract.destination_origin
+      || location.pathname !== contract.destination_pathname || window !== window.top) return;
+    result.map_stages_ms[stage] = performance.now() - result.start;
+  } : undefined;
   let stopped = false;
   let frame;
   let longTasks;
@@ -88,5 +99,6 @@ export function observeNavigation(contract) {
   window.__colliersNavigationProbe = {
     result,
     stop,
+    recordMapStage,
   };
 }
