@@ -1,11 +1,15 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Check, ChevronDown, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Check, ChevronDown, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 
 import { PageErrorBoundary } from '@/src/components/ErrorBoundary/PageErrorBoundary';
-import { fetchComparePayload } from '@/src/services/mapDataClient';
+import { useAppSession } from '@/src/components/SessionProvider';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
+import { fetchComparePayload, type CompareReadIdentity } from '@/src/services/mapDataClient';
+import { subscribeCompareInvalidation } from '@/src/services/compareSnapshot';
+import { CompareHeader, MAX_COMPETITORS } from './CompareHeader';
 
 type Source = 'brochure' | 'metric' | 'building';
 type Kind = 'text' | 'number' | 'percent' | 'boolean' | 'date';
@@ -81,7 +85,6 @@ const GROUPS: Group[] = [
 const FIELDS = GROUPS.flatMap((group) => group.fields);
 const FIELD_MAP = new Map(FIELDS.map((item) => [item.key, item]));
 const GRADE: Record<string, string> = { P: '超甲级', A: '甲级', B: '乙级', BP: '产业园' };
-const MAX_COMPETITORS = 5;
 
 function numeric(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -103,13 +106,12 @@ function defaultOperator(field: Field): Operator {
   return 'contains';
 }
 
-function Workspace() {
-  const router = useRouter();
+function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
   const params = useSearchParams();
   const targetId = params.get('buildingId') || '';
   const targetName = params.get('name') || '楼宇对比';
   const [rows, setRows] = useState<Row[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set(targetId ? [targetId] : []));
+  const [{ ids: selected }, setSelection] = useState<{ target: string | null; ids: Set<string> }>(() => ({ target: null, ids: new Set() }));
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Filter[]>([]);
   const [fieldKey, setFieldKey] = useState('elevator_vip');
@@ -120,19 +122,28 @@ function Workspace() {
   const [onlyPopulated, setOnlyPopulated] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [mobileSelectionOpen, setMobileSelectionOpen] = useState(false);
   const selectionPanelId = React.useId();
   const selectionToggleRef = React.useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      setLoading(true);
+    let generation = 0;
+    let expiresAt = 0;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let hasSnapshot = false;
+    const load = async () => {
+      const request = ++generation;
+      clearTimeout(refreshTimer);
+      expiresAt = Infinity;
+      setLoading(!hasSnapshot);
+      setRefreshing(hasSnapshot);
       setError(null);
       try {
-        const payload = await fetchComparePayload();
-        if (!active) return;
+        const payload = await fetchComparePayload({ token, userId, role, targetUserId });
+        if (request !== generation) return;
 
         const brochures = new Map<string, Record<string, unknown>>();
         for (const raw of payload.brochures) {
@@ -166,31 +177,69 @@ function Workspace() {
           };
         });
 
-        nextRows.sort((a, b) => a.id === targetId ? -1 : b.id === targetId ? 1 : a.name.localeCompare(b.name, 'zh-CN'));
+        nextRows.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
         setRows(nextRows);
-        setSelected((previous) => {
-          const next = new Set<string>();
-          if (targetId && nextRows.some((row) => row.id === targetId)) next.add(targetId);
-          previous.forEach((id) => { if (nextRows.some((row) => row.id === id)) next.add(id); });
-          const target = nextRows.find((row) => row.id === targetId);
-          if (target && next.size <= 1) {
-            nextRows
-              .filter((row) => row.id !== targetId && (row.submarket === target.submarket || row.grade === target.grade))
-              .slice(0, 3)
-              .forEach((row) => next.add(row.id));
-          }
-          return next;
-        });
+        hasSnapshot = true;
+        expiresAt = payload.expiresAt;
+        if (Number.isFinite(expiresAt)) {
+          refreshTimer = setTimeout(checkFreshness, Math.max(1, expiresAt - Date.now()));
+        }
       } catch (loadError) {
-        if (!active) return;
+        if (request !== generation) return;
+        hasSnapshot = false;
         setRows([]);
         setError(loadError instanceof Error ? loadError.message : '楼宇对比数据加载失败');
       } finally {
-        if (active) setLoading(false);
+        if (request === generation) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-    })();
-    return () => { active = false; };
-  }, [targetId]);
+    };
+    function checkFreshness() {
+      if (!hasSnapshot || Date.now() < expiresAt || document.visibilityState !== 'visible') return;
+      setRefreshing(true);
+      if (navigator.onLine) void load();
+    }
+    const unsubscribe = subscribeCompareInvalidation(() => {
+      expiresAt = 0;
+      if (!hasSnapshot || document.visibilityState === 'visible') void load();
+    });
+    document.addEventListener('visibilitychange', checkFreshness);
+    window.addEventListener('online', checkFreshness);
+    void load();
+    return () => {
+      generation += 1;
+      clearTimeout(refreshTimer);
+      unsubscribe();
+      document.removeEventListener('visibilitychange', checkFreshness);
+      window.removeEventListener('online', checkFreshness);
+    };
+  }, [retry, token, userId, role, targetUserId]);
+
+  const rowsById = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
+  const target = rowsById.get(targetId);
+  useEffect(() => {
+    if (!rows.length) return;
+    setSelection((previous) => {
+      const next = new Set<string>();
+      if (target) next.add(target.id);
+      const limit = MAX_COMPETITORS + (target ? 1 : 0);
+      for (const id of previous.ids) {
+        if (next.size >= limit) break;
+        if (id !== previous.target && rowsById.has(id)) next.add(id);
+      }
+      // Keep the former target only if there is room after the chosen competitors.
+      if (previous.target && next.size < limit && rowsById.has(previous.target)) next.add(previous.target);
+      if (target && target.id !== previous.target && next.size === 1) {
+        for (const row of rows) {
+          if (row.submarket === target.submarket || row.grade === target.grade) next.add(row.id);
+          if (next.size >= 4) break;
+        }
+      }
+      return { target: target?.id ?? null, ids: next };
+    });
+  }, [rows, rowsById, target]);
 
   const field = FIELD_MAP.get(fieldKey) || FIELDS[0];
   const valueFor = (row: Row, item: Field): unknown => {
@@ -229,18 +278,20 @@ function Workspace() {
     return filter.operator === 'equals' ? actual === expected : actual.includes(expected);
   };
 
-  const candidates = rows.filter((row) => row.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) && filters.every((filter) => matches(row, filter)));
-  const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.id)).sort((a, b) => a.id === targetId ? -1 : b.id === targetId ? 1 : a.name.localeCompare(b.name, 'zh-CN')), [rows, selected, targetId]);
+  const orderedRows = useMemo(() => target ? [target, ...rows.filter((row) => row !== target)] : rows, [rows, target]);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const candidates = orderedRows.filter((row) => row.name.toLocaleLowerCase().includes(normalizedQuery) && filters.every((filter) => matches(row, filter)));
+  const selectedRows = useMemo(() => orderedRows.filter((row) => selected.has(row.id)), [orderedRows, selected]);
   const targetSelected = Boolean(targetId && selected.has(targetId));
   const competitorCount = selectedRows.length - (targetSelected ? 1 : 0);
 
   const toggle = (id: string) => {
     if (id === targetId) return;
-    setSelected((previous) => {
-      const next = new Set(previous);
+    setSelection((previous) => {
+      const next = new Set(previous.ids);
       if (next.has(id)) next.delete(id);
       else if (next.size - (targetId && next.has(targetId) ? 1 : 0) < MAX_COMPETITORS) next.add(id);
-      return next;
+      return { ...previous, ids: next };
     });
   };
 
@@ -277,12 +328,7 @@ function Workspace() {
         : [['contains', '包含'], ['equals', '等于']];
 
   return <div className="flex h-screen h-[100dvh] min-h-0 flex-col bg-zinc-50">
-    <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-zinc-200 bg-white px-4 py-2 shadow-sm lg:px-5 lg:py-3">
-      <button type="button" onClick={() => router.push('/map')} className="flex min-h-11 items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 lg:min-h-0"><ArrowLeft size={16} />返回地图</button>
-      <span className="text-zinc-300">|</span><h1 className="text-sm font-semibold text-zinc-800">楼宇对比</h1>
-      <span className="truncate text-xs text-zinc-400">{targetName}</span>
-      <span className="ml-auto text-xs text-zinc-400">已选 {competitorCount} / {MAX_COMPETITORS} 个竞品</span>
-    </header>
+    <CompareHeader targetName={targetName} competitorCount={competitorCount} />
 
     <div className="shrink-0 border-b border-zinc-200 bg-white px-4 lg:hidden">
       <button ref={selectionToggleRef} type="button" aria-expanded={mobileSelectionOpen} aria-controls={selectionPanelId} onClick={() => setMobileSelectionOpen((open) => !open)} className="flex min-h-11 w-full items-center gap-2 text-left text-sm font-medium text-[#003e7e]">
@@ -311,7 +357,6 @@ function Workspace() {
           </div>
         </div>
         <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-auto">
-          {error ? <div className="m-2 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">{error}</div> : null}
           {candidates.map((row) => { const checked = selected.has(row.id); const target = row.id === targetId; return <button key={row.id} type="button" aria-pressed={checked} onClick={() => toggle(row.id)} className={`mb-1 flex min-h-11 w-full items-start gap-2 rounded px-2.5 py-2 text-left ${checked ? 'bg-blue-50' : 'hover:bg-zinc-50'}`}>
             <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-[#003e7e] bg-[#003e7e] text-white' : 'border-zinc-300'}`}>{checked ? <Check size={11} /> : null}</span>
             <span className="min-w-0"><span className={`block truncate text-xs font-medium ${target ? 'text-[#003e7e]' : 'text-zinc-700'}`}>{row.name}{target ? <span className="ml-1 text-[10px]">当前</span> : null}</span><span className="block truncate text-[10px] text-zinc-400">{GRADE[row.grade] || row.grade || '未分级'}{row.submarket ? ` · ${row.submarket}` : ''}</span></span>
@@ -324,11 +369,12 @@ function Workspace() {
       <main aria-label="楼宇比较结果" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-zinc-200 bg-white px-4 py-2 text-xs text-zinc-500 lg:px-5 lg:py-2.5">
           <span className="basis-full lg:basis-auto">最多选择 5 个竞品，可横向逐项比较。</span>
+          {refreshing ? <span role="status">当前显示上次结果，联网时自动更新</span> : null}
           <label className="flex min-h-11 cursor-pointer items-center gap-1.5 lg:min-h-0"><input type="checkbox" checked={onlyDifferences} onChange={(e) => setOnlyDifferences(e.target.checked)} className="accent-[#003e7e]" />仅看差异</label>
           <label className="flex min-h-11 cursor-pointer items-center gap-1.5 lg:min-h-0"><input type="checkbox" checked={onlyPopulated} onChange={(e) => setOnlyPopulated(e.target.checked)} className="accent-[#003e7e]" />隐藏空指标</label>
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
-          {loading ? <div className="flex justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" /></div> : !selectedRows.length ? <div className="p-12 text-center text-sm text-zinc-400">请选择至少一个项目</div> : <table className="min-w-full border-collapse text-xs">
+          {loading ? <div className="flex justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" /></div> : error ? <div role="alert" className="m-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" className="min-h-11 px-3 font-semibold underline" onClick={() => setRetry(current => current + 1)}>重试</button></div> : !selectedRows.length ? <div className="p-12 text-center text-sm text-zinc-400">请选择至少一个项目</div> : <table className="min-w-full border-collapse text-xs">
             <thead className="sticky top-0 z-20 bg-zinc-50 shadow-sm"><tr className="border-b-2 border-zinc-200"><th className="sticky left-0 z-30 min-w-[128px] bg-zinc-50 px-3 py-3 lg:min-w-[180px] lg:px-4 text-left font-semibold text-zinc-500">对比指标</th>{selectedRows.map((row) => <th key={row.id} className={`min-w-[180px] border-l border-zinc-100 px-4 py-2.5 text-left ${row.id === targetId ? 'bg-blue-50' : 'bg-zinc-50'}`}><div className={`font-semibold ${row.id === targetId ? 'text-[#003e7e]' : 'text-zinc-700'}`}>{row.name}</div><div className="mt-1 font-normal text-[10px] text-zinc-400">{GRADE[row.grade] || row.grade || '未分级'}{row.submarket ? ` · ${row.submarket}` : ''}{row.metricPeriod ? ` · 经营数据 ${row.metricPeriod}` : ''}</div></th>)}</tr></thead>
             <tbody>{GROUPS.map((group) => { const fields = group.fields.filter(visible); if (!fields.length) return null; const closed = collapsed.has(group.label); return <React.Fragment key={group.label}><tr className="border-y border-zinc-200 bg-zinc-100"><td colSpan={selectedRows.length + 1} className="px-3 font-semibold text-[#003e7e]"><button type="button" aria-expanded={!closed} aria-label={`${closed ? '展开' : '收起'}${group.label}`} className="sticky left-0 inline-flex min-h-11 items-center py-2 text-left lg:min-h-0" onClick={() => setCollapsed((current) => { const next = new Set(current); if (next.has(group.label)) next.delete(group.label); else next.add(group.label); return next; })}>{closed ? <ChevronRight size={14} className="mr-1" /> : <ChevronDown size={14} className="mr-1" />}{group.label}<span className="ml-2 text-xs font-normal text-zinc-500">{fields.length} 项</span></button></td></tr>{!closed ? fields.map((item) => <tr key={item.key} className="border-b border-zinc-100 hover:bg-zinc-50"><td className="sticky left-0 z-10 bg-white px-4 py-2.5 font-medium text-zinc-600">{item.label}{item.unit ? <span className="ml-1 text-[10px] font-normal text-zinc-400">({item.unit})</span> : null}</td>{selectedRows.map((row) => { const raw = valueFor(row, item); const missing = raw === null || raw === undefined || raw === ''; return <td key={row.id} className={`border-l border-zinc-100 px-4 py-2.5 ${row.id === targetId ? 'bg-blue-50/30 font-medium text-[#003e7e]' : 'text-zinc-700'} ${missing ? 'text-zinc-300' : ''}`}>{format(raw, item)}</td>; })}</tr>) : null}</React.Fragment>; })}</tbody>
           </table>}
@@ -339,5 +385,13 @@ function Workspace() {
 }
 
 export default function BuildingCompareWorkspace() {
-  return <PageErrorBoundary pageName="楼宇对比"><Workspace /></PageErrorBoundary>;
+  const { status, session } = useAppSession();
+  const { targetUserId, targetRole } = useImpersonation();
+  if (!session?.session.access_token || status !== 'authenticated' || session.user.app_metadata?.must_change_password) {
+    return <div className="flex h-dvh min-h-0 flex-col bg-zinc-50"><CompareHeader />
+      {status === 'unauthenticated' ? <p role="alert" className="p-4 text-sm text-zinc-700">未登录，无法读取楼宇对比数据</p> : null}
+    </div>;
+  }
+  const scope = JSON.stringify([session.session.access_token, session.user.id, session.role, targetUserId, targetRole]);
+  return <PageErrorBoundary pageName="楼宇对比"><Workspace key={scope} token={session.session.access_token} userId={session.user.id} role={session.role} targetUserId={targetUserId} /></PageErrorBoundary>;
 }

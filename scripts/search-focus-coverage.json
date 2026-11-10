@@ -171,5 +171,41 @@
     "cases": [
       "retains search focus and caret when the parent updates the visible record count"
     ]
+  },
+  {
+    "id": "admin-display-rule-search",
+    "roots": ["src/app/admin/display-overrides/page.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["keeps the display-rule search focused while filtering and correcting a term"]
+  },
+  {
+    "id": "admin-update-module-filter",
+    "roots": ["src/components/ChangelogManager.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["keeps the update module filter focused when switching between populated and empty results"]
+  },
+  {
+    "id": "admin-feedback-search",
+    "roots": ["src/components/admin/IssueManager.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["continues editing feedback search after a delayed list and while a source filter is active"]
+  },
+  {
+    "id": "admin-user-directory-search",
+    "roots": ["src/components/admin/UserManager.tsx"],
+    "file": "src/components/admin/__tests__/administrative-filters.focus.test.tsx",
+    "cases": ["keeps user-directory search focused across a delayed response and a mid-word correction"]
+  },
+  {
+    "id": "lease-change-history-search",
+    "roots": ["src/app/lease-submission/components/LeaseTransactionHistoryDrawer.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-history-drawer.focus.test.tsx",
+    "cases": ["keeps lease-change search editable while records arrive and the caret moves within the keyword"]
+  },
+  {
+    "id": "lease-building-selector-search",
+    "roots": ["src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": ["keeps the actual lease building selector focused through results and a mid-word correction"]
   }
 ]
