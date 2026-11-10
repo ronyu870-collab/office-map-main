@@ -2,6 +2,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './supabaseClient';
 import { clearMapReadCache } from './mapReadCache';
 import { clearCompareSnapshot } from './compareSnapshot';
+import { isPasswordSignInPending, runPasswordSignIn } from './passwordSignInTransition';
 
 export const DEFAULT_APP_ROLE = 'viewer' as const;
 
@@ -163,6 +164,11 @@ export async function signInWithPassword(params: {
   if (!password) throw new TypeError('signInWithPassword: password 不能为空');
   if (!phone || !/^\d{11}$/.test(phone)) throw new TypeError('signInWithPassword: 手机号必须为 11 位数字');
 
+  return runPasswordSignIn(() => verifyPasswordSignIn(email, password, phone));
+}
+
+async function verifyPasswordSignIn(email: string, password: string, phone: string): Promise<AuthSessionResult> {
+  clearSessionCache();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new Error(`登录失败：${error.message}`);
   if (!data.session || !data.user) throw new Error('登录失败：未返回有效的 session/user');
@@ -212,7 +218,13 @@ export async function signInWithPassword(params: {
   if (sessionIdSettled.status === 'rejected') console.error('更新 session_id 失败:', sessionIdSettled.reason);
   if (metadataSettled.status === 'rejected') console.error('更新 user metadata 失败:', metadataSettled.reason);
 
-  const result = { user: data.user, session: data.session, role, displayName, sessionId };
+  // The metadata write can replace the SDK's cached User. Publish only if the
+  // credential that passed the phone check is still the current one.
+  const { data: current, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !current.session || !sameCredential(data.session, current.session)) {
+    throw new Error('登录状态已变化，请重新登录');
+  }
+  const result = { user: current.session.user, session: current.session, role, displayName, sessionId };
 
   // 缓存预热：登录成功后立即写入缓存（跳转到首页后瞬间命中，无需再查库）
   prewarmSessionCache(result);
@@ -237,7 +249,9 @@ export async function signOut(): Promise<void> {
 }
 
 export async function getSession(): Promise<AuthSessionResult | null> {
+  if (isPasswordSignInPending()) return null;
   const { data, error } = await supabase.auth.getSession();
+  if (isPasswordSignInPending()) return null;
   if (error) throw new Error(`获取会话失败：${error.message}`);
   if (!data.session) return null;
 
@@ -245,6 +259,7 @@ export async function getSession(): Promise<AuthSessionResult | null> {
   if (!user) return null;
 
   const { role, displayName, sessionId } = await readRestoredProfile(data.session);
+  if (isPasswordSignInPending()) return null;
   return { user, session: data.session, role, displayName, sessionId };
 }
 
@@ -276,6 +291,7 @@ export function getSessionFromHeaders(): AuthSessionResult | null {
  * 获取真实的管理员会话（不含模拟拦截，避免递归）
  */
 async function getRealSession(): Promise<AuthSessionResult | null> {
+  if (isPasswordSignInPending()) return null;
   // Never share request state across server renders or users.
   if (typeof window === 'undefined') return getSession();
   const headerSession = getSessionFromHeaders();

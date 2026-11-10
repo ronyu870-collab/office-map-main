@@ -21,6 +21,7 @@ import {
   type AuthSessionResult,
 } from '@/src/services/Auth';
 import { getTrustedDeviceRemainingMs, isTrustedDevice } from '@/src/services/trustedDevice';
+import { isPasswordSignInPending, subscribeToPasswordSignIn } from '@/src/services/passwordSignInTransition';
 
 export type AppSessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -111,6 +112,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const resolveSession = useCallback(async (forceRefresh = false) => {
+    if (isPasswordSignInPending()) return null;
     if (forceRefresh) {
       clearSessionCache();
       sessionGenerationRef.current += 1;
@@ -162,6 +164,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (
       status === 'authenticated' &&
       session?.user.app_metadata?.must_change_password &&
+      pathname !== '/login' &&
       pathname !== '/settings'
     ) {
       router.replace('/settings?required=1');
@@ -239,6 +242,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, [pathname, readingPublicReport, router, session, status]);
 
+  useEffect(() => subscribeToPasswordSignIn(transition => {
+    sessionGenerationRef.current += 1;
+    inFlightSessionRef.current = null;
+    const result = transition.pending ? null : transition.result;
+    setSession(result);
+    setAllowHomeNavigation(canStartHomeNavigation(result?.session ?? null));
+    setStatus(transition.pending ? 'loading' : result ? 'authenticated' : 'unauthenticated');
+    setShowWarning(false);
+  }), []);
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -255,6 +268,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (isPasswordSignInPending()) return;
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         setAllowHomeNavigation(canStartHomeNavigation(authSession));
       }
