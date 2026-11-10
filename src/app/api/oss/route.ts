@@ -286,11 +286,19 @@ export async function GET(request: Request) {
     if (action === 'get-list') {
       // 列表只返回对象元数据；实际预览/下载 URL 由 access 接口按次签发并完成服务端审计。
       const auth = await requireUser(request);
-      if (auth.response) return auth.response;
+      const privateHeaders = { 'Cache-Control': 'private, no-store, max-age=0' };
+      if (auth.response) {
+        auth.response.headers.set('Cache-Control', privateHeaders['Cache-Control']);
+        return auth.response;
+      }
 
-      const client = getOSSClient();
       const prefix = searchParams.get('prefix') || '';
-      const result = await client.list({ prefix, delimiter: '/', 'max-keys': 1000 }, {});
+      const marker = searchParams.get('marker') || undefined;
+      if (marker && !marker.startsWith(prefix)) {
+        return NextResponse.json({ status: 'error', message: '目录分页游标无效' }, { status: 400, headers: privateHeaders });
+      }
+      const client = getOSSClient();
+      const result = await client.list({ prefix, marker, delimiter: '/', 'max-keys': 1000 }, {});
 
       const folders = (result.prefixes ?? []).map((folder: string) => ({
         name: folder,
@@ -313,8 +321,9 @@ export async function GET(request: Request) {
         status: 'success',
         currentPath: prefix,
         truncated: Boolean(result.isTruncated),
+        nextMarker: result.isTruncated ? result.nextMarker ?? null : null,
         data: [...folders, ...files],
-      });
+      }, { headers: privateHeaders });
     }
 
     return NextResponse.json({ status: 'error', message: 'Invalid action' }, { status: 400 });

@@ -31,4 +31,12 @@ assert.equal(sparse.metrics.content_usable_ms.below_final_desktop_sample_minimum
 for (const value of [-1, Infinity, NaN, '200']) {
   assert.throws(() => summarize([{ ...samples[0], content_usable_ms: value }]), /Invalid measurement/);
 }
+const [withoutStages, withStages] = summarize([
+  { ...samples[0], map_stages_enabled: false },
+  { ...samples[0], map_stages_enabled: true, map_stages_ms: { sdk_ready: 260, stock_data_ready: null, private_extra: 42 } },
+]);
+assert.equal(withoutStages.metrics.map_sdk_ready_ms.p75, null);
+assert.equal(withStages.metrics.map_sdk_ready_ms.p75, 260);
+assert.equal(withStages.metrics.map_stock_data_ready_ms.missing_success_count, 1);
+assert.ok(!('map_private_extra_ms' in withStages.metrics));
 console.log('PASS: scenario isolation, missing values, failure denominator, nearest-rank quantiles, invalid input rejection');
