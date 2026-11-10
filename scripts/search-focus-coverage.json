@@ -217,7 +217,7 @@
   },
   {
     "id": "lease-team-column-option-search",
-    "roots": ["src/app/lease-submission/components/LeaseColumnMenu.tsx"],
+    "roots": ["src/app/lease-submission/components/LeaseColumnMenu.tsx", "src/app/lease-submission/components/SubmissionDetailTable.tsx"],
     "file": "src/app/lease-submission/__tests__/lease-table-interaction.test.tsx",
     "cases": ["keeps team column option search focused during a correction and restores focus on close"]
   },
