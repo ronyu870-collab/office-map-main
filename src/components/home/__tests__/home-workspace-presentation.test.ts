@@ -68,12 +68,14 @@ describe('Home workspace presentation contract', () => {
       "href: '/lease-submission'",
       "href: '/oss'",
       "href: '/admin'",
-      'CommunicationBoard',
-      'NoticeBanner',
       '当前账号无访问权限',
     ]) {
       expect(home).toContain(contract);
     }
+
+    const activity = read('src/components/home/HomeTeamActivity.tsx');
+    expect(activity).toContain('<CommunicationBoard');
+    expect(activity).toContain('<NoticeBanner');
 
     expect(home).not.toContain("'ENTER_MODULE'");
     expect(home).not.toContain('UNDER_DEVELOPMENT_MODULES');

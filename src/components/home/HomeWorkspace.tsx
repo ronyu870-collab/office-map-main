@@ -19,16 +19,13 @@ import {
   UserRound,
 } from 'lucide-react';
 
-import { CommunicationBoard } from '@/src/components/CommunicationBoard';
-import { FeedbackPanel } from '@/src/components/FeedbackPanel';
-import { NoticeBanner } from '@/src/components/NoticeBanner';
 import { WorkspaceShell } from '@/src/components/layout';
-import { useAppSession } from '@/src/components/SessionProvider';
+import type { HomeTeamActivityProps } from './HomeTeamActivity';
+import { useAppSession, useCanStartHomeNavigation } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import { canSeeOccupierReportCard } from '@/src/config/occupierReportCard';
-import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
@@ -182,7 +179,7 @@ function HomeHeader({
     <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]">
       <div className="flex min-w-0 items-center gap-3">
         <div className="relative h-7 w-[52px] shrink-0 overflow-hidden rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-brand)]">
-          <Image src={COLLIERS_LOGO_DATA_URI} alt="Colliers 高力国际" width={592} height={337} priority className="absolute left-1/2 top-1/2 h-[31px] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
+          <Image src="/colliers-logo.png" unoptimized alt="Colliers 高力国际" width={592} height={337} priority className="absolute left-1/2 top-1/2 h-[31px] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
         </div>
         <span className="h-4 w-px bg-[var(--cd-color-border)]" aria-hidden="true" />
         <div className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)] sm:text-sm">北京办公楼市场数据平台</div>
@@ -314,70 +311,69 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
   );
 }
 
-function HomeLoadingShell() {
+function LoadingHeader() {
   return (
-    <WorkspaceShell
-      className="h-screen h-[100dvh] overflow-hidden"
-      header={(
-        <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]">
-          <div className="h-7 w-[220px] max-w-[calc(100%-64px)] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:w-[231px]" />
-          <div className="h-10 w-[52px] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:h-9 sm:w-[88px]" />
-        </div>
-      )}
-    >
-      <div className="h-full overflow-hidden">
-        <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
-          <section className="min-w-0">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
-              <div className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
-            </div>
-            <div className="mb-2.5 mt-5">
-              <div className="h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
-            </div>
-            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
-              {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
-            </div>
-          </section>
-          <aside className="hidden min-w-0 border-l border-[var(--cd-color-border)] pl-6 lg:block xl:pl-7">
-            <div className="mb-2.5 h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
-            <div className="h-[320px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />
-          </aside>
-        </div>
-      </div>
-    </WorkspaceShell>
+    <div className="mx-auto flex h-[54px] w-full max-w-[1240px] items-center justify-between px-4 sm:px-6 lg:px-8 2xl:max-w-[1360px]">
+      <div className="h-7 w-[220px] max-w-[calc(100%-64px)] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:w-[231px]" />
+      <div className="h-10 w-[52px] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:h-9 sm:w-[88px]" />
+    </div>
   );
+}
+
+function LoadingActivity() {
+  return (
+    <div aria-hidden="true" className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+      <div className="h-12 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]" />
+      <div className="h-[240px] animate-pulse bg-[var(--cd-color-surface-alt)] sm:h-[250px] lg:h-[270px]" />
+    </div>
+  );
+}
+
+const HomeTeamActivity = React.lazy(() => import('./HomeTeamActivity').then(module => ({
+  default: module.HomeTeamActivity,
+})));
+
+function DeferredHomeActivity(props: HomeTeamActivityProps) {
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    let afterPaint = 0;
+    const frame = requestAnimationFrame(() => {
+      afterPaint = requestAnimationFrame(() => React.startTransition(() => setReady(true)));
+    });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(afterPaint); };
+  }, []);
+  return ready ? (
+    <React.Suspense fallback={<LoadingActivity />}><HomeTeamActivity {...props} /></React.Suspense>
+  ) : <LoadingActivity />;
 }
 
 export function HomeWorkspace() {
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
   const { isImpersonating } = useImpersonation();
-  const [showCommunication, setShowCommunication] = React.useState(false);
+  const canStartNavigation = useCanStartHomeNavigation();
+
+  const activeSession = status === 'authenticated' && !ctx?.user.app_metadata?.must_change_password ? ctx : null;
+  const canStartMap = Boolean(activeSession) ||
+    (canStartNavigation && !isImpersonating && !isModuleRestricted(MAP_WORKSPACE.module));
 
   React.useEffect(() => { if (status === 'unauthenticated') router.replace('/login'); }, [router, status]);
-  React.useEffect(() => {
-    if (status !== 'authenticated') { setShowCommunication(false); return; }
-    React.startTransition(() => setShowCommunication(true));
-  }, [status]);
 
-  if (status === 'loading' || !ctx) return <HomeLoadingShell />;
-
-  const activeSession = ctx;
-  const activeRole = parseUserRole(activeSession.role) ?? 'viewer';
-  const canSeeAdminWorkspace = canAccessAdminConsole({
+  const activeRole = parseUserRole(activeSession?.role) ?? 'viewer';
+  const canSeeAdminWorkspace = Boolean(activeSession && canAccessAdminConsole({
     role: activeRole,
     isDemo: isDemoMode(activeSession.user.email),
     impersonationActive: isImpersonating,
-  });
-  const canSeeIntelligence = isIntelligencePreviewEnabled(activeRole);
-  // 报告链接保持公开；只决定首页是否出现入口板块，不允许名单内的用户看不到卡片。
-  const visibleBusinessWorkspaces = BUSINESS_WORKSPACES.filter(workspace =>
+  }));
+  const canSeeIntelligence = Boolean(activeSession && isIntelligencePreviewEnabled(activeRole));
+  // This card's visibility does not change the report's public access.
+  const visibleBusinessWorkspaces = activeSession ? BUSINESS_WORKSPACES.filter(workspace =>
     workspace.homeVisibility !== 'occupier-report'
     || canSeeOccupierReportCard(activeRole, activeSession.user.email),
-  );
+  ) : [];
 
   async function handleLogout() {
+    if (!activeSession) return;
     try {
       if (activeSession.user.email) void logActionImmediate(activeSession.user.email, 'LOGOUT', { platform: 'web' });
       await signOut();
@@ -388,6 +384,7 @@ export function HomeWorkspace() {
   }
 
   function handleWorkspaceActivation(event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) {
+    if (!activeSession) { event.preventDefault(); return; }
     const restricted = isModuleRestricted(workspace.module);
     const canAccess = workspace.module === ADMIN_WORKSPACE.module
       ? canSeeAdminWorkspace
@@ -411,7 +408,7 @@ export function HomeWorkspace() {
   return (
     <WorkspaceShell
       className="h-screen h-[100dvh] overflow-hidden"
-      header={(
+      header={activeSession ? (
         <HomeHeader
           displayName={activeSession.displayName}
           role={activeRole}
@@ -419,15 +416,16 @@ export function HomeWorkspace() {
           onLogout={() => void handleLogout()}
           onAdminActivate={(event) => handleWorkspaceActivation(event, ADMIN_WORKSPACE)}
         />
-      )}
+      ) : <LoadingHeader />}
     >
       <div className="h-full overflow-y-auto overscroll-contain">
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
-          <section className="min-w-0" aria-labelledby="home-heading">
-            <div className={`grid gap-3 ${canSeeIntelligence ? 'sm:grid-cols-2' : ''}`}>
-              <Link
+          <section className="min-w-0" aria-labelledby={canStartMap ? 'home-heading' : undefined}>
+            <div className={`grid gap-3 ${canSeeIntelligence || !canStartMap ? 'sm:grid-cols-2' : ''}`}>
+              {canStartMap ? <Link
                 href={MAP_WORKSPACE.href}
-                onClick={(event) => handleWorkspaceActivation(event, MAP_WORKSPACE)}
+                prefetch={activeSession ? undefined : false}
+                onClick={activeSession ? (event) => handleWorkspaceActivation(event, MAP_WORKSPACE) : undefined}
                 className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
                 {...mapAccessibilityProps}
               >
@@ -438,8 +436,9 @@ export function HomeWorkspace() {
                   <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
                 </div>
                 <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
-              </Link>
+              </Link> : <div aria-hidden="true" className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />}
 
+              {!canStartMap && <div aria-hidden="true" className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />}
               {canSeeIntelligence ? (
                 <Link
                   href={INTELLIGENCE_WORKSPACE.href}
@@ -461,29 +460,36 @@ export function HomeWorkspace() {
               ) : null}
             </div>
 
-            <div className="mb-2.5 mt-5">
-              <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
-            </div>
-            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-              {visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
-            </div>
+            {activeSession ? (
+              <>
+                <div className="mb-2.5 mt-5">
+                  <h2 className="text-[14px] font-semibold text-[var(--cd-color-text-primary)]">常用工作</h2>
+                </div>
+                <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
+                  {visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)}
+                </div>
+              </>
+            ) : (
+              <div aria-hidden="true">
+                <div className="mb-2.5 mt-5 h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />
+                <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
+                  {[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] last:border-b-0" />)}
+                </div>
+              </div>
+            )}
           </section>
 
-          <aside className="min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-7" aria-label="团队动态">
-            <h2 className="mb-2.5 text-[14px] font-semibold text-[var(--cd-color-text-primary)]">团队动态</h2>
-            <div className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-              {showCommunication ? <NoticeBanner /> : <div className="h-12 animate-pulse border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]" />}
-              <div className="h-[240px] sm:h-[250px] lg:h-[270px]">
-                {showCommunication && activeSession.user.email ? <CommunicationBoard userEmail={activeSession.user.email} userName={activeSession.displayName} /> : <div className="h-full animate-pulse bg-[var(--cd-color-surface-alt)]" aria-hidden="true" />}
-              </div>
-            </div>
-            {activeSession.user.email ? (
-              <FeedbackPanel
+          <aside className={`min-w-0 border-t border-[var(--cd-color-border)] pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0 xl:pl-7 ${activeSession ? '' : 'hidden lg:block'}`} aria-label="团队动态" aria-hidden={!activeSession || undefined}>
+            {activeSession ? <h2 className="mb-2.5 text-[14px] font-semibold text-[var(--cd-color-text-primary)]">团队动态</h2>
+              : <div aria-hidden="true" className="mb-2.5 h-5 w-20 animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)]" />}
+            {activeSession ? (
+              <DeferredHomeActivity
+                key={activeSession.user.id}
                 userId={activeSession.user.id}
-                userEmail={activeSession.user.email}
+                userEmail={activeSession.user.email ?? ''}
                 userName={activeSession.displayName}
               />
-            ) : null}
+            ) : <LoadingActivity />}
           </aside>
         </div>
       </div>

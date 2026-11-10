@@ -6,6 +6,7 @@ vi.mock('../supabaseClient', () => ({ supabase: {
   from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.profile }) }) }),
 } }));
 import { clearSessionCache, getSessionFast, prewarmSessionCache } from '../Auth';
+import type { Session } from '@supabase/supabase-js';
 import type { AuthSessionResult } from '../Auth';
 
 function session(id = 'user-a') {
@@ -31,6 +32,32 @@ describe('browser session request coalescing', () => {
     await getSessionFast();
     expect(mocks.getSession).toHaveBeenCalledTimes(1);
     expect(mocks.profile).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares the delayed profile during same-credential SDK recovery without sharing it across accounts', async () => {
+    const first = deferred<{ data: { role: string }; error: null }>();
+    mocks.profile.mockReturnValueOnce(first.promise);
+    const startup = getSessionFast();
+    await vi.waitFor(() => expect(mocks.profile).toHaveBeenCalledTimes(1));
+
+    clearSessionCache({ reuseInFlightProfileFor: session() as Session });
+    const recovery = getSessionFast();
+    await vi.waitFor(() => expect(mocks.getSession).toHaveBeenCalledTimes(2));
+    expect(mocks.profile).toHaveBeenCalledTimes(1);
+
+    const second = deferred<{ data: { role: string }; error: null }>();
+    mocks.getSession.mockResolvedValue(response('user-b'));
+    mocks.profile.mockReturnValueOnce(second.promise);
+    clearSessionCache({ reuseInFlightProfileFor: session('user-b') as Session });
+    const accountSwitch = getSessionFast();
+    await vi.waitFor(() => expect(mocks.profile).toHaveBeenCalledTimes(2));
+
+    second.resolve({ data: { role: 'viewer' }, error: null });
+    first.resolve({ data: { role: 'admin' }, error: null });
+    const results = await Promise.all([startup, recovery, accountSwitch]);
+    expect(results.map(result => [result?.user.id, result?.role])).toEqual([
+      ['user-b', 'viewer'], ['user-b', 'viewer'], ['user-b', 'viewer'],
+    ]);
   });
 
   it('retries after a rejected shared lookup', async () => {

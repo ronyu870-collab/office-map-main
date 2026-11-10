@@ -10,7 +10,6 @@ import { logActionImmediate } from '@/src/utils/audit';
 import { perfStart, perfEnd, perfMark } from '@/src/utils/performanceLogger';
 import { setTrustedDevice } from '@/src/services/trustedDevice';
 import { hasPasswordChangeNotice, setPasswordChangeNotice } from '@/src/services/passwordChangeNotice';
-import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { Button, IconButton, Input } from '@/src/components/ui';
 
 export default function LoginPage() {
@@ -80,7 +79,8 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px]">
         <div className="mb-5 flex items-center justify-center gap-4 text-left">
           <Image
-            src={COLLIERS_LOGO_DATA_URI}
+            src="/colliers-logo.png"
+            unoptimized
             alt="Colliers 高力国际"
             width={592}
             height={337}

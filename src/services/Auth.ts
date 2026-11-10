@@ -9,6 +9,28 @@ const AUTH_SESSION_CACHE_VERSION = 2;
 const AUTH_SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 let sessionCacheGeneration = 0;
 let pendingRealSession: Promise<AuthSessionResult | null> | null = null;
+let pendingRestoredProfile: {
+  session: Session;
+  request: ReturnType<typeof fetchUserProfile>;
+} | null = null;
+
+function sameCredential(a: Session, b: Session): boolean {
+  return a.user.id === b.user.id && a.access_token === b.access_token;
+}
+
+/** One read for one credential, even if the SDK emits an event during initialization. */
+function readRestoredProfile(session: Session): ReturnType<typeof fetchUserProfile> {
+  const read = () => fetchUserProfile(session.user.id, session.user.email ?? '');
+  if (typeof window === 'undefined') return read();
+  if (pendingRestoredProfile && sameCredential(pendingRestoredProfile.session, session)) {
+    return pendingRestoredProfile.request;
+  }
+  const request = read().finally(() => {
+    if (pendingRestoredProfile?.request === request) pendingRestoredProfile = null;
+  });
+  pendingRestoredProfile = { session, request };
+  return request;
+}
 
 /**
  * 生成唯一会话标识符（UUID v4）
@@ -221,7 +243,7 @@ export async function getSession(): Promise<AuthSessionResult | null> {
   const user = data.session.user;
   if (!user) return null;
 
-  const { role, displayName, sessionId } = await fetchUserProfile(user.id, user.email ?? '');
+  const { role, displayName, sessionId } = await readRestoredProfile(data.session);
   return { user, session: data.session, role, displayName, sessionId };
 }
 
@@ -341,6 +363,7 @@ export function prewarmSessionCache(session: AuthSessionResult): void {
   if (typeof window === 'undefined') return;
   sessionCacheGeneration += 1;
   pendingRealSession = null;
+  pendingRestoredProfile = null;
   clearMapReadCache();
   writeSessionCache(session);
 }
@@ -369,10 +392,14 @@ function writeSessionCache(session: AuthSessionResult): void {
  *
  * 优化：不在其他场景清除缓存（如普通页面切换）
  */
-export function clearSessionCache(): void {
+export function clearSessionCache({ reuseInFlightProfileFor }: { reuseInFlightProfileFor?: Session } = {}): void {
   if (typeof window !== 'undefined') {
     sessionCacheGeneration += 1;
     pendingRealSession = null;
+    if (!reuseInFlightProfileFor || !pendingRestoredProfile ||
+        !sameCredential(pendingRestoredProfile.session, reuseInFlightProfileFor)) {
+      pendingRestoredProfile = null;
+    }
     clearMapReadCache();
     try {
       sessionStorage.removeItem(AUTH_SESSION_CACHE_KEY);

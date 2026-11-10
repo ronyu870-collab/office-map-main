@@ -25,6 +25,23 @@ async function open() { await act(async () => { render(<OSSManager userEmail="ad
 async function enterFolder() { await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: '甲目录' })[0]); }); }
 
 describe('research library directory request ordering', () => {
+  it('keeps the library search focused and editable as directory results change', async () => {
+    fetchMock.mockResolvedValueOnce(response([file('北京市场.pdf'), file('北京租赁.pdf'), file('上海市场.pdf')]));
+    await open();
+    const input = screen.getByRole('textbox', { name: '搜索当前目录资料' }) as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: '北京', selectionStart: 2, selectionEnd: 2 } });
+    expect(screen.queryByText('上海市场.pdf')).not.toBeInTheDocument();
+    expect(screen.getAllByText('北京租赁.pdf').length).toBeGreaterThan(0);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    fireEvent.change(input, { target: { value: '北京市场', selectionStart: 4, selectionEnd: 4 } });
+    expect(screen.queryByText('北京租赁.pdf')).not.toBeInTheDocument();
+    expect(screen.getAllByText('北京市场.pdf').length).toBeGreaterThan(0);
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(4);
+  });
+
   it('ignores a late success (including its truncated flag) after returning to root', async () => {
     await open();
     const old = deferred<Response>();
