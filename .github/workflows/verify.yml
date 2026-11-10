@@ -78,6 +78,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Check schema dictionary catalog and search index
+        run: node scripts/generate-schema-dictionary.mjs --check
+
       - name: Lint
         run: npm run lint
 
@@ -244,6 +247,7 @@ jobs:
           node scripts/performance/verify-admin-memo-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-changelog-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-notice-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-schema-dictionary.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-user-directory.mjs http://127.0.0.1:3210
           node scripts/performance/verify-display-overrides.mjs http://127.0.0.1:3210
           node scripts/performance/verify-quarterly-reference.mjs http://127.0.0.1:3210

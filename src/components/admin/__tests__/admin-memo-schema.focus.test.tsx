@@ -42,11 +42,12 @@ it('supports keyboard focus in a memo preview and keeps the internal links intac
   expect(home).toHaveAttribute('href', '/');
 });
 
-it('keeps schema search and its caret while a corrected table name becomes selectable', () => {
+it('keeps schema search and its caret while a corrected table name becomes selectable', async () => {
   render(<SchemaMap />);
   const input = screen.getByPlaceholderText('搜索表名或字段...') as HTMLInputElement;
   input.focus();
   fireEvent.change(input, { target: { value: 'buildnigs' } });
+  await screen.findByText('未找到匹配的表或字段');
   expect(screen.queryByRole('button', { name: /楼宇基础信息/ })).not.toBeInTheDocument();
   fireEvent.change(input, { target: { value: 'buildings', selectionStart: 6, selectionEnd: 6 } });
   expect(input).toHaveFocus();
