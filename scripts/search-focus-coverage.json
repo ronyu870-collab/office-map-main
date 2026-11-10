@@ -223,8 +223,8 @@
   },
   {
     "id": "admin-memo-title-search",
-    "roots": ["src/components/admin-memo/MemoList.tsx"],
-    "file": "src/components/admin/__tests__/admin-memo-schema.focus.test.tsx",
+    "roots": ["src/components/admin-memo/MemoList.tsx", "src/components/admin-memo/MemoManager.tsx", "src/hooks/useMemos.ts"],
+    "file": "src/components/admin-memo/__tests__/MemoManager.read.test.tsx",
     "cases": ["keeps memo title search editable while the result list loads and returns"]
   },
   {

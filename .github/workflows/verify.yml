@@ -168,6 +168,12 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: PostgreSQL 17 and PostgREST memo preview regression
+        run: node supabase/tests/memo-list-preview/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: Production build
         run: npm run build
         env:
@@ -201,6 +207,7 @@ jobs:
           node scripts/performance/verify-admin-operator.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-database-discovery.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-debug-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-memo-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-quarterly-reference.mjs http://127.0.0.1:3210
           node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
