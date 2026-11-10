@@ -83,6 +83,26 @@
     ]
   },
   {
+    "id": "research-library-search-focus",
+    "roots": [
+      "src/components/OSSManager.tsx"
+    ],
+    "file": "src/components/__tests__/OSSManager.test.tsx",
+    "cases": [
+      "keeps the library search focused and editable as directory results change"
+    ]
+  },
+  {
+    "id": "impersonation-user-search-focus",
+    "roots": [
+      "src/components/admin/ImpersonationPanel.tsx"
+    ],
+    "file": "src/components/admin/__tests__/ImpersonationPanel.focus.test.tsx",
+    "cases": [
+      "keeps the user simulation search focused while the list loads and is narrowed"
+    ]
+  },
+  {
     "id": "database-manager-search-focus",
     "roots": [
       "src/components/DatabaseManager.tsx"
