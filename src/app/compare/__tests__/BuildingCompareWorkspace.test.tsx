@@ -1,10 +1,11 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CompareReadSlice } from '@/src/lib/compareReadContract';
 
 const state = vi.hoisted(() => ({ push: vi.fn(), fetch: vi.fn(), search: '', token: '' }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: state.push }), useSearchParams: () => new URLSearchParams(state.search) }));
-vi.mock('@/src/services/mapDataClient', () => ({ fetchComparePayload: () => state.fetch() }));
+vi.mock('@/src/services/mapDataClient', () => ({ fetchComparePayload: (_identity: unknown, slice?: CompareReadSlice) => state.fetch(slice) }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => state.token
   ? { status: 'authenticated', session: { user: { id: 'viewer' }, role: 'viewer', session: { access_token: state.token } } }
   : { status: 'unauthenticated', session: null } }));
@@ -12,11 +13,17 @@ vi.mock('@/src/components/ErrorBoundary/PageErrorBoundary', () => ({ PageErrorBo
 import { invalidateCompareSnapshot } from '@/src/services/compareSnapshot';
 import BuildingCompareWorkspace from '../BuildingCompareWorkspace';
 
+const buildings = [{ id: 'target', name: 'Target', grade: 'A', submarket: 'CBD' }, ...Array.from({ length: 7 }, (_, i) => ({ id: `b${i}`, name: `Candidate ${i}`, grade: 'A', submarket: 'CBD' }))];
+const catalogCalls = () => state.fetch.mock.calls.filter(([slice]) => slice?.scope === 'catalog');
+
 beforeEach(() => {
   vi.clearAllMocks();
   state.search = 'buildingId=target&name=Target';
   state.token = 'synthetic-viewer-token';
-  state.fetch.mockResolvedValue({ buildings: [{ id: 'target', name: 'Target', grade: 'A', submarket: 'CBD' }, ...Array.from({ length: 7 }, (_, i) => ({ id: `b${i}`, name: `Candidate ${i}`, grade: 'A', submarket: 'CBD' }))], metrics: [], brochures: [] });
+  state.fetch.mockImplementation(async (slice?: CompareReadSlice) => ({
+    buildings: slice?.scope === 'selected' ? buildings.filter(row => slice.ids.includes(row.id)) : buildings,
+    brochures: slice?.scope === 'catalog' ? [] : [{ building_id: 'b6', developer: '合成开发商', elevator_vip: 2 }],
+  }));
 });
 afterEach(cleanup);
 
@@ -61,7 +68,7 @@ describe('building comparison mobile selection', () => {
     expect(toggle).toHaveTextContent('4 个竞品');
     expect(toggle).toHaveFocus();
     expect(within(screen.getByRole('main')).getByRole('columnheader', { name: /Candidate 6/ })).toBeInTheDocument();
-    expect(state.fetch).toHaveBeenCalledTimes(1);
+    expect(catalogCalls()).toHaveLength(1);
   });
   it('preserves the target and five-competitor limit, and provides a keyboard-operable group toggle', async () => {
     render(<BuildingCompareWorkspace />);
@@ -87,7 +94,37 @@ describe('building comparison mobile selection', () => {
     expect(results.getByRole('columnheader', { name: /Candidate 6/ })).toBeInTheDocument();
     expect(results.getByRole('columnheader', { name: /Candidate 4/ })).toBeInTheDocument();
     expect(screen.getByText('已选 5 / 5 个竞品')).toBeInTheDocument();
-    expect(state.fetch).toHaveBeenCalledTimes(1);
+    expect(catalogCalls()).toHaveLength(1);
+  });
+
+  it('keeps candidate name search usable while only the selected detail loads, and reads full facts only for advanced filters', async () => {
+    let finishDetails!: (value: unknown) => void;
+    let finishAdvanced!: (value: unknown) => void;
+    state.fetch.mockImplementation(async (slice?: CompareReadSlice) => {
+      if (slice?.scope === 'catalog') return { buildings, brochures: [] };
+      if (slice?.scope === 'selected') return new Promise(resolve => { finishDetails = resolve; });
+      return new Promise(resolve => { finishAdvanced = resolve; });
+    });
+    render(<BuildingCompareWorkspace />);
+    const panel = screen.getByRole('complementary');
+    const search = within(panel).getByRole('textbox', { name: '搜索对比项目' });
+    await within(panel).findByRole('button', { name: /Candidate 6/ });
+    await waitFor(() => expect(state.fetch.mock.calls.map(([slice]) => slice)).toEqual([{ scope: 'catalog' }, { scope: 'selected', ids: ['b0', 'b1', 'b2', 'target'] }]));
+    expect(screen.getByText('正在读取所选楼宇详情…')).toBeInTheDocument();
+    search.focus();
+    fireEvent.change(search, { target: { value: 'Candidate' } });
+    expect(within(panel).queryByRole('button', { name: /Target/ })).not.toBeInTheDocument();
+    expect(search).toHaveFocus();
+    await act(async () => finishDetails({ buildings: buildings.slice(0, 4), brochures: [] }));
+
+    fireEvent.click(within(panel).getByRole('button', { name: '添加条件' }));
+    expect(await within(panel).findByText('正在读取筛选所需的楼宇数据…')).toBeInTheDocument();
+    expect(within(panel).queryByText('没有匹配项目')).not.toBeInTheDocument();
+    await act(async () => finishAdvanced({ buildings, brochures: [{ building_id: 'b6', elevator_vip: 2 }] }));
+    expect(within(panel).getByRole('button', { name: /Candidate 6/ })).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: /Candidate 0/ })).not.toBeInTheDocument();
+    expect(search).toHaveFocus();
+    expect(state.fetch.mock.calls.filter(([slice]) => !slice)).toHaveLength(1);
   });
 
   it('labels the old read while refreshing and removes it immediately when the authenticated scope changes', async () => {
@@ -107,5 +144,23 @@ describe('building comparison mobile selection', () => {
     state.token = '';
     rerender(<BuildingCompareWorkspace />);
     expect(screen.queryByRole('columnheader', { name: /Other account result/ })).not.toBeInTheDocument();
+  });
+
+  it('clears the visible catalog when only the advanced read is denied and waits for a fresh catalog on retry', async () => {
+    render(<BuildingCompareWorkspace />);
+    await screen.findByRole('button', { name: /Candidate 6/ });
+    state.fetch.mockRejectedValueOnce(Object.assign(new Error('权限已撤销'), { status: 403 }));
+    fireEvent.click(screen.getByRole('button', { name: '添加条件' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('权限已撤销');
+    expect(screen.queryByRole('button', { name: '删除筛选条件' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Target/ })).not.toBeInTheDocument();
+
+    let finishCatalog!: (value: unknown) => void;
+    state.fetch.mockImplementationOnce(() => new Promise(resolve => { finishCatalog = resolve; }));
+    fireEvent.click(within(alert).getByRole('button', { name: '重试' }));
+    expect(screen.queryByRole('columnheader', { name: /Target/ })).not.toBeInTheDocument();
+    await act(async () => finishCatalog({ buildings, brochures: [] }));
+    expect(await screen.findByRole('columnheader', { name: /Target/ })).toBeInTheDocument();
   });
 });

@@ -114,6 +114,23 @@ describe('map snapshot reuse', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps separate catalog and selection snapshots, normalizes selection order and clears both after a denial', async () => {
+    const catalog = { scope: 'catalog' } as const;
+    const selected = { scope: 'selected', ids: ['b', 'a'] } as const;
+    await fetchComparePayload(undefined, catalog);
+    await fetchComparePayload(undefined, selected);
+    await fetchComparePayload(undefined, { scope: 'selected', ids: ['a', 'b', 'a'] });
+    await fetchComparePayload(undefined, catalog);
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
+      '/api/map/data?mode=compare&scope=catalog', '/api/map/data?mode=compare&scope=selected&id=a&id=b',
+    ]);
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: '合成拒绝' }) });
+    await expect(fetchComparePayload(undefined, { scope: 'selected', ids: ['c'] })).rejects.toThrow('合成拒绝');
+    await fetchComparePayload(undefined, catalog);
+    await fetchComparePayload(undefined, selected);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
   it('re-reads comparison data after successful SDK writes without evicting map or reacting to failed writes', async () => {
     await fetchMapBuildingPayload('latest');
     await fetchComparePayload();

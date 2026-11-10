@@ -12,6 +12,7 @@ describe('map data authorization boundary', () => {
     const controller = source('src/services/MapController.ts');
     const startup = source('src/app/map/runtime/mapStartupOptimization.ts');
     const compare = source('src/app/compare/BuildingCompareWorkspace.tsx');
+    const compareRead = source('src/app/compare/useComparePayload.ts');
 
     expect(route).toContain('resolveEffectiveRequestIdentity(request, admin)');
     expect(route).toContain("mode === 'map'");
@@ -26,10 +27,12 @@ describe('map data authorization boundary', () => {
     expect(controller).toContain('fetchFutureSupplyPayload()');
     expect(controller).toContain('fetchBuildingTrendPayload(buildingId)');
     expect(startup).toContain("fetchMapBuildingPayload('latest')");
-    expect(compare).toContain('fetchComparePayload(');
+    expect(compare).toContain('useComparePayload(');
+    expect(compareRead).toContain('fetchComparePayload(');
 
     expect(compare).not.toContain("from('buildings')");
     expect(compare).not.toContain("from('building_metrics')");
+    expect(compareRead).not.toContain("from('buildings')");
     expect(startup).not.toContain("from('buildings')");
   });
 
