@@ -24,7 +24,7 @@ function report(quarter = 3) {
     submissions: [{ id: 's', building_id: 'a', record_year: 2026, record_quarter: quarter, created_at: '2026-10-10T01:00:00Z', total_area: 100, net_effective_rent: 240, vacant_area: 0, vacancy_rate: 0 }] });
 }
 function Panel({ quarter = 3 }: { quarter?: number }) {
-  return <QuarterlyReportPanel period={{ year: 2026, quarter, setYear: vi.fn(), setQuarter: vi.fn(), configured: { data: { year: 2026, quarter: 3 }, loading: false, error: undefined, reload: vi.fn() } }} history={<div>原始记录及操作日志</div>} />;
+  return <QuarterlyReportPanel period={{ year: 2026, quarter, ready: true, setYear: vi.fn(), setQuarter: vi.fn(), configured: { data: { year: 2026, quarter: 3 }, loading: false, error: undefined, reload: vi.fn() } }} history={<div>原始记录及操作日志</div>} />;
 }
 beforeEach(() => {
   vi.clearAllMocks();

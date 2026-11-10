@@ -3,12 +3,12 @@ import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({ read: vi.fn(), export: vi.fn(), save: vi.fn(), report: vi.fn(), queries: [] as any[], assignmentConfig: null as any }));
 vi.mock('@/src/services/supabaseClient', () => {
-  function query(table: string) {
-    const state: any = { table, filters: [], from: 0, to: 499 };
-    const q: any = { select: () => q, order: () => q, eq: (field: string, value: any) => { state.filters.push([field, value]); return q; }, lte: (field: string, value: unknown) => { state.filters.push([field, value, 'lte']); return q; }, neq: () => q, in: () => q, range: (from: number, to: number) => { state.from = from; state.to = to; return q; }, then: (resolve: any, reject: any) => { mock.queries.push({ ...state }); return Promise.resolve(mock.read(state)).then(resolve, reject); } };
+  function query(table: string, args?: Record<string, unknown>) {
+    const state: any = { table, args, filters: [], from: 0, to: 499 };
+    const q: any = { select: (columns?: string) => { state.columns = columns; return q; }, abortSignal: (signal: AbortSignal) => { state.signal = signal; return q; }, order: () => q, eq: (field: string, value: any) => { state.filters.push([field, value]); return q; }, lte: (field: string, value: unknown) => { state.filters.push([field, value, 'lte']); return q; }, neq: () => q, in: () => q, range: (from: number, to: number) => { state.from = from; state.to = to; return q; }, then: (resolve: any, reject: any) => { mock.queries.push({ ...state }); return Promise.resolve(mock.read(state)).then(resolve, reject); } };
     return q;
   }
-  return { supabase: { from: query, rpc: (name: string) => query(name) } };
+  return { supabase: { from: query, rpc: query } };
 });
 vi.mock('xlsx', () => ({ utils: { json_to_sheet: (rows: unknown) => rows, book_new: () => ({}), book_append_sheet: vi.fn() }, writeFile: (...args: any[]) => mock.export(...args) }));
 vi.mock('./quarterly-report/workbook', () => ({ reportBytes: (...args: unknown[]) => mock.report(...args) }));
@@ -224,4 +224,69 @@ describe('quarter configuration rollout guard', () => {
     await waitFor(() => expect(save).toBeEnabled());
     expect(mock.queries.some(query => query.table === 'set_current_submission_period_v2')).toBe(false);
   });
+});
+
+it('waits for the configured quarter and renders one complete coverage snapshot independently of names', async () => {
+  let releaseConfig!: (value: unknown) => void;
+  let releaseNames!: (value: unknown) => void;
+  const config = new Promise(resolve => { releaseConfig = resolve; });
+  const names = new Promise(resolve => { releaseNames = resolve; });
+  let nameReads = 0;
+  mock.read.mockImplementation(state => {
+    if (state.table === 'app_settings') return config;
+    if (state.table === 'user_roles' && state.from === 0 && nameReads++ === 0) return names;
+    if (state.table === 'building_assignments' && state.from === 0) return {
+      data: [{ building_id: 'synthetic-building', user_id: 'synthetic-user' }], error: null,
+    };
+    if (state.table === 'get_quarterly_submission_summary' && state.from === 0) return {
+      data: [{ building_id: 'synthetic-building', user_id: 'synthetic-user', created_at: '2026-09-01T00:00:00Z' }], error: null,
+    };
+    return base(state);
+  });
+  render(<SubmissionManager />);
+  fireEvent.click(screen.getByText('填报进度'));
+  expect(mock.queries.some(query => query.table === 'get_quarterly_submission_summary')).toBe(false);
+  await act(async () => releaseConfig({ data: settings, error: null }));
+  expect(await screen.findByRole('region', { name: '填报进度总览' })).toHaveTextContent('100%');
+  expect(screen.getByText('正在加载人员明细…')).toBeVisible();
+  expect(mock.queries.filter(query => query.table === 'building_assignments').map(query => [query.columns, query.from])).toEqual([
+    ['user_id, building_id', 0], ['user_id, building_id', 1],
+  ]);
+  expect(mock.queries.filter(query => query.table === 'get_quarterly_submission_summary').every(query => query.args.p_quarter === 3)).toBe(true);
+  await act(async () => releaseNames({ data: null, error: { message: 'directory unavailable' } }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('directory unavailable');
+  expect(screen.getByRole('region', { name: '填报进度总览' })).toHaveTextContent('100%');
+  fireEvent.click(screen.getByRole('button', { name: '重试' }));
+  expect(await screen.findByRole('button', { name: '查看 Synthetic User 的上传记录' })).toBeVisible();
+  expect(mock.queries.filter(query => query.table === 'building_assignments')).toHaveLength(2);
+});
+
+it('opens upload history before the building directory and exports once the real names and grades are ready', async () => {
+  let releaseBuildings!: (value: unknown) => void;
+  const buildings = new Promise(resolve => { releaseBuildings = resolve; });
+  mock.read.mockImplementation(state => {
+    if (state.table === 'buildings' && state.columns?.includes('sort_order') && state.from === 0) return buildings;
+    if (state.table === 'building_assignments' && state.from === 0) return {
+      data: [{ building_id: 'synthetic-building', user_id: 'synthetic-user' }], error: null,
+    };
+    if (state.table === 'quarterly_submissions' && state.from === 0) return {
+      data: [{ id: 'formal-1', building_id: 'synthetic-building', created_at: '2026-09-10T00:00:00Z', record_year: 2026, record_quarter: 3 }], error: null,
+    };
+    return base(state);
+  });
+  render(<SubmissionManager />);
+  fireEvent.click(screen.getByText('填报进度'));
+  fireEvent.click(await screen.findByRole('button', { name: '查看 Synthetic User 的上传记录' }));
+  const batch = (await screen.findByText(/· 1项/)).closest('button')!;
+  expect(batch).toBeDisabled();
+  fireEvent.click(batch);
+  expect(mock.export).not.toHaveBeenCalled();
+  await act(async () => releaseBuildings({
+    data: [{ id: 'synthetic-building', name: 'Synthetic Tower', grade: 'P', submarket: 'CBD', sort_order: 1 }], error: null,
+  }));
+  expect(batch).not.toBeDisabled();
+  expect(batch).toHaveTextContent('含甲级');
+  fireEvent.click(batch);
+  await waitFor(() => expect(mock.export).toHaveBeenCalledTimes(1));
+  expect(mock.export.mock.calls[0][1]).toMatch(/^2026Q3_.*_Synthetic User_.*_含甲级\.xlsx$/);
 });

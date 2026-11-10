@@ -57,6 +57,7 @@ interface UserStat {
   last_submission: string | null;
   assigned_buildings: number;
 }
+type PeopleDirectory = ReturnType<typeof useSubmissionRead<Record<string, string>>>;
 
 interface UploadSession {
   date: string;
@@ -64,10 +65,23 @@ interface UploadSession {
   building_count: number;
   session_index: number;
   timestamps: string[];
-  gradeSummary: string;
+  buildingIds: string[];
 }
 
-function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; period: ReturnType<typeof useSubmissionPeriod> }) {
+function describeUploadGrades(buildingIds: string[], grades: Record<string, string> = {}) {
+  const gradeSet = new Set<string>();
+  for (const id of buildingIds) {
+    const code = resolveGradeCode(grades[id] ?? '');
+    if (code.includes('BP')) gradeSet.add('产业园');
+    else if (code === 'A' || code === 'P') gradeSet.add('甲级');
+    else if (code === 'B') gradeSet.add('乙级');
+  }
+  return gradeSet.size ? '含' + ['甲级', '乙级', '产业园'].filter(grade => gradeSet.has(grade)).join('') : '';
+}
+
+function SubmissionProgressSection({ dicts, period, people, buildingNamesReady }: {
+  dicts: DictBundle; period: ReturnType<typeof useSubmissionPeriod>; people: PeopleDirectory; buildingNamesReady: boolean;
+}) {
   const dq = getCurrentQuarter();
   const { year, quarter, setYear, setQuarter, configured } = period;
   const [cfgYear, setCfgYear] = React.useState(dq.year);
@@ -77,6 +91,9 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
   const [expandedSessions, setExpandedSessions] = React.useState<
     UploadSession[]
   >([]);
+  const sessionsWithGrades = React.useMemo(() => expandedSessions.map(session => ({
+    ...session, gradeSummary: describeUploadGrades(session.buildingIds, dicts.building_grades),
+  })), [expandedSessions, dicts.building_grades]);
   const [expandedLoading, setExpandedLoading] = React.useState(false);
 
   React.useEffect(() => {
@@ -125,9 +142,17 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
   }
 
   const progressKey = `${year}:Q${quarter}`;
-  const progress = useSubmissionRead(progressKey, fetchData);
-  const { totalBuildings = 0, totalAssigned = 0, totalSubmitted = 0, futureTotal = 0, futureAssigned = 0, futureSubmitted = 0, stats = [] } = progress.data || {};
-  const loading = progress.loading;
+  const progress = useSubmissionRead(progressKey, fetchData, period.ready);
+  const { totalBuildings = 0, totalAssigned = 0, totalSubmitted = 0, futureTotal = 0, futureAssigned = 0, futureSubmitted = 0 } = progress.data || {};
+  const loading = !period.ready || progress.loading;
+  const stats = React.useMemo<UserStat[]>(() => {
+    const names = people.data;
+    if (!names || !progress.data) return [];
+    return progress.data.stats
+      .filter(row => Object.hasOwn(names, row.user_id))
+      .map(row => ({ ...row, user_name: names[row.user_id] }))
+      .sort((a, b) => a.user_name.localeCompare(b.user_name));
+  }, [people.data, progress.data]);
   const sessionRequest = React.useRef(0);
   const [expandedKey, setExpandedKey] = React.useState('');
   const [expandedError, setExpandedError] = React.useState('');
@@ -147,33 +172,39 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
     window.open(`/update?as=${stat.user_id}`, "_blank", "noopener,noreferrer");
   }
 
-  async function fetchData() {
+  async function fetchData(signal: AbortSignal) {
     const [
       buildingsCount,
       futureSuppliesCount,
-      assignsData,
+      assignments,
       subsRpc,
       futureAssignsData,
       futureSubsData,
-      usersRes,
-      allAssignsRes,
     ] = await Promise.all([
-      submissionPageResult((from, to) => supabase.from('buildings').select('id').eq('is_active', true).eq('tracking_scope', 'tracked').eq('project_type', 'stock').order('id').range(from, to)),
-      submissionPageResult((from, to) => supabase.from('future_supplies').select('id').eq('is_entered_market', false).eq('launch_year', String(year)).eq('launch_quarter', `Q${quarter}`).order('id').range(from, to)),
-      submissionPageResult((from, to) => supabase.from('building_assignments').select('building_id').neq('user_id', '').order('id').range(from, to)),
-      submissionPageResult((from, to) => supabase.rpc('get_quarterly_submission_summary', { p_year: year, p_quarter: quarter }).order('building_id').order('user_id').range(from, to)),
-      submissionPageResult((from, to) => supabase.from('future_supply_assignments').select('future_supply_id').eq('record_year', year).eq('record_quarter', quarter).order('id').range(from, to)),
-      submissionPageResult((from, to) => supabase.from('future_supply_submissions').select('future_supply_id').eq('record_year', year).eq('record_quarter', quarter).order('id').range(from, to)),
-      submissionPageResult((from, to) => supabase.from('user_roles').select('user_id, chinese_name, full_name').order('user_id').range(from, to)),
-      submissionPageResult((from, to) => supabase.from('building_assignments').select('user_id, building_id').neq('user_id', '').order('id').range(from, to)),
+      submissionPageResult((from, to) => supabase.from('buildings').select('id').eq('is_active', true).eq('tracking_scope', 'tracked').eq('project_type', 'stock').order('id').range(from, to).abortSignal(signal), signal),
+      submissionPageResult((from, to) => supabase.from('future_supplies').select('id').eq('is_entered_market', false).eq('launch_year', String(year)).eq('launch_quarter', `Q${quarter}`).order('id').range(from, to).abortSignal(signal), signal),
+      submissionPageResult((from, to) => supabase.from('building_assignments').select('user_id, building_id').neq('user_id', '').order('id').range(from, to).abortSignal(signal), signal),
+      submissionPageResult((from, to) => supabase.rpc('get_quarterly_submission_summary', { p_year: year, p_quarter: quarter }).order('building_id').order('user_id').range(from, to).abortSignal(signal), signal),
+      submissionPageResult((from, to) => supabase.from('future_supply_assignments').select('future_supply_id').eq('record_year', year).eq('record_quarter', quarter).order('id').range(from, to).abortSignal(signal), signal),
+      submissionPageResult((from, to) => supabase.from('future_supply_submissions').select('future_supply_id').eq('record_year', year).eq('record_quarter', quarter).order('id').range(from, to).abortSignal(signal), signal),
     ]);
 
     const activeBuildingIds = new Set(buildingsCount.data.map(row => row.id));
     const activeFutureSupplyIds = new Set<string>((futureSuppliesCount.data || []).map((row) => row.id));
 
-    // 存量楼宇分配去重
     const assignedSet = new Set<string>();
-    for (const r of assignsData.data || []) { if (activeBuildingIds.has(r.building_id)) assignedSet.add(r.building_id); }
+    const userMap = new Map<string, { submitted: Set<string>; last: string | null; assigned: Set<string> }>();
+    for (const row of assignments.data) {
+      if (!activeBuildingIds.has(row.building_id)) continue;
+      // One assignment snapshot drives both building coverage and per-person counts.
+      assignedSet.add(row.building_id);
+      let entry = userMap.get(row.user_id);
+      if (!entry) {
+        entry = { submitted: new Set(), last: null, assigned: new Set() };
+        userMap.set(row.user_id, entry);
+      }
+      entry.assigned.add(row.building_id);
+    }
 
 
     // 未来供应分配去重：只统计尚未进入存量市场的项目。
@@ -198,30 +229,6 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
     }
 
 
-    const users = usersRes.data || [];
-    const assigns = allAssignsRes.data || [];
-
-    const userMap = new Map<
-      string,
-      {
-        name: string;
-        submitted: Set<string>;
-        last: string | null;
-        assigned: Set<string>;
-      }
-    >();
-    for (const u of users) {
-      userMap.set(u.user_id, {
-        name: u.chinese_name || u.full_name || u.user_id,
-        submitted: new Set(),
-        last: null,
-        assigned: new Set(),
-      });
-    }
-    for (const a of assigns) {
-      const entry = userMap.get(a.user_id);
-      if (entry && activeBuildingIds.has(a.building_id)) entry.assigned.add(a.building_id);
-    }
     for (const s of subsRpcData) {
       const entry = userMap.get(s.user_id);
       if (entry && entry.assigned.has(s.building_id)) {
@@ -230,16 +237,12 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
       }
     }
 
-    const stats: UserStat[] = Array.from(userMap.entries())
-        .map(([uid, s]) => ({
-          user_id: uid,
-          user_name: s.name,
-          total_submissions: s.submitted.size,
-          last_submission: s.last,
-          assigned_buildings: s.assigned.size,
-        }))
-        .filter((s) => s.assigned_buildings > 0)
-        .sort((a, b) => a.user_name.localeCompare(b.user_name));
+    const stats = Array.from(userMap, ([user_id, entry]) => ({
+      user_id,
+      total_submissions: entry.submitted.size,
+      last_submission: entry.last,
+      assigned_buildings: entry.assigned.size,
+    }));
     return { totalBuildings: buildingsCount.count, futureTotal: futureSuppliesCount.count, totalAssigned: assignedSet.size, futureAssigned: futureAssignedSet.size, totalSubmitted: submittedSet.size, futureSubmitted: futureSubmittedSet.size, stats };
   }
 
@@ -270,21 +273,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
 
     // 最新的批次编号最大（第N次），最旧的编号最小（第1次）
     const totalCount = batches.length;
-    const sessions: UploadSession[] = batches.map((batch, i) => {
-      // 计算等级组成
-      const gradeSet = new Set<string>();
-      for (const bid of batch.buildingIds) {
-        const code = resolveGradeCode(dicts.building_grades?.[bid] ?? '');
-        if (code.includes('BP')) gradeSet.add('产业园');
-        else if (code === 'A' || code === 'P') gradeSet.add('甲级');
-        else if (code === 'B') gradeSet.add('乙级');
-      }
-      const gradeOrder = ['甲级', '乙级', '产业园'];
-      const gradeSummary = gradeSet.size > 0
-        ? '含' + gradeOrder.filter(g => gradeSet.has(g)).join('')
-        : '';
-      return buildSession(batch.timestamps, totalCount - i, batch.buildingIds.size, gradeSummary);
-    });
+    const sessions = batches.map((batch, i) => buildSession(batch.timestamps, totalCount - i, [...batch.buildingIds]));
 
     setExpandedSessions(sessions);
     } catch (error) {
@@ -295,8 +284,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
   function buildSession(
     timestamps: string[],
     sessionIndex: number,
-    uniqueBuildingCount: number,
-    gradeSummary: string,
+    buildingIds: string[],
   ): UploadSession {
     const first = new Date(timestamps[0]);
     const last = new Date(timestamps[timestamps.length - 1]);
@@ -312,10 +300,10 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
     return {
       date: dateStr,
       time_range: timeStr,
-      building_count: uniqueBuildingCount,
+      building_count: buildingIds.length,
       session_index: sessionIndex,
       timestamps,
-      gradeSummary,
+      buildingIds,
     };
   }
 
@@ -325,7 +313,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
     session: UploadSession,
   ) {
     const request = sessionRequest.current;
-    if (downloading || expandedKey !== progressKey || expandedUser !== userId) return;
+    if (downloading || !buildingNamesReady || expandedKey !== progressKey || expandedUser !== userId) return;
     setDownloading(true);
     try {
     const data = await fetchAllSubmissionPages<any>((from, to) => supabase.from('quarterly_submissions').select('*').eq('record_year', year).eq('record_quarter', quarter).eq('user_id', userId).in('created_at', session.timestamps).order('created_at').order('id').range(from, to));
@@ -415,6 +403,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
     }
 
     const XLSX = await import('xlsx');
+    if (request !== sessionRequest.current) return;
     const ws = XLSX.utils.json_to_sheet(excelRows);
 
     // 设置列宽
@@ -441,7 +430,8 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
     const firstTs = new Date(session.timestamps[session.timestamps.length - 1]);
     const dateNum = `${firstTs.getFullYear()}${String(firstTs.getMonth() + 1).padStart(2, '0')}${String(firstTs.getDate()).padStart(2, '0')}`;
     const timeNum = `${String(firstTs.getHours()).padStart(2, '0')}${String(firstTs.getMinutes()).padStart(2, '0')}`;
-    const gradePart = session.gradeSummary ? `_${session.gradeSummary}` : '';
+    const gradeSummary = describeUploadGrades(session.buildingIds, dicts.building_grades);
+    const gradePart = gradeSummary ? `_${gradeSummary}` : '';
     const safeUserName = userName.replace(/[\/\\:*?"<>|]/g, "_");
     const filename = `${year}Q${quarter}_${dateNum}_${safeUserName}_第${session.session_index}次_${timeNum}${gradePart}.xlsx`;
     XLSX.writeFile(wb, filename);
@@ -472,11 +462,12 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
       {rollout.error && <ReadError message={`季度切换状态读取失败，暂不允许切换：${rollout.error}`} retry={rollout.reload} />}
       {rollout.data?.quarter_configuration_frozen && <div role="status" className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">版本切换保护中：季度配置暂时冻结，普通草稿保存和提交不受此冻结影响。<button type="button" className="ml-2 underline" onClick={rollout.reload}>重新读取切换状态</button></div>}
       {/* 当前填报季度设置 */}
-      <div className="mb-4 flex shrink-0 items-center gap-3 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-3">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-3">
         <span className="text-xs font-semibold text-[var(--cd-color-brand)]">
           当前填报季度
         </span>
         <select
+          aria-label="配置填报年份"
           value={cfgYear}
           onChange={(e) => setCfgYear(Number(e.target.value))}
           className={compactSelectClassName}
@@ -488,6 +479,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
           ))}
         </select>
         <select
+          aria-label="配置填报季度"
           value={cfgQuarter}
           onChange={(e) => setCfgQuarter(Number(e.target.value))}
           className={compactSelectClassName}
@@ -507,9 +499,10 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
       </div>
 
       {/* 季度选择器 */}
-      <div className="shrink-0 flex items-center gap-3 mb-4">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
         <span className="text-xs text-zinc-500">查看季度</span>
         <select
+          aria-label="查看填报年份"
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
           className={compactSelectClassName}
@@ -521,6 +514,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
           ))}
         </select>
         <select
+          aria-label="查看填报季度"
           value={quarter}
           onChange={(e) => setQuarter(Number(e.target.value))}
           className={compactSelectClassName}
@@ -534,14 +528,14 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
       </div>
 
       {progress.error ? <ReadError message={progress.error} retry={progress.reload} /> : loading ? (
-        <div className="flex items-center justify-center py-12">
+        <div role="status" aria-label="正在读取填报进度" className="flex items-center justify-center py-12">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#003e7e] border-t-transparent" />
         </div>
       ) : (
         <>
           <p className="mb-3 text-xs text-zinc-500">按当前分配责任统计全部用户（含管理员）；历史季度不代表当时分配。概览按楼宇统计任意提交者的记录，用户明细仅统计该用户当前负责楼宇上的本人记录。记录覆盖率仅表示存在季度记录，不等于字段完整、有效或本季度重新填写；原始多版本保留为提交历史。旧记录未提供可靠录入来源，无法据此区分导入、沿用或本季新填。</p>
           {/* 进度卡片 */}
-          <div className="shrink-0 grid grid-cols-5 gap-4 mb-6">
+          <div aria-label="填报进度总览" role="region" className="mb-6 grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
             <div className="rounded-lg border border-zinc-200 bg-white p-4">
               <p className="text-xs text-zinc-500 mb-1">已分配楼宇（去重）</p>
               <p className="text-2xl font-bold text-zinc-800">
@@ -598,8 +592,10 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
           )}
 
           {/* 用户明细表（可展开查看上传记录） */}
-          <div className="min-h-0 flex-1 overflow-auto rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
-            <table className="w-full text-sm text-left">
+          {people.error ? <ReadError message={`人员目录：${people.error}`} retry={people.reload} /> : people.loading ? (
+            <p role="status" className="py-3 text-sm text-zinc-500">正在加载人员明细…</p>
+          ) : <div aria-label="填报人员明细" role="region" tabIndex={0} className="min-h-32 flex-1 overflow-auto rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)]">
+            <table className="w-full min-w-[42rem] text-left text-sm">
               <thead>
                 <tr className="border-b-2 border-zinc-200">
                   <th className="w-8 bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-500"></th>
@@ -628,8 +624,9 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
                         <td className="px-4 py-3">
                           <button
                             aria-label={`查看 ${s.user_name} 的上传记录`}
+                            aria-expanded={isExpanded}
                             onClick={() => void handleExpandUser(s.user_id)}
-                            className="text-zinc-400 hover:text-zinc-600 transition-transform"
+                            className="flex min-h-11 min-w-11 items-center justify-center text-zinc-500 transition-transform hover:text-zinc-700 md:min-h-7 md:min-w-7"
                             style={{
                               transform: isExpanded ? "rotate(90deg)" : "none",
                             }}
@@ -707,11 +704,14 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
                               </div>
                             ) : (
                               <div>
-                                <p className="text-xs font-medium text-zinc-500 mb-2">上传记录（点击下载）</p>
+                                <p className="text-xs font-medium text-zinc-500 mb-2">
+                                  {buildingNamesReady ? '上传记录（点击下载）' : '上传记录（楼宇目录就绪后可下载）'}
+                                </p>
                                 <div className="flex flex-wrap gap-2">
-                                  {expandedSessions.map((ses, idx) => (
+                                  {sessionsWithGrades.map((ses, idx) => (
                                     <button
-                                      disabled={downloading}
+                                      disabled={downloading || !buildingNamesReady}
+                                      title={!buildingNamesReady ? '等待楼宇目录后可下载' : undefined}
                                       key={idx}
                                       onClick={() =>
                                         void handleDownloadSession(
@@ -751,7 +751,7 @@ function SubmissionProgressSection({ dicts, period }: { dicts: DictBundle; perio
                 })}
               </tbody>
             </table>
-          </div>
+          </div>}
         </>
       )}
     </div>
@@ -1323,42 +1323,35 @@ export function SubmissionManager() {
     "assign" | "future-supply" | "progress" | "data" | "drafts" | "sort"
   >("assign");
   const [refreshKey] = React.useState(0);
-  const dictionaries = useSubmissionRead<DictBundle>('submission-dictionaries', async () => {
-      const [buildings, users, futureSupplies] = await Promise.all([
-        submissionPageResult((from, to) => supabase.from('buildings').select('id, name, grade, submarket, sort_order').order('id').range(from, to)),
-        submissionPageResult((from, to) => supabase.from('user_roles').select('user_id, chinese_name, full_name').order('user_id').range(from, to)),
-        submissionPageResult((from, to) => supabase.from('future_supplies').select('id, name').order('id').range(from, to)),
-      ]);
-      const buildingDict: Record<string, string> = {};
-      const gradeDict: Record<string, string> = {};
-      const submarketDict: Record<string, string> = {};
-      const sortOrderDict: Record<string, string> = {};
-      if (buildings.data)
-        for (const r of buildings.data) {
-          buildingDict[r.id] = r.name;
-          // 存原始 grade code（A/B/P/BP），不转中文——排序和逻辑判断依赖原始值
-          if (r.grade) gradeDict[r.id] = r.grade;
-          if (r.submarket) submarketDict[r.id] = r.submarket;
-          sortOrderDict[r.id] = String(r.sort_order ?? 0);
-        }
-      const userDict: Record<string, string> = {};
-      if (users.data)
-        for (const r of users.data)
-          userDict[r.user_id] = r.chinese_name || r.full_name || r.user_id;
-      const futureSupplyDict: Record<string, string> = {};
-      if (futureSupplies.data)
-        for (const r of futureSupplies.data)
-          futureSupplyDict[r.id] = r.name;
-      return {
-        buildings: buildingDict,
-        user_roles: userDict,
-        building_grades: gradeDict,
-        building_submarkets: submarketDict,
-        building_sort_orders: sortOrderDict,
-        future_supplies: futureSupplyDict,
-      };
+  const [needsFutureNames, setNeedsFutureNames] = React.useState(false);
+  const people = useSubmissionRead('submission-people', async signal => {
+    const { data } = await submissionPageResult((from, to) => supabase.from('user_roles').select('user_id, chinese_name, full_name').order('user_id').range(from, to).abortSignal(signal), signal);
+    return Object.fromEntries(data.map(row => [row.user_id, row.chinese_name || row.full_name || row.user_id])) as Record<string, string>;
   });
-  const dicts = dictionaries.data || {};
+  const buildingNames = useSubmissionRead<DictBundle>('submission-buildings', async signal => {
+    const { data } = await submissionPageResult((from, to) => supabase.from('buildings').select('id, name, grade, submarket, sort_order').order('id').range(from, to).abortSignal(signal), signal);
+    const names: Record<string, string> = {};
+    const grades: Record<string, string> = {};
+    const submarkets: Record<string, string> = {};
+    const sortOrders: Record<string, string> = {};
+    for (const row of data) {
+      names[row.id] = row.name;
+      if (row.grade) grades[row.id] = row.grade;
+      if (row.submarket) submarkets[row.id] = row.submarket;
+      sortOrders[row.id] = String(row.sort_order ?? 0);
+    }
+    return { buildings: names, building_grades: grades, building_submarkets: submarkets, building_sort_orders: sortOrders };
+  });
+  const futureNames = useSubmissionRead('submission-future-names', async signal => {
+    const { data } = await submissionPageResult((from, to) => supabase.from('future_supplies').select('id, name').order('id').range(from, to).abortSignal(signal), signal);
+    return Object.fromEntries(data.map(row => [row.id, row.name])) as Record<string, string>;
+  }, needsFutureNames);
+  const dicts = React.useMemo<DictBundle>(() => {
+    const dictionaries: DictBundle = { ...buildingNames.data };
+    if (people.data) dictionaries.user_roles = people.data;
+    if (futureNames.data) dictionaries.future_supplies = futureNames.data;
+    return dictionaries;
+  }, [buildingNames.data, people.data, futureNames.data]);
 
   const assignmentConfig: TableConfig = {
     ...ASSIGNMENTS_CONFIG,
@@ -1422,13 +1415,18 @@ export function SubmissionManager() {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden w-full bg-zinc-50">
       {/* Tab 栏 */}
-      <div className="shrink-0 border-b border-zinc-200 bg-white px-4 py-2">
-        <div className="flex w-fit items-center gap-1 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] p-0.5">
+      <div className="shrink-0 overflow-x-auto border-b border-zinc-200 bg-white px-4 py-2">
+        <div className="flex w-max items-center gap-1 rounded-[var(--cd-radius-md)] bg-[var(--cd-color-surface-alt)] p-0.5">
           {tabs.map((t) => (
             <button
               key={t.key}
-              onClick={() => setSubTab(t.key)}
-              className={`rounded-[var(--cd-radius-md)] px-4 py-2 text-xs font-medium transition-colors ${
+              type="button"
+              aria-pressed={subTab === t.key}
+              onClick={() => {
+                if (t.key === 'drafts' || t.key === 'future-supply') setNeedsFutureNames(true);
+                setSubTab(t.key);
+              }}
+              className={`min-h-11 whitespace-nowrap rounded-[var(--cd-radius-md)] px-4 py-2 text-xs font-medium transition-colors md:min-h-0 ${
                 subTab === t.key
                   ? "bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]"
                   : "text-zinc-500 hover:text-zinc-700"
@@ -1440,7 +1438,9 @@ export function SubmissionManager() {
         </div>
       </div>
 
-      {dictionaries.error && <ReadError message={`名称字典加载失败：${dictionaries.error}`} retry={dictionaries.reload} />}
+      {buildingNames.error && subTab !== 'sort' && <ReadError message={`楼宇目录：${buildingNames.error}`} retry={buildingNames.reload} />}
+      {people.error && subTab !== 'progress' && subTab !== 'sort' && <ReadError message={`人员目录：${people.error}`} retry={people.reload} />}
+      {futureNames.error && (subTab === 'drafts' || subTab === 'future-supply') && <ReadError message={`未来供应目录：${futureNames.error}`} retry={futureNames.reload} />}
       {/* 内容区 */}
       <div className="flex-1 min-h-0 p-4 overflow-hidden w-full">
         {subTab === "assign" && (
@@ -1468,7 +1468,7 @@ export function SubmissionManager() {
         )}
         {subTab === "progress" && (
           <div className="h-full overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-4">
-            <SubmissionProgressSection dicts={dicts} period={period} />
+            <SubmissionProgressSection dicts={dicts} period={period} people={people} buildingNamesReady={Boolean(buildingNames.data)} />
           </div>
         )}
         {subTab === "data" && (
