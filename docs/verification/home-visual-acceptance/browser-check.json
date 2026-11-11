@@ -1,0 +1,115 @@
+{
+  "browser": "157.0.8103.50",
+  "results": [
+    {
+      "variant": "before",
+      "role": "admin",
+      "width": 1280,
+      "height": 900,
+      "badgeCount": 1,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss",
+        "/occupier-insights"
+      ],
+      "navigation": "not exercised"
+    },
+    {
+      "variant": "before",
+      "role": "admin",
+      "width": 390,
+      "height": 844,
+      "badgeCount": 1,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss",
+        "/occupier-insights"
+      ],
+      "navigation": "not exercised"
+    },
+    {
+      "variant": "before",
+      "role": "admin",
+      "width": 320,
+      "height": 844,
+      "badgeCount": 1,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss",
+        "/occupier-insights"
+      ],
+      "navigation": "not exercised"
+    },
+    {
+      "variant": "before",
+      "role": "viewer",
+      "width": 390,
+      "height": 844,
+      "badgeCount": 0,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss"
+      ],
+      "navigation": "not exercised"
+    },
+    {
+      "variant": "after",
+      "role": "admin",
+      "width": 1280,
+      "height": 900,
+      "badgeCount": 0,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss",
+        "/occupier-insights"
+      ],
+      "navigation": "open and back"
+    },
+    {
+      "variant": "after",
+      "role": "admin",
+      "width": 390,
+      "height": 844,
+      "badgeCount": 0,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss",
+        "/occupier-insights"
+      ],
+      "navigation": "open and back"
+    },
+    {
+      "variant": "after",
+      "role": "admin",
+      "width": 320,
+      "height": 844,
+      "badgeCount": 0,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss",
+        "/occupier-insights"
+      ],
+      "navigation": "open and back"
+    },
+    {
+      "variant": "after",
+      "role": "viewer",
+      "width": 390,
+      "height": 844,
+      "badgeCount": 0,
+      "actualHrefs": [
+        "/update",
+        "/lease-submission",
+        "/oss"
+      ],
+      "navigation": "not exercised"
+    }
+  ]
+}

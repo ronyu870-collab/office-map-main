@@ -18,7 +18,13 @@ concurrency:
 jobs:
   search-focus:
     name: Search and filter focus coverage
-    runs-on: ubuntu-24.04
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && vars.CI_TEMP_RUNNER_BRANCH != ''
+          && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
+          && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
+          || 'ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +33,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          # The temporary runner already has a warm npm cache on disk.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - run: npm ci
       - name: Verify the coverage contract
         run: node --test scripts/verify-search-focus-gate.mjs
@@ -38,7 +45,13 @@ jobs:
 
   verify:
     name: Typecheck, lint, test and build
-    runs-on: ubuntu-24.04
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && vars.CI_TEMP_RUNNER_BRANCH != ''
+          && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
+          && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
+          || 'ubuntu-24.04' }}
     timeout-minutes: 20
     services:
       postgres:
@@ -65,7 +78,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          # The temporary runner already has a warm npm cache on disk.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: Install dependencies
         run: npm ci
