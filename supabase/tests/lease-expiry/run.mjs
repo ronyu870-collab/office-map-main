@@ -10,7 +10,9 @@ const config = { host: '127.0.0.1', port, user: 'postgres', password: 'synthetic
 const admin = new pg.Client({ ...config, database: 'postgres' });
 await admin.connect();
 const db = `f6_synthetic_${randomUUID().replaceAll('-', '')}`;
-const actor = randomUUID(), other = randomUUID(), viewer = randomUUID(), source = randomUUID();
+const actor = randomUUID(), other = randomUUID(), viewer = randomUUID();
+// Put the target after pagination fixtures so a broad first-page lookup cannot pass by chance.
+const source = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
 let client, concurrent;
 const load = name => readFile(new URL(name, import.meta.url), 'utf8');
 let checks = 0;
@@ -99,14 +101,18 @@ try {
   assert.equal((await list(actor,{date:'2030-01-01'})).total,0);
   assert.equal((await list(actor,{date:'2030-01-01',scope:'saved'})).total,1); pass('saved evidence stays reachable outside rolling window');
   await client.query(`insert into public.lease_transactions_history(id,source_uid,company,new_building,transaction_year,transaction_quarter,lease_term_months)
-    select gen_random_uuid(),'synthetic-'||n,'分页合成企业','楼宇',2021,'Q4',60 from generate_series(1,26)n`);
+    select ('00000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'synthetic-'||n,'分页合成企业','楼宇',2021,'Q4',60 from generate_series(1,26)n`);
   await client.query(`insert into public.lease_transactions_history(id,source_uid,company,new_building,transaction_year,transaction_quarter,lease_term_months)
     select gen_random_uuid(),'invalid-'||n,'排除合成企业','楼宇',2021,'Q4',n from unnest(array[0,121,1.5,null]::numeric[])n`);
   const page1=await list(),page2=await list(actor,{page:2}); assert.equal(page1.total,27);assert.equal(page1.items.length,25);assert.equal(page2.items.length,2);
   assert.equal(new Set([...page1.items,...page2.items].map(i=>i.source.id)).size,27);
+  assert.ok(page2.items.some(i=>i.source.id===source), 'target fixture must be outside the first page');
   assert.equal((await list(actor,{query:'%'})).total,0); pass('stable paginated search, literal search and invalid term exclusions');
   await client.query(`insert into public.lease_transactions(id,company,new_building,transaction_year,transaction_quarter) values(gen_random_uuid(),'合成企业','合成楼宇',2026,'Q1')`);
-  assert.equal((await list(actor,{query:'合成企业'})).items.find(i=>i.source.id===source)?.has_later_name_match,true);
+  // The company substring also matches 26 pagination fixtures. Isolate this clue check by its unique building.
+  const nameClue = await list(actor,{query:'合成楼宇'});
+  assert.equal(nameClue.total,1);
+  assert.equal(nameClue.items.find(i=>i.source.id===source)?.has_later_name_match,true);
   pass('later live deal is a name-match clue, not an expiry/ownership decision');
   // Check read boundaries: start at window end is excluded, end at as-of is included.
   assert.equal((await list(actor,{date:'2026-04-01',query:'分页合成'})).total,0);

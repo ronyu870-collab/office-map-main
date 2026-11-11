@@ -19,3 +19,11 @@
 ## 本轮验收
 
 整合 main `39d2c7a`，保留成交表格修复；只解决更新日志冲突。F6 业务代码与此前通过真实 Auth 的版本一致。补充 21 组视觉状态和三档真实入口画面，评审结论见 [视觉记录](visual-review.md)。整合后完整 `VITEST_MAX_WORKERS=2 npm run verify` 再次通过：181 文件／1,160 项测试，Lint 0 errors／832 warnings，生产构建通过。精确 head 的 CI 结果记录在 PR；未得到通过时不合并。
+
+## CI #814 的分页夹具误判与修复
+
+`b6b8298` 的 Verify #814 在 PostgreSQL 同名成交提示断言失败，真实 Auth 16 组、搜索焦点和 Visual acceptance 均通过。原因：查询“合成企业”同时匹配目标和 26 条分页样本，第一页仅返回 25 条；相同预计日期按 UUID 排序，目标随机落到第二页时，测试在第一页 find 得到 undefined。不是把服务的 false 结果忽略，也未修改生产查询或权限。
+
+把目标 UUID 和分页 UUID 固定，增加目标必须位于第二页的夹具断言。以此同一夹具运行旧“只查第一页”断言稳定复现 undefined ≠ true，再用唯一楼宇“合成楼宇”查询并断言 total=1 及 has_later_name_match=true；完整 PostgreSQL 17.11 的 20 场景通过。实际入口：`LEASE_TEST_ALLOW_LOCAL=disposable LEASE_TEST_PG_PORT=55871 node supabase/tests/lease-expiry/run.mjs`，只连独立临时 PostgreSQL，退出销毁合成数据库。CI 继续执行同一脚本，没有跳过断言或放宽门槛。
+
+此修订仅影响测试夹具和记录；应用、迁移、页面及样式未变，前一版本的本地 1,160 项及视觉证据仍适用；新精确 head 的完整远端 Verify 必须重跑通过。
