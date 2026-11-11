@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveLeaseReadAccess } from './access';
+import { readLeaseCompany } from './companyLookup';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
@@ -47,6 +48,10 @@ export async function GET(req: NextRequest) {
         ? '当前角色无权读取历史租赁成交'
         : '当前角色无权读取租赁成交数据库';
       return NextResponse.json({ error }, { status: 403 });
+    }
+
+    if (params.has('company_lookup')) {
+      return await readLeaseCompany(supabaseAdmin, access.enforcedSource, params);
     }
 
     const buildingId = params.get('building_id')?.trim();
