@@ -913,7 +913,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         <p className="text-sm text-[var(--cd-color-text-secondary)]">{mode === 'create' ? '关闭会丢失尚未保存的修改，已保存的云端草稿仍会保留。' : '关闭会丢失本次修改，正式成交记录保持原样。'}</p>
         {submitError && <ValidationMessage severity="error">{submitError}</ValidationMessage>}
       </Dialog>
-      {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState(mode === 'create' ? 'unsaved' : 'idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; const values = getValues(); window.setTimeout(() => { void submitValidated(values); }, 0); }} />}
+      {showDuplicate && <DuplicateDialog duplicates={duplicates} onCancel={() => { setShowDuplicate(false); setForceSubmit(false); forceSubmitRef.current = false; setSubmitState(mode === 'create' ? 'unsaved' : 'idle'); }} onConfirm={() => { setShowDuplicate(false); setForceSubmit(true); forceSubmitRef.current = true; void handleSubmit(submitValidated, (formErrors) => { setForceSubmit(false); forceSubmitRef.current = false; invalidSubmit(formErrors); })(); }} />}
 
       {pendingEdit && (
         <EditConfirmationDialog

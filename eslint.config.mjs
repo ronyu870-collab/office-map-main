@@ -52,6 +52,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     "public/vendor/**",
     ".local/sales-materials/**",
+    ".local/f6-admin-pilot/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

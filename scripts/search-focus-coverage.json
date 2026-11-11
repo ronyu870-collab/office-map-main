@@ -195,15 +195,23 @@
   },
   {
     "id": "lease-form-field-select-focus",
-    "roots": ["src/app/lease-submission/components/FormField.tsx"],
+    "roots": [
+      "src/app/lease-submission/components/FormField.tsx"
+    ],
     "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
-    "cases": ["keeps enterprise type focus and caret while filtering and selects the matching option"]
+    "cases": [
+      "keeps enterprise type focus and caret while filtering and selects the matching option"
+    ]
   },
   {
     "id": "lease-workspace-building-select-focus",
-    "roots": ["src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx"],
+    "roots": [
+      "src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx"
+    ],
     "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
-    "cases": ["keeps building search focus after option updates and locks the selected building"]
+    "cases": [
+      "keeps building search focus after option updates and locks the selected building"
+    ]
   },
   {
     "id": "lease-workspace-company-lookup-focus",
@@ -216,20 +224,42 @@
   },
   {
     "id": "admin-display-overrides-focus",
-    "roots": ["src/app/admin/display-overrides/page.tsx"],
+    "roots": [
+      "src/app/admin/display-overrides/page.tsx"
+    ],
     "file": "src/components/admin/__tests__/dialog-search-continuity.test.tsx",
-    "cases": ["retains focus and caret across display override filter results"]
+    "cases": [
+      "retains focus and caret across display override filter results"
+    ]
   },
   {
     "id": "admin-user-manager-focus",
-    "roots": ["src/components/admin/UserManager.tsx"],
+    "roots": [
+      "src/components/admin/UserManager.tsx"
+    ],
     "file": "src/components/admin/__tests__/dialog-search-continuity.test.tsx",
-    "cases": ["retains focus and caret across user filter results"]
+    "cases": [
+      "retains focus and caret across user filter results"
+    ]
   },
   {
     "id": "admin-memo-list-focus",
-    "roots": ["src/components/admin-memo/MemoList.tsx"],
+    "roots": [
+      "src/components/admin-memo/MemoList.tsx"
+    ],
     "file": "src/components/admin-memo/__tests__/memo-list-search.focus.test.tsx",
-    "cases": ["preserves memo search focus and caret after debounced results refresh"]
+    "cases": [
+      "preserves memo search focus and caret after debounced results refresh"
+    ]
+  },
+  {
+    "id": "lease-expiry-review-search",
+    "roots": [
+      "src/components/intelligence/LeaseExpiryWorkspace.tsx"
+    ],
+    "file": "src/components/intelligence/LeaseExpiryWorkspace.test.tsx",
+    "cases": [
+      "keeps Chinese search focus and caret through filter results and clears the query"
+    ]
   }
 ]

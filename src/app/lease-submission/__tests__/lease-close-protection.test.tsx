@@ -3,11 +3,11 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ close: vi.fn(), save: vi.fn(), restore: vi.fn(), update: vi.fn(), companySearch: vi.fn(), companyDeals: vi.fn() }));
+const state = vi.hoisted(() => ({ close: vi.fn(), save: vi.fn(), restore: vi.fn(), update: vi.fn(), duplicate: vi.fn(), companySearch: vi.fn(), companyDeals: vi.fn() }));
 const buildings = [{ id: 'test-building', name: 'Synthetic Tower', submarket: 'CBD', district: '朝阳区', grade: 'A' }];
 vi.mock('@/src/hooks/useBuildings', () => ({ useBuildings: () => ({ buildings, isLoading: false }) }));
 vi.mock('@/src/services/leaseTransactionDraftService', () => ({ getLeaseTransactionDraft: () => state.restore(), saveLeaseTransactionDraft: (...args: unknown[]) => state.save(...args), deleteLeaseTransactionDraft: vi.fn() }));
-vi.mock('@/src/services/leaseTransactionSubmitService', () => ({ getAllBrokers: async () => [], checkFuzzyDuplicate: async () => ({ hasDuplicate: false, duplicates: [] }), submitTransaction: vi.fn(), updateTransaction: (...args: unknown[]) => state.update(...args) }));
+vi.mock('@/src/services/leaseTransactionSubmitService', () => ({ getAllBrokers: async () => [], checkFuzzyDuplicate: (...args: unknown[]) => state.duplicate(...args), submitTransaction: vi.fn(), updateTransaction: (...args: unknown[]) => state.update(...args) }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from: () => ({ select: async () => ({ data: [], error: null }) }) } }));
 vi.mock('@/src/services/leaseCompanyLookupClient', () => ({
@@ -26,6 +26,7 @@ function backdrop() { return document.querySelector<HTMLElement>('div[aria-hidde
 beforeEach(() => {
   vi.clearAllMocks();
   state.restore.mockResolvedValue(null);
+  state.duplicate.mockResolvedValue({ hasDuplicate: false, duplicates: [] });
   state.save.mockResolvedValue('2026-10-25T00:00:00Z');
   state.companySearch.mockReset().mockResolvedValue({ suggestions: [], hasRecentDeals: false });
   state.companyDeals.mockReset().mockResolvedValue({ records: [] });
@@ -165,6 +166,22 @@ describe('existing record close protection', () => {
     await act(async () => { resolve({ success: false, error: 'synthetic write failure' }); });
     expect(company()).toHaveValue('Pending company');
     expect(state.close).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('duplicate confirmation preserves validated values', () => {
+  it('keeps cleared optional numbers null after duplicate and edit confirmation', async () => {
+    state.duplicate.mockResolvedValue({ hasDuplicate: true, duplicates: [record] });
+    state.update.mockResolvedValue({ success: false, error: 'synthetic persistence stop' });
+    render(<LeaseTransactionForm isOpen onClose={state.close} onSubmitSuccess={() => {}} userId="synthetic-user" userName="Synthetic" mode="edit" initialData={{ ...record, lease_term_months: 3, fit_out_months: 2, rent_free_months: 1 }} />);
+    await waitFor(() => expect(company()).toHaveValue('Saved company'));
+    for (const label of ['租期 (月)', '装修期 (月)', '免租期 (月)']) fireEvent.change(screen.getByLabelText(label), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: '更新记录' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认不是同一笔并提交' }));
+    fireEvent.click(await screen.findByRole('button', { name: '确认更新' }));
+    await waitFor(() => expect(state.update).toHaveBeenCalledTimes(1));
+    expect(state.update.mock.calls[0][1]).toEqual(expect.objectContaining({ lease_term_months: null, fit_out_months: null, rent_free_months: null }));
   });
 });
 
