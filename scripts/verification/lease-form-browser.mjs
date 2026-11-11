@@ -87,7 +87,7 @@ export async function verifyLeaseFormWorkflow({ page, db, app, actorId }) {
     await page.goto(app + '/intelligence/lease-expiry'); await candidate().click();
     const interval = await page.getByText(/^预计到期区间：/).innerText();
     await page.goto(app + '/lease-submission');
-    await page.getByRole('row').filter({ has: page.getByRole('cell', { name: company, exact: true }) }).getByRole('button', { name: '编辑', exact: true }).click();
+    await page.getByRole('region', { name: '我的提交记录', exact: true }).getByRole('row').filter({ has: page.getByRole('cell', { name: company, exact: true }) }).getByRole('button', { name: '编辑', exact: true }).click();
     await page.locator('#lease_term_months').fill('4');
     await page.getByRole('button', { name: '更新记录', exact: true }).click();
     await page.getByRole('button', { name: '确认不是同一笔并提交', exact: true }).click();

@@ -83,6 +83,27 @@
     ]
   },
   {
+    "id": "lease-team-column-filter-focus",
+    "roots": [
+      "src/app/lease-submission/components/LeaseColumnMenu.tsx",
+      "src/app/lease-submission/components/SubmissionDetailTable.tsx"
+    ],
+    "file": "src/app/lease-submission/__tests__/lease-table-interaction.test.tsx",
+    "cases": [
+      "keeps the company filter input and caret through successive edits with a condition applied and after reset"
+    ]
+  },
+  {
+    "id": "lease-team-change-history-focus",
+    "roots": [
+      "src/app/lease-submission/components/LeaseTransactionHistoryDrawer.tsx"
+    ],
+    "file": "src/app/lease-submission/__tests__/lease-table-interaction.test.tsx",
+    "cases": [
+      "continues searching change history from the toolbar as audit rows arrive and the result narrows"
+    ]
+  },
+  {
     "id": "research-library-search-focus",
     "roots": [
       "src/components/OSSManager.tsx"
@@ -170,6 +191,56 @@
     "file": "src/components/admin/grid/toolbar/__tests__/TableToolbar.focus.test.tsx",
     "cases": [
       "retains search focus and caret when the parent updates the visible record count"
+    ]
+  },
+  {
+    "id": "lease-form-field-select-focus",
+    "roots": [
+      "src/app/lease-submission/components/FormField.tsx"
+    ],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": [
+      "keeps enterprise type focus and caret while filtering and selects the matching option"
+    ]
+  },
+  {
+    "id": "lease-workspace-building-select-focus",
+    "roots": [
+      "src/app/lease-submission/components/LeaseTransactionWorkspaceForm.tsx"
+    ],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": [
+      "keeps building search focus after option updates and locks the selected building"
+    ]
+  },
+  {
+    "id": "admin-display-overrides-focus",
+    "roots": [
+      "src/app/admin/display-overrides/page.tsx"
+    ],
+    "file": "src/components/admin/__tests__/dialog-search-continuity.test.tsx",
+    "cases": [
+      "retains focus and caret across display override filter results"
+    ]
+  },
+  {
+    "id": "admin-user-manager-focus",
+    "roots": [
+      "src/components/admin/UserManager.tsx"
+    ],
+    "file": "src/components/admin/__tests__/dialog-search-continuity.test.tsx",
+    "cases": [
+      "retains focus and caret across user filter results"
+    ]
+  },
+  {
+    "id": "admin-memo-list-focus",
+    "roots": [
+      "src/components/admin-memo/MemoList.tsx"
+    ],
+    "file": "src/components/admin-memo/__tests__/memo-list-search.focus.test.tsx",
+    "cases": [
+      "preserves memo search focus and caret after debounced results refresh"
     ]
   },
   {

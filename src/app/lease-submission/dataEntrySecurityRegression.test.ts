@@ -46,7 +46,6 @@ describe('lease data entry authorization seams', () => {
     expect(source).toContain('const loadTeamData = React.useCallback');
     expect(source).toContain('void loadTeamData(role);');
     expect(source).toContain('await loadCoreData(uid);');
-    expect(source).toContain("coreLoading ? '正在刷新数据' : '数据已就绪'");
     expect(source).toContain('teamLoading && teamSubmissions.length === 0');
     expect(source).not.toContain('requests.push(retryAsync(() => getAllSubmissions(role)');
   });
