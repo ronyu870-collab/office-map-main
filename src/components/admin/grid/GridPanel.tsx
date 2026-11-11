@@ -518,6 +518,8 @@ export function GridPanel({ config, dicts = {}, onRefreshDicts, active = true, o
           <AgGridReact
             ref={gridRef}
             theme={myTheme}
+            // AG Grid 35.3 can leave the initial ledger blank when it skips off-screen layout.
+            suppressContentVisibilityAuto={config.table === 'project_ledger'}
             loading={loading}
             rowHeight={touch ? 48 : undefined}
             headerHeight={touch ? 48 : undefined}
