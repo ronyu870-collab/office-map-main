@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ close: vi.fn(), save: vi.fn(), restore: vi.fn(), update: vi.fn() }));
@@ -26,6 +27,42 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('lease close protection', () => {
+  it('keeps enterprise type focus and caret while filtering and selects the matching option', async () => {
+    openForm(); await ready();
+    const user = userEvent.setup();
+    const input = screen.getByRole<HTMLInputElement>('combobox', { name: /企业类型/ });
+    await user.click(input);
+    await user.keyboard('央');
+    expect(screen.getByRole('option', { name: '央国企' })).toBeVisible();
+    expect(screen.queryByRole('option', { name: '民企' })).not.toBeInTheDocument();
+    expect(input).toHaveFocus();
+    await user.keyboard('企{ArrowLeft}国');
+    expect(screen.getByRole('combobox', { name: /企业类型/ })).toBe(input);
+    expect(input).toHaveValue('央国企');
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    await user.keyboard('{Enter}');
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    expect(input).toHaveValue('央国企');
+  });
+  it('keeps building search focus after option updates and locks the selected building', async () => {
+    openForm(); await ready();
+    const user = userEvent.setup();
+    const input = screen.getByPlaceholderText<HTMLInputElement>('搜索楼宇名称…');
+    await user.click(input);
+    await user.keyboard('S');
+    expect(screen.getByRole('option', { name: 'Synthetic Tower' })).toBeVisible();
+    expect(input).toHaveFocus();
+    await user.keyboard('nthetic Tower{Home}{ArrowRight}y');
+    expect(screen.getByRole('combobox', { expanded: true })).toBe(input);
+    expect(input).toHaveValue('Synthetic Tower');
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: '清除选择' })).toBeVisible();
+    expect(screen.getByText('Synthetic Tower')).toBeVisible();
+    expect(screen.getByDisplayValue('CBD')).toHaveAttribute('readonly');
+  });
   it.each(['backdrop', 'close', 'cancel', 'escape'])('asks before %s can discard entered values', async (entry) => {
     openForm(); await ready();
     fireEvent.change(company(), { target: { value: 'Unsaved company' } });
