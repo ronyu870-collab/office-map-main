@@ -1,0 +1,496 @@
+{
+  "before": {
+    "browser": "145.0.7632.6",
+    "observations": [
+      {
+        "width": 1280,
+        "warm": false,
+        "offscreen": false,
+        "contentVisibility": "auto",
+        "startupSkip": null,
+        "rowsLaidOutDuringStartup": null,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            1042,
+            702,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            1040,
+            41,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            880,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            3876,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            158,
+            36,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            160,
+            35,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 1440,
+        "warm": true,
+        "offscreen": true,
+        "contentVisibility": "auto",
+        "startupSkip": true,
+        "rowsLaidOutDuringStartup": false,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            1202,
+            702,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            1200,
+            41,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            1040,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            3876,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            158,
+            36,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            160,
+            35,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 390,
+        "warm": false,
+        "offscreen": false,
+        "contentVisibility": "auto",
+        "startupSkip": null,
+        "rowsLaidOutDuringStartup": null,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            0,
+            0,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 390,
+        "warm": true,
+        "offscreen": false,
+        "contentVisibility": "auto",
+        "startupSkip": null,
+        "rowsLaidOutDuringStartup": null,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            0,
+            0,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 390,
+        "role": "viewer",
+        "calls": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        }
+      }
+    ],
+    "details": []
+  },
+  "after": {
+    "browser": "145.0.7632.6",
+    "observations": [
+      {
+        "width": 1280,
+        "warm": false,
+        "offscreen": false,
+        "contentVisibility": "visible",
+        "startupSkip": null,
+        "rowsLaidOutDuringStartup": null,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            1042,
+            702,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            1040,
+            41,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            880,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            3876,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            158,
+            36,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            160,
+            35,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 1440,
+        "warm": true,
+        "offscreen": true,
+        "contentVisibility": "visible",
+        "startupSkip": false,
+        "rowsLaidOutDuringStartup": true,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            1202,
+            702,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            1200,
+            41,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            1040,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            3876,
+            72360,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            158,
+            36,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            160,
+            35,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 390,
+        "warm": false,
+        "offscreen": false,
+        "contentVisibility": "visible",
+        "startupSkip": null,
+        "rowsLaidOutDuringStartup": null,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            0,
+            0,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 3,
+          "current": 1,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 390,
+        "warm": true,
+        "offscreen": false,
+        "contentVisibility": "visible",
+        "startupSkip": null,
+        "rowsLaidOutDuringStartup": null,
+        "visibleBeforeSwitch": true,
+        "visibleAfterSwitch": true,
+        "geometry": {
+          ".ag-root-wrapper": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-header": [
+            0,
+            0,
+            "flex",
+            "visible"
+          ],
+          ".ag-center-cols-viewport": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-center-cols-container": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-row": [
+            0,
+            0,
+            "block",
+            "visible"
+          ],
+          ".ag-cell": [
+            0,
+            0,
+            "block",
+            "visible"
+          ]
+        },
+        "beforeChange": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        },
+        "calls": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        }
+      },
+      {
+        "width": 390,
+        "role": "viewer",
+        "calls": {
+          "metrics": 0,
+          "current": 0,
+          "mutations": 0
+        }
+      }
+    ],
+    "details": []
+  }
+}

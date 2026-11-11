@@ -1,6 +1,6 @@
 # 高力国际网页系统 AGENT 协作与工程规则
 
-版本：V2.2｜日期：2026-10-26｜适用于本仓库全部目录。
+版本：V2.3｜日期：2026-11-11｜适用于本仓库全部目录。
 
 ## 入口与长期边界
 
@@ -26,7 +26,7 @@
 
 ## Verification
 
-实质代码或样式改动完成前运行 `npm run verify`；迭代可用 `npm run check`。命令实际组成以 [package.json](package.json) 为准，合并门槛以 [Verify workflow](.github/workflows/verify.yml) 为准，不在其他说明中手工维护第二份命令清单。
+实质代码或样式改动完成前运行 `npm run verify`；迭代可用 `npm run check`。命令实际组成以 [package.json](package.json) 为准，工程 CI 以 [Verify workflow](.github/workflows/verify.yml) 为准；视觉记录由 [Visual acceptance workflow](.github/workflows/visual-acceptance.yml) 检查。
 
 本地 verify 当前包含审计覆盖、类型、Lint、测试和生产构建；CI 另有隔离 SQL 与真实 PostgreSQL 并发回归。两者是不同证据，不能用本地通过代替精确 PR head 的 CI 通过。对应环境和任务的手工、视觉及手机验收执行 [05](docs/standards/05_工程验证与交付规范.md)。
 
@@ -41,7 +41,8 @@
 - 每个完整代码变更使用独立 feature／fix 分支，默认 `codex/` 前缀；不在 main 迭代。任务优先复用合适工作区，必要时隔离。
 - 本地编辑与验证完成后批量推送；不要为了触发远端测试逐文件、逐阶段或空标记推送。
 - 优先一个稳定可审阅的 Preview 节点和合并前最终已验证版本；CI／Preview 反馈要求真实修改时再推送。
-- 仅在精确 PR head 通过 Verify 且具备相应授权后合并 main。Vercel Ready 只是部署健康证据，不代替 CI、业务或手机验收。
+- 合并 main 前须取得相应授权，且精确 PR head 的 Verify 与 Visual acceptance evidence 均通过。用户可见变更还须有 [VERIFY-05](docs/standards/05_工程验证与交付规范.md#verify-05) 的实际视觉通过结论；证据缺失、待验或不通过均不得合并。无界面影响须记录不适用理由，由评审者核对。Vercel Ready 只是部署健康证据。
+- 在 GitHub 的 main 保护规则中将 Visual acceptance evidence 设为必需检查，与现有检查并行。托管配置未生效时仍执行上述合并要求；工作流文件存在不代表 GitHub 已强制阻止合并。
 - 日志与小文档修订尽量纳入同一完整变更。仅本地文档整理且未要求提交时不自动切分支、提交、推送或部署。
 
 ## Persistent change record

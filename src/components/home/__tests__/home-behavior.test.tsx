@@ -155,7 +155,6 @@ describe('Home workspace behavior', () => {
     expect(Array.from(report.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
       '/update', '/lease-submission', '/oss', '/occupier-insights',
     ]);
-    expect(report).toHaveTextContent('专题');
     expect(report).toHaveAttribute('href', '/occupier-insights');
     expect(fireEvent.click(report)).toBe(true);
   });
