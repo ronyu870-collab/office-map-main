@@ -207,6 +207,12 @@ jobs:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
 
+      - name: PostgreSQL 17 and PostgREST recommendation catalog regression
+        run: node supabase/tests/intelligence-recommendation-catalog/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: Production build
         run: npm run build
         env:

@@ -18,7 +18,7 @@ vi.mock(import('@/src/lib/intelligence/serverContext'), async importOriginal => 
 }));
 vi.mock(import('@/src/lib/intelligence/recommendationServer'), async importOriginal => ({
   ...await importOriginal(),
-  loadActiveRecommendationBuildings: fixture.catalog,
+  loadRecommendationCatalog: fixture.catalog,
   loadRecommendationEvidence: fixture.evidence,
 }));
 vi.mock('@/src/lib/intelligence/deepSeekRequirementParser', () => ({
@@ -74,8 +74,9 @@ it('requires access and the catalog before calling the model, then waits for evi
   expect(fixture.evidence).not.toHaveBeenCalled();
   expect(fixture.model).not.toHaveBeenCalled();
 
-  fixture.access.mockResolvedValueOnce({ caller: { id: 'admin' }, client: { from: () => ({ insert: fixture.insert }) } });
-  let releaseCatalog!: (rows: []) => void;
+  fixture.access.mockResolvedValueOnce({ caller: { id: 'admin' }, catalogScope: 'authorized-fixture', client: { from: () => ({ insert: fixture.insert }) } });
+  const vocabulary = { districts: [], submarkets: [], grades: [] };
+  let releaseCatalog!: (catalog: { buildings: []; vocabulary: typeof vocabulary }) => void;
   let releaseEvidence!: (evidence: { metrics: []; brochures: []; latestMetricPeriod: string }) => void;
   fixture.catalog.mockImplementationOnce(() => new Promise(resolve => { releaseCatalog = resolve; }));
   fixture.evidence.mockImplementationOnce(() => new Promise(resolve => { releaseEvidence = resolve; }));
@@ -91,7 +92,7 @@ it('requires access and the catalog before calling the model, then waits for evi
     expect(fixture.evidence).toHaveBeenCalledOnce();
   });
   expect(fixture.model).not.toHaveBeenCalled();
-  releaseCatalog([]);
+  releaseCatalog({ buildings: [], vocabulary });
   await vi.waitFor(() => expect(fixture.model).toHaveBeenCalledWith(
     requirement, { districts: [], submarkets: [], grades: [] }, expect.any(AbortSignal),
   ));

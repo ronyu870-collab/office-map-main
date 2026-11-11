@@ -13,10 +13,11 @@ import {
   normalizeRequirementAgainstVocabulary,
   resolveRequirementCapabilities,
 } from '@/src/lib/intelligence/requirementResolver';
+import { loadRecommendationCatalog } from '@/src/lib/intelligence/recommendationServer';
 import {
   createIntelligenceRequestScope,
   isIntelligenceContext,
-  loadVocabularyAndPeriod,
+  loadLatestRecommendationMetricPeriod,
   requireIntelligenceAccess,
 } from '@/src/lib/intelligence/serverContext';
 
@@ -84,7 +85,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: input.error.issues[0]?.message || '客户需求格式无效' }, { status: 400 });
     }
 
-    const { vocabulary, latestMetricPeriod } = await loadVocabularyAndPeriod(context.client, signal);
+    const [{ vocabulary }, latestMetricPeriod] = await Promise.all([
+      loadRecommendationCatalog(context.client, context.catalogScope, signal),
+      loadLatestRecommendationMetricPeriod(context.client, signal),
+    ]);
     const startedAt = Date.now();
     const aiResult = await parseRequirementWithDeepSeek(input.data.requirement, vocabulary, signal);
     const parsed = normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary);

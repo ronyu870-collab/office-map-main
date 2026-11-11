@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
@@ -8,9 +9,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { parseServerTiming } from './server-timing.mjs';
 
 const baseline = process.argv.includes('--baseline');
+const versioned = !baseline && !process.argv.includes('--uncached-catalog');
 const require = createRequire(import.meta.url);
 const admin = '22222222-2222-4222-8222-222222222222';
 const viewer = '33333333-3333-4333-8333-333333333333';
+const peer = '44444444-4444-4444-8444-444444444444';
 const expires_at = Math.floor(Date.now() / 1000) + 3600;
 const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
 const browserToken = id => `${encode({ alg: 'HS256' })}.${encode({ sub: id, exp: expires_at, aud: 'authenticated', session_id: id })}.fixture`;
@@ -52,15 +55,30 @@ const fixture = createServer(async (req, res) => {
   }
   if (pathname === '/auth/v1/user') {
     const id = [admin, viewer].find(id => req.headers.authorization === `Bearer ${browserToken(id)}`) ??
-      (req.headers.authorization === 'Bearer synthetic-admin' ? admin : req.headers.authorization === 'Bearer synthetic-viewer' ? viewer : null);
+      ({ 'Bearer synthetic-admin': admin, 'Bearer synthetic-admin-refresh': admin,
+        'Bearer synthetic-peer': peer, 'Bearer synthetic-viewer': viewer })[req.headers.authorization];
     return id ? send(200, { id, email: 'fixture@example.test', aud: 'authenticated' }) : send(401, {});
   }
   if (pathname === '/rest/v1/user_roles') {
-    const user = searchParams.get('user_id') === `eq.${admin}` ? admin : viewer;
-    return send(200, [{ user_id: user, role: user === admin ? 'admin' : 'viewer', email: 'fixture@example.test' }]);
+    const user = [admin, peer, viewer].find(id => searchParams.get('user_id') === `eq.${id}`);
+    return send(200, user ? [{ user_id: user, role: user === viewer ? 'viewer' : 'admin', email: 'fixture@example.test' }] : []);
   }
   const current = probe;
   const runOptions = options;
+  if (pathname === '/rest/v1/rpc/intelligence_recommendation_catalog') {
+    const input = await body();
+    assert.deepEqual(Object.keys(input), ['p_known_version']);
+    const known = input.p_known_version;
+    current.catalogs.push(known);
+    if (runOptions.missingCatalog) return send(404, { code: 'PGRST202', message: 'fixture migration not applied' });
+    if (runOptions.failBuildings) return send(500, { message: 'fixture catalog unavailable' });
+    if (runOptions.invalidCatalog) return send(200, { version: '0'.repeat(64), rows: null });
+    const rows = runOptions.rename ? [{ ...buildings[0], name: runOptions.rename }, ...buildings.slice(1)] : buildings;
+    const version = createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+    const response = { version, rows: known === version ? null : rows };
+    current.catalogBytes += Buffer.byteLength(JSON.stringify(response));
+    return send(200, response);
+  }
   if (pathname === '/rest/v1/buildings') {
     const offset = Number(searchParams.get('offset') ?? 0);
     const select = searchParams.get('select');
@@ -68,15 +86,17 @@ const fixture = createServer(async (req, res) => {
     if (runOptions.failBuildings) return send(500, { message: 'fixture catalog unavailable' });
     const rows = buildings.slice(offset, offset + (runOptions.cap ?? 1000));
     if (req.headers.prefer?.includes('count=exact')) res.setHeader('Content-Range', `${offset}-${offset + rows.length - 1}/${buildings.length}`);
-    return send(200, select === 'district,submarket,grade' ? rows.map(({ district, submarket, grade }) => ({ district, submarket, grade })) : rows);
+    const payload = select === 'district,submarket,grade' ? rows.map(({ district, submarket, grade }) => ({ district, submarket, grade })) : rows;
+    current.catalogBytes += Buffer.byteLength(JSON.stringify(payload));
+    return send(200, payload);
   }
   if (pathname === '/rest/v1/building_metrics') {
     const period = searchParams.get('select') === 'record_year,record_quarter';
     current.metrics.push(period ? 'period' : 'evidence');
-    if (period) return send(200, [{ record_year: metric.record_year, record_quarter: metric.record_quarter }]);
+    if (period) return send(200, [{ record_year: metric.record_year, record_quarter: runOptions.quarter ?? metric.record_quarter }]);
     await delay(430);
     current.evidenceReady++;
-    return send(200, metricRows);
+    return send(200, runOptions.quarter ? metricRows.map(row => ({ ...row, record_quarter: runOptions.quarter })) : metricRows);
   }
   if (pathname === '/rest/v1/building_brochure_data') {
     current.brochure++;
@@ -92,6 +112,11 @@ const fixture = createServer(async (req, res) => {
     if (runOptions.rejectModels) return send(403, { error: { message: runOptions.text ?? text } });
     if (runOptions.tryFallback && current.models.length === 1) return send(502, { error: { message: 'fixture transient' } });
     await delay(runOptions.modelMs ?? 560);
+    if (runOptions.parseBudget) {
+      return send(200, { ...modelResult, output: [{ type: 'message', content: [{ type: 'output_text',
+        text: JSON.stringify({ ...parsed, rent: { minDailyRmbSqm: 5, maxDailyRmbSqm: null, basis: 'net_effective' } }),
+      }] }] });
+    }
     return send(200, modelResult);
   }
   if (pathname === '/rest/v1/audit_logs' && req.method === 'POST') {
@@ -103,7 +128,7 @@ const fixture = createServer(async (req, res) => {
 });
 function reset(next = {}) {
   options = next;
-  probe = { buildings: [], metrics: [], brochure: 0, evidenceReady: 0, models: [], audits: [] };
+  probe = { buildings: [], catalogs: [], catalogBytes: 0, metrics: [], brochure: 0, evidenceReady: 0, models: [], audits: [] };
   return probe;
 }
 async function portFor(server) {
@@ -151,12 +176,12 @@ async function verifyBrowser(origin, path) {
         const input = page.locator('textarea');
         if (id === viewer) {
           await page.getByText('业务智能正在内部验证').waitFor();
-          assert.equal(await input.count() + first.models.length + first.buildings.length, 0);
+          assert.equal(await input.count() + first.models.length + first.buildings.length + first.catalogs.length, 0);
           observations.push({ width, role, protectedReads: 0 });
           continue;
         }
         await input.fill(text);
-        assert.equal(first.models.length + first.buildings.length, 0, 'editing alone never starts the recommendation');
+        assert.equal(first.models.length + first.buildings.length + first.catalogs.length, 0, 'editing alone never starts the recommendation');
         await page.getByRole('button', { name: '开始推荐' }).click();
         const cancel = page.getByRole('button', { name: '取消推荐' });
         if (baseline) assert.equal(await cancel.count(), 0);
@@ -252,7 +277,7 @@ try {
   assert.equal((await submit(path, 'synthetic-viewer')).status, 403, 'preview off must deny viewers');
   assert.equal((await submit(path, 'synthetic-admin', text, undefined, { 'x-colliers-impersonate-user': viewer })).status, 403);
   assert.equal((await submit(path, 'synthetic-admin', 'x')).status, 400);
-  assert.equal(probe.buildings.length + probe.models.length + probe.audits.length, 0);
+  assert.equal(probe.buildings.length + probe.catalogs.length + probe.models.length + probe.audits.length, 0);
   for (let round = 0; round < 5; round++) {
     const measured = reset();
     const before = performance.now();
@@ -266,7 +291,15 @@ try {
     assert.equal(result.meta.universeCount, buildings.length);
     assert.equal(result.plan.candidateCount, 1);
     assert.deepEqual(result.plan.recommendations.map(row => [row.id, row.metricPeriod, row.brochure.address]), [[project, '2026 Q3', brochure.address]]);
-    assert.equal(measured.buildings.length, baseline ? 2 : 1);
+    assert.equal(measured.buildings.length, baseline ? 2 : versioned ? 0 : 1);
+    assert.equal(measured.catalogs.length, versioned ? 1 : 0);
+    if (versioned) {
+      if (round === 0) assert.equal(measured.catalogs[0], null);
+      else {
+        assert.match(measured.catalogs[0], /^[a-f0-9]{64}$/);
+        assert.ok(measured.catalogBytes < probes[0].catalogBytes / 100);
+      }
+    }
     assert.deepEqual(measured.metrics.sort(), baseline ? ['evidence', 'period'] : ['evidence']);
     assert.equal(measured.models.length, 1);
     assert.equal(measured.models[0].vocabularyOk, true);
@@ -276,14 +309,42 @@ try {
     assert.equal(measured.audits[0].user_id, admin);
     assert.equal(measured.audits[0].action_type, 'AI_RECOMMENDATION');
     assert.ok(!JSON.stringify(measured.audits).includes(text));
-    probes.push({ totalMs: Math.round(performance.now() - before), stages, buildingReads: measured.buildings.length,
-      totalSourceReads: measured.buildings.length + measured.metrics.length + measured.brochure, modelStartedBeforeEvidence: measured.models[0].evidenceReady === 0 });
+    const buildingReads = measured.buildings.length + measured.catalogs.length;
+    probes.push({ totalMs: Math.round(performance.now() - before), stages, buildingReads, catalogBytes: measured.catalogBytes,
+      totalSourceReads: buildingReads + measured.metrics.length + measured.brochure, modelStartedBeforeEvidence: measured.models[0].evidenceReady === 0 });
+  }
+  if (versioned) {
+    const previous = reset({ rename: '隔离望京中心新版', quarter: 4, modelMs: 10 });
+    const response = await submit();
+    assert.equal(response.status, 200, logs);
+    const result = await response.json();
+    assert.match(previous.catalogs[0], /^[a-f0-9]{64}$/);
+    assert.equal(result.plan.recommendations[0].name, options.rename);
+    assert.equal(result.meta.latestMetricPeriod, '2026 Q4');
+    const latest = reset({ rename: '隔离望京中心新版', quarter: 3, modelMs: 10 });
+    const newer = await submit();
+    assert.equal(newer.status, 200, logs);
+    assert.equal((await newer.json()).meta.latestMetricPeriod, '2026 Q3', 'the catalog hit must never cache evidence or periods');
+    assert.notEqual(latest.catalogs[0], previous.catalogs[0]);
+    assert.ok(latest.catalogBytes < 120);
+    for (const [token, extra] of [['synthetic-peer', {}], ['synthetic-admin-refresh', {}],
+      ['synthetic-admin', { 'x-colliers-impersonate-user': peer }]]) {
+      const isolated = reset({ modelMs: 10 });
+      const response = await submit(path, token, text, undefined, extra);
+      assert.equal(response.status, 200, logs);
+      assert.deepEqual(isolated.catalogs, [null], 'account, login and effective identity scopes must start cold');
+      assert.equal(isolated.models.length, 1);
+      assert.equal(isolated.audits[0].user_id, token === 'synthetic-peer' ? peer : admin);
+    }
+    const invalid = reset({ invalidCatalog: true });
+    assert.equal((await submit()).status, 500);
+    assert.equal(invalid.models.length + invalid.audits.length, 0);
   }
   const failure = reset({ failBuildings: true });
   assert.equal((await submit()).status, 500);
   assert.equal(failure.models.length + failure.audits.length, 0, 'catalog failure must not send the private text to the model');
   if (!baseline) {
-    const capped = reset({ cap: 400, tryFallback: true, text: `${text}；只用于隔离回归` });
+    const capped = reset({ cap: 400, missingCatalog: true, tryFallback: true, text: `${text}；只用于隔离回归` });
     const capResponse = await submit(path, 'synthetic-admin', options.text);
     assert.equal(capResponse.status, 200, logs);
     assert.equal((await capResponse.json()).meta.universeCount, buildings.length);
@@ -308,14 +369,21 @@ try {
     assert.ok(closedModel > 0, 'client cancellation reaches the active model request');
     assert.equal(cancel.audits.length, 0);
   }
-  const parse = reset({ modelMs: 10 });
+  const parse = reset({ modelMs: 10, quarter: 4, parseBudget: true });
   const parseResponse = await submit(parsePath);
   assert.equal(parseResponse.status, 200, logs);
-  assert.deepEqual((await parseResponse.json()).parsed.locations, parsed.locations);
+  const parseResult = await parseResponse.json();
+  assert.deepEqual(parseResult.parsed.locations, parsed.locations);
+  assert.deepEqual(parse.metrics, ['period']);
+  if (versioned) {
+    assert.match(parse.catalogs[0], /^[a-f0-9]{64}$/);
+    assert.ok(parse.catalogBytes < 120);
+    assert.equal(parseResult.capabilities.find(row => row.key === 'rent')?.dataBasis, 'building_metrics.net_effective_rent · 2026 Q4');
+  }
   assert.equal(parse.audits[0].action_type, 'AI_REQUIREMENT_PARSE');
   const sorted = probes.map(row => row.totalMs).sort((a, b) => a - b);
   const browser = await verifyBrowser(origin, path);
-  console.log(JSON.stringify({ status: 'pass', baseline, scenario: 'isolated production Next route, held evidence and synthetic model',
+  console.log(JSON.stringify({ status: 'pass', baseline, versioned, scenario: 'isolated production Next route, held evidence and synthetic model',
     fixtureRows: { buildings: buildings.length, metrics: metricRows.length, brochures: brochureRows.length },
     medianMs: sorted[Math.floor(sorted.length / 2)], probes, browser, rejectionProtected: true, modelCancelReachedProvider: !baseline }, null, 2));
 } finally {

@@ -4,10 +4,18 @@ import {
   toFiniteNumber,
   type RecommendationBuildingSource,
 } from './recommendationEngine';
-import { latestRecommendationMetricPeriod } from './serverContext';
+import { latestRecommendationMetricPeriod, recommendationVocabulary } from './serverContext';
+import type { RequirementVocabulary } from './requirementResolver';
 
 type ActiveBuilding = { id: string; name: string | null; grade: string | null; submarket: string | null; district: string | null };
 const BUILDING_PAGE_SIZE = 1_000;
+const MAX_CACHED_SCOPES = 16;
+const MAX_CACHED_BUILDINGS = 3_000;
+const CATALOG_CACHE_TTL_MS = 2 * 60_000;
+const CATALOG_VERSION_PATTERN = /^[0-9a-f]{64}$/;
+type RecommendationCatalog = { buildings: ActiveBuilding[]; vocabulary: RequirementVocabulary };
+type CachedCatalog = { version: string; expiresAt: number; catalog: RecommendationCatalog };
+const catalogCache = new Map<string, CachedCatalog>();
 
 function text(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -16,7 +24,7 @@ function text(value: unknown): string | null {
 }
 
 /** One complete catalog supplies both the model vocabulary and the ranking input. */
-export async function loadActiveRecommendationBuildings(client: SupabaseClient, signal: AbortSignal): Promise<ActiveBuilding[]> {
+async function loadActiveRecommendationBuildings(client: SupabaseClient, signal: AbortSignal): Promise<ActiveBuilding[]> {
   const buildings: ActiveBuilding[] = [];
   let total = 0;
   do {
@@ -37,6 +45,56 @@ export async function loadActiveRecommendationBuildings(client: SupabaseClient, 
     buildings.push(...data);
   } while (buildings.length < total);
   return buildings;
+}
+
+function isCatalogRow(row: unknown): row is ActiveBuilding {
+  if (!row || typeof row !== 'object') return false;
+  const value = row as Record<string, unknown>;
+  return typeof value.id === 'string' && ['name', 'grade', 'submarket', 'district']
+    .every(key => typeof value[key] === 'string' || value[key] === null);
+}
+
+export async function loadRecommendationCatalog(client: SupabaseClient, scope: string, signal: AbortSignal): Promise<RecommendationCatalog> {
+  signal.throwIfAborted();
+  const now = Date.now();
+  for (const [key, entry] of catalogCache) {
+    if (entry.expiresAt <= now) catalogCache.delete(key);
+  }
+  const cached = catalogCache.get(scope);
+  const { data, error } = await client.rpc('intelligence_recommendation_catalog', {
+    p_known_version: cached?.version ?? null,
+  }).abortSignal(signal);
+  signal.throwIfAborted();
+  if (error?.code === 'PGRST202') {
+    // Compatible during rollout; absent migration always uses a fresh catalog.
+    catalogCache.delete(scope);
+    const buildings = await loadActiveRecommendationBuildings(client, signal);
+    return { buildings, vocabulary: recommendationVocabulary(buildings) };
+  }
+  const result = data as { version?: unknown; rows?: unknown } | null;
+  if (error || typeof result?.version !== 'string' || !CATALOG_VERSION_PATTERN.test(result.version)) {
+    throw new Error('推荐楼宇目录读取失败');
+  }
+  if (result.rows === null && cached?.version === result.version) {
+    // A validated hit moves to the end without extending the fixed TTL.
+    if (catalogCache.get(scope) === cached) {
+      catalogCache.delete(scope);
+      catalogCache.set(scope, cached);
+    }
+    return cached.catalog;
+  }
+  if (!Array.isArray(result.rows) || !result.rows.every(isCatalogRow)) throw new Error('推荐楼宇目录读取不完整');
+
+  const catalog = { buildings: result.rows, vocabulary: recommendationVocabulary(result.rows) };
+  catalogCache.delete(scope);
+  if (catalog.buildings.length <= MAX_CACHED_BUILDINGS) {
+    catalogCache.set(scope, { version: result.version, expiresAt: Date.now() + CATALOG_CACHE_TTL_MS, catalog });
+    if (catalogCache.size > MAX_CACHED_SCOPES) {
+      const oldest = catalogCache.keys().next().value;
+      if (oldest !== undefined) catalogCache.delete(oldest);
+    }
+  }
+  return catalog;
 }
 
 export async function loadRecommendationEvidence(client: SupabaseClient, signal: AbortSignal) {

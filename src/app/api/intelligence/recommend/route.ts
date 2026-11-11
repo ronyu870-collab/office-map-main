@@ -13,7 +13,7 @@ import {
 } from '@/src/lib/intelligence/recommendationEngine';
 import {
   buildRecommendationUniverse,
-  loadActiveRecommendationBuildings,
+  loadRecommendationCatalog,
   loadRecommendationEvidence,
 } from '@/src/lib/intelligence/recommendationServer';
 import { RequirementParseInputSchema, type RequirementParseResult } from '@/src/lib/intelligence/requirementSchema';
@@ -24,7 +24,6 @@ import {
 import {
   createIntelligenceRequestScope,
   isIntelligenceContext,
-  recommendationVocabulary,
   requireIntelligenceAccess,
 } from '@/src/lib/intelligence/serverContext';
 
@@ -100,10 +99,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: input.error.issues[0]?.message || '客户需求格式无效' }, { status: 400 });
     }
 
-    const buildings = loadActiveRecommendationBuildings(context.client, signal);
-    const facts = timing.measure('candidates', () => Promise.all([buildings, loadRecommendationEvidence(context.client, signal)]));
+    const catalog = loadRecommendationCatalog(context.client, context.catalogScope, signal);
+    const facts = timing.measure('candidates', () => Promise.all([catalog, loadRecommendationEvidence(context.client, signal)]));
     const parsing = (async () => {
-      const vocabulary = await timing.measure('vocabulary', async () => recommendationVocabulary(await buildings));
+      const vocabulary = await timing.measure('vocabulary', async () => (await catalog).vocabulary);
       signal.throwIfAborted();
       const aiStartedAt = Date.now();
       const aiResult = await timing.measure('model', () => parseRequirementWithDeepSeek(input.data.requirement, vocabulary, signal));
@@ -113,12 +112,12 @@ export async function POST(request: NextRequest) {
       };
     })();
 
-    const [[catalog, evidence], ai] = await Promise.all([facts, parsing]);
+    const [[{ buildings }, evidence], ai] = await Promise.all([facts, parsing]);
     signal.throwIfAborted();
 
     const rankStarted = timing.start();
     const { latestMetricPeriod } = evidence;
-    const universe = buildRecommendationUniverse(catalog, evidence);
+    const universe = buildRecommendationUniverse(buildings, evidence);
     const result: RequirementParseResult = {
       ...ai,
       capabilities: resolveRequirementCapabilities(ai.parsed, { latestMetricPeriod }),

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
@@ -9,6 +10,7 @@ export type IntelligenceContext = {
   client: SupabaseClient;
   caller: User;
   role: string;
+  catalogScope: string;
 };
 
 function createAdminClient() {
@@ -36,7 +38,19 @@ export async function requireIntelligenceAccess(request: NextRequest): Promise<I
     return NextResponse.json({ error: '当前账号未开放 Intelligence Preview' }, { status: 403 });
   }
 
-  return { client, caller: identity.caller, role: identity.effectiveRole };
+  // Only already-authorized calls can reuse catalog data. A credential change
+  // changes the key; the credential itself is never retained in the cache.
+  const catalogScope = createHash('sha256').update(JSON.stringify([
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    identity.caller.id,
+    identity.callerRole,
+    identity.effectiveUserId,
+    identity.effectiveRole,
+    identity.isImpersonating,
+    request.headers.get('authorization'),
+  ])).digest('hex');
+
+  return { client, caller: identity.caller, role: identity.effectiveRole, catalogScope };
 }
 
 export function isIntelligenceContext(value: IntelligenceContext | NextResponse): value is IntelligenceContext {
@@ -67,30 +81,15 @@ export function createIntelligenceRequestScope(request: Request) {
   return { deadline, signal: AbortSignal.any([request.signal, deadline, controller.signal]), close: () => controller.abort() };
 }
 
-export async function loadVocabularyAndPeriod(client: SupabaseClient, signal: AbortSignal) {
-  const [buildingsResult, latestMetricResult] = await Promise.all([
-    client
-      .from('buildings')
-      .select('district,submarket,grade')
-      .eq('is_active', true)
-      .eq('tracking_scope', 'tracked')
-      .limit(2000)
-      .abortSignal(signal),
-    client
-      .from('building_metrics')
-      .select('record_year,record_quarter')
-      .order('record_year', { ascending: false })
-      .order('record_quarter', { ascending: false })
-      .limit(1)
-      .abortSignal(signal)
-      .maybeSingle(),
-  ]);
-
+export async function loadLatestRecommendationMetricPeriod(client: SupabaseClient, signal: AbortSignal) {
+  const latestMetricResult = await client
+    .from('building_metrics')
+    .select('record_year,record_quarter')
+    .order('record_year', { ascending: false })
+    .order('record_quarter', { ascending: false })
+    .limit(1)
+    .abortSignal(signal)
+    .maybeSingle();
   signal.throwIfAborted();
-  if (buildingsResult.error) throw new Error(`读取楼宇词表失败：${buildingsResult.error.message}`);
-
-  return {
-    vocabulary: recommendationVocabulary(buildingsResult.data ?? []),
-    latestMetricPeriod: latestRecommendationMetricPeriod(latestMetricResult.data),
-  };
+  return latestRecommendationMetricPeriod(latestMetricResult.data);
 }
