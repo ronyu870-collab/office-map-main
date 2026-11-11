@@ -53,6 +53,8 @@ type DirectoryRequest = {
   read: ReturnType<typeof beginResearchDirectoryRead> | null;
 };
 
+const MAX_SIMULTANEOUS_UPLOADS = 2;
+
 const UPLOAD_STATUS_LABELS: Record<UploadStatus, string> = {
   queued: '等待上传',
   uploading: '正在上传',
@@ -166,6 +168,7 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
   const listRequest = React.useRef<DirectoryRequest | null>(null);
   const mounted = React.useRef(true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const uploadBatchActive = React.useRef(false);
 
   const isImpersonating = targetUserId !== null;
   const canManage = isResearchLibraryManager(role) && !isImpersonating;
@@ -393,57 +396,94 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
   const executeUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!files.length || loading || loadError || truncated) return;
+    if (!files.length || loading || loadError || truncated || uploadBatchActive.current) return;
     if (!canManage) return setNotice({ tone: 'warning', text: isImpersonating ? '用户模拟期间为只读模式。' : '只有管理员可以上传文件。' });
 
-    const queue: UploadEntry[] = files.map((file) => ({
-      id: `${file.name}-${file.size}-${file.lastModified}`,
-      name: file.name,
-      status: !isSupportedResearchFile(file.name) ? 'unsupported' : isDuplicateUploadName(items, file.name) ? 'duplicate' : 'queued',
-      progress: 0,
-      message: !isSupportedResearchFile(file.name) ? '不支持此文件类型' : isDuplicateUploadName(items, file.name) ? '当前目录已存在同名文件' : undefined,
-    }));
-    setUploads(queue);
-    const uploadable = queue.filter((entry) => entry.status === 'queued');
+    const namesInBatch = new Set<string>();
+    const queue = files.map((file, index) => {
+      const nameKey = file.name.trim().toLowerCase();
+      const entry: UploadEntry = { id: String(index), name: file.name, status: 'queued', progress: 0 };
+      if (!isSupportedResearchFile(file.name)) {
+        entry.status = 'unsupported';
+        entry.message = '不支持此文件类型';
+      } else if (isDuplicateUploadName(items, file.name)) {
+        entry.status = 'duplicate';
+        entry.message = '当前目录已存在同名文件';
+      } else if (namesInBatch.has(nameKey)) {
+        entry.status = 'duplicate';
+        entry.message = '本次选择中已有同名文件';
+      } else {
+        namesInBatch.add(nameKey);
+      }
+      return { file, entry };
+    });
+    setUploads(queue.map(({ entry }) => entry));
+    const uploadable = queue.filter(({ entry }) => entry.status === 'queued');
     if (!uploadable.length) return;
 
+    const prefix = currentPrefix;
+    const update = (id: string, patch: Partial<UploadEntry>) => {
+      if (mounted.current) setUploads(current => current.map(item => item.id === id ? { ...item, ...patch } : item));
+    };
+    uploadBatchActive.current = true;
     setUploading(true);
+    let succeeded = 0;
+    let failed = 0;
     try {
-      const headers = await authHeaders();
-      const signatureResponse = await fetch('/api/oss?action=get-signature', { headers });
+      const authorization = await listAuthorization();
+      if (!authorization || !mounted.current) throw new Error('登录身份已变化，请重新选择要上传的文件。');
+      const signatureResponse = await fetch('/api/oss?action=get-signature', { headers: authorization.headers, cache: 'no-store' });
       const signature = await signatureResponse.json().catch(() => ({}));
       if (!signatureResponse.ok || signature.status !== 'success') throw new Error(signature.message || '获取上传签名失败');
 
-      for (const file of files) {
-        const id = `${file.name}-${file.size}-${file.lastModified}`;
-        const entry = queue.find((candidate) => candidate.id === id);
-        if (!entry || entry.status !== 'queued') continue;
-        setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'uploading', progress: 1 } : item));
-        try {
-          const formData = new FormData();
-          const fullKey = `${currentPrefix}${file.name}`;
-          formData.append('key', fullKey);
-          formData.append('policy', signature.policy);
-          formData.append('OSSAccessKeyId', signature.accessid);
-          formData.append('signature', signature.signature);
-          formData.append('success_action_status', '200');
-          formData.append('file', file);
-          await uploadToOSS(signature.host, formData, (progress) => {
-            setUploads((current) => current.map((item) => item.id === id ? { ...item, progress } : item));
-          });
-          logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
-          setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'success', progress: 100 } : item));
-        } catch (error) {
-          setUploads((current) => current.map((item) => item.id === id ? { ...item, status: 'error', message: error instanceof Error ? error.message : '上传失败' } : item));
+      let next = 0;
+      let identityChanged = false;
+      const uploadNext = async () => {
+        while (next < uploadable.length && mounted.current && !identityChanged) {
+          const { file, entry: { id } } = uploadable[next++];
+          const current = await listAuthorization().catch(() => null);
+          if (!current || !mounted.current || identityChanged) {
+            identityChanged = true;
+            return;
+          }
+          update(id, { status: 'uploading', progress: 1 });
+          const fullKey = `${prefix}${file.name}`;
+          try {
+            const formData = new FormData();
+            formData.append('key', fullKey);
+            formData.append('policy', signature.policy);
+            formData.append('OSSAccessKeyId', signature.accessid);
+            formData.append('signature', signature.signature);
+            formData.append('success_action_status', '200');
+            formData.append('file', file);
+            await uploadToOSS(signature.host, formData, (progress) => update(id, { progress }));
+            logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
+            succeeded++;
+            update(id, { status: 'success', progress: 100 });
+          } catch (error) {
+            failed++;
+            update(id, { status: 'error', message: error instanceof Error ? error.message : '上传失败' });
+          }
         }
+      };
+      await Promise.all(Array.from({ length: Math.min(MAX_SIMULTANEOUS_UPLOADS, uploadable.length) }, uploadNext));
+      if (mounted.current) {
+        const remaining = uploadable.length - succeeded - failed;
+        if (remaining) setUploads(current => current.map(item => item.status === 'queued' ? { ...item, status: 'error', message: '登录身份已变化，文件未上传' } : item));
+        const skipped = queue.length - uploadable.length;
+        setNotice({ tone: failed || remaining || skipped ? 'warning' : 'success', text: `上传队列已处理：成功 ${succeeded} 个，失败 ${failed} 个，未上传 ${remaining + skipped} 个。` });
       }
-      setNotice({ tone: 'success', text: '上传队列已处理完成；请查看每个文件的状态。' });
-      await refreshDirectory(currentPrefix);
+      // A network error can lose the response after storage received the object.
+      // Read back once before the user retries; never resubmit automatically.
+      if (succeeded || failed) await refreshDirectory(prefix);
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? error.message : '上传失败' });
-      setUploads((current) => current.map((item) => item.status === 'queued' || item.status === 'uploading' ? { ...item, status: 'error', message: '上传初始化失败' } : item));
+      if (mounted.current) {
+        setNotice({ tone: 'error', text: error instanceof Error ? error.message : '上传失败' });
+        setUploads(current => current.map(item => item.status === 'queued' || item.status === 'uploading' ? { ...item, status: 'error', message: '上传初始化失败' } : item));
+      }
     } finally {
-      setUploading(false);
+      uploadBatchActive.current = false;
+      if (mounted.current) setUploading(false);
     }
   };
 
