@@ -9,6 +9,7 @@ import { leaseTransactionSchema, type LeaseTransactionFormData } from '../schema
 import { dbGradeToFormGrade, getAvailableLeasePeriods, mapLeaseRecordToFormDefaults } from '../leaseEntryModel';
 import { buildLeaseTransactionChanges, type LeaseFieldChange } from '../leaseTransactionChangeHistory';
 import { FormField } from './FormField';
+import { LeaseCompanyField } from './LeaseCompanyField';
 import { SearchableSelect } from '@/src/components/ui/SearchableSelect';
 import { SaveStatus, type SaveState } from '@/src/components/data-entry/SaveStatus';
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
@@ -835,7 +836,13 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
 
           <Section index="01" title="企业信息与需求类型">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="sm:col-span-2"><FormField name="company" label="企业名称" type="text" placeholder="请输入企业名称" register={register} error={errors.company} required /></div>
+              <div className="min-w-0 sm:col-span-2">
+                {mode === 'create' ? (
+                  <LeaseCompanyField key={userId} control={control} enabled={draftHydrated} />
+                ) : (
+                  <FormField name="company" label="企业名称" type="text" placeholder="请输入企业名称" register={register} error={errors.company} required />
+                )}
+              </div>
               <FormField name="suspected_company_fullname" label="疑似企业全称" type="text" placeholder="可选" register={register} error={errors.suspected_company_fullname} />
               <FormField name="enterprise_type" label="企业类型" type="select" options={['央国企','外企','民企','其他']} register={register} control={control} error={errors.enterprise_type} required />
               <FormField name="industry" label="所属行业" type="select" options={industryOptions} register={register} control={control} error={errors.industry} required />

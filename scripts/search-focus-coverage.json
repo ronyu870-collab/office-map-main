@@ -206,6 +206,15 @@
     "cases": ["keeps building search focus after option updates and locks the selected building"]
   },
   {
+    "id": "lease-workspace-company-lookup-focus",
+    "roots": ["src/app/lease-submission/components/LeaseCompanyField.tsx"],
+    "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
+    "cases": [
+      "keeps the same input, focus and caret across results and chooses a company without overwriting other fields",
+      "ignores delayed results and IME composition, then keeps unmatched and failed searches fillable"
+    ]
+  },
+  {
     "id": "admin-display-overrides-focus",
     "roots": ["src/app/admin/display-overrides/page.tsx"],
     "file": "src/components/admin/__tests__/dialog-search-continuity.test.tsx",
