@@ -13,7 +13,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: mocks.fro
 const buildingId = '11111111-1111-4111-8111-111111111111';
 const photoId = '22222222-2222-4222-8222-222222222222';
 const path = `building-photos/v1/${buildingId}/${photoId}/exterior.webp`;
-const photo = { id: photoId, storage_path: path, image_url: 'https://images.archdaily.com/photo.jpg', source_url: 'https://www.archdaily.com/project', source_name: 'ArchDaily' };
+const photo = { id: photoId, caption: '双塔外观', file_size: 2 * 1024 * 1024, storage_path: path, image_url: 'https://images.archdaily.com/photo.jpg', source_url: 'https://www.archdaily.com/project', source_name: 'ArchDaily' };
 const identity = (role = 'viewer', impersonating = false) => ({
   caller: { id: 'caller', email: 'synthetic@invalid.test' }, callerRole: 'admin',
   effectiveRole: role, effectiveUserId: 'effective-viewer', isImpersonating: impersonating,
@@ -24,6 +24,7 @@ beforeEach(() => {
   vi.clearAllMocks(); mocks.calls.length = 0;
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://synthetic.invalid');
   vi.stubEnv('SUPABASE_SECRET_KEY', 'synthetic');
+  vi.stubEnv('BUILDING_PHOTO_PREVIEWS_ENABLED', '1');
   mocks.identity.mockResolvedValue({ identity: identity() });
   mocks.audit.mockResolvedValue(true);
   mocks.query.mockImplementation((table: string) => ({ data: table === 'buildings' ? { id: buildingId, name: '测试楼宇' } : photo, error: null }));
@@ -44,7 +45,7 @@ describe('楼宇图片授权访问', () => {
     const response = await route.GET(request('&path=other.jpg&url=https://evil.test/'));
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('no-store');
-    expect(await response.json()).toEqual({ url: 'https://synthetic.invalid/signed', source_url: photo.source_url, source_name: photo.source_name, attribution_text: null, license_url: null });
+    expect(await response.json()).toEqual({ url: 'https://synthetic.invalid/signed', source_url: photo.source_url, source_name: photo.source_name, can_download: true, is_preview: false, attribution_text: null, license_url: null });
     for (const [table, field, value] of [
       ['buildings', 'id', buildingId], ['buildings', 'is_active', true], ['buildings', 'tracking_scope', 'tracked'],
       ['building_photos', 'building_id', buildingId], ['building_photos', 'id', photoId], ['building_photos', 'status', 'ready'],
@@ -52,9 +53,53 @@ describe('楼宇图片授权访问', () => {
     expect(mocks.bucket).toHaveBeenCalledWith('building-sales-materials');
     expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 300);
   });
+  it('starts both scoped lookups after auth without waiting for the building lookup, but signs only after both pass', async () => {
+    let finishBuilding!: (row: unknown) => void;
+    const buildingLookup = new Promise(resolve => { finishBuilding = resolve; });
+    mocks.query.mockImplementation((table: string) => table === 'buildings' ? buildingLookup : { data: photo });
+    const result = route.GET(request('&preview=1'));
+    try {
+      await vi.waitFor(() => expect(mocks.query).toHaveBeenCalledWith('building_photos'));
+      expect(mocks.sign).not.toHaveBeenCalled();
+    } finally {
+      finishBuilding({ data: { id: buildingId, name: '测试楼宇' } });
+    }
+    expect((await result).status).toBe(200);
+  });
+  it('signs a bounded private preview for a large photo without issuing an original link', async () => {
+    const response = await route.GET(request('&preview=1&width=5000'));
+    expect(await response.json()).toMatchObject({ is_preview: true, can_download: true });
+    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 300, {
+      transform: { width: 1120, height: 1120, resize: 'contain', quality: 74 },
+    });
+  });
+  it('uses the unmodified image for small originals and when transforms are disabled', async () => {
+    mocks.query.mockImplementationOnce(() => ({ data: { id: buildingId, name: '测试楼宇' } }))
+      .mockImplementationOnce(() => ({ data: { ...photo, file_size: 32_000 } }));
+    expect(await (await route.GET(request('&preview=1'))).json()).toMatchObject({ is_preview: false });
+    vi.stubEnv('BUILDING_PHOTO_PREVIEWS_ENABLED', '0');
+    expect(await (await route.GET(request('&preview=1'))).json()).toMatchObject({ is_preview: false });
+    expect(mocks.sign.mock.calls).toEqual([[path, 300], [path, 300]]);
+  });
+  it('uses an original link if storage refuses to sign a preview', async () => {
+    mocks.sign.mockResolvedValueOnce({ data: null, error: { message: 'unavailable' } });
+    expect(await (await route.GET(request('&preview=1'))).json()).toMatchObject({ is_preview: false, url: 'https://synthetic.invalid/signed' });
+    expect(mocks.sign).toHaveBeenCalledTimes(2);
+    expect(mocks.sign).toHaveBeenLastCalledWith(path, 300);
+  });
+  it('signs the selected original again and names the download using the verified building and caption', async () => {
+    mocks.sign.mockResolvedValue({ data: { signedUrl: 'https://synthetic.invalid/signed?token=short-lived' }, error: null });
+    const response = await route.GET(request('&download=1&preview=1&filename=wrong.png'));
+    expect(response.status).toBe(200);
+    const link = new URL((await response.json()).url);
+    expect(link.searchParams.get('token')).toBe('short-lived');
+    expect(link.searchParams.get('download')).toBe('测试楼宇 - 双塔外观.webp');
+    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 300);
+    expect(mocks.audit.mock.calls[0][1].details.access_mode).toBe('download');
+  });
   it('rejects anonymous or unknown effective roles before any database read', async () => {
     mocks.identity.mockResolvedValueOnce({ response: NextResponse.json({ error: 'login' }, { status: 401 }) });
-    const anonymous = await route.GET(request());
+    const anonymous = await route.GET(request('&download=1'));
     expect(anonymous.status).toBe(401);
     expect(anonymous.headers.get('cache-control')).toContain('no-store');
     mocks.identity.mockResolvedValue({ identity: identity('unknown', true) });
@@ -81,7 +126,7 @@ describe('楼宇图片授权访问', () => {
   });
   it.each(['buildings', 'building_photos'])('does not sign when the scoped %s row is absent', async missing => {
     mocks.query.mockImplementation((table: string) => ({ data: table === missing ? null : { id: buildingId }, error: null }));
-    expect((await route.GET(request())).status).toBe(404);
+    expect((await route.GET(request('&download=1'))).status).toBe(404);
     expect(mocks.sign).not.toHaveBeenCalled();
     expect(mocks.audit).not.toHaveBeenCalled();
   });
@@ -93,7 +138,8 @@ describe('楼宇图片授权访问', () => {
   it('returns a validated external link without fetching or signing it', async () => {
     mocks.query.mockImplementation((table: string) => ({ data: table === 'buildings' ? { id: buildingId } : { ...photo, storage_path: null }, error: null }));
     const body = await (await route.GET(request())).json();
-    expect(body.url).toBe(photo.image_url);
+    expect(body).toMatchObject({ url: photo.image_url, can_download: false });
+    expect((await route.GET(request('&download=1'))).status).toBe(409);
     expect(body).not.toHaveProperty('storage_path');
     expect(mocks.sign).not.toHaveBeenCalled();
   });

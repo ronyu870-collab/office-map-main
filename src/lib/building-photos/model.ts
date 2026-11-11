@@ -5,6 +5,8 @@ export type BuildingPhotoAccess = {
   url: string;
   source_url: string;
   source_name: string;
+  can_download: boolean;
+  is_preview: boolean;
   attribution_text?: string | null;
   license_url?: string | null;
 };
@@ -43,4 +45,15 @@ export function isBuildingPhotoPath(path: unknown, buildingId: string, photoId: 
   if (typeof path !== 'string' || !UUID.test(buildingId) || !UUID.test(photoId)) return false;
   const prefix = `building-photos/v1/${buildingId}/${photoId}/`;
   return path.startsWith(prefix) && /^[a-z0-9][a-z0-9._-]{0,119}\.(?:jpe?g|png|webp)$/i.test(path.slice(prefix.length));
+}
+
+/** Supabase Storage treats the download query value as the attachment filename. */
+export function buildingPhotoDownloadUrl(signedUrl: string, buildingName: string, caption: string, storagePath: string): string {
+  const clean = (label: string, limit: number) => Array.from(label
+    .replace(/[\\/:*?"<>|\p{C}]/gu, ' ').replace(/\s+/g, ' ').trim()).slice(0, limit).join('').replace(/[. ]+$/g, '');
+  const name = [clean(buildingName, 60), clean(caption, 40)].filter(Boolean).join(' - ') || '楼宇照片';
+  const extension = storagePath.match(/\.(jpe?g|png|webp)$/i)?.[0].toLowerCase() ?? '';
+  const url = new URL(signedUrl);
+  url.searchParams.set('download', name + extension);
+  return url.href;
 }

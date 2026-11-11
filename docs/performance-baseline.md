@@ -14,7 +14,7 @@ This document defines the measurement contract for Data 2.0 and records the 2026
 | INP | < 200 ms |
 | CLS | As close to 0 as practical |
 
-These are product targets, not synthetic-benchmark acceptance gates.
+These are the historical product targets. New or changed loading paths follow the [VERIFY-05 delivery gate](standards/05_工程验证与交付规范.md#verify-05) and the applicable [scenario budgets](../scripts/performance/budgets.json).
 
 ## Performance Hardening — 2026-08-25
 
@@ -101,9 +101,9 @@ For a production-like authenticated target, capture cold and warm runs separatel
 
 1. Warm and cold navigation must be recorded separately.
 2. Do not compare local development with production deployment.
-3. Record at least three runs for noisy interactions and use the median.
+3. Use exploratory runs only for diagnosis. Delivery samples, P50/P90 and failure counts follow VERIFY-05.
 4. Keep UI responsiveness and network completion as separate timestamps.
-5. Timing tests must not become wall-clock CI gates.
+5. Shared CI checks behavior and resource contracts; collect quantitative acceptance timings under controlled conditions under VERIFY-05.
 6. Any performance refactor that changes business output is a product change, not an optimization shortcut.
 
 ## 2026-11-02 measurement tooling preparation
@@ -114,4 +114,4 @@ The summary groups version, deployment, environment, data origin, device, browse
 
 The Verify workflow now runs the synthetic readiness calibration in a real browser, summary consistency assertions, and anonymous fresh-context redirects/resource-boundary checks against the actual production build. These cover the measurement mechanism and three anonymous routes only; they do not prove authenticated performance, identity switching, third-party map behavior, or real-phone acceptance. There are no wall-clock performance thresholds in CI.
 
-Authenticated baseline coverage and absolute cold/map/freshness budgets remain pending. The first production OSS sample is diagnostic only, not a stable percentile, an A/B comparison, or a system-wide improvement claim.
+At that stage, authenticated baseline coverage and absolute cold/map/freshness budgets were still pending. The first production OSS sample is diagnostic only, not a stable percentile, an A/B comparison, or a system-wide improvement claim.
