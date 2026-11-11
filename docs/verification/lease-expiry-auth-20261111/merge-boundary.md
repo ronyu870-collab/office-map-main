@@ -27,3 +27,11 @@
 把目标 UUID 和分页 UUID 固定，增加目标必须位于第二页的夹具断言。以此同一夹具运行旧“只查第一页”断言稳定复现 undefined ≠ true，再用唯一楼宇“合成楼宇”查询并断言 total=1 及 has_later_name_match=true；完整 PostgreSQL 17.11 的 20 场景通过。实际入口：`LEASE_TEST_ALLOW_LOCAL=disposable LEASE_TEST_PG_PORT=55871 node supabase/tests/lease-expiry/run.mjs`，只连独立临时 PostgreSQL，退出销毁合成数据库。CI 继续执行同一脚本，没有跳过断言或放宽门槛。
 
 此修订仅影响测试夹具和记录；应用、迁移、页面及样式未变，前一版本的本地 1,160 项及视觉证据仍适用；新精确 head 的完整远端 Verify 必须重跑通过。
+
+## CI #816 的 Data API 夹具就绪时序
+
+`c643687` 的主验证（含修复后 PostgreSQL 20 场景）、搜索焦点、视觉检查均通过；真实 Auth 作业在实际表单等待合成行业选项时超时。该表由夹具刚创建，旧脚本仅发 `NOTIFY pgrst, 'reload schema'` 就立即打开表单，没有确认 PostgREST 已加载新表／列。
+
+新检查使用同一真实登录用户的 Data API 客户端，确认合成行业、楼宇及草稿表可读取后才进入表单；最多 15 秒，仅对 schema-cache 未就绪代码轮询，权限／其他错误立即失败，不延长浏览器的 60 秒等待或伪造响应。新建一次性环境中实测 2 次准备探测、2 个 schema-cache miss，准备完成后全部 16 组通过，见 [结构化结果](schema-ready-auth-results.json)。这证明 SQL 创建完成与 Data API 可读之间确有窗口；原 CI 超时及新探测实际遇到的窗口均保留，不把失败删除。
+
+修改仅位于联调夹具及调用参数，不改应用代码、权限或迁移；同一真实账号检查作为既有 CI 作业的一部分持续运行。

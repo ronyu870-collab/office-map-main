@@ -34,7 +34,7 @@ export async function verifyLeaseBackProtection({ page, app, company }) {
   } finally { page.off('dialog', dialog); }
 }
 
-export async function verifyLeaseFormWorkflow({ page, db, app, actorId }) {
+export async function verifyLeaseFormWorkflow({ page, db, app, actorId, dataClient }) {
   assert.equal(new URL(app).hostname, '127.0.0.1');
   assert.ok([55792, 55892].includes(Number(db.connectionParameters.port)));
   const suffix = randomUUID().slice(0, 8);
@@ -48,6 +48,7 @@ export async function verifyLeaseFormWorkflow({ page, db, app, actorId }) {
   const year = Number(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Shanghai', year: 'numeric' }).format(now));
   const quarter = 'Q' + Math.ceil(Number(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Shanghai', month: 'numeric' }).format(now)) / 3);
   let recordId;
+  let fixtureReadinessAttempts = 0, schemaCacheMisses = 0;
   try {
     if (!(await db.query("select to_regclass('public.lease_transaction_drafts') r")).rows[0].r) await db.query(await load('supabase/migrations/20260916053811_create_lease_transaction_drafts.sql'));
     if (!(await db.query("select to_regclass('public.industry_classification') r")).rows[0].r) {
@@ -60,7 +61,25 @@ export async function verifyLeaseFormWorkflow({ page, db, app, actorId }) {
     await db.query('insert into public.industry_classification(id,industry_level1,sub_industry) values($1,$2,$3)', [industryId, industry, '合成验收子行业']);
     await db.query("insert into public.lease_transactions(id,company,new_building,transaction_year,transaction_quarter,lease_term_months,area_sqm,submitter_id,submitter_name) values($1,$2,$3,$4,$5,3,100,$6,'合成重复检测样本')", [seedId, company + '（既有样本）', building, year, quarter, actorId]);
     await db.query("notify pgrst,'reload schema'");
-    // Wait for schema refresh through the actual browser response, not an HTTP replacement.
+    // NOTIFY requests an asynchronous schema refresh. SQL commit alone does not mean
+    // PostgREST can serve a newly created table/column to the signed-in account yet.
+    assert.ok(dataClient, 'The real signed-in Data API client is required');
+    const deadline = Date.now() + 15000;
+    for (;;) {
+      fixtureReadinessAttempts++;
+      const responses = await Promise.all([
+        dataClient.from('industry_classification').select('id,industry_level1').eq('id', industryId),
+        dataClient.from('buildings').select('id,tracking_scope').eq('id', buildingId),
+        dataClient.from('lease_transaction_drafts').select('user_id').limit(1),
+      ]);
+      schemaCacheMisses += responses.filter(response => ['PGRST200', 'PGRST204', 'PGRST205'].includes(response.error?.code)).length;
+      for (const response of responses) if (response.error && !['PGRST200', 'PGRST204', 'PGRST205'].includes(response.error.code)) {
+        throw new Error('Form fixture Data API access failed: ' + response.error.code);
+      }
+      if (responses.every(response => !response.error) && responses[0].data?.[0]?.industry_level1 === industry && responses[1].data?.[0]?.id === buildingId) break;
+      assert.ok(Date.now() < deadline, 'Form fixtures did not become visible through the signed-in Data API');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
     await page.goto(app + '/lease-submission');
     await page.getByRole('button', { name: '新增成交', exact: true }).click();
     await page.getByPlaceholder('请输入企业名称').waitFor();
@@ -105,7 +124,7 @@ export async function verifyLeaseFormWorkflow({ page, db, app, actorId }) {
     await page.getByRole('button', { name: '保存补充记录', exact: true }).click();
     await page.getByText('补充记录已保存，预计到期区间仍按成交数据计算。', { exact: true }).waitFor();
     assert.equal((await db.query('select revision from public.lease_expiry_reviews where source_id=$1', [recordId])).rows[0].revision, 1);
-    return { fullForm: true, duplicateConfirmation: true, blankOptionalNumbers: true, editRecalculation: true, offlineRetry: true };
+    return { fullForm: true, duplicateConfirmation: true, blankOptionalNumbers: true, editRecalculation: true, offlineRetry: true, fixtureReadinessAttempts, schemaCacheMisses };
   } finally {
     await context.setOffline(false);
     // Exact synthetic fixture identities only, even if a failure happened after commit but before readback.
