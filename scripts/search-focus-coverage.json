@@ -171,5 +171,15 @@
     "cases": [
       "retains search focus and caret when the parent updates the visible record count"
     ]
+  },
+  {
+    "id": "lease-expiry-review-search",
+    "roots": [
+      "src/components/intelligence/LeaseExpiryWorkspace.tsx"
+    ],
+    "file": "src/components/intelligence/LeaseExpiryWorkspace.test.tsx",
+    "cases": [
+      "keeps Chinese search focus and caret through filter results and clears the query"
+    ]
   }
 ]

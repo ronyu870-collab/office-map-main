@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-11T05:00:10.522Z",
+  "environment": "local Supabase Auth + PostgreSQL 17 + isolated Next production build",
+  "checks": [
+    {
+      "alias": "H-02",
+      "viewport": 1280,
+      "workflow": "真实登录、查看依据、状态／备注保存、刷新再打开、字段一致、滚动到保存、无横向溢出",
+      "status": "passed"
+    },
+    {
+      "alias": "H-08",
+      "viewport": 390,
+      "workflow": "真实登录、查看依据、状态／备注保存、刷新再打开、字段一致、滚动到保存、无横向溢出",
+      "status": "passed"
+    },
+    {
+      "alias": "H-01",
+      "viewport": 320,
+      "workflow": "真实登录、查看依据、状态／备注保存、刷新再打开、字段一致、滚动到保存、无横向溢出",
+      "status": "passed"
+    }
+  ],
+  "sourceUnchanged": true,
+  "counts": {
+    "reviews": 10,
+    "events": 13,
+    "audits": 13
+  },
+  "statuses": [
+    {
+      "status": "missing_info",
+      "n": 2
+    },
+    {
+      "status": "pending",
+      "n": 7
+    },
+    {
+      "status": "source_conflict",
+      "n": 1
+    }
+  ],
+  "originalFilesUnchanged": true,
+  "physicalPhone": "not available; not tested",
+  "businessAcceptance": "pending human review",
+  "localVerify": {
+    "command": "npm run verify",
+    "result": "passed",
+    "testFiles": 176,
+    "tests": 1133,
+    "lint": "warnings; no errors",
+    "build": "passed"
+  }
+}

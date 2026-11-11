@@ -1,0 +1,9 @@
+{
+  "src/app/intelligence/lease-expiry/page.tsx": "f2cca489ee56366df97f368e4bc8270103cda0e51606ae0099351797cd162a61",
+  "src/components/intelligence/LeaseExpiryWorkspace.tsx": "65ea411e2ef596ed7ad28bef6919b9ceb00b3e1331ff672b6c5b62be783ea9ea",
+  "src/app/api/intelligence/lease-expiry/route.ts": "de2e855b6a556b610da09fe8ad6b42ef14f91a3fe273142e68767d8bdd179bd6",
+  "src/lib/leaseExpiry/server.ts": "49ffc7d21b2d5843df50d149115bfca7ac98145eeffa1cdfe65b95766841b064",
+  "supabase/migrations/20261111034942_lease_expiry_review_workspace.sql": "2c246e10e95fb31fd336c262dc4454d803acc6f50bc318a762ca83039d2b5051",
+  "supabase/tests/lease-expiry/auth-config.toml": "50862aff4d25f5ad230ae66ac4f2a1ceace09dde8308b853e2eafe1e8dc06649",
+  "eslint.config.mjs": "9532af1f337aaff7e2289e861fc4d1315f220fbd7f3000d1153ea0c16fe836e1"
+}

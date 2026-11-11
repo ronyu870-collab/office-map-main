@@ -1,0 +1,40 @@
+{
+  "before": {
+    "status": "failed",
+    "viewport": {
+      "width": 390,
+      "height": 900
+    },
+    "saveButtonAfterWheel": {
+      "y": 1535,
+      "height": 44
+    },
+    "reason": "actual flex root + hidden main clipped user scrolling"
+  },
+  "after": [
+    {
+      "width": 1280,
+      "saveRetry": true,
+      "readBack": true,
+      "noOverflow": true,
+      "userCanScrollToSave": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "saveRetry": true,
+      "readBack": true,
+      "noOverflow": true,
+      "userCanScrollToSave": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "saveRetry": true,
+      "readBack": true,
+      "noOverflow": true,
+      "userCanScrollToSave": true,
+      "pageErrors": []
+    }
+  ]
+}

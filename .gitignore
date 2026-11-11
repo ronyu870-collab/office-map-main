@@ -48,3 +48,11 @@ next-env.d.ts
 # Generated PDF.js runtime assets; material originals stay outside git.
 /public/vendor/pdfjs/
 /.local/sales-materials/
+
+# Synthetic F6 browser evidence is uploaded by CI, not application source.
+/verification/lease-expiry/
+
+/verification/lease-expiry-auth/
+
+# Private local pilot: authorized samples, credentials, database config and runtime snapshot.
+/.local/f6-admin-pilot/

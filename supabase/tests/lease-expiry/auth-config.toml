@@ -1,0 +1,29 @@
+# Dedicated disposable stack for actual Auth / Data API integration. No remote link or seeds.
+project_id = "f6-auth-integration"
+[api]
+enabled = true
+port = 55791
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+[db]
+port = 55792
+shadow_port = 55790
+major_version = 17
+[db.seed]
+enabled = false
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3287"
+additional_redirect_urls = ["http://127.0.0.1:3287"]
+jwt_expiry = 3600
+enable_signup = false
+[auth.email]
+# CLI 2.95 uses this provider switch for email login; global auth.enable_signup remains false.
+enable_signup = true
+enable_confirmations = false
+[inbucket]
+enabled = true
+port = 55794
+[analytics]
+enabled = false
