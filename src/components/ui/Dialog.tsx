@@ -20,7 +20,8 @@ type DialogProps = {
   size?: DialogSize;
   closeLabel?: string;
   dismissible?: boolean;
-  presentation?: "dialog" | "fullscreen";
+  presentation?: "dialog" | "fullscreen" | "drawer";
+  returnFocusTo?: HTMLElement;
   layer?: "primary" | "child" | "map";
   inactive?: boolean;
 };
@@ -52,6 +53,7 @@ export function Dialog({
   closeLabel = "关闭",
   dismissible = true,
   presentation = "dialog",
+  returnFocusTo,
   layer = "primary",
   inactive = false,
 }: DialogProps) {
@@ -59,6 +61,7 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const drawer = presentation === "drawer";
 
   useEffect(() => setMounted(true), []);
   useBodyScrollLock(open);
@@ -76,9 +79,9 @@ export function Dialog({
   }, [open, presentation]);
 
   useEffect(() => {
-    if (!open || inactive) return;
+    if (!mounted || !open || inactive) return;
 
-    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousFocus = returnFocusTo ?? document.activeElement as HTMLElement | null;
 
     const frame = window.requestAnimationFrame(() => {
       const firstFocusable = panelRef.current?.querySelector<HTMLElement>(focusableSelector);
@@ -87,16 +90,17 @@ export function Dialog({
 
     return () => {
       window.cancelAnimationFrame(frame);
-      previousFocus?.focus();
+      if (drawer) previousFocus?.focus({ preventScroll: true });
+      else previousFocus?.focus();
     };
-  }, [open, inactive]);
+  }, [mounted, open, inactive, returnFocusTo, drawer]);
 
   if (!mounted || !open) return null;
 
   return createPortal(
     <div
-      className={`fixed inset-0 flex items-center justify-center bg-[var(--cd-color-overlay)] ${presentation === 'fullscreen' ? 'p-0' : 'p-4'}`}
-      style={{ zIndex: layer === 'map' ? 1100 : layer === 'child' ? 62 : 'var(--cd-z-modal)', ...(presentation === 'fullscreen' && viewport ? { top: viewport.top, bottom: 'auto', height: viewport.height } : {}) }}
+      className={`fixed inset-0 flex bg-[var(--cd-color-overlay)] ${drawer ? 'items-stretch justify-end' : `items-center justify-center ${presentation === 'fullscreen' ? 'p-0' : 'p-4'}`}`}
+      style={{ zIndex: layer === 'map' ? 1100 : layer === 'child' ? 62 : drawer ? 50 : 'var(--cd-z-modal)', ...(presentation === 'fullscreen' && viewport ? { top: viewport.top, bottom: 'auto', height: viewport.height } : {}) }}
       inert={inactive || undefined}
       aria-hidden={inactive || undefined}
       onMouseDown={(event) => {
@@ -110,7 +114,7 @@ export function Dialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`flex w-full flex-col overflow-hidden border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-overlay)] outline-none ${presentation === 'fullscreen' ? 'h-full max-h-full rounded-none' : `max-h-[min(88dvh,760px)] rounded-[var(--cd-radius-lg)] ${sizeClass[size]}`}`}
+        className={`flex w-full flex-col overflow-hidden shadow-[var(--cd-shadow-overlay)] outline-none ${drawer ? 'max-w-xl bg-[color-mix(in_srgb,var(--cd-color-surface)_65%,var(--cd-color-workspace))]' : `border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] ${presentation === 'fullscreen' ? 'h-full max-h-full rounded-none' : `max-h-[min(88dvh,760px)] rounded-[var(--cd-radius-lg)] ${sizeClass[size]}`}`}`}
         onKeyDown={(event) => {
           if (event.defaultPrevented || inactive) return;
           if (event.key === "Escape" && dismissible) {
@@ -122,7 +126,7 @@ export function Dialog({
 
           const focusable = Array.from(
             panelRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [],
-          ).filter((element) => !element.hasAttribute("disabled"));
+          ).filter((element) => !element.hasAttribute("disabled") && (!drawer || !element.closest("[hidden]")));
           if (focusable.length === 0) {
             event.preventDefault();
             panelRef.current?.focus();
@@ -140,13 +144,13 @@ export function Dialog({
           }
         }}
       >
-        <div className="flex shrink-0 items-start gap-4 border-b border-[var(--cd-color-border)] px-5 py-4">
+        <div className={`flex shrink-0 items-start gap-4 border-b border-[var(--cd-color-border)] ${drawer ? 'pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))] pt-[max(20px,env(safe-area-inset-top))] pb-5 sm:px-7' : 'px-5 py-4'}`}>
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-[var(--cd-font-size-lg)] font-semibold text-[var(--cd-color-text-primary)]">
+            <h2 id={titleId} className={`font-semibold text-[var(--cd-color-text-primary)] ${drawer ? 'text-[22px] leading-tight [overflow-wrap:anywhere]' : 'text-[var(--cd-font-size-lg)]'}`}>
               {title}
             </h2>
             {description ? (
-              <p id={descriptionId} className="mt-1 text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
+              <p id={descriptionId} className={`mt-1 text-[var(--cd-color-text-secondary)] ${drawer ? 'text-sm' : 'text-[var(--cd-font-size-sm)]'}`}>
                 {description}
               </p>
             ) : null}
@@ -154,7 +158,7 @@ export function Dialog({
           {dismissible ? (
             <IconButton
               label={closeLabel}
-              className={presentation === "fullscreen" ? "min-h-11 min-w-11" : undefined}
+              className={presentation === "fullscreen" || drawer ? "min-h-11 min-w-11 shrink-0" : undefined}
               variant="ghost"
               size="sm"
               onClick={() => onOpenChange(false)}
@@ -163,7 +167,7 @@ export function Dialog({
             </IconButton>
           ) : null}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${drawer ? 'pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))] pb-[max(20px,env(safe-area-inset-bottom))] sm:px-7' : 'px-5 py-4'}`}>{children}</div>
         {footer ? (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
             {footer}
