@@ -59,6 +59,7 @@ try {
         if (url.origin !== 'https://example.supabase.co') return route.abort();
         const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, HEAD, OPTIONS', 'access-control-allow-headers': '*' };
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+        if (url.pathname === '/auth/v1/user') return route.fulfill({ headers, json: account });
         if (url.pathname === '/rest/v1/user_roles') return route.fulfill({ headers, json: [{ role: simulated ? 'admin' : role, session_id: account.id, full_name: '合成账号' }] });
         return route.fulfill({ headers, json: [] });
       });
@@ -67,7 +68,8 @@ try {
         localStorage.setItem('colliers_trusted_device_until', String(Date.now() + 86_400_000));
         localStorage.setItem('sb-example-auth-token', JSON.stringify(session));
         if (simulated) sessionStorage.setItem('__impersonation_state', JSON.stringify({
-          targetUserId: target, targetEmail: 'simulated@example.test', targetRole: 'viewer', adminUserId: session.user.id, startedAt: Date.now(),
+          targetUserId: target, targetEmail: 'simulated@example.test', targetDisplayName: '合成模拟账号', targetRole: 'viewer',
+          adminUserId: session.user.id, adminEmail: session.user.email, startedAt: Date.now(),
         }));
       }, { origin: base.origin, session, simulated, target: ids[0] });
       const page = await context.newPage();
@@ -75,7 +77,13 @@ try {
       await page.goto(new URL('/lease-submission/monitoring', base).href, { waitUntil: 'domcontentloaded' });
       if (role !== 'admin') {
         await page.waitForURL(url => url.pathname === '/');
-        if (!baseline) assert.deepEqual(requests, { directory: 0, detail: 0 });
+        if (!baseline) {
+          assert.deepEqual(requests, { directory: 0, detail: 0 });
+          if (simulated) {
+            const activeRole = await page.evaluate(() => JSON.parse(sessionStorage.getItem('__impersonation_state'))?.targetRole);
+            assert.equal(activeRole, 'viewer', 'the fixture must still be in simulated viewer mode after denial');
+          }
+        }
         observations.push({ width, role, simulated, requests });
         continue;
       }
