@@ -16,12 +16,25 @@ const session = { user, expires_at, expires_in: 3600, token_type: 'bearer', refr
 
 
 const observations = [];
+const lifecycle = [];
+function countLifecycle() {
+  const BaseMap = window.AMap.Map;
+  const stats = window.__colliersMapLifecycle = { created: 0, destroyed: 0, active: 0 };
+  window.AMap.Map = class extends BaseMap {
+    constructor(...args) { super(...args); stats.created++; stats.active++; }
+    destroy() { super.destroy(); stats.destroyed++; stats.active--; }
+  };
+}
 try {
-  for (const [label, sdkDelay, dataDelay] of [['sdk-delayed', 450, 15], ['data-delayed', 15, 450]]) {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  for (const [label, sdkDelay, dataDelay, width, cycles] of [
+    ['sdk-delayed', 450, 15, 1280, 0], ['data-delayed', 15, 450, 1280, 0],
+    ['reentry-desktop', 0, 0, 1280, 20], ['reentry-narrow', 0, 0, 390, 20],
+  ]) {
+    const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block' });
     try {
       let roleConfirmed = false;
       const violations = [];
+      const requests = { stock: 0, future: 0, sdk: 0, role: 0 };
       await context.routeWebSocket(/.*/, ws => ws.close());
       await context.route('**/*', async route => {
         const request = route.request();
@@ -29,7 +42,11 @@ try {
         if (url.origin === base.origin) {
           if (url.pathname === '/api/map/data') {
             if (!roleConfirmed || request.headers().authorization !== `Bearer ${token}`) violations.push('map read before authorization');
-            if (url.searchParams.get('mode') === 'future') return route.fulfill({ json: { future_supplies: [] } });
+            if (url.searchParams.get('mode') === 'future') {
+              requests.future++;
+              return route.fulfill({ json: { future_supplies: [] } });
+            }
+            requests.stock++;
             await delay(dataDelay);
             return route.fulfill({ json: { display_overrides: [], buildings: [{ id: 'fixture-tower', name: 'Fixture Tower', grade: 'A', district: '朝阳区', submarket: '其他', location_lng: 116.46, location_lat: 39.91, building_metrics: [] }] } });
           }
@@ -40,6 +57,7 @@ try {
           const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-allow-headers': '*' };
           if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
           if (url.pathname === '/rest/v1/user_roles') {
+            requests.role++;
             roleConfirmed = true;
             return route.fulfill({ headers, json: [{ role: 'viewer', session_id: user.id, full_name: 'Fixture Map Viewer' }] });
           }
@@ -47,8 +65,9 @@ try {
         }
         if (url.origin === 'https://webapi.amap.com' && url.pathname === '/maps') {
           if (!roleConfirmed || url.searchParams.get('key') !== 'syntheticfixture') violations.push('unexpected SDK configuration or early request');
+          requests.sdk++;
           await delay(sdkDelay);
-          return route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap.toString()})();` });
+          return route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap.toString()})();${cycles ? `(${countLifecycle.toString()})();` : ''}` });
         }
         return route.abort();
       });
@@ -58,6 +77,35 @@ try {
         localStorage.setItem('sb-example-auth-token', JSON.stringify(session));
       }, { origin: base.origin, session });
       const page = await context.newPage();
+      if (cycles) {
+        const pageErrors = [];
+        const visits = [];
+        page.on('pageerror', error => pageErrors.push(error.message));
+        await page.goto(base.href);
+        const mapLink = page.getByRole('link', { name: /北京办公楼市场地图/ });
+        const marker = page.locator('#map-container [data-building-id="fixture-tower"]').first();
+        for (let visit = 1; visit <= cycles; visit++) {
+          const started = performance.now();
+          await mapLink.click();
+          await page.waitForURL('**/map');
+          await marker.waitFor();
+          visits.push(Math.round(performance.now() - started));
+          assert.deepEqual(await page.evaluate(() => window.__colliersMapLifecycle), { created: visit, destroyed: visit - 1, active: 1 });
+          if (visit === 1 || visit === cycles) {
+            await marker.click();
+            await page.getByRole('button', { name: '关闭楼宇详情' }).click();
+          }
+          await page.goBack();
+          await page.waitForURL(base.href);
+          await mapLink.waitFor();
+          await page.waitForFunction(count => window.__colliersMapLifecycle?.destroyed === count && window.__colliersMapLifecycle?.active === 0, visit);
+          assert.equal(await page.locator('.amap-maps').count(), 0, 'no map root may survive navigation away');
+        }
+        assert.deepEqual([...pageErrors, ...violations], []);
+        assert.equal(requests.sdk, 1, 'same-document visits reuse the SDK');
+        lifecycle.push({ label, width, visits, requests, ...await page.evaluate(() => window.__colliersMapLifecycle) });
+        continue;
+      }
       await page.addInitScript(observeNavigation, { action: 'open', destination_origin: base.origin, destination_pathname: '/map',
         shell: '#map-container', content: '#map-container [data-building-id="fixture-tower"]',
         map_tiles: '.fixture-tile-ready', map_stage_names: mapStartupStages, timeout_ms: 8000 });
@@ -77,5 +125,5 @@ try {
       observations.push({ label, stage, fixtureOverlayMs: result.content_usable_ms });
     } finally { await context.close(); }
   }
-  console.log(JSON.stringify({ status: 'pass', browser: await browser.version(), environment: 'isolated AMap SDK and data adapter, not live tiles or GPU', observations }));
+  console.log(JSON.stringify({ status: 'pass', browser: await browser.version(), environment: 'isolated AMap SDK and data adapter, not live tiles or GPU', observations, lifecycle }));
 } finally { await browser.close(); }
