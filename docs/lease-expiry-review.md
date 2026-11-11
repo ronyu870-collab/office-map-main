@@ -1,6 +1,6 @@
 # F6 预计到期线索：管理员试点契约
 
-日期：2026-11-11。状态：本地实现，默认关闭；已完成本机真实 Auth 账号联调，正在整理功能分支草稿交付，尚未合并 main 或迁移／部署生产。远端 CI 与真机边界见 [功能分支交付检查](verification/lease-expiry-auth-20261111/draft-delivery.md)。
+日期：2026-11-11。状态：功能已实现，默认关闭；已完成本机及远端真实 Auth 联调。用户已授权合入 main，最终检查与合并状态见 PR #170；本轮不执行生产迁移或启用，边界见 [合入记录](verification/lease-expiry-auth-20261111/merge-boundary.md)。远端 CI 与真机边界见 [功能分支交付检查](verification/lease-expiry-auth-20261111/draft-delivery.md)。
 
 ## 本轮范围
 

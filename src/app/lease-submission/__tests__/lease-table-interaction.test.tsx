@@ -33,6 +33,19 @@ const row = (id: number, extra: Partial<LeaseTransaction> = {}): LeaseTransactio
 });
 
 describe('成交汇总交互', () => {
+  it('团队成交表把成交年份放在成交季度左边', () => {
+    render(<SubmissionDetailTable submissions={[row(1, { transaction_year: 2025, transaction_quarter: 'Q4' })]} title="团队成交汇总" />);
+    const table = screen.getByRole('table');
+    const headers = within(table).getAllByRole('columnheader');
+    const year = headers.findIndex((header) => within(header).queryByRole('button', { name: '成交年份筛选和排序' }));
+    const quarter = headers.findIndex((header) => within(header).queryByRole('button', { name: '成交季度筛选和排序' }));
+    expect(year).toBeGreaterThanOrEqual(0);
+    expect(quarter).toBe(year + 1);
+    const cells = within(table).getAllByRole('cell');
+    expect(cells[year]).toHaveTextContent('2025');
+    expect(cells[quarter]).toHaveTextContent('Q4');
+  });
+
   it('offers the horizontal hint only for content still offscreen and restores it after scrolling back', () => {
     const { rerender } = render(<SubmissionDetailTable submissions={[row(1)]} title="团队成交汇总" />);
     const hint = () => screen.queryByText('横向滑动查看更多列');
