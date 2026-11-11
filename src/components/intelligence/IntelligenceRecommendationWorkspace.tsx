@@ -26,7 +26,7 @@ import type {
   RecommendationResponse,
   RecommendedBuilding,
 } from '@/src/lib/intelligence/recommendationEngine';
-import { beginProposalDraft, setProposalCandidates } from '@/src/lib/intelligence/proposalDraft';
+import { beginProposalDraft, getProposalDraftScope, type ProposalDraftScope } from '@/src/lib/intelligence/proposalDraft';
 import { recommendIntelligenceBuildings } from '@/src/services/intelligenceApi';
 
 const EXAMPLES = [
@@ -229,11 +229,12 @@ export function IntelligenceRecommendationWorkspace() {
 
   if (status === 'loading' || !session) return <IntelligenceLoadingShell />;
   if (!isIntelligencePreviewEnabled(session.role)) return <PreviewUnavailable />;
-  const scope = `${session.session.user.id}:${session.user.id}:${session.role}`;
-  return <RecommendationForm key={scope} accessToken={session.session.access_token} />;
+  const draftScope = getProposalDraftScope(session);
+  const key = draftScope ?? JSON.stringify([session.session.user.id, session.user.id, session.role]);
+  return <RecommendationForm key={key} accessToken={session.session.access_token} draftScope={draftScope} />;
 }
 
-function RecommendationForm({ accessToken }: { accessToken: string }) {
+function RecommendationForm({ accessToken, draftScope }: { accessToken: string; draftScope: ProposalDraftScope | null }) {
   const router = useRouter();
   const [requirement, setRequirement] = React.useState('');
   const [submittedRequirement, setSubmittedRequirement] = React.useState('');
@@ -327,14 +328,11 @@ function RecommendationForm({ accessToken }: { accessToken: string }) {
 
   function prepareDraft() {
     if (!plan || !mapHandoff) return false;
-    const draft = beginProposalDraft(plan.effectiveResult, mapHandoff.appliedCapabilities);
+    const draft = draftScope && beginProposalDraft(draftScope, plan.effectiveResult, mapHandoff.appliedCapabilities, {
+      candidates: selectedBuildings.map(item => ({ buildingId: item.id, buildingName: item.name })),
+    });
     if (!draft) {
       setError('浏览器会话存储不可用，暂时无法创建客户方案。');
-      return false;
-    }
-    const seeded = setProposalCandidates(selectedBuildings.map(item => ({ buildingId: item.id, buildingName: item.name })));
-    if (!seeded) {
-      setError('无法写入推荐项目，请刷新页面后重试。');
       return false;
     }
     return true;

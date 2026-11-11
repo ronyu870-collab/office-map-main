@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
+import { installSyntheticMap } from './fixtures/map-adapter.mjs';
 import { mapStartupStages, observeNavigation } from './readiness.mjs';
 
 const base = new URL(process.argv[2]);
@@ -13,53 +14,6 @@ const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
 const token = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: user.id, exp: expires_at, aud: 'authenticated', session_id: user.id })}.fixture`;
 const session = { user, expires_at, expires_in: 3600, token_type: 'bearer', refresh_token: 'synthetic', access_token: token };
 
-// The app still imports its real loader and runs its real MapController. The
-// remote AMap response uses an isolated DOM adapter, not a GPU or live tiles.
-function installSyntheticMap() {
-  class Events {
-    listeners = new Map();
-    on(event, fn) { const current = this.listeners.get(event) ?? new Set(); current.add(fn); this.listeners.set(event, current); }
-    off(event, fn) { this.listeners.get(event)?.delete(fn); }
-    emit(event, value) { for (const fn of this.listeners.get(event) ?? []) fn(value); }
-  }
-  class Marker extends Events {
-    constructor(options) {
-      super();
-      this.content = document.createElement('div');
-      if (typeof options.content === 'string') this.content.innerHTML = options.content;
-      else if (options.content instanceof Element) this.content.append(options.content);
-      this.content.onclick = originEvent => this.emit('click', { originEvent });
-    }
-    show() { this.content.hidden = false; }
-    hide() { this.content.hidden = true; }
-    setExtData(value) { this.ext = value; }
-    getExtData() { return this.ext; }
-    setzIndex() {}
-  }
-  class MapFixture extends Events {
-    constructor(id) {
-      super();
-      this.root = document.createElement('div');
-      this.root.className = 'amap-maps';
-      this.root.style.cssText = 'position:absolute;inset:0';
-      this.layer = document.createElement('div');
-      this.layer.className = 'amap-layer';
-      this.root.append(this.layer);
-      document.getElementById(id).append(this.root);
-      setTimeout(() => { this.layer.classList.add('fixture-tile-ready'); this.emit('complete'); }, 40);
-    }
-    getZoom() { return 15; }
-    getCenter() { return { lng: 116.46, lat: 39.9, getLng: () => 116.46, getLat: () => 39.9 }; }
-    getLayers() { return [this.layer]; }
-    resize() {}
-    add(objects) { for (const object of [].concat(objects)) if (object?.content) this.layer.append(object.content); }
-    remove(objects) { for (const object of [].concat(objects)) object?.content?.remove(); }
-    destroy() { this.root.remove(); }
-  }
-  class InfoWindow extends Events { open() {} close() {} }
-  window.AMap = { Map: MapFixture, Marker, InfoWindow, Pixel: class {}, Size: class {}, LngLat: class {} };
-  window.___onAPILoaded();
-}
 
 const observations = [];
 try {

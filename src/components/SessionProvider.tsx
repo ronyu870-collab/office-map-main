@@ -22,6 +22,8 @@ import {
 } from '@/src/services/Auth';
 import { getTrustedDeviceRemainingMs, isTrustedDevice } from '@/src/services/trustedDevice';
 import { isPasswordSignInPending, subscribeToPasswordSignIn } from '@/src/services/passwordSignInTransition';
+import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
+import { clearProposalDraftStorage } from '@/src/lib/intelligence/proposalDraftStorage';
 
 export type AppSessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -100,7 +102,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [showWarning, setShowWarning] = useState(false);
   const [allowHomeNavigation, setAllowHomeNavigation] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(120);
-  const [session, setSession] = useState<AuthSessionResult | null>(null);
+  const [session, setResolvedSession] = useState<AuthSessionResult | null>(null);
+  const publishedSessionRef = useRef<AuthSessionResult | null>(null);
+  const setSession = useCallback((value: AuthSessionResult | null) => {
+    publishedSessionRef.current = value;
+    setResolvedSession(value);
+  }, []);
   const [status, setStatus] = useState<AppSessionStatus>('loading');
   const sessionManagerRef = useRef<SessionManager | null>(null);
   const inFlightSessionRef = useRef<Promise<AuthSessionResult | null> | null>(null);
@@ -149,7 +156,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (inFlightSessionRef.current === request) inFlightSessionRef.current = null;
     }
-  }, []);
+  }, [setSession]);
 
   const refreshSession = useCallback(
     () => resolveSession(true),
@@ -240,7 +247,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
       if (trustedExpiryTimer) clearTimeout(trustedExpiryTimer);
     };
-  }, [pathname, readingPublicReport, router, session, status]);
+  }, [pathname, readingPublicReport, router, session, setSession, status]);
 
   useEffect(() => subscribeToPasswordSignIn(transition => {
     sessionGenerationRef.current += 1;
@@ -250,7 +257,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setAllowHomeNavigation(canStartHomeNavigation(result?.session ?? null));
     setStatus(transition.pending ? 'loading' : result ? 'authenticated' : 'unauthenticated');
     setShowWarning(false);
-  }), []);
+  }), [setSession]);
 
   useEffect(() => {
     const {
@@ -261,6 +268,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         sessionGenerationRef.current += 1;
         inFlightSessionRef.current = null;
         clearSessionCache();
+        clearProposalDraftStorage();
         setSession(null);
         setStatus('unauthenticated');
         setShowWarning(false);
@@ -273,6 +281,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setAllowHomeNavigation(canStartHomeNavigation(authSession));
       }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        const previous = publishedSessionRef.current?.session;
+        if (authSession?.user?.id && previous?.user?.id) {
+          const previousLogin = getSessionIdFromAccessToken(previous.access_token);
+          const nextLogin = getSessionIdFromAccessToken(authSession.access_token);
+          if (authSession.user.id !== previous.user.id || (previousLogin && nextLogin && previousLogin !== nextLogin)) {
+            // Stop the prior workspace before the new role/profile read resolves.
+            clearProposalDraftStorage();
+            setSession(null);
+            setStatus('loading');
+            setShowWarning(false);
+          }
+        }
         if (event !== 'USER_UPDATED' && authSession) {
           clearSessionCache({ reuseInFlightProfileFor: authSession });
         } else {
@@ -287,7 +307,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
-  }, [pathname, readingPublicReport, resolveSession, router]);
+  }, [pathname, readingPublicReport, resolveSession, router, setSession]);
 
   const handleContinue = () => {
     setShowWarning(false);

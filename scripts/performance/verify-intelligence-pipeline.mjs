@@ -199,11 +199,20 @@ async function verifyBrowser(origin, path) {
           assert.equal(failed.audits.length, 0);
           await card.getByRole('button', { name: '已确认' }).waitFor();
         }
+        await page.evaluate(() => {
+          window.__fixtureProposalWrites = 0;
+          window.addEventListener('intelligence-proposal-draft-changed', () => window.__fixtureProposalWrites++);
+        });
         await page.getByRole('button', { name: '生成方案（1个）' }).click();
         await page.waitForURL(origin + '/intelligence/proposal');
-        const draft = await page.evaluate(() => JSON.parse(sessionStorage.getItem('colliers:intelligence-proposal-draft:v1')));
+        const draft = await page.evaluate(oldStorage => {
+          const record = JSON.parse(sessionStorage.getItem(`colliers:intelligence-proposal-draft:${oldStorage ? 'v1' : 'v2'}`));
+          return oldStorage ? record : record?.draft;
+        }, baseline);
         assert.deepEqual(draft.items.map(row => row.buildingId), [project]);
         assert.equal(draft.requirement.parsed.locations[0].normalizedSubmarket, '望京');
+        await page.getByRole('heading', { name: buildings[0].name }).waitFor();
+        assert.equal(await page.evaluate(() => window.__fixtureProposalWrites), baseline ? 2 : 1);
         observations.push({ width, role, cancelAvailable: !baseline, priorSelectionKept: true, proposalSelection: draft.items.length });
       } finally { await context.close(); }
     }

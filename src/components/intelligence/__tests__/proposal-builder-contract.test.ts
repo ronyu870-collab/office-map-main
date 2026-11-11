@@ -8,8 +8,9 @@ const source = (path: string) => readFileSync(resolve(root, path), 'utf8');
 describe('Intelligence proposal builder contract', () => {
   it('keeps the draft browser-session scoped and capped at five buildings', () => {
     const draft = source('src/lib/intelligence/proposalDraft.ts');
-    expect(draft).toContain('window.sessionStorage');
-    expect(draft).not.toContain('window.localStorage');
+    const storage = source('src/lib/intelligence/proposalDraftStorage.ts');
+    expect(storage).toContain('window.sessionStorage');
+    expect(storage).not.toContain('window.localStorage');
     expect(draft).toContain('MAX_PROPOSAL_CANDIDATES = 5');
     expect(draft).toContain('appliedCapabilities');
     expect(draft).not.toContain('meta: result.meta');
@@ -21,7 +22,7 @@ describe('Intelligence proposal builder contract', () => {
     const intelligence = source('src/components/intelligence/IntelligenceWorkspace.tsx');
     expect(page).toContain('initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null');
     expect(page).not.toContain('<MapProposalBridge enabled={false}');
-    expect(intelligence).toContain('beginProposalDraft(parseResult, mapHandoff.appliedCapabilities)');
+    expect(intelligence).toContain('beginProposalDraft(scope, parseResult, mapHandoff.appliedCapabilities)');
     expect(bridge).toContain("'＋ 加入客户方案'");
     expect(bridge).toContain('MAX_PROPOSAL_CANDIDATES');
   });

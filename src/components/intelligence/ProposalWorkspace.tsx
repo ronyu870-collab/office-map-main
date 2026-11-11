@@ -8,23 +8,25 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FileDown, Trash2 } from 'luc
 
 import { WorkspaceShell } from '@/src/components/layout';
 import { useAppSession } from '@/src/components/SessionProvider';
-import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { COLLIERS_LOGO_DATA_URI } from '@/src/constants/brandAssets';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import {
+  getProposalDraftScope,
   moveProposalCandidate,
   PROPOSAL_DRAFT_EVENT,
   readProposalDraft,
   removeProposalCandidate,
   setProposalClientName,
   type ProposalDraft,
+  type ProposalDraftScope,
 } from '@/src/lib/intelligence/proposalDraft';
 import {
   scoreProposalCandidate,
   type ProposalCandidateData,
 } from '@/src/lib/intelligence/proposalScoring';
 import { supabase } from '@/src/services/supabaseClient';
+import type { AuthSessionResult } from '@/src/services/Auth';
 import { logAction } from '@/src/utils/audit';
 
 type LoadedCandidate = ProposalCandidateData & {
@@ -78,21 +80,45 @@ function EmptyProposal() {
 export function ProposalWorkspace() {
   const router = useRouter();
   const { session, status } = useAppSession();
-  const { targetUserId } = useImpersonation();
+  React.useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [router, status]);
+
+  if (status !== 'authenticated' || !session) return <ProposalLoadingShell />;
+  if (!isIntelligencePreviewEnabled(session.role)) {
+    return (
+      <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}>
+        <div className="mx-auto max-w-3xl px-6 py-12 text-sm text-slate-500">当前账号未开放业务智能试用功能。</div>
+      </WorkspaceShell>
+    );
+  }
+  const scope = getProposalDraftScope(session);
+  if (!scope) return <EmptyProposalShell />;
+  return <ScopedProposalWorkspace key={scope} scope={scope} session={session} />;
+}
+
+function ProposalLoadingShell() {
+  return (
+    <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}>
+      <div className="flex h-full items-center justify-center"><LoadingState rows={0} label="正在读取客户方案" /></div>
+    </WorkspaceShell>
+  );
+}
+
+function EmptyProposalShell() {
+  return <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}><EmptyProposal /></WorkspaceShell>;
+}
+
+function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope; session: AuthSessionResult }) {
+  const router = useRouter();
   const [draft, setDraft] = React.useState<ProposalDraft | null>(null);
   const [draftReady, setDraftReady] = React.useState(false);
   const [clientName, setClientName] = React.useState('');
   const [read, setRead] = React.useState<CandidateRead | null>(null);
 
-  const previewEnabled = isIntelligencePreviewEnabled(session?.role);
-
-  React.useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/login');
-  }, [router, status]);
-
   React.useEffect(() => {
     const sync = () => {
-      const next = readProposalDraft();
+      const next = readProposalDraft(scope);
       setDraft(next);
       setClientName(next?.clientName || '');
       setDraftReady(true);
@@ -100,13 +126,13 @@ export function ProposalWorkspace() {
     sync();
     window.addEventListener(PROPOSAL_DRAFT_EVENT, sync);
     return () => window.removeEventListener(PROPOSAL_DRAFT_EVENT, sync);
-  }, []);
+  }, [scope]);
 
   const idsKey = draft?.items.length ? JSON.stringify([...new Set(draft.items.map(item => item.buildingId))].sort()) : '';
   // Presentation-only draft changes do not invalidate facts. Account, role,
   // token and simulated scope changes must never reuse a previous response.
-  const readKey = status === 'authenticated' && previewEnabled && session?.session.access_token && idsKey
-    ? JSON.stringify([session.user.id, session.role, session.session.access_token, targetUserId, idsKey]) : '';
+  const readKey = idsKey && session.session.access_token
+    ? JSON.stringify([session.session.access_token, idsKey]) : '';
   const currentRead = read?.key === readKey ? read : null;
   const loading = Boolean(readKey && !currentRead);
   const error = currentRead?.error ?? null;
@@ -192,25 +218,8 @@ export function ProposalWorkspace() {
     return () => controller.abort();
   }, [idsKey, readKey]);
 
-  if (status === 'loading' || !session || !draftReady) {
-    return (
-      <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}>
-        <div className="flex h-full items-center justify-center"><LoadingState rows={0} label="正在读取客户方案" /></div>
-      </WorkspaceShell>
-    );
-  }
-
-  if (!previewEnabled) {
-    return (
-      <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}>
-        <div className="mx-auto max-w-3xl px-6 py-12 text-sm text-slate-500">当前账号未开放业务智能试用功能。</div>
-      </WorkspaceShell>
-    );
-  }
-
-  if (!draft) {
-    return <WorkspaceShell header={<AppHeader title="客户方案" homeHref="/intelligence" />}><EmptyProposal /></WorkspaceShell>;
-  }
+  if (!draftReady) return <ProposalLoadingShell />;
+  if (!draft) return <EmptyProposalShell />;
 
   const appliedCapabilitySet = new Set(draft.requirement.appliedCapabilities);
   const evaluationCapabilitySet = new Set(draft.requirement.evaluationCapabilities);
@@ -272,7 +281,7 @@ export function ProposalWorkspace() {
               <input
                 value={clientName}
                 onChange={event => setClientName(event.target.value)}
-                onBlur={() => { const next = setProposalClientName(clientName); if (next) setDraft(next); }}
+                onBlur={() => { const next = setProposalClientName(scope, clientName); if (next) setDraft(next); }}
                 maxLength={80}
                 placeholder="例如：XX科技有限公司"
                 className="mt-1.5 h-9 w-full rounded-[var(--cd-radius-md)] border border-slate-200 px-3 text-sm outline-none focus:border-[var(--cd-color-brand)]"
@@ -393,9 +402,9 @@ export function ProposalWorkspace() {
                     </div>
 
                     <div className="mt-4 flex items-center justify-end gap-1.5 print:hidden">
-                      <button type="button" disabled={index === 0} onClick={() => setDraft(moveProposalCandidate(candidate.id, -1))} className="flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[11px] text-slate-500 disabled:opacity-30"><ArrowUp size={12} />上移</button>
-                      <button type="button" disabled={index === scored.length - 1} onClick={() => setDraft(moveProposalCandidate(candidate.id, 1))} className="flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[11px] text-slate-500 disabled:opacity-30"><ArrowDown size={12} />下移</button>
-                      <button type="button" onClick={() => setDraft(removeProposalCandidate(candidate.id))} className="flex h-8 items-center gap-1 rounded-md border border-red-100 px-2.5 text-[11px] text-red-500"><Trash2 size={12} />移除</button>
+                      <button type="button" disabled={index === 0} onClick={() => setDraft(moveProposalCandidate(scope, candidate.id, -1))} className="flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[11px] text-slate-500 disabled:opacity-30"><ArrowUp size={12} />上移</button>
+                      <button type="button" disabled={index === scored.length - 1} onClick={() => setDraft(moveProposalCandidate(scope, candidate.id, 1))} className="flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[11px] text-slate-500 disabled:opacity-30"><ArrowDown size={12} />下移</button>
+                      <button type="button" onClick={() => setDraft(removeProposalCandidate(scope, candidate.id))} className="flex h-8 items-center gap-1 rounded-md border border-red-100 px-2.5 text-[11px] text-red-500"><Trash2 size={12} />移除</button>
                     </div>
                   </article>
                 );
