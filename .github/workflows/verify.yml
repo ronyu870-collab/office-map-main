@@ -240,6 +240,7 @@ jobs:
           done
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-home-cold-start.mjs --prefetch-policy http://127.0.0.1:3210
           node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
           node scripts/performance/verify-map-startup-stages.mjs http://127.0.0.1:3210
