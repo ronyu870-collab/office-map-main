@@ -122,7 +122,7 @@ try{
  const deleted=await freshPerson('admin','deleted');await superClient.auth.admin.deleteUser(deleted.id);assert.ok([401,403].includes((await call(deleted)).status));pass('删除测试账号后旧 JWT 无法访问');
  if(process.env.PERF_PLAYWRIGHT_MODULE){
   const {chromium}=require(process.env.PERF_PLAYWRIGHT_MODULE);browser=await chromium.launch({headless:true,channel:process.env.PERF_BROWSER_CHANNEL||undefined});
-  const browserUser=await freshPerson('admin','browser');const page=await browser.newPage({viewport:{width:1280,height:900}});page.setDefaultTimeout(60000);page.on('pageerror',error=>{results.push({scenario:'browser runtime',status:'error',error:error.message});process.exitCode=1;});
+  const browserUser=await freshPerson('admin','browser');const page=await browser.newPage({viewport:{width:1280,height:900},timezoneId:'Asia/Shanghai'});page.setDefaultTimeout(60000);page.on('pageerror',error=>{results.push({scenario:'browser runtime',status:'error',error:error.message});process.exitCode=1;});
   await page.goto(app+'/login');await page.waitForFunction(()=>{const form=document.querySelector('form');return form && Object.keys(form).some(k=>k.startsWith('__reactProps$') && typeof form[k]?.onSubmit==='function');});await page.getByLabel('企业邮箱').fill(browserUser.email);await page.getByLabel('手机号').fill(browserUser.phone);await page.getByLabel('密码',{exact:true}).fill(browserUser.password);await page.getByRole('button',{name:/登录/}).click();await page.waitForURL(app+'/');
   const serviceBundle=await leaseServiceBrowserBundle(root,settings);
   await page.addScriptTag({content:serviceBundle});
@@ -150,6 +150,15 @@ try{
   const formResult=await verifyLeaseFormWorkflow({page,db,app,actorId:browserUser.id});pass('完整成交表单、重复确认、空白选填、编辑重算与断网重试',formResult);
   for(const width of [1280,390]){await page.setViewportSize({width,height:900});await verifyLeaseBackProtection({page,app,company:'合成联调 主要样本'});}
   pass('真实入口下浏览器返回／链接离开的未保存保护：取消保留，确认离开，单次提示');
+  await page.setViewportSize({width:1280,height:900});
+  for(const width of [1280,390,320]){
+   await page.setViewportSize({width,height:900});await page.goto(app+'/intelligence/lease-expiry');
+   await page.getByRole('button',{name:/合成联调 主要样本/}).waitFor();await page.screenshot({path:path.join(output,`f6-list-${width}.png`)});
+   await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.screenshot({path:path.join(output,`f6-detail-${width}.png`)});
+   await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();await page.mouse.move(width/2,600);await page.mouse.wheel(0,10000);
+   await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});
+   await page.screenshot({path:path.join(output,`f6-notes-${width}.png`)});
+  }
   await page.setViewportSize({width:1280,height:900});
   await page.goto(app+'/intelligence/lease-expiry');await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();await page.mouse.move(640,600);await page.mouse.wheel(0,10000);await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});await page.getByLabel('补充备注').fill('真实登录浏览器核实，仍缺起租日');await page.getByRole('button',{name:'保存补充记录',exact:true}).click();await page.getByText('补充记录已保存，预计到期区间仍按成交数据计算。').waitFor();await page.reload();await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();assert.equal(await page.getByLabel('补充备注').inputValue(),'真实登录浏览器核实，仍缺起租日');
   await page.screenshot({path:path.join(output,'real-login-desktop.png'),fullPage:true});
