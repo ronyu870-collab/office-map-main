@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { WorkspaceShell } from '@/src/components/layout';
@@ -26,7 +25,7 @@ export function LeaseExpiryWorkspace({ trialLabel }: { trialLabel?: string } = {
     <div className="h-full overflow-y-auto overscroll-contain">
     {trialLabel ? <p role="note" className="mx-auto max-w-5xl px-4 pt-4 text-sm text-[var(--cd-color-text-secondary)] sm:px-6">{trialLabel}</p> : null}
     {permitted && session ? <LeaseExpiryReviewPanel key={session.user.id} token={session.session.access_token} /> :
-      <div className="mx-auto max-w-5xl p-4 text-sm"><p>{status === 'loading' ? '正在校验账号…' : '此清单仅供管理员试用，请登录管理员账号并退出用户模拟。'}</p><Link className="mt-4 inline-flex min-h-11 items-center underline" href="/intelligence">返回业务智能</Link></div>}
+      <div className="mx-auto max-w-5xl p-4 text-sm"><p>{status === 'loading' ? '正在校验账号…' : '此清单仅供管理员试用，请登录管理员账号并退出用户模拟。'}</p><a className="mt-4 inline-flex min-h-11 items-center underline" href="/intelligence">返回业务智能</a></div>}
     </div>
   </WorkspaceShell>;
 }
@@ -79,12 +78,10 @@ export function LeaseExpiryReviewPanel({ token }: { token: string }) {
   React.useEffect(() => {
     if (!dirty && !saving) return;
     const beforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const navigate = (event: MouseEvent) => {
-      if ((event.target as Element).closest('a[href]') && !window.confirm('补充记录尚未保存，确定离开吗？')) { event.preventDefault(); event.stopPropagation(); }
-    };
+    // This workspace uses document navigation at entry and exit. Browser back,
+    // reload and links therefore share the native leave warning without duplicate prompts.
     window.addEventListener('beforeunload', beforeUnload);
-    document.addEventListener('click', navigate, true);
-    return () => { window.removeEventListener('beforeunload', beforeUnload); document.removeEventListener('click', navigate, true); };
+    return () => window.removeEventListener('beforeunload', beforeUnload);
   }, [dirty, saving]);
   const canLeave = () => !saving && (!dirty || window.confirm('补充记录尚未保存，确定放弃当前输入吗？'));
   const choose = (item: Candidate) => {
@@ -109,7 +106,7 @@ export function LeaseExpiryReviewPanel({ token }: { token: string }) {
     finally { if (mounted.current) setSaving(false); }
   }
   return <div ref={panelRef} className="mx-auto w-full max-w-5xl space-y-5 px-4 py-5 text-sm leading-6 sm:px-6">
-    <Link href="/intelligence" className="inline-flex min-h-11 items-center text-[var(--cd-color-brand)] underline">返回业务智能</Link>
+    <a href="/intelligence" className="inline-flex min-h-11 items-center text-[var(--cd-color-brand)] underline">返回业务智能</a>
     <section className="space-y-2">
       <h2 className="text-lg font-semibold">未来 6 个月的预计到期线索</h2>
       <p>根据已有成交期间和租期自动估算，无需先补合同或逐条审核。结果用于发现跟进机会，不是已确认的合同到期日。</p>

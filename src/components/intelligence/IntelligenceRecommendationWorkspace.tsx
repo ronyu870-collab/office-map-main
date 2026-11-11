@@ -321,7 +321,8 @@ export function IntelligenceRecommendationWorkspace() {
     >
       <main className="h-full overflow-y-auto overscroll-contain pb-8">
         <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
-          {session?.role === 'admin' ? <Link href="/intelligence/lease-expiry" className="mb-4 inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline">预计到期线索（管理员试点）</Link> : null}
+          {/* A document boundary lets beforeunload protect browser back from the optional editor. */}
+          {session?.role === 'admin' ? <a href="/intelligence/lease-expiry" className="mb-4 inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline">预计到期线索（管理员试点）</a> : null}
           <section className="mb-5">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-[var(--cd-color-brand)]" aria-hidden="true" />

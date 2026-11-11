@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { leaseServiceBrowserBundle } from './lease-service-browser.mjs';
+import { verifyLeaseBackProtection, verifyLeaseFormWorkflow } from './lease-form-browser.mjs';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { readFile, mkdir, writeFile, open } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -146,6 +147,10 @@ try{
   await page.reload();await page.getByLabel('范围').selectOption('saved');await page.getByRole('button',{name:/合成日常填报接入/}).click();await page.getByText('原成交已删除，以下为已存补充记录，不再参与预计到期计算。',{exact:true}).waitFor();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();assert.equal(await page.getByRole('button',{name:'保存补充记录',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('补充备注').inputValue(),'合成日常成交的补充记录');
   assert.equal((await db.query("select count(*)::int n from public.lease_expiry_review_events where source_kind='live' and source_id=$1",[liveId])).rows[0].n,1);
   pass('实际日常填报服务→真实写入→自动入选→浏览器补充回读→修改重算→删除后只读保留');
+  const formResult=await verifyLeaseFormWorkflow({page,db,app,actorId:browserUser.id});pass('完整成交表单、重复确认、空白选填、编辑重算与断网重试',formResult);
+  for(const width of [1280,390]){await page.setViewportSize({width,height:900});await verifyLeaseBackProtection({page,app,company:'合成联调 主要样本'});}
+  pass('真实入口下浏览器返回／链接离开的未保存保护：取消保留，确认离开，单次提示');
+  await page.setViewportSize({width:1280,height:900});
   await page.goto(app+'/intelligence/lease-expiry');await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();await page.mouse.move(640,600);await page.mouse.wheel(0,10000);await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});await page.getByLabel('补充备注').fill('真实登录浏览器核实，仍缺起租日');await page.getByRole('button',{name:'保存补充记录',exact:true}).click();await page.getByText('补充记录已保存，预计到期区间仍按成交数据计算。').waitFor();await page.reload();await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();assert.equal(await page.getByLabel('补充备注').inputValue(),'真实登录浏览器核实，仍缺起租日');
   await page.screenshot({path:path.join(output,'real-login-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await page.mouse.move(195,600);await page.mouse.wheel(0,10000);await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});await page.screenshot({path:path.join(output,'real-login-mobile.png'),fullPage:true});
