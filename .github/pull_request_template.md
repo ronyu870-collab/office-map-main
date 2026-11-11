@@ -26,9 +26,22 @@ Describe behavior, data, security, performance, or deployment risk.
 - [ ] Affected mobile actions checked against [MOB-01](../docs/standards/03_模块规范.md#mob-01), with [MOB-05 evidence](../docs/standards/05_工程验证与交付规范.md#mob-05); not applicable when no UI/behavior changed.
 - [ ] For search, text filters and searchable selectors affected by this change, link [VERIFY-04](../docs/standards/05_工程验证与交付规范.md#verify-04) browser and CI evidence: type the first character, let the UI update, and keep typing without refocusing. Verify focus, caret or selection, and the final results. Otherwise mark not applicable.
 
-## UI evidence and recovery
+## Visual acceptance
 
-For UI changes, link comparable before/after evidence and report checks of the affected pages and flows. State what was actually verified and what remains unverified; mark not applicable when there is no UI change.
+Apply [VERIFY-05](../docs/standards/05_工程验证与交付规范.md#verify-05) to any user-visible change, including a single label, a shared component or a role-specific state. A reviewer checks the rendered page in context for hierarchy, grouping, alignment and consistency. Link an accessible review record (HTTPS) with desktop and mobile comparisons, the baseline, roles, states, viewports and findings.
+
+Fill in the block below for the current PR head. Use `passed` only after visual review. Use `not-applicable` only when there is no user-visible impact, and explain why under `reason`. After a push, confirm the conclusion for the new head. CI checks the record, not the rendered design.
+
+```visual-acceptance
+result: pending
+head:
+scope:
+reviewer:
+evidence:
+reason:
+```
+
+## Recovery
 
 Record the baseline commit and how this batch can be reverted without overwriting unrelated work.
 

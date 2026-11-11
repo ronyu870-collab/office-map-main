@@ -1,0 +1,29 @@
+name: Visual acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-acceptance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  visual-acceptance:
+    name: Visual acceptance evidence
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the evidence check
+        run: node --test scripts/verification/visual-acceptance.node-test.mjs
+      - name: Check the PR record
+        run: node scripts/verification/visual-acceptance.mjs
