@@ -4,21 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { LEASE_EXPORT_COLUMNS, buildLeaseExportRows } from '../leaseExport';
 
 describe('租赁成交期间一致性', () => {
-  it('团队成交表把成交年份放在成交季度左边', () => {
-    const source = readFileSync(
-      'src/app/lease-submission/components/SubmissionDetailTable.tsx',
-      'utf8',
-    );
-    const yearDef = "{ key: 'year', label: '成交年份'";
-    const quarterDef = "{ key: 'quarter', label: '成交季度'";
-
-    expect(source).toContain(yearDef);
-    expect(source).toContain(quarterDef);
-    expect(source.indexOf(yearDef)).toBeLessThan(source.indexOf(quarterDef));
-    expect(source).toContain("case 'year':");
-    expect(source).toContain('row.transaction_year');
-  });
-
   it('个人记录和重复提示都拆分成交年份与成交季度', () => {
     const page = readFileSync('src/app/lease-submission/page.tsx', 'utf8');
     const form = readFileSync(

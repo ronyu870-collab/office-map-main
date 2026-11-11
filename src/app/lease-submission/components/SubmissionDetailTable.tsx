@@ -7,7 +7,6 @@ import type { LeaseTransaction } from '@/src/types/lease-transaction';
 import { MaskedCell } from '@/src/components/demo';
 import { useIsDemo } from '@/src/components/demo/DemoProvider';
 import { Button } from '@/src/components/ui/Button';
-import { useResponsiveColumns, calculateColumnWidths, type ColumnDef } from '@/src/hooks/useResponsiveColumns';
 import { AdminLeaseExportButton } from './AdminLeaseExportButton';
 import { LeaseTransactionHistoryDrawer } from './LeaseTransactionHistoryDrawer';
 import { LeaseColumnMenu } from './LeaseColumnMenu';
@@ -52,30 +51,36 @@ function fmtDate(dateStr: string | null | undefined): string {
 
 // ─── 列定义 ───────────────────────────────────────────────────────────────────
 
-const TABLE_COLUMNS: ColumnDef[] = [
+const TABLE_COLUMNS: { key: LeaseColumnKey; width: number; desktopWeight?: number; align?: 'right' }[] = [
   // ── 企业信息 ──
-  { key: 'company', label: '公司名称', width: 'flex', minWidth: 184, maxWidth: 280, flexWeight: 2.5 },
+  { key: 'company', width: 184 },
   // 这是低覆盖率的辅助字段：保留其位置与可查阅性，但不为大量空值预留主列宽度。
-  { key: 'suspectedCompanyFullname', label: '疑似全称', width: 88 },
-  { key: 'enterpriseType', label: '企业类型', width: 80 },
+  { key: 'suspectedCompanyFullname', width: 88 },
+  { key: 'enterpriseType', width: 80 },
   // ── 行业/需求 ──
-  { key: 'industry', label: '行业分类', width: 112 },
-  { key: 'demandType', label: '需求类型', width: 80 },
+  { key: 'industry', width: 112 },
+  { key: 'demandType', width: 80 },
   // ── 成交楼宇/位置 ──
-  { key: 'building', label: '成交楼宇', width: 'flex', minWidth: 136, maxWidth: 220, flexWeight: 1.5 },
-  { key: 'subMarket', label: '子市场', width: 72 },
-  { key: 'district', label: '行政区', width: 72 },
-  { key: 'grade', label: '级别', width: 56 },
+  { key: 'building', width: 136 },
+  { key: 'subMarket', width: 72, desktopWeight: 84 },
+  { key: 'district', width: 72, desktopWeight: 84 },
+  { key: 'grade', width: 56, desktopWeight: 68 },
   // ── 租金/面积 ──
-  { key: 'area', label: '成交面积', width: 88, align: 'right' },
-  { key: 'faceRent', label: '表面租金', width: 88, align: 'right' },
-  { key: 'effectiveRent', label: '有效租金', width: 92, align: 'right' },
+  { key: 'area', width: 88, align: 'right' },
+  { key: 'faceRent', width: 88, align: 'right' },
+  { key: 'effectiveRent', width: 92, align: 'right' },
   // ── 时间/提交人 ──
-  { key: 'year', label: '成交年份', width: 80 },
-  { key: 'quarter', label: '成交季度', width: 80 },
-  { key: 'submitter', label: '提交人', width: 104 },
+  { key: 'year', width: 80 },
+  { key: 'quarter', width: 80 },
+  { key: 'submitter', width: 104 },
 ];
 
+const DATA_COLUMNS_WIDTH = TABLE_COLUMNS.reduce((sum, column) => sum + column.width, 0);
+const DESKTOP_COLUMN_WEIGHT = TABLE_COLUMNS.reduce((sum, column) => sum + (column.desktopWeight ?? column.width), 0);
+const ROW_NUMBER_WIDTH = 48;
+const DESKTOP_ROW_NUMBER_WIDTH = 40;
+const ACTION_COLUMN_WIDTH = 76;
+const desktopWrap = 'lg:whitespace-normal lg:[overflow-wrap:anywhere]';
 const tableRule = 'border-[var(--cd-color-border)]/55';
 const startsColumnGroup = (key: string) => key === 'area' || key === 'year';
 const toolbarActions = 'ml-auto items-start gap-1 [&_button]:min-w-[6.5rem] [&_button]:whitespace-nowrap [&_button]:text-[length:var(--cd-font-size-sm)] [&_button]:text-[var(--cd-color-text-secondary)] [&_button>svg]:size-3.5 [&_button>svg]:shrink-0 max-sm:[&_button]:min-h-11 [@media(pointer:coarse)]:[&_button]:min-h-11';
@@ -134,7 +139,7 @@ const renderCell = (key: string, row: LeaseTransaction): React.ReactNode => {
       const val = fmt(row.company);
       return (
         <QuickTooltip text={val}>
-          <span className="font-semibold text-zinc-900 text-[13px] truncate block">
+          <span className={`font-semibold text-zinc-900 text-[13px] truncate block ${desktopWrap}`}>
             <MaskedCell masked>{val}</MaskedCell>
           </span>
         </QuickTooltip>
@@ -175,11 +180,11 @@ const renderCell = (key: string, row: LeaseTransaction): React.ReactNode => {
     }
     case 'subMarket': {
       const val = fmt(row.sub_market);
-      return <QuickTooltip text={val}><span className="text-zinc-600 text-[13px] truncate block">{val}</span></QuickTooltip>;
+      return <QuickTooltip text={val}><span className={`text-zinc-600 text-[13px] truncate block ${desktopWrap}`}>{val}</span></QuickTooltip>;
     }
     case 'district': {
       const val = fmt(row.district);
-      return <QuickTooltip text={val}><span className="text-zinc-600 text-[13px] truncate block">{val}</span></QuickTooltip>;
+      return <QuickTooltip text={val}><span className={`text-zinc-600 text-[13px] truncate block ${desktopWrap}`}>{val}</span></QuickTooltip>;
     }
     case 'grade':
       return <span className="text-zinc-600 text-[13px]">{fmt(row.building_grade)}</span>;
@@ -197,7 +202,7 @@ const renderCell = (key: string, row: LeaseTransaction): React.ReactNode => {
       return <span className="text-zinc-600 text-[13px]">{fmt(row.transaction_quarter)}</span>;
     case 'submitter': {
       const val = fmt(row.submitter_name);
-      return <QuickTooltip text={val}><span className="block truncate text-[13px] text-zinc-700">{val}</span></QuickTooltip>;
+      return <QuickTooltip text={val}><span className={`block truncate text-[13px] text-zinc-700 ${desktopWrap}`}>{val}</span></QuickTooltip>;
     }
     default:
       return null;
@@ -298,33 +303,9 @@ export function SubmissionDetailTable({
   const [historyRecord, setHistoryRecord] = React.useState<LeaseTransaction | null>(null);
   const detailsId = React.useId();
   const PAGE_SIZE = 20;
-  const ACTION_COLUMN_WIDTH = 76;
-
-  // 响应式列可见性
-  const { visibleColumns, containerWidth } = useResponsiveColumns({
-    columns: TABLE_COLUMNS,
-    containerRef,
-    defaultWidth: 1440,
-    immediateRecalcTrigger: isFullscreen,
-  });
-
-  // 表格最小宽度：所有可用列的最小宽度之和（保证列不会被挤到比最小值还窄）
-  const tableMinWidth = React.useMemo(() => {
-    let total = 48; // 序号列
-    for (const col of visibleColumns) {
-      if (col.width === 'flex') total += col.minWidth || 80;
-      else total += col.width || 80;
-    }
-    if (editMode) total += ACTION_COLUMN_WIDTH;
-    return total;
-  }, [visibleColumns, editMode]);
-
-  // 计算列宽（像素值，用于 <colgroup>）
-  // 基于 hook 跟踪的容器宽度分配弹性列空间，但列宽不低于 minWidth
-  const columnWidths = React.useMemo(() => {
-    const usable = Math.max(containerWidth - 48 - (editMode ? ACTION_COLUMN_WIDTH : 0), tableMinWidth - 48 - (editMode ? ACTION_COLUMN_WIDTH : 0));
-    return calculateColumnWidths(visibleColumns, usable);
-  }, [visibleColumns, editMode, containerWidth, tableMinWidth, ACTION_COLUMN_WIDTH]);
+  const actionWidth = editMode ? ACTION_COLUMN_WIDTH : 0;
+  const scrollMinWidth = ROW_NUMBER_WIDTH + DATA_COLUMNS_WIDTH + actionWidth;
+  const desktopReservedWidth = DESKTOP_ROW_NUMBER_WIDTH + actionWidth;
 
   // Escape 键退出全屏
   React.useEffect(() => {
@@ -386,7 +367,7 @@ export function SubmissionDetailTable({
   };
 
   // 总列数（用于 colSpan）
-  const totalColSpan = visibleColumns.length + 1 + (editMode ? 1 : 0); // +1 for expand/序号, +1 for edit
+  const totalColSpan = TABLE_COLUMNS.length + 1 + (editMode ? 1 : 0);
 
   // ─── 容器样式 ───
 
@@ -477,14 +458,21 @@ export function SubmissionDetailTable({
       {/* ── 表格（填满剩余高度，内部独立滚动）── */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-auto"
+        className="flex-1 min-h-0 overflow-auto lg:[container-type:inline-size]"
       >
-        <table ref={tableRef} className="w-full border-collapse table-fixed" style={{ minWidth: tableMinWidth }}>
-          {/* 列宽定义 */}
+        <table ref={tableRef} className="w-full min-w-[var(--lease-scroll-width)] border-collapse table-fixed lg:min-w-0" style={{ '--lease-scroll-width': `${scrollMinWidth}px` } as React.CSSProperties}>
+          {/* 桌面按滚动容器的内容宽度分列，窄屏保留可横滑的列宽。 */}
           <colgroup>
-            <col style={{ width: 48 }} />
-            {columnWidths.map((w, i) => (
-              <col key={visibleColumns[i]?.key ?? i} style={{ width: w }} />
+            <col className="w-[var(--lease-column-width)] lg:w-[var(--lease-desktop-width)]" style={{ '--lease-column-width': `${ROW_NUMBER_WIDTH}px`, '--lease-desktop-width': `${DESKTOP_ROW_NUMBER_WIDTH}px` } as React.CSSProperties} />
+            {TABLE_COLUMNS.map((column) => (
+              <col
+                key={column.key}
+                className="w-[var(--lease-column-width)] lg:w-[var(--lease-desktop-width)]"
+                style={{
+                  '--lease-column-width': `${column.width}px`,
+                  '--lease-desktop-width': `calc((100cqw - ${desktopReservedWidth}px) * ${(column.desktopWeight ?? column.width) / DESKTOP_COLUMN_WEIGHT})`,
+                } as React.CSSProperties}
+              />
             ))}
             {editMode && <col style={{ width: ACTION_COLUMN_WIDTH }} />}
           </colgroup>
@@ -495,14 +483,14 @@ export function SubmissionDetailTable({
               <th className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-1 py-2.5 text-center text-xs font-semibold text-[var(--cd-color-text-secondary)]">
                 序号
               </th>
-              {visibleColumns.map((col) => (
+              {TABLE_COLUMNS.map((col) => (
                 <th
                   key={col.key}
-                  className={`truncate border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-2.5 text-xs ${startsColumnGroup(col.key) ? 'border-l' : ''} ${col.align === 'right' ? '[&>button]:justify-end' : ''}`}
+                  className={`border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-2 py-2.5 text-xs lg:px-1.5 ${startsColumnGroup(col.key) ? 'border-l' : ''} ${col.align === 'right' ? '[&>button]:justify-end' : ''}`}
                   style={{ textAlign: col.align || 'left' }}
                   aria-sort={sort?.key === col.key ? sort.direction === 'asc' ? 'ascending' : 'descending' : 'none'}
                 >
-                  {renderColumnMenu(col.key as LeaseColumnKey)}
+                  {renderColumnMenu(col.key)}
                 </th>
               ))}
               {editMode && (
@@ -547,14 +535,14 @@ export function SubmissionDetailTable({
                       <td className={`border-b px-1 py-3 text-center ${tableRule}`}>
                         <span className="text-xs text-zinc-400 tabular-nums">{rowNum}</span>
                       </td>
-                      {visibleColumns.map((col) => (
+                      {TABLE_COLUMNS.map((col) => (
                         <td
                           key={col.key}
-                          className={`border-b px-2 py-3 ${tableRule} ${startsColumnGroup(col.key) ? 'border-l' : ''}`}
+                          className={`border-b px-2 py-3 lg:px-1.5 lg:[overflow-wrap:anywhere] ${tableRule} ${startsColumnGroup(col.key) ? 'border-l' : ''}`}
                           style={{ textAlign: col.align || 'left' }}
                         >
                           {col.key === 'company' ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 lg:gap-1">
                               <div className="min-w-0 flex-1">{renderCell(col.key, row)}</div>
                               <button
                                 type="button"
@@ -571,7 +559,7 @@ export function SubmissionDetailTable({
                             <button
                               {...buildingAction}
                               title={buildingName}
-                              className="block min-h-7 w-full cursor-pointer truncate rounded-sm text-left text-[13px] text-[var(--cd-color-brand)] underline decoration-current/30 underline-offset-[3px] hover:decoration-current focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)] [@media(pointer:coarse)]:min-h-11"
+                              className={`block min-h-7 w-full cursor-pointer truncate rounded-sm text-left text-[13px] text-[var(--cd-color-brand)] underline decoration-current/30 underline-offset-[3px] hover:decoration-current focus-visible:outline-2 focus-visible:outline-[var(--cd-color-brand)] [@media(pointer:coarse)]:min-h-11 ${desktopWrap}`}
                             >
                               {buildingName}
                             </button>
@@ -622,7 +610,7 @@ export function SubmissionDetailTable({
                               return (
                                 <div key={field.label}>
                                   <div className="text-[11px] text-zinc-400 mb-0.5">{field.label}</div>
-                                  <div className="text-[13px] text-zinc-700">{value}</div>
+                                  <div className="text-[13px] text-zinc-700 lg:[overflow-wrap:anywhere]">{value}</div>
                                 </div>
                               );
                             })}
