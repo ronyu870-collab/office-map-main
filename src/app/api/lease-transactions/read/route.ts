@@ -9,6 +9,7 @@ export const runtime = 'nodejs';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 30;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function clampLimit(raw: string | null) {
   const value = Number(raw ?? DEFAULT_LIMIT);
@@ -48,7 +49,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error }, { status: 403 });
     }
 
-    const limit = clampLimit(params.get('limit'));
+    const buildingId = params.get('building_id')?.trim();
+    const buildingScope = params.get('building_scope');
+    const liveRecordId = params.get('live_record_id');
+    if (buildingScope !== null && (
+      (buildingScope !== 'tower' && buildingScope !== 'project') ||
+      !buildingId || !UUID.test(buildingId)
+    )) {
+      return NextResponse.json({ error: '无效的楼宇查询范围' }, { status: 400 });
+    }
+    if (liveRecordId !== null && (
+      !UUID.test(liveRecordId) || buildingId || access.enforcedSource === 'history'
+    )) {
+      return NextResponse.json({ error: '无效的成交记录查询' }, { status: 400 });
+    }
+
+    const limit = liveRecordId ? 1 : clampLimit(params.get('limit'));
     const offsetRaw = Number(params.get('offset') ?? 0);
     const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
 
@@ -63,7 +79,6 @@ export async function GET(req: NextRequest) {
         countOnly ? { count: 'exact', head: true } : includeCount ? { count: 'exact' } : undefined,
       );
 
-    const buildingId = params.get('building_id')?.trim();
     const company = params.get('company')?.trim();
     const building = params.get('building')?.trim();
     const subMarket = params.get('sub_market')?.trim();
@@ -77,22 +92,32 @@ export async function GET(req: NextRequest) {
     // current project member for project-level matches. Filtering on the array lets
     // Map surface governed project-level history without pretending it belongs to a
     // specific tower.
-    if (buildingId) query = query.contains('related_building_ids', [buildingId]);
+    if (buildingId) {
+      if (buildingScope === 'tower') {
+        query = query.eq('building_id', buildingId).in('building_match_scope', ['exact', 'reference']);
+      } else {
+        query = query.contains('related_building_ids', [buildingId]);
+        if (buildingScope === 'project') query = query.eq('building_match_scope', 'project');
+      }
+    }
+    if (liveRecordId) query = query.eq('source_record_id', liveRecordId);
     if (company) query = query.ilike('company', `%${company}%`);
     if (building) query = query.ilike('new_building', `%${building}%`);
     if (subMarket) query = query.eq('sub_market', subMarket);
     if (industry) query = query.eq('industry', industry);
     if (access.enforcedSource) query = query.eq('record_source', access.enforcedSource);
+    else if (liveRecordId) query = query.eq('record_source', 'live');
     if (yearFrom !== null) query = query.gte('transaction_year', yearFrom);
     if (yearTo !== null) query = query.lte('transaction_year', yearTo);
     if (areaMin !== null) query = query.gte('area_sqm', areaMin);
     if (areaMax !== null) query = query.lte('area_sqm', areaMax);
 
+    const dateOrder = buildingScope ? { ascending: false, nullsFirst: false } : { ascending: false };
     query = query.abortSignal(req.signal);
     const { data, error, count } = await timing.measure('database', () => {
       if (countOnly) return query;
-      return query.order('transaction_year', { ascending: false })
-        .order('transaction_quarter', { ascending: false })
+      return query.order('transaction_year', dateOrder)
+        .order('transaction_quarter', dateOrder)
         .order('read_id', { ascending: true })
         .range(offset, offset + limit - 1);
     });

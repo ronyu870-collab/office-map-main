@@ -6,7 +6,7 @@ export interface TeamBroker {
   name: string;
 }
 
-interface WeekRange {
+export interface WeekRange {
   weekNumber: number;
   startDate: Date;
   endDate: Date;

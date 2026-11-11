@@ -38,6 +38,18 @@ describe('lease data entry authorization seams', () => {
     expect(route).not.toContain("from('system_settings')");
   });
 
+  it('keeps core workspace readiness independent from team loading', () => {
+    const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
+    expect(source).toContain('const coreLoading = progressPending || submissionsPending');
+    expect(source).toContain('const [teamLoading, setTeamLoading] = React.useState(false)');
+    expect(source).toContain('const loadCoreData = React.useCallback');
+    expect(source).toContain('const loadTeamData = React.useCallback');
+    expect(source).toContain('void loadTeamData(role);');
+    expect(source).toContain('await loadCoreData(uid);');
+    expect(source).toContain('teamLoading && teamSubmissions.length === 0');
+    expect(source).not.toContain('requests.push(retryAsync(() => getAllSubmissions(role)');
+  });
+
   it('removes lease write controls from viewer while keeping the workspace readable', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
     expect(source).toContain('const canWrite = canWriteBusinessData(userRole)');

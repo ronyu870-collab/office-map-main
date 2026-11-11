@@ -113,8 +113,24 @@ try {
       const statistics = page.getByRole('table').first();
       const brokerRow = statistics.getByRole('row').filter({ has: brokerA });
       assert.equal(await brokerRow.getByRole('cell').nth(2).innerText(), '23');
-      assert.equal(await brokerRow.getByRole('cell').nth(3).innerText(), '23');
+      const firstWeek = statistics.getByRole('columnheader', { name: /^第 1 周(?:\s|$)/ });
+      const allWeeks = page.getByRole('button', { name: '全部周次' });
+      const compactWeeks = !baseline && width === 390;
+      if (compactWeeks) {
+        assert.equal(await firstWeek.count(), 0, 'mobile starts with only the current week');
+        await allWeeks.click();
+      }
+      await firstWeek.waitFor();
+      const firstWeekIndex = await firstWeek.evaluate(cell => cell.cellIndex);
+      assert.equal(await brokerRow.getByRole('cell').nth(firstWeekIndex).innerText(), '23');
+      if (compactWeeks) {
+        await page.getByRole('button', { name: '收起各周' }).click();
+        assert.equal(await allWeeks.getAttribute('aria-expanded'), 'false');
+        assert.equal(await firstWeek.count(), 0, 'closing all weeks restores the compact table');
+      }
       assert.equal(await statistics.getByRole('button', { name: names[2], exact: true }).count(), 0);
+      assert.equal(await page.getByRole('link', { name: '成交数据库' }).getAttribute('href'), '/lease-submission/history');
+      // A real click catches controls obscured by the previous floating database link.
       await page.getByRole('button', { name: '2', exact: true }).click();
       await page.getByText(submissions[24].company, { exact: true }).waitFor();
       assert.equal(await page.getByText(submissions[25].company, { exact: true }).count(), 0);

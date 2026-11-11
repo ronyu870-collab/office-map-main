@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Building2, CheckCircle2, Edit2, Gift, Plus, RotateCcw } from 'lucide-react';
+import { Building2, CheckCircle2, CircleAlert, Edit2, Gift, Plus, RotateCcw } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
@@ -16,6 +16,7 @@ import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
 import { ValidationMessage } from '@/src/components/data-entry/ValidationMessage';
 import { SubmissionDetailTable } from './components/SubmissionDetailTable';
+import { BuildingDealsDrawer } from './components/BuildingDealsDrawer';
 import type { LeaseTransaction, WeeklyProgress } from '@/src/types/lease-transaction';
 import { AppHeader, Badge, Button, Dialog, LoadingState } from '@/src/components/ui';
 
@@ -72,11 +73,12 @@ function MySubmissionTable({ items, pending, userName, canWrite, onEdit, onTrans
 
   return (
     <section className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.04)]" aria-label="我的提交记录" aria-busy={pending}>
-      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3 sm:px-5">
+      <div className={`flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5 ${items?.length ? 'border-b border-slate-200/80' : ''}`}>
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900">我的提交记录</h2>
           <p className="mt-0.5 text-[10px] text-slate-400">{userName || '用户'}{items ? ` · 共 ${items.length} 条成交记录` : ''}</p>
         </div>
+        {items?.length === 0 && <p className="text-xs text-slate-500">暂无提交记录</p>}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
             <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">上一页</button>
@@ -85,11 +87,9 @@ function MySubmissionTable({ items, pending, userName, canWrite, onEdit, onTrans
           </div>
         )}
       </div>
-      {!items?.length ? (
-        <div className="px-4 py-12 text-center">
-          <div className="text-xs font-medium text-slate-500">{pending ? '正在加载提交记录…' : items ? '暂无提交记录' : '暂时无法显示提交记录'}</div>
-        </div>
-      ) : (
+      {!items ? (
+        <div className="px-4 py-4 text-xs text-slate-500">{pending ? '正在加载提交记录…' : '暂时无法显示提交记录'}</div>
+      ) : items.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-[11px]">
             <thead className="bg-slate-50/90 text-[10px] text-slate-500">
@@ -141,9 +141,9 @@ export default function LeaseSubmissionPage() {
   const [selectedBrokerId, setSelectedBrokerId] = React.useState('');
   const [transferring, setTransferring] = React.useState(false);
   const [transferError, setTransferError] = React.useState<string | null>(null);
+  const [buildingSelection, setBuildingSelection] = React.useState<{ record: LeaseTransaction; trigger: HTMLButtonElement } | null>(null);
   const canWrite = canWriteBusinessData(userRole);
   const coreLoading = progressPending || submissionsPending;
-  const coreError = progressError || submissionsError;
 
   const loadCoreData = React.useCallback(async (uid: string) => {
     await Promise.all([loadProgress(uid), loadSubmissions(uid)]);
@@ -263,9 +263,10 @@ export default function LeaseSubmissionPage() {
   const complete = Boolean(progress && progress.submittedCount >= progress.targetCount);
   const progressLabel = progress ? complete ? '本周已完成' : '本周进行中' : progressPending ? '周进度加载中' : '周进度暂不可用';
   const admin = isUserAdmin(userRole);
+  const coreReadFailed = Boolean(progressError || submissionsError);
 
   return (
-    <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
+    <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]" inert={buildingSelection !== null}>
       <header className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <AppHeader
           title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge></span>}
@@ -280,25 +281,48 @@ export default function LeaseSubmissionPage() {
       </header>
 
       <main className="mx-auto max-w-[1500px] space-y-3 p-3 sm:p-5">
-        <section className="flex flex-wrap items-stretch overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]" aria-label="租赁成交填报状态">
-          <div className="min-w-[150px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
-            <div className="text-[10px] font-medium text-slate-400">本周目标</div>
-            {progress ? <>
-              <div className="mt-1 flex items-baseline gap-1"><strong className={`text-xl tabular-nums ${complete ? 'text-emerald-700' : 'text-[#003e7e]'}`}>{progress.submittedCount}</strong><span className="text-xs text-slate-400">/ {progress.targetCount} 条</span></div>
-              <div className="mt-1 text-[10px] text-slate-400">{complete ? '本周目标已完成' : `还需 ${Math.max(0, progress.targetCount - progress.submittedCount)} 条`}</div>
-            </> : <span className="mt-1.5 block text-xs text-slate-500">{progressPending ? '正在加载…' : '暂不可用'}</span>}
-          </div>
-          <div className="min-w-[150px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
-            <div className="text-[10px] font-medium text-slate-400">我的记录</div>
-            <strong className="mt-1 block text-xl tabular-nums text-slate-900">{submissions?.length ?? '—'}</strong>
-          </div>
-          <div className="min-w-[170px] flex-1 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:border-b-0 sm:border-r">
-            <div className="text-[10px] font-medium text-slate-400">工作区状态</div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">{coreLoading ? <RotateCcw size={13} className="animate-spin text-[#003e7e]" /> : coreError ? null : <CheckCircle2 size={13} className="text-emerald-600" />}{coreLoading ? '正在刷新数据' : coreError ? '有数据未更新' : '数据已就绪'}</div>
-          </div>
-          <div className="min-w-[150px] flex-1 px-3.5 py-3">
-            <div className="text-[10px] font-medium text-slate-400">最近写入</div>
-            <strong className="mt-1.5 block text-xs font-semibold text-slate-700">{lastSubmissionAt ? lastSubmissionAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '本次会话暂无'}</strong>
+        <section className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] sm:flex sm:items-center sm:justify-between sm:gap-4 sm:px-5" aria-label="租赁成交填报状态">
+          <dl className="grid grid-cols-2 px-3 py-3 sm:w-1/2 sm:max-w-[22rem] sm:shrink-0 sm:px-0 sm:py-2">
+            <div className="min-w-0 pr-3">
+              <dt className="text-[13px] font-medium">本周目标</dt>
+              {progress ? (
+                <dd className="mt-0.5">
+                  <div className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-[var(--cd-color-text-secondary)]">
+                    <strong className="text-xl font-medium tabular-nums text-[var(--cd-color-brand)]">{progress.submittedCount}</strong>
+                    <span>/ {progress.targetCount} 条</span>
+                  </div>
+                  <p className="text-xs text-[var(--cd-color-text-secondary)]">
+                    {progressError ? '沿用上次数据' : complete ? '本周目标已完成' : `还需 ${Math.max(0, progress.targetCount - progress.submittedCount)} 条`}
+                  </p>
+                </dd>
+              ) : <dd className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">{progressPending ? '读取中…' : '暂不可用'}</dd>}
+            </div>
+            <div className="min-w-0 border-l border-[var(--cd-color-border)]/55 pl-3 sm:pl-5">
+              <dt className="text-[13px] font-medium">我的记录</dt>
+              {submissions ? (
+                <dd className="mt-0.5">
+                  <div className="flex flex-wrap items-baseline gap-x-1.5 text-xs text-[var(--cd-color-text-secondary)]">
+                    <strong className="text-xl font-medium tabular-nums text-[var(--cd-color-text-primary)]">{submissions.length}</strong>
+                    <span>条</span>
+                  </div>
+                  {submissionsError && <p className="text-xs text-[var(--cd-color-text-secondary)]">沿用上次数据</p>}
+                </dd>
+              ) : <dd className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">{submissionsPending ? '读取中…' : '暂不可用'}</dd>}
+            </div>
+          </dl>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--cd-color-border)]/55 px-3 py-2 text-xs text-[var(--cd-color-text-secondary)] sm:justify-end sm:border-t-0 sm:px-0">
+            <p role="status" className="inline-flex items-center gap-1.5">
+              {coreLoading ? <RotateCcw aria-hidden="true" size={13} className="shrink-0 text-[var(--cd-color-brand)] motion-safe:animate-spin" />
+                : coreReadFailed ? <CircleAlert aria-hidden="true" size={13} className="shrink-0 text-[var(--cd-color-warning)]" />
+                : <CheckCircle2 aria-hidden="true" size={13} className="shrink-0 text-[var(--cd-color-success)]" />}
+              {coreLoading ? '正在刷新数据' : coreReadFailed ? '数据未完整读取' : '数据已就绪'}
+            </p>
+            <p className="flex flex-wrap items-baseline gap-x-1.5 border-l border-[var(--cd-color-border)] pl-3 tabular-nums">
+              <span>最近写入</span>
+              {lastSubmissionAt
+                ? <time dateTime={lastSubmissionAt.toISOString()}>{lastSubmissionAt.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time>
+                : <span>本次会话暂无</span>}
+            </p>
           </div>
         </section>
 
@@ -306,8 +330,10 @@ export default function LeaseSubmissionPage() {
 
         <MySubmissionTable items={submissions} pending={submissionsPending} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
 
-        {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} />}</section>}
+        {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} onViewBuilding={(record, trigger) => setBuildingSelection({ record, trigger })} />}</section>}
       </main>
+
+      {buildingSelection && <BuildingDealsDrawer record={buildingSelection.record} trigger={buildingSelection.trigger} onClose={() => setBuildingSelection(null)} />}
 
       {canWrite && showForm ? <LeaseTransactionForm isOpen={showForm} onClose={() => { setShowForm(false); setEditingRecord(null); }} onSubmitSuccess={refreshData} userId={userId} userName={userName} mode={editingRecord ? 'edit' : 'create'} initialData={editingRecord || undefined} /> : null}
 
