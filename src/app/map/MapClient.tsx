@@ -4,6 +4,8 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 import type { SidebarFilterState, CompareGroup, SidebarFilterCommand } from '@/src/components/SidebarFilter';
 import { useAppSession } from '@/src/components/SessionProvider';
+import { useImpersonation } from '@/src/contexts/ImpersonationContext';
+import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
 import type { MapController } from '@/src/services/MapController';
 // 🌟 1. 引入日志工具
 import { logAction } from '@/src/utils/audit';
@@ -33,6 +35,7 @@ import { hasBuildingLocation, type FullListBuilding } from './model/fullBuilding
 import { MapWorkbenchView } from './components/MapWorkbenchView';
 import { MapLoadingShell } from './components/MapLoadingShell';
 import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
+import { MAP_COMPARE_LEAVE_EVENT, readMapCompareReturn, rememberMapCompareReturn } from './model/mapCompareReturn';
 
 // Admin-only editing is never part of the normal Map path. Keep its Supabase,
 // audit and form runtime out of the MapClient chunk until an admin opens it.
@@ -46,15 +49,21 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const allowed = appSessionStatus === 'authenticated' && Boolean(appSession);
   const userRole = appSession?.role || 'viewer';
   const currentUserId = appSession?.user?.id || null;
+  const { isImpersonating } = useImpersonation();
+  const authSessionId = getSessionIdFromAccessToken(appSession?.session?.access_token);
+  const returnScope = allowed && !isImpersonating && authSessionId ? JSON.stringify([currentUserId, authSessionId, userRole]) : null;
+  const [initialReturn] = React.useState(() => readMapCompareReturn(returnScope));
+  const restorePending = React.useRef(true);
+  const initialFilters = initialReturn?.filter ?? initialIntelligenceHandoff?.filterState ?? null;
   const userRoleRef = React.useRef(userRole);
   userRoleRef.current = userRole;
 
   const [allBuildings, setAllBuildings] = React.useState<any[]>([]);
   const [futureSupplies, setFutureSupplies] = React.useState<any[]>([]);
   const [displayOverrides, setDisplayOverrides] = React.useState<Map<string, Map<string, { display_label: string; display_value: string }>>>(new Map());
-  const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(() => initialIntelligenceHandoff?.filterState ?? null);
-  const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(() => initialIntelligenceHandoff
-    ? { id: 1, type: 'patch', patch: initialIntelligenceHandoff.filterState }
+  const [filterState, setFilterState] = React.useState<SidebarFilterState | null>(() => initialFilters);
+  const [filterCommand, setFilterCommand] = React.useState<SidebarFilterCommand | null>(() => initialFilters
+    ? { id: 1, type: 'patch', patch: initialFilters }
     : null);
   const [compareGroups, setCompareGroups] = React.useState<CompareGroup[]>([]);
   const activeCompareGroups = React.useMemo(() => getConfiguredCompareGroups(compareGroups), [compareGroups]);
@@ -132,7 +141,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
 
   // 🌟 Phase 1: 悬浮列表可见性控制
   const [isListVisible, setIsListVisible] = React.useState(false);
-  const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
+  const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff || initialReturn?.filter || initialReturn?.search));
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
 
@@ -142,7 +151,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     setFilterCommand(previous => ({ id: (previous?.id ?? 0) + 1, type, patch }));
   }, []);
   
-  const [searchInput, setSearchInput] = React.useState('');
+  const [searchInput, setSearchInput] = React.useState(initialReturn?.search ?? '');
   const keyword = searchInput.trim();
   const fullListFilterKey = React.useMemo(() => JSON.stringify([keyword, filterState, compareGroups]), [keyword, filterState, compareGroups]);
   const [settledFullListFilterKey, setSettledFullListFilterKey] = React.useState<string | null>(null);
@@ -160,7 +169,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   
   const [currentSubwayStations, setCurrentSubwayStations] = React.useState<any[]>([]);
   const lastFetchedLine = React.useRef<string | null>(null);
-  const intelligenceAutoFitDoneRef = React.useRef(false);
+  const intelligenceAutoFitDoneRef = React.useRef(Boolean(initialReturn));
   const intelligenceAuditDoneRef = React.useRef(false);
   const filterAuditTimerRef = React.useRef<number | null>(null);
   const pendingFilterAuditRef = React.useRef<SidebarFilterState | null>(null);
@@ -305,7 +314,35 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const futureSupplyCalendar = React.useMemo(() => buildFutureSupplyCalendar(futureSupplies), [futureSupplies]);
   
   // 新增：地图标记渲染模式状态
-  const [renderMode, setRenderMode] = React.useState<RenderMode>('default');
+  const [renderMode, setRenderMode] = React.useState<RenderMode>(initialReturn?.mode ?? 'default');
+
+  React.useEffect(() => {
+    if (!returnScope) return;
+    const saveContext = (event: Event) => {
+      const { token, buildingId } = (event as CustomEvent<{ token: string; buildingId: string }>).detail;
+      const map = controllerRef.current?.getMapInstance?.();
+      const center = map?.getCenter?.();
+      const zoom = map?.getZoom?.();
+      const lng = center?.getLng?.();
+      const lat = center?.getLat?.();
+      const viewport = [zoom, lng, lat].every(Number.isFinite) ? { zoom, center: [lng, lat] as [number, number] } : null;
+      rememberMapCompareReturn(token, { scope: returnScope, buildingId, search: searchInput, filter: filterState, mode: renderMode, viewport });
+    };
+    window.addEventListener(MAP_COMPARE_LEAVE_EVENT, saveContext);
+    return () => window.removeEventListener(MAP_COMPARE_LEAVE_EVENT, saveContext);
+  }, [controllerRef, filterState, renderMode, returnScope, searchInput]);
+
+  React.useEffect(() => {
+    if (!initialReturn || initialReturn.scope !== returnScope || !mapReady || !restorePending.current || allBuildings.length === 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      const controller = controllerRef.current;
+      if (!controller || workspaceViewRef.current !== 'map') return;
+      restorePending.current = false;
+      if (initialReturn.viewport) controller.getMapInstance()?.setZoomAndCenter(initialReturn.viewport.zoom, initialReturn.viewport.center);
+      if (allBuildings.some(building => building.id === initialReturn.buildingId)) controller.openBuildingInfoWindow(initialReturn.buildingId);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [allBuildings, controllerRef, initialReturn, mapReady, returnScope, workspaceViewRef]);
   const showAreaPlaceholders = !keyword && activeCompareGroups.length === 0
     && !initialIntelligenceHandoff && (filterState === null || isDefaultStockFilterState(filterState));
 

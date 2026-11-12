@@ -166,6 +166,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const [submittedRecord, setSubmittedRecord] = React.useState<LeaseTransaction | null>(null);
   const [draftSavedAt, setDraftSavedAt] = React.useState<string | null>(null);
   const [draftHydrated, setDraftHydrated] = React.useState(mode !== 'create');
+  const [draftReadFailed, setDraftReadFailed] = React.useState(false);
   const [draftUiBaseline, setDraftUiBaseline] = React.useState('');
   const createInitializedRef = React.useRef(false);
   const editInitializedRef = React.useRef<string | null>(null);
@@ -379,6 +380,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
       setPendingEdit(null);
       setDraftSavedAt(null);
       setDraftHydrated(false);
+      setDraftReadFailed(false);
       setDraftUiBaseline('');
       reset(DEFAULTS);
       setFaceRentUnit('monthly');
@@ -435,19 +437,22 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         } else {
           setSubmitState('idle');
           setSubmitMessage('带 * 的字段为必填项');
-          setDraftUiBaseline(currentDraftUiSignature);
+          setDraftUiBaseline(JSON.stringify(currentDraftUiRef.current));
         }
       } catch (error) {
+        if (token !== draftLoadTokenRef.current) return;
         console.error('Lease draft restore failed', error);
-        setSubmitState('error');
-        setSubmitMessage('草稿读取失败，可继续填写并稍后重试保存');
+        setDraftReadFailed(true);
+        setSubmitState('idle');
+        setDraftUiBaseline(JSON.stringify(currentDraftUiRef.current));
+        setSubmitMessage('带 * 的字段为必填项');
       } finally {
         if (token === draftLoadTokenRef.current) setDraftHydrated(true);
       }
     })();
 
     return () => { draftLoadTokenRef.current += 1; };
-  }, [isOpen, mode, userId, draftHydrated, reset, currentDraftUiSignature]);
+  }, [isOpen, mode, userId, draftHydrated, reset]);
 
   React.useEffect(() => {
     if (!isOpen || mode !== 'create' || !draftHydrated) return;
@@ -493,6 +498,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     try {
       const savedAt = await saveLeaseTransactionDraft(userId, userName, snapshot);
       setDraftSavedAt(savedAt);
+      setDraftReadFailed(false);
       setDraftUiBaseline(JSON.stringify(snapshot.ui));
       savedDraftSignatureRef.current = JSON.stringify(snapshot);
       const savedCurrentInput = JSON.stringify({ version: 1, values: getValues(), ui: currentDraftUiRef.current }) === savedDraftSignatureRef.current;
@@ -820,13 +826,21 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
         <div className="shrink-0 border-b border-slate-200 bg-[#f8fafc] px-4 py-3 sm:px-5">
           <div className="flex items-center justify-between gap-3">
             <h2 id="lease-entry-title" className="truncate text-sm font-semibold text-slate-900">{mode === 'edit' ? '编辑成交记录' : '新增成交记录'}</h2>
-            <div className="flex items-center gap-2"><SaveStatus state={submitState} message={submitMessage} savedAt={draftSavedAt} className="hidden" /><button type="button" onClick={requestClose} disabled={busy} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
+            <div className="flex items-center gap-2">{draftHydrated && (!draftReadFailed || submitState !== 'idle') && <SaveStatus state={submitState} message={submitMessage} savedAt={draftSavedAt} className="hidden" />}<button type="button" onClick={requestClose} disabled={busy} className="rounded-[var(--cd-radius-md)] p-2 text-[var(--cd-color-text-muted)] transition hover:bg-[var(--cd-color-surface-alt)] disabled:opacity-50" aria-label="关闭填报"><X size={17} /></button></div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit(submitValidated, invalidSubmit)} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" autoComplete="off">
           {submitError && <div className="sticky top-0 z-20 border-b border-slate-200 bg-white p-2.5"><ValidationMessage severity="error">{submitError}</ValidationMessage></div>}
 
+          {!draftHydrated && <p role="status" className="border-b border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">正在读取云端草稿…</p>}
+          {draftReadFailed && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm text-rose-700">
+              <p role="alert">草稿读取失败。可以继续填写，保存前请确认本次内容。</p>
+              {!hasUnsavedChanges() && <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={() => { setDraftReadFailed(false); setDraftHydrated(false); }}>重新读取草稿</Button>}
+            </div>
+          )}
+          <fieldset disabled={!draftHydrated} className="min-w-0">
           {mode === 'create' && (
             <div className="border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
               <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-700"><input type="checkbox" checked={isOnBehalf} onChange={(event) => { setIsOnBehalf(event.target.checked); if (!event.target.checked) setBehalfUserId(''); }} className="h-3.5 w-3.5 rounded border-slate-300 text-[#003e7e]" />代他人填报 <span className="font-normal text-slate-400">记录将归属被代报人</span></label>
@@ -890,6 +904,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
               <div className="sm:col-span-2 lg:col-span-2"><FormField name="remarks" label="备注" type="textarea" placeholder="代理行、业主租赁策略变化、企业客户重要情况等" register={register} error={errors.remarks} /></div>
             </div>
           </Section>
+
+          </fieldset>
 
           <DataEntryToolbar className="sticky bottom-0 z-30" leading={errorCount ? <div className="text-[10px] font-semibold text-rose-700">{errorCount} 个字段需要检查</div> : undefined}>
             <Button type="button" variant="secondary" size="sm" onClick={requestClose} disabled={busy}>取消</Button>

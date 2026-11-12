@@ -42,6 +42,22 @@ type LeasePayload = {
   records: LeaseRow[];
 };
 
+type ReadFailure = { title: string; description: string };
+type ReadOutcome = { payload: LeasePayload; error?: never } | { payload?: never; error: ReadFailure };
+type ReadResult = ReadOutcome & { context: BuildingContext; page: number; attempt: number };
+
+class RelatedLeaseReadError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+function describeReadFailure(error: unknown): ReadFailure {
+  const status = error instanceof RelatedLeaseReadError ? error.status : null;
+  return {
+    title: status === 401 ? '登录状态已失效' : status === 403 ? '没有权限读取关联成交' : '关联成交暂时无法读取',
+    description: status === 401 ? '请重新登录后再试。' : status === 403 ? '如需查看，请确认当前账号的权限。' : '请检查网络后重试。',
+  };
+}
+
 function fmtNumber(value: number, maximumFractionDigits = 1) {
   return value.toLocaleString('zh-CN', { maximumFractionDigits });
 }
@@ -98,10 +114,11 @@ function DetailItem({
   );
 }
 
-async function loadBuildingLeases(buildingId: string, page: number): Promise<LeasePayload> {
+async function loadBuildingLeases(buildingId: string, page: number, signal: AbortSignal): Promise<LeasePayload> {
   const session = await getSessionFast();
   const token = session?.session?.access_token;
-  if (!token) throw new Error('登录状态异常，请重新登录');
+  if (!token) throw new RelatedLeaseReadError('登录状态异常', 401);
+  signal.throwIfAborted();
   const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
   const scope = JSON.stringify([session.user.id, session.role, token, headers.get('X-Colliers-Impersonate-User')]);
   const cacheKey = `${scope}:${buildingId}:${page}`;
@@ -118,15 +135,15 @@ async function loadBuildingLeases(buildingId: string, page: number): Promise<Lea
   });
   if (reusedCount !== null) params.set('include_count', '0');
   const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-    headers,
+    headers, signal,
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || '关联成交读取失败');
+  signal.throwIfAborted();
+  if (!response.ok) throw new RelatedLeaseReadError('关联成交读取失败', response.status);
+  const count = body.count ?? reusedCount;
+  if (!Number.isSafeInteger(count) || count < 0 || !Array.isArray(body.records)) throw new Error('关联成交返回格式异常');
 
-  const payload = {
-    count: typeof body.count === 'number' ? body.count : (reusedCount ?? 0),
-    records: (body.records ?? []) as LeaseRow[],
-  };
+  const payload = { count, records: body.records as LeaseRow[] };
   cache.set(cacheKey, { payload, cachedAt: Date.now() });
   return payload;
 }
@@ -134,9 +151,12 @@ async function loadBuildingLeases(buildingId: string, page: number): Promise<Lea
 export function MapLeaseTransactionsBridge() {
   const [context, setContext] = React.useState<BuildingContext | null>(null);
   const [page, setPage] = React.useState(0);
-  const [payload, setPayload] = React.useState<LeasePayload | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [attempt, setAttempt] = React.useState(0);
+  const [result, setResult] = React.useState<ReadResult | null>(null);
+  const current = result && result.context === context && result.page === page && result.attempt === attempt ? result : null;
+  const payload = current?.payload;
+  const error = current?.error;
+  const loading = !current;
   const [expandedReadId, setExpandedReadId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -160,36 +180,15 @@ export function MapLeaseTransactionsBridge() {
   }, []);
 
   React.useEffect(() => {
-    if (!context) {
-      setPayload(null);
-      setError(null);
-      setExpandedReadId(null);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setExpandedReadId(null);
-
-    void loadBuildingLeases(context.buildingId, page)
-      .then(nextPayload => {
-        if (!cancelled) setPayload(nextPayload);
-      })
-      .catch(loadError => {
-        if (!cancelled) {
-          setPayload(null);
-          setError(loadError instanceof Error ? loadError.message : '关联成交读取失败');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [context, page]);
+    if (!context) return;
+    const controller = new AbortController();
+    const { signal } = controller;
+    const request = { context, page, attempt };
+    void loadBuildingLeases(context.buildingId, page, signal)
+      .then(payload => { if (!signal.aborted) setResult({ ...request, payload }); })
+      .catch(error => { if (!signal.aborted) setResult({ ...request, error: describeReadFailure(error) }); });
+    return () => controller.abort();
+  }, [context, page, attempt]);
 
   React.useEffect(() => {
     if (!context) return;
@@ -227,22 +226,23 @@ export function MapLeaseTransactionsBridge() {
           type="button"
           onClick={() => setContext(null)}
           aria-label="关闭关联成交"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
+          className="inline-flex h-11 w-11 shrink-0 items-center sm:h-8 sm:w-8 justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </header>
 
-      <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)]/60 bg-[var(--cd-color-surface-alt)]/35 px-4">
+      {payload && <div className="flex min-h-10 items-center justify-between gap-3 border-b border-[var(--cd-color-border)]/60 bg-[var(--cd-color-surface-alt)]/35 px-4">
         <span className="text-[12px] leading-5 text-[var(--cd-color-text-secondary)]">
           <strong className="font-semibold tabular-nums text-[var(--cd-color-text-primary)]">{count.toLocaleString('zh-CN')}</strong> 条成交
         </span>
         <span className="text-[11px] leading-5 text-[var(--cd-color-text-muted)]">最新优先</span>
-      </div>
+      </div>}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
         {loading ? (
-          <div className="px-4 py-2" aria-label="正在读取关联成交">
+          <div className="px-4 py-2" role="status" aria-label="正在读取关联成交">
+            <p className="py-2 text-sm text-[var(--cd-color-text-secondary)]">正在读取关联成交…</p>
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="border-b border-[var(--cd-color-border)]/40 py-3.5 last:border-b-0">
                 <div className="h-3.5 w-2/3 animate-pulse rounded bg-slate-200" />
@@ -253,15 +253,14 @@ export function MapLeaseTransactionsBridge() {
           </div>
         ) : error ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-8 text-center">
-            <div className="text-[13px] font-medium leading-5 text-[var(--cd-color-text-primary)]">关联成交暂时无法读取</div>
-            <div className="mt-1.5 text-[11px] leading-5 text-[var(--cd-color-text-muted)]">{error}</div>
+            <div role="alert">
+              <div className="text-sm font-semibold text-[var(--cd-color-text-primary)]">{error.title}</div>
+              <p className="mt-1.5 text-sm text-[var(--cd-color-text-muted)]">{error.description}</p>
+            </div>
             <button
               type="button"
-              onClick={() => {
-                cache.clear();
-                setContext({ ...context });
-              }}
-              className="mt-4 text-[12px] font-medium leading-5 text-[var(--cd-color-brand)] hover:underline"
+              onClick={() => setAttempt(current => current + 1)}
+              className="mt-2 min-h-11 px-3 text-sm font-medium text-[var(--cd-color-brand)] hover:underline"
             >
               重新加载
             </button>
@@ -383,25 +382,25 @@ export function MapLeaseTransactionsBridge() {
         )}
       </div>
 
-      {count > PAGE_SIZE ? (
+      {page > 0 || count > PAGE_SIZE ? (
         <footer className="flex h-11 items-center justify-center gap-2.5 border-t border-[var(--cd-color-border)]/55 px-4">
           <button
             type="button"
             aria-label="上一页关联成交"
             disabled={loading || page <= 0}
-            onClick={() => setPage(current => Math.max(0, current - 1))}
+            onClick={() => { setExpandedReadId(null); setPage(current => Math.max(0, current - 1)); }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
           <span className="min-w-12 text-center text-[11px] leading-5 tabular-nums text-[var(--cd-color-text-secondary)]">
-            {page + 1} / {totalPages}
+            {payload ? <>{page + 1} / {totalPages}</> : `第 ${page + 1} 页`}
           </span>
           <button
             type="button"
             aria-label="下一页关联成交"
-            disabled={loading || page + 1 >= totalPages}
-            onClick={() => setPage(current => Math.min(totalPages - 1, current + 1))}
+            disabled={!payload || page + 1 >= totalPages}
+            onClick={() => { setExpandedReadId(null); setPage(current => Math.min(totalPages - 1, current + 1)); }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:bg-[var(--cd-color-surface-alt)]"
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />

@@ -19,8 +19,8 @@ const records = Array.from({ length: 53 }, (_, index) => ({
 const access = { effectiveRole: 'admin', effectiveSource: 'all', impersonating: false, canReadHistory: true };
 const observations = [];
 try {
-  for (const width of [1280, 390]) {
-    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width === 390, hasTouch: width === 390, serviceWorkers: 'block' });
+  for (const width of [1280, 920, 390, 320]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block' });
     const calls = [];
     let release;
     const held = new Promise(resolve => { release = resolve; });
@@ -66,13 +66,21 @@ try {
         assert.equal(await row.count(), 0);
       } else {
         await row.waitFor();
+        const dimensions = await row.evaluate(element => {
+          const table = element.closest('table');
+          return { available: table.parentElement.clientWidth, table: table.scrollWidth, page: document.documentElement.scrollWidth };
+        });
+        if (process.env.PERF_HISTORY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.PERF_HISTORY_SCREENSHOT_DIR}/history-${width}.png` });
+        assert.ok(dimensions.table <= dimensions.available + 1 && dimensions.page <= width + 1,
+          `all primary fields and the detail trigger must fit ${width}px: ${JSON.stringify(dimensions)}`);
         await page.getByText('正在统计总数…', { exact: true }).waitFor();
         assert.equal(await page.getByText('0 条', { exact: true }).count(), 0);
         assert.equal(await next.isDisabled(), true);
-        await row.click();
+        await (width < 640 ? row.tap() : row.click());
         const drawer = page.getByRole('dialog', { name: '成交详情' });
         await drawer.getByText(/仅确认到项目，未指定具体塔楼/).waitFor();
-        await page.keyboard.press('Escape');
+        if (width < 640) await drawer.getByRole('button', { name: '关闭', exact: true }).tap();
+        else await page.keyboard.press('Escape');
         await drawer.waitFor({ state: 'hidden' });
       }
       const rowsBeforeCount = await row.count() === 1;

@@ -11,7 +11,7 @@ import { VersionHistory } from './VersionHistory';
 import { ImageUploadButton } from './ImageUploadButton';
 import { showToast } from './Toast';
 import type { Memo, MemoVersion } from '@/src/types/memo';
-import { Button, EmptyState, LoadingState } from '@/src/components/ui';
+import { Button, EmptyState, ErrorState, LoadingState } from '@/src/components/ui';
 
 type EditorMode = 'edit' | 'preview' | 'history';
 
@@ -34,32 +34,31 @@ export function MemoEditor({ ref, memoId, userEmail, allTags, onSaved }: MemoEdi
   const [content, setContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [mode, setMode] = useState<EditorMode>('preview');
-  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
+  const [detailRead, setDetailRead] = useState<{ attempt: number; state: 'ready' | 'unavailable' | 'error' } | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [viewingVersion, setViewingVersion] = useState<MemoVersion | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setMode('preview');
-    setViewingVersion(null);
-    setSaveStatus('idle');
-    getMemo(memoId)
+    const request = new AbortController();
+    getMemo(memoId, request.signal)
       .then((m) => {
-        if (cancelled) return;
+        if (request.signal.aborted) return;
+        if (!m) {
+          setDetailRead({ attempt, state: 'unavailable' });
+          return;
+        }
         setMemo(m);
         setTitle(m.title);
         setContent(m.content);
         setTags(m.tags);
+        setDetailRead({ attempt, state: 'ready' });
       })
-      .catch((err) => {
-        if (!cancelled) showToast('error', err instanceof Error ? err.message : '加载失败');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+      .catch(() => {
+        if (!request.signal.aborted) setDetailRead({ attempt, state: 'error' });
       });
-    return () => { cancelled = true; };
-  }, [memoId]);
+    return () => request.abort();
+  }, [attempt, memoId]);
 
   const manualSaving = useRef(false);
   const draft = JSON.stringify({ title, content, tags });
@@ -132,15 +131,20 @@ export function MemoEditor({ ref, memoId, userEmail, allTags, onSaved }: MemoEdi
   }, []);
 
   const handleVersionRestore = useCallback(async () => {
-    const m = await getMemo(memoId);
-    setMemo(m);
-    setTitle(m.title);
-    setContent(m.content);
-    setTags(m.tags);
-    setMode('preview');
-    setViewingVersion(null);
-    showToast('success', '已恢复到历史版本');
-    onSaved();
+    try {
+      const m = await getMemo(memoId);
+      if (!m) throw new Error('备忘录已不可用');
+      setMemo(m);
+      setTitle(m.title);
+      setContent(m.content);
+      setTags(m.tags);
+      setMode('preview');
+      setViewingVersion(null);
+      showToast('success', '已恢复到历史版本');
+      onSaved();
+    } catch {
+      showToast('error', '历史版本已恢复，正文暂时无法读取。请重新打开这条备忘录。');
+    }
   }, [memoId, onSaved]);
 
   const handleViewVersion = useCallback((v: MemoVersion) => {
@@ -148,12 +152,24 @@ export function MemoEditor({ ref, memoId, userEmail, allTags, onSaved }: MemoEdi
     setMode('preview');
   }, []);
 
-  if (loading) {
+  if (detailRead?.attempt !== attempt) {
     return <LoadingState rows={0} label="正在加载备忘录" className="h-full" />;
   }
 
+  if (detailRead.state === 'error') {
+    return (
+      <div role="alert" className="p-4">
+        <ErrorState
+          title="备忘录正文读取失败"
+          description="请检查网络后重试。"
+          action={<Button type="button" variant="secondary" size="sm" className="min-h-11 sm:min-h-8" onClick={() => setAttempt(detailRead.attempt + 1)}>重试读取正文</Button>}
+        />
+      </div>
+    );
+  }
+
   if (!memo) {
-    return <EmptyState title="无法打开备忘录" description="该备忘录不存在，或当前内容加载失败。" />;
+    return <div className="p-4"><EmptyState title="备忘录不可用" description="这条备忘录可能已删除，或当前账号无法查看。" /></div>;
   }
 
   const displayContent = viewingVersion ? viewingVersion.content : content;

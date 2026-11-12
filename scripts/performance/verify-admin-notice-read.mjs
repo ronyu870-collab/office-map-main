@@ -19,8 +19,10 @@ const sample = (id, label, active = true) => ({
 const samples = [sample(1, '第一条'), sample(2, '第二条'), sample(3, '已撤回', false)];
 const previewField = 'content_preview:notice_content_preview';
 const results = [];
+const requestedWidth = Number(process.argv.find(arg => arg.startsWith('--width='))?.split('=')[1]);
 try {
   for (const [width, mode] of [[1280, 'summary'], [390, 'summary'], ...baseline ? [] : [[390, 'fallback'], [390, 'viewer']]]) {
+    if (requestedWidth && (width !== requestedWidth || mode !== 'summary')) continue;
     const rows = samples.map(row => ({ ...row }));
     const calls = { list: 0, detail: 0, writes: 0, missingPreview: 0, listBytes: 0 };
     let failList = false;
@@ -159,6 +161,69 @@ try {
       assert.equal(await page.getByText(samples[0].content, { exact: true }).count(), 0);
       assert.ok(firstListBytes < 3000);
 
+      const draft = page.getByRole('textbox', { name: '公告草稿 1', exact: true });
+      const usersUrl = new URL('/admin?section=users', base).href;
+      const selectSection = async (name) => {
+        if (width === 390 && !await page.getByRole('button', { name: '关闭管理导航', exact: true }).isVisible()) {
+          await page.getByRole('button', { name: '打开管理导航' }).tap();
+        }
+        const entry = page.getByRole('button', { name, exact: true }).filter({ visible: true });
+        await (width === 390 ? entry.tap() : entry.click());
+      };
+      const watchDialog = (accept) => page.waitForEvent('dialog').then(async dialog => {
+        const result = { type: dialog.type(), message: dialog.message() };
+        if (accept) await dialog.accept();
+        else await dialog.dismiss();
+        return result;
+      });
+      const pendingDraft = '隔离公告草稿\n第二行保留';
+      await draft.fill(pendingDraft);
+      const discardCancelled = watchDialog(false);
+      await selectSection('用户管理');
+      const attemptedLeave = await Promise.race([discardCancelled, page.waitForURL(usersUrl).then(() => ({ type: 'navigated' }))]);
+      assert.equal(attemptedLeave.type, 'confirm', 'switching admin sections must not discard an unpublished notice silently');
+      assert.match(attemptedLeave.message, /未发布/);
+      assert.equal(page.url(), adminUrl);
+      let sameSectionPrompted = false;
+      const dismissSameSectionPrompt = async dialog => { sameSectionPrompted = true; await dialog.dismiss(); };
+      page.on('dialog', dismissSameSectionPrompt);
+      await selectSection('系统公告');
+      page.off('dialog', dismissSameSectionPrompt);
+      assert.equal(sameSectionPrompted, false, 'selecting the current section is not leaving');
+      assert.equal(await draft.inputValue(), pendingDraft);
+
+      const leaveForHome = watchDialog(false);
+      const homeLink = page.locator('header a[href="/"]');
+      await (width === 390 ? homeLink.tap() : homeLink.click());
+      assert.equal((await leaveForHome).type, 'confirm', 'the header home link must also protect the draft');
+      assert.equal(page.url(), adminUrl);
+      assert.equal(await draft.inputValue(), pendingDraft);
+
+      const reloadPrompt = watchDialog(true);
+      const [reloadDialog] = await Promise.all([reloadPrompt, page.reload()]);
+      assert.equal(reloadDialog.type, 'beforeunload');
+      assert.equal(await draft.inputValue(), pendingDraft, 'reload must restore the draft in this tab');
+      if (process.env.PERF_NOTICE_DRAFT_SCREENSHOT_DIR) {
+        await draft.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: join(process.env.PERF_NOTICE_DRAFT_SCREENSHOT_DIR, `notice-draft-restored-${width}.png`) });
+      }
+      const discardAccepted = watchDialog(true);
+      await selectSection('用户管理');
+      await page.waitForURL(usersUrl);
+      assert.equal((await discardAccepted).type, 'confirm');
+      await selectSection('系统公告');
+      await page.waitForURL(adminUrl);
+      assert.equal(await draft.inputValue(), '', 'discarding must remove the recoverable draft');
+
+      await draft.fill(pendingDraft);
+      await page.goBack();
+      await page.waitForURL(usersUrl);
+      await page.goForward();
+      await page.waitForURL(adminUrl);
+      assert.equal(await draft.inputValue(), pendingDraft, 'same-document browser back and forward must preserve the draft');
+      await draft.fill('');
+      assert.equal(calls.writes, 0, 'draft recovery and leaving do not publish');
+
       failList = true;
       await page.reload();
       const retry = page.getByRole('button', { name: '重试加载列表' });
@@ -186,7 +251,7 @@ try {
       await home.getByText('新发布的隔离公告', { exact: true }).waitFor();
       await home.getByText(samples[1].content, { exact: true }).waitFor();
       assert.equal(await home.getByText(samples[0].content, { exact: true }).count(), 0);
-      results.push({ width, mode, firstListBytes, ...calls, listFailureShowsPublish: false });
+      results.push({ width, mode, firstListBytes, ...calls, listFailureShowsPublish: false, draftProtection: true });
     } finally { releaseDetail(); releaseList(); await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', baseline, browser: browser.version(), results }, null, 2));

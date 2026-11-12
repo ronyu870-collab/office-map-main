@@ -45,15 +45,15 @@ export async function listMemos(options?: {
 
 // ─── 获取单条完整内容 ────────────────────────────────────────────────────────
 
-export async function getMemo(id: string): Promise<Memo> {
-  const { data, error } = await supabase
+export async function getMemo(id: string, signal?: AbortSignal): Promise<Memo | null> {
+  const query = supabase
     .from('memos')
     .select('*')
-    .eq('id', id)
-    .single();
+    .eq('id', id);
+  const { data, error } = await (signal ? query.abortSignal(signal) : query).maybeSingle();
 
-  if (error || !data) throw new Error(`获取备忘录失败：${error?.message ?? '未找到'}`);
-  return data as Memo;
+  if (error) throw new Error(`获取备忘录失败：${error.message}`);
+  return data as Memo | null;
 }
 
 // ─── 创建新备忘录 ─────────────────────────────────────────────────────────────

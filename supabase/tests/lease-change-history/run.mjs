@@ -72,6 +72,19 @@ try {
     assert.deepEqual(await snapshot(), before);
     assert.equal((await history()).length, events);
   });
+  await test('viewer and editor read the same transaction rows; viewer cannot insert, change or delete even own records', async () => {
+    const sql = 'select id, company, data_source, face_rent from public.lease_transactions order by id';
+    const editor = await db.asUser(OWNER, sql);
+    const viewer = await db.asUser(VIEWER, sql);
+    assert.deepEqual(viewer.rows, editor.rows);
+    assert.deepEqual(viewer.rows.map(row => row.id), [recordId(1), recordId(2), recordId(3), recordId(4)]);
+    const auditCount = (await history()).length;
+    await assert.rejects(db.asUser(VIEWER, "insert into public.lease_transactions (id, company, submitter_id, data_source) values ($1,'Synthetic deny',$2,'broker_submission')", [recordId(9), VIEWER]), error => error.code === '42501');
+    assert.equal((await update(VIEWER, 'face_rent=1', [], 3)).rowCount, 0);
+    assert.equal((await db.asUser(VIEWER, 'delete from public.lease_transactions where id=$1 returning id', [recordId(3)])).rowCount, 0);
+    assert.deepEqual((await db.asUser(VIEWER, sql)).rows, viewer.rows);
+    assert.equal((await history()).length, auditCount);
+  });
   await test('ownership and source changes remain denied by WITH CHECK', async () => {
     const before = await snapshot();
     await assert.rejects(update(OWNER, 'submitter_id=$1', [OTHER]), (e) => e.code === '42501');
