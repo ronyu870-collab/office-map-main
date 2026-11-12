@@ -55,6 +55,7 @@ async function openList() {
 function restoreTimers() { vi.clearAllTimers(); vi.useRealTimers(); }
 
 beforeEach(() => {
+    window.sessionStorage.clear();
   vi.clearAllMocks(); runtime.mounts = 0; runtime.cleanups = 0; runtime.role = 'viewer';
   controllerRef.current = controller;
   controller.fetchMapData.mockResolvedValue(BUILDINGS);

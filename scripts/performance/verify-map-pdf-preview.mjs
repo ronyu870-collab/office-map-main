@@ -127,7 +127,7 @@ try {
       await page.goto(new URL('/map', base).href, { waitUntil: 'domcontentloaded' });
       await page.locator(`#map-container [data-building-id="${buildingId}"]`).first().click();
       assert.deepEqual(reads, []);
-      await page.getByRole('button', { name: '项目资料与佣金', exact: true }).click();
+      await page.getByRole('button', { name: /^(销控与佣金|项目资料与佣金)$/ }).click();
       await page.getByText('暂无可租房源').waitFor();
       assert.deepEqual(reads, ['list', materialId]);
       assert.equal(transferred(), 0);

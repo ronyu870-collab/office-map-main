@@ -33,8 +33,12 @@ export function installSyntheticMap() {
       document.getElementById(id).append(this.root);
       setTimeout(() => { this.layer.classList.add('fixture-tile-ready'); this.emit('complete'); }, 40);
     }
-    getZoom() { return 15; }
-    getCenter() { return { lng: 116.46, lat: 39.9, getLng: () => 116.46, getLat: () => 39.9 }; }
+    getZoom() { return this.zoom ?? 15; }
+    getCenter() {
+      const [lng, lat] = this.center ?? [116.46, 39.9];
+      return { lng, lat, getLng: () => lng, getLat: () => lat };
+    }
+    setZoomAndCenter(zoom, center) { this.zoom = zoom; this.center = center; }
     getLayers() { return [this.layer]; }
     resize() {}
     add(objects) { for (const object of [].concat(objects)) if (object?.content) this.layer.append(object.content); }

@@ -1,5 +1,6 @@
 'use client';
 
+import { BrokerSearchLink } from '@/src/components/BrokerSearchLink';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
@@ -269,6 +270,7 @@ export default function LeaseSubmissionPage() {
     <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]" inert={buildingSelection !== null}>
       <header className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <AppHeader
+          leading={<BrokerSearchLink />}
           title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge></span>}
           homeHref="/"
           actions={(

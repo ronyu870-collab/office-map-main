@@ -24,6 +24,9 @@ const records = [
 ];
 
 beforeEach(() => {
+  window.sessionStorage.clear();
+  window.localStorage.clear();
+  window.history.replaceState(null, '', '/lease-submission/history');
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     const params = new URL(url, 'https://synthetic.invalid').searchParams;
     const company = params.get('company') ?? '';

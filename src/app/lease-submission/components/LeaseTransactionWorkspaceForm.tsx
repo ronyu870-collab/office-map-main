@@ -22,6 +22,7 @@ import {
   type LeaseTransactionDraftSnapshot,
 } from '@/src/services/leaseTransactionDraftService';
 import { useBodyScrollLock } from '@/src/hooks/useBodyScrollLock';
+import { buildingChoices, matchesBuildingChoice, uniqueNamedBuilding } from '@/src/lib/broker/buildingChoices';
 import { useBuildings } from '@/src/hooks/useBuildings';
 import { logAction } from '@/src/utils/audit';
 import { supabase } from '@/src/services/supabaseClient';
@@ -131,7 +132,7 @@ function monthlyRent(value: number | undefined, unit: 'monthly' | 'daily') {
 }
 
 export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId, userName, mode = 'create', initialData }: LeaseTransactionFormProps) {
-  const { buildings, isLoading: buildingsLoading } = useBuildings({ revalidateOnMount: true });
+  const { buildings, isLoading: buildingsLoading } = useBuildings({ revalidateOnMount: true, scope: userId });
   const [industryMap, setIndustryMap] = React.useState<Record<string, string[]>>({});
   const [isCustomSubIndustry, setIsCustomSubIndustry] = React.useState(false);
   const [customSubIndustryText, setCustomSubIndustryText] = React.useState('');
@@ -194,13 +195,17 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
   const demandType = watch('demand_type');
   const selectedYear = watch('transaction_year');
   const selectedIndustry = watch('industry');
+  const selectedSubMarket = watch('sub_market');
   const selectedBuilding = watch('new_building');
   const selectedOldBuilding = watch('old_address');
   const { years: availableYears, quarters: availableQuarters } = React.useMemo(() => getAvailableLeasePeriods(new Date(), selectedYear), [selectedYear]);
-  const allBuildingNames = React.useMemo(() => (buildings ?? []).map((building) => building.name).filter(Boolean).sort(), [buildings]);
+  const buildingOptions = React.useMemo(() => buildingChoices(buildings ?? []), [buildings]);
   const submarkets = React.useMemo(() => Array.from(new Set((buildings ?? []).map((building) => building.submarket).filter((value): value is string => Boolean(value)))).sort(), [buildings]);
   const industryOptions = React.useMemo(() => Object.keys(industryMap).sort(), [industryMap]);
   const subIndustryOptions = selectedIndustry ? industryMap[selectedIndustry] ?? [] : [];
+  const canApplySuggestion = (field: 'industry' | 'sub_market', value: string) => field === 'industry'
+    ? !selectedIndustry && industryOptions.includes(value)
+    : !buildingLocked && !selectedSubMarket && submarkets.includes(value);
   const errorCount = Object.keys(errors).length;
   const dirtyCount = Object.keys(dirtyFields).length;
 
@@ -511,9 +516,14 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
     }
   }, [mode, draftHydrated, userId, userName, getValues, currentDraftUi]);
 
-  const selectBuilding = (buildingName: string, old = false) => {
-    const building = (buildings ?? []).find((item) => item.name === buildingName);
+  const selectBuilding = (id: string, old = false) => {
+    const building = (buildings ?? []).find(item => item.id === id);
     if (!building) return;
+    const buildingName = building.name;
+    if (!uniqueNamedBuilding(buildings ?? [], buildingName)) {
+      setError(old ? 'old_address' : 'new_building', { message: '主档存在同名楼宇，无法安全关联。请核对楼座后使用手动录入。' });
+      return;
+    }
     if (old) {
       setValue('old_address', buildingName, { shouldDirty: true });
       setValue('old_sub_market', building.submarket || '', { shouldDirty: true });
@@ -838,7 +848,11 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="min-w-0 sm:col-span-2">
                 {mode === 'create' ? (
-                  <LeaseCompanyField key={userId} control={control} enabled={draftHydrated} />
+                  <LeaseCompanyField key={userId} control={control} enabled={draftHydrated}
+                    canApplySuggestion={canApplySuggestion}
+                    applySuggestion={(field, value) => {
+                      if (canApplySuggestion(field, value) && !getValues(field)) setValue(field, value, { shouldDirty: true, shouldValidate: true });
+                    }} />
                 ) : (
                   <FormField name="company" label="企业名称" type="text" placeholder="请输入企业名称" register={register} error={errors.company} required />
                 )}
@@ -855,8 +869,8 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
 
           <Section index="02" title="交易楼宇信息">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="sm:col-span-2 lg:col-span-1"><label className="mb-1 block text-[11px] font-medium text-zinc-600">交易楼宇 *</label>{buildingsLoading ? <div className="min-h-9 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-xs text-zinc-400">正在加载楼宇列表…</div> : manualBuilding ? <input {...register('new_building')} id="new_building" className="min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs outline-none focus:border-[#003e7e]" placeholder="手动输入楼宇名称" /> : <SearchableSelect value={selectedBuilding || ''} onChange={(value) => selectBuilding(value)} options={allBuildingNames} locked={buildingLocked} onClear={() => clearBuilding()} placeholder="搜索楼宇名称…" />}{!manualBuilding ? <button type="button" onClick={() => enableManual()} className="mt-1 text-[10px] font-medium text-[#003e7e]">未匹配到？手动录入</button> : <button type="button" onClick={() => clearBuilding()} className="mt-1 text-[10px] font-medium text-[#003e7e]">返回实体选择</button>}{errors.new_building && <p className="mt-1 text-[10px] text-rose-600">{errors.new_building.message}</p>}</div>
-              {recentBuildings.length > 0 && !manualBuilding && !buildingLocked && <div className="sm:col-span-2 lg:col-span-2"><span className="mb-1 block text-[10px] font-medium text-zinc-400">最近使用</span><div className="flex flex-wrap gap-1">{recentBuildings.map((name) => <button key={name} type="button" onClick={() => selectBuilding(name)} className="max-w-52 truncate rounded-[4px] border border-zinc-200 bg-zinc-50 px-2 py-1 text-[10px] text-zinc-600 hover:border-[#003e7e]/30 hover:text-[#003e7e]">{name}</button>)}</div></div>}
+              <div className="sm:col-span-2 lg:col-span-1"><label className="mb-1 block text-[11px] font-medium text-zinc-600" htmlFor="new_building">交易楼宇 *</label>{buildingsLoading ? <div className="min-h-9 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-xs text-zinc-400">正在加载楼宇列表…</div> : manualBuilding ? <input {...register('new_building')} id="new_building" className="min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs outline-none focus:border-[#003e7e]" placeholder="手动输入楼宇名称" /> : <SearchableSelect id="new_building" value={uniqueNamedBuilding(buildings ?? [], selectedBuilding || '')?.id || ''} onChange={(value) => selectBuilding(value)} options={buildingOptions} matches={matchesBuildingChoice} locked={buildingLocked} onClear={() => clearBuilding()} placeholder="搜索楼宇名称…" />}{!manualBuilding ? <button type="button" onClick={() => enableManual()} className="mt-1 text-[10px] font-medium text-[#003e7e]">未匹配到？手动录入</button> : <button type="button" onClick={() => clearBuilding()} className="mt-1 text-[10px] font-medium text-[#003e7e]">返回实体选择</button>}{errors.new_building && <p className="mt-1 text-[10px] text-rose-600">{errors.new_building.message}</p>}</div>
+              {recentBuildings.length > 0 && !manualBuilding && !buildingLocked && <div className="sm:col-span-2 lg:col-span-2"><span className="mb-1 block text-[10px] font-medium text-zinc-400">最近使用</span><div className="flex flex-wrap gap-1">{recentBuildings.filter(name => uniqueNamedBuilding(buildings ?? [], name)).map((name) => <button key={name} type="button" onClick={() => { const match = uniqueNamedBuilding(buildings ?? [], name); if (match) selectBuilding(match.id); }} className="max-w-52 truncate rounded-[4px] border border-zinc-200 bg-zinc-50 px-2 py-1 text-[10px] text-zinc-600 hover:border-[#003e7e]/30 hover:text-[#003e7e]">{name}</button>)}</div></div>}
               <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">子市场 *</label>{buildingLocked ? <input {...register('sub_market')} id="sub_market" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs text-zinc-600" /> : <SearchableSelect value={watch('sub_market') || ''} onChange={(value) => setValue('sub_market', value, { shouldDirty: true, shouldValidate: true })} options={submarkets} placeholder="请选择" />}{errors.sub_market && <p className="mt-1 text-[10px] text-rose-600">{errors.sub_market.message}</p>}</div>
               <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">区域 *</label><input {...register('district')} id="district" readOnly={buildingLocked} className={`min-h-9 w-full rounded-md border px-2.5 text-xs outline-none focus:border-[#003e7e] ${buildingLocked ? 'border-zinc-200 bg-zinc-50 text-zinc-600' : 'border-zinc-300 bg-white'}`} placeholder="如：朝阳区" />{errors.district && <p className="mt-1 text-[10px] text-rose-600">{errors.district.message}</p>}</div>
               <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">楼宇等级 *</label>{buildingLocked ? <input {...register('building_grade')} id="building_grade" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs text-zinc-600" /> : <SearchableSelect value={watch('building_grade') || ''} onChange={(value) => setValue('building_grade', value as LeaseTransactionFormData['building_grade'], { shouldDirty: true, shouldValidate: true })} options={['甲级','乙级','产业园','其他']} placeholder="请选择" />}{errors.building_grade && <p className="mt-1 text-[10px] text-rose-600">{errors.building_grade.message}</p>}</div>
@@ -866,7 +880,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
           </Section>
 
           {demandType === '搬迁' && <Section index="03" title="原址信息"><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址楼宇 *</label>{oldAddressUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : manualOldBuilding ? <input {...register('old_address')} id="old_address" className="min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs" placeholder="手动输入原址楼宇" /> : <SearchableSelect value={selectedOldBuilding || ''} onChange={(value) => selectBuilding(value, true)} options={allBuildingNames} locked={oldBuildingLocked} onClear={() => clearBuilding(true)} placeholder="搜索原址楼宇…" />}<div className="mt-1 flex items-center justify-between gap-2"><button type="button" disabled={oldAddressUnknown} onClick={() => manualOldBuilding ? clearBuilding(true) : enableManual(true)} className="text-[10px] font-medium text-[#003e7e] disabled:text-zinc-300">{manualOldBuilding ? '返回实体选择' : '手动录入'}</button><label className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldAddressUnknown} onChange={(event) => { const checked = event.target.checked; setOldAddressUnknown(checked); setValue('old_address', checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); if (checked && !getValues('old_district')) { setOldDistrictUnknown(true); setValue('old_district', '未知', { shouldDirty: true }); } }} />未知</label></div>{errors.old_address && <p className="mt-1 text-[10px] text-rose-600">{errors.old_address.message}</p>}</div>
+            <div><label className="mb-1 block text-[11px] font-medium text-zinc-600" htmlFor="old_address">原址楼宇 *</label>{oldAddressUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : manualOldBuilding ? <input {...register('old_address')} id="old_address" className="min-h-9 w-full rounded-md border border-zinc-300 px-2.5 text-xs" placeholder="手动输入原址楼宇" /> : <SearchableSelect id="old_address" value={uniqueNamedBuilding(buildings ?? [], selectedOldBuilding || '')?.id || ''} onChange={(value) => selectBuilding(value, true)} options={buildingOptions} matches={matchesBuildingChoice} locked={oldBuildingLocked} onClear={() => clearBuilding(true)} placeholder="搜索原址楼宇…" />}<div className="mt-1 flex items-center justify-between gap-2"><button type="button" disabled={oldAddressUnknown} onClick={() => manualOldBuilding ? clearBuilding(true) : enableManual(true)} className="text-[10px] font-medium text-[#003e7e] disabled:text-zinc-300">{manualOldBuilding ? '返回实体选择' : '手动录入'}</button><label className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldAddressUnknown} onChange={(event) => { const checked = event.target.checked; setOldAddressUnknown(checked); setValue('old_address', checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); if (checked && !getValues('old_district')) { setOldDistrictUnknown(true); setValue('old_district', '未知', { shouldDirty: true }); } }} />未知</label></div>{errors.old_address && <p className="mt-1 text-[10px] text-rose-600">{errors.old_address.message}</p>}</div>
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址子市场 *</label>{oldSubmarketUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : oldBuildingLocked ? <input {...register('old_sub_market')} id="old_sub_market" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : <SearchableSelect value={watch('old_sub_market') || ''} onChange={(value) => setValue('old_sub_market', value, { shouldDirty: true, shouldValidate: true })} options={submarkets} placeholder="请选择" />}<label className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldSubmarketUnknown} onChange={(event) => { setOldSubmarketUnknown(event.target.checked); setValue('old_sub_market', event.target.checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); }} />未知</label>{errors.old_sub_market && <p className="mt-1 text-[10px] text-rose-600">{errors.old_sub_market.message}</p>}</div>
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址区域 *</label><div className="flex gap-1.5"><input {...register('old_district')} id="old_district" disabled={oldDistrictUnknown} readOnly={oldBuildingLocked} className="min-h-9 min-w-0 flex-1 rounded-md border border-zinc-300 px-2.5 text-xs disabled:bg-zinc-100" placeholder="如：朝阳区" /><label className="flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldDistrictUnknown} onChange={(event) => { setOldDistrictUnknown(event.target.checked); setValue('old_district', event.target.checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); }} />未知</label></div>{errors.old_district && <p className="mt-1 text-[10px] text-rose-600">{errors.old_district.message}</p>}</div>
             <div><label className="mb-1 block text-[11px] font-medium text-zinc-600">原址等级 *</label>{oldGradeUnknown ? <input value="未知" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : oldBuildingLocked ? <input {...register('old_building_grade')} id="old_building_grade" readOnly className="min-h-9 w-full rounded-md border border-zinc-200 bg-zinc-50 px-2.5 text-xs" /> : <SearchableSelect value={watch('old_building_grade') || ''} onChange={(value) => setValue('old_building_grade', value as LeaseTransactionFormData['old_building_grade'], { shouldDirty: true, shouldValidate: true })} options={['甲级','乙级','产业园','其他']} placeholder="请选择" />}<label className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500"><input type="checkbox" checked={oldGradeUnknown} onChange={(event) => { setOldGradeUnknown(event.target.checked); setValue('old_building_grade', event.target.checked ? '未知' : '', { shouldDirty: true, shouldValidate: true }); }} />未知</label>{errors.old_building_grade && <p className="mt-1 text-[10px] text-rose-600">{errors.old_building_grade.message}</p>}</div>

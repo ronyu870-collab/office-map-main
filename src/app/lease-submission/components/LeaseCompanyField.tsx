@@ -9,6 +9,7 @@ import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import {
   LEASE_COMPANY_NAME_MAX_LENGTH,
   LEASE_COMPANY_RECENT_LIMIT,
+  recommendLeaseFields,
   type LeaseCompanyDeal,
   type LeaseCompanyLookupResult,
 } from '../leaseCompanyLookup';
@@ -22,7 +23,11 @@ function formatPeriod(deal: LeaseCompanyDeal) {
   return deal.transaction_date || [deal.transaction_year, deal.transaction_quarter].filter(Boolean).join(' ') || '时间未填';
 }
 
-function RecentDeals({ company, id }: { company: string; id: string }) {
+type SuggestedField = 'industry' | 'sub_market';
+type SuggestionAction = (field: SuggestedField, value: string) => void;
+function RecentDeals({ company, id, applySuggestion, canApplySuggestion }: {
+  company: string; id: string; applySuggestion?: SuggestionAction; canApplySuggestion?: (field: SuggestedField, value: string) => boolean;
+}) {
   const [attempt, retry] = React.useReducer((value: number) => value + 1, 0);
   const [result, setResult] = React.useState<{ attempt: number; records: LeaseCompanyDeal[] | null }>();
   React.useEffect(() => {
@@ -34,6 +39,7 @@ function RecentDeals({ company, id }: { company: string; id: string }) {
     return () => controller.abort();
   }, [company, attempt]);
   const records = result?.attempt === attempt ? result.records : undefined;
+  const suggested = records ? recommendLeaseFields(records) : null;
 
   return (
     <section id={id} aria-label="近期成交" className="rounded-md border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-sm text-[var(--cd-color-text-primary)]">
@@ -43,6 +49,15 @@ function RecentDeals({ company, id }: { company: string; id: string }) {
       ) : records.length === 0 ? <p role="status" className="py-2">暂无可查看的成交。</p> : (
         <>
           <p className="mt-1 text-[var(--cd-color-text-secondary)]">按成交时间从新到旧，最多 {LEASE_COMPANY_RECENT_LIMIT} 笔</p>
+          {suggested && applySuggestion && <div className="mt-2 flex flex-wrap gap-x-3">
+            {(['industry', 'sub_market'] as const).map(field => {
+              const item = suggested[field];
+              return item && canApplySuggestion?.(field, item.value) ? <button type="button" key={field} className={linkClass}
+                onClick={() => applySuggestion(field, item.value)}>
+                采用{field === 'industry' ? '行业' : '子市场'}：{item.value}（{item.records} 笔同名已提交记录一致）
+              </button> : null;
+            })}
+          </div>}
           <ul className="mt-2 divide-y divide-[var(--cd-color-border)] border-t border-[var(--cd-color-border)]">
             {records.map((deal) => (
               <li key={deal.read_id} className="break-words py-2">
@@ -64,9 +79,11 @@ function RecentDeals({ company, id }: { company: string; id: string }) {
 }
 
 /** Free text is the form value. Suggestions never replace it until explicitly selected. */
-export function LeaseCompanyField({ control, enabled }: {
+export function LeaseCompanyField({ control, enabled, applySuggestion, canApplySuggestion }: {
   control: Control<LeaseTransactionFormData>;
   enabled: boolean;
+  applySuggestion?: SuggestionAction;
+  canApplySuggestion?: (field: SuggestedField, value: string) => boolean;
 }) {
   const { field, fieldState: { error } } = useController({ name: 'company', control });
   const [composing, setComposing] = React.useState(false);
@@ -236,11 +253,11 @@ export function LeaseCompanyField({ control, enabled }: {
                     onClick={() => choose(option.company)}
                   >
                     {option.company}
-                    {(option.relation || option.matchedFullName) && (
+                    {(option.relation || option.nameSimilarity || option.matchedFullName) && (
                       <span className="block text-[var(--cd-color-text-secondary)]">
-                        {option.relation === 'same_company' ? '可能是同一家企业' : option.relation === 'related_company' ? '可能是关联企业' : null}
-                        {option.relation && option.matchedFullName ? ' · ' : null}
-                        {option.matchedFullName ? `疑似全称：${option.matchedFullName}` : null}
+                        {option.relation === 'same_company' ? '可能是同一家企业' : option.relation === 'related_company' ? '可能是关联企业' : option.nameSimilarity ? '名称相近，请核对是否同一企业' : null}
+                        {(option.relation || option.nameSimilarity) && option.matchedFullName ? ' · ' : null}
+                        {option.matchedFullName ? `历史名称线索（疑似全称）：${option.matchedFullName}` : null}
                       </span>
                     )}
                   </button>
@@ -255,7 +272,7 @@ export function LeaseCompanyField({ control, enabled }: {
           </p>
         )}
       </div>
-      {expanded && <RecentDeals key={query} id={historyId} company={query} />}
+      {expanded && <RecentDeals key={query} id={historyId} company={query} applySuggestion={applySuggestion} canApplySuggestion={canApplySuggestion} />}
     </div>
   );
 }

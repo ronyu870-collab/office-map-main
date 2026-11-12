@@ -2,12 +2,14 @@
 
 import * as React from 'react';
 
-type Option = string | { value: string; label: string };
+type Option = string | { value: string; label: string; detail?: string; keywords?: readonly string[]; aliases?: readonly string[] };
 
 interface SearchableSelectProps {
   value: string;
   onChange: (val: string) => void;
   options: Option[];
+  listPlacement?: 'overlay' | 'inline';
+  matches?: (option: Exclude<Option, string>, query: string) => boolean;
   placeholder?: string;
   disabled?: boolean;
   locked?: boolean;
@@ -18,7 +20,7 @@ interface SearchableSelectProps {
   'aria-describedby'?: string;
 }
 
-function normalizeOptions(options: Option[]): { value: string; label: string }[] {
+function normalizeOptions(options: Option[]): Exclude<Option, string>[] {
   return options.map(o => typeof o === 'string' ? { value: o, label: o } : o);
 }
 
@@ -26,6 +28,8 @@ export function SearchableSelect({
   value,
   onChange,
   options,
+  matches,
+  listPlacement = 'overlay',
   placeholder = '请选择',
   disabled = false,
   locked = false,
@@ -44,13 +48,14 @@ export function SearchableSelect({
   const normalized = React.useMemo(() => normalizeOptions(options), [options]);
 
   const filtered = query
-    ? normalized.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    ? normalized.filter(o => matches ? matches(o, query) : o.label.toLowerCase().includes(query.toLowerCase()))
     : normalized;
 
   React.useEffect(() => {
     if (open) document.getElementById(`${listboxId}-${Math.min(activeIndex, filtered.length - 1)}`)?.scrollIntoView?.({ block: 'nearest' });
   }, [open, activeIndex, filtered.length, listboxId]);
 
+  const listClass = listPlacement === 'inline' ? 'relative' : 'absolute z-50 shadow-lg';
   const selectedLabel = normalized.find(o => o.value === value)?.label ?? '';
 
   React.useEffect(() => {
@@ -68,7 +73,7 @@ export function SearchableSelect({
   React.useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.isComposing && e.keyCode !== 229) {
         setOpen(false);
         setQuery('');
       }
@@ -78,6 +83,7 @@ export function SearchableSelect({
   }, [open]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === 'Escape' && open) {
       e.preventDefault(); e.stopPropagation(); setOpen(false); setQuery(''); return;
     }
@@ -86,8 +92,9 @@ export function SearchableSelect({
       setActiveIndex(index => filtered.length ? (index + (e.key === 'ArrowDown' ? 1 : -1) + filtered.length) % filtered.length : 0);
     }
     if (e.key === 'Enter' && !open) { e.preventDefault(); setOpen(true); return; }
-    if (e.key === 'Enter' && open && filtered.length > 0) {
+    if (e.key === 'Enter' && open) {
       e.preventDefault();
+      if (!filtered.length) return;
       onChange(filtered[Math.min(activeIndex, filtered.length - 1)].value);
       setOpen(false); setQuery('');
     }
@@ -145,13 +152,13 @@ export function SearchableSelect({
           border-zinc-200 bg-white hover:border-zinc-300
         `.trim()}
       />
-      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+      <div className="pointer-events-none absolute right-0 top-0 flex h-11 items-center pr-2">
         <svg aria-hidden="true" className="h-4 w-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </div>
       {open && filtered.length > 0 && (
-        <div id={listboxId} role="listbox" className="absolute z-50 mt-1 max-h-60 w-full overflow-auto overscroll-contain rounded-lg border border-zinc-200 bg-white p-1 shadow-lg">
+        <div id={listboxId} role="listbox" className={`${listClass} mt-1 max-h-60 w-full overflow-auto overscroll-contain rounded-lg border border-zinc-200 bg-white p-1`}>
           {filtered.map((opt, index) => (
             <button
               type="button"
@@ -164,17 +171,22 @@ export function SearchableSelect({
               }}
               role="option"
               aria-selected={opt.value === value}
+              aria-label={opt.label}
+              aria-describedby={opt.detail || (query && opt.aliases?.length) ? `${listboxId}-detail-${index}` : undefined}
               className={`block w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-blue-50 ${
                 opt.value === value ? 'bg-blue-100 font-medium text-[#003e7e]' : index === activeIndex ? 'bg-blue-50 text-zinc-700' : 'text-zinc-700'
               }`}
             >
               {opt.label}
+              <span id={`${listboxId}-detail-${index}`} className="block break-words text-[var(--cd-color-text-secondary)]">
+                {[opt.detail, query && opt.aliases?.length ? `曾用名：${opt.aliases.join("、")}` : ""].filter(Boolean).join(" · ")}
+              </span>
             </button>
           ))}
         </div>
       )}
       {open && filtered.length === 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-zinc-200 bg-white p-3 text-center text-sm text-zinc-400 shadow-lg">
+        <div className={`${listClass} mt-1 w-full rounded-lg border border-zinc-200 bg-white p-3 text-center text-sm text-zinc-400`}>
           无匹配选项
         </div>
       )}

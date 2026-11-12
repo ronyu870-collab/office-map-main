@@ -122,6 +122,7 @@ const BUILDINGS = [
 
 describe('MapClient render mode synchronization', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     vi.clearAllMocks();
     controller.fetchMapData.mockResolvedValue(BUILDINGS);
     controller.fetchFutureSupplies.mockResolvedValue([]);

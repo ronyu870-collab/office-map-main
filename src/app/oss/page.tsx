@@ -1,5 +1,6 @@
 'use client';
 
+import { BrokerSearchLink } from '@/src/components/BrokerSearchLink';
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -22,7 +23,7 @@ export default function OSSPage() {
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
       <header className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="mx-auto w-full max-w-[1600px]">
-          <AppHeader title="研究资料库" homeHref="/" />
+          <AppHeader leading={<BrokerSearchLink />} title="研究资料库" homeHref="/" />
         </div>
       </header>
 
