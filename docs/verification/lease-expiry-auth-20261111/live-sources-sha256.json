@@ -1,0 +1,12 @@
+{
+  "supabase/migrations/20261111055947_lease_expiry_live_sources.sql": "1e313f0a367b49f3ccb7b8380b45937489b4a3024619d6cb1301639093004ee6",
+  "supabase/tests/lease-expiry/run.mjs": "17ef0f883322ac221b14a2d446f97929c44fa9ff6766698b902367df9030bef7",
+  "src/components/intelligence/LeaseExpiryWorkspace.tsx": "196f8d6bd7a0078fd1ea4ea23840d6c57cfdcafa25916bd68607f00e24b38e7d",
+  "src/components/intelligence/LeaseExpiryWorkspace.test.tsx": "42c75eeebd2dfceee73123b4fc69be932032a5bdc80760ecf0a0141dc0c7accb",
+  "src/lib/leaseExpiry/contracts.ts": "675b073fb39507efccf9326c5b06df59a1a4bc4af8e9285d5324b67c50b16a8b",
+  "src/lib/leaseExpiry/server.ts": "b31942f3191e62e2f3d0f143cadd7b5175a5360e033b4341c5578591e2cfab76",
+  "src/app/api/intelligence/lease-expiry/route.test.ts": "c626d4ecb77223e527402da65dc035a8d004f46d4443d4a02b292c334bfdb56b",
+  "scripts/verification/lease-service-browser.mjs": "d8d5a13474c56266d0a1c2401c90b42295730b8f648d4831c81ff43b84cf8abf",
+  "scripts/verification/verify-lease-expiry-auth.mjs": "5fd0143caae44cf2a66311d74f798cba17b00ce4e14db238e0ea34ec6313d408",
+  "scripts/verification/verify-lease-expiry.mjs": "cceedb219d9a9f0fe80448bb0207d15a503638e8e79d137a4aa0f9639c234c6a"
+}

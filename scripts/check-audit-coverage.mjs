@@ -4,6 +4,7 @@ import { extname, join } from 'node:path';
 const ROOT = process.cwd();
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 const READ_ONLY_RPCS = new Set([
+  'lease_expiry_review_list',
   'get_all_tables',
   'get_table_columns',
   'get_all_memo_tags',

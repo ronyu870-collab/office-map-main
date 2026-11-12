@@ -123,6 +123,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 lease expiry review regressions
+        run: node supabase/tests/lease-expiry/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 building identity rename regressions
         run: npm run test:db:building-renames
         env:
@@ -254,6 +259,7 @@ jobs:
           done
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-ledger-first-open.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs --prefetch-policy http://127.0.0.1:3210
           node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
@@ -280,6 +286,7 @@ jobs:
           node scripts/performance/verify-quarterly-reference.mjs http://127.0.0.1:3210
           node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
+          node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
 
       - name: Retain isolated report verification evidence
         if: always()
@@ -296,5 +303,56 @@ jobs:
         with:
           name: building-photo-verification
           path: verification/building-photos
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retain isolated lease expiry review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lease-expiry-review-verification
+          path: verification/lease-expiry
+          if-no-files-found: ignore
+          retention-days: 7
+
+  lease-expiry-auth:
+    name: Real Auth lease expiry integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start disposable local Auth and Data API stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/f6-auth-integration/supabase"
+          cp supabase/tests/lease-expiry/auth-config.toml "$RUNNER_TEMP/f6-auth-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/f6-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/f6-auth-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/f6-auth-integration" -o json > "$RUNNER_TEMP/f6-auth-status.json"
+          chmod 600 "$RUNNER_TEMP/f6-auth-status.json"
+      - name: Real account, authorization, concurrency and revocation regressions
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/f6-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/f6-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          F6_AUTH_TEST_ALLOW_LOCAL=disposable F6_LOCAL_SUPABASE_STATUS="$RUNNER_TEMP/f6-auth-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/f6-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-lease-expiry-auth.mjs
+      - name: Stop only the disposable F6 stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/f6-auth-integration" --no-backup
+      - name: Retain credential-free integration results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lease-expiry-real-auth
+          path: |
+            verification/lease-expiry-auth/results.json
+            verification/lease-expiry-auth/*.png
           if-no-files-found: ignore
           retention-days: 7

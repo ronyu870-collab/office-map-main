@@ -1,0 +1,8 @@
+{
+  "src/components/intelligence/LeaseExpiryWorkspace.tsx": "469b19505c0b11aaa1a7d86e3b96a5d576d7d5e42333cd738749a89a69970d5a",
+  "src/components/intelligence/LeaseExpiryWorkspace.test.tsx": "7cacb23837edd362dd803b631e6921a9d40bd9ae254f986c87edbd7ed155fba8",
+  "src/components/intelligence/IntelligenceRecommendationWorkspace.tsx": "d2a619fe20e00142ba4ad81303851b1e49c79afb2ce9b3034c067f12ad914d2b",
+  "src/lib/leaseExpiry/contracts.ts": "dd2d618bec77fdc69f793ccdf5698b01d1ffebf8558d6e6a502414feaf9f416e",
+  "scripts/verification/verify-lease-expiry.mjs": "b4cb2ae64484a3b931a459c6e42bacc7cc3fc8b8dad680965f5fed1589eb3a0e",
+  "scripts/verification/verify-lease-expiry-auth.mjs": "b4afd143b7f6d76c16109cdf7d994383c46c4f32a16cc85a8659082478cd91f6"
+}

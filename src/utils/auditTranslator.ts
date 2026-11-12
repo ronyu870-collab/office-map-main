@@ -66,6 +66,8 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   const p = payload ?? {};
 
   switch (action) {
+    case "LEASE_EXPIRY_REVIEW_SAVE":
+      return "保存了租约线索核实草稿（未确认到期日）";
     case "PROJECT_MATERIAL_LIBRARY_IMPORT":
       return `处理了历史资料提取批次${p.planned_rows != null ? `（${p.planned_rows} 份来源）` : ""}`;
     case "PROJECT_MATERIAL_PAGE_IMPORT":
@@ -355,6 +357,7 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   SALES_MATERIAL_ACCESS: { variant: "blue", label: "查看资料", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   SALES_MATERIAL_IMPORT: { variant: "orange", label: "资料导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   BUILDING_PHOTO_ACCESS: { variant: "blue", label: "查看图片", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  LEASE_EXPIRY_REVIEW_SAVE: { variant: "blue", label: "线索核实", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   BUILDING_PHOTO_IMPORT: { variant: "orange", label: "图片导入", className: "bg-orange-50 text-orange-700 ring-orange-100" },
   // 导航 → 靛蓝
   ENTER_MODULE: { variant: "blue",    label: "进入板块", className: "bg-indigo-50 text-indigo-700 ring-indigo-100" },

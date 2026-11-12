@@ -231,10 +231,10 @@ export function IntelligenceRecommendationWorkspace() {
   if (!isIntelligencePreviewEnabled(session.role)) return <PreviewUnavailable />;
   const draftScope = getProposalDraftScope(session);
   const key = draftScope ?? JSON.stringify([session.session.user.id, session.user.id, session.role]);
-  return <RecommendationForm key={key} accessToken={session.session.access_token} draftScope={draftScope} />;
+  return <RecommendationForm key={key} accessToken={session.session.access_token} draftScope={draftScope} canOpenLeaseExpiry={session.role === 'admin'} />;
 }
 
-function RecommendationForm({ accessToken, draftScope }: { accessToken: string; draftScope: ProposalDraftScope | null }) {
+function RecommendationForm({ accessToken, draftScope, canOpenLeaseExpiry }: { accessToken: string; draftScope: ProposalDraftScope | null; canOpenLeaseExpiry: boolean }) {
   const router = useRouter();
   const [requirement, setRequirement] = React.useState('');
   const [submittedRequirement, setSubmittedRequirement] = React.useState('');
@@ -345,6 +345,8 @@ function RecommendationForm({ accessToken, draftScope }: { accessToken: string; 
     >
       <main className="h-full overflow-y-auto overscroll-contain pb-8">
         <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
+          {/* A document boundary lets beforeunload protect browser back from the optional editor. */}
+          {canOpenLeaseExpiry ? <a href="/intelligence/lease-expiry" className="mb-4 inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline">预计到期线索（管理员试点）</a> : null}
           <section className="mb-5">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-[var(--cd-color-brand)]" aria-hidden="true" />

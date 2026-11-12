@@ -174,11 +174,17 @@ async function verifyBrowser(origin, path) {
         page.setDefaultTimeout(8500);
         await page.goto(origin + '/intelligence', { waitUntil: 'domcontentloaded' });
         const input = page.locator('textarea');
+        const leaseExpiry = page.getByRole('link', { name: '预计到期线索（管理员试点）' });
         if (id === viewer) {
           await page.getByText('业务智能正在内部验证').waitFor();
+          assert.equal(await leaseExpiry.count(), 0, 'viewers never see the F6 pilot entry');
           assert.equal(await input.count() + first.models.length + first.buildings.length + first.catalogs.length, 0);
           observations.push({ width, role, protectedReads: 0 });
           continue;
+        }
+        if (process.env.PERF_EXPECT_F6_ENTRY === '1' || !baseline) {
+          await leaseExpiry.waitFor();
+          assert.equal(await leaseExpiry.getAttribute('href'), '/intelligence/lease-expiry');
         }
         await input.fill(text);
         assert.equal(first.models.length + first.buildings.length + first.catalogs.length, 0, 'editing alone never starts the recommendation');
