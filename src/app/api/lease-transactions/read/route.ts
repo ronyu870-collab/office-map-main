@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { resolveLeaseReadAccess, type LeaseReadAccess } from './access';
 import { readLeaseCompany } from './companyLookup';
-import { asCompanyForAssessment, assessLeaseCompany, getCompanyAssessmentConfig } from './companyAi';
+import { asCompanyForAssessment, assessLeaseCompany, escapeLeaseCompanyRegex, getCompanyAssessmentConfig } from './companyAi';
 import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
@@ -128,6 +128,10 @@ export async function GET(req: NextRequest) {
       );
 
     const company = params.get('company')?.trim();
+    const companyExact = params.get('company_exact')?.trim();
+    if (companyExact && (companyExact.length > 200 || /[\x00-\x1f\x7f]/.test(companyExact))) {
+      return NextResponse.json({ error: '无效的企业名称' }, { status: 400 });
+    }
     const building = params.get('building')?.trim();
     const subMarket = params.get('sub_market')?.trim();
     const industry = params.get('industry')?.trim();
@@ -149,7 +153,8 @@ export async function GET(req: NextRequest) {
       }
     }
     if (liveRecordId) query = query.eq('source_record_id', liveRecordId);
-    if (company) query = query.ilike('company', `%${company}%`);
+    if (companyExact) query = query.regexIMatch('company', `^[[:space:]]*${escapeLeaseCompanyRegex(companyExact)}[[:space:]]*$`);
+    else if (company) query = query.ilike('company', `%${company}%`);
     if (building) query = query.ilike('new_building', `%${building}%`);
     if (subMarket) query = query.eq('sub_market', subMarket);
     if (industry) query = query.eq('industry', industry);

@@ -21,15 +21,17 @@ function intersects(a: DOMRect, b: DOMRect): boolean {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }
 
-function workbenchBlockers(container: HTMLElement): DOMRect[] {
+type WorkbenchBlocker = { rect: DOMRect; reservesBottom?: boolean };
+
+function workbenchBlockers(container: HTMLElement): WorkbenchBlocker[] {
   const main = container.parentElement;
   if (!main) return [];
   const mainRect = main.getBoundingClientRect();
-  const result: DOMRect[] = [];
+  const result: WorkbenchBlocker[] = [];
 
   const header = main.previousElementSibling;
   if (header instanceof HTMLElement && isVisible(header)) {
-    result.push(header.getBoundingClientRect());
+    result.push({ rect: header.getBoundingClientRect() });
   }
 
   for (const child of Array.from(main.children)) {
@@ -45,7 +47,10 @@ function workbenchBlockers(container: HTMLElement): DOMRect[] {
     const nearBottom = rect.bottom >= mainRect.bottom - 140;
     const nearLeft = rect.left <= mainRect.left + 400;
     const nearRight = rect.right >= mainRect.right - 400;
-    if (nearTop || nearBottom || nearLeft || nearRight) result.push(rect);
+    const reservesBottom = child.hasAttribute('data-map-popup-bottom-control');
+    if (reservesBottom || nearTop || nearBottom || nearLeft || nearRight) {
+      result.push({ rect, reservesBottom });
+    }
   }
 
   return result;
@@ -78,7 +83,7 @@ export function computeInfoWindowPan(container: HTMLElement, infoRect: DOMRect):
   if (infoRect.top < viewport.top + margin) y += viewport.top + margin - infoRect.top;
   if (infoRect.bottom > viewport.bottom - margin) y -= infoRect.bottom - (viewport.bottom - margin);
 
-  for (const blocker of workbenchBlockers(container)) {
+  for (const { rect: blocker } of workbenchBlockers(container)) {
     const current = shiftedRect(infoRect, x, y);
     if (!intersects(current, blocker)) continue;
 
@@ -116,16 +121,16 @@ export function computeInfoWindowPan(container: HTMLElement, infoRect: DOMRect):
   };
 }
 
-export function computeBuildingPopupPlacement(viewport: DOMRect, popup: DOMRect, blockers: DOMRect[]) {
+export function computeBuildingPopupPlacement(viewport: DOMRect, popup: DOMRect, blockers: WorkbenchBlocker[]) {
   const margin = 12;
   const left = Math.max(viewport.left + margin, Math.min(popup.left, viewport.right - popup.width - margin));
   let top = viewport.top + margin;
   let bottom = viewport.bottom - margin;
-  for (const blocker of blockers) {
+  for (const { rect: blocker, reservesBottom } of blockers) {
     if (blocker.right <= left || blocker.left >= left + popup.width) continue;
     if (blocker.top < viewport.top + 100 && blocker.bottom > viewport.top) {
       top = Math.max(top, blocker.bottom + margin);
-    } else if (blocker.bottom >= viewport.bottom - 40 && blocker.top >= viewport.top + 120) {
+    } else if (reservesBottom || (blocker.bottom >= viewport.bottom - 40 && blocker.top >= viewport.top + 120)) {
       bottom = Math.min(bottom, blocker.top - margin);
     }
   }

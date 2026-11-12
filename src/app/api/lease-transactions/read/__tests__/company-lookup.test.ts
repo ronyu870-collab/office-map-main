@@ -19,6 +19,7 @@ const rows = [
   { company: '演示企业', suspected_company_fullname: '演示实业有限公司', record_source: 'live', read_id: 'live:demo', transaction_period_start: '2026-07-01' },
   { company: '归档专属', record_source: 'history', read_id: 'history:private', transaction_period_start: '2025-01-01' },
   { company: '日期未填', record_source: 'live', read_id: 'live:unknown', transaction_period_start: null },
+  { company: '演示集团有限责任公司', record_source: 'live', read_id: 'live:similar', transaction_period_start: '2026-06-01' },
   { company: '样本证券股份有限公司', record_source: 'live', read_id: 'live:securities', transaction_period_start: '2026-06-01' },
   { company: '样本银行股份有限公司', record_source: 'live', read_id: 'live:bank', transaction_period_start: '2026-08-01' },
   { company: '样本投资有限公司', record_source: 'history', read_id: 'history:investment', transaction_period_start: '2026-07-01' },
@@ -44,7 +45,7 @@ const postgrest = vi.fn(async (input: RequestInfo | URL) => {
     .sort((a, b) => params.get('order')?.startsWith('transaction_period_start.desc')
       ? String(b.transaction_period_start).localeCompare(String(a.transaction_period_start))
       : a.company.localeCompare(b.company))
-    .slice(0, Number(params.get('limit')))
+    .slice(0, params.has('limit') ? Number(params.get('limit')) : undefined)
     .map((row) => Object.fromEntries(Object.entries(row).filter(([field]) => fields.includes(field))));
   return Response.json(data);
 });
@@ -183,6 +184,26 @@ describe('company lookup on the authorized lease read route', () => {
     });
     expect(await read('recent', '演示实业有限公司')).toEqual({ records: [] });
     expect(await read('suggestions', '日期未填')).toEqual({ suggestions: [{ company: '日期未填' }], hasRecentDeals: false });
+  });
+
+  it('offers similar names as a clue and does not include them in an exact history lookup', async () => {
+    setRole('editor');
+    expect(await read('suggestions', '演示集团有限公司')).toEqual({
+      suggestions: [{ company: '演示集团有限责任公司', nameSimilarity: true }],
+      hasRecentDeals: false,
+    });
+    const getHistory = (company: string, extra: Record<string, string> = {}) => GET(new NextRequest(
+      `https://synthetic.invalid/api/lease-transactions/read?${new URLSearchParams({ company_exact: company, include_count: '0', ...extra })}`,
+    ));
+    const sameName = await getHistory(name);
+    expect(sameName.status).toBe(200);
+    expect((await sameName.json()).records.map((row: { read_id: string }) => row.read_id)).toEqual(
+      Array.from({ length: 7 }, (_, index) => `live:${index + 1}`),
+    );
+    expect((await (await getHistory('演示集团有限公司')).json()).records).toEqual([]);
+    expect((await getHistory(name, { record_source: 'history' })).status).toBe(403);
+    setRole('admin');
+    expect((await (await getHistory(name, { record_source: 'history' })).json()).records[0].read_id).toBe('history:1');
   });
 
   it('returns up to five dated exact matches, newest first, with literal punctuation and minimal fields', async () => {

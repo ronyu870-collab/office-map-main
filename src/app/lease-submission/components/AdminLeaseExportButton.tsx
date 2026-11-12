@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Check, Download, Loader2 } from 'lucide-react';
 
+import { ExportReview } from '@/src/components/ExportReview';
 import { Button } from '@/src/components/ui/Button';
 import { getSessionFast } from '@/src/services/Auth';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
@@ -18,6 +19,7 @@ import {
 type ExportState = 'idle' | 'loading' | 'success' | 'error';
 
 export function AdminLeaseExportButton() {
+  const [review, setReview] = React.useState(false);
   const [state, setState] = React.useState<ExportState>('idle');
   const [error, setError] = React.useState('');
   const resetTimer = React.useRef<number | null>(null);
@@ -56,6 +58,7 @@ export function AdminLeaseExportButton() {
       if (!response.ok) throw new Error(body.error || '导出失败');
 
       const records = Array.isArray(body.records) ? body.records : [];
+      if (!Number.isSafeInteger(body.count) || body.count !== records.length) throw new Error('返回数量与导出范围不一致，文件未生成。');
       const XLSX = await import('xlsx');
       const rows = buildLeaseExportRows(records);
       const worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -74,6 +77,7 @@ export function AdminLeaseExportButton() {
         file_name: filename,
         target_name: filename,
       });
+      setReview(false);
       setState('success');
       scheduleReset();
     } catch (cause) {
@@ -85,10 +89,15 @@ export function AdminLeaseExportButton() {
 
   return (
     <div className="min-w-0 max-w-44">
+      {review && <ExportReview title="核对成交导出"
+        scope="全部系统成交（管理员），不受当前列表的筛选或分页影响。"
+        contents="Excel 包含原始字段、数值精度和筛选表头。导出前核对返回记录数量。"
+        confirmLabel="下载 Excel" busy={state === 'loading'} error={error} onClose={() => setReview(false)} onConfirm={() => { void exportAll(); }} />}
+
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => { void exportAll(); }}
+        onClick={() => { setState('idle'); setError(''); setReview(true); }}
         disabled={state === 'loading'}
         aria-busy={state === 'loading'}
         data-state={state}

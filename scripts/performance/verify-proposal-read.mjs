@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { installSyntheticMap } from './fixtures/map-adapter.mjs';
@@ -21,12 +22,16 @@ function createSession(account, loginId = account.id, revision = 1) {
 const session = createSession(user);
 const secondSession = createSession(secondUser);
 const token = session.access_token;
-const projects = [{ id: 'alpha', name: '合成甲楼' }, { id: 'beta', name: '合成乙楼' }];
+const projects = [
+  { id: 'alpha', name: '合成甲楼' }, { id: 'beta', name: '合成乙楼' },
+  { id: 'gamma', name: '合成中心东座', former_names: ['合成旧楼东座'] },
+  { id: 'delta', name: '合成丁楼' }, { id: 'epsilon', name: '合成戊楼' },
+];
 const draft = { version: 1, clientName: '', requirementFingerprint: 'fixture', updatedAt: '2026-11-10T00:00:00Z',
   requirement: { parsed: { city: '北京', locations: [], area: { minSqm: null, maxSqm: null }, rent: { minDailyRmbSqm: null, maxDailyRmbSqm: null, basis: 'unspecified' },
     moveInMonth: null, grades: [], metro: { preferred: false, maxDistanceMeters: null }, greenCertifications: [], otherPreferences: [], unresolved: [] },
     capabilities: [], appliedCapabilities: [], evaluationCapabilities: [] },
-  items: projects.map(({ id, name }) => ({ buildingId: id, buildingName: name, addedAt: '2026-11-10' })),
+  items: projects.slice(0, 2).map(({ id, name }) => ({ buildingId: id, buildingName: name, addedAt: '2026-11-10' })),
 };
 const observations = [];
 
@@ -65,6 +70,10 @@ try {
           return route.fulfill({ headers, json: [{ role: 'admin', user_id: id, session_id: id }] });
         }
         if (!facts.includes(table)) return route.fulfill({ headers, json: [] });
+        if (table === 'buildings' && !url.searchParams.has('id')) {
+          const offset = Number(url.searchParams.get('offset') ?? 0);
+          return route.fulfill({ headers, json: offset ? [] : projects.map(row => ({ ...row, district: '朝阳区', submarket: 'CBD', grade: 'A' })) });
+        }
         const ids = url.searchParams.get(table === 'buildings' ? 'id' : 'building_id')?.slice(4, -1).split(',') ?? [];
         requests.push({ table, ids, scoped: req.headers().authorization === `Bearer ${token}`, secondAccount: req.headers().authorization === `Bearer ${secondSession.access_token}` });
         const selected = projects.filter(row => ids.includes(row.id));
@@ -103,13 +112,56 @@ try {
       const extraFromMetadataAndOrder = requests.length - 3;
       assert.equal(extraFromMetadataAndOrder, baseline ? 6 : 0);
       await page.getByRole('button', { name: '打印 / 导出 PDF' }).click();
-      assert.equal(await page.locator('html').getAttribute('data-fixture-printed'), 'true');
+      if (!baseline && !identityBaseline) {
+        const review = page.getByRole('dialog', { name: '核对打印 / PDF' });
+        await review.getByText(/合成客户 · 2 个候选.*合成乙楼、合成甲楼/).waitFor();
+        assert.equal(await page.locator('html').getAttribute('data-fixture-printed'), null);
+        await review.getByRole('button', { name: '打开打印预览' }).click();
+        await page.waitForFunction(() => document.documentElement.dataset.fixturePrinted === 'true');
+        const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+        assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+        assert.ok(pdf.length > 1000);
+        if (process.env.PERF_PROPOSAL_SCREENSHOT_DIR) await writeFile(join(process.env.PERF_PROPOSAL_SCREENSHOT_DIR, `proposal-output-${width}.pdf`), pdf);
+      } else {
+        assert.equal(await page.locator('html').getAttribute('data-fixture-printed'), 'true');
+      }
       await articles.first().getByRole('button', { name: '移除' }).click();
       await page.getByRole('heading', { name: '合成甲楼' }).waitFor();
       assert.equal(await page.getByRole('heading', { name: '合成乙楼' }).count(), 0);
       assert.equal(requests.length, baseline ? 12 : 6);
       assert.ok(requests.slice(-3).every(read => read.ids.length === 1 && read.ids[0] === 'alpha'));
       assert.ok(requests.every(read => read.scoped));
+      let paginationPages;
+      if (!baseline && !identityBaseline) {
+        const add = async (query, buildingName) => {
+          await page.getByRole('button', { name: '添加候选楼宇' }).click();
+          const picker = page.getByRole('dialog', { name: '添加候选楼宇' });
+          await picker.getByRole('combobox').fill(query);
+          await picker.getByRole('option', { name: buildingName }).click();
+          await picker.getByText(`已选：${buildingName}`, { exact: false }).waitFor();
+          await picker.getByRole('button', { name: '添加到方案' }).click();
+          await page.getByRole('heading', { name: buildingName }).waitFor();
+        };
+        await add('合成旧楼', '合成中心东座');
+        if (width === 1280) {
+          for (const { name: buildingName } of [projects[1], ...projects.slice(3)]) await add(buildingName, buildingName);
+          await page.evaluate(() => { delete document.documentElement.dataset.fixturePrinted; });
+          await page.getByRole('button', { name: '打印 / 导出 PDF' }).click();
+          const review = page.getByRole('dialog', { name: '核对打印 / PDF' });
+          await review.getByText(/5 个候选/).waitFor();
+          await review.getByRole('button', { name: '打开打印预览' }).click();
+          await page.waitForFunction(() => document.documentElement.dataset.fixturePrinted === 'true');
+          const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+          paginationPages = (pdf.toString('latin1').match(/\/Type\s*\/Page\b/g) ?? []).length;
+          assert.ok(paginationPages > 1, 'a five-candidate proposal must paginate');
+          if (process.env.PERF_PROPOSAL_SCREENSHOT_DIR) await writeFile(join(process.env.PERF_PROPOSAL_SCREENSHOT_DIR, 'proposal-multipage.pdf'), pdf);
+          for (const { name: buildingName } of [projects[1], ...projects.slice(3)]) {
+            await articles.filter({ has: page.getByRole('heading', { name: buildingName }) }).getByRole('button', { name: '移除' }).click();
+          }
+        }
+        await articles.filter({ hasText: '合成中心东座' }).getByRole('button', { name: '移除' }).click();
+        await page.getByRole('heading', { name: '合成甲楼' }).waitFor();
+      }
       let accountSwitch;
       let mapHandoff;
       if (!baseline) {
@@ -169,7 +221,7 @@ try {
         }
         accountSwitch = { previousClientVisible: identityBaseline, previousCandidateReads: requests.filter(read => read.secondAccount).length };
       }
-      observations.push({ width, initialReads: 3, extraFromMetadataAndOrder, selectedSetReads: 3, printAction: 'pass', mapHandoff, accountSwitch });
+      observations.push({ width, initialReads: 3, extraFromMetadataAndOrder, selectedSetReads: 3, printAction: 'pass', paginationPages, mapHandoff, accountSwitch });
     } finally { await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', baseline, identityBaseline, browser: await browser.version(), environment: 'local production build with isolated data and SDK', observations }));

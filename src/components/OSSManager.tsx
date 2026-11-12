@@ -149,8 +149,19 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [moreError, setMoreError] = React.useState('');
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
-  const [query, setQuery] = React.useState('');
-  const [typeFilter, setTypeFilter] = React.useState<LibraryTypeFilter>('all');
+  const filterPreference = `broker-library:v1:${JSON.stringify([userId, role, targetUserId])}`;
+  const [savedFilter] = React.useState(() => {
+    try { return JSON.parse(window.sessionStorage.getItem(filterPreference) ?? '{}') as { query?: unknown; type?: unknown }; }
+    catch { return {}; }
+  });
+  const [query, setQuery] = React.useState(() => typeof savedFilter?.query === 'string' ? savedFilter.query.slice(0, 200) : '');
+  const [typeFilter, setTypeFilter] = React.useState<LibraryTypeFilter>(() =>
+    typeof savedFilter?.type === 'string' && ['all', 'folder', 'pdf', 'presentation', 'document', 'spreadsheet', 'other'].includes(savedFilter.type) ? savedFilter.type as LibraryTypeFilter : 'all');
+  React.useEffect(() => {
+    if (currentPrefix) return;
+    try { window.sessionStorage.setItem(filterPreference, JSON.stringify({ query: query.slice(0, 200), type: typeFilter })); }
+    catch { /* Users can still filter without browser storage. */ }
+  }, [currentPrefix, filterPreference, query, typeFilter]);
   const [sort, setSort] = React.useState<LibrarySort>('modified-desc');
   const [notice, setNotice] = React.useState<Notice>(null);
   const [uploads, setUploads] = React.useState<UploadEntry[]>([]);

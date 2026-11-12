@@ -4,6 +4,7 @@ import type { BuildingRow } from '@/src/services/apiClient';
 
 interface UseBuildingsOptions {
   ownerUser?: string;
+  scope?: string;
   requirePosition?: boolean;
   revalidateOnMount?: boolean;
 }
@@ -54,8 +55,8 @@ export function useBuildings(options?: UseBuildingsOptions): UseBuildingsReturn 
   // 构建缓存键：根据参数生成唯一的缓存标识
   const requirePosition = options?.requirePosition ?? false;
   const cacheKey = options?.ownerUser 
-    ? ['buildings', options.ownerUser, requirePosition]
-    : ['buildings', 'all', requirePosition];
+    ? ['buildings', options.ownerUser, requirePosition, options.scope]
+    : ['buildings', 'all', requirePosition, options?.scope];
 
   console.log('🚨 [useBuildings] Hook 初始化');
   console.log('   - cacheKey:', cacheKey);

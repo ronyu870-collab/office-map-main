@@ -44,12 +44,12 @@ function SharedTiming({entry, availability, onViewOriginal}:{entry:Entry;availab
   </div>) : <SalesMaterialTiming material={entry.material} provenance={entry.access.provenance} onViewOriginal={onViewOriginal}/>}</>;
 }
 
-export default function SalesMaterialsPanel({ buildingId, buildingName, onClose, reader = salesMaterialReader }: {
-  buildingId:string;buildingName:string;onClose:()=>void;reader?:SalesMaterialReader;
+export default function SalesMaterialsPanel({ buildingId, buildingName, initialCategory, onClose, reader = salesMaterialReader }: {
+  buildingId:string;buildingName:string;initialCategory?:MaterialCategory;onClose:()=>void;reader?:SalesMaterialReader;
 }) {
   const [reload,setReload]=useState(0);
   const [catalog,setCatalog]=useState<{key:string;records:SalesMaterial[];error:string}|null>(null);
-  const [requested,setRequested]=useState<MaterialCategory|null>(null);
+  const [requested,setRequested]=useState<MaterialCategory|null>(initialCategory ?? null);
   const [historyId,setHistoryId]=useState('');
   const [original,setOriginal]=useState<{id:string;page?:number}|null>(null);
   const [timingOpen,setTimingOpen]=useState(false);
@@ -112,7 +112,7 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, onClose,
         {first && (original || first.access.preview_url) ? <button type="button" className={styles.originalButton} onClick={()=>original?setOriginal(null):showOriginal(first.material,originalPage)}>{original?<ArrowLeft size={14}/>:<FileImage size={14}/>} {original?backLabel:'查看原件'}</button> : null}
       </div>
       {timingOpen && !original ? <div id={timingId} className={styles.sharedTiming} aria-label="资料时间依据">{entries.map(entry=><SharedTiming key={entry.material.id} entry={entry} availability={category==='availability'} onViewOriginal={entry.access.preview_url ? ()=>showOriginal(entry.material) : undefined}/>)}</div> : null}
-      {manyTypes && !original ? <nav className={styles.tabs} aria-label="楼宇资料类型">{tabs.filter(tab=>tab.key!=='brochure'||records.some(record=>materialCategories(record).includes('brochure'))).map(tab=><button key={tab.key} type="button" aria-pressed={category===tab.key} onClick={()=>{setRequested(tab.key);setHistoryId('');setTimingOpen(false);}}>{tab.label}</button>)}</nav> : null}
+      {manyTypes && !original ? <nav className={styles.tabs} aria-label="楼宇资料类型">{tabs.filter(tab=>tab.key===category||tab.key!=='brochure'||records.some(record=>materialCategories(record).includes('brochure'))).map(tab=><button key={tab.key} type="button" aria-pressed={category===tab.key} onClick={()=>{setRequested(tab.key);setHistoryId('');setTimingOpen(false);}}>{tab.label}</button>)}</nav> : null}
       {(original?records:categoryRecords).length>1 ? <div className={styles.versionRow}>
         <select aria-label="资料版本" value={original?.id || historyId} onChange={event=>{if(original)setOriginal({id:event.target.value});else setHistoryId(event.target.value);}}>
           {!original ? <option value="">最新与历史资料</option> : null}
@@ -121,7 +121,7 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, onClose,
       </div> : null}
       {error ? <div role="alert" className={styles.empty}>{error}<Button variant="ghost" size="sm" onClick={()=>{setReload(value=>value+1);setRefresh(value=>value+1);}}>重试</Button></div>
         : loading ? <p role="status" className={styles.empty}>加载中…</p>
-        : !records.length ? <p className={styles.empty}>暂无销控资料</p>
+        : !records.length ? <p className={styles.empty}>{requested==='brochure'?'暂无项目资料':'暂无销控资料'}</p>
         : !entries.length ? <p className={styles.empty}>{category==='commission'?'暂无佣金政策':category==='brochure'?'暂无项目资料':'暂无房源资料'}</p>
         : original && first ? <SalesMaterialViewer key={`${first.material.id}:${original.page || 1}`} material={first.material} access={original.page && first.material.mime_type==='application/pdf' && first.access.preview_url?{...first.access,preview_url:`${first.access.preview_url}#page=${original.page}`} : first.access} onRetry={()=>setRefresh(value=>value+1)}/>
         : entries.map(entry=><section key={entry.material.id} className={styles.materialSection} aria-label={entry.material.scope_label || entry.material.title}>

@@ -2522,10 +2522,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             <button type="button" class="building-popup__action" data-map-action="nearby-compare" data-popup-action="nearby">周边项目对比</button>
             <button type="button" class="building-popup__action" data-map-action="building-compare">楼宇对比</button>
             <button type="button" class="building-popup__action" data-map-action="related-leases">关联成交</button>
-            <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">趋势追踪</button>
+            <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">季度趋势</button>
             <button type="button" class="building-popup__action" data-map-action="contact" data-popup-action="contact">联系方式</button>
             <button type="button" class="building-popup__action" data-map-action="building-sales-control"
-              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}">项目资料与佣金</button>
+              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}" data-category="availability">销控与佣金</button>
+            <button type="button" class="building-popup__action" data-map-action="building-sales-control"
+              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}" data-category="brochure">楼书与资料</button>
           </div>
           <div class="building-popup__proposal" data-map-proposal-slot hidden></div>
           <div id="info-chart-panel" class="building-popup__trend" style="display:none">

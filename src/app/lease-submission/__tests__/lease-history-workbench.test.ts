@@ -35,8 +35,8 @@ describe('lease history workbench presentation contract', () => {
 
   it('keeps row detail pivots while removing the duplicate floating back action on the database route', () => {
     expect(source).toContain('成交详情');
-    expect(source).toContain('同公司成交');
-    expect(source).toContain('同楼宇成交');
+    expect(source).toContain('查看同名企业成交');
+    expect(source).toContain('查看楼宇成交');
     expect(layoutSource).toContain('if (inDatabase) return <>{children}</>;');
     expect(layoutSource).toContain('href="/lease-submission/history"');
   });

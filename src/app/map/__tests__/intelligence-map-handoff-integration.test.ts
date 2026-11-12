@@ -24,7 +24,7 @@ describe('Intelligence → Map handoff contract', () => {
 
   it('seeds the existing filter engine and performs only one initial candidate fit for Intelligence entry', () => {
     const mapClient = source('src/app/map/MapClient.tsx');
-    expect(mapClient).toContain('initialIntelligenceHandoff?.filterState ?? null');
+    expect(mapClient).toContain('initialIntelligenceHandoff?.filterState ?? savedPreferences?.filters ?? null');
     expect(mapClient).toContain("type: 'patch'");
     expect(mapClient).toContain('intelligenceAutoFitDoneRef');
     expect(mapClient).toContain('intelligenceCandidatesResolved');

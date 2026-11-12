@@ -30,6 +30,8 @@ export interface BuildingRow {
   id: string;
 
   name: string;
+  former_names?: string[];
+  address?: string | null;
   district: string | null;
   submarket: string | null; // 🔥 子市场字段
   sort_order: number;
@@ -101,7 +103,7 @@ export async function getBuildings(params?: {
   // 🚨 修复：使用数据库实际的字段名（移除 total_area，该字段不存在）
   const select =
     params?.select ??
-    "id,name,district,submarket,completion_year,grade,leed_certification,location_lng,location_lat,owner,property_management,sort_order,leasable_area";
+    "id,name,former_names,district,submarket,completion_year,grade,leed_certification,location_lng,location_lat,owner,property_management,sort_order,leasable_area";
 
   console.log("🚨 [getBuildings] 开始执行, select:", select);
 
@@ -121,6 +123,8 @@ export async function getBuildings(params?: {
   const result = data.map((b: any) => ({
     id: b.id,
     name: b.name,
+    former_names: Array.isArray(b.former_names) ? b.former_names.filter((name: unknown): name is string => typeof name === "string") : [],
+    address: b.address ?? null,
     district: b.district,
     submarket: b.submarket, // 🔥 新增：映射 submarket 字段
     sort_order: b.sort_order ?? 0,

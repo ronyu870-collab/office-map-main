@@ -1,5 +1,8 @@
 'use client';
 
+import './proposalPrint.css';
+import { ProposalBuildingPicker } from './ProposalBuildingPicker';
+import { ExportReview } from '@/src/components/ExportReview';
 import * as React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -114,6 +117,8 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
   const [draft, setDraft] = React.useState<ProposalDraft | null>(null);
   const [draftReady, setDraftReady] = React.useState(false);
   const [clientName, setClientName] = React.useState('');
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [printReview, setPrintReview] = React.useState(false);
   const [read, setRead] = React.useState<CandidateRead | null>(null);
 
   React.useEffect(() => {
@@ -235,7 +240,7 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
 
   return (
     <WorkspaceShell
-      className="min-h-screen bg-[var(--cd-color-canvas)] print:bg-white"
+      className="proposal-print min-h-screen bg-[var(--cd-color-canvas)] print:bg-white"
       header={<div className="print:hidden"><AppHeader title="客户方案" homeHref="/intelligence" status={<Badge tone="brand">候选方案</Badge>} /></div>}
     >
       <main className="mx-auto w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
@@ -247,7 +252,20 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
             <h1 className="mt-2 text-xl font-semibold text-slate-900">客户候选方案</h1>
             <p className="mt-1 text-sm text-slate-500">系统先生成候选项目，业务人员审核候选和顺序后输出。匹配评分只使用现有可验证字段；未接入的实时销控信息不会参与自动判断。</p>
           </div>
-          <Button type="button" variant="secondary" onClick={() => {
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => setPickerOpen(true)}>添加候选楼宇</Button>
+            <Button type="button" variant="secondary" onClick={() => setPrintReview(true)} disabled={loading || scored.length === 0 || scored.length !== selectedCount || Boolean(error)}>
+              <FileDown size={14} aria-hidden="true" /> 打印 / 导出 PDF
+            </Button>
+          </div>
+        </div>
+
+        {pickerOpen && <ProposalBuildingPicker scope={scope} onClose={() => setPickerOpen(false)} />}
+        {printReview && <ExportReview title="核对打印 / PDF"
+          scope={`${clientName || '未填写客户'} · ${scored.length} 个候选，按当前顺序：${scored.map(item => item.candidate.name).join('、')}`}
+          contents="包含需求、楼宇指标及数据期、单位、核验限制和来源。打开浏览器预览后可打印或另存 PDF；每个候选优先整页呈现。"
+          confirmLabel="打开打印预览" onClose={() => setPrintReview(false)} onConfirm={() => {
+            if (loading || !scored.length || scored.length !== selectedCount || error) return;
             logAction(session.user?.email, 'EXPORT_REPORT', {
               report_name: clientName ? `客户候选方案 · ${clientName}` : '客户候选方案',
               report_type: 'intelligence_proposal',
@@ -255,11 +273,9 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
               export_method: 'browser_print_pdf',
               target_name: clientName ? `客户候选方案 · ${clientName}` : '客户候选方案',
             });
-            window.print();
-          }} disabled={loading || scored.length === 0 || Boolean(error)}>
-            <FileDown size={14} aria-hidden="true" /> 打印 / 导出 PDF
-          </Button>
-        </div>
+            setPrintReview(false);
+            window.setTimeout(() => window.print(), 0);
+          }} />}
 
         <section className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-5 print:border-0 print:p-0">
           <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5">
@@ -328,7 +344,7 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
               {scored.map(({ candidate, score }, index) => {
                 const displayRent = useAskingRent ? candidate.metrics.asking_rent : candidate.metrics.net_effective_rent;
                 return (
-                  <article key={candidate.id} className="py-5 first:pt-5 print:break-inside-avoid">
+                  <article key={candidate.id} className="py-5 first:pt-5 print:break-inside-avoid print:break-words">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">

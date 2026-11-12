@@ -330,5 +330,25 @@
     "cases": [
       "keeps Chinese search focus and caret through filter results and clears the query"
     ]
+  },
+  {
+    "id": "broker-unified-search-focus",
+    "roots": [
+      "src/app/search/page.tsx"
+    ],
+    "file": "src/app/search/search.focus.test.tsx",
+    "cases": [
+      "keeps unified search focus and caret across loading, results, and Chinese composition"
+    ]
+  },
+  {
+    "id": "proposal-alias-picker-focus",
+    "roots": [
+      "src/components/intelligence/ProposalBuildingPicker.tsx"
+    ],
+    "file": "src/components/intelligence/ProposalBuildingPicker.focus.test.tsx",
+    "cases": [
+      "keeps the alias picker editable across matches and confirms the selected tower ID"
+    ]
   }
 ]

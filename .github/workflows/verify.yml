@@ -275,6 +275,7 @@ jobs:
           node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-workspace-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-history-count.mjs http://127.0.0.1:3210
+          node scripts/verification/verify-broker-workflows.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-team-monitor.mjs http://127.0.0.1:3210
           node scripts/performance/verify-feedback-thread.mjs http://127.0.0.1:3210
           node scripts/performance/verify-admin-operator.mjs http://127.0.0.1:3210

@@ -1,5 +1,6 @@
 'use client';
 
+import { BrokerSearchLink } from '@/src/components/BrokerSearchLink';
 import * as React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -417,6 +418,7 @@ export function HomeWorkspace() {
       <div className="h-full overflow-y-auto overscroll-contain">
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
           <section className="min-w-0" aria-labelledby={canStartMap ? 'home-heading' : undefined}>
+            {activeSession && <div className="mb-2"><BrokerSearchLink /></div>}
             <div className={`grid gap-3 ${canSeeIntelligence || !canStartMap ? 'sm:grid-cols-2' : ''}`}>
               {canStartMap ? <HomeIntentLink
                 href={MAP_WORKSPACE.href}
