@@ -1,0 +1,11 @@
+{
+  "baseline": "a39750f3cae8ec1d818de4dd2f1ea50a99796de9",
+  "files": {
+    "src/components/home/HomeWorkspace.tsx": "2ca00440692e18700082fd443ae3df6efba69a0b03b3f4e15669ac84515f4dae",
+    "src/components/home/HomeWorkspace.module.css": "fb90f2d584f697ca85ada8944fc6f0d6a522e5905b01996caa78c68f042074fb",
+    "src/components/home/HomeTeamActivity.tsx": "9dd8de1409be6c9748a457f92bf9622539899519fb00f19063ba5d1e8f4d8497",
+    "src/components/NoticeBanner.tsx": "d2cd70ffcf565b157be0e9007a53955b875522c5c6d32e9d33bb8d7a481c63db",
+    "src/components/CommunicationBoard.tsx": "5897fdcf56993b65d58f8df61ff07e1e33fa4cbc313978c70addde7e6786ac0b",
+    "scripts/verification/home-entry-browser.mjs": "7ed3fa05ca69fac5bda7db82483c190d89e75c408fed2efa513cb7b2a3689676"
+  }
+}

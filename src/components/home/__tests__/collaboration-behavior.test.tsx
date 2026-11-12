@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -71,6 +71,12 @@ describe('Home collaboration behavior', () => {
     state.getNotices.mockResolvedValue([]);
     window.history.replaceState({}, '', '/');
     installAnimationFrame();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+      configurable: true,
+      value: vi.fn(function(this: HTMLElement, options: ScrollToOptions) {
+        this.scrollTop = Number(options.top ?? 0);
+      }),
+    });
     Object.defineProperty(Element.prototype, 'scrollIntoView', {
       configurable: true,
       value: vi.fn(),
@@ -81,6 +87,23 @@ describe('Home collaboration behavior', () => {
     cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('scrolls only the message viewport on initial load and new messages', async () => {
+    state.loadResult.data = [{ id: 1, user_name: 'Fixture', user_email: 'fixture@example.test', content: '初始消息', created_at: '2026-11-11T06:00:00Z' }];
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+    const viewport = screen.getByRole('region', { name: '市场交流摘要' }).querySelector<HTMLElement>('.overflow-y-auto')!;
+    Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 1200 });
+    await screen.findByText('初始消息');
+    await waitFor(() => expect(viewport.scrollTop).toBe(1200));
+    expect(HTMLElement.prototype.scrollTo).toHaveBeenCalledWith({ top: 1200, behavior: 'auto' });
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+
+    viewport.scrollTop = 0;
+    act(() => state.realtimeHandler?.({ new: { id: 2, user_name: 'Fixture', user_email: 'fixture@example.test', content: '新增消息', created_at: '2026-11-11T07:00:00Z' } }));
+    await screen.findByText('新增消息');
+    await waitFor(() => expect(viewport.scrollTop).toBe(1200));
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 
   it('keeps failed send content and does not emit an audit event', async () => {

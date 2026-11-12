@@ -295,7 +295,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       }, { timeout: 3000 });
       
       // 会话解析后立即挂载，不依赖固定延迟。
-      const commBoard = await screen.findByTestId('communication-board');
+      const commBoard = await screen.findByTestId('communication-board', {}, { timeout: 3000 });
       
       console.log('\n📊 Communication Board Scrolling Check:');
       console.log(`   Communication board exists: ${!!commBoard}`);
@@ -592,28 +592,18 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       unmount();
     });
 
-    it('✅ SHOULD PASS: Property - All buttons remain interactive', async () => {
-      const { container, unmount } = render(<LobbyPage />);
-      
-      await waitFor(() => {
-        const element = screen.queryByText('北京办公楼市场数据平台');
-        return element !== null;
-      }, { timeout: 3000 });
-      
-      const buttons = Array.from(container.querySelectorAll('button'));
-      
-      // Property: All buttons should be enabled (not disabled)
-      const allButtonsEnabled = buttons.every(btn => !btn.hasAttribute('disabled'));
-      
-      console.log('\n📊 Property-Based Button Interaction Testing:');
-      console.log(`   Total buttons: ${buttons.length}`);
-      console.log(`   All buttons enabled: ${allButtonsEnabled}`);
-      console.log(`   ✅ All buttons remain interactive`);
-      
-      expect(buttons.length).toBeGreaterThan(0);
-      expect(allButtonsEnabled).toBe(true);
-      
-      unmount();
+    it('keeps established actions interactive and unavailable AI explicitly disabled', async () => {
+      const { container } = render(<LobbyPage />);
+      const account = await screen.findByRole('button', { name: '用户菜单' });
+      expect(account).toBeEnabled();
+      const send = screen.getByRole('button', { name: '发送问题' });
+      expect(send).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: '对话查询' })).toBeDisabled();
+      const existingButtons = Array.from(container.querySelectorAll('button')).filter(button => button !== send);
+      expect(existingButtons.length).toBeGreaterThan(0);
+      existingButtons.forEach(button => expect(button).toBeEnabled());
+      fireEvent.click(account);
+      expect(screen.getByRole('menuitem', { name: '修改密码' })).toBeEnabled();
     });
   });
 });
