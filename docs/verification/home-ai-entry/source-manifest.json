@@ -6,6 +6,7 @@
     "src/components/home/HomeTeamActivity.tsx": "9dd8de1409be6c9748a457f92bf9622539899519fb00f19063ba5d1e8f4d8497",
     "src/components/NoticeBanner.tsx": "d2cd70ffcf565b157be0e9007a53955b875522c5c6d32e9d33bb8d7a481c63db",
     "src/components/CommunicationBoard.tsx": "5897fdcf56993b65d58f8df61ff07e1e33fa4cbc313978c70addde7e6786ac0b",
-    "scripts/verification/home-entry-browser.mjs": "7ed3fa05ca69fac5bda7db82483c190d89e75c408fed2efa513cb7b2a3689676"
+    "scripts/verification/home-entry-browser.mjs": "7ed3fa05ca69fac5bda7db82483c190d89e75c408fed2efa513cb7b2a3689676",
+    "scripts/performance/verify-admin-schema-dictionary.mjs": "a2e93852c6a18bcfad43f7060ab817ef23714ddef3a7a4d02fc658a7a0306843"
   }
 }

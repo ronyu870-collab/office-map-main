@@ -39,4 +39,19 @@
 
 ## 发布与回退
 
-主页合并已获用户授权，但须满足仓库全部适用门槛。尚未创建PR、合并或部署。发布后核对main提交、部署版本、首页及原入口；回退以此次独立主页提交为单位，禁止回退其他任务或改变数据库。后续AI需另行通过审计、权限和成本门槛，主页发布不代表其已开放。
+主页合并已获用户授权，但须满足仓库全部适用门槛。已创建草稿[PR #177](https://github.com/ronyu870-collab/office-map-main/pull/177)，尚未合并或生产部署。首次预览为READY，但不代替CI及真机门槛。发布后核对main提交、部署版本、首页及原入口；回退以此次独立主页提交为单位，禁止回退其他任务或改变数据库。后续AI需另行通过审计、权限和成本门槛，主页发布不代表其已开放。
+
+
+## 首次远端CI与收尾修复
+
+[Verify 43287970464](https://github.com/ronyu870-collab/office-map-main/actions/runs/43287970464) 在提交 `e2faafc3d5dd8c1598c333f9b13f4052188152f0` 上通过搜索焦点、全部单元测试、真实 PostgreSQL、真实 Auth 与构建；主页10组浏览器场景同样通过。后续既有数据字典浏览器脚本在普通用户跳回首页后的收尾阶段失败：
+
+```text
+TargetClosedError: route.fetch: Target page, context or browser has been closed
+GET http://127.0.0.1:3210/_next/static/chunks/4331.11e291bb4a9b78f6.js
+scripts/performance/verify-admin-schema-dictionary.mjs:45:40
+```
+
+失败源于请求拦截回调仍在执行时立即关闭context。修复先关闭夹具的搜索暂停开关、释放已暂停请求，再用 `context.unrouteAll({ behavior: 'wait' })` 等待回调完成，最后在finally中关闭context；不使用ignoreErrors吞掉错误，不放宽原有角色、字段包加载、搜索焦点或窄屏断言。该脚本本来就在CI执行链中，后续版本继续执行全部场景。
+
+修复后本地Chrome157及CI同版本Playwright1.58.2/Chromium145的四组实际场景通过；后者经过仅转发本任务localhost构建的300ms静态资源延迟代理。旧实现本地未稳定复现，旧失败证据来自上方远端执行日志，不声称本地确定复现。实际应用源码及截图指纹未改变；只修复浏览器回归的收尾机制。新的精确head远端CI仍需通过。
