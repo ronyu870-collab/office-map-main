@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
-import { GET } from '../route';
+import { GET, POST } from '../route';
 
 const identity = vi.hoisted(() => vi.fn());
+const defer = vi.hoisted(() => vi.fn());
+vi.mock('next/server', async (importOriginal) => ({ ...(await importOriginal<typeof import('next/server')>()), after: defer }));
 vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: identity }));
 
 const name = 'A.B_(测试)*%';
@@ -17,6 +19,9 @@ const rows = [
   { company: '演示企业', suspected_company_fullname: '演示实业有限公司', record_source: 'live', read_id: 'live:demo', transaction_period_start: '2026-07-01' },
   { company: '归档专属', record_source: 'history', read_id: 'history:private', transaction_period_start: '2025-01-01' },
   { company: '日期未填', record_source: 'live', read_id: 'live:unknown', transaction_period_start: null },
+  { company: '样本证券股份有限公司', record_source: 'live', read_id: 'live:securities', transaction_period_start: '2026-06-01' },
+  { company: '样本银行股份有限公司', record_source: 'live', read_id: 'live:bank', transaction_period_start: '2026-08-01' },
+  { company: '样本投资有限公司', record_source: 'history', read_id: 'history:investment', transaction_period_start: '2026-07-01' },
 ];
 
 const postgrest = vi.fn(async (input: RequestInfo | URL) => {
@@ -57,13 +62,112 @@ async function read(mode: string, company: string) {
   expect(response.headers.get('Cache-Control')).toBe('private, no-store');
   return response.json();
 }
+function assess(company: string, extra: Record<string, string> = {}) {
+  const params = new URLSearchParams({ company_lookup: 'assess', ...extra });
+  return POST(new NextRequest(`https://synthetic.invalid/api/lease-transactions/read?${params}`, {
+    method: 'POST', body: JSON.stringify({ company }),
+  }));
+}
+
+function startAi(mode: 'shadow' | 'hints') {
+  vi.stubEnv('LEASE_COMPANY_AI_MODE', mode);
+  vi.stubEnv('DEEPSEEK_API_KEY', 'synthetic-provider');
+  vi.stubEnv('DEEPSEEK_API_BASE_URL', 'https://deepseek.synthetic.invalid');
+}
 
 beforeEach(() => {
   postgrest.mockClear();
+  defer.mockReset();
   vi.stubGlobal('fetch', postgrest);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://synthetic.invalid');
   vi.stubEnv('SUPABASE_SECRET_KEY', 'synthetic');
+  vi.stubEnv('LEASE_COMPANY_AI_MODE', 'off');
   setRole('admin');
+});
+
+describe('optional background company assessments on the same authorized route', () => {
+  it('does no AI work when off and accepts only valid non-impersonated editor/admin requests', async () => {
+    expect((await assess('样本')).status).toBe(204);
+    startAi('shadow');
+    identity.mockResolvedValueOnce({ response: NextResponse.json({}, { status: 401 }) });
+    expect((await assess('样本')).status).toBe(401);
+    setRole('viewer');
+    expect((await assess('样本')).status).toBe(403);
+    setRole('editor', true);
+    expect((await assess('样本')).status).toBe(403);
+    setRole('editor');
+    expect((await assess('样本', { record_source: 'history' })).status).toBe(403);
+    expect((await assess('https://private.invalid')).status).toBe(400);
+    expect(defer).not.toHaveBeenCalled();
+    expect(postgrest).not.toHaveBeenCalled();
+  });
+
+  it('answers before DeepSeek, sends only claimed visible pairs, and fails closed on malformed model output', async () => {
+    startAi('shadow');
+    setRole('editor');
+    const fakeFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/lease_company_ai_claim_v1')) {
+        const payload = JSON.parse(String(init?.body));
+        expect(payload.p_query_key).toBe('样夲证券');
+        expect(payload.p_candidates).toEqual([{ name: '样本证券股份有限公司', key: '样本证券股份有限公司' }]);
+        return Response.json(fakeFetch.mock.calls.filter(([called]) => String(called).includes('lease_company_ai_claim_v1')).length === 1
+          ? [{ assessment_id: 1, name_a: '样夲证券', name_b: '样本证券股份有限公司' }] : []);
+      }
+      if (url.pathname.endsWith('/lease_company_ai_complete_v1')) {
+        expect(JSON.parse(String(init?.body)).p_results).toEqual([{ assessment_id: 1, relation: null, strength: null }]);
+        return new Response(null, { status: 204 });
+      }
+      if (url.hostname === 'deepseek.synthetic.invalid') {
+        const payload = JSON.parse(String(init?.body));
+        expect(JSON.parse(payload.input)).toEqual([{ pair: 1, name_a: '样夲证券', name_b: '样本证券股份有限公司' }]);
+        expect(payload.input).not.toMatch(/rent|history|read_id|assessment_id/);
+        return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: '{"results":[]}' }] }] });
+      }
+      return postgrest(input);
+    });
+    vi.stubGlobal('fetch', fakeFetch);
+    expect(await read('suggestions', '样夲证券')).toEqual({ suggestions: [], hasRecentDeals: false, canAssessSimilar: true });
+    expect(await read('suggestions', '样本证券股份有限公司')).toEqual({ suggestions: [{ company: '样本证券股份有限公司' }], hasRecentDeals: true });
+    expect(defer).not.toHaveBeenCalled();
+    fakeFetch.mockClear();
+    expect((await assess('样夲证券')).status).toBe(202);
+    expect(fakeFetch).not.toHaveBeenCalled();
+    await defer.mock.calls[0][0]();
+    expect((await assess('样夲证券')).status).toBe(202);
+    await defer.mock.calls[1][0]();
+    expect(fakeFetch.mock.calls.filter(([url]) => String(url).startsWith('https://deepseek.synthetic.invalid/'))).toHaveLength(1);
+  });
+
+  it('labels vetted candidates only in hints mode and keeps history exact for the selected company', async () => {
+    setRole('editor');
+    const fakeFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/lease_company_ai_hints_v1')) {
+        expect(url.searchParams.get('p_source')).toBe('live');
+        return Response.json([
+          { company: '样本证券股份有限公司', relation: 'same_company' },
+          { company: '样本银行股份有限公司', relation: 'related_company' },
+        ]);
+      }
+      return postgrest(input);
+    });
+    vi.stubGlobal('fetch', fakeFetch);
+    startAi('shadow');
+    const shadow = await read('suggestions', '样本');
+    expect(shadow.suggestions).toHaveLength(2);
+    expect(shadow.suggestions.every((option: { relation?: string }) => option.relation === undefined)).toBe(true);
+    expect(fakeFetch.mock.calls.every(([url]) => !String(url).includes('lease_company_ai_hints_v1'))).toBe(true);
+    startAi('hints');
+    expect(await read('suggestions', '样本')).toEqual({
+      suggestions: [
+        { company: '样本证券股份有限公司', relation: 'same_company' },
+        { company: '样本银行股份有限公司', relation: 'related_company' },
+      ], hasRecentDeals: false, canAssessSimilar: true,
+    });
+    expect((await read('recent', '样本证券股份有限公司')).records.map((row: { read_id: string }) => row.read_id)).toEqual(['live:securities']);
+    expect(defer).not.toHaveBeenCalled();
+  });
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 

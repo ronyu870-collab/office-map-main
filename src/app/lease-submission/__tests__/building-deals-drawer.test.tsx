@@ -138,6 +138,7 @@ describe('楼宇成交抽屉', () => {
     const drawer = within(await screen.findByRole('dialog', { name: '云庭 A 座' }));
     expect(await drawer.findByText('A 座企业')).toBeVisible();
     expect(drawer.getByText('本楼成交 1 条 · 当前成交')).toBeVisible();
+    await waitFor(() => expect(drawer.getByRole('button', { name: '关闭楼宇成交' })).toHaveFocus());
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(building).toHaveFocus();

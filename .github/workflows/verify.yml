@@ -125,6 +125,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 lease company AI regressions
+        run: node supabase/tests/lease-company-ai/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 building identity rename regressions
         run: npm run test:db:building-renames
         env:
