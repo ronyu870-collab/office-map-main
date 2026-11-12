@@ -70,7 +70,7 @@ export function MemoList({
 
   return (
     <>
-      <div className="flex w-64 shrink-0 flex-col border-r border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]">
+      <div className={`min-h-0 w-full shrink-0 flex-col bg-[var(--cd-color-surface-alt)] md:flex md:w-64 md:border-r md:border-[var(--cd-color-border)] ${selectedId ? 'hidden' : 'flex'}`}>
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-3 py-3">
           <h2 className="text-[var(--cd-font-size-md)] font-semibold text-[var(--cd-color-text-primary)]">备忘录</h2>
@@ -154,13 +154,13 @@ export function MemoList({
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                       <IconButton
                         variant="ghost"
                         size="sm"
                         label={memo.is_pinned ? '取消置顶' : '置顶'}
                         onClick={(e) => handlePin(memo.id, memo.is_pinned, e)}
-                        className={`!h-7 !w-7 ${
+                        className={`!h-11 !w-11 md:!h-7 md:!w-7 ${
                           memo.is_pinned ? 'text-[var(--cd-color-warning)]' : 'text-[var(--cd-color-text-muted)]'
                         }`}
                       >
@@ -171,7 +171,7 @@ export function MemoList({
                         size="sm"
                         label="删除"
                         onClick={(e) => handleDeleteClick(memo, e)}
-                        className="!h-7 !w-7 text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-danger-soft)] hover:text-[var(--cd-color-danger)]"
+                        className="!h-11 !w-11 md:!h-7 md:!w-7 text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-danger-soft)] hover:text-[var(--cd-color-danger)]"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </IconButton>

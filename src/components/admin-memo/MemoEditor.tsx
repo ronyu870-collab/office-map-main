@@ -162,9 +162,9 @@ export function MemoEditor({ ref, memoId, userEmail, allTags, onSaved }: MemoEdi
   const isViewingOld = !!viewingVersion;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* 工具栏 */}
-      <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-4 py-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-[var(--cd-color-border)] px-3 py-2 sm:px-4">
         <div className="flex items-center gap-1">
           <button
             onClick={() => { void changeMode('edit'); }}
@@ -283,7 +283,7 @@ export function MemoEditor({ ref, memoId, userEmail, allTags, onSaved }: MemoEdi
           </div>
         ) : (
           /* 预览模式（含版本查看） */
-          <div className="px-6 py-5">
+          <div className="break-words px-4 py-5 sm:px-6">
             {displayTitle && (
               <h1 className="mb-2 text-[var(--cd-font-size-xl)] font-semibold text-[var(--cd-color-text-primary)]">{displayTitle}</h1>
             )}

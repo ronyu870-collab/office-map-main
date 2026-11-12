@@ -94,6 +94,13 @@ try {
       await root.getByText('622',{exact:true}).waitFor();
       await page.getByText('120.0',{exact:true}).first().waitFor();
       await page.getByText('10.0%',{exact:true}).first().waitFor();
+      if (width === 390) {
+        const pane = await page.locator('main').last().boundingBox();
+        const filters = await page.locator('aside').filter({ hasText: '数据筛选' }).boundingBox();
+        assert.ok(pane && filters);
+        if (baseline) assert.ok(pane.width < 160, 'baseline side panel squeezes the diagnostic results');
+        else assert.ok(pane.width > 350 && pane.y >= filters.y + filters.height, 'diagnostic results use the full narrow viewport below the filters');
+      }
       await page.getByRole('button',{name:/展开贡献明细/}).first().click();
       await page.getByText('2026Q4',{exact:true}).first().waitFor();
       await page.getByText('无季度数据',{exact:true}).first().waitFor();

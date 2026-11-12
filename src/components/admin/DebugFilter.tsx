@@ -100,7 +100,7 @@ export function DebugFilter({ districts, submarkets, leeds, onFilterChange }: De
   );
 
   return (
-    <aside className="w-[280px] shrink-0 border-r border-zinc-200 bg-white overflow-y-auto">
+    <aside className="w-full shrink-0 border-b border-zinc-200 bg-white md:w-[280px] md:overflow-y-auto md:border-b-0 md:border-r">
       <div className="px-3 py-3">
         <h3 className="text-sm font-bold text-zinc-800 mb-3">数据筛选</h3>
 

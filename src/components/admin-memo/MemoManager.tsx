@@ -1,7 +1,7 @@
 'use client';
 
 import { lazy, Suspense, useState, useCallback, useRef } from 'react';
-import { FileText, Loader2 } from 'lucide-react';
+import { ChevronLeft, FileText, Loader2 } from 'lucide-react';
 import { useMemos } from '@/src/hooks/useMemos';
 import { MemoList } from './MemoList';
 import type { MemoEditorHandle } from './MemoEditor';
@@ -28,7 +28,7 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
     search: search || undefined,
   });
 
-  const handleSelect = useCallback(async (id: string) => {
+  const handleSelect = useCallback(async (id: string | null) => {
     if (id === selectedId || changingMemo.current) return;
     changingMemo.current = true;
     setLeaving(true);
@@ -109,7 +109,15 @@ export function MemoManager({ adminEmail }: MemoManagerProps) {
         />
 
         {/* 右侧编辑区 */}
-        <div className="flex min-w-0 flex-1 flex-col" inert={leaving}>
+        <div className={`min-h-0 min-w-0 flex-1 flex-col ${selectedId ? 'flex' : 'hidden md:flex'}`} inert={leaving}>
+          {selectedId && (
+            <div className="shrink-0 border-b border-[var(--cd-color-border)] px-3 md:hidden">
+              <Button variant="ghost" className="min-h-11" onClick={() => void handleSelect(null)}>
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                返回备忘录列表
+              </Button>
+            </div>
+          )}
           {selectedId ? (
             <Suspense fallback={<LoadingState className="p-4" label="正在打开备忘录" rows={0} />}>
               <MemoEditor

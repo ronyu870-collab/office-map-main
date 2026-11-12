@@ -104,6 +104,22 @@ try {
       await title.click();
       await page.getByText('正文末尾可见', { exact: true }).waitFor();
       assert.equal(calls.detail, 1);
+      if (width === 390) {
+        const body = page.getByText('正文末尾可见', { exact: true });
+        const heading = page.getByRole('heading', { name: firstTitle, exact: true });
+        const { width: headingWidth } = await heading.boundingBox();
+        if (baseline) assert.ok(headingWidth < 130, 'baseline columns squeeze the memo body');
+        else {
+          assert.ok(headingWidth > 280, 'a narrow viewport gives the selected memo the full content width');
+          assert.equal(await search.isVisible(), false);
+          await page.getByRole('button', { name: '返回备忘录列表' }).click();
+          await search.waitFor();
+          assert.equal(await search.inputValue(), 'Alpha');
+          assert.equal(await body.count(), 0);
+          await title.click();
+          await body.waitFor();
+        }
+      }
       if (!baseline) {
         await page.getByRole('button', { name: '编辑', exact: true }).click();
         const editor = page.getByPlaceholder('在此输入 Markdown 内容...');

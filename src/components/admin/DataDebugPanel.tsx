@@ -227,14 +227,14 @@ export function DataDebugPanel() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden w-full">
+    <div className="flex h-full w-full flex-col overflow-y-auto md:flex-row md:overflow-hidden">
       <DebugFilter
         districts={filterOptions.districts}
         submarkets={filterOptions.submarkets}
         leeds={filterOptions.leeds}
         onFilterChange={setFilterState}
       />
-      <main className="flex-1 min-w-0 overflow-y-auto bg-zinc-50/50 p-6">
+      <main className="w-full min-w-0 flex-1 bg-zinc-50/50 p-4 md:w-auto md:overflow-y-auto md:p-6">
         {!stats ? (
           <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
             无匹配数据，请调整筛选条件
