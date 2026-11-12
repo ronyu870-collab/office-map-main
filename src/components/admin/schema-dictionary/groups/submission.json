@@ -1,0 +1,85 @@
+{
+  "id": "submission",
+  "title": "填报管理",
+  "desc": "季度数据填报、填报记录和草稿管理。负责人每季度填写楼宇经营数据。",
+  "tables": [
+    {
+      "name": "quarterly_submissions",
+      "label": "季度填报数据",
+      "desc": "核心数据表。负责人每季度填报的楼宇经营数据，是分析报表和地图弹窗的数据来源。",
+      "rules": [
+        "空置率自动计算：vacancy_rate = vacant_area / total_area",
+        "同一楼宇同一季度重复提交会覆盖已有记录，不创建新记录",
+        "新楼宇首次填报时，total_area从buildings.leasable_area自动带入",
+        "地图弹窗中的租金和空置率来自最近一次填报",
+        "填报完成后数据同步到building_metrics表"
+      ],
+      "fields": [
+        {"name":"id","label":"填报ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"building_id","label":"填报楼宇","type":"UUID","desc":"关联buildings.id","who":"系统自动"},
+        {"name":"user_id","label":"填报用户","type":"UUID","desc":"关联auth.users.id","who":"系统自动"},
+        {"name":"user_name","label":"填报人","type":"文本","desc":"填报人中文姓名(冗余)","who":"系统自动"},
+        {"name":"record_year","label":"填报年份","type":"整数","desc":"数据年份如2026","who":"系统自动"},
+        {"name":"record_quarter","label":"填报季度","type":"整数","desc":"数据季度(1-4)","who":"系统自动"},
+        {"name":"total_area","label":"总面积","type":"数值","desc":"总建筑面积(平方米)","who":"负责人","note":"新楼宇从leasable_area带入"},
+        {"name":"vacant_area","label":"空置面积","type":"数值","desc":"当前空置面积(平方米)","who":"负责人"},
+        {"name":"vacancy_rate","label":"空置率","type":"数值","desc":"系统自动计算=空置面积/总面积","who":"系统自动"},
+        {"name":"asking_rent","label":"报价租金","type":"数值","desc":"业主报价(元/平米/天)","who":"负责人"},
+        {"name":"management_fee","label":"物业费","type":"数值","desc":"物业费(元/平米/月)","who":"负责人"},
+        {"name":"face_rent","label":"表面租金","type":"数值","desc":"表面租金","who":"负责人"},
+        {"name":"rent_free_period","label":"免租期","type":"数值","desc":"免租期(月)","who":"负责人"},
+        {"name":"net_effective_rent","label":"净有效租金","type":"数值","desc":"扣除免租期后的有效租金","who":"负责人"},
+        {"name":"owner","label":"业主","type":"文本","desc":"本季度业主信息","who":"负责人"},
+        {"name":"property_management","label":"物业公司","type":"文本","desc":"本季度物业公司","who":"负责人"},
+        {"name":"notes","label":"备注","type":"文本","desc":"本季度特殊情况","who":"负责人"},
+        {"name":"created_at","label":"提交时间","type":"时间戳","desc":"首次提交时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后修改时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "quarterly_updates",
+      "label": "填报记录",
+      "desc": "记录每次填报操作的元数据。每提交一次填报就会生成一条记录。",
+      "fields": [
+        {"name":"id","label":"记录ID","type":"大整数","desc":"自增主键","who":"系统自动"},
+        {"name":"user_name","label":"用户姓名","type":"文本","desc":"提交人姓名","who":"系统自动"},
+        {"name":"tab","label":"填报标签","type":"文本","desc":"填报的分类标签","who":"系统自动"},
+        {"name":"project_name","label":"项目名称","type":"文本","desc":"填报的楼宇名称","who":"系统自动"},
+        {"name":"payload","label":"提交数据","type":"JSON","desc":"提交的完整数据快照","who":"系统自动"},
+        {"name":"created_at","label":"提交时间","type":"时间戳","desc":"提交时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "update_drafts",
+      "label": "草稿管理",
+      "desc": "填报过程中的自动保存草稿。用户未提交的填报数据会定期保存到这里。",
+      "fields": [
+        {"name":"id","label":"草稿ID","type":"大整数","desc":"自增主键","who":"系统自动"},
+        {"name":"user_name","label":"用户姓名","type":"文本","desc":"草稿所属用户","who":"系统自动"},
+        {"name":"tab","label":"填报标签","type":"文本","desc":"填报分类","who":"系统自动"},
+        {"name":"draft_data","label":"草稿数据","type":"JSON","desc":"自动保存的草稿内容","who":"系统自动"},
+        {"name":"updated_at","label":"保存时间","type":"时间戳","desc":"最后自动保存时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "building_assignments",
+      "label": "任务分配",
+      "desc": "决定\"谁负责填报哪些楼宇\"。一个楼宇同时只能分配给一个负责人。",
+      "rules": [
+        "一个楼宇只能分配给一个负责人，重复分配覆盖之前的",
+        "没有分配关系的楼宇不会出现在任何人的填报列表中",
+        "删除分配不影响已填报的历史数据"
+      ],
+      "fields": [
+        {"name":"id","label":"分配ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"building_id","label":"分配楼宇","type":"UUID","desc":"关联buildings.id","who":"管理员"},
+        {"name":"project_name","label":"项目名称","type":"文本","desc":"冗余存储的楼宇名称","who":"系统自动"},
+        {"name":"user_id","label":"负责用户","type":"文本","desc":"关联user_roles.user_id","who":"管理员"},
+        {"name":"user_name","label":"负责人姓名","type":"文本","desc":"冗余存储的姓名","who":"系统自动"},
+        {"name":"created_at","label":"分配时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"grade","label":"楼宇等级","type":"文本","desc":"冗余存储的等级","who":"系统自动"},
+        {"name":"submarket","label":"子市场","type":"文本","desc":"冗余存储的子市场","who":"系统自动"}
+      ]
+    }
+  ]
+}

@@ -2,91 +2,153 @@
 
 import * as React from 'react';
 import { logAction } from '@/src/utils/audit';
-import { getAllActiveNotices } from '@/src/services/apiClient';
+import { getActiveNoticeContent, getActiveNoticeSummaries, MAX_ACTIVE_NOTICES, toNoticeSummary } from '@/src/services/apiClient';
 import { publishNotice, deactivateNotice } from '@/src/services/adminApi';
-import type { NoticeRow } from '@/src/services/apiClient';
+import type { NoticeSummary } from '@/src/services/apiClient';
 import { MaskedText } from '@/src/components/demo';
 import { Button } from '@/src/components/ui';
 
-const MAX_NOTICES = 3;
+type NoticeDetail = { id: string; state: 'loading' | 'error' } | { id: string; state: 'ready'; content: string };
 
 interface Props {
   adminEmail: string;
 }
 
 export function NoticeManager({ adminEmail }: Props) {
-  const [notices, setNotices] = React.useState<NoticeRow[]>([]);
-  const [drafts, setDrafts] = React.useState<string[]>(['', '', '']);
+  const [notices, setNotices] = React.useState<NoticeSummary[] | null>(null);
+  const [drafts, setDrafts] = React.useState(() => Array.from({ length: MAX_ACTIVE_NOTICES }, (_, id) => ({ id, text: '' })));
+  const nextDraftId = React.useRef(MAX_ACTIVE_NOTICES);
   const [loading, setLoading] = React.useState(true);
+  const [listError, setListError] = React.useState(false);
+  const [detail, setDetail] = React.useState<NoticeDetail | null>(null);
   const mutationInFlight = React.useRef(false);
+  const listRequest = React.useRef<AbortController | null>(null);
+  const detailRequest = React.useRef<{ id: string; controller: AbortController } | null>(null);
+  const mounted = React.useRef(false);
+  const toastTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [deleting, setDeleting] = React.useState(false);
   const [saving, setSaving] = React.useState<number | null>(null);
   const [toast, setToast] = React.useState<{ msg: string; ok: boolean } | null>(null);
 
   const showToast = (msg: string, ok = true) => {
+    if (!mounted.current) return;
+    clearTimeout(toastTimer.current);
     setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
   const fetchNotices = React.useCallback(async () => {
+    if (!mounted.current) return;
+    listRequest.current?.abort();
+    const request = new AbortController();
+    listRequest.current = request;
     setLoading(true);
+    setListError(false);
     try {
-      setNotices(await getAllActiveNotices());
+      const rows = await getActiveNoticeSummaries(request.signal);
+      if (!request.signal.aborted) {
+        setNotices(rows);
+        const pendingDetail = detailRequest.current;
+        if (pendingDetail && !rows.some(row => row.id === pendingDetail.id)) pendingDetail.controller.abort();
+        setDetail(current => current && rows.some(row => row.id === current.id) ? current : null);
+      }
+    } catch {
+      if (!request.signal.aborted) setListError(true);
     } finally {
-      setLoading(false);
+      if (listRequest.current === request) {
+        listRequest.current = null;
+        if (!request.signal.aborted) setLoading(false);
+      }
     }
   }, []);
 
-  React.useEffect(() => { fetchNotices(); }, [fetchNotices]);
+  React.useEffect(() => {
+    mounted.current = true;
+    void fetchNotices();
+    return () => {
+      mounted.current = false;
+      listRequest.current?.abort();
+      detailRequest.current?.controller.abort();
+      clearTimeout(toastTimer.current);
+    };
+  }, [fetchNotices]);
 
-  const handlePublish = async (slotIndex: number) => {
-    if (mutationInFlight.current) return;
-    const content = drafts[slotIndex].trim();
+  const closeDetail = () => {
+    detailRequest.current?.controller.abort();
+    setDetail(null);
+  };
+
+  const openDetail = async (id: string) => {
+    detailRequest.current?.controller.abort();
+    const controller = new AbortController();
+    const request = { id, controller };
+    detailRequest.current = request;
+    setDetail({ id, state: 'loading' });
+    try {
+      const content = await getActiveNoticeContent(id, controller.signal);
+      if (!controller.signal.aborted) setDetail({ id, state: 'ready', content });
+    } catch {
+      if (!controller.signal.aborted) setDetail({ id, state: 'error' });
+    } finally {
+      if (detailRequest.current === request) detailRequest.current = null;
+    }
+  };
+
+  const handlePublish = async (draftId: number) => {
+    if (mutationInFlight.current || loading || listError || !notices) return;
+    const content = drafts.find(draft => draft.id === draftId)?.text.trim();
     if (!content) { showToast('公告内容不能为空', false); return; }
-    if (notices.length >= MAX_NOTICES) {
+    if (notices.length >= MAX_ACTIVE_NOTICES) {
       showToast('已达到3条上限，请先删除一条再发布', false);
       return;
     }
     mutationInFlight.current = true;
-    setSaving(slotIndex);
+    setSaving(draftId);
     try {
-      await publishNotice(content, adminEmail);
+      const published = await publishNotice(content, adminEmail);
       logAction(adminEmail, 'UPDATE_NOTICE', { content: content.slice(0, 50) });
+      if (!mounted.current) return;
       // Compact the remaining drafts before the number of visible slots shrinks.
-      setDrafts((current) => [...current.filter((_, index) => index !== slotIndex), '']);
+      const blankDraft = { id: nextDraftId.current++, text: '' };
+      setDrafts(current => [...current.filter(draft => draft.id !== draftId), blankDraft]);
+      setNotices(current => [...(current ?? []).filter(notice => notice.id !== published.id), toNoticeSummary(published)].slice(0, MAX_ACTIVE_NOTICES));
       showToast('公告已发布');
-      await fetchNotices().catch(() => showToast('公告已发布，但列表刷新失败，请刷新页面', false));
-    } catch (e: any) {
-      showToast(e.message ?? '发布失败', false);
+      await fetchNotices();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '发布失败', false);
     } finally {
       mutationInFlight.current = false;
-      setSaving(null);
+      if (mounted.current) setSaving(null);
     }
   };
 
-  const handleDelete = async (notice: NoticeRow) => {
-    if (mutationInFlight.current) return;
-    if (!confirm(`确认删除这条公告？\n\n"${notice.content.slice(0, 40)}${notice.content.length > 40 ? '…' : ''}"`)) return;
+  const handleDelete = async (notice: NoticeSummary) => {
+    if (mutationInFlight.current || loading || listError) return;
+    if (!confirm(`确认删除这条公告？\n\n"${notice.contentPreview.slice(0, 40)}${notice.contentPreview.length > 40 ? '…' : ''}"`)) return;
     mutationInFlight.current = true;
     setDeleting(true);
     try {
       await deactivateNotice(notice.id);
-      logAction(adminEmail, 'DELETE_NOTICE', { content: notice.content.slice(0, 50) });
+      logAction(adminEmail, 'DELETE_NOTICE', { content: notice.contentPreview.slice(0, 50) });
+      if (!mounted.current) return;
+      if (detailRequest.current?.id === notice.id) detailRequest.current.controller.abort();
+      setDetail(current => current?.id === notice.id ? null : current);
+      setNotices(current => current?.filter(row => row.id !== notice.id) ?? null);
       showToast('公告已删除');
-      await fetchNotices().catch(() => showToast('公告已删除，但列表刷新失败，请刷新页面', false));
-    } catch (e: any) {
-      showToast(e.message ?? '删除失败', false);
+      await fetchNotices();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '删除失败', false);
     } finally {
       mutationInFlight.current = false;
-      setDeleting(false);
+      if (mounted.current) setDeleting(false);
     }
   };
 
-  const setDraft = (i: number, val: string) =>
-    setDrafts(prev => prev.map((d, idx) => idx === i ? val : d));
+  const setDraft = (id: number, text: string) =>
+    setDrafts(prev => prev.map(draft => draft.id === id ? { id, text } : draft));
 
-  // 空槽数量 = 3 - 当前生效条数
-  const emptySlots = MAX_NOTICES - notices.length;
+  const emptySlots = notices ? MAX_ACTIVE_NOTICES - notices.length : 0;
+  const actionsDisabled = saving !== null || deleting || loading || listError;
 
   return (
     <div className="relative space-y-4 w-full">
@@ -102,56 +164,83 @@ export function NoticeManager({ adminEmail }: Props) {
           <h2 className="text-sm font-semibold text-zinc-800">系统公告管理</h2>
           <p className="mt-0.5 text-xs text-zinc-500">最多同时发布 3 条公告，显示在所有用户主页底部</p>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+        {notices && <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
           notices.length > 0
             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
             : 'border-zinc-200 bg-zinc-100 text-zinc-500'
         }`}>
-          {notices.length} / {MAX_NOTICES} 条生效中
-        </span>
+          {notices.length} / {MAX_ACTIVE_NOTICES} 条生效中
+        </span>}
       </div>
 
-      {loading ? (
+      {listError && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          <span>{notices ? '公告列表刷新失败，请重试后再操作' : '公告列表读取失败'}</span>
+          <Button variant="ghost" size="sm" onClick={() => void fetchNotices()}>重试加载列表</Button>
+        </div>
+      )}
+      {loading && !notices ? (
         <div className="space-y-3">
           {[0, 1, 2].map(i => <div key={i} className="h-20 animate-pulse rounded-lg bg-zinc-100" />)}
         </div>
       ) : (
         <>
           {/* ── 已生效的公告（只读，可删除） ── */}
-          {notices.map((notice, i) => (
-            <div key={notice.id} className="rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold text-[var(--cd-color-brand)]">
-                  公告 {i + 1} · 生效中
-                </span>
-                <button
-                  onClick={() => handleDelete(notice)}
-                  disabled={saving !== null || deleting}
-                  className="rounded border border-red-200 bg-white px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  删除此条
-                </button>
+          {notices?.map((notice, i) => {
+            const opened = detail?.id === notice.id ? detail : null;
+            return (
+              <div key={notice.id} className="rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.15)] bg-[var(--cd-color-brand-soft)] p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--cd-color-brand)]">
+                    公告 {i + 1} · 生效中
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(notice)}
+                    disabled={actionsDisabled}
+                    className="min-h-11 rounded border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 sm:min-h-8"
+                  >
+                    删除此条
+                  </button>
+                </div>
+                <div id={`notice-content-${notice.id}`}>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-800 [overflow-wrap:anywhere]">
+                    {opened?.state === 'ready' ? opened.content : notice.contentPreview + (notice.hasMore ? '…' : '')}
+                  </p>
+                  {opened?.state === 'loading' && <p role="status" className="mt-2 text-xs text-zinc-500">正在读取正文…</p>}
+                  {opened?.state === 'error' && (
+                    <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-800">
+                      正文暂时无法读取
+                      <Button variant="ghost" size="sm" onClick={() => void openDetail(notice.id)}>重试读取正文</Button>
+                    </div>
+                  )}
+                </div>
+                {notice.hasMore && (
+                  <Button variant="ghost" size="sm" className="mt-1 min-h-11 sm:min-h-8" aria-expanded={!!opened} aria-controls={`notice-content-${notice.id}`}
+                    aria-label={opened ? `收起公告 ${i + 1} 正文` : `查看公告 ${i + 1} 全文`}
+                    onClick={() => opened ? closeDetail() : void openDetail(notice.id)}>
+                    {opened ? '收起正文' : '查看全文'}
+                  </Button>
+                )}
+                <p className="mt-2 text-[11px] text-zinc-400">
+                  由 <MaskedText>{notice.updated_by}</MaskedText> 发布于 {new Date(notice.updated_at).toLocaleString('zh-CN', { hour12: false })}
+                </p>
               </div>
-              {/* 内容只读展示 */}
-              <p className="text-sm leading-relaxed text-zinc-800 whitespace-pre-wrap">{notice.content}</p>
-              <p className="mt-2 text-[11px] text-zinc-400">
-                由 <MaskedText>{notice.updated_by}</MaskedText> 发布于 {new Date(notice.updated_at).toLocaleString('zh-CN', { hour12: false })}
-              </p>
-            </div>
-          ))}
+            );
+          })}
 
           {/* ── 空槽（可新增） ── */}
-          {Array.from({ length: emptySlots }).map((_, i) => {
-            const slotIdx = i; // draft 索引复用 0~2，但只用前 emptySlots 个
+          {drafts.slice(0, emptySlots).map((draft, index) => {
             return (
-              <div key={`empty-${i}`} className="rounded-lg border border-dashed border-zinc-300 bg-white p-4">
+              <div key={draft.id} className="rounded-lg border border-dashed border-zinc-300 bg-white p-4">
                 <p className="mb-2 text-xs font-semibold text-zinc-500">
                   空槽 · 可新增公告
                 </p>
                 <textarea
-                  value={drafts[slotIdx]}
-                  disabled={saving === slotIdx}
-                  onChange={e => setDraft(slotIdx, e.target.value)}
+                  aria-label={`公告草稿 ${index + 1}`}
+                  value={draft.text}
+                  disabled={saving === draft.id}
+                  onChange={e => setDraft(draft.id, e.target.value)}
                   rows={3}
                   placeholder="输入公告内容后点击发布，例如：本周五下午3点系统将进行例行维护，请提前保存数据。"
                   className="w-full resize-none rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 py-2 text-sm text-[var(--cd-color-text-primary)] outline-none transition-colors focus:border-[var(--cd-color-brand)] focus:ring-2 focus:ring-[var(--cd-color-focus)]"
@@ -159,12 +248,13 @@ export function NoticeManager({ adminEmail }: Props) {
                 <div className="mt-2 flex items-center gap-2">
                   <Button
                     size="sm"
-                    onClick={() => handlePublish(slotIdx)}
-                    disabled={saving !== null || deleting || !drafts[slotIdx].trim()}
+                    className="min-h-11 sm:min-h-8"
+                    onClick={() => handlePublish(draft.id)}
+                    disabled={actionsDisabled || !draft.text.trim()}
                   >
-                    {saving === slotIdx ? '发布中...' : '发布公告'}
+                    {saving === draft.id ? '发布中...' : '发布公告'}
                   </Button>
-                  <span className="ml-auto text-[11px] text-zinc-400">{drafts[slotIdx].length} 字</span>
+                  <span className="ml-auto text-[11px] text-zinc-400">{draft.text.length} 字</span>
                 </div>
               </div>
             );

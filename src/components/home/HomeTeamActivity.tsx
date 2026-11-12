@@ -15,7 +15,7 @@ export function HomeTeamActivity({ userId, userEmail, userName }: HomeTeamActivi
           {userEmail && <CommunicationBoard userEmail={userEmail} userName={userName} />}
         </div>
       </div>
-      {userEmail && <FeedbackPanel userId={userId} userEmail={userEmail} userName={userName} />}
+      {userEmail && <FeedbackPanel key={JSON.stringify([userId, userEmail])} userId={userId} userEmail={userEmail} userName={userName} />}
     </>
   );
 }

@@ -1,10 +1,12 @@
+import type { AuthSessionResult } from '@/src/services/Auth';
+import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
+import { clearUnownedProposalDraft, getProposalDraftStorage, PROPOSAL_DRAFT_STORAGE_KEY } from './proposalDraftStorage';
 import type {
   ParsedRequirement,
   RequirementCapability,
   RequirementParseResult,
 } from './requirementSchema';
 
-export const PROPOSAL_DRAFT_STORAGE_KEY = 'colliers:intelligence-proposal-draft:v1';
 export const PROPOSAL_DRAFT_EVENT = 'intelligence-proposal-draft-changed';
 export const MAX_PROPOSAL_CANDIDATES = 5;
 
@@ -35,13 +37,15 @@ export type AddProposalCandidateResult = {
   draft: ProposalDraft | null;
 };
 
-function storage(): Storage | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
+export type ProposalDraftScope = string & { readonly __proposalDraftScope: unique symbol };
+
+/** Correlates local data; application and server authorization remain separate. */
+export function getProposalDraftScope(session: AuthSessionResult | null): ProposalDraftScope | null {
+  const realId = session?.session?.user?.id;
+  const effectiveId = session?.user.id;
+  const loginId = getSessionIdFromAccessToken(session?.session?.access_token) ?? session?.sessionId;
+  if (!realId || !effectiveId || !session?.role || !loginId) return null;
+  return JSON.stringify([realId, effectiveId, session.role, loginId]) as ProposalDraftScope;
 }
 
 function isDraft(value: unknown): value is ProposalDraft {
@@ -75,12 +79,12 @@ function normalizeDraft(draft: ProposalDraft): ProposalDraft {
   };
 }
 
-function writeProposalDraft(draft: ProposalDraft): ProposalDraft | null {
-  const target = storage();
+function writeProposalDraft(scope: ProposalDraftScope, draft: ProposalDraft): ProposalDraft | null {
+  const target = getProposalDraftStorage();
   if (!target) return null;
   try {
-    target.setItem(PROPOSAL_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-    window.dispatchEvent(new CustomEvent<ProposalDraft>(PROPOSAL_DRAFT_EVENT, { detail: draft }));
+    target.setItem(PROPOSAL_DRAFT_STORAGE_KEY, JSON.stringify({ scope, draft }));
+    window.dispatchEvent(new Event(PROPOSAL_DRAFT_EVENT));
     return draft;
   } catch {
     return null;
@@ -111,30 +115,32 @@ function defaultEvaluationCapabilities(
   return [...keys];
 }
 
-export function readProposalDraft(): ProposalDraft | null {
-  const target = storage();
+export function readProposalDraft(scope: ProposalDraftScope): ProposalDraft | null {
+  const target = getProposalDraftStorage();
   if (!target) return null;
   try {
+    clearUnownedProposalDraft(target);
     const raw = target.getItem(PROPOSAL_DRAFT_STORAGE_KEY);
     if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return isDraft(parsed) ? normalizeDraft(parsed) : null;
+    const record = JSON.parse(raw) as { scope?: unknown; draft?: unknown } | null;
+    if (record?.scope === scope && isDraft(record.draft)) return normalizeDraft(record.draft);
+    target.removeItem(PROPOSAL_DRAFT_STORAGE_KEY);
+    return null;
   } catch {
     return null;
   }
 }
 
 export function beginProposalDraft(
+  scope: ProposalDraftScope,
   result: RequirementParseResult,
   appliedCapabilities: RequirementCapability['key'][],
-  evaluationCapabilities?: RequirementCapability['key'][],
+  options?: { candidates?: Array<{ buildingId: string; buildingName: string }> },
 ): ProposalDraft | null {
   const safeAppliedCapabilities = [...new Set(appliedCapabilities)];
-  const safeEvaluationCapabilities = [...new Set(
-    evaluationCapabilities ?? defaultEvaluationCapabilities(result, safeAppliedCapabilities),
-  )];
+  const safeEvaluationCapabilities = defaultEvaluationCapabilities(result, safeAppliedCapabilities);
   const requirementFingerprint = fingerprint(result, safeAppliedCapabilities, safeEvaluationCapabilities);
-  const previous = readProposalDraft();
+  const previous = readProposalDraft(scope);
   const now = new Date().toISOString();
 
   const next: ProposalDraft = {
@@ -147,15 +153,17 @@ export function beginProposalDraft(
       appliedCapabilities: safeAppliedCapabilities,
       evaluationCapabilities: safeEvaluationCapabilities,
     },
-    items: previous?.requirementFingerprint === requirementFingerprint ? previous.items.slice(0, MAX_PROPOSAL_CANDIDATES) : [],
+    items: options?.candidates
+      ? prepareProposalCandidates(options.candidates, now)
+      : previous?.requirementFingerprint === requirementFingerprint ? previous.items.slice(0, MAX_PROPOSAL_CANDIDATES) : [],
     updatedAt: now,
   };
 
-  return writeProposalDraft(next);
+  return writeProposalDraft(scope, next);
 }
 
-export function addProposalCandidate(buildingId: string, buildingName: string): AddProposalCandidateResult {
-  const draft = readProposalDraft();
+export function addProposalCandidate(scope: ProposalDraftScope, buildingId: string, buildingName: string): AddProposalCandidateResult {
+  const draft = readProposalDraft(scope);
   if (!draft) return { status: 'unavailable', draft: null };
   if (draft.items.some(item => item.buildingId === buildingId)) return { status: 'exists', draft };
   if (draft.items.length >= MAX_PROPOSAL_CANDIDATES) return { status: 'full', draft };
@@ -169,17 +177,16 @@ export function addProposalCandidate(buildingId: string, buildingName: string): 
     }],
     updatedAt: new Date().toISOString(),
   };
-  return { status: 'added', draft: writeProposalDraft(next) };
+  const saved = writeProposalDraft(scope, next);
+  return saved ? { status: 'added', draft: saved } : { status: 'unavailable', draft: null };
 }
 
-export function setProposalCandidates(
+function prepareProposalCandidates(
   candidates: Array<{ buildingId: string; buildingName: string }>,
-): ProposalDraft | null {
-  const draft = readProposalDraft();
-  if (!draft) return null;
+  now: string,
+): ProposalDraftItem[] {
   const seen = new Set<string>();
-  const now = new Date().toISOString();
-  const items = candidates
+  return candidates
     .filter(candidate => {
       const id = candidate.buildingId.trim();
       if (!id || seen.has(id)) return false;
@@ -188,25 +195,24 @@ export function setProposalCandidates(
     })
     .slice(0, MAX_PROPOSAL_CANDIDATES)
     .map(candidate => ({
-      buildingId: candidate.buildingId,
+      buildingId: candidate.buildingId.trim(),
       buildingName: candidate.buildingName.trim() || '未命名楼宇',
       addedAt: now,
     }));
-  return writeProposalDraft({ ...draft, items, updatedAt: now });
 }
 
-export function removeProposalCandidate(buildingId: string): ProposalDraft | null {
-  const draft = readProposalDraft();
+export function removeProposalCandidate(scope: ProposalDraftScope, buildingId: string): ProposalDraft | null {
+  const draft = readProposalDraft(scope);
   if (!draft) return null;
-  return writeProposalDraft({
+  return writeProposalDraft(scope, {
     ...draft,
     items: draft.items.filter(item => item.buildingId !== buildingId),
     updatedAt: new Date().toISOString(),
   });
 }
 
-export function moveProposalCandidate(buildingId: string, direction: -1 | 1): ProposalDraft | null {
-  const draft = readProposalDraft();
+export function moveProposalCandidate(scope: ProposalDraftScope, buildingId: string, direction: -1 | 1): ProposalDraft | null {
+  const draft = readProposalDraft(scope);
   if (!draft) return null;
   const index = draft.items.findIndex(item => item.buildingId === buildingId);
   const nextIndex = index + direction;
@@ -215,19 +221,19 @@ export function moveProposalCandidate(buildingId: string, direction: -1 | 1): Pr
   const [item] = items.splice(index, 1);
   if (!item) return draft;
   items.splice(nextIndex, 0, item);
-  return writeProposalDraft({ ...draft, items, updatedAt: new Date().toISOString() });
+  return writeProposalDraft(scope, { ...draft, items, updatedAt: new Date().toISOString() });
 }
 
-export function clearProposalCandidates(): ProposalDraft | null {
-  const draft = readProposalDraft();
+export function clearProposalCandidates(scope: ProposalDraftScope): ProposalDraft | null {
+  const draft = readProposalDraft(scope);
   if (!draft) return null;
-  return writeProposalDraft({ ...draft, items: [], updatedAt: new Date().toISOString() });
+  return writeProposalDraft(scope, { ...draft, items: [], updatedAt: new Date().toISOString() });
 }
 
-export function setProposalClientName(clientName: string): ProposalDraft | null {
-  const draft = readProposalDraft();
+export function setProposalClientName(scope: ProposalDraftScope, clientName: string): ProposalDraft | null {
+  const draft = readProposalDraft(scope);
   if (!draft) return null;
-  return writeProposalDraft({
+  return writeProposalDraft(scope, {
     ...draft,
     clientName: clientName.slice(0, 80),
     updatedAt: new Date().toISOString(),

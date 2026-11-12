@@ -18,7 +18,6 @@ export type DeepSeekParseMeta = {
 type DeepSeekResponse = {
   status?: string;
   model?: string;
-  error?: { message?: string } | null;
   output?: Array<{
     type?: string;
     content?: Array<{ type?: string; text?: string }>;
@@ -91,6 +90,7 @@ async function requestDeepSeek(
   model: string,
   requirement: string,
   vocabulary: RequirementVocabulary,
+  requestSignal: AbortSignal,
 ): Promise<{ parsed: ParsedRequirement; meta: DeepSeekParseMeta }> {
   const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) {
@@ -98,8 +98,8 @@ async function requestDeepSeek(
   }
 
   const baseUrl = (process.env.DEEPSEEK_API_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/$/, '');
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = AbortSignal.any([requestSignal, timeout]);
 
   try {
     const response = await fetch(`${baseUrl}/responses`, {
@@ -122,7 +122,7 @@ async function requestDeepSeek(
           },
         },
       }),
-      signal: controller.signal,
+      signal,
       cache: 'no-store',
     });
 
@@ -133,10 +133,10 @@ async function requestDeepSeek(
       payload = null;
     }
 
+    signal.throwIfAborted();
     if (!response.ok) {
-      const providerMessage = payload?.error?.message?.trim();
       throw new IntelligenceAIError(
-        providerMessage ? `DeepSeek 请求失败：${providerMessage}` : `DeepSeek 请求失败（HTTP ${response.status}）`,
+        `DeepSeek 请求失败（HTTP ${response.status}）`,
         response.status === 401 || response.status === 403 ? 503 : 502,
       );
     }
@@ -169,29 +169,30 @@ async function requestDeepSeek(
       },
     };
   } catch (error) {
+    requestSignal.throwIfAborted();
     if (error instanceof IntelligenceAIError) throw error;
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (timeout.aborted) {
       throw new IntelligenceAIError('DeepSeek 响应超时，请稍后重试。', 504);
     }
     throw new IntelligenceAIError('DeepSeek 暂时不可用，请稍后重试。');
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
 export async function parseRequirementWithDeepSeek(
   requirement: string,
   vocabulary: RequirementVocabulary,
+  signal: AbortSignal,
 ) {
   let lastError: IntelligenceAIError | null = null;
 
   for (const model of uniqueModels()) {
+    signal.throwIfAborted();
     try {
-      return await requestDeepSeek(model, requirement, vocabulary);
+      return await requestDeepSeek(model, requirement, vocabulary, signal);
     } catch (error) {
       if (!(error instanceof IntelligenceAIError)) throw error;
       lastError = error;
-      if (error.statusCode === 503 && /API 尚未配置|认证|API key|API Key/i.test(error.message)) break;
+      if (error.statusCode === 503) break;
     }
   }
 

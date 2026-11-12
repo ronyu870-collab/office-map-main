@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react';
 
 import { WorkspaceShell } from '@/src/components/layout';
+import { HomeIntentLink } from './HomeIntentLink';
 import type { HomeTeamActivityProps } from './HomeTeamActivity';
 import { useAppSession, useCanStartHomeNavigation } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
@@ -229,19 +229,21 @@ function HomeHeader({
             </div>
 
             <div className="p-1.5">
-              <Link
+              <HomeIntentLink
                 href="/settings"
+                mayPrefetch
                 role="menuitem"
                 onClick={() => setMenuOpen(false)}
                 className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-[13px] text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
               >
                 <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
                 修改密码
-              </Link>
+              </HomeIntentLink>
 
               {canSeeAdminWorkspace ? (
-                <Link
+                <HomeIntentLink
                   href={ADMIN_WORKSPACE.href}
+                  mayPrefetch
                   role="menuitem"
                   onClick={(event) => {
                     setMenuOpen(false);
@@ -251,7 +253,7 @@ function HomeHeader({
                 >
                   <Database size={14} strokeWidth={1.55} aria-hidden="true" />
                   <span>系统管理</span>
-                </Link>
+                </HomeIntentLink>
               ) : null}
             </div>
 
@@ -282,8 +284,9 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
   const accessibilityProps = getAccessibilityProps(workspace.module, workspace.title, role);
 
   return (
-    <Link
+    <HomeIntentLink
       href={workspace.href}
+      mayPrefetch={canAccess}
       onClick={(event) => onActivate(event, workspace)}
       className={`group flex min-h-[64px] items-center gap-3.5 border-b border-[var(--cd-color-border)] px-4 py-3 transition-colors last:border-b-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--cd-color-brand)] sm:px-5 ${canAccess ? 'hover:bg-[var(--cd-color-surface-alt)]' : 'cursor-not-allowed opacity-55'}`}
       title={canAccess ? undefined : '当前账号无访问权限'}
@@ -300,7 +303,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       ) : (
         <span className="shrink-0 text-xs text-[var(--cd-color-text-muted)]">无访问权限</span>
       )}
-    </Link>
+    </HomeIntentLink>
   );
 }
 
@@ -415,9 +418,9 @@ export function HomeWorkspace() {
         <div className="mx-auto grid min-h-full w-full max-w-[1240px] grid-cols-1 gap-8 px-4 py-6 sm:px-6 sm:py-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_300px] xl:gap-9 2xl:max-w-[1360px]">
           <section className="min-w-0" aria-labelledby={canStartMap ? 'home-heading' : undefined}>
             <div className={`grid gap-3 ${canSeeIntelligence || !canStartMap ? 'sm:grid-cols-2' : ''}`}>
-              {canStartMap ? <Link
+              {canStartMap ? <HomeIntentLink
                 href={MAP_WORKSPACE.href}
-                prefetch={activeSession ? undefined : false}
+                mayPrefetch={Boolean(activeSession) && canAccessModule(MAP_WORKSPACE.module, activeRole)}
                 onClick={activeSession ? (event) => handleWorkspaceActivation(event, MAP_WORKSPACE) : undefined}
                 className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border-strong)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
                 {...mapAccessibilityProps}
@@ -429,12 +432,13 @@ export function HomeWorkspace() {
                   <h1 id="home-heading" className="text-base font-semibold text-[var(--cd-color-text-primary)]">{MAP_WORKSPACE.title}</h1>
                 </div>
                 <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
-              </Link> : <div aria-hidden="true" className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />}
+              </HomeIntentLink> : <div aria-hidden="true" className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />}
 
               {!canStartMap && <div aria-hidden="true" className="h-[84px] animate-pulse rounded-[var(--cd-radius-lg)] bg-[var(--cd-color-border)]" />}
               {canSeeIntelligence ? (
-                <Link
+                <HomeIntentLink
                   href={INTELLIGENCE_WORKSPACE.href}
+                  mayPrefetch={canAccessModule(INTELLIGENCE_WORKSPACE.module, activeRole)}
                   onClick={(event) => handleWorkspaceActivation(event, INTELLIGENCE_WORKSPACE)}
                   className="group flex min-h-[84px] items-center gap-4 rounded-[var(--cd-radius-lg)] border border-[color:rgb(0_62_126_/_0.24)] bg-[var(--cd-color-surface)] px-4 py-4 transition-colors hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:px-5"
                   {...intelligenceAccessibilityProps}
@@ -449,7 +453,7 @@ export function HomeWorkspace() {
                     </div>
                   </div>
                   <ArrowRight size={16} strokeWidth={1.6} className="shrink-0 text-[var(--cd-color-brand)]" aria-hidden="true" />
-                </Link>
+                </HomeIntentLink>
               ) : null}
             </div>
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
@@ -9,6 +10,7 @@ export type IntelligenceContext = {
   client: SupabaseClient;
   caller: User;
   role: string;
+  catalogScope: string;
 };
 
 function createAdminClient() {
@@ -36,7 +38,19 @@ export async function requireIntelligenceAccess(request: NextRequest): Promise<I
     return NextResponse.json({ error: '当前账号未开放 Intelligence Preview' }, { status: 403 });
   }
 
-  return { client, caller: identity.caller, role: identity.effectiveRole };
+  // Only already-authorized calls can reuse catalog data. A credential change
+  // changes the key; the credential itself is never retained in the cache.
+  const catalogScope = createHash('sha256').update(JSON.stringify([
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    identity.caller.id,
+    identity.callerRole,
+    identity.effectiveUserId,
+    identity.effectiveRole,
+    identity.isImpersonating,
+    request.headers.get('authorization'),
+  ])).digest('hex');
+
+  return { client, caller: identity.caller, role: identity.effectiveRole, catalogScope };
 }
 
 export function isIntelligenceContext(value: IntelligenceContext | NextResponse): value is IntelligenceContext {
@@ -47,36 +61,35 @@ function unique(values: Array<string | null | undefined>) {
   return [...new Set(values.map(value => value?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
 }
 
-export async function loadVocabularyAndPeriod(client: SupabaseClient) {
-  const [buildingsResult, latestMetricResult] = await Promise.all([
-    client
-      .from('buildings')
-      .select('district,submarket,grade')
-      .eq('is_active', true)
-      .eq('tracking_scope', 'tracked')
-      .limit(2000),
-    client
-      .from('building_metrics')
-      .select('record_year,record_quarter')
-      .order('record_year', { ascending: false })
-      .order('record_quarter', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+type VocabularyBuilding = { district?: string | null; submarket?: string | null; grade?: string | null };
 
-  if (buildingsResult.error) throw new Error(`读取楼宇词表失败：${buildingsResult.error.message}`);
-
-  const rows = buildingsResult.data ?? [];
-  const vocabulary: RequirementVocabulary = {
+export function recommendationVocabulary(rows: VocabularyBuilding[]): RequirementVocabulary {
+  return {
     districts: unique(rows.map(row => row.district)),
     submarkets: unique(rows.map(row => row.submarket)),
     grades: unique(rows.map(row => row.grade)),
   };
+}
 
-  const latestMetric = latestMetricResult.data;
-  const latestMetricPeriod = latestMetric?.record_year && latestMetric?.record_quarter
-    ? `${latestMetric.record_year} Q${latestMetric.record_quarter}`
-    : null;
+export function latestRecommendationMetricPeriod(row?: { record_year?: number; record_quarter?: number } | null): string | null {
+  return row?.record_year && row.record_quarter ? `${row.record_year} Q${row.record_quarter}` : null;
+}
 
-  return { vocabulary, latestMetricPeriod };
+export function createIntelligenceRequestScope(request: Request) {
+  const deadline = AbortSignal.timeout(26_000);
+  const controller = new AbortController();
+  return { deadline, signal: AbortSignal.any([request.signal, deadline, controller.signal]), close: () => controller.abort() };
+}
+
+export async function loadLatestRecommendationMetricPeriod(client: SupabaseClient, signal: AbortSignal) {
+  const latestMetricResult = await client
+    .from('building_metrics')
+    .select('record_year,record_quarter')
+    .order('record_year', { ascending: false })
+    .order('record_quarter', { ascending: false })
+    .limit(1)
+    .abortSignal(signal)
+    .maybeSingle();
+  signal.throwIfAborted();
+  return latestRecommendationMetricPeriod(latestMetricResult.data);
 }

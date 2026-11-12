@@ -13,10 +13,12 @@ vi.mock('@/src/services/supabaseClient', () => ({
     from(table: string) {
       const data = table === 'buildings'
         ? names.map((name, i) => ({ id: String(i), name }))
-        : names.map((_, i) => ({ id: `rule-${i}`, building_id: String(i), field_name: 'submarket', display_label: '子市场', display_value: `示例 ${i}`, created_at: '2026-11-11' }));
+        : names.map((name, i) => ({ id: `rule-${i}`, building_id: String(i), building: { name }, field_name: 'submarket', display_label: '子市场', display_value: `示例 ${i}`, created_at: '2026-11-11' }));
       const query = {
         select: () => query,
         order: () => query,
+        abortSignal: () => query,
+        returns: () => query,
         eq: () => query,
         in: () => query,
         then: (done: (result: { data: typeof data; error: null }) => unknown) => Promise.resolve({ data, error: null }).then(done),

@@ -4,6 +4,7 @@ import { resolveLeaseReadAccess, type LeaseReadAccess } from './access';
 import { readLeaseCompany } from './companyLookup';
 import { asCompanyForAssessment, assessLeaseCompany, getCompanyAssessmentConfig } from './companyAi';
 import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -32,7 +33,7 @@ type ReadContext = { response: NextResponse } | {
   allowAssessment: boolean;
 };
 
-async function getReadContext(req: NextRequest): Promise<ReadContext> {
+async function getReadContext(req: NextRequest, timing?: ReturnType<typeof createIsolatedRequestTiming>): Promise<ReadContext> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
@@ -41,7 +42,8 @@ async function getReadContext(req: NextRequest): Promise<ReadContext> {
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+  const resolveIdentity = () => resolveEffectiveRequestIdentity(req, supabaseAdmin);
+  const identityResult = await (timing ? timing.measure('auth', resolveIdentity) : resolveIdentity());
   if ('response' in identityResult) return identityResult;
   const { identity } = identityResult;
   const params = req.nextUrl.searchParams;
@@ -85,8 +87,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const timing = createIsolatedRequestTiming(req);
   try {
-    const context = await getReadContext(req);
+    const context = await getReadContext(req, timing);
     if ('response' in context) return context.response;
     const { supabaseAdmin, params, access, identity, allowAssessment } = context;
 
@@ -113,14 +116,15 @@ export async function GET(req: NextRequest) {
     const offsetRaw = Number(params.get('offset') ?? 0);
     const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? Math.floor(offsetRaw) : 0;
 
-    // The first page still returns an exact count. A follow-up page may opt out
-    // when its caller already holds that count for the same filter/role scope.
-    const includeCount = params.get('include_count') !== '0';
+    // Preserve the combined response for existing callers. The history workbench
+    // can request a page and its exact total independently with the same filters.
+    const countOnly = params.get('count_only') === '1';
+    const includeCount = countOnly || params.get('include_count') !== '0';
     let query = supabaseAdmin
       .from('lease_transactions_read_v1')
       .select(
-        'read_id,record_source,building_id,building_match_scope,related_building_ids,company,industry,sub_industry,demand_type,new_building,sub_market,district,area_sqm,face_rent,effective_rent,lease_term_months,transaction_year,transaction_quarter,transaction_period,transaction_time_precision,remarks,agency_company,agency_person,quality_status',
-        includeCount ? { count: 'exact' } : undefined,
+        countOnly ? 'read_id' : 'read_id,record_source,building_id,building_match_scope,related_building_ids,company,industry,sub_industry,demand_type,new_building,sub_market,district,area_sqm,face_rent,effective_rent,lease_term_months,transaction_year,transaction_quarter,transaction_period,transaction_time_precision,remarks,agency_company,agency_person,quality_status',
+        countOnly ? { count: 'exact', head: true } : includeCount ? { count: 'exact' } : undefined,
       );
 
     const company = params.get('company')?.trim();
@@ -157,18 +161,21 @@ export async function GET(req: NextRequest) {
     if (areaMax !== null) query = query.lte('area_sqm', areaMax);
 
     const dateOrder = buildingScope ? { ascending: false, nullsFirst: false } : { ascending: false };
-    const { data, error, count } = await query
-      .order('transaction_year', dateOrder)
-      .order('transaction_quarter', dateOrder)
-      .order('read_id', { ascending: true })
-      .range(offset, offset + limit - 1);
+    query = query.abortSignal(req.signal);
+    const { data, error, count } = await timing.measure('database', () => {
+      if (countOnly) return query;
+      return query.order('transaction_year', dateOrder)
+        .order('transaction_quarter', dateOrder)
+        .order('read_id', { ascending: true })
+        .range(offset, offset + limit - 1);
+    });
 
-    if (error) {
+    if (error || (countOnly && typeof count !== 'number')) {
       console.error('[lease-read] query failed', error);
       return NextResponse.json({ error: '查询租赁成交失败' }, { status: 500 });
     }
 
-    return NextResponse.json(
+    return timing.response(() => NextResponse.json(
       {
         records: data ?? [],
         count: includeCount ? count ?? 0 : null,
@@ -182,7 +189,7 @@ export async function GET(req: NextRequest) {
         },
       },
       { headers: { 'Cache-Control': 'private, no-store' } },
-    );
+    ));
   } catch (error) {
     console.error('[lease-read] unexpected error', error);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });

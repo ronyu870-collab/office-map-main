@@ -32,7 +32,9 @@ describe('Intelligence recommended shortlist contract', () => {
     const loader = source('src/lib/intelligence/recommendationServer.ts');
     const workspace = source('src/components/intelligence/IntelligenceRecommendationWorkspace.tsx');
     expect(route).toContain('requireIntelligenceAccess');
-    expect(route).toContain('loadRecommendationUniverse');
+    expect(route).toContain('loadRecommendationCatalog');
+    expect(route).toContain('loadRecommendationEvidence');
+    expect(route).toContain('buildRecommendationUniverse');
     expect(loader).toContain("from('buildings')");
     expect(loader).toContain("from('building_metrics')");
     expect(loader).toContain("from('building_brochure_data')");

@@ -21,7 +21,7 @@ import { useAppSession } from '@/src/components/SessionProvider';
 import { AppHeader, Badge, Button, LoadingState } from '@/src/components/ui';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import type { RequirementParseResult, RequirementSupportStatus } from '@/src/lib/intelligence/requirementSchema';
-import { beginProposalDraft } from '@/src/lib/intelligence/proposalDraft';
+import { beginProposalDraft, getProposalDraftScope, type ProposalDraftScope } from '@/src/lib/intelligence/proposalDraft';
 import { parseIntelligenceRequirement } from '@/src/services/intelligenceApi';
 import { supabase } from '@/src/services/supabaseClient';
 
@@ -128,6 +128,19 @@ function DataStatusItem({
 export function IntelligenceWorkspace() {
   const router = useRouter();
   const { session, status } = useAppSession();
+  React.useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [router, status]);
+
+  if (status !== 'authenticated' || !session) return <IntelligenceLoadingShell />;
+  if (!isIntelligencePreviewEnabled(session.role)) return <PreviewUnavailable />;
+  const scope = getProposalDraftScope(session);
+  const key = scope ?? JSON.stringify([session.session.user.id, session.user.id, session.role]);
+  return <LegacyRequirementWorkspace key={key} accessToken={session.session.access_token} scope={scope} />;
+}
+
+function LegacyRequirementWorkspace({ accessToken, scope }: { accessToken: string; scope: ProposalDraftScope | null }) {
+  const router = useRouter();
   const [snapshot, setSnapshot] = React.useState<IntelligenceSnapshot>(EMPTY_SNAPSHOT);
   const [snapshotLoading, setSnapshotLoading] = React.useState(true);
   const [snapshotError, setSnapshotError] = React.useState<string | null>(null);
@@ -137,14 +150,6 @@ export function IntelligenceWorkspace() {
   const [parseError, setParseError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/login');
-  }, [router, status]);
-
-  const previewEnabled = isIntelligencePreviewEnabled(session?.role);
-
-  React.useEffect(() => {
-    if (status !== 'authenticated' || !session || !previewEnabled) return;
-
     let active = true;
     void (async () => {
       setSnapshotLoading(true);
@@ -211,10 +216,9 @@ export function IntelligenceWorkspace() {
     return () => {
       active = false;
     };
-  }, [previewEnabled, session, status]);
+  }, [accessToken]);
 
   async function handleParseRequirement() {
-    const accessToken = session?.session?.access_token;
     const input = requirement.trim();
     if (!accessToken || !input || parseLoading) return;
 
@@ -230,9 +234,6 @@ export function IntelligenceWorkspace() {
       setParseLoading(false);
     }
   }
-
-  if (status === 'loading' || !session) return <IntelligenceLoadingShell />;
-  if (!previewEnabled) return <PreviewUnavailable />;
 
   const hasCurrentData = (snapshot.currentDataCount ?? 0) > 0;
   const mapHandoff = parseResult ? createIntelligenceMapHandoff(parseResult) : null;
@@ -358,7 +359,7 @@ export function IntelligenceWorkspace() {
                     title={mapHandoff?.appliedCapabilities.length ? '在现有地图筛选引擎中查看真实候选项目' : '当前没有可安全映射到地图的条件'}
                     onClick={() => {
                       if (!mapHandoff) return;
-                      const nextDraft = beginProposalDraft(parseResult, mapHandoff.appliedCapabilities);
+                      const nextDraft = scope && beginProposalDraft(scope, parseResult, mapHandoff.appliedCapabilities);
                       if (!nextDraft) {
                         setParseError('浏览器会话存储不可用，暂时无法创建客户方案草稿。');
                         return;

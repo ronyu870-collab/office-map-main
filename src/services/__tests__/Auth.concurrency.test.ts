@@ -91,10 +91,20 @@ describe('browser session request coalescing', () => {
   });
 
   it('shares the real lookup while keeping effective impersonation identity and the real JWT', async () => {
-    sessionStorage.setItem('__impersonation_state', JSON.stringify({ targetUserId: 'target', targetEmail: 'target@example.invalid', targetRole: 'viewer' }));
+    mocks.profile.mockResolvedValue({ data: { role: 'admin' }, error: null });
+    sessionStorage.setItem('__impersonation_state', JSON.stringify({ targetUserId: 'target', targetEmail: 'target@example.invalid', targetRole: 'viewer', adminUserId: 'user-a', adminEmail: 'user-a@example.invalid' }));
     const reads = await Promise.all([getSessionFast(), getSessionFast()]);
     expect(reads.every((read) => read?.user.id === 'target' && read.session.access_token === 'token-user-a')).toBe(true);
     expect(mocks.profile).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not apply a previous administrator’s simulated identity to a newly authenticated administrator', async () => {
+    mocks.getSession.mockResolvedValue(response('user-b'));
+    mocks.profile.mockResolvedValue({ data: { role: 'admin' }, error: null });
+    sessionStorage.setItem('__impersonation_state', JSON.stringify({ targetUserId: 'target', targetEmail: 'target@example.invalid', targetRole: 'viewer', adminUserId: 'user-a', adminEmail: 'user-b@example.invalid' }));
+    const result = await getSessionFast();
+    expect([result?.user.id, result?.role]).toEqual(['user-b', 'admin']);
+    expect(sessionStorage.getItem('__impersonation_state')).toBeNull();
   });
 
   it('does not share pending state or cached identities during server execution', async () => {

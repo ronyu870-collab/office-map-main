@@ -17,9 +17,7 @@ import {
   adminReplyToFeedback,
   createAdminFeedback,
   deleteAdminFeedback,
-  getAdminFeedbackComments,
   getAdminFeedbackIssues,
-  markAdminFeedbackRead,
   updateAdminFeedbackPriority,
   updateAdminFeedbackStatus,
   type AdminFeedbackCategory,
@@ -28,8 +26,15 @@ import {
   type AdminFeedbackPriority,
   type AdminFeedbackStatus,
 } from '@/src/services/feedbackAdminApi';
+import { isLaterFeedbackActivity, mergeFeedbackReadAt } from '@/src/services/feedbackThread';
+import { useFeedbackThread, type FeedbackThreadSelection } from '@/src/hooks/useFeedbackThread';
 import { uploadIssueImage } from '@/src/services/adminApi';
 import { logAction } from '@/src/utils/audit';
+
+function mergeReceipt(issue: AdminFeedbackIssue, readAt: string | null): AdminFeedbackIssue {
+  const lastReadAt = mergeFeedbackReadAt(issue.last_read_at, readAt);
+  return { ...issue, last_read_at: lastReadAt, has_unread_user_activity: issue.source === 'user_feedback' && isLaterFeedbackActivity(issue.last_user_activity_at, lastReadAt) };
+}
 
 const STATUS_LABEL: Record<AdminFeedbackStatus, string> = {
   open: '待处理',
@@ -215,8 +220,9 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
   const [statusFilter, setStatusFilter] = React.useState<'all' | AdminFeedbackStatus>('all');
   const [sourceFilter, setSourceFilter] = React.useState<'all' | 'user_feedback' | 'admin'>('all');
   const [selected, setSelected] = React.useState<AdminFeedbackIssue | null>(null);
-  const [comments, setComments] = React.useState<AdminFeedbackComment[]>([]);
-  const [commentsLoading, setCommentsLoading] = React.useState(false);
+  const thread = useFeedbackThread();
+  const { comments, loading: commentsLoading, error: commentsError } = thread;
+  const listGeneration = React.useRef(0);
   const [reply, setReply] = React.useState('');
   const [replyImages, setReplyImages] = React.useState<string[]>([]);
   const [replying, setReplying] = React.useState(false);
@@ -227,23 +233,29 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const loadIssues = React.useCallback(async () => {
+    const generation = ++listGeneration.current;
     setLoading(true);
     setError('');
     try {
       const data = await getAdminFeedbackIssues();
-      setIssues(data);
-      if (selected) {
-        const refreshed = data.find((item) => item.id === selected.id);
-        if (refreshed) setSelected(refreshed);
-      }
+      if (generation !== listGeneration.current) return;
+      setIssues(current => {
+        const readByIssue = new Map(current.map(issue => [issue.id, issue.last_read_at]));
+        return data.map(issue => mergeReceipt(issue, readByIssue.get(issue.id) ?? null));
+      });
+      setSelected(current => {
+        if (!current) return current;
+        const refreshed = data.find(item => item.id === current.id);
+        return refreshed ? mergeReceipt(refreshed, current.last_read_at) : current;
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : '需求反馈加载失败');
+      if (generation === listGeneration.current) setError(err instanceof Error ? err.message : '需求反馈加载失败');
     } finally {
-      setLoading(false);
+      if (generation === listGeneration.current) setLoading(false);
     }
-  }, [selected]);
+  }, []);
 
-  React.useEffect(() => { void loadIssues(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { void loadIssues(); }, [loadIssues]);
 
   const unreadCount = React.useMemo(() => issues.filter((issue) => issue.has_unread_user_activity).length, [issues]);
 
@@ -264,37 +276,31 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
     });
   }, [issues, search, sourceFilter, statusFilter]);
 
-  const openIssue = async (issue: AdminFeedbackIssue) => {
-    setSelected({ ...issue, has_unread_user_activity: false, last_read_at: new Date().toISOString() });
-    setIssues((current) => current.map((item) => item.id === issue.id ? { ...item, has_unread_user_activity: false, last_read_at: new Date().toISOString() } : item));
+  const loadThread = (issue: AdminFeedbackIssue, selection: FeedbackThreadSelection) => {
+    return thread.load(selection, (readAt) => {
+      const receipt = readAt ?? issue.last_user_activity_at;
+      setIssues(current => current.map(item => item.id === issue.id ? mergeReceipt(item, receipt) : item));
+      setSelected(current => current?.id === issue.id ? mergeReceipt(current, receipt) : current);
+    });
+  };
+
+  const openIssue = (issue: AdminFeedbackIssue) => {
+    const selection = thread.select(issue.id);
+    setSelected(issue);
     setReply('');
     setReplyImages([]);
     setDetailError('');
     setActionMenuOpen(false);
-    setCommentsLoading(true);
-    try {
-      await markAdminFeedbackRead(issue.id);
-      setComments(await getAdminFeedbackComments(issue.id));
-    } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '沟通记录加载失败');
-    } finally {
-      setCommentsLoading(false);
-    }
+    return loadThread(issue, selection);
   };
 
-  const refreshDetail = async () => {
-    if (!selected) return;
-    const issueId = selected.id;
-    const [nextIssues, nextComments] = await Promise.all([getAdminFeedbackIssues(), getAdminFeedbackComments(issueId)]);
-    await markAdminFeedbackRead(issueId).catch(() => undefined);
-    setIssues(nextIssues.map((item) => item.id === issueId ? { ...item, has_unread_user_activity: false, last_read_at: new Date().toISOString() } : item));
-    const nextSelected = nextIssues.find((item) => item.id === issueId);
-    if (nextSelected) setSelected({ ...nextSelected, has_unread_user_activity: false, last_read_at: new Date().toISOString() });
-    setComments(nextComments);
+  const refreshDetail = async (issue: AdminFeedbackIssue, selection: FeedbackThreadSelection) => {
+    await Promise.all([loadIssues(), loadThread(issue, selection)]);
   };
 
   const submitReply = async (nextStatus: AdminFeedbackStatus | null) => {
-    if (!selected || replying || (!reply.trim() && replyImages.length === 0)) return;
+    const selection = thread.current();
+    if (!selected || selection?.issueId !== selected.id || replying || (!reply.trim() && replyImages.length === 0)) return;
     setReplying(true);
     setDetailError('');
     setActionMenuOpen(false);
@@ -304,61 +310,66 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
       if (nextStatus && nextStatus !== selected.status) {
         logAction(adminEmail, 'FEEDBACK_STATUS_CHANGED', { issue_id: selected.id, old_status: selected.status, new_status: nextStatus });
       }
-      setReply('');
-      setReplyImages([]);
-      await refreshDetail();
+      if (thread.isCurrent(selection)) {
+        setReply('');
+        setReplyImages([]);
+      }
+      await refreshDetail(selected, selection);
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '回复失败');
+      if (thread.isCurrent(selection)) setDetailError(err instanceof Error ? err.message : '回复失败');
     } finally {
       setReplying(false);
     }
   };
 
   const changeStatus = async (status: AdminFeedbackStatus) => {
-    if (!selected || status === selected.status) return;
+    const selection = thread.current();
+    if (!selected || selection?.issueId !== selected.id || status === selected.status) return;
     const oldStatus = selected.status;
     try {
       await updateAdminFeedbackStatus(selected.id, status);
       logAction(adminEmail, 'FEEDBACK_STATUS_CHANGED', { issue_id: selected.id, old_status: oldStatus, new_status: status });
-      await refreshDetail();
+      await refreshDetail(selected, selection);
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '状态更新失败');
+      if (thread.isCurrent(selection)) setDetailError(err instanceof Error ? err.message : '状态更新失败');
     }
   };
 
   const changePriority = async (priority: AdminFeedbackPriority) => {
-    if (!selected || priority === selected.priority) return;
+    const selection = thread.current();
+    if (!selected || selection?.issueId !== selected.id || priority === selected.priority) return;
     try {
       await updateAdminFeedbackPriority(selected.id, priority);
-      await refreshDetail();
+      await refreshDetail(selected, selection);
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '优先级更新失败');
+      if (thread.isCurrent(selection)) setDetailError(err instanceof Error ? err.message : '优先级更新失败');
     }
   };
 
   const uploadReplyImage = async (file: File) => {
-    if (!file.type.startsWith('image/') || replyImages.length >= 3) return;
+    const selection = thread.current();
+    if (!selection || !file.type.startsWith('image/') || replyImages.length >= 3) return;
     setUploading(true);
     try {
       const url = await uploadIssueImage(file);
-      setReplyImages((current) => [...current, url].slice(0, 3));
+      if (thread.isCurrent(selection)) setReplyImages((current) => [...current, url].slice(0, 3));
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '图片上传失败');
+      if (thread.isCurrent(selection)) setDetailError(err instanceof Error ? err.message : '图片上传失败');
     } finally {
       setUploading(false);
     }
   };
 
   const removeIssue = async () => {
-    if (!selected || !window.confirm('确定删除这条问题及其沟通记录吗？此操作不可恢复。')) return;
+    const selection = thread.current();
+    if (!selected || selection?.issueId !== selected.id || !window.confirm('确定删除这条问题及其沟通记录吗？此操作不可恢复。')) return;
     try {
       await deleteAdminFeedback(selected.id);
       logAction(adminEmail, 'ADMIN_DATA_OPERATION', { operation: 'DELETE', table: 'admin_issues', target_id: selected.id });
-      setSelected(null);
-      setComments([]);
+      if (thread.isCurrent(selection)) { thread.clear(); setSelected(null); }
       await loadIssues();
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : '删除失败');
+      if (thread.isCurrent(selection)) setDetailError(err instanceof Error ? err.message : '删除失败');
     }
   };
 
@@ -471,10 +482,13 @@ export default function IssueManager({ adminEmail }: { adminEmail: string }) {
                   <h4 className="text-[12px] font-semibold text-[var(--cd-color-text-secondary)]">沟通记录</h4>
                   <span className="text-[10px] text-[var(--cd-color-text-muted)]">回复与状态变化按时间保留</span>
                 </div>
+                {commentsError && <div role="alert" className="mt-3 flex flex-wrap items-center gap-2 text-xs text-red-700">
+                  <span>{commentsError}</span><button type="button" className="min-h-9 underline" onClick={() => { const selection = thread.current(); if (selection) void loadThread(selected, selection); }}>重试沟通记录</button>
+                </div>}
                 {commentsLoading ? (
                   <div className="py-6 text-center text-sm text-[var(--cd-color-text-muted)]">正在加载…</div>
                 ) : comments.length === 0 ? (
-                  <div className="py-6 text-center text-sm text-[var(--cd-color-text-muted)]">暂无沟通记录</div>
+                  !commentsError && <div className="py-6 text-center text-sm text-[var(--cd-color-text-muted)]">暂无沟通记录</div>
                 ) : (
                   <div className="relative mt-4 space-y-4 before:absolute before:bottom-2 before:left-[13px] before:top-2 before:w-px before:bg-[var(--cd-color-border)]">
                     {comments.map((comment) => <TimelineItem key={comment.id} comment={comment} />)}

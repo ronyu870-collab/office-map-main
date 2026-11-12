@@ -1,10 +1,12 @@
 export interface PageResult<T> { data: T[] | null; error: { message?: string } | null; }
 
 /** Continue to an empty page: server row caps can be smaller than our page size. */
-export async function fetchAllSubmissionPages<T>(fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>): Promise<T[]> {
+export async function fetchAllSubmissionPages<T>(fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>, signal?: AbortSignal): Promise<T[]> {
   const rows: T[] = [];
   for (;;) {
+    signal?.throwIfAborted();
     const result = await fetchPage(rows.length, rows.length + 499);
+    signal?.throwIfAborted();
     if (result.error) throw new Error(result.error.message || '读取失败');
     if (!result.data) throw new Error('数据响应不完整');
     if (result.data.length === 0) return rows;
@@ -46,7 +48,7 @@ export function draftProjectLabel(entry: AdminDraftEntry, buildings: Record<stri
   return `${entry.kind === 'future' ? '未来供应 · ' : ''}${name || (/^\d+$/.test(entry.id) ? `历史序号 ${Number(entry.id) + 1}（无法确认项目）` : `未找到项目（${entry.id}）`)}`;
 }
 
-export async function submissionPageResult<T>(fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>) {
-  const data = await fetchAllSubmissionPages(fetchPage);
+export async function submissionPageResult<T>(fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>, signal?: AbortSignal) {
+  const data = await fetchAllSubmissionPages(fetchPage, signal);
   return { data, error: null, count: data.length };
 }

@@ -33,6 +33,26 @@ const row = (id: number, extra: Partial<LeaseTransaction> = {}): LeaseTransactio
 });
 
 describe('成交汇总交互', () => {
+  it('keeps team column option search focused during a correction and restores focus on close', async () => {
+    const user = userEvent.setup();
+    render(<SubmissionDetailTable submissions={[row(1, { industry: '互联网' }), row(2, { industry: '金融' })]} title="团队成交汇总" />);
+    const trigger = screen.getByRole('button', { name: '行业分类筛选和排序' });
+    await user.click(trigger);
+    const dialog = screen.getByRole('dialog');
+    const search = within(dialog).getByRole('searchbox', { name: /搜索行业分类选项/ }) as HTMLInputElement;
+    await user.type(search, '互网');
+    expect(within(dialog).getByText('无匹配选项')).toBeInTheDocument();
+    expect(search).toHaveFocus();
+    search.setSelectionRange(1, 1);
+    await user.keyboard('联');
+    expect(search).toHaveValue('互联网');
+    expect(search).toHaveFocus();
+    expect(search.selectionStart).toBe(2);
+    expect(within(dialog).getByRole('checkbox', { name: '互联网' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(trigger).toHaveFocus();
+  });
+
   it('团队成交表把成交年份放在成交季度左边', () => {
     render(<SubmissionDetailTable submissions={[row(1, { transaction_year: 2025, transaction_quarter: 'Q4' })]} title="团队成交汇总" />);
     const table = screen.getByRole('table');

@@ -86,21 +86,6 @@ export async function getAdminFeedbackIssues(): Promise<AdminFeedbackIssue[]> {
   });
 }
 
-export async function getAdminFeedbackComments(issueId: string): Promise<AdminFeedbackComment[]> {
-  const { data, error } = await supabase
-    .from('admin_issue_comments')
-    .select('id,issue_id,content,images,created_by,is_admin,created_at,kind,metadata')
-    .eq('issue_id', issueId)
-    .order('created_at', { ascending: true });
-  if (error) throw new Error(`获取沟通记录失败：${error.message}`);
-  return (data ?? []) as AdminFeedbackComment[];
-}
-
-export async function markAdminFeedbackRead(issueId: string): Promise<void> {
-  const { error } = await supabase.rpc('feedback_mark_read', { p_issue_id: issueId });
-  if (error) throw new Error(`更新已读状态失败：${error.message}`);
-}
-
 export async function adminReplyToFeedback(params: {
   issueId: string;
   content: string;

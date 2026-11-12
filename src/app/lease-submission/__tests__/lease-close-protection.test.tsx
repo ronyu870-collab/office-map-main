@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ close: vi.fn(), save: vi.fn(), restore: vi.fn(), update: vi.fn(), duplicate: vi.fn(), companySearch: vi.fn(), companyDeals: vi.fn(), companyAssessment: vi.fn() }));
-const buildings = [{ id: 'test-building', name: 'Synthetic Tower', submarket: 'CBD', district: '朝阳区', grade: 'A' }];
+const buildings = [
+  { id: 'test-building', name: 'Synthetic Tower', submarket: 'CBD', district: '朝阳区', grade: 'A' },
+  { id: 'second-building', name: 'Remote Plaza', submarket: '金融街', district: '西城区', grade: 'A' },
+];
 vi.mock('@/src/hooks/useBuildings', () => ({ useBuildings: () => ({ buildings, isLoading: false }) }));
 vi.mock('@/src/services/leaseTransactionDraftService', () => ({ getLeaseTransactionDraft: () => state.restore(), saveLeaseTransactionDraft: (...args: unknown[]) => state.save(...args), deleteLeaseTransactionDraft: vi.fn() }));
 vi.mock('@/src/services/leaseTransactionSubmitService', () => ({ getAllBrokers: async () => [], checkFuzzyDuplicate: (...args: unknown[]) => state.duplicate(...args), submitTransaction: vi.fn(), updateTransaction: (...args: unknown[]) => state.update(...args) }));
@@ -37,6 +40,40 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('lease close protection', () => {
+  it('keeps the enterprise type search focused through empty and corrected results', async () => {
+    openForm(); await ready();
+    const input = screen.getByRole('combobox', { name: /企业类型/ }) as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: '央企国', selectionStart: 2, selectionEnd: 2 } });
+    expect(screen.getByText('无匹配选项')).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: '央国企', selectionStart: 2, selectionEnd: 2 } });
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    fireEvent.click(screen.getByRole('option', { name: '央国企' }));
+    expect(input).toHaveValue('央国企');
+  });
+
+  it('keeps the actual lease building selector focused through results and a mid-word correction', async () => {
+    openForm(); await ready();
+    const input = screen.getByPlaceholderText('搜索楼宇名称…') as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: 'S', selectionStart: 1, selectionEnd: 1 } });
+    expect(input).toHaveFocus();
+    expect(screen.getByRole('option', { name: 'Synthetic Tower' })).toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'Sy', selectionStart: 2, selectionEnd: 2 } });
+    expect(screen.queryByRole('option', { name: 'Remote Plaza' })).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: 'Sxn', selectionStart: 2, selectionEnd: 2 } });
+    expect(screen.getByText('无匹配选项')).toBeInTheDocument();
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'Syn', selectionStart: 2, selectionEnd: 2 } });
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByText('Synthetic Tower')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Synthetic Tower' })).not.toBeInTheDocument();
+  });
+
   it('keeps enterprise type focus and caret while filtering and selects the matching option', async () => {
     openForm(); await ready();
     const user = userEvent.setup();
@@ -133,8 +170,11 @@ describe('lease close protection', () => {
     window.dispatchEvent(dirty); expect(dirty.defaultPrevented).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: '保存草稿' }));
     await screen.findByText('草稿已保存到云端');
-    const saved = new Event('beforeunload', { cancelable: true });
-    window.dispatchEvent(saved); expect(saved.defaultPrevented).toBe(false);
+    await waitFor(() => {
+      const saved = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(saved);
+      expect(saved.defaultPrevented).toBe(false);
+    });
   });
 });
 

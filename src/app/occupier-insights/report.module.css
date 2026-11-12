@@ -40,8 +40,9 @@
 .scene { display: flex; align-items: center; padding-block: clamp(28px,5vh,64px); border-bottom: 1px solid var(--line); }
 .scene.tinted { background: #eaf0ed; }
 .cover { isolation: isolate; display: flex; align-items: center; background: #e8eeeb; overflow: clip; }
+.picture { position:absolute; inset:0; display:block; }
 .background { object-fit: cover; z-index: -1; }
-.cover > .background { object-position: center; transform: scale(1.03) translateY(var(--scene-offset,0px)); }
+.cover > :where(.picture) > .background { object-position: center; transform: scale(1.03) translateY(var(--scene-offset,0px)); }
 .coverShade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg,rgba(245,246,242,.98),rgba(245,246,242,.84) 35%,rgba(245,246,242,0) 73%); }
 .coverInner { padding-block: 50px; }
 .coverKicker { font-size: var(--body-size); margin-bottom: 26px !important; }
@@ -105,7 +106,7 @@
 .networkSketch { width:100%; height:80px; color:var(--blue); margin-bottom:12px; }
 .networkLines { stroke-dasharray: 500; stroke-dashoffset: 0; }
 .scenePhoto { position:relative; aspect-ratio:3 / 1; overflow:clip; isolation:isolate; margin-bottom:22px; }
-.scenePhoto > .background { object-fit:contain; object-position:center; }
+.scenePhoto > :where(.picture) > .background { object-fit:contain; object-position:center; }
 .photoScene .plotRows { gap:10px; }
 .photoScene .dataPlot figcaption { margin-bottom:14px; }
 .photoScene .composition { height:34px; margin-bottom:16px; }
@@ -153,9 +154,9 @@
 .report[data-animated=true] [data-study][data-visible=true] .networkNodes circle:nth-child(2) { animation-delay:200ms; }
 .report[data-animated=true] [data-study][data-visible=true] .networkNodes circle:nth-child(n+3) { animation-delay:500ms; }
 .report[data-animated=true] .scenePhoto[data-visible=true] { animation:photo-reveal .95s cubic-bezier(.16,1,.3,1) both; }
-.report[data-animated=true] .scenePhoto[data-visible=true] > .background { animation:photo-settle 1.4s cubic-bezier(.16,1,.3,1) both; }
+.report[data-animated=true] .scenePhoto[data-visible=true] > :where(.picture) > .background { animation:photo-settle 1.4s cubic-bezier(.16,1,.3,1) both; }
 .report[data-animated=true] .cover[data-entered=true] .coverInner { animation:story-arrive .9s cubic-bezier(.16,1,.3,1) both; }
-.report[data-animated=true] .cover[data-entered=true] > .background { animation:cover-settle 1.6s cubic-bezier(.16,1,.3,1) both; }
+.report[data-animated=true] .cover[data-entered=true] > :where(.picture) > .background { animation:cover-settle 1.6s cubic-bezier(.16,1,.3,1) both; }
 @keyframes story-arrive { from {opacity:.55;transform:translateY(16px);} to {opacity:1;transform:none;} }
 @keyframes value-rise { from {opacity:.3;transform:translateY(calc(var(--plot-height) * var(--column-ratio)));} to {opacity:1;transform:none;} }
 @keyframes point-arrive { from {opacity:0;scale:.15;} to {opacity:1;scale:1;} }
@@ -218,7 +219,7 @@
   .cover h1 { font-size:42px; }
   .coverDeck { font-size:24px; }
   .coverShade { background:linear-gradient(90deg,rgba(245,246,242,.96),rgba(245,246,242,.75) 65%,rgba(245,246,242,.4)); }
-  .cover > .background { object-position:65% center; }
+  .cover > :where(.picture) > .background { object-position:65% center; }
   .scene { padding-block:36px; }
   .report h2 { font-size:28px; }
   .keyNumbers > div { grid-template-columns:120px 1fr; gap:16px; padding-block:18px; }

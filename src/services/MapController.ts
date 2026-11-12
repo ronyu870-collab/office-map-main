@@ -9,6 +9,7 @@ import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
+import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
@@ -758,6 +759,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       }
       const amapKey = getSafeAmapKey();
 
+      recordMapStartup('sdk_start');
       if (!_amapLoadPromise) {
         _amapLoadPromise = (async () => {
           const mod = await import("@amap/amap-jsapi-loader");
@@ -778,6 +780,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
       const AMap = await _amapLoadPromise;
       if (this._destroyed) return;
+      recordMapStartup('sdk_ready');
       this.AMap = AMap;
 
       const containerEl = document.getElementById(containerId);
@@ -793,7 +796,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       // A warm map can complete before the runtime resumes after awaiting initMap.
       // Keep this listener until map destruction so other listeners see the same event.
       initialMap.on("complete", () => {
-        if (!this._destroyed && this.map === initialMap) this.initialTilesReady = true;
+        if (!this._destroyed && this.map === initialMap && !this.initialTilesReady) {
+          this.initialTilesReady = true;
+          recordMapStartup('tiles_complete');
+        }
       });
       this.infoWindow = new AMap.InfoWindow({
         isCustom: false,

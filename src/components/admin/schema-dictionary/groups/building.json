@@ -1,0 +1,77 @@
+{
+  "id": "building",
+  "title": "楼宇数据",
+  "desc": "楼宇基础信息、季度经营指标、历史数据和显示配置。是整个系统的核心数据。",
+  "tables": [
+    {
+      "name": "buildings",
+      "label": "楼宇基础信息",
+      "desc": "所有楼宇的\"身份证\"。地图弹窗、季度填报、数据分析都从这里读取楼宇的基本属性。",
+      "rules": [
+        "经纬度为空或is_active=false的楼宇不会在地图上显示",
+        "P(超甲级)在Excel导出时合并到A(甲级)组，不单独分组",
+        "leasable_area会在新楼宇首次填报时自动带入\"总面积\"字段",
+        "修改楼宇名称会同步更新所有关联的历史数据展示"
+      ],
+      "fields": [
+        {"name":"id","label":"楼宇ID","type":"UUID","desc":"系统自动生成的唯一标识，不可修改","who":"系统自动"},
+        {"name":"name","label":"项目名称","type":"文本","desc":"楼宇名称，如\"国贸中心\"","who":"管理员"},
+        {"name":"submarket","label":"子市场","type":"文本","desc":"所属商圈，如CBD、金融街、中关村","who":"管理员"},
+        {"name":"grade","label":"楼宇等级","type":"文本","desc":"P=超甲级、A=甲级、B=乙级、BP=产业园","who":"管理员","note":"导出时P合并到A组"},
+        {"name":"city","label":"城市","type":"文本","desc":"所在城市","who":"管理员"},
+        {"name":"district","label":"行政区","type":"文本","desc":"所属行政区，如朝阳区、海淀区","who":"管理员"},
+        {"name":"location_lng","label":"经度","type":"浮点数","desc":"楼宇位置经度坐标","who":"管理员","note":"为空则地图不显示"},
+        {"name":"location_lat","label":"纬度","type":"浮点数","desc":"楼宇位置纬度坐标","who":"管理员","note":"为空则地图不显示"},
+        {"name":"completion_year","label":"竣工年份","type":"文本","desc":"楼宇建成/预计入市年份，可含季度如2026Q3","who":"管理员"},
+        {"name":"leed_certification","label":"LEED认证","type":"文本","desc":"绿色建筑认证信息","who":"管理员"},
+        {"name":"owner","label":"业主","type":"文本","desc":"产权方/业主名称","who":"管理员"},
+        {"name":"property_management","label":"物业公司","type":"文本","desc":"物业管理公司","who":"管理员"},
+        {"name":"contact_phone","label":"联系电话","type":"文本","desc":"联系方式","who":"管理员"},
+        {"name":"leasable_area","label":"可租赁面积","type":"数值","desc":"总可租赁面积(平方米)","who":"管理员","note":"新楼宇首次填报时自动带入总面积"},
+        {"name":"is_active","label":"是否启用","type":"布尔","desc":"控制楼宇是否可见","who":"管理员","note":"停用后地图不显示但历史数据保留"},
+        {"name":"former_names","label":"曾用名","type":"JSONB数组","desc":"曾用名列表，如[\"旧名1\",\"旧名2\"]，用于历史数据匹配","who":"管理员"},
+        {"name":"notes","label":"备注","type":"文本","desc":"补充信息","who":"管理员"},
+        {"name":"sort_order","label":"排序序号","type":"整数","desc":"控制显示顺序，越小越靠前","who":"管理员"}
+      ]
+    },
+    {
+      "name": "building_metrics",
+      "label": "季度指标数据",
+      "desc": "楼宇的季度经营指标快照。每次填报完成后自动保存一份，用于趋势分析和历史对比。",
+      "rules": [
+        "此表数据由系统自动从quarterly_submissions同步，不直接编辑",
+        "用于地图弹窗中显示最新一期的经营数据",
+        "新楼宇首次填报时，从此表获取最新一期的total_area作为参考"
+      ],
+      "fields": [
+        {"name":"id","label":"记录ID","type":"大整数","desc":"自增主键","who":"系统自动"},
+        {"name":"building_id","label":"所属楼宇","type":"UUID","desc":"关联buildings.id","who":"系统自动"},
+        {"name":"total_area","label":"总面积","type":"浮点数","desc":"楼宇总建筑面积(平方米)","who":"系统同步"},
+        {"name":"asking_rent","label":"报价租金","type":"浮点数","desc":"业主报价租金(元/平米/天)","who":"系统同步"},
+        {"name":"management_fee","label":"物业费","type":"浮点数","desc":"物业管理费(元/平米/月)","who":"系统同步"},
+        {"name":"face_rent","label":"表面租金","type":"浮点数","desc":"实际或参考表面租金","who":"系统同步"},
+        {"name":"rent_free_period","label":"免租期","type":"浮点数","desc":"免租期(月)","who":"系统同步"},
+        {"name":"net_effective_rent","label":"净有效租金","type":"浮点数","desc":"扣除免租期后的有效租金","who":"系统同步"},
+        {"name":"vacancy_rate","label":"空置率","type":"浮点数","desc":"空置面积/总面积","who":"系统同步"},
+        {"name":"vacant_area","label":"空置面积","type":"浮点数","desc":"当前空置面积(平方米)","who":"系统同步"},
+        {"name":"record_year","label":"数据年份","type":"大整数","desc":"数据所属年份","who":"系统同步"},
+        {"name":"record_quarter","label":"数据季度","type":"大整数","desc":"数据所属季度(1-4)","who":"系统同步"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"记录创建时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "building_display_overrides",
+      "label": "楼宇显示覆盖",
+      "desc": "特殊楼宇的显示配置。可以覆盖地图弹窗中显示的子市场或等级标签。",
+      "fields": [
+        {"name":"id","label":"覆盖ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"building_id","label":"所属楼宇","type":"UUID","desc":"关联buildings.id","who":"管理员"},
+        {"name":"field_name","label":"覆盖字段","type":"文本","desc":"要覆盖的字段：submarket或grade","who":"管理员"},
+        {"name":"display_label","label":"显示标签","type":"文本","desc":"替换后的显示标签","who":"管理员"},
+        {"name":"display_value","label":"显示值","type":"文本","desc":"替换后的显示值","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新时间","who":"系统自动"}
+      ]
+    }
+  ]
+}

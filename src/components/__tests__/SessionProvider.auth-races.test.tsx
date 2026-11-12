@@ -95,6 +95,20 @@ it('a new sign-in is not held behind an older profile request', async () => {
   expect(screen.getByText('authenticated:false')).toBeInTheDocument();
 });
 
+it('removes a previous account before the new account profile finishes loading', async () => {
+  const first = { ...session(false), session: { user: { id: 'user-a' }, access_token: 'credential-a' } as Session };
+  const next = deferred();
+  state.getSessionFast.mockResolvedValueOnce(first).mockReturnValueOnce(next.promise);
+  render(<SessionProvider><Consumer /></SessionProvider>);
+  await screen.findByText('authenticated:false');
+  const nextCredential = { user: { id: 'user-b' }, access_token: 'credential-b' } as Session;
+  await act(async () => state.callback?.('SIGNED_IN', nextCredential));
+  expect(screen.getByText('loading:undefined')).toBeInTheDocument();
+  expect(screen.queryByText('authenticated:false')).not.toBeInTheDocument();
+  await act(async () => next.resolve({ ...session(true), session: nextCredential }));
+  expect(screen.getByText('authenticated:true')).toBeInTheDocument();
+});
+
 it.each([
   ['/occupier-insights', false],
   ['/', true],
@@ -115,7 +129,7 @@ it('keeps the report open after inactivity clears an active session', async () =
   state.getSessionFast.mockResolvedValueOnce({ ...session(false), session: { access_token: 'synthetic' } });
   render(<SessionProvider><Consumer /></SessionProvider>);
   await screen.findByText('authenticated:false');
-  expect(state.idleLogout).toBeTypeOf('function');
+  await waitFor(() => expect(state.idleLogout).toBeTypeOf('function'));
   await act(async () => { await state.idleLogout?.(); });
   expect(state.signOut).toHaveBeenCalledTimes(1);
   expect(screen.getByText('unauthenticated:undefined')).toBeInTheDocument();

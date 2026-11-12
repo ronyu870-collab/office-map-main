@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   role: 'editor', loads: 0, mounts: 0, unmounts: 0, router: { replace: vi.fn() },
   readProgress: vi.fn<() => Promise<{ targetCount: number; submittedCount: number }>>(),
   readTeam: vi.fn<() => Promise<[]>>(),
+  readSubmissions: vi.fn<() => Promise<[]>>(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => state.router }));
 vi.mock('next/dynamic', () => ({ default: (load: () => Promise<React.ComponentType<any>>) => {
@@ -14,7 +15,7 @@ vi.mock('next/dynamic', () => ({ default: (load: () => Promise<React.ComponentTy
 } }));
 vi.mock('@/src/services/Auth', () => ({ getSessionFast: async () => ({ user: { id: 'synthetic-user' }, displayName: 'Synthetic Person', role: state.role }) }));
 vi.mock('@/src/services/leaseTransactionSubmitService', () => ({
-  getWeeklyProgress: state.readProgress, getMySubmissions: async () => [], getAllSubmissions: state.readTeam, getAllBrokers: async () => [],
+  getWeeklyProgress: state.readProgress, getMySubmissions: state.readSubmissions, getAllSubmissions: state.readTeam, getAllBrokers: async () => [],
 }));
 vi.mock('@/src/utils/audit', () => ({ logAction: vi.fn() }));
 vi.mock('@/src/components/demo', () => ({ MaskedCell: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
@@ -32,6 +33,7 @@ vi.mock('@/src/components/ui', () => ({
 import LeaseSubmissionPage from '../page';
 
 beforeEach(() => {
+  state.readSubmissions.mockReset().mockResolvedValue([]);
   state.role = 'editor'; state.mounts = 0; state.unmounts = 0;
   state.readProgress.mockReset().mockResolvedValue({ targetCount: 2, submittedCount: 0 });
   state.readTeam.mockReset().mockResolvedValue([]);
@@ -71,12 +73,18 @@ describe('lease form deferred mounting', () => {
   it('shows true personal counts only after reading them and reports readiness while the team request is still pending', async () => {
     let resolveProgress!: (progress: { targetCount: number; submittedCount: number }) => void;
     let resolveTeam!: (rows: []) => void;
+    let resolveSubmissions!: (rows: []) => void;
     state.readProgress.mockReturnValueOnce(new Promise(resolve => { resolveProgress = resolve; }));
     state.readTeam.mockReturnValueOnce(new Promise(resolve => { resolveTeam = resolve; }));
+    state.readSubmissions.mockReturnValueOnce(new Promise(resolve => { resolveSubmissions = resolve; }));
     render(<LeaseSubmissionPage />);
     const status = within(await screen.findByRole('region', { name: '租赁成交填报状态' }));
     expect(status.getAllByText('读取中…')).toHaveLength(2);
     expect(status.queryByText('0')).not.toBeInTheDocument();
+    await act(async () => resolveSubmissions([]));
+    expect(status.getByText('0')).toBeVisible();
+    expect(status.getByText('读取中…')).toBeVisible();
+    expect(status.queryByText('数据已就绪')).not.toBeInTheDocument();
     await act(async () => resolveProgress({ targetCount: 2, submittedCount: 1 }));
     expect(status.getByText('还需 1 条')).toBeVisible();
     expect(status.getByText('0')).toBeVisible();

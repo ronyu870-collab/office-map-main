@@ -3,163 +3,86 @@
 import * as React from 'react';
 import { Users, TrendingUp, AlertCircle, ChevronDown, X } from 'lucide-react';
 import { getAllBrokers, getAllSubmissions } from '@/src/services/leaseTransactionSubmitService';
-import { getSessionFast } from '@/src/services/Auth';
-import type { LeaseTransaction } from '@/src/types/lease-transaction';
 import { SubmissionDetailTable } from './SubmissionDetailTable';
 import { MaskedText } from '@/src/components/demo';
 import { isExcludedFromTeamView } from '@/src/config/demoMode';
+import { aggregateTeamWeeks, calculateTeamWeeks, type BrokerWeeklyStats, type WeekRange } from '../teamMonitoringStats';
+import { Button, LoadingState } from '@/src/components/ui';
 
 interface TeamSubmissionMonitorProps {
   userRole: string;
 }
 
-interface WeekRange {
-  weekNumber: number;
-  startDate: Date;
-  endDate: Date;
-  label: string;
-}
+type ReadState<T> = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: T };
 
-interface BrokerWeeklyStats {
-  user_id: string;
-  name: string;
-  totalRequired: number;
-  totalSubmitted: number;
-  weeklyData: Map<number, number>;
-}
+function useMonitorRead<T>(read: (signal: AbortSignal) => Promise<T>) {
+  const [attempt, setAttempt] = React.useState(0);
+  const [state, setState] = React.useState<ReadState<T>>({ status: 'loading' });
 
-function calculateWeeks(): { weeks: WeekRange[], currentWeekNumber: number } {
-  const START_DATE = new Date('2026-05-04');
-  START_DATE.setHours(0, 0, 0, 0);
-
-  const now = new Date();
-  now.setHours(23, 59, 59, 999);
-
-  if (now < START_DATE) {
-    return { weeks: [], currentWeekNumber: 0 };
-  }
-
-  const weeks: WeekRange[] = [];
-  let weekNumber = 1;
-  const currentWeekStart = new Date(START_DATE);
-  const daysSinceStart = Math.floor((now.getTime() - START_DATE.getTime()) / (1000 * 60 * 60 * 24));
-  const currentWeekNumber = Math.floor(daysSinceStart / 7) + 1;
-  const totalWeeksToShow = currentWeekNumber + 10;
-
-  for (let i = 0; i < totalWeeksToShow; i++) {
-    const weekEnd = new Date(currentWeekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-
-    const startLabel = `${currentWeekStart.getMonth() + 1}.${currentWeekStart.getDate()}`;
-    const endLabel = `${weekEnd.getMonth() + 1}.${weekEnd.getDate()}`;
-
-    weeks.push({
-      weekNumber,
-      startDate: new Date(currentWeekStart),
-      endDate: weekEnd,
-      label: `${startLabel}-${endLabel}`,
+  React.useEffect(() => {
+    const controller = new AbortController();
+    void read(controller.signal).then((data) => {
+      if (!controller.signal.aborted) setState({ status: 'ready', data });
+    }, (error: unknown) => {
+      if (!controller.signal.aborted) {
+        setState({ status: 'error', message: error instanceof Error ? error.message : '加载失败' });
+      }
     });
+    return () => controller.abort();
+  }, [read, attempt]);
 
-    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
-    weekNumber++;
-  }
-
-  return { weeks, currentWeekNumber };
+  return { state, retry: () => {
+    setState({ status: 'loading' });
+    setAttempt(previous => previous + 1);
+  } };
 }
 
-function isInWeek(dateStr: string, week: WeekRange): boolean {
-  try {
-    const date = new Date(dateStr);
-    return date >= week.startDate && date <= week.endDate;
-  } catch {
-    return false;
-  }
+async function readDirectory(signal: AbortSignal) {
+  return getAllBrokers({ signal });
+}
+
+function MonitorReadStatus({ title, label, message, retry }: {
+  title: string; label: string; message?: string; retry: () => void;
+}) {
+  return (
+    <section className="rounded-lg border border-[#d9e0e8] bg-white p-4">
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {message === undefined ? <LoadingState label={`正在加载${label}…`} rows={0} /> : (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <p role="alert" className="text-sm text-rose-700">{message}</p>
+          <Button size="sm" variant="ghost" onClick={retry}>重试{label}</Button>
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) {
-  const [loading, setLoading] = React.useState(true);
-  const [stats, setStats] = React.useState<BrokerWeeklyStats[]>([]);
-  const [allSubmissions, setAllSubmissions] = React.useState<LeaseTransaction[]>([]);
-  const [error, setError] = React.useState<string | null>(null);
-  const [weeks, setWeeks] = React.useState<WeekRange[]>([]);
-  const [currentWeekNumber, setCurrentWeekNumber] = React.useState<number>(0);
+  const readSubmissions = React.useCallback((signal: AbortSignal) => getAllSubmissions(userRole, { signal }), [userRole]);
+  const { state: directory, retry: retryDirectory } = useMonitorRead(readDirectory);
+  const { state: records, retry: retryRecords } = useMonitorRead(readSubmissions);
+  const [{ weeks, currentWeekNumber }] = React.useState(calculateTeamWeeks);
   const [filteredUserId, setFilteredUserId] = React.useState<string | null>(null);
   const [filteredUserName, setFilteredUserName] = React.useState<string>('');
   const [allWeeksVisible, setAllWeeksVisible] = React.useState(false);
   const weekTableId = React.useId();
   const weekScrollRef = React.useRef<HTMLDivElement>(null);
   const detailTableRef = React.useRef<HTMLElement>(null);
+  const scrollTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (scrollTimer.current !== null) clearTimeout(scrollTimer.current); }, []);
 
-  React.useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const { weeks: weekRanges, currentWeekNumber: currentWeek } = calculateWeeks();
-        setWeeks(weekRanges);
-        setCurrentWeekNumber(currentWeek);
-
-        const session = await getSessionFast();
-        if (!session) throw new Error('未登录');
-
-        const [brokers, rawSubmissions] = await Promise.all([
-          getAllBrokers(),
-          getAllSubmissions(userRole),
-        ]);
-        const submissions = rawSubmissions as LeaseTransaction[];
-
-        if (cancelled) return;
-        setAllSubmissions(submissions);
-
-        const filteredBrokers = brokers.filter(broker => !isExcludedFromTeamView(broker.name));
-        const aggregated: BrokerWeeklyStats[] = filteredBrokers.map((broker) => {
-          const userSubmissions = submissions.filter(
-            (s) => s.submitter_id === broker.user_id
-          );
-
-          const weeklyData = new Map<number, number>();
-          weekRanges.forEach((week) => {
-            const count = userSubmissions.filter((s) =>
-              isInWeek(s.created_at || '', week)
-            ).length;
-            weeklyData.set(week.weekNumber, count);
-          });
-
-          const totalRequired = Math.max(0, currentWeek - 1) * 2;
-          const totalSubmitted = userSubmissions.length;
-
-          return {
-            user_id: broker.user_id,
-            name: broker.name,
-            totalRequired,
-            totalSubmitted,
-            weeklyData,
-          };
-        });
-
-        aggregated.sort((a, b) => b.totalSubmitted - a.totalSubmitted);
-        setStats(aggregated);
-      } catch (err) {
-        console.error('加载团队监控数据失败:', err);
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载失败');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [userRole]);
+  const brokers = directory.status === 'ready' ? directory.data : null;
+  const allSubmissions = records.status === 'ready' ? records.data : null;
+  const stats = React.useMemo(() => brokers && allSubmissions
+    ? aggregateTeamWeeks(brokers, allSubmissions, weeks, currentWeekNumber) : null,
+  [brokers, allSubmissions, weeks, currentWeekNumber]);
 
   const filterByBroker = (broker: BrokerWeeklyStats) => {
     setFilteredUserId(broker.user_id);
     setFilteredUserName(broker.name);
-    setTimeout(() => {
+    if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
+    scrollTimer.current = setTimeout(() => {
+      scrollTimer.current = null;
       detailTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   };
@@ -169,12 +92,9 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
     setFilteredUserName('');
   };
 
-  const displayedSubmissions = React.useMemo(() => {
-    const base = filteredUserId
-      ? allSubmissions.filter((s) => s.submitter_id === filteredUserId)
-      : allSubmissions;
-    return base.filter((s) => !isExcludedFromTeamView(s.submitter_name));
-  }, [allSubmissions, filteredUserId]);
+  const displayedSubmissions = React.useMemo(() => allSubmissions?.filter((submission) => (
+    (!filteredUserId || submission.submitter_id === filteredUserId) && !isExcludedFromTeamView(submission.submitter_name)
+  )) ?? [], [allSubmissions, filteredUserId]);
 
   const detailTableTitle = filteredUserId
     ? `${filteredUserName} 的成交填报明细`
@@ -199,35 +119,8 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
     );
   };
 
-  if (loading) {
-    return (
-      <div className="rounded-lg border border-[#d9e0e8] bg-white p-5 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <Users className="text-slate-400" size={16} />
-          <h3 className="text-sm font-semibold text-slate-700">团队提交监控</h3>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-[#003e7e]" />
-          <p className="ml-2 text-[11px] text-slate-500">正在加载团队数据…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border border-rose-200 bg-rose-50 p-5 shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
-        <div className="mb-2 flex items-center gap-2">
-          <AlertCircle className="text-rose-600" size={16} />
-          <h3 className="text-sm font-semibold text-rose-700">团队数据加载失败</h3>
-        </div>
-        <p className="text-[11px] text-rose-600">{error}</p>
-      </div>
-    );
-  }
-
-  const totalBrokers = stats.length;
-  const compliantCount = stats.filter((s) => (s.weeklyData.get(currentWeekNumber) ?? 0) >= 2).length;
+  const totalBrokers = stats?.length ?? 0;
+  const compliantCount = stats?.filter((s) => (s.weeklyData.get(currentWeekNumber) ?? 0) >= 2).length ?? 0;
   const complianceRate = totalBrokers > 0 ? Math.round((compliantCount / totalBrokers) * 100) : 0;
   const currentWeek = weeks.find((week) => week.weekNumber === currentWeekNumber);
   const compactWeekColumn = (week: WeekRange) => allWeeksVisible ? ''
@@ -235,7 +128,15 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
+      {stats === null ? (
+        directory.status !== 'ready' ? <MonitorReadStatus title="团队周度提交情况" label="人员目录"
+          message={directory.status === 'error' ? directory.message : undefined} retry={retryDirectory} /> : (
+          <section className="rounded-lg border border-[#d9e0e8] bg-white p-4">
+            <h3 className="text-sm font-semibold text-slate-900">团队周度提交情况</h3>
+            <p className="mt-2 text-sm text-slate-600">{records.status === 'error' ? '重新加载团队明细后可查看统计。' : '成交记录返回后显示统计。'}</p>
+          </section>
+        )
+      ) : <div className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.03)]">
         <div className="border-b border-slate-200/80 px-4 py-3 sm:px-5">
           <div className="flex flex-wrap items-center justify-between gap-3 max-sm:gap-2">
             <div className="flex items-center gap-2.5">
@@ -333,9 +234,10 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
             <div className="flex items-center gap-1.5"><div className="h-3 w-3 rounded bg-slate-100 ring-1 ring-slate-200" /><span>未填报 0</span></div>
           </div>
         </div>
-      </div>
+      </div>}
 
-      <section ref={detailTableRef} aria-label="成交明细" className="scroll-mt-[calc(var(--cd-header-height)+0.75rem)]">
+      {records.status !== 'ready' ? <MonitorReadStatus title="团队全量明细" label="团队明细"
+        message={records.status === 'error' ? records.message : undefined} retry={retryRecords} /> : <section ref={detailTableRef} aria-label="成交明细" className="scroll-mt-[calc(var(--cd-header-height)+0.75rem)]">
         {filteredUserId && (
           <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-[#003e7e]/20 bg-[#003e7e]/5 px-4 py-1 sm:py-3">
             <div className="flex min-w-0 items-center gap-2 text-[13px] text-[#003e7e] sm:text-[11px]">
@@ -348,7 +250,7 @@ export function TeamSubmissionMonitor({ userRole }: TeamSubmissionMonitorProps) 
         )}
 
         <SubmissionDetailTable submissions={displayedSubmissions} title={detailTableTitle} highlightUserId={filteredUserId} />
-      </section>
+      </section>}
     </div>
   );
 }

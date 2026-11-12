@@ -40,7 +40,7 @@ describe('lease data entry authorization seams', () => {
 
   it('keeps core workspace readiness independent from team loading', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
-    expect(source).toContain('const [coreLoading, setCoreLoading] = React.useState(true)');
+    expect(source).toContain('const coreLoading = progressPending || submissionsPending');
     expect(source).toContain('const [teamLoading, setTeamLoading] = React.useState(false)');
     expect(source).toContain('const loadCoreData = React.useCallback');
     expect(source).toContain('const loadTeamData = React.useCallback');

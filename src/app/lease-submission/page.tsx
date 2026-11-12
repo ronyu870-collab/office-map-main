@@ -32,30 +32,53 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '网络请求失败，请稍后重试';
 }
 
+function usePersonalRead<T>(read: (userId: string) => Promise<T>) {
+  const [state, setState] = React.useState<{ userId: string; data: T | null; pending: boolean; error: string | null }>({
+    userId: '', data: null, pending: true, error: null,
+  });
+  const generation = React.useRef(0);
+  React.useEffect(() => () => { generation.current += 1; }, []);
+
+  const load = React.useCallback(async (userId: string) => {
+    if (!userId) return;
+    const request = ++generation.current;
+    setState(previous => ({ userId, data: previous.userId === userId ? previous.data : null, pending: true, error: null }));
+    try {
+      const data = await retryAsync(() => read(userId), { attempts: 3, baseDelayMs: 250, shouldRetry: () => request === generation.current });
+      if (request === generation.current) setState({ userId, data, pending: false, error: null });
+    } catch (error) {
+      if (request === generation.current) setState(previous => ({ ...previous, pending: false, error: errorMessage(error) }));
+    }
+  }, [read]);
+
+  return { ...state, load };
+}
+
 interface HistoryProps {
-  items: LeaseTransaction[];
+  items: LeaseTransaction[] | null;
+  pending: boolean;
   userName: string;
   canWrite: boolean;
   onEdit: (record: LeaseTransaction) => void;
   onTransfer: (record: LeaseTransaction) => void;
 }
 
-function MySubmissionTable({ items, userName, canWrite, onEdit, onTransfer }: HistoryProps) {
+function MySubmissionTable({ items, pending, userName, canWrite, onEdit, onTransfer }: HistoryProps) {
   const [page, setPage] = React.useState(1);
   const pageSize = 12;
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const current = React.useMemo(() => items.slice((page - 1) * pageSize, page * pageSize), [items, page]);
+  const totalPages = Math.max(1, Math.ceil((items?.length ?? 0) / pageSize));
+  const current = React.useMemo(() => items?.slice((page - 1) * pageSize, page * pageSize) ?? [], [items, page]);
 
   React.useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.04)]" aria-label="我的提交记录">
-      <div className={`flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5 ${items.length > 0 ? 'border-b border-slate-200/80' : ''}`}>
+    <section className="overflow-hidden rounded-lg border border-[#d9e0e8] bg-white shadow-[0_1px_3px_rgba(23,32,51,0.04)]" aria-label="我的提交记录" aria-busy={pending}>
+      <div className={`flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-5 ${items?.length ? 'border-b border-slate-200/80' : ''}`}>
         <div>
           <h2 className="text-[13px] font-semibold text-slate-900">我的提交记录</h2>
-          <p className="mt-0.5 text-[10px] text-slate-400">{userName || '用户'} · 共 {items.length} 条成交记录</p>
+          <p className="mt-0.5 text-[10px] text-slate-400">{userName || '用户'}{items ? ` · 共 ${items.length} 条成交记录` : ''}</p>
         </div>
-        {items.length === 0 && <p className="text-xs text-slate-500">暂无提交记录</p>}
+        {items?.length === 0 && <p className="text-xs text-slate-500">暂无提交记录</p>}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
             <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">上一页</button>
@@ -64,7 +87,9 @@ function MySubmissionTable({ items, userName, canWrite, onEdit, onTransfer }: Hi
           </div>
         )}
       </div>
-      {items.length > 0 && (
+      {!items ? (
+        <div className="px-4 py-4 text-xs text-slate-500">{pending ? '正在加载提交记录…' : '暂时无法显示提交记录'}</div>
+      ) : items.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-[11px]">
             <thead className="bg-slate-50/90 text-[10px] text-slate-500">
@@ -102,14 +127,11 @@ export default function LeaseSubmissionPage() {
   const [userId, setUserId] = React.useState('');
   const [userName, setUserName] = React.useState('');
   const [userRole, setUserRole] = React.useState('');
-  const [progress, setProgress] = React.useState<WeeklyProgress | null>(null);
-  const [submissions, setSubmissions] = React.useState<LeaseTransaction[] | null>(null);
+  const { data: progress, pending: progressPending, error: progressError, load: loadProgress } = usePersonalRead<WeeklyProgress>(getWeeklyProgress);
+  const { data: submissions, pending: submissionsPending, error: submissionsError, load: loadSubmissions } = usePersonalRead<LeaseTransaction[]>(getMySubmissions);
   const [teamSubmissions, setTeamSubmissions] = React.useState<LeaseTransaction[]>([]);
   const [teamAccessEnabled, setTeamAccessEnabled] = React.useState(false);
-  const [coreLoading, setCoreLoading] = React.useState(true);
   const [teamLoading, setTeamLoading] = React.useState(false);
-  const [progressError, setProgressError] = React.useState<string | null>(null);
-  const [submissionsError, setSubmissionsError] = React.useState<string | null>(null);
   const [teamError, setTeamError] = React.useState<string | null>(null);
   const [showForm, setShowForm] = React.useState(false);
   const [editingRecord, setEditingRecord] = React.useState<LeaseTransaction | null>(null);
@@ -121,24 +143,11 @@ export default function LeaseSubmissionPage() {
   const [transferError, setTransferError] = React.useState<string | null>(null);
   const [buildingSelection, setBuildingSelection] = React.useState<{ record: LeaseTransaction; trigger: HTMLButtonElement } | null>(null);
   const canWrite = canWriteBusinessData(userRole);
+  const coreLoading = progressPending || submissionsPending;
 
   const loadCoreData = React.useCallback(async (uid: string) => {
-    setCoreLoading(true);
-    setProgressError(null);
-    setSubmissionsError(null);
-
-    try {
-      const [progressResult, submissionsResult] = await Promise.allSettled([
-        retryAsync(() => getWeeklyProgress(uid), { attempts: 3, baseDelayMs: 250 }),
-        retryAsync(() => getMySubmissions(uid), { attempts: 3, baseDelayMs: 250 }),
-      ]);
-
-      if (progressResult.status === 'fulfilled') setProgress(progressResult.value as WeeklyProgress); else setProgressError(errorMessage(progressResult.reason));
-      if (submissionsResult.status === 'fulfilled') setSubmissions(submissionsResult.value as LeaseTransaction[]); else setSubmissionsError(errorMessage(submissionsResult.reason));
-    } finally {
-      setCoreLoading(false);
-    }
-  }, []);
+    await Promise.all([loadProgress(uid), loadSubmissions(uid)]);
+  }, [loadProgress, loadSubmissions]);
 
   const loadTeamData = React.useCallback(async (role: string) => {
     setTeamError(null);
@@ -251,16 +260,16 @@ export default function LeaseSubmissionPage() {
     );
   }
 
-  const complete = progress !== null && progress.submittedCount >= progress.targetCount;
+  const complete = Boolean(progress && progress.submittedCount >= progress.targetCount);
+  const progressLabel = progress ? complete ? '本周已完成' : '本周进行中' : progressPending ? '周进度加载中' : '周进度暂不可用';
   const admin = isUserAdmin(userRole);
   const coreReadFailed = Boolean(progressError || submissionsError);
-  const pendingMetric = coreLoading ? '读取中…' : '暂不可用';
 
   return (
     <div className="min-h-screen bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]" inert={buildingSelection !== null}>
       <header className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <AppHeader
-          title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{complete ? '本周已完成' : '本周进行中'}</Badge></span>}
+          title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge></span>}
           homeHref="/"
           actions={(
             <>
@@ -286,7 +295,7 @@ export default function LeaseSubmissionPage() {
                     {progressError ? '沿用上次数据' : complete ? '本周目标已完成' : `还需 ${Math.max(0, progress.targetCount - progress.submittedCount)} 条`}
                   </p>
                 </dd>
-              ) : <dd className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">{pendingMetric}</dd>}
+              ) : <dd className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">{progressPending ? '读取中…' : '暂不可用'}</dd>}
             </div>
             <div className="min-w-0 border-l border-[var(--cd-color-border)]/55 pl-3 sm:pl-5">
               <dt className="text-[13px] font-medium">我的记录</dt>
@@ -298,7 +307,7 @@ export default function LeaseSubmissionPage() {
                   </div>
                   {submissionsError && <p className="text-xs text-[var(--cd-color-text-secondary)]">沿用上次数据</p>}
                 </dd>
-              ) : <dd className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">{pendingMetric}</dd>}
+              ) : <dd className="mt-1 text-xs text-[var(--cd-color-text-secondary)]">{submissionsPending ? '读取中…' : '暂不可用'}</dd>}
             </div>
           </dl>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--cd-color-border)]/55 px-3 py-2 text-xs text-[var(--cd-color-text-secondary)] sm:justify-end sm:border-t-0 sm:px-0">
@@ -317,9 +326,9 @@ export default function LeaseSubmissionPage() {
           </div>
         </section>
 
-        {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadCoreData(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
+        {(progressError || submissionsError) && <div className="grid gap-2 sm:grid-cols-2">{progressError && <div className="flex items-center gap-2"><ValidationMessage severity="error">本周进度：{progressError}</ValidationMessage><button onClick={() => { void loadProgress(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载本周进度"><RotateCcw size={13} /></button></div>}{submissionsError && <div className="flex items-center gap-2"><ValidationMessage severity="error">提交记录：{submissionsError}</ValidationMessage><button onClick={() => { void loadSubmissions(userId); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载提交记录"><RotateCcw size={13} /></button></div>}</div>}
 
-        <MySubmissionTable items={submissions ?? []} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
+        <MySubmissionTable items={submissions} pending={submissionsPending} userName={userName} canWrite={canWrite} onEdit={openEdit} onTransfer={openTransfer} />
 
         {teamAccessEnabled && <section aria-label="团队成交汇总">{teamError ? <div className="flex items-center gap-2"><ValidationMessage severity="error">团队成交：{teamError}</ValidationMessage><button onClick={() => { void loadTeamData(userRole); }} className="rounded-md border border-slate-200 bg-white p-2 text-slate-500" aria-label="重试加载团队成交"><RotateCcw size={13} /></button></div> : teamLoading && teamSubmissions.length === 0 ? <div className="rounded-lg border border-[#d9e0e8] bg-white p-10 text-center text-xs text-slate-400">正在加载团队成交数据…</div> : <SubmissionDetailTable submissions={teamSubmissions} title="团队成交汇总" highlightUserId={userId} canManageTeamRecords={admin} onEdit={openEdit} onViewBuilding={(record, trigger) => setBuildingSelection({ record, trigger })} />}</section>}
       </main>

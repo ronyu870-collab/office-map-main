@@ -4,12 +4,16 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Plus, Pin, Trash2, Search, Loader2 } from 'lucide-react';
 import { TagFilter } from './TagFilter';
 import type { MemoListItem } from '@/src/types/memo';
-import { Button, Dialog, IconButton } from '@/src/components/ui';
+import { Button, Dialog, ErrorState, IconButton } from '@/src/components/ui';
 
 interface MemoListProps {
   memos: MemoListItem[];
   tags: string[];
   loading: boolean;
+  error?: string | null;
+  tagError?: boolean;
+  onRetryList?: () => void;
+  onRetryTags?: () => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -22,7 +26,7 @@ interface MemoListProps {
 }
 
 export function MemoList({
-  memos, tags, loading, selectedId, onSelect, onCreate, onDelete,
+  memos, tags, loading, error, tagError, onRetryList, onRetryTags, selectedId, onSelect, onCreate, onDelete,
   onTogglePin, onTagFilter, onSearch, selectedTag, creating,
 }: MemoListProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -66,7 +70,7 @@ export function MemoList({
 
   return (
     <>
-      <div className="flex w-64 shrink-0 flex-col border-r border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]">
+      <div className={`min-h-0 w-full shrink-0 flex-col bg-[var(--cd-color-surface-alt)] md:flex md:w-64 md:border-r md:border-[var(--cd-color-border)] ${selectedId ? 'hidden' : 'flex'}`}>
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-[var(--cd-color-border)] px-3 py-3">
           <h2 className="text-[var(--cd-font-size-md)] font-semibold text-[var(--cd-color-text-primary)]">备忘录</h2>
@@ -91,6 +95,12 @@ export function MemoList({
 
         {/* 标签筛选 */}
         <TagFilter tags={tags} selected={selectedTag} onChange={onTagFilter} />
+        {tagError && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1 text-sm" role="status">
+            <span>标签加载失败</span>
+            <Button size="sm" variant="secondary" onClick={onRetryTags}>重试标签</Button>
+          </div>
+        )}
 
         {/* 列表 */}
         <div className="flex-1 overflow-auto px-2 py-1">
@@ -98,6 +108,8 @@ export function MemoList({
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-5 w-5 animate-spin text-[var(--cd-color-brand)]" />
             </div>
+          ) : error ? (
+            <ErrorState title="备忘录加载失败" action={<Button size="sm" variant="secondary" onClick={onRetryList}>重试列表</Button>} />
           ) : memos.length === 0 ? (
             <div className="py-12 text-center text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-muted)]">
               {searchInput || selectedTag ? '没有匹配的备忘录' : '暂无备忘录'}
@@ -142,13 +154,13 @@ export function MemoList({
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex shrink-0 items-center gap-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                       <IconButton
                         variant="ghost"
                         size="sm"
                         label={memo.is_pinned ? '取消置顶' : '置顶'}
                         onClick={(e) => handlePin(memo.id, memo.is_pinned, e)}
-                        className={`!h-7 !w-7 ${
+                        className={`!h-11 !w-11 md:!h-7 md:!w-7 ${
                           memo.is_pinned ? 'text-[var(--cd-color-warning)]' : 'text-[var(--cd-color-text-muted)]'
                         }`}
                       >
@@ -159,7 +171,7 @@ export function MemoList({
                         size="sm"
                         label="删除"
                         onClick={(e) => handleDeleteClick(memo, e)}
-                        className="!h-7 !w-7 text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-danger-soft)] hover:text-[var(--cd-color-danger)]"
+                        className="!h-11 !w-11 md:!h-7 md:!w-7 text-[var(--cd-color-text-muted)] hover:bg-[var(--cd-color-danger-soft)] hover:text-[var(--cd-color-danger)]"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </IconButton>

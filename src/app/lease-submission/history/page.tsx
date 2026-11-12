@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
-import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
+import { IMPERSONATION_REQUEST_HEADER, withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { AppHeader, Button, LoadingState } from '@/src/components/ui';
 
 type LeaseReadRecord = {
@@ -55,6 +55,26 @@ type FilterState = {
   areaMin: string;
   areaMax: string;
 };
+
+type LeaseReadScope = {
+  canReadHistory: boolean;
+  effectiveRole: string;
+  effectiveSource: string;
+  impersonating: boolean;
+};
+
+type CountRequest = {
+  controller: AbortController;
+  params: string;
+  headers: Headers;
+  scope: LeaseReadScope;
+  key: string;
+  minimumCount: number;
+};
+
+function scopeKey(scope: LeaseReadScope) {
+  return JSON.stringify([scope.effectiveRole, scope.effectiveSource, scope.canReadHistory, scope.impersonating]);
+}
 
 const CURRENT_YEAR = new Date().getFullYear();
 const PAGE_SIZE = 50;
@@ -119,70 +139,118 @@ export default function LeaseHistoryPage() {
   const [filters, setFilters] = React.useState<FilterState>(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = React.useState<FilterState>(DEFAULT_FILTERS);
   const [records, setRecords] = React.useState<LeaseReadRecord[]>([]);
-  const [count, setCount] = React.useState(0);
+  const [count, setCount] = React.useState<number | null>(null);
+  const [countStatus, setCountStatus] = React.useState<'idle' | 'loading' | 'error'>('idle');
   const [page, setPage] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [selectedRecord, setSelectedRecord] = React.useState<LeaseReadRecord | null>(null);
   const [canReadHistory, setCanReadHistory] = React.useState<boolean | null>(null);
-  const knownCountsRef = React.useRef(new Map<string, { count: number; savedAt: number }>());
-  const loadGenerationRef = React.useRef(0);
+  const knownCount = React.useRef<{ key: string; count: number; savedAt: number } | null>(null);
+  const activeRead = React.useRef<AbortController | null>(null);
+  const pendingCount = React.useRef<CountRequest | null>(null);
 
-  const load = React.useCallback(async (pageIndex: number, queryFilters: FilterState) => {
-    const generation = ++loadGenerationRef.current;
-    setLoading(true);
-    setError(null);
-    setSelectedRecord(null);
+  const loadCount = React.useCallback(async (task: CountRequest) => {
+    const { signal } = task.controller;
+    if (signal.aborted) return;
+    setCountStatus('loading');
     try {
-      const session = await getSessionFast();
-      const token = session?.session?.access_token;
-      if (!token) throw new Error('登录状态异常，请重新登录');
-
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        offset: String(pageIndex * PAGE_SIZE),
-      });
-      if (queryFilters.company.trim()) params.set('company', queryFilters.company.trim());
-      if (queryFilters.building.trim()) params.set('building', queryFilters.building.trim());
-      if (queryFilters.yearFrom) params.set('year_from', queryFilters.yearFrom);
-      if (queryFilters.yearTo) params.set('year_to', queryFilters.yearTo);
-      if (queryFilters.source) params.set('record_source', queryFilters.source);
-      if (queryFilters.areaMin) params.set('area_min', queryFilters.areaMin);
-      if (queryFilters.areaMax) params.set('area_max', queryFilters.areaMax);
-      const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
-      const countKey = JSON.stringify([session.user.id, session.role, token, headers.get('X-Colliers-Impersonate-User'), params.toString().replace(/&?offset=\d+/, '')]);
-      const previousCount = pageIndex > 0 ? knownCountsRef.current.get(countKey) : undefined;
-      const reusedCount = previousCount && Date.now() - previousCount.savedAt < 30_000
-        ? previousCount.count : undefined;
-      if (reusedCount !== undefined) params.set('include_count', '0');
-
-      const response = await fetch(`/api/lease-transactions/read?${params.toString()}`, {
-        headers,
-      });
+      const response = await fetch(`/api/lease-transactions/read?${task.params}`, { headers: task.headers, signal });
       const body = await response.json().catch(() => ({}));
-      if (generation !== loadGenerationRef.current) return;
-      if (!response.ok) {
-        if (response.status === 403) setCanReadHistory(false);
-        throw new Error(body.error || '查询失败');
+      if (signal.aborted) return;
+      if (response.status === 401 || response.status === 403 ||
+          (response.ok && body.access && scopeKey(body.access) !== scopeKey(task.scope))) {
+        knownCount.current = null;
+        pendingCount.current = null;
+        setCanReadHistory(false);
+        setSelectedRecord(null);
+        setRecords([]);
+        setCount(null);
+        setCountStatus('idle');
+        setError('读取权限已变化，请重新加载');
+        return;
       }
-      if (typeof body.count === 'number') knownCountsRef.current.set(countKey, { count: body.count, savedAt: Date.now() });
-      setCanReadHistory(body?.access?.canReadHistory === true);
-      setRecords(body.records ?? []);
-      setCount(typeof body.count === 'number' ? body.count : (reusedCount ?? 0));
-      setPage(pageIndex);
-    } catch (loadError) {
-      if (generation !== loadGenerationRef.current) return;
-      setError(loadError instanceof Error ? loadError.message : '查询失败');
-      setRecords([]);
-      setCount(0);
-    } finally {
-      if (generation === loadGenerationRef.current) setLoading(false);
+      if (!response.ok || !body.access || !Number.isSafeInteger(body.count) || body.count < task.minimumCount) {
+        throw new Error('成交总数暂不可用');
+      }
+      knownCount.current = { key: task.key, count: body.count, savedAt: Date.now() };
+      pendingCount.current = null;
+      setCount(body.count);
+      setCountStatus('idle');
+    } catch {
+      if (!signal.aborted) setCountStatus('error');
     }
   }, []);
 
+  const load = React.useCallback(async (pageIndex: number, queryFilters: FilterState) => {
+    activeRead.current?.abort();
+    const controller = new AbortController();
+    const { signal } = controller;
+    activeRead.current = controller;
+    pendingCount.current = null;
+    setLoading(true);
+    setError(null);
+    setSelectedRecord(null);
+    setCount(null);
+    setCountStatus('idle');
+    setPage(pageIndex);
+    try {
+      const session = await getSessionFast();
+      if (signal.aborted) return;
+      const token = session?.session?.access_token;
+      if (!token) throw new Error('登录状态异常，请重新登录');
+
+      const filters = new URLSearchParams();
+      if (queryFilters.company.trim()) filters.set('company', queryFilters.company.trim());
+      if (queryFilters.building.trim()) filters.set('building', queryFilters.building.trim());
+      if (queryFilters.yearFrom) filters.set('year_from', queryFilters.yearFrom);
+      if (queryFilters.yearTo) filters.set('year_to', queryFilters.yearTo);
+      if (queryFilters.source) filters.set('record_source', queryFilters.source);
+      if (queryFilters.areaMin) filters.set('area_min', queryFilters.areaMin);
+      if (queryFilters.areaMax) filters.set('area_max', queryFilters.areaMax);
+
+      const headers = withImpersonationHeaders({ Authorization: `Bearer ${token}` });
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(pageIndex * PAGE_SIZE),
+        include_count: '0',
+      });
+      filters.forEach((value, key) => params.set(key, value));
+      const response = await fetch(`/api/lease-transactions/read?${params}`, { headers, signal });
+      const body = await response.json().catch(() => ({}));
+      if (signal.aborted) return;
+      if (!response.ok || !body.access || !Array.isArray(body.records)) {
+        if (response.status === 403) setCanReadHistory(false);
+        throw new Error(body.error || '查询失败');
+      }
+      const scope: LeaseReadScope = body.access;
+      setCanReadHistory(body?.access?.canReadHistory === true);
+      setRecords(body.records);
+      const minimumCount = body.records.length === 0 ? 0 : pageIndex * PAGE_SIZE + body.records.length;
+      const key = JSON.stringify([session.user.id, session.role, token, headers.get(IMPERSONATION_REQUEST_HEADER), scopeKey(scope), filters.toString()]);
+      const previous = pageIndex > 0 && knownCount.current?.key === key ? knownCount.current : null;
+      if (previous && previous.count >= minimumCount && Date.now() - previous.savedAt < 30_000) {
+        setCount(previous.count);
+      } else {
+        const countParams = new URLSearchParams(filters);
+        countParams.set('count_only', '1');
+        const task = { controller, params: countParams.toString(), headers, scope, key, minimumCount };
+        pendingCount.current = task;
+        void loadCount(task);
+      }
+    } catch (loadError) {
+      if (signal.aborted) return;
+      setError(loadError instanceof Error ? loadError.message : '查询失败');
+      setRecords([]);
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+  }, [loadCount]);
+
   React.useEffect(() => {
     void load(0, DEFAULT_FILTERS);
+    return () => activeRead.current?.abort();
   }, [load]);
 
   React.useEffect(() => {
@@ -194,9 +262,10 @@ export default function LeaseHistoryPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedRecord]);
 
-  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const rangeStart = count === 0 ? 0 : page * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(count, page * PAGE_SIZE + records.length);
+  const totalPages = count === null ? null : Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const rangeStart = records.length ? page * PAGE_SIZE + 1 : 0;
+  const rangeEnd = records.length ? page * PAGE_SIZE + records.length : 0;
+  const visibleRange = records.length ? `${rangeStart.toLocaleString('zh-CN')}–${rangeEnd.toLocaleString('zh-CN')}` : '0';
 
   const activeFilters = React.useMemo(() => {
     const items: Array<{ key: keyof FilterState | 'years'; label: string }> = [];
@@ -422,10 +491,16 @@ export default function LeaseHistoryPage() {
           <div className="flex flex-col gap-1.5 border-b border-[var(--cd-color-border)] px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-baseline gap-2">
               <h2 className="text-[13px] font-semibold text-[var(--cd-color-text-primary)]">成交记录</h2>
-              <span className="text-[11px] tabular-nums text-[var(--cd-color-text-muted)]">{count.toLocaleString('zh-CN')} 条</span>
+              {count !== null ? (
+                <span className="text-[11px] tabular-nums text-[var(--cd-color-text-muted)]">{count.toLocaleString('zh-CN')} 条</span>
+              ) : !loading && !error && countStatus === 'loading' ? (
+                <span className="text-[11px] text-[var(--cd-color-text-muted)]">正在统计总数…</span>
+              ) : !loading && !error && countStatus === 'error' ? (
+                <Button size="sm" variant="ghost" onClick={() => { if (pendingCount.current) void loadCount(pendingCount.current); }}>重试总数</Button>
+              ) : null}
             </div>
             <div className="text-[10px] tabular-nums text-[var(--cd-color-text-muted)]">
-              {count === 0 ? '0' : `${rangeStart.toLocaleString('zh-CN')}–${rangeEnd.toLocaleString('zh-CN')}`} / {count.toLocaleString('zh-CN')}
+              {!loading && !error && (count === null ? `当前 ${visibleRange}` : `${visibleRange} / ${count.toLocaleString('zh-CN')}`)}
             </div>
           </div>
 
@@ -506,7 +581,7 @@ export default function LeaseHistoryPage() {
           )}
 
           <div className="flex min-h-12 items-center justify-between border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)]/35 px-3.5 py-2">
-            <div className="text-[10px] text-[var(--cd-color-text-muted)]">每页 {PAGE_SIZE} 条 · 第 {Math.min(page + 1, totalPages)} / {totalPages} 页</div>
+            <div className="text-[10px] text-[var(--cd-color-text-muted)]">每页 {PAGE_SIZE} 条 · {totalPages === null ? `第 ${page + 1} 页` : `第 ${Math.min(page + 1, totalPages)} / ${totalPages} 页`}</div>
             <div className="flex items-center gap-1">
               <Button
                 size="sm"
@@ -521,7 +596,7 @@ export default function LeaseHistoryPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={loading || page + 1 >= totalPages}
+                disabled={loading || totalPages === null || page + 1 >= totalPages}
                 onClick={() => void load(page + 1, appliedFilters)}
                 aria-label="下一页"
               >
@@ -617,7 +692,9 @@ export default function LeaseHistoryPage() {
       ) : null}
 
       <div className="sr-only" aria-live="polite">
-        {loading ? '正在查询成交数据' : `查询完成，共 ${count} 条记录`}
+        {loading ? '正在查询成交数据' : error ? '成交数据暂时无法读取' : count === null
+          ? (countStatus === 'error' ? '成交记录已加载，总数暂不可用' : '成交记录已加载，正在统计总数')
+          : `查询完成，共 ${count} 条记录`}
       </div>
     </div>
   );

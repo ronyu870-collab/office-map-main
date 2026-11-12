@@ -5,28 +5,45 @@ import Link from 'next/link';
 import { ArrowRight, BriefcaseBusiness, X } from 'lucide-react';
 
 import { Button } from '@/src/components/ui';
+import { useAppSession } from '@/src/components/SessionProvider';
+import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import {
   clearProposalCandidates,
+  getProposalDraftScope,
   MAX_PROPOSAL_CANDIDATES,
   PROPOSAL_DRAFT_EVENT,
   readProposalDraft,
   removeProposalCandidate,
   type ProposalDraft,
+  type ProposalDraftScope,
 } from '@/src/lib/intelligence/proposalDraft';
 
 export default function ProposalDraftBasket() {
+  const { session, status } = useAppSession();
+  const scope = status === 'authenticated' && isIntelligencePreviewEnabled(session?.role) ? getProposalDraftScope(session) : null;
+  return scope ? <ScopedProposalDraftBasket key={scope} scope={scope} /> : null;
+}
+
+function ScopedProposalDraftBasket({ scope }: { scope: ProposalDraftScope }) {
   const [draft, setDraft] = React.useState<ProposalDraft | null>(null);
 
   React.useEffect(() => {
-    const sync = () => setDraft(readProposalDraft());
+    const sync = () => setDraft(readProposalDraft(scope));
     sync();
     window.addEventListener(PROPOSAL_DRAFT_EVENT, sync);
     return () => window.removeEventListener(PROPOSAL_DRAFT_EVENT, sync);
-  }, []);
+  }, [scope]);
 
-  const count = draft?.items.length ?? 0;
+  if (!draft) return null;
+  const count = draft.items.length;
 
   return (
+    <>
+    {count > 0 && (
+      <Link href="/intelligence/proposal" className="pointer-events-auto absolute bottom-[calc(8rem+env(safe-area-inset-bottom))] right-3 z-[345] flex min-h-11 items-center gap-2 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3 text-sm font-medium text-[var(--cd-color-brand)] shadow-[var(--cd-shadow-sm)] md:hidden">
+        查看候选方案（{count}） <ArrowRight size={14} aria-hidden="true" />
+      </Link>
+    )}
     <aside className="pointer-events-auto absolute bottom-[82px] right-4 z-[345] hidden w-[310px] overflow-hidden rounded-[8px] border border-[var(--cd-color-border-strong)] bg-white shadow-[0_8px_28px_rgba(23,32,51,0.16)] md:block" aria-label="客户方案草稿">
       <div className="flex items-center justify-between border-b border-slate-200/80 px-3.5 py-3">
         <div className="flex items-center gap-2">
@@ -39,7 +56,7 @@ export default function ProposalDraftBasket() {
           </div>
         </div>
         {count > 0 ? (
-          <button type="button" onClick={() => setDraft(clearProposalCandidates())} className="text-[10px] text-slate-400 transition hover:text-slate-700">清空</button>
+          <button type="button" onClick={() => setDraft(clearProposalCandidates(scope))} className="text-[10px] text-slate-400 transition hover:text-slate-700">清空</button>
         ) : null}
       </div>
 
@@ -50,7 +67,7 @@ export default function ProposalDraftBasket() {
             <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700" title={item.buildingName}>{item.buildingName}</span>
             <button
               type="button"
-              onClick={() => setDraft(removeProposalCandidate(item.buildingId))}
+              onClick={() => setDraft(removeProposalCandidate(scope, item.buildingId))}
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
               aria-label={`移除${item.buildingName}`}
             >
@@ -74,5 +91,6 @@ export default function ProposalDraftBasket() {
         )}
       </div>
     </aside>
+    </>
   );
 }

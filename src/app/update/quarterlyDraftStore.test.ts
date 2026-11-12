@@ -119,6 +119,26 @@ describe('QuarterlyDraftStore recovery and concurrency', () => {
     expect(api.save).not.toHaveBeenCalled();
   });
 
+  it('discards a departed draft read without persisting it or blocking the next read', async () => {
+    const api = transport();
+    const stale = deferred<RemoteDraft | null>();
+    const next = deferred<RemoteDraft | null>();
+    api.read.mockReturnValueOnce(stale.promise).mockReturnValueOnce(next.promise);
+    const { storage } = memoryStorage();
+    const store = new QuarterlyDraftStore(identity, api, storage);
+    const old = store.load();
+    store.cancelLoad();
+    const current = store.load();
+    stale.resolve(remote('departed'));
+    await old;
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(store.load()).toBe(current);
+    next.resolve(remote('current', 2));
+    await current;
+    expect(store.getSnapshot()).toMatchObject({ loaded: true, payload: payload('current'), revision: 2 });
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['local', 'remote'] as const)('preserves both versions before resolving to %s', async (choice) => {
     const { storage, values } = memoryStorage();
     const api = transport();

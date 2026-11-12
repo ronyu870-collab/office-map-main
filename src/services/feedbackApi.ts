@@ -132,17 +132,6 @@ export async function createFeedback(input: CreateFeedbackInput): Promise<Feedba
   };
 }
 
-export async function getFeedbackComments(issueId: string): Promise<FeedbackComment[]> {
-  const { data, error } = await supabase
-    .from('admin_issue_comments')
-    .select('id,issue_id,content,images,created_by,is_admin,created_at,kind,metadata')
-    .eq('issue_id', issueId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw new Error(`获取反馈沟通记录失败：${error.message}`);
-  return (data ?? []) as FeedbackComment[];
-}
-
 export async function addFeedbackComment(
   issueId: string,
   content: string,
@@ -165,11 +154,6 @@ export async function addFeedbackComment(
 
   if (error) throw new Error(`补充反馈失败：${error.message}`);
   return data as FeedbackComment;
-}
-
-export async function markFeedbackRead(issueId: string): Promise<void> {
-  const { error } = await supabase.rpc('feedback_mark_read', { p_issue_id: issueId });
-  if (error) throw new Error(`更新反馈已读状态失败：${error.message}`);
 }
 
 export async function reopenFeedback(issueId: string, message: string): Promise<void> {

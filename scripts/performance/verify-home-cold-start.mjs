@@ -4,7 +4,9 @@ import { writeFile } from 'node:fs/promises';
 
 const args = process.argv.slice(2);
 const benchmark = args[0] === '--benchmark';
-const variants = benchmark ? [['before', args[1]], ['after', args[2]]] : [['after', args[0]]];
+const prefetchPolicy = args[0] === '--prefetch-policy';
+const referencePrefetch = args.includes('--reference-prefetch');
+const variants = benchmark ? [['before', args[1]], ['after', args[2]]] : [['after', args[prefetchPolicy ? 1 : 0]]];
 for (const [, base] of variants) {
   assert.ok(['127.0.0.1', 'localhost'].includes(new URL(base).hostname), 'isolated loopback builds only');
 }
@@ -35,7 +37,13 @@ async function measure([variant, base], spec, round) {
     roleRequests: 0, refreshRequests: 0, homeDocuments: 0, loginDocuments: 0, mapDataRequests: 0,
     mapSdkRequests: 0, activityRequests: 0, earlyProtectedRequests: 0, roleComplete: false };
   const localEpoch = Date.now();
+  const routePaths = new Set(['/map', '/intelligence', '/update', '/lease-submission', '/oss', '/occupier-insights', '/settings', '/admin']);
+  const routeRequests = [];
+  const preNavigationBusinessReads = [];
+  let navigationStarted = false;
   let profileMs = null;
+  let releaseNavigation = () => {};
+  const delayedNavigation = new Promise(resolve => { releaseNavigation = resolve; });
   try {
     const saved = session(spec.mode === 'required', spec.mode === 'expired' || spec.mode === 'rejected' ? -10 : 3600);
     const refreshed = session(false, 3600);
@@ -45,6 +53,13 @@ async function measure([variant, base], spec, round) {
       const u = new URL(request.url());
       const method = request.method();
       if (u.origin === origin) {
+        if (spec.prefetch && routePaths.has(u.pathname) && request.headers().rsc === '1') {
+          routeRequests.push({ path: u.pathname, speculative: !navigationStarted, verified: row.roleComplete });
+        }
+        if (spec.prefetch && !navigationStarted && /^\/api\/(map|intelligence|lease-submission|submissions|oss|admin)(\/|$)/.test(u.pathname)) {
+          preNavigationBusinessReads.push(u.pathname);
+        }
+        if (spec.verifyProgress && u.pathname === '/map') await delayedNavigation;
         if (u.pathname === '/api/map/data') {
           row.mapDataRequests++;
           if (!row.roleComplete) row.earlyProtectedRequests++;
@@ -66,7 +81,7 @@ async function measure([variant, base], spec, round) {
           await delay(spec.roleMs);
           row.roleComplete = true;
           profileMs ??= Date.now() - localEpoch;
-          return route.fulfill({ headers, json: [{ role: 'viewer', full_name: 'Synthetic Viewer', chinese_name: null, session_id: id, phone: null }] });
+          return route.fulfill({ headers, json: [{ role: spec.role ?? 'viewer', full_name: 'Synthetic User', chinese_name: null, session_id: id, phone: null }] });
         }
         if (u.pathname === '/auth/v1/token' && method === 'POST') {
           row.refreshRequests++;
@@ -85,8 +100,9 @@ async function measure([variant, base], spec, round) {
       }
       return route.abort();
     });
-    await context.addInitScript(({ origin, mode, saved }) => {
+    await context.addInitScript(({ origin, mode, saved, connection }) => {
       if (location.origin !== origin) return;
+      if (connection) Object.defineProperty(navigator, 'connection', { configurable: true, value: connection });
       const marker = '__colliers_perf_home_document_start';
       if (location.pathname === '/' && !sessionStorage.getItem(marker)) {
         sessionStorage.setItem(marker, String(performance.timeOrigin));
@@ -111,7 +127,7 @@ async function measure([variant, base], spec, round) {
       };
       new MutationObserver(inspect).observe(document, { childList: true, subtree: true });
       document.addEventListener('DOMContentLoaded', inspect, { once: true });
-    }, { origin, mode: spec.mode, saved });
+    }, { origin, mode: spec.mode, saved, connection: spec.connection });
     const page = await context.newPage();
     if (mobile) {
       const cdp = await context.newCDPSession(page);
@@ -143,7 +159,10 @@ async function measure([variant, base], spec, round) {
         const map = page.getByRole('link', { name: '北京办公楼市场地图', exact: true });
         const protectedRead = spec.behavior ? page.waitForRequest(request =>
           new URL(request.url()).pathname === '/api/map/data', { timeout: 10_000 }).catch(() => null) : null;
-        await map.click({ timeout: 6_000 });
+        const progress = spec.verifyProgress
+          ? page.locator('#nprogress .bar').waitFor({ timeout: 3_000 }).finally(releaseNavigation)
+          : Promise.resolve();
+        await Promise.all([map.click({ timeout: 6_000 }), progress]);
         row.roleCompleteAtClick = row.roleComplete;
         await page.waitForURL('**/map', { timeout: 8_000 });
         await page.locator('header h1').filter({ hasText: '北京办公楼市场地图' }).waitFor({ timeout: 6_000 });
@@ -151,12 +170,39 @@ async function measure([variant, base], spec, round) {
         row.roleCompleteAtMapNavigation = row.roleComplete;
         row.mapNavigation = await page.evaluate(() => Math.round(performance.timeOrigin + performance.now() -
           Number(sessionStorage.getItem('__colliers_perf_home_document_start'))));
+        if (spec.verifyProgress) await page.locator('#nprogress').waitFor({ state: 'hidden', timeout: 4_000 });
         if (protectedRead) {
           assert.ok(await protectedRead, 'the authenticated map must start its real data path after recovery');
           assert.equal(row.roleComplete, true);
         }
       } else {
         await mark('fullHome');
+        if (spec.prefetch) {
+          const link = page.locator('a[href="/oss"]');
+          await link.waitFor();
+          await delay(900);
+          row.idleRoutes = routeRequests.map(request => request.path);
+          row.intendedPath = '/oss';
+          if (spec.intent === 'hover') await link.hover();
+          if (spec.intent === 'keyboard') {
+            await page.keyboard.press('Shift');
+            await link.focus();
+            assert.ok(await link.evaluate(element => element.matches(':focus-visible')));
+          }
+          if (!referencePrefetch && !spec.limited && spec.intent !== 'touch') {
+            await page.waitForFunction(() => performance.getEntriesByType('resource').some(entry => {
+              const url = new URL(entry.name);
+              return url.pathname === '/oss' && url.searchParams.has('_rsc');
+            }), null, { timeout: 4000 });
+          } else await delay(650);
+          row.beforeClickRoutes = routeRequests.map(request => request.path);
+          row.beforeProfileRoutes = routeRequests.filter(request => !request.verified).map(request => request.path);
+          row.businessBeforeClick = [...preNavigationBusinessReads];
+          row.adminEntryPresent = await page.locator('a[href="/admin"]').count();
+          navigationStarted = true;
+          await Promise.all([page.waitForURL('**/oss', { timeout: 8000 }), spec.intent === 'touch' ? link.tap() : spec.intent === 'keyboard' ? link.press('Enter') : link.click()]);
+          await page.getByRole('heading', { name: '研究资料库', exact: true }).first().waitFor({ timeout: 8000 });
+        }
         if (spec.behavior) {
           const menu = page.getByRole('button', { name: '用户菜单', exact: true });
           await menu.click();
@@ -186,6 +232,7 @@ async function measure([variant, base], spec, round) {
   } catch (error) {
     row.failure = String(error).slice(0, 350);
   } finally {
+    releaseNavigation();
     await context.close();
   }
   return row;
@@ -210,12 +257,20 @@ try {
     if (screenshots) for (const network of ['desktop', 'mobile']) for (const v of variants) {
       rows.push(await measure(v, { ...desktop, network, name: 'layout-review', behavior: true, snapshot: true }, 1));
     }
+  } else if (prefetchPolicy) {
+    for (const spec of [
+      { name: 'admin-hover', role: 'admin', intent: 'hover', connection: { effectiveType: '4g', saveData: false } },
+      { name: 'viewer-keyboard', intent: 'keyboard', connection: { effectiveType: '4g', saveData: false } },
+      { name: 'save-data', intent: 'hover', limited: true, connection: { effectiveType: '4g', saveData: true } },
+      { name: 'slow-connection', intent: 'keyboard', limited: true, connection: { effectiveType: '3g', saveData: false } },
+      { name: 'touch', network: 'mobile', intent: 'touch', limited: true, connection: { effectiveType: '4g', saveData: false } },
+    ]) rows.push(await measure(variants[0], { ...desktop, ...spec, prefetch: true }, 1));
   } else {
     const cases = [
       { ...desktop, name: 'anonymous', mode: 'anonymous', behavior: true },
       { ...desktop, name: 'reopen', behavior: true },
       { ...desktop, name: 'refresh', mode: 'expired' },
-      { ...desktop, name: 'click', roleMs: 1800, click: true, behavior: true },
+      { ...desktop, name: 'click', roleMs: 1800, click: true, behavior: true, verifyProgress: true },
       { ...desktop, name: 'force-password', mode: 'required' },
       { ...desktop, name: 'rejected-refresh', mode: 'rejected', behavior: true },
     ];
@@ -226,7 +281,20 @@ try {
   if (benchmark) await writeFile(args[3], JSON.stringify(result, null, 2) + '\n');
   else console.log(JSON.stringify(result));
   assert.equal(rows.filter(row => row.failure).length, 0, 'sample failures are retained and must be investigated');
-  if (!benchmark) {
+  if (prefetchPolicy) {
+    for (const row of rows) {
+      assert.equal(row.path, row.intendedPath);
+      assert.deepEqual(row.beforeProfileRoutes, []);
+      assert.deepEqual(row.businessBeforeClick, []);
+      assert.equal(row.adminEntryPresent, 0);
+    }
+    if (referencePrefetch) assert.ok(rows[0].idleRoutes.some(path => path !== '/oss'), 'the old build must reproduce unrelated automatic route requests');
+    else {
+      for (const row of rows) assert.deepEqual(row.idleRoutes, [], row.scenario);
+      for (const row of rows.slice(0, 2)) assert.ok(row.beforeClickRoutes.length > 0 && row.beforeClickRoutes.every(path => path === '/oss'), row.scenario);
+      for (const row of rows.slice(2)) assert.deepEqual(row.beforeClickRoutes, [], row.scenario);
+    }
+  } else if (!benchmark) {
     const [anonymous, reopen, refresh, click, required, rejected] = rows;
     assert.equal(anonymous.loginDocuments, 1, 'cold anonymous request must take the parser-time login path');
     assert.equal(anonymous.roleRequests, 0);

@@ -30,7 +30,10 @@ export default function SalesPdfViewer({ url, title }: {url:string; title:string
       if(cancelled)return;
       const assets=`/vendor/pdfjs/${pdf.version}/`;
       pdf.GlobalWorkerOptions.workerSrc=`${assets}pdf.worker.min.mjs`;
-      task=pdf.getDocument({url:source,cMapUrl:`${assets}cmaps/`,cMapPacked:true,standardFontDataUrl:`${assets}standard_fonts/`,wasmUrl:`${assets}wasm/`,enableXfa:false});
+      // Only read bytes needed for the selected page. PDF.js still reads the
+      // whole response when the storage endpoint does not advertise ranges.
+      task=pdf.getDocument({url:source,cMapUrl:`${assets}cmaps/`,cMapPacked:true,standardFontDataUrl:`${assets}standard_fonts/`,wasmUrl:`${assets}wasm/`,enableXfa:false,
+        disableStream:retry===0,disableAutoFetch:retry===0,disableRange:retry>0});
       return task.promise;
     }).then(pdf=>{if(pdf&&!cancelled)setDocument(pdf);}).catch(()=>{if(!cancelled){setError('PDF 原件加载失败');setLoading(false);}});
     return()=>{cancelled=true;void task?.destroy();};
