@@ -1,0 +1,369 @@
+{
+  "schema_version": "public-evidence-v1",
+  "batch_ref": "730b6efb-9441-404c-887b-a9c5e9571b4f",
+  "tasks": [
+    {
+      "task_ref": "d3dd73e6-81e9-4f76-bb4e-ba1385491b24",
+      "target": {
+        "city": "北京",
+        "project": "扬子江健康大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，CBD片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 只查北京朝阳区这栋楼，不使用同名企业总部或外地项目资料。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "9134364d-bde0-4271-b69e-0a6a91b76e0d",
+      "target": {
+        "city": "北京",
+        "project": "扬子江健康大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，CBD片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 只查北京朝阳区这栋楼，不使用同名企业总部或外地项目资料。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "542034d1-050d-4b56-a980-c2a2cb2eb5b4",
+      "target": {
+        "city": "北京",
+        "project": "扬子江健康大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，CBD片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 只查北京朝阳区这栋楼，不使用同名企业总部或外地项目资料。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "20513e19-94ca-4b06-a292-8590b18cc4a4",
+      "target": {
+        "city": "北京",
+        "project": "北京发展大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，燕莎片区（定位线索）",
+          "可用“发展大厦”作别名线索，须结合朝阳区燕莎片区定位。"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 “发展大厦”重名较多，不能只按简称归属。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "9fe767d2-a5d8-490b-b566-579bf828795d",
+      "target": {
+        "city": "北京",
+        "project": "北京发展大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，燕莎片区（定位线索）",
+          "可用“发展大厦”作别名线索，须结合朝阳区燕莎片区定位。"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 “发展大厦”重名较多，不能只按简称归属。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "39e32cba-29aa-49a8-a7e0-8dd6318e7a86",
+      "target": {
+        "city": "北京",
+        "project": "北京发展大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，燕莎片区（定位线索）",
+          "可用“发展大厦”作别名线索，须结合朝阳区燕莎片区定位。"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 “发展大厦”重名较多，不能只按简称归属。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "6d91bdb1-b729-4650-9056-e37de04ffba3",
+      "target": {
+        "city": "北京",
+        "project": "太阳宫商业大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，燕莎片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 区分同片区名称含“太阳宫”的住宅、商业或办公项目。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "321a2244-857e-4a8e-8ad1-04949f5b0ffe",
+      "target": {
+        "city": "北京",
+        "project": "太阳宫商业大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，燕莎片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 区分同片区名称含“太阳宫”的住宅、商业或办公项目。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "ec1ae692-291f-422d-96f2-000366e81ee5",
+      "target": {
+        "city": "北京",
+        "project": "太阳宫商业大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，燕莎片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 区分同片区名称含“太阳宫”的住宅、商业或办公项目。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "a5095ebb-2d76-47ef-a974-e48fcf917e2d",
+      "target": {
+        "city": "北京",
+        "project": "中关村知识产权大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市海淀区，中关村片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 必须查到该大厦本体，不把入驻机构的地址、成立日期或产权人当成该楼资料。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "8c294230-7ed7-4c6e-a66e-1d5f0a802356",
+      "target": {
+        "city": "北京",
+        "project": "中关村知识产权大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市海淀区，中关村片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 必须查到该大厦本体，不把入驻机构的地址、成立日期或产权人当成该楼资料。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "c83ccf0a-1a72-49ca-b3b2-bed61fa251f4",
+      "target": {
+        "city": "北京",
+        "project": "中关村知识产权大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市海淀区，中关村片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 必须查到该大厦本体，不把入驻机构的地址、成立日期或产权人当成该楼资料。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "66c50638-932c-4d40-95d8-497c59669f7a",
+      "target": {
+        "city": "北京",
+        "project": "量子芯座",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市海淀区，中关村片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 只查北京海淀区该办公楼，区分名称类似的量子产业园或园区整体。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "f33854fa-8c44-414e-9058-d824f8a9f8d9",
+      "target": {
+        "city": "北京",
+        "project": "量子芯座",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市海淀区，中关村片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 只查北京海淀区该办公楼，区分名称类似的量子产业园或园区整体。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "4b543ab0-4018-4c0e-8f9e-b819710ada9a",
+      "target": {
+        "city": "北京",
+        "project": "量子芯座",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市海淀区，中关村片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 只查北京海淀区该办公楼，区分名称类似的量子产业园或园区整体。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "b43cca89-60d6-4b34-9cc8-9f0093aa4cf9",
+      "target": {
+        "city": "北京",
+        "project": "泰康人寿大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市西城区，金融街片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 仅限西城区金融街片区这栋楼，排除朝阳区的泰康集团大厦、泰康金融大厦；也不要把泰康国际大厦自动当作别名。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "8b888825-4d6a-40f0-bf29-5b11040e6569",
+      "target": {
+        "city": "北京",
+        "project": "泰康人寿大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市西城区，金融街片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 仅限西城区金融街片区这栋楼，排除朝阳区的泰康集团大厦、泰康金融大厦；也不要把泰康国际大厦自动当作别名。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "eff6efa6-3bc1-4bf6-bf78-7a4859d4e8ac",
+      "target": {
+        "city": "北京",
+        "project": "泰康人寿大厦",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市西城区，金融街片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 仅限西城区金融街片区这栋楼，排除朝阳区的泰康集团大厦、泰康金融大厦；也不要把泰康国际大厦自动当作别名。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "2da8af4f-d8f2-43f9-b1b8-1a4b14bde742",
+      "target": {
+        "city": "北京",
+        "project": "恒奥中心",
+        "tower": "C座",
+        "public_identity_hints": [
+          "北京市西城区，金融街片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 必须确认 C 座。只证明恒奥中心整体或其他楼座时，保留线索并标 identity_uncertain。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "5aa618e9-1358-4aaf-9d33-651628800df4",
+      "target": {
+        "city": "北京",
+        "project": "恒奥中心",
+        "tower": "C座",
+        "public_identity_hints": [
+          "北京市西城区，金融街片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 必须确认 C 座。只证明恒奥中心整体或其他楼座时，保留线索并标 identity_uncertain。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "74f7fcb0-c75a-4dea-b80a-26fbe4b59cd0",
+      "target": {
+        "city": "北京",
+        "project": "恒奥中心",
+        "tower": "C座",
+        "public_identity_hints": [
+          "北京市西城区，金融街片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 必须确认 C 座。只证明恒奥中心整体或其他楼座时，保留线索并标 identity_uncertain。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "70d6e6b5-6365-4959-a817-7e170d97f518",
+      "target": {
+        "city": "北京",
+        "project": "京广中心",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，CBD片区（定位线索）"
+        ]
+      },
+      "field": "actual_completion_year",
+      "definition": "实际竣工或建成的公历年份（整数）。不以立项、开工、预计竣工、备案日期、开业、入市或翻新替代。 仅查京广中心的主体建筑；酒店开业、换牌和翻新不是楼宇竣工。综合体资料若无法证明适用于主体建筑，标 identity_uncertain。",
+      "target_scope": "tower",
+      "unit": "year"
+    },
+    {
+      "task_ref": "b6c3b72e-78be-4de9-8843-aff64813400e",
+      "target": {
+        "city": "北京",
+        "project": "京广中心",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，CBD片区（定位线索）"
+        ]
+      },
+      "field": "address",
+      "definition": "目标建筑或楼座的中文详细门牌地址。保留原文门牌号与楼座信息；不要用路口、地铁站或企业通信地址替代。 仅查京广中心的主体建筑；酒店开业、换牌和翻新不是楼宇竣工。综合体资料若无法证明适用于主体建筑，标 identity_uncertain。",
+      "target_scope": "tower",
+      "unit": null
+    },
+    {
+      "task_ref": "599e77aa-2fb3-425b-b0b4-452f5e0f8b20",
+      "target": {
+        "city": "北京",
+        "project": "京广中心",
+        "tower": null,
+        "public_identity_hints": [
+          "北京市朝阳区，CBD片区（定位线索）"
+        ]
+      },
+      "field": "developer",
+      "definition": "公开资料可核实的原始开发主体，保留机构全称。不得用业主、物业、运营方、入驻方或总承包商替代；仅载建设单位且关系未说明时，在 note 中说明。 仅查京广中心的主体建筑；酒店开业、换牌和翻新不是楼宇竣工。综合体资料若无法证明适用于主体建筑，标 identity_uncertain。",
+      "target_scope": "tower",
+      "unit": null
+    }
+  ]
+}
