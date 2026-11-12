@@ -907,7 +907,7 @@ export function LeaseTransactionForm({ isOpen, onClose, onSubmitSuccess, userId,
 
           </fieldset>
 
-          <DataEntryToolbar className="sticky bottom-0 z-30" leading={errorCount ? <div className="text-[10px] font-semibold text-rose-700">{errorCount} 个字段需要检查</div> : undefined}>
+          <DataEntryToolbar className="sticky bottom-0 z-30 max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11 pointer-coarse:[&_button]:min-h-11 pointer-coarse:[&_button]:min-w-11" leading={errorCount ? <div className="text-[10px] font-semibold text-rose-700">{errorCount} 个字段需要检查</div> : undefined}>
             <Button type="button" variant="secondary" size="sm" onClick={requestClose} disabled={busy}>取消</Button>
             {mode === 'create' && <Button type="button" variant="secondary" size="sm" onClick={() => { void saveDraft(); }} disabled={!draftHydrated || isSubmitting || submitState === 'saving' || submitState === 'submitting'}>{submitState === 'saving' && <Loader2 size={13} className="animate-spin" />}保存草稿</Button>}
             <Button type="submit" size="sm" disabled={isSubmitting || submitState === 'saving' || submitState === 'submitting' || !draftHydrated}>{(isSubmitting || submitState === 'submitting') && <Loader2 size={13} className="animate-spin" />}{submitState === 'submitting' ? '提交中…' : mode === 'edit' ? '更新记录' : '提交记录'}</Button>

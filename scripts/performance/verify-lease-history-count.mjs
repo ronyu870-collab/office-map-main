@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { assertLeaseActionTargets } from './assert-lease-action-targets.mjs';
 
 const base = new URL(process.argv[2]);
 const baseline = process.argv.includes('--baseline');
@@ -19,8 +20,8 @@ const records = Array.from({ length: 53 }, (_, index) => ({
 const access = { effectiveRole: 'admin', effectiveSource: 'all', impersonating: false, canReadHistory: true };
 const observations = [];
 try {
-  for (const width of [1280, 920, 390, 320]) {
-    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block' });
+  for (const [width, hasTouch] of [[1280, false], [920, false], [390, true], [320, false], [920, true]]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width < 640 && hasTouch, hasTouch, serviceWorkers: 'block' });
     const calls = [];
     let release;
     const held = new Promise(resolve => { release = resolve; });
@@ -70,16 +71,16 @@ try {
           const table = element.closest('table');
           return { available: table.parentElement.clientWidth, table: table.scrollWidth, page: document.documentElement.scrollWidth };
         });
-        if (process.env.PERF_HISTORY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.PERF_HISTORY_SCREENSHOT_DIR}/history-${width}.png` });
+        if (process.env.PERF_HISTORY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.PERF_HISTORY_SCREENSHOT_DIR}/history-${width}${hasTouch && width >= 640 ? '-touch' : ''}.png` });
         assert.ok(dimensions.table <= dimensions.available + 1 && dimensions.page <= width + 1,
           `all primary fields and the detail trigger must fit ${width}px: ${JSON.stringify(dimensions)}`);
         await page.getByText('正在统计总数…', { exact: true }).waitFor();
         assert.equal(await page.getByText('0 条', { exact: true }).count(), 0);
         assert.equal(await next.isDisabled(), true);
-        await (width < 640 ? row.tap() : row.click());
+        await (hasTouch ? row.tap() : row.click());
         const drawer = page.getByRole('dialog', { name: '成交详情' });
         await drawer.getByText(/仅确认到项目，未指定具体塔楼/).waitFor();
-        if (width < 640) await drawer.getByRole('button', { name: '关闭', exact: true }).tap();
+        if (hasTouch) await drawer.getByRole('button', { name: '关闭', exact: true }).tap();
         else await page.keyboard.press('Escape');
         await drawer.waitFor({ state: 'hidden' });
       }
@@ -98,7 +99,29 @@ try {
       assert.deepEqual(await input.evaluate(element => [element === document.activeElement, element.value, element.selectionStart]), [true, 'Beta', 2]);
       assert.equal(await page.locator('tbody tr').filter({ hasText: 'Beta Fixture' }).count(), 1);
       assert.deepEqual(calls.map(entry => entry.mode), baseline ? ['combined', 'rows', 'combined'] : ['rows', 'count', 'rows', 'rows', 'count']);
-      observations.push({ width, rowsBeforeCount, calls });
+      let actions;
+      if (!baseline) {
+        assert.equal(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), hasTouch);
+        const form = page.locator('main form');
+        actions = await assertLeaseActionTargets(page, form, ['全部', '实时', '历史', '筛选', '查询'],
+          width < 640 || hasTouch, `history ${width}px${hasTouch ? ' touch' : ''}`);
+        const activate = (name) => {
+          const action = form.getByRole('button', { name, exact: true });
+          return hasTouch ? action.tap() : action.click();
+        };
+        await activate('筛选');
+        await form.getByRole('textbox', { name: '起始年份' }).fill('2025');
+        await activate('历史');
+        const read = page.waitForRequest(request => new URL(request.url()).pathname === '/api/lease-transactions/read');
+        await activate('查询');
+        const params = new URL((await read).url()).searchParams;
+        assert.equal(params.get('record_source'), 'history');
+        assert.equal(params.get('year_from'), '2025');
+        await page.getByText('1 条', { exact: true }).waitFor();
+        await activate('筛选');
+        await form.getByRole('textbox', { name: '起始年份' }).waitFor({ state: 'hidden' });
+      }
+      observations.push({ width, hasTouch, rowsBeforeCount, calls, actions });
     } finally { release(); await context.close(); }
   }
   console.log(JSON.stringify({ mode: baseline ? 'baseline' : 'candidate', browser: browser.version(), observations }, null, 2));

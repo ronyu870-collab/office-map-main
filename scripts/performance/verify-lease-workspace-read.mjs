@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { assertLeaseActionTargets } from './assert-lease-action-targets.mjs';
 
 const base = new URL(process.argv[2]);
 const baseline = process.argv.includes('--baseline');
@@ -18,11 +19,14 @@ const company = '合成成交公司';
 const observations = [];
 
 try {
-  for (const { width, delayed, role } of [
-    { width: 1280, delayed: 'progress', role: 'editor' }, { width: 390, delayed: 'history', role: 'viewer' },
-    { width: 390, delayed: 'progress', role: 'editor' },
+  for (const { width, delayed, role, hasTouch } of [
+    { width: 1280, delayed: 'progress', role: 'editor', hasTouch: false },
+    { width: 390, delayed: 'history', role: 'viewer', hasTouch: true },
+    { width: 390, delayed: 'progress', role: 'editor', hasTouch: true },
+    { width: 320, delayed: 'progress', role: 'editor', hasTouch: false },
+    { width: 920, delayed: 'progress', role: 'editor', hasTouch: true },
   ]) {
-    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width === 390, hasTouch: width === 390, serviceWorkers: 'block' });
+    const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width < 640 && hasTouch, hasTouch, serviceWorkers: 'block' });
     let release;
     const gate = new Promise(resolve => { release = resolve; });
     let releaseDraft;
@@ -99,30 +103,50 @@ try {
       await progress.waitFor();
       await page.getByText('数据已就绪').waitFor();
       assert.deepEqual(requests, { progress: 1, history: 1, team: 1 });
+      let createActions;
+      let editActions;
       if (role === 'viewer') {
         assert.equal(await history.getByRole('button', { name: '编辑' }).count(), 0);
         assert.equal(await page.getByRole('button', { name: '新增成交' }).count(), 0);
       } else if (!baseline) {
-        await page.getByRole('button', { name: '新增成交' }).click();
+        const activate = (scope, name) => {
+          const action = scope.getByRole('button', { name, exact: true });
+          return hasTouch ? action.tap() : action.click();
+        };
+        const touchTargetsRequired = width < 640 || hasTouch;
+        const suffix = `${width}${hasTouch && width >= 640 ? '-touch' : ''}`;
+        assert.equal(await page.evaluate(() => matchMedia('(pointer: coarse)').matches), hasTouch);
+        await activate(history, '编辑');
+        const editDrawer = page.getByRole('dialog', { name: '编辑成交记录' });
+        editActions = await assertLeaseActionTargets(page, editDrawer, ['取消', '更新记录'],
+          touchTargetsRequired, `edit form ${suffix}px`);
+        await activate(editDrawer, '取消');
+        await editDrawer.waitFor({ state: 'hidden' });
+        await activate(page, '新增成交');
         const drawer = page.getByRole('dialog', { name: '新增成交记录' });
         const draftField = drawer.getByRole('textbox', { name: /疑似企业全称/ });
         await draftField.waitFor();
         assert.equal(await draftField.isDisabled(), true, 'non-company fields must wait for cloud draft hydration');
         const hydratingDraft = drawer.locator('form').getByRole('status').filter({ hasText: '正在读取云端草稿…' });
         await hydratingDraft.waitFor();
-        if (process.env.PERF_DRAFT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.PERF_DRAFT_SCREENSHOT_DIR}/draft-${width}.png` });
+        if (process.env.PERF_DRAFT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.PERF_DRAFT_SCREENSHOT_DIR}/draft-${suffix}.png` });
         releaseDraft();
         await hydratingDraft.waitFor({ state: 'hidden' });
+        createActions = await assertLeaseActionTargets(page, drawer, ['取消', '保存草稿', '提交记录'],
+          touchTargetsRequired, `create form ${suffix}px`);
+        if (process.env.PERF_DRAFT_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.PERF_DRAFT_SCREENSHOT_DIR}/footer-${suffix}.png` });
+        await activate(drawer, '提交记录');
+        await drawer.getByText('存在未通过校验的字段。错误已显示在对应字段附近。', { exact: true }).waitFor();
         await draftField.click();
         await draftField.pressSequentially('Draft');
         await draftField.press('ArrowLeft');
         await draftField.press('x');
         assert.deepEqual(await draftField.evaluate(input => [input.value, input.selectionStart, input === document.activeElement]), ['Drafxt', 5, true]);
-        await drawer.getByRole('button', { name: '关闭填报' }).click();
+        await activate(drawer, '取消');
         await page.getByRole('dialog', { name: '未保存的修改' }).getByRole('button', { name: '继续编辑' }).click();
         assert.equal(await draftField.inputValue(), 'Drafxt');
         const saved = page.waitForResponse(response => new URL(response.url()).pathname === '/rest/v1/lease_transaction_drafts' && response.request().method() === 'POST');
-        await drawer.getByRole('button', { name: '保存草稿', exact: true }).click();
+        await activate(drawer, '保存草稿');
         assert.equal((await saved).ok(), true);
         await drawer.getByRole('button', { name: '保存草稿', exact: true }).waitFor();
         await page.waitForFunction(() => document.querySelector('[data-save-state]')?.getAttribute('data-save-state') === 'saved');
@@ -132,7 +156,7 @@ try {
         await page.waitForFunction(() => document.querySelector('#suspected_company_fullname')?.value === 'Drafxt');
       }
       assert.deepEqual(violations, []);
-      observations.push({ width, delayed, role, requests, independentDisplay: !baseline });
+      observations.push({ width, hasTouch, delayed, role, requests, independentDisplay: !baseline, createActions, editActions });
     } finally { release(); releaseDraft(); await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', baseline, browser: await browser.version(), environment: 'local production build with isolated data', observations }));

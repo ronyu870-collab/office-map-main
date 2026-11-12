@@ -46,6 +46,9 @@ type LeaseReadRecord = {
 
 type SourceFilter = '' | 'live' | 'history';
 
+const touchHeight = 'max-sm:min-h-11 pointer-coarse:min-h-11';
+const touchTarget = `${touchHeight} max-sm:min-w-11 pointer-coarse:min-w-11`;
+
 type FilterState = {
   company: string;
   building: string;
@@ -392,7 +395,7 @@ export default function LeaseHistoryPage() {
                       key={label}
                       type="button"
                       onClick={() => updateFilter('source', value)}
-                      className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${
+                      className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${touchTarget} ${
                         filters.source === value
                           ? 'bg-white text-[var(--cd-color-text-primary)] shadow-[var(--cd-shadow-sm)]'
                           : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'
@@ -408,11 +411,11 @@ export default function LeaseHistoryPage() {
                 </div>
               ) : null}
 
-              <Button type="button" variant="ghost" size="sm" onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}>
+              <Button type="button" variant="ghost" size="sm" className={touchTarget} onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}>
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 筛选
               </Button>
-              <Button type="submit" size="sm" disabled={loading} className="min-w-[68px]">
+              <Button type="submit" size="sm" disabled={loading} className={`min-w-[68px] ${touchHeight}`}>
                 {loading ? '查询中' : '查询'}
               </Button>
             </div>
