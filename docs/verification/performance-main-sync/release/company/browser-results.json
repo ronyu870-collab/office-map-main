@@ -1,0 +1,133 @@
+{
+  "browser": "157.0.8103.50",
+  "results": [
+    {
+      "mode": "baseline",
+      "width": 1280,
+      "relationsVisible": false,
+      "choice": null,
+      "draftRoundTrip": false,
+      "confirmedDuplicate": false,
+      "requests": [
+        {
+          "kind": "suggestions",
+          "company": "样本"
+        }
+      ]
+    },
+    {
+      "mode": "baseline",
+      "width": 390,
+      "relationsVisible": false,
+      "choice": null,
+      "draftRoundTrip": false,
+      "confirmedDuplicate": false,
+      "requests": [
+        {
+          "kind": "suggestions",
+          "company": "样本"
+        }
+      ]
+    },
+    {
+      "mode": "shadow",
+      "width": 390,
+      "relationsVisible": false,
+      "choice": null,
+      "draftRoundTrip": false,
+      "confirmedDuplicate": false,
+      "requests": [
+        {
+          "kind": "suggestions",
+          "company": "样本"
+        },
+        {
+          "kind": "assess",
+          "company": "样本"
+        }
+      ]
+    },
+    {
+      "mode": "hints",
+      "width": 1280,
+      "relationsVisible": true,
+      "choice": "keyboard",
+      "draftRoundTrip": false,
+      "confirmedDuplicate": false,
+      "requests": [
+        {
+          "kind": "suggestions",
+          "company": "样"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本证券股份有限公司"
+        },
+        {
+          "kind": "recent",
+          "company": "样本证券股份有限公司"
+        }
+      ]
+    },
+    {
+      "mode": "hints",
+      "width": 390,
+      "relationsVisible": true,
+      "choice": "touch",
+      "draftRoundTrip": true,
+      "confirmedDuplicate": true,
+      "requests": [
+        {
+          "kind": "suggestions",
+          "company": "样"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本证券股份有限公司"
+        },
+        {
+          "kind": "recent",
+          "company": "样本证券股份有限公司"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本证券股份有限公司"
+        }
+      ]
+    },
+    {
+      "mode": "hints",
+      "width": 320,
+      "relationsVisible": true,
+      "choice": "touch",
+      "draftRoundTrip": false,
+      "confirmedDuplicate": false,
+      "requests": [
+        {
+          "kind": "suggestions",
+          "company": "样"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本"
+        },
+        {
+          "kind": "suggestions",
+          "company": "样本证券股份有限公司"
+        },
+        {
+          "kind": "recent",
+          "company": "样本证券股份有限公司"
+        }
+      ]
+    }
+  ]
+}
