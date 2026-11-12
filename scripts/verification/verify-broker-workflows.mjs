@@ -25,9 +25,87 @@ const rows = [
   { read_id: 'live:2', company, record_source: 'live', new_building: tower.name, building_id: tower.id, building_match_scope: 'exact', quality_status: 'OPERATIONAL', industry, sub_market: 'CBD', effective_rent: 0, area_sqm: 201, transaction_year: 2025, transaction_quarter: 'Q2', transaction_period: '2025 Q2' },
   { read_id: 'live:3', company: company + '分公司', record_source: 'live', new_building: tower.name, building_id: null, building_match_scope: 'project', transaction_year: 2026, transaction_quarter: 'Q2', transaction_period: '2026 Q2' },
 ];
+const layoutOnly = process.argv.includes('--narrow-layout-only');
+const layoutFailures = [];
+const layoutWidths = [[1280, 'admin'], [390, 'editor'], [320, 'editor']];
+
+async function checkWorkspaceLayout(page, width) {
+  const check = async (name, run) => {
+    try { await run(); }
+    catch (error) { layoutFailures.push(`${width}px ${name}: ${error.message.split('\n')[0]}`); }
+  };
+  const goto = path => page.goto(new URL(path, base).href);
+  const unobscured = locator => locator.evaluate(node => {
+    const { x, y, width, height } = node.getBoundingClientRect();
+    return node.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+  });
+
+  await check('map title', async () => {
+    await goto('/map');
+    const title = page.getByRole('heading', { name: '北京办公楼市场地图' });
+    await title.waitFor();
+    assert.equal(await title.evaluate(node => node.scrollWidth <= node.clientWidth + 1), true, 'map title is clipped');
+  });
+
+  await check('map modes beside a stock popup', async () => {
+    const modes = page.getByRole('group', { name: width < 640 ? '移动端地图显示模式' : '地图显示模式', exact: true });
+    await page.locator(`#map-container [data-building-id="${tower.id}"]`).first().click();
+    const popup = page.locator('.building-popup');
+    await popup.waitFor();
+    for (const name of ['项目', '租金', '空置', 'LEED']) {
+      const mode = modes.getByRole('button', { name, exact: true });
+      assert.equal(await unobscured(mode), true, `map mode ${name} is covered by the stock popup`);
+    }
+    const mode = modes.getByRole('button', { name: '租金', exact: true });
+    await mode.click();
+    assert.equal(await mode.getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: '项目', exact: true }).filter({ visible: true }).click();
+  });
+
+  await check('lease header', async () => {
+    await goto('/lease-submission');
+    const title = page.getByRole('heading', { name: /^租赁成交填报/ });
+    const progress = title.getByText('本周进行中', { exact: true });
+    await progress.waitFor();
+    assert.equal(await progress.evaluate(node => {
+      const outer = node.closest('h1').getBoundingClientRect();
+      const status = node.getBoundingClientRect();
+      return status.left >= outer.left - 1 && status.right <= outer.right + 1 &&
+        status.top >= outer.top - 1 && status.bottom <= outer.bottom + 1;
+    }), true, 'weekly status is clipped');
+    await page.getByRole('link', { name: '统一搜索' }).click({ trial: true });
+    await page.getByRole('button', { name: '新增成交' }).click({ trial: true });
+  });
+
+  await check('lease tower options and footer', async () => {
+    await page.getByRole('button', { name: '新增成交' }).click();
+    const companyInput = page.getByPlaceholder('请输入企业名称');
+    await companyInput.fill(company);
+    await page.getByRole('button', { name: '查看近期成交' }).click();
+    await page.getByText(/2026 Q3/).filter({ visible: true }).first().waitFor();
+    await page.getByRole('button', { name: '收起近期成交' }).click();
+    const field = page.locator('#new_building');
+    await field.waitFor();
+    await field.evaluate(node => node.scrollIntoView({ block: 'end' }));
+    await field.fill('合成旧楼');
+    const option = page.getByRole('option', { name: tower.name, exact: true });
+    await option.waitFor();
+    await option.evaluate(node => node.scrollIntoView({ block: 'nearest' }));
+    const submit = page.getByRole('button', { name: '提交记录', exact: true });
+    const [candidate, action] = await Promise.all([option.boundingBox(), submit.boundingBox()]);
+    assert.ok(candidate && action && candidate.y + candidate.height <= action.y + 1, 'tower option overlaps the fixed actions');
+    assert.equal(await unobscured(option), true, 'tower option is covered');
+    for (const name of ['取消', '保存草稿', '提交记录']) {
+      assert.equal(await unobscured(page.getByRole('button', { name, exact: true })), true, `footer action ${name} is covered`);
+    }
+    await option.click();
+    assert.equal(await page.locator('#sub_market').inputValue(), 'CBD');
+  });
+}
+
 const results = [];
 try {
-  for (const [width, role] of [[1280, 'admin'], [390, 'editor'], [320, 'editor']]) {
+  for (const [width, role] of layoutWidths) {
     const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block', acceptDownloads: true });
     const calls = [];
     const errors = [];
@@ -94,6 +172,11 @@ try {
       try {
         page.setDefaultTimeout(12000);
         page.on('pageerror', error => errors.push(error.message));
+        if (layoutOnly) {
+          await checkWorkspaceLayout(page, width);
+          assert.deepEqual(errors, []);
+          continue;
+        }
         await page.goto(base.href);
         await page.getByRole('link', { name: '统一搜索' }).click();
         const input = page.getByRole('textbox', { name: '楼宇、项目或企业' });
@@ -219,12 +302,15 @@ try {
         assert.ok(calls.some(item => item.company_exact === company && item.count_only === '1'));
         assert.deepEqual(errors, []);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-        results.push({ width, role, searchCompositionAndCaret: true, futureProject: true, brochure: true, mapHistoryRoundTrip: true, exactCompany: true, commonViews: true, mapRecentSearch: true, confirmedSuggestionAndAlias: true, excel: role === 'admin' });
+        await checkWorkspaceLayout(page, width);
+        assert.deepEqual(errors, []);
+        results.push({ width, role, workspaceLayout: true, searchCompositionAndCaret: true, futureProject: true, brochure: true, mapHistoryRoundTrip: true, exactCompany: true, commonViews: true, mapRecentSearch: true, confirmedSuggestionAndAlias: true, excel: role === 'admin' });
       } catch (error) {
         console.error(JSON.stringify({ width, url: page.url(), visible: (await page.locator('body').innerText()).slice(0, 3000), errors, calls }));
         throw error;
       }
     } finally { await context.close(); }
   }
-  console.log(JSON.stringify({ status: 'pass', browser: await browser.version(), fixtures: 'isolated Auth, map adapter and synthetic rows', results }));
+  assert.deepEqual(layoutFailures, [], 'workspace layout regressions');
+  console.log(JSON.stringify({ status: 'pass', browser: await browser.version(), layoutWidths, layoutOnly, fixtures: 'isolated Auth, map adapter and synthetic rows', results }));
 } finally { await browser.close(); }

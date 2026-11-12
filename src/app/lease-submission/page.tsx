@@ -271,7 +271,11 @@ export default function LeaseSubmissionPage() {
       <header className="sticky top-0 z-[var(--cd-z-sticky)] border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <AppHeader
           leading={<BrokerSearchLink />}
-          title={<span className="flex items-center gap-2">租赁成交填报<Badge tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge></span>}
+          className="max-sm:gap-1 max-sm:px-3"
+          title={<span className="flex items-center gap-2 max-sm:flex-col max-sm:items-start max-sm:gap-0">
+            <span>租赁成交填报</span>
+            <Badge className="shrink-0 whitespace-nowrap" tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge>
+          </span>}
           homeHref="/"
           actions={(
             <>
