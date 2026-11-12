@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useController, type Control } from 'react-hook-form';
 import { ChevronDown, History } from 'lucide-react';
 
-import { readRecentCompanyDeals, searchLeaseCompanies } from '@/src/services/leaseCompanyLookupClient';
+import { readRecentCompanyDeals, scheduleLeaseCompanyAssessment, searchLeaseCompanies } from '@/src/services/leaseCompanyLookupClient';
 import { formatLeaseRent } from '@/src/utils/formatLeaseRent';
 import {
   LEASE_COMPANY_NAME_MAX_LENGTH,
@@ -91,6 +91,7 @@ export function LeaseCompanyField({ control, enabled }: {
   const options = result?.suggestions ?? [];
   const expanded = Boolean(result?.hasRecentDeals && expandedCompany === query);
   const menuVisible = open && searchable && !expanded;
+  const scheduleAssessment = menuVisible && result?.canAssessSimilar === true;
   const activeIndex = menuVisible && highlighted < options.length ? highlighted : -1;
 
   React.useEffect(() => {
@@ -104,6 +105,17 @@ export function LeaseCompanyField({ control, enabled }: {
     }, 280);
     return () => { window.clearTimeout(timer); controller.abort(); };
   }, [query, searchable]);
+
+  React.useEffect(() => {
+    if (!scheduleAssessment) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      // A fresh lookup may surface validated hints later. Do not poll or
+      // reorder the menu while a person is using it.
+      void scheduleLeaseCompanyAssessment(query, controller.signal).catch(() => {});
+    }, 900);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [query, scheduleAssessment]);
 
   React.useEffect(() => {
     if (activeIndex >= 0) document.getElementById(`${listId}-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' });
@@ -224,7 +236,13 @@ export function LeaseCompanyField({ control, enabled }: {
                     onClick={() => choose(option.company)}
                   >
                     {option.company}
-                    {option.matchedFullName && <span className="block text-[var(--cd-color-text-secondary)]">疑似全称：{option.matchedFullName}</span>}
+                    {(option.relation || option.matchedFullName) && (
+                      <span className="block text-[var(--cd-color-text-secondary)]">
+                        {option.relation === 'same_company' ? '可能是同一家企业' : option.relation === 'related_company' ? '可能是关联企业' : null}
+                        {option.relation && option.matchedFullName ? ' · ' : null}
+                        {option.matchedFullName ? `疑似全称：${option.matchedFullName}` : null}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}

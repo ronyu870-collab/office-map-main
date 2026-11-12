@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { resolveLeaseReadAccess } from './access';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { resolveLeaseReadAccess, type LeaseReadAccess } from './access';
 import { readLeaseCompany } from './companyLookup';
-import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { asCompanyForAssessment, assessLeaseCompany, getCompanyAssessmentConfig } from './companyAi';
+import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,33 +24,74 @@ function parseOptionalNumber(raw: string | null) {
   return Number.isFinite(value) ? value : null;
 }
 
+type ReadContext = { response: NextResponse } | {
+  supabaseAdmin: SupabaseClient;
+  params: URLSearchParams;
+  access: LeaseReadAccess;
+  identity: EffectiveRequestIdentity;
+  allowAssessment: boolean;
+};
+
+async function getReadContext(req: NextRequest): Promise<ReadContext> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { response: NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 }) };
+  }
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
+  if ('response' in identityResult) return identityResult;
+  const { identity } = identityResult;
+  const params = req.nextUrl.searchParams;
+  const access = resolveLeaseReadAccess(identity.effectiveRole, params.get('record_source'));
+  if (!access.authorized) {
+    const error = access.denialReason === 'history'
+      ? '当前角色无权读取历史租赁成交'
+      : '当前角色无权读取租赁成交数据库';
+    return { response: NextResponse.json({ error }, { status: 403 }) };
+  }
+  const allowAssessment = !identity.isImpersonating && (identity.effectiveRole === 'admin' || identity.effectiveRole === 'editor');
+  return { supabaseAdmin, params, access, identity, allowAssessment };
+}
+
+/** Explicit opt-in from the settled company-name field. Only the derived
+ * assessment cache is mutated, never any deal or other business record. */
+export async function POST(req: NextRequest) {
+  const headers = { 'Cache-Control': 'private, no-store' };
+  if (req.nextUrl.searchParams.get('company_lookup') !== 'assess') {
+    return NextResponse.json({ error: '无效的企业查询' }, { status: 400, headers });
+  }
+  const config = getCompanyAssessmentConfig();
+  if (!config) return new NextResponse(null, { status: 204, headers });
+  try {
+    const context = await getReadContext(req);
+    if ('response' in context) return context.response;
+    if (!context.allowAssessment) return NextResponse.json({ error: '当前角色无权发起企业匹配' }, { status: 403, headers });
+    const payload: unknown = await req.json().catch(() => null);
+    const company = payload && typeof payload === 'object' && 'company' in payload && typeof payload.company === 'string'
+      && payload.company.length <= 200 ? asCompanyForAssessment(payload.company) : null;
+    if (!company) return NextResponse.json({ error: '无效的企业查询' }, { status: 400, headers });
+
+    after(async () => {
+      try { await assessLeaseCompany(context.supabaseAdmin, context.access.enforcedSource, company, config); }
+      catch { console.warn('[lease-company-ai] deferred assessment did not complete'); }
+    });
+    return new NextResponse(null, { status: 202, headers });
+  } catch {
+    return NextResponse.json({ error: '暂时无法安排企业匹配' }, { status: 500, headers });
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SECRET_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    const identityResult = await resolveEffectiveRequestIdentity(req, supabaseAdmin);
-    if ('response' in identityResult) return identityResult.response;
-    const { identity } = identityResult;
-
-    const params = req.nextUrl.searchParams;
-    const access = resolveLeaseReadAccess(identity.effectiveRole, params.get('record_source'));
-    if (!access.authorized) {
-      const error = access.denialReason === 'history'
-        ? '当前角色无权读取历史租赁成交'
-        : '当前角色无权读取租赁成交数据库';
-      return NextResponse.json({ error }, { status: 403 });
-    }
+    const context = await getReadContext(req);
+    if ('response' in context) return context.response;
+    const { supabaseAdmin, params, access, identity, allowAssessment } = context;
 
     if (params.has('company_lookup')) {
-      return await readLeaseCompany(supabaseAdmin, access.enforcedSource, params);
+      return await readLeaseCompany(supabaseAdmin, access.enforcedSource, params, allowAssessment);
     }
 
     const buildingId = params.get('building_id')?.trim();
