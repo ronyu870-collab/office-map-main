@@ -286,7 +286,9 @@
     "file": "src/app/lease-submission/__tests__/lease-close-protection.test.tsx",
     "cases": [
       "keeps the same input, focus and caret across results and chooses a company without overwriting other fields",
-      "ignores delayed results and IME composition, then keeps unmatched and failed searches fillable"
+      "ignores delayed results and IME composition, then keeps unmatched and failed searches fillable",
+      "waits for settled input before a silent assessment and cancels it on continued editing",
+      "distinguishes both relation labels and loads recent deals only for the explicitly selected name"
     ]
   },
   {

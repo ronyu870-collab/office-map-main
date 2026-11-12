@@ -7,21 +7,22 @@ import {
   type LeaseCompanySuggestion,
 } from '@/src/app/lease-submission/leaseCompanyLookup';
 import type { LeaseReadSource } from './access';
+import {
+  escapeLeaseCompanyRegex,
+  getCompanyAssessmentConfig,
+  getLeaseCompanyHints,
+  shouldAssessCompany,
+} from './companyAi';
 
 const MAX_CANDIDATE_ROWS = 80;
 const MAX_SUGGESTIONS = 8;
 const headers = { 'Cache-Control': 'private, no-store' };
 
-function literalRegex(value: string) {
-  // PostgREST imatch sends the pattern to PostgreSQL. Escape every regex
-  // metacharacter; user input is always literal, including % and _.
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export async function readLeaseCompany(
   db: SupabaseClient,
   source: LeaseReadSource | null,
   params: URLSearchParams,
+  allowAssessment = false,
 ) {
   const company = params.get('company')?.trim() ?? '';
   const mode = params.get('company_lookup');
@@ -35,7 +36,7 @@ export async function readLeaseCompany(
     return source ? query.eq('record_source', source) : query;
   }
 
-  const fragment = literalRegex(company);
+  const fragment = escapeLeaseCompanyRegex(company);
   const exact = `^[[:space:]]*${fragment}[[:space:]]*$`;
 
   if (mode === 'recent') {
@@ -81,8 +82,26 @@ export async function readLeaseCompany(
     const name = suggestion.company.toLowerCase();
     return name === needle ? 0 : name.startsWith(needle) ? 1 : suggestion.matchedFullName ? 3 : 2;
   }
-  const suggestions = [...matches.values()]
-    .sort((a, b) => rank(a) - rank(b) || a.company.localeCompare(b.company, 'zh-CN'))
+  const ordinary = [...matches.values()]
+    .sort((a, b) => rank(a) - rank(b) || a.company.localeCompare(b.company, 'zh-CN'));
+  const configured = allowAssessment ? getCompanyAssessmentConfig() : null;
+  const config = configured && shouldAssessCompany(company, ordinary) ? configured : null;
+  const hints = config ? await getLeaseCompanyHints(db, source, company, config) : [];
+  const annotations = new Map(hints.map(hint => [hint.company.toLowerCase(), hint.relation]));
+  const combined = [
+    ...ordinary.map(option => {
+      const relation = annotations.get(option.company.toLowerCase());
+      return relation ? { ...option, relation } : option;
+    }),
+    ...hints.filter(hint => !matches.has(hint.company.toLowerCase())),
+  ];
+  // Exact first, then the two calibrated relationship groups. Leave the
+  // ordinary ordering untouched when no calibrated hints exist.
+  const relationRank = (option: LeaseCompanySuggestion) => option.company.toLowerCase() === needle ? 0
+    : option.relation === 'same_company' ? 1 : option.relation === 'related_company' ? 2 : 3;
+  const suggestions = (hints.length ? combined.sort((a, b) => relationRank(a) - relationRank(b)) : combined)
     .slice(0, MAX_SUGGESTIONS);
-  return NextResponse.json({ suggestions, hasRecentDeals: Boolean(match.data?.length) }, { headers });
+  return NextResponse.json({
+    suggestions, hasRecentDeals: Boolean(match.data?.length), ...(config ? { canAssessSimilar: true } : {}),
+  }, { headers });
 }

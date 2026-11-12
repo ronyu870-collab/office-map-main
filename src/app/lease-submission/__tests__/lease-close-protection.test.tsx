@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ close: vi.fn(), save: vi.fn(), restore: vi.fn(), update: vi.fn(), duplicate: vi.fn(), companySearch: vi.fn(), companyDeals: vi.fn() }));
+const state = vi.hoisted(() => ({ close: vi.fn(), save: vi.fn(), restore: vi.fn(), update: vi.fn(), duplicate: vi.fn(), companySearch: vi.fn(), companyDeals: vi.fn(), companyAssessment: vi.fn() }));
 const buildings = [
   { id: 'test-building', name: 'Synthetic Tower', submarket: 'CBD', district: '朝阳区', grade: 'A' },
   { id: 'second-building', name: 'Remote Plaza', submarket: '金融街', district: '西城区', grade: 'A' },
@@ -16,6 +16,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from: () => ({ sel
 vi.mock('@/src/services/leaseCompanyLookupClient', () => ({
   searchLeaseCompanies: (...args: unknown[]) => state.companySearch(...args),
   readRecentCompanyDeals: (...args: unknown[]) => state.companyDeals(...args),
+  scheduleLeaseCompanyAssessment: (...args: unknown[]) => state.companyAssessment(...args),
 }));
 import type { LeaseCompanyLookupResult } from '../leaseCompanyLookup';
 import type { LeaseTransaction } from '@/src/types/lease-transaction';
@@ -33,6 +34,7 @@ beforeEach(() => {
   state.save.mockResolvedValue('2026-10-25T00:00:00Z');
   state.companySearch.mockReset().mockResolvedValue({ suggestions: [], hasRecentDeals: false });
   state.companyDeals.mockReset().mockResolvedValue({ records: [] });
+  state.companyAssessment.mockReset().mockResolvedValue(undefined);
   window.localStorage.clear();
 });
 afterEach(cleanup);
@@ -337,5 +339,51 @@ describe('新增成交的企业联想与近期成交', () => {
     fireEvent.change(input, { target: { value: '另一家企业' } });
     expect(screen.queryByRole('region', { name: '近期成交' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '查看近期成交' })).not.toBeInTheDocument();
+  });
+
+  it('waits for settled input before a silent assessment and cancels it on continued editing', async () => {
+    state.companySearch.mockResolvedValue({ suggestions: [{ company: '样本证券' }], hasRecentDeals: false, canAssessSimilar: true });
+    openForm(); await ready();
+    const input = screen.getByRole<HTMLInputElement>('combobox', { name: '企业名称' });
+    vi.useFakeTimers();
+    try {
+      act(() => input.focus());
+      fireEvent.change(input, { target: { value: '样本' } });
+      await act(async () => { await vi.advanceTimersByTimeAsync(280); });
+      expect(screen.getByRole('option', { name: '样本证券' })).toBeVisible();
+      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      expect(state.companyAssessment).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: '样本证券' } });
+      input.setSelectionRange(3, 3);
+      await act(async () => { await vi.advanceTimersByTimeAsync(280); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(900); });
+      expect(state.companyAssessment).toHaveBeenCalledExactlyOnceWith('样本证券', expect.any(AbortSignal));
+      expect(state.companySearch).toHaveBeenCalledTimes(2); // No polling or hidden refresh.
+      expect(input).toHaveFocus();
+      expect(input.selectionStart).toBe(3);
+      expect(screen.queryByText(/可能是.*企业/)).not.toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('distinguishes both relation labels and loads recent deals only for the explicitly selected name', async () => {
+    const selected = '样本证券股份有限公司';
+    state.companySearch.mockImplementation(async (query: string) => query === '样本' ? {
+      suggestions: [{ company: selected, relation: 'same_company' }, { company: '样本银行股份有限公司', relation: 'related_company' }],
+      hasRecentDeals: false, canAssessSimilar: true,
+    } : { suggestions: [{ company: selected }], hasRecentDeals: true });
+    openForm(); await ready();
+    const user = userEvent.setup();
+    const input = screen.getByRole<HTMLInputElement>('combobox', { name: '企业名称' });
+    await user.type(input, '样本');
+    expect(await screen.findByRole('option', { name: /样本证券股份有限公司.*可能是同一家企业/ })).toBeVisible();
+    expect(screen.getByRole('option', { name: /样本银行股份有限公司.*可能是关联企业/ })).toBeVisible();
+    expect(input).toHaveValue('样本');
+    expect(input).toHaveFocus();
+    expect(state.companyDeals).not.toHaveBeenCalled();
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(input).toHaveValue(selected);
+    await user.click(await screen.findByRole('button', { name: '查看近期成交' }));
+    expect(state.companyDeals).toHaveBeenCalledExactlyOnceWith(selected, expect.any(AbortSignal));
+    expect(state.companyAssessment).not.toHaveBeenCalled();
   });
 });
