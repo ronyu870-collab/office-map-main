@@ -255,7 +255,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
                 className={styles.option} data-active={index === activeMention}
                 onMouseDown={event => event.preventDefault()}
                 onClick={() => insertMention(member)}
-              >@${member.name}{member.id === '__everyone__' ? ' · 全体站内提醒' : ''}</button>
+              >@{member.name}{member.id === '__everyone__' ? ' · 全体站内提醒' : ''}</button>
             ))}
           </div>
         )}
