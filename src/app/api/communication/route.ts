@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { normalizeMarketSegments, segmentText } from '@/src/lib/communication/segments';
+import { matchEnglishFirstName, normalizeMentionLookupTerm } from '@/src/lib/communication/mentionLookup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,28 +32,47 @@ export async function GET(request: NextRequest) {
   try {
     const context = await validContext(request);
     if ('response' in context) return context.response;
+
+    // A missing, partial or malformed name must never return the directory.
+    // This endpoint resolves only an explicitly supplied complete first name.
+    const term = normalizeMentionLookupTerm(request.nextUrl.searchParams.get('name'));
+    if (!term) return response({ members: [] });
+    if (term === '所有人') {
+      return response({ members: context.identity.effectiveRole === 'admin'
+        ? [{ id: '__everyone__', name: '所有人' }] : [] });
+    }
+
     const [{ data, error }, authResult] = await Promise.all([
-      context.client.from('user_roles').select('user_id,chinese_name,full_name,role').in('role', ['viewer','editor','admin']).order('user_id'),
+      context.client.from('user_roles')
+        .select('user_id,full_name')
+        .in('role', ['viewer', 'editor', 'admin'])
+        .ilike('full_name', `${term}%`)
+        .order('full_name')
+        .limit(100),
       context.client.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     ]);
     if (error || authResult.error) {
-      console.error('[communication] member directory unavailable', error?.code || authResult.error?.status);
-      return response({ error: '成员目录暂时不可用' }, 503);
+      console.error('[communication] mention lookup unavailable', error?.code || authResult.error?.status);
+      return response({ error: '暂时无法匹配提及成员' }, 503);
     }
+
     const live = new Set(authResult.data.users.filter(user => {
-      const until = user.banned_until && new Date(user.banned_until).getTime();
-      return !until || until <= Date.now();
+      const bannedUntil = user.banned_until ? new Date(user.banned_until).getTime() : 0;
+      return !bannedUntil || bannedUntil <= Date.now();
     }).map(user => user.id));
+
     const members = (data ?? [])
-      .filter(row => live.has(row.user_id))
-      .map(row => ({
-        id: row.user_id,
-        name: row.chinese_name?.trim() || row.full_name?.trim() || '团队成员',
-      }));
-    return response({ members, canMentionEveryone: context.identity.effectiveRole === 'admin' });
+      .flatMap(row => {
+        const name = matchEnglishFirstName(row.full_name, term);
+        return name && live.has(row.user_id) ? [{ id: row.user_id, name }] : [];
+      })
+      .slice(0, 8);
+
+    // Return only exact matches, not roles, emails, Chinese names or a member count.
+    return response({ members });
   } catch (error) {
-    console.error('[communication] member lookup failed', error);
-    return response({ error: '成员目录暂时不可用' }, 503);
+    console.error('[communication] mention lookup failed', error);
+    return response({ error: '暂时无法匹配提及成员' }, 503);
   }
 }
 
