@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '@/src/services/supabaseClient';
 import { CommunicationComposer } from '@/src/components/CommunicationComposer';
@@ -62,7 +62,7 @@ function formatMessageTime(value: string) {
       });
 }
 
-export function CommunicationBoard({ userEmail, userName }: CommunicationBoardProps) {
+export function CommunicationBoard({ userEmail }: CommunicationBoardProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [replyToId, setReplyToId] = useState<number | null>(null);
   const [unreadMentions, setUnreadMentions] = useState<number>(0);
