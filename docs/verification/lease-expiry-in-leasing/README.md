@@ -41,3 +41,9 @@ Vercel team `ronyu870-9030s-projects` / project `colliersdata`（`prj_v5QSqiwtEN
 ## 变更及回滚边界
 
 最终应用／验证脚本指纹见 [source-sha256.json](source-sha256.json)。全局样式、共同组件、数据库迁移和生产环境变量均未修改。界面回滚可恢复上一个应用部署；无需回滚数据库，既有成交、补充记录和审计不受影响。真实 Auth 本地通过后仅调整响应式 CSS；最终精确提交的 CI 会再次执行真实 Auth 与数据库回归。
+
+## 首轮精确提交 CI 反馈
+
+`7573a90` 的真实 Auth、搜索焦点、视觉证据与预览部署通过；完整工程作业在既有 `verify-intelligence-pipeline.mjs` 失败，因为管理员场景仍等待已按本次产品要求移走的业务智能到期链接（[失败作业](https://github.com/ronyu870-collab/office-map-main/actions/runs/43362894014/job/131680330175)）。已把当前版本断言更新为业务智能不再展示旧／新到期链接，保留历史 baseline 模式与全部推荐、取消、权限、审计及证据检查。修正后的完整隔离脚本通过，见 [intelligence-regression.json](intelligence-regression.json)。本次补丁只改验证脚本与记录，不改应用源码或截图；此前视觉结论继续对应相同应用指纹。失败未被忽略，最终精确提交仍须远端全绿才能合并。
+
+修正后的本地完整 `NEXT_PUBLIC_AMAP_KEY=syntheticfixture VITEST_MAX_WORKERS=4 npm run verify` 再次通过 1,272 项与构建，地图仅使用与 CI 相同的合成配置；补跑既有成交工作区、成交数据库计数及 Broker 搜索／地图／成交往返回归全部通过，见同目录对应 JSON。Broker 首次在未配置地图 key 的本机构建下无法初始化合成地图；按 CI 已有配置重新构建后通过，未改地图源码或生产配置。

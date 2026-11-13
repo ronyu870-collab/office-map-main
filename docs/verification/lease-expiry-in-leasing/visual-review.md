@@ -53,3 +53,7 @@ disposition: ship
 clear — 初审唯一材料问题已解决，本批未见新增视觉回归。此次 ship 仅覆盖上述已评分修复。最终 `results.json` 的五档自动回归均通过，作为辅助证据；实现方报告完整 verify 与 16 组真实 Auth 通过，本评审没有重跑这些检查。原有 CUA、真机、缩放、键盘及精确 PR head／发布限制继续有效，不能将本结论外推为这些项目已完成。
 
 disposition: ship
+
+## 交付适用性补充（主 Agent）
+
+首轮 CI 反馈后只同步 `scripts/performance/verify-intelligence-pipeline.mjs` 的旧入口断言及验证记录。`git diff 7573a90 -- src` 为空，应用源码指纹与本评审最终画面完全一致；没有重新绘制或改动页面。后续 PR head 由描述中的完整 SHA 对应，沿用上述视觉结论，不将脚本通过冒充新的视觉评审。
