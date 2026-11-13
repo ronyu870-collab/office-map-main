@@ -1,0 +1,83 @@
+import { z } from 'zod';
+import { quarterSchema } from './contracts';
+
+const text = z.string().max(10000);
+const exact = z.object({ numerator: z.string().regex(/^-?\d{1,400}$/), denominator: z.string().regex(/^[1-9]\d{0,399}$/) });
+const number = z.object({ exact, numeric: z.number().finite() });
+const ids = z.array(z.string()).max(200000);
+export const resultCellSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('text'), value: text, sourceIds: ids }),
+  z.object({ kind: z.literal('number'), value: number, sourceIds: ids }),
+  z.object({ kind: z.literal('unknown'), state: z.enum(['missing', 'invalid', 'conflict', 'unverified']), reason: text, sourceIds: ids }),
+]);
+export const sourceSchema = z.object({ id: text, table: text, recordId: text, field: text, entityId: text, recordVersion: text,
+  rawValue: z.unknown(), unit: text, period: quarterSchema.nullable(), recordedAt: text.nullable(), businessAsOf: text.nullable(),
+  verification: z.enum(['database_only', 'verified_original', 'unreviewed', 'historical']),
+  original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
+});
+export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare']),
+  parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
+  table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
+    rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
+}).superRefine((result, ctx) => {
+  const sources = new Set(result.sources.map(source => source.id));
+  for (const row of result.table.rows) for (const column of result.table.columns) {
+    const cell = row.cells[column.key];
+    if (!cell || cell.sourceIds.some(id => !sources.has(id))) ctx.addIssue({ code: 'custom', message: 'Incomplete table source binding' });
+  }
+});
+export type QueryResultView = z.infer<typeof resultViewSchema>;
+export type DisplayCell = z.infer<typeof resultCellSchema>;
+export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋' };
+export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
+
+/** Display rounding only; never calculates using the approximate chart projection. */
+export function formatExact(value: z.infer<typeof number>, unit: string | null): string {
+  const numerator = BigInt(value.exact.numerator) * BigInt(unit === 'ratio' ? 100 : 1);
+  const denominator = BigInt(value.exact.denominator);
+  const negative = numerator < BigInt(0), absolute = negative ? -numerator : numerator;
+  const rounded = (absolute * BigInt(100) * BigInt(2) + denominator) / (denominator * BigInt(2));
+  const whole = rounded / BigInt(100), fraction = (rounded % BigInt(100)).toString().padStart(2, '0').replace(/0+$/, '');
+  return `${negative && rounded !== BigInt(0) ? '-' : ''}${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? '.' + fraction : ''}`;
+}
+export function cellText(cell: DisplayCell, unit: string | null): string {
+  return cell.kind === 'text' ? cell.value : cell.kind === 'unknown' ? unknownLabels[cell.state] : formatExact(cell.value, unit);
+}
+const coverageSchema = z.object({ total: z.number().int().nonnegative(), valid: z.number().int().nonnegative(),
+  missing: z.number().int().nonnegative(), invalid: z.number().int().nonnegative(), conflict: z.number().int().nonnegative(), unverified: z.number().int().nonnegative() });
+function coverageText(input: unknown): string | null {
+  const parsed = coverageSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const c = parsed.data;
+  return `获权样本 ${c.total} 栋，有效 ${c.valid} 栋；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}。`;
+}
+export function resultSummary(result: QueryResultView): string[] {
+  const analysis = z.record(z.string(), z.unknown()).safeParse(result.analysis);
+  const a = analysis.success ? analysis.data : {};
+  const coverage = coverageText(a.coverage), rows = result.table.rows;
+  if (result.operation === 'list') return [`当前获权目录中符合条件的楼宇共 ${rows.length} 栋。`];
+  if (result.operation === 'rank') return [rows.length
+    ? result.parameters.field === 'height' && result.parameters.limit === 1 && result.parameters.direction === 'desc'
+      ? `已知有效高度记录中最高的是${rows.slice(0, 3).map(row => cellText(row.cells.name, null)).join('、')}${rows.length > 3 ? '等（完整并列名单见表）' : ''}${rows.length > 1 ? '，并列第一' : ''}。不能确认整个现实市场中最高的楼。`
+      : `以下为已知有效记录中的排名，包含末位并列。不能据此确认整个现实市场的排名。`
+    : '不知道：当前获权候选中没有可用于排名的有效记录。', ...(coverage ? [coverage] : [])];
+  if (result.operation === 'aggregate') {
+    const column = result.table.columns[0], cell = rows[0]?.cells[column?.key];
+    const value = cell && cell.kind === 'number' ? `${column.label}为 ${cellText(cell, column.unit)} ${units[column.unit ?? ''] ?? column.unit ?? ''}。`
+      : '不知道：当前范围和季度没有足够的有效数据，不能给出这个指标。';
+    const denominator = number.safeParse(a.denominator);
+    const method = result.parameters.metric === 'rent' ? '按有效总面积加权计算净有效租金。' : result.parameters.metric === 'vacancy' ? '空置面积合计除以相同有效记录的总面积合计。' : '累加有效季度总面积。';
+    return [value, ...(coverage ? [coverage] : []), method + (denominator.success && a.denominatorUnit === 'm2' ? `有效面积分母 ${formatExact(denominator.data, 'm2')} ㎡。` : '')];
+  }
+  return [result.parameters.mode === 'paired' ? '按两期均有有效指标的配对楼宇比较。' : '按各期各自的有效样本比较，样本可能不同。', ...(['base', 'current'] as const).flatMap(key => {
+    const period = z.object({ availableCoverage: coverageSchema, usedEntityIds: ids, denominator: number }).safeParse(a[key]);
+    return period.success ? [`${key === 'base' ? '基期' : '比较期'}：${coverageText(period.data.availableCoverage)}实际参与 ${period.data.usedEntityIds.length} 栋；${result.parameters.metric === 'totalArea' ? '样本分母' : '有效面积分母'} ${formatExact(period.data.denominator, null)} ${result.parameters.metric === 'totalArea' ? '栋' : '㎡'}。`] : [];
+  })];
+}
+export function resultScopeText(result: QueryResultView): string {
+  const scope = z.object({ inventory: z.string().optional(), submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope);
+  const s = scope.success ? scope.data : {};
+  const period = quarterSchema.safeParse(result.parameters.period);
+  return `${s.submarkets?.join('、') || '当前获权范围'}${period.success ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
+}

@@ -7,6 +7,7 @@ import { queryHttpDependencies } from './http';
 import { readQueryBody } from './httpBody';
 import { readOwnResult, recoverOwnResult } from './recovery';
 import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
+import { isQuerySameOrigin } from './sameOrigin';
 
 const inputSchema=z.strictObject({requestId:z.uuid(),action:z.enum(['status','recover'])});
 const json=(body:unknown,status:number)=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
@@ -42,7 +43,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     let input:z.infer<typeof inputSchema>;
     try{input=inputSchema.parse(JSON.parse(body.text!));}catch{throw new Error('QUERY_DENIED');}
     if(!dependencies.enabled || impersonationDenied || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')??'')
-      || (request.headers.get('origin') && request.headers.get('origin')!==new URL(request.url).origin))throw new Error('QUERY_DENIED');
+      || !isQuerySameOrigin(request))throw new Error('QUERY_DENIED');
     const signal=AbortSignal.any([request.signal,AbortSignal.timeout(30000)]),verified=identity;
     const authority=await loadDataAuthority(client,verified,signal);
     await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action});

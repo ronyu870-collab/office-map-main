@@ -1,5 +1,11 @@
 [
   {
+    "id": "homepage-query-composer",
+    "roots": ["src/components/home/HomeQuery.tsx", "src/components/home/HomeWorkspace.tsx"],
+    "file": "src/components/home/__tests__/home-query.test.tsx",
+    "cases": ["keeps character input, focus, selection and IME across pending and result updates"]
+  },
+  {
     "id": "map-search",
     "roots": [
       "src/app/map/MapClient.tsx",

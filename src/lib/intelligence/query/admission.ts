@@ -1,6 +1,7 @@
 import type { QueryPlan } from './plan';
 import { parseQueryPlan } from './plan';
 import { numericFields, type NumericField } from './registry';
+import type { QuestionClarification } from './question';
 
 export type QueryGrant = 'query:catalog' | 'query:brochure' | 'query:quarter';
 /** Produced by a fresh trusted server authorization lookup, never by a request body. */
@@ -43,8 +44,8 @@ export type QueryExecutionPort<T> = {
 };
 
 /** A reusable execution boundary; it is not an enabled HTTP endpoint or a substitute for durable storage. */
-type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown };
-type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'already_received' | 'denied' | 'cancelled' | 'failed' };
+type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown; clarification?: QuestionClarification };
+type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'clarification'; clarification: QuestionClarification } | { status: 'already_received' | 'denied' | 'cancelled' | 'failed' };
 
 export async function runAuditedQuery<T>(
   request: AuditedRequest,
@@ -66,12 +67,21 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
     authority = await execution.freshAuthority();
     if (authority.actorId !== request.authority.actorId || authority.effectiveUserId !== request.authority.effectiveUserId) throw new Error('QUERY_DENIED');
+    if (request.clarification) authorizePlan({ operation: 'list', fields: [], period: null, scope: { inventory: 'all_authorized' } }, authority);
   } catch (error) {
     const reason = error instanceof Error ? error.message : '';
     const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';
     const status = timedOut ? 'failed' : request.signal.aborted || reason === 'QUERY_CANCELLED' ? 'cancelled' : reason === 'QUERY_DENIED' ? 'denied' : 'failed';
     if (!receipt.replayed) await audit.append(request.requestId, status, { status, delivery: 'not_sent', reason: timedOut ? 'execution_deadline_exceeded' : 'admission_not_granted' });
     return { status };
+  }
+  if (request.clarification) {
+    // The attempted query is refused until its conditions are understood. This
+    // is not a successful factual result and cannot be recovered as one.
+    if (!receipt.replayed) await audit.append(request.requestId, 'denied', {
+      reason: 'clarification_required', response: request.clarification, authority, delivery: 'not_yet_sent',
+    });
+    return { status: 'clarification', clarification: request.clarification };
   }
   if (receipt.replayed) return { status: 'already_received' };
   return executeReceived({ ...request, authority }, audit, execution);

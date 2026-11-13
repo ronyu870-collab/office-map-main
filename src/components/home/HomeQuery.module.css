@@ -1,0 +1,45 @@
+.enabled textarea:not(:disabled) { color: var(--cd-color-text-primary); cursor: text; resize: vertical; max-height: 240px; }
+.enabled:focus-within { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.enabled textarea:focus { outline: none; }
+.composerFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; }
+.composerFooter p, .notice, .scope, .tableFooter, .limitations, .examples p { color: var(--cd-color-text-secondary); }
+.notice { margin-top: 12px; }
+.examples { margin-top: 12px; }
+.examples summary, .trace summary { cursor: pointer; width: fit-content; padding-block: 8px; }
+.examples summary:focus-visible, .trace summary:focus-visible, .cell:focus-visible, .tableScroll:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.examples p { max-width: 76ch; margin-block: 8px; }
+.examples > div, .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.examples button { height: auto; min-height: 36px; text-align: left; white-space: normal; }
+.status:not(:empty) { margin-top: 16px; }
+.status:not(:empty) + .actions { margin-top: 8px; }
+.result { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--cd-color-border); }
+.answer { display: grid; gap: 8px; max-width: 80ch; }
+.conclusion { font-weight: 500; }
+.tableScroll { overflow: auto; max-height: 360px; margin-top: 16px; background: var(--cd-color-surface); border-block: 1px solid var(--cd-color-border); }
+.tableScroll table { width: 100%; border-collapse: collapse; font-size: inherit; }
+.tableScroll th, .tableScroll td { min-width: 120px; padding: 8px 12px; border-bottom: 1px solid var(--cd-color-border); text-align: left; vertical-align: top; }
+.tableScroll th { font-weight: 500; background: var(--cd-color-surface-alt); }
+.tableScroll .number { text-align: right; font-variant-numeric: tabular-nums; }
+.cell { color: inherit; text-align: inherit; min-height: 28px; text-decoration: underline; text-decoration-color: var(--cd-color-border-strong); text-underline-offset: 4px; overflow-wrap: anywhere; }
+.cell:hover { color: var(--cd-color-brand); }
+.tableFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.limitations { display: grid; gap: 4px; margin-top: 16px; max-width: 80ch; }
+.trace { margin-top: 12px; }
+.trace p { max-width: 80ch; }
+.trace dl, .source { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px 16px; margin-block: 12px; }
+.trace dt, .source dt { color: var(--cd-color-text-secondary); }
+.trace dd, .source dd { overflow-wrap: anywhere; white-space: pre-wrap; }
+.sources { border-top: 1px solid var(--cd-color-border); margin-top: 16px; padding-top: 12px; }
+.sourceHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.sourceHeading h3 { font-size: inherit; font-weight: 500; overflow-wrap: anywhere; }
+.source { border-bottom: 1px solid var(--cd-color-border); padding-bottom: 16px; }
+@media (max-width: 639px), (pointer: coarse) {
+  .composerFooter button, .actions button, .examples button, .trace button, .sourceHeading button { min-height: 44px; min-width: 44px; }
+  .cell { min-height: 44px; }
+  .examples summary, .trace summary { min-height: 44px; display: list-item; padding-block: 12px; }
+}
+@media (max-width: 639px) {
+  .composerFooter { align-items: flex-end; gap: 8px; }
+  .trace dl, .source { grid-template-columns: 1fr; gap: 4px; }
+  .trace dd, .source dd { margin-bottom: 8px; }
+}

@@ -2,7 +2,7 @@
 // No browser automation, mocked authentication, production URL, or model calls.
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
-import { readFile, mkdir, writeFile, open } from 'node:fs/promises';
+import { readFile, mkdir, writeFile, open, unlink } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import path from 'node:path';
@@ -19,6 +19,8 @@ const apiUrl=new URL(settings.API_URL),dbUrl=new URL(settings.DB_URL);
 assert.equal(apiUrl.hostname,'127.0.0.1');assert.equal(apiUrl.port,'55991');
 assert.equal(dbUrl.hostname,'127.0.0.1');assert.equal(dbUrl.port,'55992');
 const root=process.cwd(),output=path.join(root,'verification/ai-query-auth'),app='http://127.0.0.1:3289';
+const previewFile=process.env.AI_QUERY_AUTH_PREVIEW_FILE;
+if(previewFile)assert.match(previewFile,/^\/private\/tmp\/colliers-query-preview-[a-z0-9-]+\.json$/);
 await mkdir(output,{recursive:true});
 const db=new pg.Client({connectionString:settings.DB_URL});await db.connect();
 const blocker=new pg.Client({connectionString:settings.DB_URL});await blocker.connect();
@@ -50,6 +52,10 @@ async function call(who,body=input(),headers={}){
 async function recover(who,requestId,action='recover',headers={}){
   const response=await fetch(app+'/api/intelligence/query/recover',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify({requestId,action})});
   return {status:response.status,body:await response.json()};
+}
+async function capabilities(who,headers={}){
+  const response=await fetch(app+'/api/intelligence/query/capabilities',{headers:{...(who?{Authorization:'Bearer '+who.token}:{}),...headers}});
+  return {status:response.status,body:await response.json(),headers:response.headers};
 }
 const events=async id=>(await db.query('select e.*,s.actor_id,s.effective_user_id from private.ai_query_audit_events e join private.ai_query_audit_streams s using(request_id) where request_id=$1 order by sequence',[id])).rows;
 try{
@@ -95,6 +101,44 @@ try{
     await db.query('update private.ai_query_control set enabled=true');assert.equal((await call(admin)).status,403);
   });
   await grantQuery({setup:db},viewer.id);
+  await check('主页能力清单遵守真实身份、独立资格与当前字段权限',async()=>{
+    assert.equal((await capabilities(null)).status,403);
+    assert.equal((await capabilities(admin)).body.enabled,false);
+    const allowed=await capabilities(viewer);assert.equal(allowed.body.enabled,true);assert.equal(allowed.body.examples.length,4);assert.match(allowed.headers.get('cache-control'),/no-store/);
+    assert.equal((await capabilities(viewer,{'X-Colliers-Impersonate-User':admin.id})).body.enabled,false);
+    await grantQuery({setup:db},viewer.id,{fields:[]});
+    const catalog=await capabilities(viewer);assert.deepEqual(catalog.body.examples,['CBD有哪些楼']);assert.notEqual(catalog.body.permissionRevision,allowed.body.permissionRevision);
+    await grantQuery({setup:db},viewer.id);
+  });
+  await check('纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复',async()=>{
+    for(const [question,value] of [['CBD有哪些楼',null],['CBD最高的楼是什么',210],['2026年第三季度CBD净有效租金',170],['2026Q3CBD空置率',0.175]]){
+      const res=await call(viewer,{idempotencyKey:randomUUID(),question});assert.equal(res.status,200);
+      if(value===null)assert.equal(res.body.result.table.rows.length,4);
+      else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
+      assert.deepEqual((await recover(viewer,res.body.requestId)).body.result,res.body.result);
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/1');
+    }
+    const compared=await call(viewer,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
+  });
+  await check('真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝',async()=>{
+    const res=await call(viewer,{idempotencyKey:randomUUID(),question:'CBD最高的楼是什么'},{Origin:app});assert.equal(res.status,200);assert.equal(res.body.result.table.rows[0].cells.height.value.numeric,210);
+    const restored=await recover(viewer,res.body.requestId,'recover',{Origin:app});assert.equal(restored.status,200);assert.deepEqual(restored.body.result,res.body.result);
+    for(const Origin of ['http://foreign.invalid','http://localhost:3289','null']){
+      assert.equal((await call(viewer,input(),{Origin,'X-Forwarded-Host':'foreign.invalid'})).status,403);
+      assert.equal((await recover(viewer,res.body.requestId,'recover',{Origin,'X-Forwarded-Host':'foreign.invalid'})).status,403);
+    }
+  });
+  await check('不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力',async()=>{
+    for(const question of ['今年CBD租金','CBD最高的楼是什么，但排除A座','CBD有哪些楼，附上全部客户佣金']){
+      const body={idempotencyKey:randomUUID(),question};const res=await call(viewer,body);assert.equal(res.status,422);assert.equal(res.body.status,'clarification');assert.equal(res.body.result,undefined);
+      const stored=await events(res.body.requestId);assert.deepEqual(stored.map(e=>e.kind),['received','denied','delivery_receipt']);
+      assert.equal(decrypt(stored[0]).content.submittedText,question);assert.equal(decrypt(stored[1]).content.reason,'clarification_required');
+      assert.equal(decrypt(stored[2]).content.response.message,res.body.message);
+      assert.equal((await call(viewer,body)).status,422);assert.equal((await events(res.body.requestId)).filter(e=>e.kind==='denied').length,1);
+      assert.equal((await call(other,body)).status,403);
+    }
+    const forbidden=await call(admin,{idempotencyKey:randomUUID(),question:'CBD最高的楼是什么'});assert.equal(forbidden.status,403);
+  });
   let successful;
   await check('真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读',async()=>{
     successful=await call(viewer);assert.equal(successful.status,200);
@@ -300,9 +344,17 @@ try{
   });
   await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,browserValidation:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
+  if(previewFile){
+    const preview=await person('viewer','preview');await grantQuery({setup:db},preview.id);
+    await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
+    await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
+    console.log('LOCAL_SYNTHETIC_PREVIEW_READY');
+    await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
+  }
 }finally{
   if(server&&server.exitCode===null){const stopped=once(server,'exit');server.kill('SIGTERM');await stopped;}
   await log?.close();
   for(const entry of people)await service.auth.admin.deleteUser(entry.id).catch(()=>{});
   await blocker.end();await withdrawal.end();await db.end();
+  if(previewFile)await unlink(previewFile).catch(()=>{});
 }

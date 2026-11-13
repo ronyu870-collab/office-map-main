@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  ArrowUp,
   ChevronDown,
   ClipboardList,
   Database,
@@ -22,6 +21,8 @@ import {
 
 import { WorkspaceShell } from '@/src/components/layout';
 import { HomeIntentLink } from './HomeIntentLink';
+import { HomeQuery } from './HomeQuery';
+import { queryScopeKey } from '@/src/services/trustedQueryClient';
 import styles from './HomeWorkspace.module.css';
 import type { HomeTeamActivityProps } from './HomeTeamActivity';
 import { useAppSession, useCanStartHomeNavigation } from '@/src/components/SessionProvider';
@@ -342,10 +343,13 @@ function DeferredHomeActivity(props: HomeTeamActivityProps) {
 export function HomeWorkspace() {
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
-  const { isImpersonating } = useImpersonation();
+  const { isImpersonating, targetUserId } = useImpersonation();
   const canStartNavigation = useCanStartHomeNavigation();
 
   const activeSession = status === 'authenticated' && !ctx?.user.app_metadata?.must_change_password ? ctx : null;
+  const queryScope = React.useMemo(() => ({ actorId: activeSession?.session?.user.id ?? '', effectiveId: activeSession?.user.id ?? '',
+    sessionId: activeSession?.sessionId ?? '', targetId: isImpersonating ? targetUserId ?? null : null }),
+  [activeSession?.session?.user.id, activeSession?.user.id, activeSession?.sessionId, isImpersonating, targetUserId]);
   const canStartMap = Boolean(activeSession) ||
     (canStartNavigation && !isImpersonating && !isModuleRestricted(MAP_WORKSPACE.module));
 
@@ -435,13 +439,7 @@ export function HomeWorkspace() {
                       <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
                     </HomeIntentLink> : null}
                   </div>
-                  <div className={styles.composer}>
-                    <textarea id="home-query" aria-describedby="home-query-status" disabled rows={2} placeholder="对话查询尚未开放" />
-                    <div className={styles.composerFooter}>
-                      <p id="home-query-status">目前请使用下方业务入口。</p>
-                      <button type="button" disabled aria-label="发送问题"><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></button>
-                    </div>
-                  </div>
+                  <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} />
                 </> : <div className={styles.querySkeleton} aria-hidden="true" />}
               </div>
               <div className={styles.navigationHeading}><h2>常用工作</h2></div>

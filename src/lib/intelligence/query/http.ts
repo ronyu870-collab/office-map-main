@@ -9,8 +9,10 @@ import { readQueryBody } from './httpBody';
 import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 import { readQuerySnapshots } from './snapshotReader';
 import { parseQueryPlan } from './plan';
+import { QUESTION_GRAMMAR_VERSION, resolveBusinessQuestion } from './question';
+import { isQuerySameOrigin } from './sameOrigin';
 
-const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000), plan: z.unknown() });
+const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional() });
 function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string {
   const bytes = createHash('sha256').update(`query-http/1:${identity.actorId}:${identity.effectiveUserId}:${nonce}`).digest().subarray(0, 16);
   bytes[6] = (bytes[6] & 15) | 128; bytes[8] = (bytes[8] & 63) | 128;
@@ -74,14 +76,17 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     const fresh = async () => {
       if (!dependencies.enabled || impersonationDenied || !parsed
         || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') ?? '')
-        || (request.headers.get('origin') && request.headers.get('origin') !== new URL(request.url).origin)) throw new Error('QUERY_DENIED');
+        || !isQuerySameOrigin(request)) throw new Error('QUERY_DENIED');
       return loadDataAuthority(client, verified, signal);
     };
     let boundedPlan: unknown = null;
-    try { if (parsed) boundedPlan = parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
+    const resolution = parsed && !Object.hasOwn(parsed, 'plan') ? resolveBusinessQuestion(parsed.question) : null;
+    try { if (parsed) boundedPlan = resolution?.kind === 'plan' ? resolution.plan : resolution ? null : parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
     let usedRevision: string | null = null;
     const submission = { requestId, submittedText: parsed?.question ?? body.text!, plan: boundedPlan,
-      authority: pending, signal, metadata: { rawRequest: body.text, conversationId: requestId, turnId: requestId, relation: 'initial_structured_submission', impersonationDenied, inputBytes: body.bytesObserved } };
+      ...(resolution?.kind === 'clarification' ? { clarification: resolution.clarification } : {}),
+      authority: pending, signal, metadata: { rawRequest: body.text, conversationId: requestId, turnId: requestId, relation: resolution ? 'initial_question_submission' : 'initial_structured_submission',
+        ...(resolution ? { grammarVersion: QUESTION_GRAMMAR_VERSION } : {}), impersonationDenied, inputBytes: body.bytesObserved } };
     const result = await runAuditedSubmission(submission, audit, {
       freshAuthority: fresh,
       execute: async plan => {
@@ -95,6 +100,19 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       await audit.append(requestId, 'denied', { reason: 'idempotency_content_conflict', delivery: 'not_sent' });
       return { status: 'conflict' as const };
     });
+    if (result.status === 'clarification') {
+      // Store the exact bounded explanation; no business read has taken place.
+      const response = { requestId, status: 'clarification', ...result.clarification };
+      const authority = await fresh();
+      if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
+      await audit.append(requestId, 'delivery_receipt', { phase: 'response_prepared', response,
+        bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex'), httpStatus: 422, clientReceipt: 'unconfirmed' });
+      if ((await fresh()).permissionRevision !== authority.permissionRevision) {
+        await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: 'authorization_changed_before_response' });
+        return json({ requestId, status: 'denied', error: '查询权限已变化。' }, 403);
+      }
+      return json(response, 422);
+    }
     if (result.status !== 'ready') {
       const status = result.status === 'already_received' ? 202 : result.status === 'denied' ? 403 : result.status === 'cancelled' || result.status === 'conflict' ? 409 : 503;
       return json({ requestId, status: result.status, error: result.status === 'already_received' ? '此请求已接收，请勿重复执行。' : '本次查询未交付，请检查权限或稍后重试。' }, status);

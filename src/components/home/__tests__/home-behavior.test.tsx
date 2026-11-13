@@ -51,6 +51,10 @@ vi.mock('@/src/config/demoMode', () => ({ isDemoMode: () => false }));
 vi.mock('@/src/components/CommunicationBoard', () => ({ CommunicationBoard: () => <div>communication</div> }));
 vi.mock('@/src/components/NoticeBanner', () => ({ NoticeBanner: () => <div>notice</div> }));
 vi.mock('@/src/services/Auth', () => ({ signOut: state.signOut }));
+vi.mock('@/src/services/trustedQueryClient', () => ({
+  queryScopeKey: () => 'synthetic-home-session',
+  trustedQueryClient: { capabilities: async () => ({ enabled: false, examples: [] }) },
+}));
 vi.mock('@/src/utils/audit', () => ({
   logAction: state.logAction,
   logActionImmediate: state.logActionImmediate,
