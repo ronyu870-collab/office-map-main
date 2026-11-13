@@ -7,6 +7,8 @@ import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { buildAggregateResult, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
+import { sample as submissionSample, authority as submissionAuthority } from '@/src/lib/intelligence/query/__tests__/submissionFixture';
+import { buildSubmissionResult } from '@/src/lib/intelligence/query/submissions/result';
 
 const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), chart: vi.fn(), download: vi.fn(), reportDelivery: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client, queryScopeKey: (scope: { actorId: string }) => scope.actorId }));
@@ -20,6 +22,21 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('shows submission coverage with source focus and a same-result chart, then clears it on withdrawal',async()=>{
+    const raw=submissionSample();raw.quality=false;raw.submissions.forEach(s=>s.values={});
+    const result=resultViewSchema.parse(buildSubmissionResult(raw,{operation:'submission_progress',scope:{inventory:'tracked',submarkets:['CBD']},period:null,view:'summary'},submissionAuthority));
+    client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_scope,_id,r,q)=>buildResultChart(r,q));
+    render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());
+    fireEvent.change(input,{target:{value:'当前填报季度CBD填报进度'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
+    expect(await screen.findByText(/提交覆盖率 66.67%/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'查看柱状图'}));
+    const figure=await screen.findByRole('figure',{name:'同源查询图表'});expect(figure).toHaveTextContent('有效图示 4 项');
+    const source=screen.getAllByRole('button',{name:'查看来源：楼宇数量 2'})[0];fireEvent.click(source);
+    expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('building_assignments');
+    fireEvent.click(screen.getByRole('button',{name:'关闭来源'}));expect(source).toHaveFocus();expect(client.submit).toHaveBeenCalledOnce();
+    client.capabilities.mockResolvedValue({enabled:false,examples:[]});fireEvent.focus(window);
+    await waitFor(()=>expect(screen.queryByRole('figure')).not.toBeInTheDocument());
+  });
   it('shows distribution bins and boxplot from one result with expandable statistics and source focus',async()=>{
     const result=resultViewSchema.parse(buildDistributionResult(fixture(),'rent'));
     client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_scope,_id,result,request)=>buildResultChart(result,request));

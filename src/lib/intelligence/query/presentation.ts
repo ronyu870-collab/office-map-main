@@ -1,3 +1,4 @@
+import { submissionAnalysisSchema } from './submissions/view';
 import { z } from 'zod';
 import { distributionAnalysisSchema } from './distribution';
 import { quarterSchema } from './contracts';
@@ -17,7 +18,7 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship', 'distribution']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship', 'distribution', 'submission_progress']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
@@ -30,7 +31,7 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋' };
+export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', 'CNY/m2/day': '元/㎡/天', month: '月' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
 /** Display rounding only; never calculates using the approximate chart projection. */
@@ -59,6 +60,18 @@ export function resultSummary(result: QueryResultView): string[] {
   const analysis = z.record(z.string(), z.unknown()).safeParse(result.analysis);
   const a = analysis.success ? analysis.data : {};
   const coverage = coverageText(a.coverage), rows = result.table.rows;
+  if (result.operation === 'submission_progress') {
+    const a=submissionAnalysisSchema.parse(result.analysis),c=a.counts;
+    const coverage=a.submittedCoverage?formatExact({exact:a.submittedCoverage,numeric:0},'ratio')+'%':'未知（没有已分配楼宇）';
+    const view=String(result.parameters.view);
+    return [`当前获权存量 ${c.catalogBuildings} 栋；已分配 ${c.assignedBuildings} 栋，其中有该季提交 ${c.assignedSubmittedBuildings} 栋、未提交 ${c.missingAssignedBuildings} 栋。提交覆盖率 ${coverage}。`,
+      `未分配 ${c.unassignedBuildings} 栋，其中有提交 ${c.unassignedSubmittedBuildings} 栋；人员任务 ${c.assignmentPairs} 项，本人已提交 ${c.submittedOwnerPairs} 项、未提交 ${c.missingOwnerPairs} 项。`,
+      '楼宇覆盖按任一人员提交计，人员任务按本人提交计；提交不代表完整、有效或已审定。',
+      ...(a.quality?[`最新记录可判定 ${a.quality.evaluatedBuildings} 栋；五项输入齐全 ${a.quality.requiredCompleteBuildings} 栋、缺项 ${a.quality.missingRequiredBuildings} 栋；发现核查事项 ${a.quality.flaggedBuildings} 栋。`]:[]),
+      ...(c.latestUnresolvedBuildings?[`${c.latestUnresolvedBuildings} 栋存在缺少提交时间的记录，无法确定最新值。`]:[]),
+      ...(view==='missing'?['下表为该季度没有提交的楼宇，已分配未提交和未分配分别标明。']:view==='missing_fields'?['下表同时保留未提交或最新记录无法确定的楼宇，不能把这些情况说成已检查出缺项。']:[]),
+      ...(rows.length===0?['本次范围没有符合该明细条件的记录；不代表范围以外没有问题。']:[])];
+  }
   if (result.operation === 'list') return [`当前获权目录中符合条件的楼宇共 ${rows.length} 栋。`];
   if (result.operation === 'rank') return [rows.length
     ? result.parameters.field === 'height' && result.parameters.limit === 1 && result.parameters.direction === 'desc'
@@ -113,5 +126,6 @@ export function resultScopeText(result: QueryResultView): string {
   const start=quarterSchema.safeParse(result.parameters.start),end=quarterSchema.safeParse(result.parameters.end);
   const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
   const range=isTrend&&start.success&&end.success?`，${start.data.year}Q${start.data.quarter} 至 ${end.data.year}Q${end.data.quarter}`:'';
+  if(result.operation==='submission_progress'&&period.success)return `${s.submarkets?.join('、')||'当前获权范围'}，${period.data.year} 年第 ${period.data.quarter} 季度；${result.parameters.periodBasis==='configured'?'取系统配置的填报季度':'明确指定季度'}，当前存量目录与当前分配。`;
   return `${s.submarkets?.join('、') || '当前获权范围'}${range}${period.success && !isTrend ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
 }

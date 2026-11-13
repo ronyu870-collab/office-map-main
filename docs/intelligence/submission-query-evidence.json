@@ -1,0 +1,564 @@
+{
+  "baseCommit": "724836dbf1880b4cb15756308ace33d588d25902",
+  "checkedAt": "2026-11-13T21:26:20.377679+00:00",
+  "adminOnly": true,
+  "productionChanged": false,
+  "modelCalls": false,
+  "status": "Local Q13 homepage integration; full Goal and remaining Q13 domains pending",
+  "files": {
+    "CHANGELOG.md": "e3bcf764180077ebaa03a7df74a4b8d6ddab1a753dbc2553d28c3b89cb71004d",
+    "docs/intelligence/README.md": "84b149388079af375e568fb8edf3f4cdf4ee4fae5887164a8357b678c7fde2f6",
+    "docs/intelligence/submission-observations.md": "eda45b755dce8ee2d3a6654fb5d8698964b5ef66a1db210996afc41f0b52587b",
+    "docs/intelligence/submission-query.md": "7f05db88a60c9a0d28055ed070e75af9a64d428ae8f1b2caaa81f8696af6d3d5",
+    "docs/verification/submission-query/desktop-progress.png": "eec1690cae5670089f02c773622415da89e4e91b8833c72f1c8e6e94ae5743a8",
+    "docs/verification/submission-query/download-readback.json": "89f461a5a7cdd094948da80e98daa784288255bd004b0d61a29b0621b8a30e11",
+    "docs/verification/submission-query/mobile-progress.png": "146bdc3f423d873f9666b89a0fe50121ce6b063c7d71b8cce21819aad6acb1e5",
+    "docs/verification/submission-query/mobile-quality.png": "9863c5084deedcaeb319b07aa2596a82eba25cd091bae0aeaeceeee49c5e0aa0",
+    "docs/verification/submission-query/mobile-source.png": "7a4ae0de0dfabc1b8261a5ca04cfa1ecf23b703ff8e5956bd464203575b84e08",
+    "scripts/verification/ai-submission-observation-scenarios.mjs": "ab2a34862edc1b71ef5138b35f00a961d8462b2b3db32eb161cac0e79d6117b4",
+    "scripts/verification/ai-submission-query-scenarios.mjs": "688fbe63f85694009fa86e115c7553e857578aae777d4403edda5946d926d13e",
+    "scripts/verification/verify-ai-query-auth.mjs": "0fcd880a49cb4d0089492d068b1c6adf26a9d16113e4b566695de1cde63974d0",
+    "src/components/home/HomeQueryResult.tsx": "166e8030c888ff0f7e4801312a539289094f0c64fbcf631989eb2ba97e4287c6",
+    "src/components/home/__tests__/home-query.test.tsx": "929b89c247e2b8bf0dfa356099d2feeb4b4057702d23613a0bc8cee7454157e4",
+    "src/lib/intelligence/query/__tests__/submissionFixture.ts": "df27980b42116d8f337f9455eecfab9b2b549d03c9448725fc267d738a25bbbf",
+    "src/lib/intelligence/query/__tests__/submissionObservation.test.ts": "edead8aa96e1e4ce8ed8ddddc69adb5dfdf128d939b195d43fc0e594909f8248",
+    "src/lib/intelligence/query/__tests__/submissionResult.test.ts": "9bd10f65b779c325be7dcbda1b696f5ec474a142efcf4b8bcadd40091ba14d57",
+    "src/lib/intelligence/query/admission.ts": "136a3ecfbdf1655e14ce12894953271317485d28a727f8306cd14fb4126a1e9a",
+    "src/lib/intelligence/query/capabilities.ts": "3ada6fee136d7e44c6d07d5e5e6e696b2c000bbaf101a0a7f1d157d5bd0c86a7",
+    "src/lib/intelligence/query/charts.ts": "80bccd353dced4d24b74ac144eeb5886285c4551adc3bb8ae41e0e1673090684",
+    "src/lib/intelligence/query/executePlan.ts": "7edccb48082122f7e4849376d4b47edca3c9f095fad7dca446a862c252c582f9",
+    "src/lib/intelligence/query/exports.ts": "cd574b4ecbd5f9b9ac6ad9c2a23faab74dae44eec53b4b6e6806748482da7f04",
+    "src/lib/intelligence/query/http.ts": "02959a78f40df08cf0924598bbbfe313eb8c857a75b12c371ebcb26c4eaec6ee",
+    "src/lib/intelligence/query/plan.ts": "470a05ad64e8b3f2f3bf1d99ad4f5bfaecf9649394270ace8fd613e6edca0cc5",
+    "src/lib/intelligence/query/presentation.ts": "7159806f432be29e95e472e7d2614ddc00c335bd6be6e4e16767bd13cf2e7653",
+    "src/lib/intelligence/query/question.ts": "a65ff4537943c838e752a48f63af378eaee968abf5ff04d2f828570f0bd770a2",
+    "src/lib/intelligence/query/recovery.ts": "da702d2f3c0cc0c3fbd177a7ffcafc5da4c796bec99ee74a0042ea154a8f985b",
+    "src/lib/intelligence/query/result.ts": "5ada2889f06b659bb40aa7743b23f1ba886191d5a6134d5092cee888ad43e84d",
+    "src/lib/intelligence/query/snapshotReader.ts": "f527196851c271f345c7ab89597d25e73e1ca43acd5827c6625397c45af2c0f5",
+    "src/lib/intelligence/query/submissions/reader.ts": "0fc6d003f14b5282ded69bdd1e50b15decde729ddc3d35f1a48505f06aa8a052",
+    "src/lib/intelligence/query/submissions/result.ts": "fab40871859aab6f9c6c9545b2f90e0401767faf9bb3f964c4d7fd8420b180a1",
+    "src/lib/intelligence/query/submissions/view.ts": "bc35155214884c1bd8cfa24c0e95809bc6ffff0c607fac8c7521003c07938cc8",
+    "supabase/migrations/20261113210147_ai_submission_result_sources.sql": "67d53f28e29f0bd25af4f7b6e5bb0308fcd41077c9e617aaa2e5262d981c256d"
+  },
+  "verification": {
+    "verify": {
+      "files": 230,
+      "tests": 1511,
+      "typecheck": "passed",
+      "build": "passed",
+      "lint": {
+        "errors": 0,
+        "warnings": 826
+      }
+    },
+    "searchFocus": {
+      "tests": 29,
+      "status": "passed"
+    },
+    "authDataApiAndHttp": {
+      "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+      "scenarios": [
+        {
+          "scenario": "真实Auth创建、密码登录和会话落库",
+          "status": "passed"
+        },
+        {
+          "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+          "status": "passed"
+        },
+        {
+          "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+          "status": "passed"
+        },
+        {
+          "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+          "status": "passed"
+        },
+        {
+          "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+          "status": "passed"
+        },
+        {
+          "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实管理员也不能通过模拟身份使用AI或恢复他人结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+          "status": "passed"
+        },
+        {
+          "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+          "status": "passed"
+        },
+        {
+          "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+          "status": "passed"
+        },
+        {
+          "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+          "status": "passed"
+        },
+        {
+          "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+          "status": "passed"
+        },
+        {
+          "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+          "status": "passed"
+        },
+        {
+          "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+          "status": "passed"
+        },
+        {
+          "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+          "status": "passed"
+        },
+        {
+          "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+          "status": "passed"
+        },
+        {
+          "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+          "status": "passed"
+        },
+        {
+          "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+          "status": "passed"
+        },
+        {
+          "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+          "status": "passed"
+        },
+        {
+          "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+          "status": "passed"
+        },
+        {
+          "scenario": "模拟身份不能导出，管理员仍须独立导出权且撤权后不能下载旧快照",
+          "status": "passed"
+        },
+        {
+          "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+          "status": "passed"
+        },
+        {
+          "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+          "status": "passed"
+        },
+        {
+          "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+          "status": "passed"
+        },
+        {
+          "scenario": "交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读",
+          "status": "passed"
+        },
+        {
+          "scenario": "伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现",
+          "status": "passed"
+        },
+        {
+          "scenario": "回执审计失败不报成功，撤权与旧JWT不得绕过身份检查",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实请求接收后进程SIGKILL，独立CLI补记未知终态，重启不重跑原查询",
+          "status": "passed"
+        },
+        {
+          "scenario": "并发重试和同键冲突每次均保存独立入口正文，业务只执行一次",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复/图表/下载/回执入口同时留存，技术回执不会复制可用令牌",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计默认拒绝无资格管理员/匿名，未知与存在的目标没有泄漏差异",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计检索接口的限额内非法控制字符正文也完整加密留痕",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确审计资格独立于AI使用权，真实API可读他人原文、回答快照和交付事件",
+          "status": "passed"
+        },
+        {
+          "scenario": "孤立入口可按原文检索及展开，原文检索条件加密记录，不假装已经查询成功",
+          "status": "passed"
+        },
+        {
+          "scenario": "原文凭证保持脱敏，旧无入口问答也能检索，模拟/跨源/越界条件均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "关键词分页允许首批零命中，继续查找不会漏掉后续原文；游标不能换条件或伪造",
+          "status": "passed"
+        },
+        {
+          "scenario": "读取后撤销审计资格不交付正文，查看凭据写入失败同样拒绝返回",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计链或入口密文受损不冒称可信正文，真实注销和停用账号不能继续查看",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计按当前中英文姓名找人，同名账号分别保留；非admin仍不能提问或取得目录信息",
+          "status": "passed"
+        },
+        {
+          "scenario": "改名和目录删除不覆盖原始操作账号；未知身份保留UUID且不从metadata猜测",
+          "status": "passed"
+        },
+        {
+          "scenario": "姓名过滤与签名游标绑定，超过一页的同名人员记录按稳定ID完整分页",
+          "status": "passed"
+        },
+        {
+          "scenario": "旧数据库没有人员检索协议时新应用拒绝返回，不能静默忽略姓名条件",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计查看资格不能自动导出，匿名/普通角色/模拟与跨源都不返回审计文件",
+          "status": "passed"
+        },
+        {
+          "scenario": "完整批量JSON保留精确原文、原始账号、关联回答快照/来源/事件，导出字节与准备凭据一致",
+          "status": "passed"
+        },
+        {
+          "scenario": "浏览器发起下载回执校验签名、账号/会话、文件摘要并去重；不把软件事件说成磁盘保存",
+          "status": "passed"
+        },
+        {
+          "scenario": "重复/超限/恶意选择拒绝，缺失目标整份失败而不偷偷导出部分记录",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出读取后撤销任一资格或记录准备凭据失败，均不交付文件",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出解码故障留下明确生成失败，恢复原始证据后新导出仍可用",
+          "status": "passed"
+        },
+        {
+          "scenario": "缺少生命周期协议的旧数据库不能交付文件；恢复最新协议后可用",
+          "status": "passed"
+        },
+        {
+          "scenario": "失败补记也暂时不可写时保留待处理，独立恢复只标生成未确认",
+          "status": "passed"
+        },
+        {
+          "scenario": "无客户端下载报告的已准备文件由独立CLI标交付未确认，迟到有效报告追加更正",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出读取已持久化后Next真实SIGKILL，独立补记不重建文件且重启后新导出可用",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实注销后的旧JWT不能下载已有审计或上报旧文件回执",
+          "status": "passed"
+        },
+        {
+          "scenario": "viewer/editor即使持全部AI查询、导出和审计资格仍拒绝，旧公开开关不能放行",
+          "status": "passed"
+        },
+        {
+          "scenario": "admin降级后旧JWT/旧快照/作图/下载/交付回执/审计均拒绝，重新成为admin仍沿用独立资格",
+          "status": "passed"
+        },
+        {
+          "scenario": "多季度真实SQL完整保留缺期，三项指标按各期与全期间共同样本确定性计算",
+          "status": "passed"
+        },
+        {
+          "scenario": "趋势折线、柱图、Excel及CSV/SVG回读绑定同一个结果和原始来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "趋势恢复不悄悄重算；任一历史参与来源撤回后拒绝恢复、作图和下载",
+          "status": "passed"
+        },
+        {
+          "scenario": "连续40期完整读取；过大或反向区间与额外未支持条件不会被忽略",
+          "status": "passed"
+        },
+        {
+          "scenario": "同一真实快照按区域/等级分组：独立权重、未知分类和指定空区域",
+          "status": "passed"
+        },
+        {
+          "scenario": "分组趋势图与真实XLSX/SVG/CSV均保留全部组、空值和分组字段来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实SQL旧来源白名单拒绝分组字段；升级后仅允许指定目录字段并保留审计/角色限制",
+          "status": "passed"
+        },
+        {
+          "scenario": "区域资格收紧不泄漏其他组；组成员移出当前权限后旧分组恢复/作图/下载拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实交叉查询保留全部9格、空组合、缺失分类及每格独立分母",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实交叉热力表、回执和XLSX/SVG/CSV共用完整快照与分类来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "交叉轴只来自获权区域；普通角色与撤权后的旧交叉结果均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "旧来源协议不能放行交叉图表或下载；参与季度撤回后旧快照不可恢复",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实联合关系查询区分候选与各指标有效数；不足3栋不报告系数",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实同季度联合样本使用未舍入矩计算Pearson；恢复保持旧快照",
+          "status": "passed"
+        },
+        {
+          "scenario": "联合散点、回执与XLSX/CSV/SVG均保持原结果及参与来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "联合关系必须同时获准全部输入字段；普通角色和来源撤回拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实分布查询使用完整有效样本与Type7，楼书未知/冲突和季度无效分开",
+          "status": "passed"
+        },
+        {
+          "scenario": "离群值仍参与分箱/均值；数据改变后恢复保留旧分布",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实直方/箱线、回执和XLSX/CSV/SVG保持同一完整分布及成员来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "分布权限先过滤全集，缺字段/普通角色与来源撤回不能绕过",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实相对季度按北京时间解析，明示日历结束不代表填报/审定并保留明确季度",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确滚动窗口含本季与已结束季度分开，缺期不回退且每期完整保留",
+          "status": "passed"
+        },
+        {
+          "scenario": "相对季度原结果恢复/重试/图表与真实文件沿用初次解析，不重新读取最新期间",
+          "status": "passed"
+        },
+        {
+          "scenario": "含糊期间明确澄清，客户端改日期无效；普通角色和撤权不能靠相对问题绕过",
+          "status": "passed"
+        },
+        {
+          "scenario": "填报只读适配器要求独立资格及已持久化审计，不能借历史查数权读取",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实同快照区分楼宇覆盖、人员任务、重复提交与当前分配，最新整条不补空值",
+          "status": "passed"
+        },
+        {
+          "scenario": "进度资格不返回填报数值，配置季度未知不猜测；明确季度仍独立可读",
+          "status": "passed"
+        },
+        {
+          "scenario": "填报权限先过滤完整候选；非admin及撤权不能读取，停用和非存量不计入任务",
+          "status": "passed"
+        },
+        {
+          "scenario": "超过Data API默认1000行仍完整统计，不因当前权限隐藏的楼宇泄漏分母",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实读取完成后撤销填报资格，适配器最终复查拒绝交付已取到的数据",
+          "status": "passed"
+        },
+        {
+          "scenario": "主页九类填报问题经真实HTTP查询，按配置季度输出并保留完整问题与来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "填报图表和CSV/XLSX/SVG使用同一快照，数据库后改不覆盖旧结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "填报查询、恢复、作图、导出只允许当前admin本人，模拟自己也拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "进度权限不能读取质量，配置未知明确澄清且完整审计，明确季度不受配置猜测影响",
+          "status": "passed"
+        },
+        {
+          "scenario": "来源撤回后旧填报结果与下载拒绝，来源RPC不能由已认证浏览器直调",
+          "status": "passed"
+        },
+        {
+          "scenario": "填报结果生成后、首个响应之前撤回来源，最终交付闸门拒绝且追加未交付审计",
+          "status": "passed"
+        },
+        {
+          "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "已认证客户端无法直读审计/入口表或直接调用服务端RPC",
+          "status": "passed"
+        }
+      ],
+      "production": false,
+      "modelCalls": false,
+      "browserValidation": false
+    },
+    "securityAdvisors": "No warn-level security issues in disposable local database",
+    "xlsxRegression": {
+      "before": "Reproduced XLSX_CELL_LIMIT with pre-fix source join, 1205 buildings",
+      "after": "All source IDs reconstructed in exact order and 1205 building rows retained",
+      "restoration": "Exact implementation bytes restored before final HTTP build"
+    },
+    "browser": {
+      "environment": "macOS Codex IAB, synthetic admin",
+      "viewports": [
+        {
+          "width": 1280,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "checks": [
+        "configured-period submission progress",
+        "four mutually exclusive bar counts",
+        "quality 0.5 percent and unknown submission",
+        "per-field source record",
+        "source-close focus return",
+        "same-result recovery",
+        "actual XLSX and SVG ZIP downloads",
+        "page width equals viewport; wide quality table scrolls internally"
+      ],
+      "downloadReadback": {
+        "resultId": "8d0a841c-be3c-4bbe-82eb-5494cfb88e01",
+        "excelSheets": [
+          "数据",
+          "填报覆盖",
+          "楼宇填报",
+          "人员任务",
+          "填报质量",
+          "精确值与来源",
+          "来源",
+          "口径与快照"
+        ],
+        "excelVacancy": [
+          0.5,
+          0.5,
+          "未记录",
+          0.5
+        ],
+        "svgVacancy": [
+          0.5,
+          0.5,
+          null,
+          0.5
+        ],
+        "xlsxSha256": "6e94d62fedd45a5659ba8682eb345681a269374a191f04dd54fbb258b2bef3a7",
+        "svgZipSha256": "d26e1a3eb983e9bff51abd123ac6e6f7b677abbd28be3f7fb2180f0ea8f344a2",
+        "sourceCount": 71
+      },
+      "screenshots": [
+        "docs/verification/submission-query/desktop-progress.png",
+        "docs/verification/submission-query/mobile-progress.png",
+        "docs/verification/submission-query/mobile-quality.png",
+        "docs/verification/submission-query/mobile-source.png"
+      ],
+      "realDevices": false,
+      "independentVisualReview": false
+    },
+    "failuresResolved": [
+      "Synthetic large fixture omitted expected counts; corrected fixture, completeness protection retained",
+      "Component expectation assumed SVG rectangles but actual bars use CSS; assert visible plotted count",
+      "Initial HTTP assertion omitted decrypted content wrapper; corrected and reran fresh isolated stack"
+    ]
+  },
+  "notCompleted": [
+    "Production AI enablement and later main merge",
+    "H06 authenticated production homepage recheck",
+    "Remote exact-head CI and independent visual review",
+    "Future-supply submissions, historical assignment snapshots and finer quality grants",
+    "Large background jobs and all other uncompleted Goal items"
+  ]
+}

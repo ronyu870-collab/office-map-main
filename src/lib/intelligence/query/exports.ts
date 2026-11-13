@@ -1,3 +1,5 @@
+import { submissionAnalysisSchema } from './submissions/view';
+import { submissionResultTable } from './submissions/result';
 import { distributionAnalysisSchema, distributionStatLabels } from './distribution';
 import { buildResultChart } from './charts';
 import { resultViewSchema, resultSummary, units } from './presentation';
@@ -63,6 +65,16 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['entity_id', ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
     ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
+  if (result.operation === 'submission_progress') {
+    const a=submissionAnalysisSchema.parse(result.analysis);
+    for(const [view,name] of [['summary','填报覆盖'],['buildings','楼宇填报'],['people','人员任务'],...(a.quality?[['quality','填报质量']]:[])] as const){
+      const table=submissionResultTable(a,result.sources,view as 'summary'|'buildings'|'people'|'quality');
+      append(name,[['result_id',result.resultId],['期间',`${a.period.year}Q${a.period.quarter}`,'分配时点','当前分配，非历史任务'],
+        ['entity_id',...table.columns.map(c=>`${c.label}${c.unit?` (${units[c.unit]??c.unit})`:''}`)],
+        ...table.rows.map(r=>[r.entityId,...table.columns.map(c=>cellValue(r.cells[c.key]))]),
+      ]);
+    }
+  }
   if (result.operation === 'cross_aggregate') {
     // Reuse the exact axis/cell validator, then copy original typed cells. No
     // regrouping, pivot aggregate, fresh data read or rounded recomputation.
@@ -104,10 +116,18 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ]);
   }
   append('精确值与来源', [
-    ['entity_id', 'field', 'state', 'numerator', 'denominator', 'source_ids'],
-    ...result.table.rows.flatMap(row => result.table.columns.map(column => {
+    ['entity_id', 'field', 'state', 'numerator', 'denominator', 'source_ids', 'source_part', 'source_parts'],
+    ...result.table.rows.flatMap(row => result.table.columns.flatMap(column => {
       const cell = row.cells[column.key];
-      return [row.entityId, column.key, cell.kind === 'unknown' ? cell.state : 'valid', cell.kind === 'number' ? cell.value.exact.numerator : '', cell.kind === 'number' ? cell.value.exact.denominator : '', cell.sourceIds.join(';')];
+      // Aggregate cells can reference thousands of records. Split on complete
+      // IDs and preserve the cell key, order and count; never truncate evidence.
+      const parts = [''];
+      for (const id of cell.sourceIds) {
+        const last = parts.length - 1;
+        if (parts[last].length + id.length + 1 > 30000) parts.push(id);
+        else parts[last] += (parts[last] ? ';' : '') + id;
+      }
+      return parts.map((part, index) => [row.entityId, column.key, cell.kind === 'unknown' ? cell.state : 'valid', cell.kind === 'number' ? cell.value.exact.numerator : '', cell.kind === 'number' ? cell.value.exact.denominator : '', part, index + 1, parts.length]);
     })),
   ]);
   append('来源', [
@@ -119,6 +139,7 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['registry_version', result.registryVersion], ['digest', resultDigest(result)], ...metadataRows('parameters', JSON.stringify(result.parameters)),
     ...metadataRows('analysis', JSON.stringify(result.analysis)), ...metadataRows('limitations', result.limitations.join('\n')),
     ['metadata_parts', '超过单元格限制的元数据按 part 序号拼接后解析，不截断。'],
+    ['source_parts', '精确值与来源按 entity_id、field 分组，以 source_part 排序并用分号连接 source_ids；source_parts 为该单元格总段数，重复行不代表重复统计。'],
     ['numeric_precision', '数据页为数值型展示近似值；精确值与来源页保留未舍入分子/分母。'],
     ['intended_use', '仅供内部分析；对客成品须另行核验与授权。'],
   ]);

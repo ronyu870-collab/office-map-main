@@ -2,6 +2,22 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { loadDataAuthority, type DataAuthority, type VerifiedQueryIdentity } from '../serverAuthority';
 import { submissionReadSchema, validateSubmissionSnapshot, type SubmissionRead } from './contracts';
+import type { SourceRef } from '../contracts';
+
+/** Final delivery gate: a valid grant does not make a withdrawn source readable. */
+export async function authorizeSubmissionSources(client: SupabaseClient, identity: VerifiedQueryIdentity,
+  requestId: string, authority: DataAuthority, sources: readonly SourceRef[], signal: AbortSignal) {
+  const { data, error } = await client.rpc('ai_query_submission_sources_allowed', {
+    p_actor: identity.actorId, p_effective: identity.effectiveUserId, p_session: identity.sessionId,
+    p_permission_revision: authority.permissionRevision, p_request_id: requestId,
+    p_sources: sources.map(ref => ({ entity_id: ref.table === 'app_settings' ? null : ref.entityId,
+      record_id: ref.recordId, source_table: ref.table, field: ref.field,
+      year: ref.period?.year ?? null, quarter: ref.period?.quarter ?? null })),
+  }).abortSignal(signal);
+  signal.throwIfAborted();
+  if (error || data?.source_policy !== 'submission-observation/1') throw new Error('QUERY_READ_UNAVAILABLE');
+  if (data.allowed !== true || data.permission_revision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
+}
 
 export function authorizeSubmissionRead(read: SubmissionRead, authority: DataAuthority): void {
   if (!authority.sessionActive || authority.actorId !== authority.effectiveUserId

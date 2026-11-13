@@ -1,8 +1,11 @@
+import { authorizeSubmissionSources, readSubmissionSnapshot } from './submissions/reader';
+import { buildSubmissionResult } from './submissions/result';
+import { isSubmissionQualityView } from './submissions/view';
 import { createHash, randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
-import { runAuditedSubmission, type QueryAuthority } from './admission';
+import { authorizePlan, runAuditedSubmission, type QueryAuthority } from './admission';
 import { createRpcAuditPort, type AuditKeys } from './auditStore';
 import { executeQueryPlan } from './executePlan';
 import { attachRelativeQuarterContext } from './result';
@@ -91,7 +94,9 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       freshAuthority: fresh,
       execute: async plan => {
         const authority = await fresh(); usedRevision = authority.permissionRevision;
-        const value = executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
+        const value = plan.operation === 'submission_progress'
+          ? buildSubmissionResult(await readSubmissionSnapshot(client, verified, requestId, {period:plan.period,quality:isSubmissionQualityView(plan.view),submarkets:plan.scope.submarkets,buildingIds:plan.scope.buildingIds}, signal), plan, authority)
+          : executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
         return resolution?.kind === 'plan' && resolution.timeResolution ? attachRelativeQuarterContext(value, resolution.timeResolution) : value;
       },
     }).catch(async error => {
@@ -102,10 +107,11 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       return { status: 'conflict' as const };
     });
     if (result.status === 'clarification') {
-      // Store the exact bounded explanation; no business read has taken place.
+      // Store the exact bounded explanation; no business result is delivered.
       const response = { requestId, status: 'clarification', ...result.clarification };
       const authority = await fresh();
       if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
+      if (boundedPlan !== null) authorizePlan(parseQueryPlan(boundedPlan), authority);
       const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'clarification', resultId: null, itemCount: 0,
         bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus: 422 });
       if ((await fresh()).permissionRevision !== authority.permissionRevision) {
@@ -121,7 +127,13 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     const responseBody = { requestId, status: 'ready', result: result.result };
     const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'result', resultId: result.result.resultId, itemCount: result.result.table.rows.length,
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex') }, { httpStatus: 200 });
-    try { if ((await fresh()).permissionRevision !== usedRevision) throw new Error('QUERY_DENIED'); }
+    try {
+      const current = await fresh();
+      if (current.permissionRevision !== usedRevision) throw new Error('QUERY_DENIED');
+      if (result.result.operation === 'submission_progress') {
+        await authorizeSubmissionSources(client, verified, requestId, current, result.result.sources, signal);
+      }
+    }
     catch (error) {
       const denied = error instanceof Error && error.message === 'QUERY_DENIED';
       await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: denied ? 'authorization_changed_before_response' : 'authorization_unavailable_before_response' });

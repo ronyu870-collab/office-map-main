@@ -43,7 +43,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     return found;
   };
   const binding = (entityId: string, key: string, cell: DisplayCell): CellBinding => ({ entityId, key, sourceIds: [...cell.sourceIds] });
-  let xLabel = result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
+  let xLabel = result.operation==='submission_progress'?(result.parameters.view==='summary'?'楼宇状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'楼宇'):result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
   let facets: ResultChart['facets'];

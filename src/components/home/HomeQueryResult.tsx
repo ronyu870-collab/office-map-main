@@ -54,16 +54,17 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         </div>}
       </div>
     </>}
-    <div className={styles.limitations}>{result.limitations.map(line => <p key={line}>{line}</p>)}</div>
+    <div className={styles.limitations}>{(result.operation==='submission_progress'?result.limitations.filter((_,i)=>i===1||i===result.limitations.length-1):result.limitations).map(line => <p key={line}>{line}</p>)}</div>
     <details className={styles.trace}>
       <summary>来源、口径与结果版本</summary>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
+      {result.operation==='submission_progress'&&result.limitations.map(line=><p key={line}>{line}</p>)}
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
     </details>
     {selected && <section ref={sourcePanel} tabIndex={-1} className={styles.sources} aria-label="来源详情">
       <div className={styles.sourceHeading}><h3>{selected.label}</h3><Button variant="ghost" onClick={() => { setSelected(null); returnFocus.current?.focus(); }}>关闭来源</Button></div>
-      {!sources.length ? <p>该项没有关联的数据库来源。季度标签来自本次查询条件；指标值和参与样本请查看对应单元格的来源。</p> : <>
+      {!sources.length ? <p>该项没有对应的实际记录。季度标签来自查询条件；零记录或未提交结论依据本次完整获权快照，不虚构不存在的来源。请查看口径与结果版本。</p> : <>
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <dl className={styles.source} key={source.id}>
           <dt>数据库位置</dt><dd>{source.table} / {source.recordId} / {source.field}</dd>
           <dt>原始记录值</dt><dd>{source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>

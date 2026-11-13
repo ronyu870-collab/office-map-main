@@ -1,7 +1,7 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/8';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/9';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -34,9 +34,15 @@ export function resolveBusinessQuestion(question: string, clock?: Date): Questio
 /** Reject every unconsumed condition, negation or unsupported multi-intent. */
 function resolveExplicitQuestion(question: string): QuestionResolution {
   const clarification: QuestionResolution = { kind: 'clarification', clarification: { code: 'conditions_required',
-    message: '还不能可靠理解完整条件。请明确子市场、指标及年份季度，每次查询一个问题；例如“CBD有哪些楼”“CBD最高的楼是什么”或“2026年第三季度CBD净有效租金”。租金需明确口径；最近几个季度需说明“已结束”或“含本季度”，“最新”不能代替明确季度。暂不支持的条件不会被忽略。' } };
+    message: '还不能可靠理解完整条件。请明确子市场、指标及年份季度，每次查询一个问题；例如“CBD有哪些楼”“CBD最高的楼是什么”或“2026年第三季度CBD净有效租金”。租金需明确口径；最近几个季度需说明“已结束”或“含本季度”，“最新”不能代替明确季度。填报可问“当前填报季度CBD填报进度”，该期间取系统配置；“本季度”取日历季度。暂不支持的条件不会被忽略。' } };
   if (!question || question.length > 6000) return clarification;
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
+  const submissionViews = {填报进度:'summary',填报明细:'buildings',哪些楼还没填:'missing',未分配楼宇:'unassigned',人员填报进度:'people',谁还没填:'missing_people',填报数据质量:'quality',填报缺项:'missing_fields',填报异常:'anomalies'} as const;
+  const submissionAction = `(${Object.keys(submissionViews).join('|')})`;
+  const configured = new RegExp(`^当前填报季度${markets}${submissionAction}$`).exec(text);
+  if (configured) return {kind:'plan',plan:parseQueryPlan({operation:'submission_progress',scope:scope(configured[1],true),period:null,view:submissionViews[configured[2] as keyof typeof submissionViews]})};
+  const submitted = new RegExp(`^${period}${markets}${submissionAction}$`).exec(text);
+  if (submitted) return {kind:'plan',plan:parseQueryPlan({operation:'submission_progress',scope:scope(submitted[4],true),period:quarter(submitted[1],submitted[2],submitted[3]),view:submissionViews[submitted[5] as keyof typeof submissionViews]})};
   const marketList = `(${QUESTION_SUBMARKETS.join('|')})(?:、(?:${QUESTION_SUBMARKETS.join('|')}))*`;
   const groupedScope = (value: string): QueryPlan['scope'] => ({ inventory: 'tracked', ...(value === '全部获权楼宇' ? {} : { submarkets: [...new Set(value.split('、'))] }) });
   const distributionMeasures={建筑高度:'height',楼层数:'floors',总车位数:'parking',季度总面积:'totalArea',空置面积:'vacantArea',净有效租金:'rent',空置率:'vacancy'} as const;

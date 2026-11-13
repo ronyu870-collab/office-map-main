@@ -1,5 +1,5 @@
 // Actual GoTrue account + service-only Data API + database snapshot + application adapter.
-// Internal Q13 foundation only; there is not yet a user-facing question/answer route.
+// Internal Q13 foundation and user-facing audited query integration.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { rolldown } from 'rolldown';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
+import { verifySubmissionQueries } from './ai-submission-query-scenarios.mjs';
 
 export async function setupSubmissionObservation(db) {
   if (!(await db.query("select to_regclass('public.quarterly_submissions') t")).rows[0].t) {
@@ -23,7 +24,7 @@ export async function setupSubmissionObservation(db) {
   await db.query(await readFile('supabase/migrations/20261113203807_ai_submission_observation.sql','utf8'));
 }
 
-export async function verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey}) {
+export async function verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey,...http}) {
   const entry=path.join(output,'submission-entry.mjs');
   await writeFile(entry,`export { readSubmissionSnapshot } from '../../src/lib/intelligence/query/submissions/reader.ts';
     export { analyzeSubmissionSnapshot } from '../../src/lib/intelligence/query/submissions/analyze.ts';
@@ -129,6 +130,7 @@ export async function verifySubmissionObservation({db,service,check,queryAdmin,p
       await grantQuery({setup:db},queryAdmin.id,{capabilities:caps});
       const raw=await read();assert.equal(raw.submissions.length,4);
     });
+    await verifySubmissionQueries({db,check,queryAdmin,other,caps,exportCaps,newest,...http});
   }finally{
     await db.query('delete from public.quarterly_submissions where id=any($1::uuid[])',[ids]);
     await db.query('delete from public.building_assignments where id=any($1::uuid[])',[ids]);

@@ -1,3 +1,4 @@
+import { isSubmissionQualityView } from './submissions/view';
 import { distributionFields } from './distribution';
 import type { QueryPlan } from './plan';
 import { parseQueryPlan } from './plan';
@@ -18,6 +19,11 @@ export type QueryAuthority = Readonly<{
 
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
+  if (plan.operation === 'submission_progress') {
+    if (authority.actorId !== authority.effectiveUserId || !authority.grants.includes('query:catalog') || !authority.grants.includes('query:submission-progress')
+      || isSubmissionQualityView(plan.view) && !authority.grants.includes('query:submission-quality')) throw new Error('QUERY_DENIED');
+    return;
+  }
   const fields: readonly NumericField[] = plan.operation === 'list' ? plan.fields : plan.operation === 'rank' ? [plan.field]
     : plan.operation === 'distribution' ? distributionFields(plan.measure) : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] : plan.metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : plan.metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
   const required = new Set<NumericField>(fields);
@@ -118,7 +124,17 @@ async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, exe
     await recheck(plan);
     return { status: 'ready', result };
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
+    let message = error instanceof Error ? error.message : '';
+    if (message === 'SUBMISSION_PERIOD_UNAVAILABLE' && !executionRecorded) {
+      try {
+        const plan = parseQueryPlan(request.plan);
+        if (plan.operation !== 'submission_progress' || plan.period !== null) throw new Error('QUERY_DENIED');
+        const authority = await recheck(plan);
+        const clarification: QuestionClarification = { code: 'conditions_required', message: '不知道：当前填报季度未配置或无法确认。请明确年份和季度后再查；不会用日历季度、历史指标或最近一次有数据的季度代替。' };
+        await audit.append(request.requestId, 'denied', {reason:'submission_period_unavailable',response:clarification,authority,delivery:'not_yet_sent'});
+        return {status:'clarification',clarification};
+      } catch (failure) { message = failure instanceof Error ? failure.message : ''; }
+    }
     const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';
     const status = timedOut ? 'failed' : request.signal.aborted || message === 'QUERY_CANCELLED' ? 'cancelled' : message === 'QUERY_DENIED' ? 'denied' : 'failed';
     // Storage failures propagate if terminal recording is also unavailable; never deliver the result.

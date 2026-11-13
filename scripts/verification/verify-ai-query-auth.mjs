@@ -101,6 +101,7 @@ try{
   await db.query(await load('20261113135841_ai_audit_export_reconciliation.sql'));
   await db.query(await load('20261113145743_ai_query_group_dimensions.sql'));
   await setupSubmissionObservation(db);
+  await db.query(await load('20261113210147_ai_submission_result_sources.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -151,7 +152,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(queryAdmin,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/8');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/9');
     }
     const compared=await call(queryAdmin,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -566,7 +567,7 @@ try{
   await verifyRelationship({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyDistribution({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
-  await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey});
+  await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey,call,recover,artifact,acknowledge,events,decrypt,capabilities});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
@@ -588,7 +589,10 @@ try{
   await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,browserValidation:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
   if(previewFile){
-    const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
+    const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:[...exportCaps,'query:submission-progress','query:submission-quality'],fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
+    await db.query("insert into public.app_settings(key,value) values('current_submission_year','2026'),('current_submission_quarter','3') on conflict(key) do update set value=excluded.value");
+    await db.query("insert into public.building_assignments(building_id,project_name,user_id,user_name) select x,'合成验收', $2,'合成验收账号' from unnest($1::uuid[]) x",[BUILDINGS.slice(0,3),preview.id]);
+    await db.query("insert into public.quarterly_submissions(building_id,user_id,user_name,record_year,record_quarter,total_area,vacant_area,vacancy_rate,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent) select x,$2,'合成验收账号',2026,3,10000,50,0.5,10,30,120,6,100 from unnest($1::uuid[]) x",[[BUILDINGS[0],BUILDINGS[1],BUILDINGS[3]],preview.id]);
     await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
     await db.query("insert into private.ai_audit_export_grants(user_id,enabled,valid_until,grant_reference) values($1,true,now()+interval '1 day','synthetic browser export')",[preview.id]);
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);

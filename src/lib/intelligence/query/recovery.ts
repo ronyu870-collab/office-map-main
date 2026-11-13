@@ -15,8 +15,11 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
   kind: z.string(), payload_digest: hash, cipher: z.unknown() });
 const readSchema = z.strictObject({ allowed: z.literal(true), state: z.enum(['received','running','succeeded','failed','denied','cancelled']),
   permission_revision: hash, head_sequence: z.number().int().positive().max(2048), head_hash: hash, events: z.array(eventSchema).max(2048) });
-const sourceSchema = z.object({ table: z.enum(['buildings','building_metrics','building_brochure_data']), recordId: z.string().min(1).max(100),
-  entityId: z.uuid(), field: z.string().min(1).max(80), period: quarterSchema.nullable(), original: z.null() });
+const refBase = {recordId:z.string().min(1).max(100),field:z.string().min(1).max(80),period:quarterSchema.nullable(),original:z.null()};
+const sourceSchema=z.union([
+  z.object({...refBase,table:z.enum(['buildings','building_metrics','building_brochure_data','building_assignments','quarterly_submissions']),entityId:z.uuid()}),
+  z.object({...refBase,table:z.literal('app_settings'),entityId:z.literal(''),recordId:z.enum(['current_submission_year','current_submission_quarter']),field:z.literal('value'),period:z.null()}),
+]);
 const resultSchema = z.object({ resultId: z.uuid(), registryVersion: z.literal(FIELD_REGISTRY_VERSION), dataVersion: hash,
   sources: z.array(sourceSchema).max(200000) }).passthrough();
 type Read = z.infer<typeof readSchema>;
@@ -53,19 +56,20 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   authorizeRecoveryPlan(plan,authority);
   const archive=decodeGeneratedArchive(read.events.filter(event=>event.kind==='response_generated'),context,new Map([[keys.keyId,keys]]));
   const result=resultSchema.parse(archive.result);
-  const sources=result.sources.map(ref=>({entity_id:ref.entityId,record_id:ref.recordId,source_table:ref.table,field:ref.field,
+  const sources=result.sources.map(ref=>({entity_id:ref.table==='app_settings'?null:ref.entityId,record_id:ref.recordId,source_table:ref.table,field:ref.field,
     year:ref.period?.year??null,quarter:ref.period?.quarter??null}));
   const recheck=async()=>{
     const current:DataAuthority=await loadDataAuthority(client,identity,signal);
     if(current.permissionRevision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     authorizeRecoveryPlan(plan,current);
-    const {data,error}=await client.rpc('ai_query_result_sources_allowed',{
+    const {data,error}=await client.rpc(plan.operation==='submission_progress'?'ai_query_submission_sources_allowed':'ai_query_result_sources_allowed',{
       p_actor:identity.actorId,p_effective:identity.effectiveUserId,p_session:identity.sessionId,p_request_id:requestId,
       p_permission_revision:current.permissionRevision,p_sources:sources,
     }).abortSignal(signal);
     signal.throwIfAborted();
     if(error)throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if ((plan.operation === 'group_aggregate' || plan.operation === 'group_trend' || plan.operation === 'cross_aggregate') && data?.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    if(plan.operation==='submission_progress' && data?.source_policy!=='submission-observation/1')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(data?.allowed!==true || data.permission_revision!==current.permissionRevision)throw new Error('QUERY_DENIED');
   };
   await recheck();
