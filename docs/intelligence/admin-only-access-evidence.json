@@ -1,0 +1,348 @@
+{
+  "baseCommit": "e568ee9f71aaacad1eedea3d7b606964fd90ad1d",
+  "environment": "isolated local synthetic data only",
+  "policy": "admin-only/1",
+  "productionChanged": false,
+  "modelCalls": false,
+  "files": {
+    ".github/workflows/verify.yml": "07e5fe4259c893de95ac0d4eed3c9470322a9cb31b7db4a8f08dee653b306949",
+    ".gitignore": "1d6001dc4175d207c5f09b307aac5efd74baf0894d8cb7a7c5b1ff3810ff409f",
+    "CHANGELOG.md": "7fbf010ee8baef5a7e811720ed5b9aa3db003cf55a504ad41c594bdf2044e903",
+    "docs/intelligence/README.md": "d93659ea8d53bdcc123b3e2acc53c4b2f7f03e49e69cbc02ba640e4395a259a5",
+    "docs/intelligence/audit-console-ui.md": "af2ce01d97d0c5260e6bf167e644b621fc4c559bdef6f62287896002c75a9d5b",
+    "docs/intelligence/audit-console.md": "e276b84087c234ef217acadd17a286e1dc1c6c367768a51ff5c52f44ddf812d5",
+    "docs/intelligence/trusted-query-authority.md": "615a84b06a376a6c78f25b41dc13d0e5532620653c54b0710e52d948869e8e51",
+    "scripts/verification/ai-audit-console-scenarios.mjs": "9f43dea22213b0467be8f5e90b0fc12f26cfb5a1177ef60d8f5c37e82d8b0894",
+    "scripts/verification/verify-ai-query-auth.mjs": "0ac1e66e05617c1e1cc693e4b8c9f5ee97eb01f110847a9e68291b8828fa9041",
+    "src/__tests__/page-scroll-layout-preservation.test.tsx": "9ee7276680a869fc175934440652c39638b695e469664327a50c2cac5d1efe91",
+    "src/components/home/HomeWorkspace.tsx": "638992ece691a9bee43d6ae86411597225778378a780e9efaeb799e9a58aeb42",
+    "src/components/home/__tests__/home-behavior.test.tsx": "35fae71edcb81329249e8fb1d0574779a4e3bba180ec8df52980c6e4993f1f2f",
+    "src/components/intelligence/__tests__/intelligence-workspace.test.ts": "c3a9bc14ff5eb1295ce4ac1488938a2997880f99d603ae669f582369b87caabc",
+    "src/components/intelligence/audit/AiAuditWorkspace.test.tsx": "7407711afd6183e17a6561afc76b9d52f91b618d7d09202cd38db5291421308b",
+    "src/components/intelligence/audit/AiAuditWorkspace.tsx": "936dfc1b25a13b46c08ae6b99860d6dd3c8194fffd5d452a27c7d20dfc1f9f17",
+    "src/config/intelligencePreview.ts": "412cd2a585a53beaae0942b6feb960354da1051fd444cfaf7f17ddaeaa71ecbc",
+    "src/lib/intelligence/query/auditConsole.ts": "cff5e229d23d756767be66d9b823e223bb455bb0a5193afcf7cb05eae98ef2f7",
+    "src/lib/intelligence/query/serverAuthority.ts": "60d02fd29f5bba98e10e1378c6c8704e48811ca0cdc4bfdac1b6100797d5e0da",
+    "src/lib/intelligence/serverContext.ts": "ca7fcb26b4088e0f6e8f8dcc0ffcf1a7a4f4ad147b99041f800f67947d132428",
+    "supabase/tests/ai-query-authority/gateway.mjs": "2693baece27e39ac67a30eb55b81755a5e167b8c7e67c68c1e81ac0761fa34d1",
+    "docs/intelligence/admin-only-access.md": "88be579cd9980f49882b183c8e4337962696740d6ed0785ea7f14d91f4f49330",
+    "docs/verification/admin-only-access/admin-home.png": "efc2904b27920eb16761351f2b35e3a0d54ad4ed4279d65ed7329fd247584bac",
+    "docs/verification/admin-only-access/demotion-cleared.png": "8d1aa3e6b28994e0f09df04f4f8c39236051069b896d2aea084ad5da3e9845ee",
+    "docs/verification/admin-only-access/viewer-home.png": "262c2e1cb95c745fa0d6da5e2e2a9ee914fa5369818f806113a739975dab93f0",
+    "docs/verification/admin-only-access/viewer-mobile.png": "975599ca1d79894123121344a7442871787c82f5358274eb539c6bab50bbc658",
+    "scripts/verification/ai-admin-only-scenarios.mjs": "afbe008338df9cd3a282be16419a4b6d14397cba09da1a8f1a18bedbca96c7b5",
+    "src/config/intelligencePreview.test.ts": "ed9cab951e0e32aa15ffebbc3c0340d6461b1e1954cef8860b79385da82ced64",
+    "src/lib/intelligence/query/__tests__/serverAuthority.test.ts": "b4bf21615728426340b1be9f6987efb2a8a5441a89b609588af20d0b8c116a38",
+    "supabase/migrations/20261113123123_ai_admin_only_access.sql": "6bbc671a1c34641b94a82b337b50bb330b76bc061a4c6638c339078b0484a178",
+    "supabase/tests/ai-admin-only/database.mjs": "7ba0f86793812baf5849d15eceafdca589ec4084e3171b06da59fd3bf1e7a83b",
+    "supabase/tests/ai-admin-only/run.mjs": "d5e4b77b112a3c30976b6dec0667ca252e1732ad1e719a563019ddee4a9f32cc"
+  },
+  "verification": {
+    "verify": {
+      "command": "VITEST_MAX_WORKERS=2 npm run verify",
+      "status": "passed",
+      "testFiles": 222,
+      "tests": 1412,
+      "lintWarnings": 826,
+      "lintErrors": 0,
+      "types": "passed",
+      "productionBuild": "passed",
+      "log": "/private/tmp/colliers-admin-only-verify-final.log"
+    },
+    "focusGate": {
+      "status": "passed",
+      "files": 27,
+      "tests": 231,
+      "base": "e568ee9f71aaacad1eedea3d7b606964fd90ad1d",
+      "log": "/private/tmp/colliers-admin-only-focus.log"
+    },
+    "postgres": {
+      "database": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+      "scenarios": [
+        {
+          "scenario": "pre-upgrade qualified editor can query/read audit, contradicting the new admin-only requirement",
+          "status": "passed"
+        },
+        {
+          "scenario": "existing qualifications cannot permit viewer or editor after upgrade; failed reads leave audit history",
+          "status": "passed"
+        },
+        {
+          "scenario": "current admin still needs independent query and audit grants; policy marker is explicit",
+          "status": "passed"
+        },
+        {
+          "scenario": "demotion invalidates a current session and prevents preparing an already-read audit response",
+          "status": "passed"
+        },
+        {
+          "scenario": "role revocation waits for an in-flight authorization lock then denies the next read",
+          "status": "passed"
+        },
+        {
+          "scenario": "raw authority and audit RPCs remain unavailable to authenticated clients",
+          "status": "passed"
+        }
+      ],
+      "production": false
+    },
+    "gateway": {
+      "status": "passed",
+      "scenarios": 11,
+      "log": "/private/tmp/colliers-admin-only-gateway.log"
+    },
+    "http": {
+      "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+      "scenarios": [
+        {
+          "scenario": "真实Auth创建、密码登录和会话落库",
+          "status": "passed"
+        },
+        {
+          "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+          "status": "passed"
+        },
+        {
+          "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+          "status": "passed"
+        },
+        {
+          "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+          "status": "passed"
+        },
+        {
+          "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+          "status": "passed"
+        },
+        {
+          "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实管理员也不能通过模拟身份使用AI或恢复他人结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+          "status": "passed"
+        },
+        {
+          "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+          "status": "passed"
+        },
+        {
+          "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+          "status": "passed"
+        },
+        {
+          "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+          "status": "passed"
+        },
+        {
+          "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+          "status": "passed"
+        },
+        {
+          "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+          "status": "passed"
+        },
+        {
+          "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+          "status": "passed"
+        },
+        {
+          "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+          "status": "passed"
+        },
+        {
+          "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+          "status": "passed"
+        },
+        {
+          "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+          "status": "passed"
+        },
+        {
+          "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+          "status": "passed"
+        },
+        {
+          "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+          "status": "passed"
+        },
+        {
+          "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+          "status": "passed"
+        },
+        {
+          "scenario": "模拟身份不能导出，管理员仍须独立导出权且撤权后不能下载旧快照",
+          "status": "passed"
+        },
+        {
+          "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+          "status": "passed"
+        },
+        {
+          "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+          "status": "passed"
+        },
+        {
+          "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+          "status": "passed"
+        },
+        {
+          "scenario": "交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读",
+          "status": "passed"
+        },
+        {
+          "scenario": "伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现",
+          "status": "passed"
+        },
+        {
+          "scenario": "回执审计失败不报成功，撤权与旧JWT不得绕过身份检查",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实请求接收后进程SIGKILL，独立CLI补记未知终态，重启不重跑原查询",
+          "status": "passed"
+        },
+        {
+          "scenario": "并发重试和同键冲突每次均保存独立入口正文，业务只执行一次",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复/图表/下载/回执入口同时留存，技术回执不会复制可用令牌",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计默认拒绝无资格管理员/匿名，未知与存在的目标没有泄漏差异",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计检索接口的限额内非法控制字符正文也完整加密留痕",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确审计资格独立于AI使用权，真实API可读他人原文、回答快照和交付事件",
+          "status": "passed"
+        },
+        {
+          "scenario": "孤立入口可按原文检索及展开，原文检索条件加密记录，不假装已经查询成功",
+          "status": "passed"
+        },
+        {
+          "scenario": "原文凭证保持脱敏，旧无入口问答也能检索，模拟/跨源/越界条件均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "关键词分页允许首批零命中，继续查找不会漏掉后续原文；游标不能换条件或伪造",
+          "status": "passed"
+        },
+        {
+          "scenario": "读取后撤销审计资格不交付正文，查看凭据写入失败同样拒绝返回",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计链或入口密文受损不冒称可信正文，真实注销和停用账号不能继续查看",
+          "status": "passed"
+        },
+        {
+          "scenario": "viewer/editor即使持全部AI查询、导出和审计资格仍拒绝，旧公开开关不能放行",
+          "status": "passed"
+        },
+        {
+          "scenario": "admin降级后旧JWT/旧快照/作图/下载/交付回执/审计均拒绝，重新成为admin仍沿用独立资格",
+          "status": "passed"
+        },
+        {
+          "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+          "status": "passed"
+        }
+      ],
+      "production": false,
+      "modelCalls": false,
+      "browserValidation": false
+    },
+    "httpLog": "/private/tmp/colliers-admin-only-auth.log",
+    "httpNote": "Only the final scenario label was clarified after execution (authenticated client, including admin); executable behavior unchanged.",
+    "initialFailure": "Old page-scroll-layout-preservation expected disabled AI controls for a non-admin. Updated to absent controls per explicit user requirement while preserving existing navigation/account assertions; final suite passed.",
+    "browser": {
+      "environment": "macOS Codex in-app browser, synthetic account; engine version not independently confirmed",
+      "adminQuery": "passed: known-height A座 210, coverage 4/2/1 missing/1 conflict",
+      "demotion": "database changed synthetic admin to viewer while current page remained open; capability refresh cleared result and disabled composer; full reload hid AI area",
+      "viewerAudit": "denied message, no search controls",
+      "responsive": {
+        "viewport": 390,
+        "scrollWidth": 390,
+        "queryVisible": false
+      },
+      "screenshots": [
+        "docs/verification/admin-only-access/admin-home.png",
+        "docs/verification/admin-only-access/demotion-cleared.png",
+        "docs/verification/admin-only-access/viewer-home.png",
+        "docs/verification/admin-only-access/viewer-mobile.png"
+      ],
+      "realDevices": false,
+      "independentVisualReview": false
+    },
+    "remoteExactHeadCI": false
+  },
+  "remaining": [
+    "Legacy F1/F2/F6 in-flight withdrawal/delivery checks not yet fully unified",
+    "Full 99 requirements and T01–T60 retained",
+    "No production migration/enablement or real-account grants",
+    "Authenticated production homepage entry revalidation H06 remains incomplete"
+  ]
+}

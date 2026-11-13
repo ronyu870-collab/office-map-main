@@ -63,3 +63,5 @@ next-env.d.ts
 /verification/ai-query-intake/
 
 /verification/ai-audit-console/
+
+/verification/ai-admin-only/

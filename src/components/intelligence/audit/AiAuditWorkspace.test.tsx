@@ -21,7 +21,7 @@ const page = (change: Partial<AuditList> = {}): AuditList => ({ status: 'ready',
 const clickSearch = () => fireEvent.click(screen.getByRole('button', { name: /检索记录|重新检索/ }));
 beforeEach(() => {
   fixture.list.mockReset().mockResolvedValue(page()); fixture.intake.mockReset(); fixture.stream.mockReset();
-  fixture.session = { session: { user: { id: actorId } }, user: { id: actorId }, sessionId };
+  fixture.session = { role: 'admin', session: { user: { id: actorId } }, user: { id: actorId }, sessionId };
   fixture.status = 'authenticated'; fixture.impersonating = false; fixture.target = null;
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
 });
@@ -110,15 +110,25 @@ test('discards late results after page hiding and expires a visible page without
 
 test('unmounts sensitive state on account, session, logout and simulation changes', async () => {
   const view = render(<AiAuditWorkspace />); clickSearch(); await screen.findByText('CBD最高的楼');
-  fixture.session = { session: { user: { id: requestId } }, user: { id: requestId }, sessionId };
+  fixture.session = { role: 'admin', session: { user: { id: requestId } }, user: { id: requestId }, sessionId };
   view.rerender(<AiAuditWorkspace />); expect(screen.queryByText('CBD最高的楼')).not.toBeInTheDocument();
   clickSearch(); await screen.findByText('CBD最高的楼');
-  fixture.session = { session: { user: { id: requestId } }, user: { id: requestId }, sessionId: id };
+  fixture.session = { role: 'admin', session: { user: { id: requestId } }, user: { id: requestId }, sessionId: id };
   view.rerender(<AiAuditWorkspace />); expect(screen.queryByText('CBD最高的楼')).not.toBeInTheDocument();
   fixture.impersonating = true; fixture.target = actorId; view.rerender(<AiAuditWorkspace />);
   expect(screen.queryByRole('searchbox')).not.toBeInTheDocument(); expect(screen.getByText(/模拟身份下不能查看/)).toBeInTheDocument();
   fixture.impersonating = false; fixture.target = null; fixture.status = 'unauthenticated'; fixture.session = null;
   view.rerender(<AiAuditWorkspace />); expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+});
+
+test('hides audit controls and discards visible content immediately after admin demotion', async () => {
+  const view = render(<AiAuditWorkspace />); clickSearch(); await screen.findByText('CBD最高的楼');
+  for (const role of ['viewer', 'editor']) {
+    fixture.session = { role, session: { user: { id: actorId } }, user: { id: actorId }, sessionId };
+    view.rerender(<AiAuditWorkspace />);
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument(); expect(screen.queryByText('CBD最高的楼')).not.toBeInTheDocument();
+    expect(screen.getByText(/AI 功能仅供 admin 使用/)).toBeInTheDocument();
+  }
 });
 
 test('rejects invalid ranges locally and states incomplete keyword coverage accurately', async () => {

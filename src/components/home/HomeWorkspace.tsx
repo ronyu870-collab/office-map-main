@@ -361,7 +361,7 @@ export function HomeWorkspace() {
     isDemo: isDemoMode(activeSession.user.email),
     impersonationActive: isImpersonating,
   }));
-  const canSeeIntelligence = Boolean(activeSession && isIntelligencePreviewEnabled(activeRole));
+  const canSeeIntelligence = Boolean(activeSession && !isImpersonating && !targetUserId && isIntelligencePreviewEnabled(activeRole));
   // This card's visibility does not change the report's public access.
   const visibleBusinessWorkspaces = activeSession ? BUSINESS_WORKSPACES.filter(workspace =>
     workspace.homeVisibility !== 'occupier-report'
@@ -422,7 +422,7 @@ export function HomeWorkspace() {
               {activeSession && <BrokerSearchLink />}
             </div>
             <div className={styles.workSurface}>
-              <div className={styles.queryArea}>
+              {(canSeeIntelligence || !activeSession) && <div className={styles.queryArea}>
                 {activeSession ? <>
                   <div className={styles.queryHeading}>
                     <label htmlFor="home-query">对话查询</label>
@@ -441,7 +441,7 @@ export function HomeWorkspace() {
                   </div>
                   <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} />
                 </> : <div className={styles.querySkeleton} aria-hidden="true" />}
-              </div>
+              </div>}
               <div className={styles.navigationHeading}><h2>常用工作</h2></div>
               <div className={styles.navigation}>
                 {canStartMap ? <HomeIntentLink

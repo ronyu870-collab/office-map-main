@@ -110,11 +110,12 @@ describe('Home workspace behavior', () => {
   it.each(['admin', 'editor', 'viewer'] as const)('keeps the new query unavailable for %s without replacing existing navigation', (role) => {
     setSession(role);
     render(<HomeWorkspace />);
-    const query = screen.getByRole('textbox', { name: '对话查询' });
-    expect(query).toBeDisabled();
-    expect(query).toHaveValue('');
-    expect(query).toHaveAttribute('placeholder', '对话查询尚未开放');
-    expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled();
+    const query = screen.queryByRole('textbox', { name: '对话查询' });
+    if (role === 'admin') {
+      expect(query).toBeDisabled(); expect(query).toHaveValue('');
+      expect(query).toHaveAttribute('placeholder', '对话查询尚未开放');
+      expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled();
+    } else { expect(query).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: '发送问题' })).not.toBeInTheDocument(); }
     expect(screen.getByRole('link', { name: '北京办公楼市场地图' })).toHaveAttribute('href', '/map');
     expect(screen.getByRole('link', { name: '季度数据填报' })).toHaveAttribute('href', '/update');
     const existingAI = screen.queryByRole('link', { name: '业务智能 Intelligence' });

@@ -1,15 +1,7 @@
 import { parseUserRole } from '@/src/types/auth';
 
-/**
- * Intelligence is being introduced as a controlled product preview.
- *
- * - Admins can always see the preview so it can be reviewed safely before rollout.
- * - Other authenticated roles only see it when the public preview flag is enabled.
- *
- * The flag is intentionally presentation-only. Data authorization still relies on
- * the existing Supabase RLS/API boundaries.
- */
+/** Current user policy: AI is admin-only. Public flags cannot expand eligibility.
+ * Independent server-side feature/data/audit/export grants still apply. */
 export function isIntelligencePreviewEnabled(role: string | null | undefined): boolean {
-  if (parseUserRole(role) === 'admin') return true;
-  return process.env.NEXT_PUBLIC_INTELLIGENCE_PREVIEW === 'true';
+  return parseUserRole(role) === 'admin';
 }

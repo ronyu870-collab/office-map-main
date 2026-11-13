@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { IMPERSONATION_REQUEST_HEADER, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
 import type { QueryAuthority } from './admission';
 
@@ -14,6 +14,9 @@ export type DataAuthority = QueryAuthority & Readonly<{
 }>;
 
 export async function verifyQueryIdentity(request: Request, client: SupabaseClient): Promise<VerifiedQueryIdentity> {
+  // AI is only available in the current admin's own identity. Also refuse a
+  // self-targeted simulation header; actor/effective equality alone cannot detect it.
+  if (request.headers.has(IMPERSONATION_REQUEST_HEADER)) throw new Error('QUERY_UNAUTHENTICATED');
   const authorization = request.headers.get('authorization') ?? '';
   if (!/^Bearer\s+\S+$/i.test(authorization) || authorization.length > 16384) throw new Error('QUERY_UNAUTHENTICATED');
   const resolved = await resolveEffectiveRequestIdentity(request, client);
@@ -32,7 +35,7 @@ export async function verifyQueryIdentity(request: Request, client: SupabaseClie
 }
 
 const allowedSchema = z.strictObject({
-  allowed: z.literal(true), actor_id: z.uuid(), effective_user_id: z.uuid(), session_id: z.uuid(),
+  allowed: z.literal(true), access_policy: z.literal('admin-only/1'), actor_id: z.uuid(), effective_user_id: z.uuid(), session_id: z.uuid(),
   policy_version: z.string().min(1), permission_revision: z.string().regex(/^[0-9a-f]{64}$/),
   capabilities: z.array(z.enum(['query:catalog','query:brochure','query:quarter','export:internal'])),
   fields: z.array(z.enum(['height','floors','parking','totalArea','vacantArea','netEffectiveRent'])),

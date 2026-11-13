@@ -13,6 +13,7 @@ import { rolldown } from 'rolldown';
 import { createClient } from '@supabase/supabase-js';
 import { OWNER,ADMIN } from '../lease-change-history/database.mjs';
 import { createAiQueryTestDatabase,grantQuery,SESSION } from './database.mjs';
+import { loadAuditPrerequisites,applyAdminOnly } from '../ai-admin-only/database.mjs';
 import { addSnapshotFixture,BUILDINGS } from './snapshot-fixture.mjs';
 
 const db=await createAiQueryTestDatabase();
@@ -21,6 +22,8 @@ const role=`ai_gateway_${randomBytes(8).toString('hex')}`, password=randomBytes(
 let server,passed=0;
 const check=async(name,fn)=>{await fn();passed++;console.log('PASS '+name);};
 try{
+  await loadAuditPrerequisites(db);await applyAdminOnly(db);
+  await db.setup.query("update public.user_roles set role='admin' where user_id=$1",[OWNER]);
   const bundle=await rolldown({input:'\0ai-test',platform:'node',resolve:{alias:{'@':root}},plugins:[{
     name:'actual-ai-adapters',resolveId(id){if(id==='\0ai-test')return id;},load(id){if(id==='\0ai-test')return [
       `export {createRpcAuditPort,sanitizeAuditContent} from ${JSON.stringify(root+'/src/lib/intelligence/query/auditStore.ts')};`,

@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
+import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import { HomeQueryResult } from '@/src/components/home/HomeQueryResult';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { auditEntries, auditStates, auditEntryLabels, auditStateLabels, auditFilterSchema, auditSubmittedText,
@@ -178,14 +179,14 @@ export function AiAuditWorkspace() {
   const { session, status } = useAppSession();
   const { isImpersonating, targetUserId } = useImpersonation();
   const actorId = session?.session.user.id, sessionId = session?.sessionId;
-  const allowedIdentity = status === 'authenticated' && actorId && sessionId && session?.user.id === actorId && !isImpersonating && !targetUserId;
+  const allowedIdentity = status === 'authenticated' && isIntelligencePreviewEnabled(session?.role) && actorId && sessionId && session?.user.id === actorId && !isImpersonating && !targetUserId;
   const scope = React.useMemo(() => ({ actorId: actorId ?? '', sessionId: sessionId ?? '' }), [actorId, sessionId]);
   return <main className={styles.workspace}>
     <header className={styles.header}><div><h1>AI 提问审计</h1><p>检索正式提交的问题，核对留存回答、来源与处理过程。</p></div><Link href="/">返回主页</Link></header>
     <div className={styles.body}>
-      <p className={styles.access}>仅向经服务器验证并获独立审计资格的账号开放。管理员角色本身不授予正文查看权。</p>
+      <p className={styles.access}>仅向经服务器验证并获独立审计资格的 admin 开放。管理员角色本身不授予正文查看权。</p>
       {allowedIdentity ? <AiAuditSearch key={`${actorId}:${sessionId}`} scope={scope} />
-        : <p role="status">{status === 'loading' ? '正在核对登录状态…' : isImpersonating || targetUserId ? '模拟身份下不能查看提问审计，请退出模拟后再进入。' : '请使用获准审计的本人账号登录后进入。'}</p>}
+        : <p role="status">{status === 'loading' ? '正在核对登录状态…' : isImpersonating || targetUserId ? '模拟身份下不能查看提问审计，请退出模拟后再进入。' : 'AI 功能仅供 admin 使用，请使用获准审计的管理员本人账号进入。'}</p>}
     </div>
   </main>;
 }

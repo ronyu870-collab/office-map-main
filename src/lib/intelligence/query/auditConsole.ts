@@ -100,7 +100,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
     }).abortSignal(AbortSignal.timeout(25000));
     if(read.error || read.data?.unavailable)throw new Error('AUDIT_CONSOLE_UNAVAILABLE');
     if(!valid || !input || read.data?.allowed!==true)return reply({status:'denied'},403);
-    const value=z.object({allowed:z.literal(true),revision:z.uuid(),records:z.array(z.unknown()).max(2048),stream:z.unknown(),has_more:z.boolean()}).parse(read.data);
+    const value=z.object({allowed:z.literal(true),access_policy:z.literal('admin-only/1'),revision:z.uuid(),records:z.array(z.unknown()).max(2048),stream:z.unknown(),has_more:z.boolean()}).parse(read.data);
     if(cursor && cursor.revision!==value.revision)return reply({status:'denied'},403);
     let response:unknown, returned:string[];
     if(input.action==='list') {
@@ -145,7 +145,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
       p_response_digest:createHash('sha256').update(JSON.stringify(response)).digest('hex'),
     }).abortSignal(AbortSignal.timeout(10000));
     if(prepared.error)throw new Error('AUDIT_CONSOLE_UNAVAILABLE');
-    if(prepared.data?.allowed!==true || identity.expiresAt<=Date.now())return reply({status:'denied'},403);
+    if(prepared.data?.allowed!==true || prepared.data?.access_policy!=='admin-only/1' || identity.expiresAt<=Date.now())return reply({status:'denied'},403);
     return reply(response,200);
   } catch { return reply({status:'unavailable'},503); }
 }

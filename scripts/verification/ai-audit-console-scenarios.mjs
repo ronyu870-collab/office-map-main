@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 
-export async function verifyAuditConsole({db,service,app,check,person,viewer,other,admin,call,input,successful,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey}) {
+export async function verifyAuditConsole({db,service,app,check,person,queryAdmin,other,admin,call,input,successful,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey}) {
   const request=async(who,body,headers={})=>{
     const res=await fetch(app+'/api/intelligence/audit',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify(body)});
     return {status:res.status,body:await res.json(),headers:res.headers};
@@ -13,9 +13,9 @@ export async function verifyAuditConsole({db,service,app,check,person,viewer,oth
     const document=JSON.parse(decryptAuditContent(e.cipher,{requestId:e.access_id,eventId:e.access_id,actorId:e.actor_id,effectiveUserId:e.effective_user_id},new Map([[keyId,encryptionKey]])));
     return document.encoding==='gzip-base64'?JSON.parse(gunzipSync(Buffer.from(document.data,'base64'),{maxOutputLength:512*1024}).toString('utf8')):document;
   };
-  await check('审计默认拒绝管理员/普通用户/匿名，未知与存在的目标没有泄漏差异',async()=>{
+  await check('审计默认拒绝无资格管理员/匿名，未知与存在的目标没有泄漏差异',async()=>{
     assert.equal((await request(null,window())).status,401);
-    for(const who of [viewer,admin,other]){
+    for(const who of [queryAdmin,admin,other]){
       assert.equal((await request(who,window())).status,403);
       for(const id of [successful.body.requestId,randomUUID()])assert.deepEqual((await request(who,{action:'stream',id})).body,{status:'denied'});
     }
@@ -31,7 +31,7 @@ export async function verifyAuditConsole({db,service,app,check,person,viewer,oth
   await check('明确审计资格独立于AI使用权，真实API可读他人原文、回答快照和交付事件',async()=>{
     await db.query('delete from private.ai_query_grants where user_id=$1',[other.id]);
     const res=await request(other,{action:'stream',id:successful.body.requestId});assert.equal(res.status,200);
-    assert.equal(res.body.record.stream.actor_id,viewer.id);assert.deepEqual(res.body.record.generatedArchive,successful.body.result);
+    assert.equal(res.body.record.stream.actor_id,queryAdmin.id);assert.deepEqual(res.body.record.generatedArchive,successful.body.result);
     assert.equal(res.body.record.events[0].document.content.submittedText,'CBD最高的楼是什么？');assert.equal(res.body.record.archiveState,'available');
     const row=(await db.query('select * from private.ai_audit_console_access where parent_access_id=$1',[res.body.accessId])).rows[0];
     assert.equal(row.outcome,'allowed');assert.equal(row.response_digest,createHash('sha256').update(JSON.stringify(res.body)).digest('hex'));
@@ -42,8 +42,8 @@ export async function verifyAuditConsole({db,service,app,check,person,viewer,oth
     const text='独立原文检索例子 CBD有哪些楼';
     await db.query("create function private.console_orphan_fault() returns trigger language plpgsql set search_path='' as $$begin raise exception 'synthetic orphan';end $$;create trigger console_orphan_fault before insert on private.ai_query_audit_events for each row execute function private.console_orphan_fault()");
     let failed;
-    try{failed=await call(viewer,{...input(),question:text});assert.equal(failed.status,503);}finally{await db.query('drop trigger console_orphan_fault on private.ai_query_audit_events;drop function private.console_orphan_fault()');}
-    const res=await request(other,{...window(),actorId:viewer.id,state:'unstarted',keyword:'独立原文检索例子'});assert.equal(res.status,200);
+    try{failed=await call(queryAdmin,{...input(),question:text});assert.equal(failed.status,503);}finally{await db.query('drop trigger console_orphan_fault on private.ai_query_audit_events;drop function private.console_orphan_fault()');}
+    const res=await request(other,{...window(),actorId:queryAdmin.id,state:'unstarted',keyword:'独立原文检索例子'});assert.equal(res.status,200);
     const match=res.body.items.find(item=>item.requestId===failed.body.requestId);assert.ok(match);assert.equal(match.relatedExecutionState,'unstarted');
     const detail=await request(other,{action:'intake',id:match.id});assert.equal(detail.status,200);assert.equal(JSON.parse(detail.body.record.document.content.payload.rawRequest).question,text);
     assert.equal(detail.body.record.meaning,'submitted_attempt_not_proof_of_execution');
@@ -52,10 +52,10 @@ export async function verifyAuditConsole({db,service,app,check,person,viewer,oth
   });
   await check('原文凭证保持脱敏，旧无入口问答也能检索，模拟/跨源/越界条件均拒绝',async()=>{
     const submitted={...input(),question:'CBD有哪些楼 password=syntheticSecretValue'};
-    const fresh=await call(viewer,submitted);assert.equal(fresh.status,200);
+    const fresh=await call(queryAdmin,submitted);assert.equal(fresh.status,200);
     const detail=await request(other,{action:'stream',id:fresh.body.requestId});assert.equal(detail.status,200);assert.ok(!JSON.stringify(detail.body).includes('syntheticSecretValue'));
-    const conflict=await call(viewer,{...submitted,question:'旧流检索例子'});assert.equal(conflict.status,409);
-    const page=await request(other,{...window(),actorId:viewer.id,entry:'legacy_stream',keyword:'旧流检索例子'});assert.equal(page.status,200);assert.ok(page.body.items.some(item=>item.requestId===conflict.body.requestId));
+    const conflict=await call(queryAdmin,{...submitted,question:'旧流检索例子'});assert.equal(conflict.status,409);
+    const page=await request(other,{...window(),actorId:queryAdmin.id,entry:'legacy_stream',keyword:'旧流检索例子'});assert.equal(page.status,200);assert.ok(page.body.items.some(item=>item.requestId===conflict.body.requestId));
     assert.equal((await request(other,window(),{'x-colliers-impersonate-user':other.id})).status,403);
     assert.equal((await request(other,window(),{Origin:'https://untrusted.invalid'})).status,403);
     assert.equal((await request(other,{...window(),from:new Date(Date.now()-32*86400000).toISOString()})).status,403);
@@ -81,7 +81,7 @@ export async function verifyAuditConsole({db,service,app,check,person,viewer,oth
     }
   });
   await check('审计链或入口密文受损不冒称可信正文，真实注销和停用账号不能继续查看',async()=>{
-    const source=await call(viewer);assert.equal(source.status,200);
+    const source=await call(queryAdmin);assert.equal(source.status,200);
     const prior=(await db.query('select event_id,event_hash from private.ai_query_audit_events where request_id=$1 order by sequence limit 1',[source.body.requestId])).rows[0];
     await db.query("update private.ai_query_audit_events set event_hash=repeat('0',64) where event_id=$1",[prior.event_id]);
     try{assert.equal((await request(other,{action:'stream',id:source.body.requestId})).status,503);}finally{await db.query('update private.ai_query_audit_events set event_hash=$2 where event_id=$1',[prior.event_id,prior.event_hash]);}
@@ -90,7 +90,7 @@ export async function verifyAuditConsole({db,service,app,check,person,viewer,oth
     try{assert.equal((await request(other,{action:'intake',id:incoming.event_id})).status,503);}finally{await db.query('update private.ai_query_ingress_events set cipher=$2 where event_id=$1',[incoming.event_id,incoming.cipher]);}
     await db.query("update auth.users set banned_until=clock_timestamp()+interval '1 hour' where id=$1",[other.id]);
     try{assert.ok([401,403].includes((await request(other,window())).status));}finally{await db.query('update auth.users set banned_until=null where id=$1',[other.id]);}
-    const temporary=await person('viewer','audit-session');await grant(temporary);assert.equal((await request(temporary,window())).status,200);
+    const temporary=await person('admin','audit-session');await grant(temporary);assert.equal((await request(temporary,window())).status,200);
     await temporary.client.auth.signOut({scope:'local'});assert.ok([401,403].includes((await request(temporary,window())).status));
     assert.ok((await other.client.schema('private').from('ai_audit_console_access').select('*')).error);
   });
