@@ -34,12 +34,16 @@ grant insert(user_email, user_name, content) on public.messages to authenticated
 
 -- Atomic send, recipient verification, alerts and audit. The only caller is
 -- the authenticated server route holding service_role; not browser identities.
+-- Hosted service_role has BYPASSRLS but NO SELECT on auth.users. This function
+-- runs as its migration owner (postgres) to verify active auth identities,
+-- while EXECUTE remains exclusively granted to service_role. Never grant
+-- service_role broad auth.users privileges or expose this definer to clients.
 create or replace function public.post_market_message(
   p_actor_user_id uuid,
   p_segments jsonb,
   p_reply_to_id bigint default null
 ) returns bigint
-language plpgsql security invoker
+language plpgsql security definer
 set search_path = ''
 as $$
 declare
