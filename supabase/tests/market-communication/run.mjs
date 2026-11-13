@@ -38,7 +38,7 @@ try{
  grant usage on schema public to anon,authenticated,service_role;
  grant usage on schema auth to authenticated,service_role;
  grant execute on function auth.uid(),auth.jwt() to authenticated;
- grant select on auth.users,user_roles to service_role;
+ grant select on user_roles to service_role;
  grant select,insert on messages to authenticated,service_role;
  grant select,insert on audit_logs to service_role;
  `);
@@ -55,6 +55,8 @@ try{
  }
  const send=(sender,segments,reply=null)=>role(serviceFixtureRole,'select public.post_market_message($1,$2::jsonb,$3) id',[sender,JSON.stringify(segments),reply]);
  const count=async(table)=>Number((await client.query('select count(*)::int n from '+table)).rows[0].n);
+ assert.equal((await role(serviceFixtureRole,"select has_table_privilege(current_user,'auth.users','SELECT') as can_read")).rows[0].can_read,false);
+ pass('service role has no direct auth.users read, as in hosted production');
  const first=(await send(ids[1],[{text:'租金 '},{text:'@同事',mentionUserId:ids[2],bold:true},{text:' 下降',color:'red'}])).rows[0].id;
  assert.equal((await client.query('select content from messages where id=$1',[first])).rows[0].content,'租金 @同事 下降');
  assert.equal((await client.query('select recipient_user_id from message_notifications where message_id=$1',[first])).rows[0].recipient_user_id,ids[2]);
