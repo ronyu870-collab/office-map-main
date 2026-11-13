@@ -7,7 +7,7 @@ export type MarketSegment = {
   everyone?: true;
 };
 export type MarketMember = { id: string; name: string };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const COLORS = new Set<MarketColor>(['blue', 'red', 'green']);
 
 export function normalizeMarketSegments(value: unknown): MarketSegment[] | null {
@@ -79,8 +79,8 @@ export function editorSegments(root: HTMLElement): MarketSegment[] {
       return;
     }
     const declaredColor = element.dataset.marketColor
-      ?? element.style.color
-      ?? (element.tagName === 'FONT' ? element.getAttribute('color') : null);
+      || element.style.color
+      || (element.tagName === 'FONT' ? element.getAttribute('color') : null);
     const normalizedCssColor = (declaredColor || '').toLowerCase().replaceAll(' ', '');
     const color: MarketColor | null = normalizedCssColor === '#003e7e' || normalizedCssColor === 'rgb(0,62,126)'
       ? 'blue' : normalizedCssColor === '#c9362b' || normalizedCssColor === 'rgb(201,54,43)'
