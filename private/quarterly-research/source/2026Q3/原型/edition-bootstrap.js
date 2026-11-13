@@ -1,0 +1,1 @@
+window.RESEARCH_EDITION=window.RESEARCH_EDITIONS['2026Q3'];window.QUARTERS=[window.RESEARCH_EDITION.pack];window.REPORT=window.RESEARCH_EDITION.report;window.publicationIsRehearsal=false;document.title='北京写字楼研究 · 2026 Q3';
