@@ -1,6 +1,6 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/1';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/2';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -8,6 +8,8 @@ export type QuestionResolution = { kind: 'plan'; plan: QueryPlan } | { kind: 'cl
 const markets = `(${QUESTION_SUBMARKETS.join('|')}|全部获权楼宇)`;
 const period = '(19\\d{2}|20\\d{2}|21\\d{2}|2200)(?:年?Q([1-4])|年第?([一二三四1-4])季度)';
 const metric = '(净有效租金|空置率|季度总面积)';
+const listFields = { 建筑高度: 'height', 楼层数: 'floors', 总车位数: 'parking', 季度总面积: 'totalArea', 空置面积: 'vacantArea', 净有效租金: 'netEffectiveRent' } as const;
+const listFieldPattern = `(${Object.keys(listFields).join('|')})`;
 const metrics = { 净有效租金: 'rent', 空置率: 'vacancy', 季度总面积: 'totalArea' } as const;
 function quarter(year: string, latin: string, chinese: string) {
   return { year: Number(year), quarter: latin ? Number(latin) : '一二三四'.includes(chinese) ? '一二三四'.indexOf(chinese) + 1 : Number(chinese) };
@@ -33,6 +35,13 @@ export function resolveBusinessQuestion(question: string): QuestionResolution {
     return { kind: 'plan', plan: parseQueryPlan(match[3]
       ? { operation: 'rank', scope: scope(match[1]), field, period: null, direction: 'desc', limit: Number(match[3]) }
       : { operation: 'list', scope: scope(match[1]), fields: [field], period: null }) };
+  }
+  match = new RegExp(`^${period}${markets}(?:的)?${listFieldPattern}(?:与|和)${listFieldPattern}列表$`).exec(text);
+  if (match) {
+    const fields = [listFields[match[5] as keyof typeof listFields], listFields[match[6] as keyof typeof listFields]];
+    if (fields[0] === fields[1]) return clarification;
+    return { kind: 'plan', plan: parseQueryPlan({ operation: 'list', scope: scope(match[4], true), fields,
+      period: quarter(match[1], match[2], match[3]) }) };
   }
   match = new RegExp(`^${period}${markets}(?:的)?${metric}(?:是多少)?$`).exec(text);
   if (match) return { kind: 'plan', plan: parseQueryPlan({ operation: 'aggregate', scope: scope(match[4], true),

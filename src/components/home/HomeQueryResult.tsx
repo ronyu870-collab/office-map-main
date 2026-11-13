@@ -3,9 +3,11 @@
 import * as React from 'react';
 import { Button } from '@/src/components/ui/Button';
 import { cellText, resultScopeText, resultSummary, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
+import type { QueryClientScope } from '@/src/services/trustedQueryClient';
+import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import styles from './HomeQuery.module.css';
 
-export function HomeQueryResult({ result }: { result: QueryResultView }) {
+export function HomeQueryResult({ result, requestId, scope, internalExport = false }: { result: QueryResultView; requestId?: string; scope?: QueryClientScope; internalExport?: boolean }) {
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<{ ids: readonly string[]; label: string } | null>(null);
   const [sourcePage, setSourcePage] = React.useState(0);
@@ -29,6 +31,7 @@ export function HomeQueryResult({ result }: { result: QueryResultView }) {
       <p className={styles.scope}>{resultScopeText(result)}</p>
       {resultSummary(result).map((line, index) => <p key={line} className={index === 0 ? styles.conclusion : undefined}>{line}</p>)}
     </div>
+    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} />}
     {result.table.rows.length > 0 && <>
       <div className={styles.tableScroll} tabIndex={0} aria-label="查询结果表，可横向滚动">
         <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>

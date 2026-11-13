@@ -1,14 +1,16 @@
 import { z } from 'zod';
-import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
+import type { ArtifactInput } from '@/src/lib/intelligence/query/artifacts';
+import type { ChartRequest, ResultChart } from '@/src/lib/intelligence/query/charts';
+import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 
-const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional() });
+const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional() });
 const replySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional() });
 export type QueryReply = z.infer<typeof replySchema>;
 export type QueryAccess = z.infer<typeof capabilitiesSchema>;
 export type QueryClientScope = { actorId: string; effectiveId: string; sessionId: string; targetId: string | null };
 export const queryScopeKey = (scope: QueryClientScope) => JSON.stringify([scope.actorId, scope.effectiveId, scope.sessionId, scope.targetId]);
 
-async function call(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown): Promise<unknown> {
+async function call(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown, downloadResultId?: string): Promise<unknown> {
   const [{ getSessionFast }, { withImpersonationHeaders, getImpersonationTargetUserId }] = await Promise.all([
     import('@/src/services/Auth'), import('@/src/services/impersonationHeaders'),
   ]);
@@ -26,13 +28,37 @@ async function call(path: string, scope: QueryClientScope, signal: AbortSignal, 
     headers: withImpersonationHeaders({ Authorization: `Bearer ${session.session.access_token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  if (downloadResultId && response.ok && !response.headers.get('content-type')?.includes('application/json')) {
+    const filename = response.headers.get('content-disposition')?.match(/^attachment; filename="([a-zA-Z0-9._-]+)"$/)?.[1];
+    const mime = response.headers.get('content-type') ?? '';
+    if (response.headers.get('x-query-result-id') !== downloadResultId || !filename
+      || !['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mime)) throw new Error('下载结果与当前查询不一致。');
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength > 32 * 1024 * 1024) throw new Error('下载文件超过当前支持的大小。');
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes)))).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (digest !== response.headers.get('x-artifact-sha256')) throw new Error('下载校验失败，请重试。');
+    await currentSession();
+    return { blob: new Blob([bytes], { type: mime }), filename };
+  }
   if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('查询服务未返回可识别的结果。');
   if (path === '/capabilities' && !response.ok && response.status !== 403) throw new Error('暂时无法核对查询资格。');
   const value: unknown = await response.json();
   await currentSession();
+  if (path === '/artifact' && !response.ok) throw new Error(z.object({ error: z.string() }).safeParse(value).data?.error ?? '本次图表或下载请求未完成。');
+  if (downloadResultId) throw new Error('下载未返回文件，请稍后重试。');
   return value;
 }
 export const trustedQueryClient = {
+  chart: async (scope: QueryClientScope, requestId: string, result: QueryResultView, chart: ChartRequest, signal: AbortSignal): Promise<ResultChart> => {
+    const value = z.object({ status: z.literal('ready'), chart: z.unknown() }).parse(await call('/artifact', scope, signal, { requestId, resultId: result.resultId, action: 'chart', chart }));
+    const { buildResultChart } = await import('@/src/lib/intelligence/query/charts');
+    const expected = buildResultChart(result, chart);
+    if (JSON.stringify(value.chart) !== JSON.stringify(expected)) throw new Error('图表与当前结果不一致，请重新恢复结果。');
+    signal.throwIfAborted();
+    return expected;
+  },
+  download: async (scope: QueryClientScope, input: Extract<ArtifactInput, { action: 'export' }>, signal: AbortSignal): Promise<{ blob: Blob; filename: string }> =>
+    await call('/artifact', scope, signal, input, input.resultId) as { blob: Blob; filename: string },
   capabilities: async (scope: QueryClientScope, signal: AbortSignal): Promise<QueryAccess> => capabilitiesSchema.parse(await call('/capabilities', scope, signal)),
   submit: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string }, signal: AbortSignal): Promise<QueryReply> => replySchema.parse(await call('', scope, signal, input)),
   recover: async (scope: QueryClientScope, requestId: string, signal: AbortSignal): Promise<QueryReply> => replySchema.parse(await call('/recover', scope, signal, { requestId, action: 'recover' })),

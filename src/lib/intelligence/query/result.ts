@@ -141,15 +141,15 @@ export function buildCompareResult(base: FactSnapshot, current: FactSnapshot, me
     ? { kind: 'number', value, sourceIds }
     : { kind: 'unknown', state: 'missing', reason, sourceIds };
   const result = envelope(current, {
-    operation: 'compare', parameters: { metric, mode, base: base.period, current: current.period, baseSnapshotId: base.snapshotId, currentSnapshotId: current.snapshotId }, analysis,
+    operation: 'compare', parameters: { tableVersion: 'comparison-table/2', metric, mode, base: base.period, current: current.period, baseSnapshotId: base.snapshotId, currentSnapshotId: current.snapshotId }, analysis,
     table: {
       id: 'comparison', columns: [
         { key: 'base', label: quarterKey(base.period!), unit }, { key: 'current', label: quarterKey(current.period!), unit },
-        { key: 'difference', label: '数值差', unit }, { key: 'change', label: metric === 'vacancy' ? '变化（百分点）' : '变化（%）', unit: analysis.changeUnit },
+        { key: 'difference', label: '数值差', unit: metric === 'vacancy' ? 'percentage_point' : unit }, { key: 'change', label: '变化', unit: analysis.changeUnit },
       ],
       rows: [{ entityId: 'aggregate', cells: {
         base: cell(analysis.base.value, analysis.base.sourceIds), current: cell(analysis.current.value, analysis.current.sourceIds),
-        difference: cell(analysis.difference, allUsed), change: cell(analysis.change, allUsed, analysis.unavailableReason ?? 'no_valid_sample'),
+        difference: cell(metric === 'vacancy' ? analysis.change : analysis.difference, allUsed), change: cell(analysis.change, allUsed, analysis.unavailableReason ?? 'no_valid_sample'),
       } }],
     },
   }, fields);

@@ -31,4 +31,9 @@ describe('bounded complete-question planning', () => {
     execution.freshAuthority.mockResolvedValue({ ...authority, grants: [] });
     expect((await runAuditedSubmission(request, audit, execution)).status).toBe('denied');
   });
+  it('resolves explicit-period two-field lists without dropping either metric or extra conditions', () => {
+    expect(resolveBusinessQuestion('2026Q3CBD建筑高度与净有效租金列表')).toMatchObject({ kind: 'plan', plan: { operation: 'list', fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 } } });
+    for (const question of ['今年CBD建筑高度与净有效租金列表', '2026Q3CBD建筑高度与租金列表', '2026Q3CBD建筑高度与建筑高度列表', '2026Q3CBD建筑高度与净有效租金列表只要已出租的']) expect(resolveBusinessQuestion(question).kind).toBe('clarification');
+  });
+
 });

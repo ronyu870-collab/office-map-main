@@ -76,6 +76,7 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ...metadataRows('analysis', JSON.stringify(result.analysis)), ...metadataRows('limitations', result.limitations.join('\n')),
     ['metadata_parts', '超过单元格限制的元数据按 part 序号拼接后解析，不截断。'],
     ['numeric_precision', '数据页为数值型展示近似值；精确值与来源页保留未舍入分子/分母。'],
+    ['intended_use', '仅供内部分析；对客成品须另行核验与授权。'],
   ]);
-  return XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+  return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer);
 }

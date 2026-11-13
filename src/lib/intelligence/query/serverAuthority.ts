@@ -34,7 +34,7 @@ export async function verifyQueryIdentity(request: Request, client: SupabaseClie
 const allowedSchema = z.strictObject({
   allowed: z.literal(true), actor_id: z.uuid(), effective_user_id: z.uuid(), session_id: z.uuid(),
   policy_version: z.string().min(1), permission_revision: z.string().regex(/^[0-9a-f]{64}$/),
-  capabilities: z.array(z.enum(['query:catalog','query:brochure','query:quarter'])),
+  capabilities: z.array(z.enum(['query:catalog','query:brochure','query:quarter','export:internal'])),
   fields: z.array(z.enum(['height','floors','parking','totalArea','vacantArea','netEffectiveRent'])),
   all_submarkets: z.boolean(), submarkets: z.array(z.string()), all_buildings: z.boolean(), building_ids: z.array(z.uuid()),
 });

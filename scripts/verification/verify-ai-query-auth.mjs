@@ -1,13 +1,15 @@
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
 // No browser automation, mocked authentication, production URL, or model calls.
 import assert from 'node:assert/strict';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile, open, unlink } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import pg from 'pg';
+import JSZip from 'jszip';
+import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import { rolldown } from 'rolldown';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
@@ -57,6 +59,10 @@ async function capabilities(who,headers={}){
   const response=await fetch(app+'/api/intelligence/query/capabilities',{headers:{...(who?{Authorization:'Bearer '+who.token}:{}),...headers}});
   return {status:response.status,body:await response.json(),headers:response.headers};
 }
+async function artifact(who,body,headers={}){
+  const response=await fetch(app+'/api/intelligence/query/artifact',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify(body)});
+  return {status:response.status,headers:response.headers,...(response.headers.get('content-type')?.includes('application/json')?{body:await response.json()}:{bytes:new Uint8Array(await response.arrayBuffer())})};
+}
 const events=async id=>(await db.query('select e.*,s.actor_id,s.effective_user_id from private.ai_query_audit_events e join private.ai_query_audit_streams s using(request_id) where request_id=$1 order by sequence',[id])).rows;
 try{
   const version=(await db.query('select version() v')).rows[0].v;assert.match(version,/PostgreSQL 17\./);
@@ -69,6 +75,7 @@ try{
     await db.query(await load('20261113032515_ai_query_http_security.sql'));
   }
   if(!(await db.query("select to_regclass('private.ai_query_result_access') r")).rows[0].r)await db.query(await load('20261113042352_ai_query_result_recovery.sql'));
+  await db.query(await load('20261113063257_ai_query_internal_export_grant.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -116,7 +123,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(viewer,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/1');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/2');
     }
     const compared=await call(viewer,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -325,6 +332,97 @@ try{
       assert.equal(decrypt((await events(res.body.requestId)).at(-1)).content.reason,'authorization_unavailable_before_response');
     }finally{await db.query('drop trigger fail_authority_after_prepare on private.ai_query_audit_events;grant execute on function public.ai_query_authority(uuid,uuid,uuid) to service_role');}
   });
+  const exportCaps=['query:catalog','query:brochure','query:quarter','export:internal'];
+  await check('制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝',async()=>{
+    const origin=await call(viewer),source=origin.body;
+    const chartRequest={requestId:source.requestId,resultId:source.result.resultId,action:'chart',chart:{kind:'bar',field:'height'}};
+    await db.query('update public.building_brochure_data set building_height=999 where building_id=$1',[BUILDINGS[0]]);
+    try{
+      const chart=await artifact(viewer,chartRequest,{Origin:app});assert.equal(chart.status,200);assert.equal(chart.body.chart.points[0].y,210);
+      assert.equal(chart.body.chart.resultId,source.result.resultId);
+      const audited=decrypt((await events(chart.body.attemptId)).find(e=>e.kind==='response_generated')).content.result;
+      assert.deepEqual(audited.artifact.spec,chart.body.chart);
+      const denied=await artifact(viewer,{requestId:source.requestId,resultId:source.result.resultId,action:'export',format:'xlsx'});
+      assert.equal(denied.status,403);assert.equal(denied.bytes,undefined);assert.equal((await events(denied.body.attemptId)).at(-1).kind,'denied');
+      assert.deepEqual(JSON.parse(decrypt((await events(denied.body.attemptId))[0]).content.submittedText),{requestId:source.requestId,resultId:source.result.resultId,action:'export',format:'xlsx'});
+    }finally{await db.query('update public.building_brochure_data set building_height=210 where building_id=$1',[BUILDINGS[0]]);}
+  });
+  await check('真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对',async()=>{
+    await grantQuery({setup:db},viewer.id,{capabilities:exportCaps});
+    const queried=await call(viewer,{idempotencyKey:randomUUID(),question:'2026Q3CBD净有效租金'}),source=queried.body;
+    assert.equal(queried.status,200);
+    const common={requestId:source.requestId,resultId:source.result.resultId,action:'export'};
+    const excel=await artifact(viewer,{...common,format:'xlsx'},{Origin:app});assert.equal(excel.status,200);
+    assert.match(excel.headers.get('cache-control'),/no-store/);assert.match(excel.headers.get('content-disposition'),/^attachment;/);
+    assert.equal(excel.headers.get('x-query-result-id'),source.result.resultId);
+    assert.equal(excel.headers.get('x-artifact-sha256'),createHash('sha256').update(excel.bytes).digest('hex'));
+    await writeFile(path.join(output,'query-rent.xlsx'),excel.bytes);
+    const workbook=XLSX.read(excel.bytes,{type:'array'});assert.equal(workbook.Sheets['数据'].B2.v,170);assert.equal(workbook.Sheets['数据'].B2.t,'n');
+    assert.equal(workbook.Sheets['口径与快照'].B2.v,source.result.resultId);
+    const logs=await events(excel.headers.get('x-audit-attempt-id'));const prepared=decrypt(logs.at(-1)).content;
+    assert.equal(prepared.bodySha256,excel.headers.get('x-artifact-sha256'));assert.equal(prepared.clientReceipt,'unconfirmed');
+    for(const format of ['csv_zip','svg_zip']){
+      const res=await artifact(viewer,{...common,format,...(format==='svg_zip'?{chart:{kind:'bar',field:'value'}}:{})});assert.equal(res.status,200);
+      await writeFile(path.join(output,`query-rent-${format}.zip`),res.bytes);
+      const zip=await JSZip.loadAsync(res.bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
+      assert.equal(manifest.resultId,source.result.resultId);assert.deepEqual(manifest.sources,source.result.sources);assert.equal(manifest.analysis.value.numeric,170);
+      if(format==='csv_zip')assert.match(await zip.file('data.csv').async('string'),/"170","valid","170\/1"/);
+      else {assert.match(await zip.file('chart.svg').async('string'),/>170<\/text>/);assert.equal(manifest.chart.points[0].y,170);}
+    }
+  });
+  await check('导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用',async()=>{
+    const source=(await call(viewer)).body,base={requestId:source.requestId,resultId:source.result.resultId,action:'export',format:'xlsx'};
+    await grantQuery({setup:db},other.id,{capabilities:exportCaps});
+    assert.equal((await artifact(other,base)).status,403);assert.equal((await artifact(other,{...base,requestId:randomUUID()})).status,403);
+    assert.equal((await artifact(null,base)).status,401);assert.equal((await artifact(viewer,base,{Origin:'https://foreign.invalid'})).status,403);
+    assert.equal((await artifact(viewer,{...base,resultId:randomUUID()})).status,422);
+    assert.equal((await artifact(viewer,{...base,action:'chart',format:undefined,chart:{kind:'bar',field:'height',data:[999]}})).status,403);
+    assert.equal((await artifact(viewer,{...base,action:'chart',format:undefined,chart:{kind:'bar',field:'private_phone'}})).status,422);
+  });
+  await check('模拟身份的导出权取交集，管理员不自动获权，撤权后不可下载旧快照',async()=>{
+    await grantQuery({setup:db},admin.id);await grantQuery({setup:db},viewer.id,{capabilities:exportCaps});
+    const headers={'X-Colliers-Impersonate-User':viewer.id},source=(await call(admin,input(),headers)).body;
+    const body={requestId:source.requestId,resultId:source.result.resultId,action:'export',format:'xlsx'};
+    assert.equal((await artifact(admin,body,headers)).status,403);
+    await grantQuery({setup:db},admin.id,{capabilities:exportCaps});assert.equal((await artifact(admin,body,headers)).status,200);
+    await grantQuery({setup:db},viewer.id);assert.equal((await artifact(admin,body,headers)).status,403);
+    await grantQuery({setup:db},viewer.id,{capabilities:exportCaps});await grantQuery({setup:db},admin.id);
+  });
+  await check('文件准备后撤回导出权或候选来源仍不交付，记录未发送修正',async()=>{
+    const source=(await call(viewer)).body,body={requestId:source.requestId,resultId:source.result.resultId,action:'export',format:'xlsx'};
+    for(const fault of ['grant','source']){
+      await db.query(`create or replace function private.withdraw_artifact_after_prepare() returns trigger language plpgsql set search_path='' as $$ begin if new.kind='delivery_receipt' then ${fault==='grant'?`update private.ai_query_grants set capabilities=array['query:catalog','query:brochure','query:quarter'] where user_id='${viewer.id}';`:`update public.buildings set merged_into_id='${BUILDINGS[0]}' where id='${BUILDINGS[1]}';`} end if;return new;end $$;create trigger withdraw_artifact_after_prepare after insert on private.ai_query_audit_events for each row execute function private.withdraw_artifact_after_prepare()`);
+      try{const res=await artifact(viewer,body);assert.equal(res.status,403);assert.equal(res.bytes,undefined);const tail=(await events(res.body.attemptId)).at(-1);assert.equal(tail.kind,'correction');assert.equal(decrypt(tail).content.delivery,'not_sent');}
+      finally{await db.query('drop trigger withdraw_artifact_after_prepare on private.ai_query_audit_events');await grantQuery({setup:db},viewer.id,{capabilities:exportCaps});await db.query('update public.buildings set merged_into_id=null where id=$1',[BUILDINGS[1]]);}
+    }
+    await grantQuery({setup:db},viewer.id);await grantQuery({setup:db},other.id);
+  });
+  await check('明确季度双字段清单可转联合有效散点，不把未知高度当零',async()=>{
+    const source=(await call(viewer,{idempotencyKey:randomUUID(),question:'2026Q3CBD建筑高度与净有效租金列表'})).body;
+    assert.equal(source.status,'ready');assert.equal(source.result.table.rows.length,4);
+    const chart=await artifact(viewer,{requestId:source.requestId,resultId:source.result.resultId,action:'chart',chart:{kind:'scatter',x:'height',y:'netEffectiveRent'}});
+    assert.equal(chart.status,200);assert.equal(chart.body.chart.renderedCount,2);assert.equal(chart.body.chart.unknownCount,2);
+    assert.deepEqual(chart.body.chart.points.map(p=>[p.x,p.y]),[[210,100],[198,200],[null,null],[null,150]]);
+  });
+  await check('两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标',async()=>{
+    await grantQuery({setup:db},viewer.id,{capabilities:exportCaps});
+    const query=await call(viewer,{idempotencyKey:randomUUID(),question:'CBD空置率2026Q2与2026Q3比较配对样本'});assert.equal(query.status,200);
+    const source=query.body,common={requestId:source.requestId,resultId:source.result.resultId};
+    assert.equal(source.result.table.columns.find(c=>c.key==='difference').unit,'percentage_point');
+    const chart=await artifact(viewer,{...common,action:'chart',chart:{kind:'period_comparison'}});assert.equal(chart.status,200);assert.equal(chart.body.chart.yLabel,'空置率');assert.deepEqual(chart.body.chart.points.map(p=>p.y),[12.5,17.5]);
+    const excel=await artifact(viewer,{...common,action:'export',format:'xlsx'});assert.equal(excel.status,200);
+    const book=XLSX.read(excel.bytes,{type:'array'});assert.match(book.Sheets['数据'].D1.v,/percentage_point/);assert.equal(book.Sheets['数据'].D2.v,5);
+    await writeFile(path.join(output,'query-comparison.xlsx'),excel.bytes);
+  });
+  await check('制图和导出审计故障时不返回图或文件，权限写入保留变更记录',async()=>{
+    await grantQuery({setup:db},viewer.id,{capabilities:exportCaps});
+    const source=(await call(viewer)).body;
+    assert.ok((await db.query("select 1 from private.ai_query_policy_events where relation_name='ai_query_grants' and new_record->>'user_id'=$1 and new_record->'capabilities' ? 'export:internal'",[viewer.id])).rowCount);
+    await db.query("create or replace function private.fail_artifact_audit() returns trigger language plpgsql set search_path='' as $$ begin raise exception 'injected artifact audit failure'; end $$;create trigger fail_artifact_audit before insert on private.ai_query_audit_events for each row execute function private.fail_artifact_audit()");
+    try{for(const action of [{action:'chart',chart:{kind:'bar',field:'height'}},{action:'export',format:'xlsx'}]){
+      const res=await artifact(viewer,{requestId:source.requestId,resultId:source.result.resultId,...action});assert.equal(res.status,503);assert.equal(res.bytes,undefined);assert.equal(res.body.chart,undefined);
+    }}finally{await db.query('drop trigger fail_artifact_audit on private.ai_query_audit_events');await grantQuery({setup:db},viewer.id);}
+  });
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(viewer,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await call(viewer,body)).status,403);
@@ -345,7 +443,7 @@ try{
   await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,browserValidation:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
   if(previewFile){
-    const preview=await person('viewer','preview');await grantQuery({setup:db},preview.id);
+    const preview=await person('viewer','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
     await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
     console.log('LOCAL_SYNTHETIC_PREVIEW_READY');

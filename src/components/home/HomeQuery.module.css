@@ -43,3 +43,20 @@
   .trace dl, .source { grid-template-columns: 1fr; gap: 4px; }
   .trace dd, .source dd { margin-bottom: 8px; }
 }
+.artifacts { margin-top: 16px; }
+.chartSelect { display: flex; align-items: center; gap: 8px; }
+.chartSelect select { min-height: 36px; background: var(--cd-color-surface); border: 1px solid var(--cd-color-border); border-radius: 6px; padding: 4px 8px; font: inherit; max-width: 100%; }
+.exportMenu summary { padding: 8px; cursor: pointer; }
+.exportMenu summary:focus-visible, .chartSelect select:focus-visible, .scatterScroll:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.chart { margin-top: 16px; padding-block: 12px; border-block: 1px solid var(--cd-color-border); }
+.chart figcaption { font-weight: 500; }
+.barRow { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(60px, 2fr) minmax(80px, 1fr); gap: 12px; align-items: center; padding-block: 8px; }
+.barRow > span, .barRow > button { overflow-wrap: anywhere; }
+.barRow > button { text-align: right; }
+.barTrack { height: 24px; position: relative; }
+.bar { position: absolute; height: 16px; top: 4px; background: var(--cd-color-brand); }
+.zero { position: absolute; height: 24px; border-left: 1px solid var(--cd-color-text-secondary); }
+.scatterScroll { overflow-x: auto; max-width: 100%; margin-top: 12px; }
+.scatterScroll svg { font-size: 14px; font-family: inherit; fill: var(--cd-color-text-primary); }
+@media (max-width: 639px), (pointer: coarse) { .chartSelect select, .exportMenu summary { min-height: 44px; } }
+@media (max-width: 639px) { .barRow { grid-template-columns: minmax(0, 1fr) minmax(48px, 1fr) minmax(0, 1fr); gap: 8px; } }
