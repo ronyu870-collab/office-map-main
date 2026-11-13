@@ -1,5 +1,6 @@
 -- Transactional 100-field AI enrichment for production; do not rerun the same batch twice.
--- User-authorized 2026-11-13. Preserves old values, sources and per-field audit entries.
+-- User-authorized 2026-11-13. Uses source_type='other' explicitly for AI-researched public facts, retaining source URL; the current 'internet' type requires cross_verified even for single-source claims.
+-- Preserves old values, sources, source tiers and per-field AI action audit entries.
 DO $ai_enrichment$
 DECLARE
   v RECORD;
@@ -85,7 +86,7 @@ BEGIN
        value_recorded_at,verification_status,evidence_group_id,evidence_note,is_current)
     VALUES
       (v.building_id,CASE WHEN v.target_table='building_brochure_data' THEN target_id ELSE NULL END,
-       v.target_table,v.field_name,v.proposed_value,'internet',provenance_tier,
+       v.target_table,v.field_name,v.proposed_value,'other',provenance_tier,
        v.source->>'publisher',v.source->>'url',now(),now(),provenance_status,
        batch_evidence_id,concat('AI_PUBLIC_RESEARCH; batch=',batch_ref,
          '; candidate=',v.ref,'; sourceTier=',coalesce(v.source->>'tier','unknown'),
