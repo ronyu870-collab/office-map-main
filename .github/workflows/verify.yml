@@ -264,6 +264,7 @@ jobs:
           done
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
+          node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
           node scripts/performance/verify-admin-ledger-first-open.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs --prefetch-policy http://127.0.0.1:3210
           node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
@@ -293,6 +294,17 @@ jobs:
           node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
           node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
+
+      - name: Retain homepage browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homepage-entry-verification
+          path: |
+            docs/verification/home-ai-entry/after-*.png
+            docs/verification/home-ai-entry/after-browser.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Retain isolated report verification evidence
         if: always()

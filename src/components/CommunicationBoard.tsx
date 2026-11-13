@@ -70,7 +70,6 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const dialogRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fullscreenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const wasFullscreenRef = useRef(false);
@@ -99,7 +98,9 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   }, []);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+    // Keep initial/realtime updates inside the board; scrollIntoView also scrolls the homepage.
+    const viewport = messagesViewportRef.current;
+    viewport?.scrollTo({ top: viewport.scrollHeight, behavior });
     isNearBottomRef.current = true;
     setHasNewMessages(false);
   }, []);
@@ -341,7 +342,6 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
               </div>
             );
           })}
-          <div ref={messagesEndRef} />
         </div>
 
         {fullscreen && hasNewMessages ? (
