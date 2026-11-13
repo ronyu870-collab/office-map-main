@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { aggregateQuarter, rankBuildings } from './analytics';
-import { assertComplete, type FactSnapshot, type NumericOutput, type SourceRef } from './contracts';
+import { aggregateQuarter, compareQuarters, rankBuildings } from './analytics';
+import { assertComplete, quarterKey, type FactSnapshot, type NumericOutput, type SourceRef } from './contracts';
 import { assertFieldContext, getFact } from './facts';
 import { FIELD_REGISTRY_VERSION, numericFields, type NumericField } from './registry';
+
+const BROCHURE_LIMITATION = '楼书记录尚未确定有效版本优先级；不同值按冲突处理，相同值也不能据此确认当前现实状态。';
 
 export type ResultCell =
   | { kind: 'text'; value: string; sourceIds: readonly string[] }
@@ -21,10 +23,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;
@@ -57,9 +59,12 @@ function envelope(snapshot: FactSnapshot, content: Pick<QueryResult, 'operation'
   return deepFreeze({
     resultId: randomUUID(), createdAt: new Date().toISOString(), snapshotId: snapshot.snapshotId,
     dataVersion: snapshot.dataVersion, scopeFingerprint: snapshot.scopeFingerprint,
-    registryVersion: FIELD_REGISTRY_VERSION, ...content, sources,
+    registryVersion: FIELD_REGISTRY_VERSION, ...content, parameters: { ...content.parameters, scope: structuredClone(snapshot.queryScope ?? {}) }, sources,
     limitations: [
       '仅反映当前获权数据库样本，不代表现实市场全集。',
+      ...(snapshot.queryScope?.inventoryTime === 'current_catalog' ? ['候选楼宇按当前目录确定；历史季度指标不代表当时的历史楼宇全集。'] : []),
+      ...(snapshot.queryScope?.brochureSelection === 'all_unresolved_record_candidates' && fields.some(field => numericFields[field].temporal === 'source')
+        ? [BROCHURE_LIMITATION] : []),
       ...(sources.some(source => source.verification === 'database_only') ? ['部分数据仅关联数据库记录，原始资料尚未关联。'] : []),
       ...(sources.some(source => source.verification === 'historical') ? ['包含历史来源，不能据此确认当前有效性。'] : []),
     ],
@@ -68,7 +73,7 @@ function envelope(snapshot: FactSnapshot, content: Pick<QueryResult, 'operation'
 
 export function buildListResult(snapshot: FactSnapshot, fields: readonly NumericField[]): QueryResult {
   assertComplete(snapshot);
-  if (!fields.length || fields.length > 6 || new Set(fields).size !== fields.length || fields.some(field => !Object.hasOwn(numericFields, field))) throw new Error('INVALID_QUERY_FIELDS');
+  if (fields.length > 6 || new Set(fields).size !== fields.length || fields.some(field => !Object.hasOwn(numericFields, field))) throw new Error('INVALID_QUERY_FIELDS');
   assertFieldContext(snapshot, fields);
   return envelope(snapshot, {
     operation: 'list', parameters: { fields: [...fields], period: snapshot.period }, analysis: null,
@@ -114,6 +119,69 @@ export function buildAggregateResult(snapshot: FactSnapshot, metric: Parameters<
         : { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] } } }],
     },
   }, fields);
+}
+
+function mergeSources(groups: readonly (readonly SourceRef[])[]): SourceRef[] {
+  const sources = new Map<string, SourceRef>();
+  for (const group of groups) for (const source of group) {
+    const previous = sources.get(source.id);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(source)) throw new Error('SOURCE_ID_COLLISION');
+    sources.set(source.id, structuredClone(source));
+  }
+  return [...sources.values()].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+export function buildCompareResult(base: FactSnapshot, current: FactSnapshot, metric: Parameters<typeof compareQuarters>[2], mode: 'per_period' | 'paired'): QueryResult {
+  if (base.dataVersion !== current.dataVersion) throw new Error('SNAPSHOT_VERSION_MISMATCH');
+  const analysis = compareQuarters(base, current, metric, mode);
+  const fields: NumericField[] = metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
+  const unit = metric === 'rent' ? 'CNY/m2/month' : metric === 'vacancy' ? 'ratio' : 'm2';
+  const allUsed = [...new Set([...analysis.base.sourceIds, ...analysis.current.sourceIds])].sort();
+  const cell = (value: NumericOutput | null, sourceIds: readonly string[], reason = 'no_valid_sample'): ResultCell => value
+    ? { kind: 'number', value, sourceIds }
+    : { kind: 'unknown', state: 'missing', reason, sourceIds };
+  const result = envelope(current, {
+    operation: 'compare', parameters: { metric, mode, base: base.period, current: current.period, baseSnapshotId: base.snapshotId, currentSnapshotId: current.snapshotId }, analysis,
+    table: {
+      id: 'comparison', columns: [
+        { key: 'base', label: quarterKey(base.period!), unit }, { key: 'current', label: quarterKey(current.period!), unit },
+        { key: 'difference', label: '数值差', unit }, { key: 'change', label: metric === 'vacancy' ? '变化（百分点）' : '变化（%）', unit: analysis.changeUnit },
+      ],
+      rows: [{ entityId: 'aggregate', cells: {
+        base: cell(analysis.base.value, analysis.base.sourceIds), current: cell(analysis.current.value, analysis.current.sourceIds),
+        difference: cell(analysis.difference, allUsed), change: cell(analysis.change, allUsed, analysis.unavailableReason ?? 'no_valid_sample'),
+      } }],
+    },
+  }, fields);
+  return deepFreeze({ ...result, sources: mergeSources([collectSources(base, fields), result.sources]) });
+}
+
+/** Trusted executor adds the complete authorized filter decision trail, including
+ * unknown candidates, without allowing a second query to change result values. */
+export function attachFilterEvidence(result: QueryResult, evidence: readonly { snapshot: FactSnapshot; fields: readonly NumericField[]; decisions: readonly { entityId: string; state: 'true' | 'false' | 'unknown' }[] }[]): QueryResult {
+  for (const item of evidence) {
+    assertComplete(item.snapshot);
+    assertFieldContext(item.snapshot, item.fields);
+    if (item.snapshot.dataVersion !== result.dataVersion || item.snapshot.scopeFingerprint !== result.scopeFingerprint) throw new Error('FILTER_SNAPSHOT_MISMATCH');
+    const ids = new Set(item.snapshot.rows.map(row => row.id));
+    if (item.decisions.length !== ids.size || new Set(item.decisions.map(row => row.entityId)).size !== ids.size
+      || item.decisions.some(row => !ids.has(row.entityId) || !['true', 'false', 'unknown'].includes(row.state))) throw new Error('FILTER_DECISION_INCOMPLETE');
+  }
+  return deepFreeze({ ...result,
+    parameters: { ...result.parameters, filterEvaluation: evidence.map(item => ({
+      snapshotId: item.snapshot.snapshotId, period: item.snapshot.period, fields: [...item.fields],
+      total: item.snapshot.expectedCount, matched: item.decisions.filter(row => row.state === 'true').length,
+      notMatched: item.decisions.filter(row => row.state === 'false').length, unknown: item.decisions.filter(row => row.state === 'unknown').length,
+      decisions: structuredClone(item.decisions),
+    })) },
+    sources: mergeSources([result.sources, ...evidence.map(item => collectSources(item.snapshot, item.fields))]),
+    limitations: [...new Set([
+      ...result.limitations,
+      ...(evidence.some(item => item.snapshot.queryScope?.brochureSelection === 'all_unresolved_record_candidates'
+        && item.fields.some(field => numericFields[field].temporal === 'source')) ? [BROCHURE_LIMITATION] : []),
+      '筛选缺值或冲突单列为未知，仅明确满足条件的楼宇参与结果；跨期筛选逐期执行，再按比较模式取样。',
+    ])],
+  });
 }
 
 /** Integrity digest is a comparison aid, not an authorization token or tamper-proof audit seal. */

@@ -1,0 +1,75 @@
+{
+  "baseLocalCommit": "4dd94c9c64bac5ce7b2484be836bb934c3a81bf9",
+  "environment": "local isolated; synthetic records only; not real GoTrue sign-in",
+  "verify": {
+    "exitCode": 0,
+    "testFiles": 205,
+    "tests": 1313,
+    "lintWarnings": 826,
+    "lintErrors": 0,
+    "build": "passed",
+    "log": "/private/tmp/colliers-query-authority-verify-final-v2.log"
+  },
+  "authorityDatabase": {
+    "version": "PostgreSQL 17.11",
+    "scenarios": 11,
+    "log": "/private/tmp/colliers-query-authority-db.log"
+  },
+  "gateway": {
+    "versions": [
+      "PostgreSQL 17.11",
+      "PostgREST 16.5",
+      "actual installed Supabase JS"
+    ],
+    "scenarios": 11,
+    "log": "/private/tmp/colliers-query-gateway-final.log",
+    "inventoryRows": 3006,
+    "highestBeyondFirstPage": true
+  },
+  "filterSourceLimitationRegression": {
+    "before": "1 failed / 4 passed",
+    "after": "5 passed",
+    "beforeLog": "/private/tmp/colliers-query-filter-limitation-before.log",
+    "afterLog": "/private/tmp/colliers-query-filter-limitation-after.log"
+  },
+  "schemaDictionaryCheck": "passed",
+  "gitDiffCheck": "passed",
+  "temporaryDatabaseServer": "stopped",
+  "remoteCI": "not run",
+  "productionMigration": false,
+  "newQueryActivation": false,
+  "newHttpEndpoint": false,
+  "realAuthValidation": "pending",
+  "modelCalls": false,
+  "sha256": {
+    ".github/workflows/verify.yml": "8116fc4aa52aa8d2b8e77d9cd3d6869a8303e00fa6b6519ad669a0ebc50c19ec",
+    "src/lib/intelligence/query/__tests__/admission.test.ts": "6b48fb1e47e4c267542411c30354183e5da0d0a30287a96e5fbb4fb128eafe72",
+    "src/lib/intelligence/query/__tests__/analytics.test.ts": "0570ddc3c0617bb0cf0ab768e6e5d7d1656b2ef5cb4b37c790db9e8dadff2ea3",
+    "src/lib/intelligence/query/__tests__/auditCrypto.test.ts": "52febed9160a662938ae53ba363e37c76acb7bb07d27f2c6838250f7e8953e4c",
+    "src/lib/intelligence/query/__tests__/executePlan.test.ts": "12828ba9867857257703e6fa1c2ecd57c71da8aade13dd828ec450a11ca8770e",
+    "src/lib/intelligence/query/__tests__/fixtures.ts": "a591fc34171b852638af6207d8f8d705058f47a75f93643ae3404489a6197c60",
+    "src/lib/intelligence/query/__tests__/result.test.ts": "4dd0efd0224236f0f83d98e559d7b991ec322e718286c117ca3553a7a6711bcf",
+    "src/lib/intelligence/query/__tests__/snapshotReader.test.ts": "24bcdd4c2c3111f02a733774d5c7dc3154eace48771c6af7797720d824dac8b6",
+    "src/lib/intelligence/query/admission.ts": "1d4160ba8c25ce2a9e95b63044583c88a4cda6da3b43e8541a23d84b040d8a2c",
+    "src/lib/intelligence/query/analytics.ts": "52eac170d9348dd109f53df915d11d9f493f3b1f7d8bfc67507ce42b636c2c19",
+    "src/lib/intelligence/query/auditCrypto.ts": "70bf5562e8bb5cedc91235b61aa0a3192bdb2b44a6c574c6cc93f7f7e5c09929",
+    "src/lib/intelligence/query/auditStore.ts": "7620a095e42a5ad4efc1b604a5befc72878a6f8a31369901c90b8755215e6e4c",
+    "src/lib/intelligence/query/contracts.ts": "0f9a0b8e97e4276b112e1bf1d0d0fa794db8ea6dbd1d12bd3f9ac6d6b6b415f0",
+    "src/lib/intelligence/query/decimal.ts": "baa74b287f8f0c6327b3b409bec3dcac0506b0e35d4c17bdc714df3f377312f3",
+    "src/lib/intelligence/query/executePlan.ts": "9020bb7376810b7c005279381a5c329b9a5ec25f63676439147c259458571495",
+    "src/lib/intelligence/query/exports.ts": "0f5e04ab064e1a7b1c0898ab1e1f8e38159df11b760780dd821c29c677856488",
+    "src/lib/intelligence/query/facts.ts": "a875d6fdb417c2171a47c17d68e3f1225a8e49b4b6595dc5558d698ed271d7df",
+    "src/lib/intelligence/query/plan.ts": "67731be318c4167bacacbe7ea04f2c9d66b705f400d9e5923ae76f0065dbfb1c",
+    "src/lib/intelligence/query/registry.ts": "93431e8b67711cad01799c5740f46be425c302accb5d2a85ff166ed012366f8a",
+    "src/lib/intelligence/query/result.ts": "60f95220c698e2d6e16749e695b992ec1f0c505fa06529f1c6ed42c4dd8cb9b8",
+    "src/lib/intelligence/query/serverAuthority.ts": "a2f19fd23d7eba4a088275a7c3590f7796a55c1b5b17f0a3ba8abf2e788c54cc",
+    "src/lib/intelligence/query/snapshotReader.ts": "e95c00875e2f27e1948a4e18e61ef1eeeb6c739a70e7475fe1c2fc1e2be131d5",
+    "supabase/migrations/20261113003933_ai_query_audit_foundation.sql": "2e89fca58e2f3217de6cc640650ff3924f9835a90603aac396c31059014dec80",
+    "supabase/migrations/20261113023341_ai_query_authority.sql": "b5090c9f632efb93d0f87e0e7f754ea60709ce67bdc1126683d2e7422c2f8dc0",
+    "supabase/migrations/20261113024629_ai_query_snapshot_read.sql": "82cca4d7681b8c2164dbcacc566df7ed926b2fb3f4be9c8ab9514a58d02e19c7",
+    "supabase/tests/ai-query-authority/database.mjs": "26c4cfe2ab5f767e376cb2a68686d7f59c44b5f5f571a5caa8bedf28b4f6eab2",
+    "supabase/tests/ai-query-authority/gateway.mjs": "cdd9d5935e799b5bea0eaa225c030fb33f7747cf4cfcb732a6d3267bc5419937",
+    "supabase/tests/ai-query-authority/run.mjs": "2e7ff48988a2544b3f83086cad5c8543a08367ba20a2b9866b097fa401170d18",
+    "supabase/tests/ai-query-authority/snapshot-fixture.mjs": "170c35583bdd55b261e50ef3a2d3aad1222278da2270d3d95a08f85d4ee744f1"
+  }
+}

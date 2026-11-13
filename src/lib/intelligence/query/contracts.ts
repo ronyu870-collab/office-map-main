@@ -42,6 +42,7 @@ export type FactSnapshot = Readonly<{
   expectedCount: number;
   complete: boolean;
   rows: readonly BuildingFacts[];
+  queryScope?: Readonly<Record<string, unknown>>;
 }>;
 
 export type Coverage = Readonly<Record<FactState, number> & { total: number }>;

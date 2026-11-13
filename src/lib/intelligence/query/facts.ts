@@ -6,7 +6,9 @@ export function missingFact(reason = 'not_recorded'): NumericFact {
   return { state: 'missing', reason, sources: [] };
 }
 
-/** Multiple inputs must be co-current candidates selected by the version adapter, never all history. */
+/** Inputs are alternative candidates for this requested value. A source adapter
+ * must declare unresolved versions explicitly; historic records must not silently
+ * be treated as current. Agreement means database records agree, not verified reality. */
 export function resolveNumericFact(field: NumericField, entityId: string, sources: readonly SourceRef[], period: Quarter | null): NumericFact {
   if (!Object.hasOwn(numericFields, field)) throw new Error('UNKNOWN_FIELD');
   const rule = numericFields[field];
