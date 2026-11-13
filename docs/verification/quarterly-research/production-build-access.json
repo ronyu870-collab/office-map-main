@@ -1,0 +1,55 @@
+{
+  "environment": "localhost synthetic auth, real Next route and plaintext server-only report",
+  "tests": [
+    {
+      "role": "admin",
+      "edition": "2026Q3",
+      "status": 200,
+      "bytes": 1034453,
+      "noStore": true
+    },
+    {
+      "role": "admin",
+      "edition": "2026Q2",
+      "status": 200,
+      "bytes": 1204411,
+      "noStore": true
+    },
+    {
+      "role": "editor",
+      "edition": "2026Q3",
+      "status": 403,
+      "bytes": 22,
+      "noStore": true
+    },
+    {
+      "role": "editor",
+      "edition": "2026Q2",
+      "status": 403,
+      "bytes": 22,
+      "noStore": true
+    },
+    {
+      "role": "viewer",
+      "edition": "2026Q3",
+      "status": 403,
+      "bytes": 22,
+      "noStore": true
+    },
+    {
+      "role": "viewer",
+      "edition": "2026Q2",
+      "status": 403,
+      "bytes": 22,
+      "noStore": true
+    },
+    {
+      "role": "anonymous",
+      "status": 401
+    },
+    {
+      "path": "server-only HTML direct URL",
+      "status": 404
+    }
+  ]
+}
