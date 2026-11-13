@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
-import { buildAggregateResult, buildRankResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
 const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), chart: vi.fn(), download: vi.fn(), reportDelivery: vi.fn().mockResolvedValue(true) }));
@@ -19,6 +20,31 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('renders a quarterly gap and switches graph type without rerunning data', async () => {
+    const snapshots = [1, 2, 3, 4].map(quarter => fixture({ year: 2026, quarter }));
+    snapshots[2] = { ...snapshots[2], rows: snapshots[2].rows.map(row => ({ ...row, facts: { ...row.facts,
+      netEffectiveRent: resolveNumericFact('netEffectiveRent', row.id, [], snapshots[2].period),
+    } })) };
+    const result = resultViewSchema.parse(buildTrendResult(snapshots, 'rent', 'per_period'));
+    client.capabilities.mockResolvedValue({ ...capabilities, internalExport: true });
+    client.submit.mockResolvedValue({ requestId, status: 'ready', result });
+    client.chart.mockImplementation(async (_scope, _id, result, request) => buildResultChart(result, request));
+    client.download.mockResolvedValue(undefined);
+    render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { value: 'CBD净有效租金2026Q1至2026Q4趋势各期样本' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    fireEvent.click(await screen.findByRole('button', { name: '查看折线图' }));
+    const figure = await screen.findByRole('figure', { name: '同源查询图表' });
+    expect(figure.querySelectorAll('polyline')).toHaveLength(1);
+    expect(figure.querySelectorAll('circle')).toHaveLength(3);
+    expect(figure).toHaveTextContent('2026-Q3');
+    await waitFor(() => expect(client.reportDelivery.mock.calls.some(call => call[3]?.layout === 'line_all')).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
+    await waitFor(() => expect(figure.querySelectorAll('polyline')).toHaveLength(0));
+    expect(client.submit).toHaveBeenCalledOnce();
+    expect(client.chart.mock.calls.map(call => call[3].kind)).toEqual(['time_series', 'bar']);
+    expect(input).toHaveValue('CBD净有效租金2026Q1至2026Q4趋势各期样本');
+  });
   it('keeps character input, focus, selection and IME across pending and result updates', async () => {
     const pending = deferred<unknown>(); client.submit.mockReturnValue(pending.promise);
     render(view()); const input = screen.getByRole('textbox', { name: '对话查询' }) as HTMLTextAreaElement;

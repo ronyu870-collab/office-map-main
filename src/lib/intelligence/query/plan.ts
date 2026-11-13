@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { quarterSchema } from './contracts';
+import { quarterSchema, type Quarter } from './contracts';
 import type { Predicate } from './facts';
 
 const fieldSchema = z.enum(['height', 'floors', 'parking', 'totalArea', 'vacantArea', 'netEffectiveRent']);
@@ -20,6 +20,7 @@ const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('list'), fields: z.array(fieldSchema).max(6), period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
   z.strictObject({ ...common, operation: z.literal('aggregate'), metric: metricSchema, period: quarterSchema }),
+  z.strictObject({ ...common, operation: z.literal('trend'), metric: metricSchema, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
   z.strictObject({ ...common, operation: z.literal('compare'), metric: metricSchema, base: quarterSchema, current: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
 ]);
 export type QueryPlan = z.infer<typeof planSchema>;
@@ -43,5 +44,17 @@ export function parseQueryPlan(input: unknown): QueryPlan {
   }
   const plan = planSchema.parse(input);
   if (plan.operation === 'list' && new Set(plan.fields).size !== plan.fields.length) throw new Error('DUPLICATE_QUERY_FIELD');
+  if (plan.operation === 'trend') quarterRange(plan.start, plan.end);
   return plan;
+}
+
+/** Consecutive quarters, including those without observations. */
+export function quarterRange(start: Quarter, end: Quarter): Quarter[] {
+  quarterSchema.parse(start); quarterSchema.parse(end);
+  const first=start.year*4+start.quarter-1, last=end.year*4+end.quarter-1;
+  if(last-first<1 || last-first>=40)throw new Error('TREND_REQUIRES_2_TO_40_QUARTERS');
+  return Array.from({length:last-first+1},(_,i)=>({year:Math.floor((first+i)/4),quarter:(first+i)%4+1}));
+}
+export function planPeriods(plan: QueryPlan): (Quarter|null)[] {
+  return plan.operation==='trend'?quarterRange(plan.start,plan.end):plan.operation==='compare'?[plan.base,plan.current]:[plan.period];
 }

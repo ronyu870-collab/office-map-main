@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { aggregateQuarter, compareQuarters, rankBuildings } from './analytics';
+import { aggregateQuarter, compareQuarters, rankBuildings, trendQuarters } from './analytics';
 import { assertComplete, quarterKey, type FactSnapshot, type NumericOutput, type SourceRef } from './contracts';
 import { assertFieldContext, getFact } from './facts';
 import { FIELD_REGISTRY_VERSION, numericFields, type NumericField } from './registry';
@@ -23,10 +23,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate' | 'compare';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;
@@ -154,6 +154,26 @@ export function buildCompareResult(base: FactSnapshot, current: FactSnapshot, me
     },
   }, fields);
   return deepFreeze({ ...result, sources: mergeSources([collectSources(base, fields), result.sources]) });
+}
+
+export function buildTrendResult(snapshots: readonly FactSnapshot[], metric: Parameters<typeof trendQuarters>[1], mode: 'per_period'|'paired'): QueryResult {
+  const analysis=trendQuarters(snapshots,metric,mode);
+  const fields:NumericField[]=metric==='rent'?['totalArea','netEffectiveRent']:metric==='vacancy'?['totalArea','vacantArea']:['totalArea'];
+  const unit=metric==='rent'?'CNY/m2/month':metric==='vacancy'?'ratio':'m2';
+  const sources=mergeSources(snapshots.map(s=>collectSources(s,fields)));
+  const count=(n:number,sourceIds:readonly string[]):ResultCell=>({kind:'number',value:{exact:{numerator:String(n),denominator:'1'},numeric:n},sourceIds});
+  const result=envelope(snapshots.at(-1)!,{operation:'trend',parameters:{metric,mode,start:snapshots[0].period,end:snapshots.at(-1)!.period,tableVersion:'quarter-trend/1'},analysis,
+    table:{id:'quarter_trend',columns:[{key:'period',label:'季度',unit:null},{key:'value',label:metric==='rent'?'面积加权净有效租金':metric==='vacancy'?'空置率':'总面积',unit},
+      {key:'usedCount',label:'实际参与',unit:'building_count'},{key:'availableCount',label:'有效样本',unit:'building_count'},
+      {key:'denominator',label:metric==='totalArea'?'样本分母':'有效面积分母',unit:metric==='totalArea'?'building_count':'m2'},
+      {key:'coverage',label:'候选覆盖',unit:null}],
+      rows:analysis.periods.map((p,i)=>{const all=collectSources(snapshots[i],fields).map(s=>s.id),c=p.availableCoverage;
+        return {entityId:quarterKey(p.period),cells:{period:{kind:'text',value:quarterKey(p.period),sourceIds:[]},
+          value:p.value?{kind:'number',value:p.value,sourceIds:p.sourceIds}:{kind:'unknown',state:'missing',reason:mode==='paired'?'no_common_valid_sample':'no_valid_sample',sourceIds:all},
+          usedCount:count(p.usedEntityIds.length,p.sourceIds),availableCount:count(c.valid,all),denominator:{kind:'number',value:p.denominator,sourceIds:p.sourceIds},
+          coverage:{kind:'text',value:`候选 ${c.total}；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}`,sourceIds:all}}};})}},fields);
+  return deepFreeze({...result,sources,limitations:[...result.limitations,'时间范围逐季连续展开；没有有效值的季度保留未知，不跨期补值或填零。',
+    mode==='paired'?'共同样本是全部查询季度中均满足条件且指标有效的楼宇交集；任一期全缺会使共同样本为空。':'各期分别使用当期有效样本，样本变化可能影响趋势，不据此解释市场原因。']});
 }
 
 /** Trusted executor adds the complete authorized filter decision trail, including

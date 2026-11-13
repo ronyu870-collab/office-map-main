@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const deliveryViewSchema = z.discriminatedUnion('surface', [
   z.strictObject({ surface: z.literal('answer_table'), page: z.number().int().min(0).max(100000), pageSize: z.literal(25), sourceIds: z.array(z.string().min(1).max(160)).max(10) }),
-  z.strictObject({ surface: z.literal('chart'), page: z.number().int().min(0).max(100000), pageSize: z.literal(25), layout: z.enum(['bar_page', 'scatter_all']) }),
+  z.strictObject({ surface: z.literal('chart'), page: z.number().int().min(0).max(100000), pageSize: z.literal(25), layout: z.enum(['bar_page', 'scatter_all', 'line_all']) }),
   z.strictObject({ surface: z.literal('clarification') }),
 ]);
 export type DeliveryView = z.infer<typeof deliveryViewSchema>;

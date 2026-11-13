@@ -16,7 +16,7 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
@@ -70,6 +70,10 @@ export function resultSummary(result: QueryResultView): string[] {
     const method = result.parameters.metric === 'rent' ? '按有效总面积加权计算净有效租金。' : result.parameters.metric === 'vacancy' ? '空置面积合计除以相同有效记录的总面积合计。' : '累加有效季度总面积。';
     return [value, ...(coverage ? [coverage] : []), method + (denominator.success && a.denominatorUnit === 'm2' ? `有效面积分母 ${formatExact(denominator.data, 'm2')} ㎡。` : '')];
   }
+  if(result.operation==='trend')return [
+    result.parameters.mode==='paired'?'按全期间共同有效样本查看趋势，各季度使用相同楼宇集合。':'按各期有效样本查看趋势，各季度参与楼宇可能不同。',
+    result.parameters.metric==='rent'?'净有效租金按各期有效总面积加权；分母、参与数量和缺失情况见表。':result.parameters.metric==='vacancy'?'空置率按同一有效样本的空置面积合计除以总面积合计；缺期保留未知。':'累加各期有效季度总面积；没有有效样本时显示未知，不记零。',
+    ...(rows.every(r=>r.cells.value?.kind!=='number')?['不知道：当前范围没有可用的趋势数值；不会用其他季度或模型知识补齐。']:[])];
   return [result.parameters.mode === 'paired' ? '按两期均有有效指标的配对楼宇比较。' : '按各期各自的有效样本比较，样本可能不同。', ...(['base', 'current'] as const).flatMap(key => {
     const period = z.object({ availableCoverage: coverageSchema, usedEntityIds: ids, denominator: number }).safeParse(a[key]);
     return period.success ? [`${key === 'base' ? '基期' : '比较期'}：${coverageText(period.data.availableCoverage)}实际参与 ${period.data.usedEntityIds.length} 栋；${result.parameters.metric === 'totalArea' ? '样本分母' : '有效面积分母'} ${formatExact(period.data.denominator, null)} ${result.parameters.metric === 'totalArea' ? '栋' : '㎡'}。`] : [];
@@ -79,5 +83,7 @@ export function resultScopeText(result: QueryResultView): string {
   const scope = z.object({ inventory: z.string().optional(), submarkets: z.array(z.string()).optional() }).safeParse(result.parameters.scope);
   const s = scope.success ? scope.data : {};
   const period = quarterSchema.safeParse(result.parameters.period);
-  return `${s.submarkets?.join('、') || '当前获权范围'}${period.success ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
+  const start=quarterSchema.safeParse(result.parameters.start),end=quarterSchema.safeParse(result.parameters.end);
+  const range=result.operation==='trend'&&start.success&&end.success?`，${start.data.year}Q${start.data.quarter} 至 ${end.data.year}Q${end.data.quarter}`:'';
+  return `${s.submarkets?.join('、') || '当前获权范围'}${range}${period.success && result.operation !== 'trend' ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
 }

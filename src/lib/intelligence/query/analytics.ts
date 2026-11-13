@@ -142,3 +142,26 @@ export function compareQuarters(base: FactSnapshot, current: FactSnapshot, metri
     unavailableReason: change ? null : before.value && before.value.compare(Decimal.zero()) === 0 ? 'zero_base' : 'no_valid_sample',
   };
 }
+
+/** Paired means the intersection of valid, selected entities over EVERY quarter,
+ * not a different pair at each adjacent point. Empty quarters stay in the series. */
+export function trendQuarters(snapshots: readonly FactSnapshot[], metric: AggregateMetric, mode: 'per_period'|'paired') {
+  if(!['per_period','paired'].includes(mode) || snapshots.length<2 || snapshots.length>40)throw new Error('INVALID_TREND');
+  if(new Set(snapshots.map(s=>s.dataVersion)).size!==1 || new Set(snapshots.map(s=>s.scopeFingerprint)).size!==1)throw new Error('TREND_SCOPE_MISMATCH');
+  for(let i=0;i<snapshots.length;i++){
+    const p=snapshots[i].period,prev=snapshots[i-1]?.period;
+    if(!p || (prev && p.year*4+p.quarter!==prev.year*4+prev.quarter+1))throw new Error('TREND_CONSECUTIVE_QUARTERS_REQUIRED');
+  }
+  const parts=snapshots.map(s=>aggregateParts(s,metric));
+  const common=parts.slice(1).reduce((set,p)=>new Set(p.contributions.filter(c=>set.has(c.entityId)).map(c=>c.entityId)),new Set(parts[0].contributions.map(c=>c.entityId)));
+  return {metric,mode,formulaVersion:FORMULAS[metric],pairedIds:[...common].sort(),
+    periods:parts.map((part,i)=>{
+      const selected=mode==='paired'?part.contributions.filter(c=>common.has(c.entityId)):part.contributions;
+      const total=reduceContributions(metric,selected);
+      return {snapshotId:snapshots[i].snapshotId,period:snapshots[i].period!,availableCoverage:part.coverage,excluded:part.excluded,
+        usedEntityIds:selected.map(c=>c.entityId).sort(),excludedByPairing:part.contributions.filter(c=>!selected.includes(c)).map(c=>c.entityId).sort(),
+        value:total.value?output(total.value):null,numerator:output(total.numerator),denominator:output(total.denominator),
+        contributions:selected.map(c=>({...c,numerator:output(c.numerator),denominator:output(c.denominator)})),
+        sourceIds:[...new Set(selected.flatMap(c=>c.sourceIds))].sort()};
+    })};
+}

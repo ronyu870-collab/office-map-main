@@ -1,6 +1,6 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/2';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/3';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -49,5 +49,8 @@ export function resolveBusinessQuestion(question: string): QuestionResolution {
   match = new RegExp(`^${markets}(?:的)?${metric}${period}与${period}比较(各期样本|配对样本)$`).exec(text);
   if (match) return { kind: 'plan', plan: parseQueryPlan({ operation: 'compare', scope: scope(match[1], true), metric: metrics[match[2] as keyof typeof metrics],
     base: quarter(match[3], match[4], match[5]), current: quarter(match[6], match[7], match[8]), mode: match[9] === '配对样本' ? 'paired' : 'per_period' }) };
+  match = new RegExp(`^${markets}(?:的)?${metric}${period}(?:至|到)${period}趋势(各期样本|全期间共同样本|配对样本)$`).exec(text);
+  if(match){try{return {kind:'plan',plan:parseQueryPlan({operation:'trend',scope:scope(match[1],true),metric:metrics[match[2] as keyof typeof metrics],
+    start:quarter(match[3],match[4],match[5]),end:quarter(match[6],match[7],match[8]),mode:match[9]==='各期样本'?'per_period':'paired'})};}catch{return clarification;}}
   return clarification;
 }

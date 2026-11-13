@@ -1,14 +1,14 @@
 import { assertComplete, quarterKey, type FactSnapshot } from './contracts';
 import { assertFieldContext, evaluatePredicate, type Predicate } from './facts';
-import { parseQueryPlan } from './plan';
-import { attachFilterEvidence, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
+import { parseQueryPlan, planPeriods } from './plan';
+import { attachFilterEvidence, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
 import type { NumericField } from './registry';
 
 /** Execute only against server-read snapshots, never client-provided rows.
  * This layer neither fetches latest data nor accepts model-supplied numbers. */
 export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapshot[]): QueryResult {
   const plan = parseQueryPlan(input);
-  const periods = plan.operation === 'compare' ? [plan.base, plan.current] : [plan.period];
+  const periods = planPeriods(plan);
   const key = (period: FactSnapshot['period']) => period ? quarterKey(period) : 'catalog';
   const required = new Set(periods.map(key));
   if (snapshots.length !== required.size || new Set(snapshots.map(snapshot => key(snapshot.period))).size !== required.size
@@ -43,7 +43,8 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     return { ...item.snapshot, rows, expectedCount: rows.length };
   });
   const find = (period: FactSnapshot['period']) => selected.find(snapshot => key(snapshot.period) === key(period))!;
-  const result = plan.operation === 'compare' ? buildCompareResult(find(plan.base), find(plan.current), plan.metric, plan.mode)
+  const result = plan.operation === 'trend' ? buildTrendResult(periods.map(find), plan.metric, plan.mode)
+    : plan.operation === 'compare' ? buildCompareResult(find(plan.base), find(plan.current), plan.metric, plan.mode)
     : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields)
     : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction)
     : buildAggregateResult(find(plan.period), plan.metric);

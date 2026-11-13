@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { assertComplete, quarterKey, quarterSchema, type FactSnapshot, type Quarter, type SourceRef } from './contracts';
 import { resolveNumericFact } from './facts';
 import { numericFields, type NumericField } from './registry';
-import type { QueryPlan } from './plan';
+import { planPeriods, type QueryPlan } from './plan';
 import { authorizePlan } from './admission';
 import type { DataAuthority, VerifiedQueryIdentity } from './serverAuthority';
 
@@ -30,7 +30,7 @@ export function describePlanRead(plan:QueryPlan):{fields:NumericField[];periods:
     else fields.add(filter.field);
   };
   if(plan.filter)visit(plan.filter);
-  const periods=plan.operation==='compare'?[plan.base,plan.current]:plan.period?[plan.period]:[];
+  const periods=planPeriods(plan).filter((p):p is Quarter=>p!==null);
   if([...fields].some(field=>numericFields[field].temporal==='quarter')&&!periods.length)throw new Error('QUERY_PERIOD_REQUIRED');
   const uniquePeriods=[...new Map(periods.map(period=>[quarterKey(period),period])).values()];
   return {fields:[...fields].sort(),periods:uniquePeriods};

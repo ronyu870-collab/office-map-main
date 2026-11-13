@@ -63,7 +63,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     </details>
     {selected && <section ref={sourcePanel} tabIndex={-1} className={styles.sources} aria-label="来源详情">
       <div className={styles.sourceHeading}><h3>{selected.label}</h3><Button variant="ghost" onClick={() => { setSelected(null); returnFocus.current?.focus(); }}>关闭来源</Button></div>
-      {!sources.length ? <p>该值没有可关联的来源记录；不能据此给出确定数值。</p> : <>
+      {!sources.length ? <p>该项没有关联的数据库来源。季度标签来自本次查询条件；指标值和参与样本请查看对应单元格的来源。</p> : <>
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <dl className={styles.source} key={source.id}>
           <dt>数据库位置</dt><dd>{source.table} / {source.recordId} / {source.field}</dd>
           <dt>原始记录值</dt><dd>{source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { quarterRange } from './plan';
+import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
 
 /** The caller chooses bindings, never numbers, labels, units or source records. */
@@ -6,13 +8,14 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('bar'), field: z.string().min(1).max(80) }),
   z.strictObject({ kind: z.literal('scatter'), x: z.string().min(1).max(80), y: z.string().min(1).max(80) }),
   z.strictObject({ kind: z.literal('period_comparison') }),
+  z.strictObject({ kind: z.literal('time_series') }),
 ]);
 export type ChartRequest = z.infer<typeof chartRequestSchema>;
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
   xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown' };
 export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId: string; request: ChartRequest;
-  kind: 'bar' | 'scatter'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
+  kind: 'bar' | 'scatter' | 'line'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
   points: ChartPoint[]; summary: string[]; limitations: string[]; renderedCount: number; unknownCount: number;
   connectNulls: false; zeroBaseline: true };
 
@@ -31,10 +34,16 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     return found;
   };
   const binding = (entityId: string, key: string, cell: DisplayCell): CellBinding => ({ entityId, key, sourceIds: [...cell.sourceIds] });
-  let xLabel = '楼宇', xUnit: string | null = null;
+  let xLabel = result.operation==='trend'?'季度':'楼宇', xUnit: string | null = null;
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
-  if (request.kind === 'period_comparison') {
+  if(request.kind==='time_series'){
+    if(result.operation!=='trend')throw new Error('CHART_TREND_REQUIRED');
+    const periods=quarterRange(quarterSchema.parse(result.parameters.start),quarterSchema.parse(result.parameters.end));
+    if(result.table.rows.length!==periods.length || result.table.rows.some((r,i)=>r.entityId!==quarterKey(periods[i]) || r.cells.period?.kind!=='text' || r.cells.period.value!==quarterKey(periods[i])))throw new Error('CHART_TIME_AXIS_MISMATCH');
+    yColumn=column('value');xLabel='季度';
+    points=result.table.rows.map(row=>{const cell=row.cells.value,label=row.entityId;return {label,x:label,y:projected(cell,yColumn.unit),xText:label,yText:cellText(cell,yColumn.unit),xCell:null,yCell:binding(row.entityId,'value',cell),state:cell.kind==='number'?'valid':'unknown'};});
+  } else if (request.kind === 'period_comparison') {
     if (result.operation !== 'compare' || result.table.rows.length !== 1) throw new Error('CHART_COMPARISON_REQUIRED');
     yColumn = column('base'); const current = column('current');
     if (current.unit !== yColumn.unit) throw new Error('CHART_UNIT_MISMATCH');
@@ -54,7 +63,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     }
     points = result.table.rows.map(row => {
       const y = row.cells[yColumn.key], x = xColumn ? row.cells[xColumn.key] : null;
-      const label = row.cells.name?.kind === 'text' ? row.cells.name.value : yColumn.label;
+      const label = row.cells.name?.kind === 'text' ? row.cells.name.value : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
       const numericX = request.kind === 'scatter' && x ? projected(x, xUnit) : label;
       const numericY = projected(y, yColumn.unit);
       return { label, x: numericX, y: numericY, xText: x ? cellText(x, xUnit) : label, yText: cellText(y, yColumn.unit),
@@ -69,10 +78,11 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     if (!Number.isFinite(bounds[1] - bounds[0])) throw new Error('CHART_RANGE_UNSUPPORTED');
   }
   return { version: 'result-chart/1', resultId: result.resultId, tableId: result.table.id, request,
-    kind: request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
+    kind: request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
     yLabel: request.kind === 'period_comparison' ? ({ rent: '面积加权净有效租金', vacancy: '空置率', totalArea: '总面积' }[result.parameters.metric as 'rent' | 'vacancy' | 'totalArea'] ?? '指标') : yColumn.label,
     xUnit, yUnit: yColumn.unit!, points, renderedCount, unknownCount: points.length - renderedCount, connectNulls: false, zeroBaseline: true,
     summary: resultSummary(result), limitations: [...result.limitations,
+      ...(request.kind==='time_series'?['按连续季度等间距排列；未知季度断开折线，单个有效季度只显示点。']:[]),
       ...(request.kind === 'scatter' ? ['散点仅绘制两个字段都有有效数值的联合样本；不据此推断因果关系。'] : []),
       '图形位置使用数值近似值，标签保留原结果的精确值舍入；未知不按零绘制。',
       ...(result.operation === 'rank' ? ['图示范围沿用本次排名及末位并列，不重新截取前 N。'] : []),
@@ -84,6 +94,17 @@ export function chartBounds(chart: ResultChart, axis: 'x' | 'y'): [number, numbe
   if ((axis === 'x' ? chart.xUnit : chart.yUnit) === 'ratio') return [0, 100];
   return chart.points.reduce<[number, number]>(([min, max], point) => typeof point[axis] === 'number'
     ? [Math.min(min, point[axis]), Math.max(max, point[axis])] : [min, max], [0, 0]);
+}
+
+/** Shared chronological layout. Never join points across a null quarter. */
+export function lineGeometry(chart: ResultChart, width=Math.max(640,chart.points.length*76+110)) {
+  if(chart.kind!=='line' || chart.points.length<2 || chart.points.length>40)throw new Error('CHART_TREND_REQUIRED');
+  const [min,max]=chartBounds(chart,'y'),top=30,bottom=310,left=70,right=width-30;
+  const points=chart.points.map((p,i)=>({point:p,x:left+i/(chart.points.length-1)*(right-left),y:p.y===null?null:bottom-(p.y-min)/(max-min||1)*(bottom-top)}));
+  const segments:string[]=[];let run:string[]=[];
+  const flush=()=>{if(run.length>1)segments.push(run.join(' '));run=[];};
+  for(const p of points){if(p.y===null)flush();else run.push(`${p.x},${p.y}`);}flush();
+  return {width,height:380,top,bottom,left,right,min,max,points,segments};
 }
 
 // Fixed renderer: no HTML, script, external URL, font fetch or user supplied SVG.
@@ -123,6 +144,15 @@ export function renderChartSvg(chart: ResultChart): string {
       y += Math.max(rowHeight, wrap(p.yText, 9).length * 22 + 16);
     }
     elements.push(`<line x1="${zero}" x2="${zero}" y1="${start}" y2="${y}" stroke="#667085"/>`);
+  } else if(chart.kind==='line') {
+    const plot=lineGeometry(chart,width);const offset=y+8;
+    elements.push(`<g transform="translate(0 ${offset})"><path d="M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}" fill="none" stroke="#667085"/>`);
+    for(const segment of plot.segments)elements.push(`<polyline points="${segment}" fill="none" stroke="#003e7e" stroke-width="2"/>`);
+    for(const p of plot.points)if(p.y!==null)elements.push(`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#003e7e"><title>${xml(p.point.label+'：'+p.point.yText)}</title></circle>`);
+    elements.push('</g>');text(plot.left-10,offset+plot.top+5,String(plot.max),'text-anchor="end"');text(plot.left-10,offset+plot.bottom,String(plot.min),'text-anchor="end"');
+    const every=Math.ceil(plot.points.length/8);
+    plot.points.forEach((p,i)=>{if(i%every===0 || i===plot.points.length-1)text(p.x,offset+plot.bottom+26,p.point.label,'text-anchor="middle"');});
+    y=offset+plot.height;
   } else {
     const valid = chart.points.filter(p => p.state === 'valid');
     const [xmin, xmax] = chartBounds(chart, 'x'), [ymin, ymax] = chartBounds(chart, 'y');
