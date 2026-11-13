@@ -177,7 +177,7 @@ BEGIN
   THEN RAISE EXCEPTION 'existing current provenance for a supposedly blank target %.% %',r.target_table,r.field_name,r.target_id; END IF;
   EXECUTE format('SELECT to_jsonb(%I) FROM public.%I WHERE id=$1',r.field_name,r.target_table)
     INTO prev USING r.target_id;
-  IF prev IS DISTINCT FROM 'null'::jsonb
+  IF prev IS NOT NULL AND prev IS DISTINCT FROM 'null'::jsonb
   THEN RAISE EXCEPTION 'nonempty/unknown old value for %.% id %: %',r.target_table,r.field_name,r.target_id,prev; END IF;
   EXECUTE format('UPDATE public.%I SET %I = (($1::jsonb #>> ''{}'')::%s) WHERE id=$2 AND %I IS NULL RETURNING to_jsonb(%I)',
    r.target_table,r.field_name,stored_type,r.field_name,r.field_name)
