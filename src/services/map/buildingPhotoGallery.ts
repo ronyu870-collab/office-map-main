@@ -7,8 +7,9 @@ const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g,
 
 const photoIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3-3a2 2 0 0 0-2.8 0L6 21"/></svg>';
 const arrow = (path: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
-const enlargeIcon = arrow('M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4');
 const closeIcon = arrow('m6 6 12 12M18 6 6 18');
+const downloadIcon = arrow('M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4');
+const externalIcon = arrow('M13 5h6v6m0-6-9 9m7-1v6H5V7h6');
 
 export function buildPhotoTrigger(galleryId: string): string {
   return `<button type="button" class="building-pilot-photo-trigger" data-building-photo-trigger aria-expanded="false" aria-controls="${galleryId}">
@@ -22,7 +23,7 @@ export function buildPhotoGallery(galleryId: string, name: string, photos: reado
     <figure class="building-photo-figure">
     <div class="building-pilot-photo-stage">
       ${photos.map(photo => `<img data-building-photo hidden alt="${name}：${escapeHtml(photo.caption)}" decoding="async" referrerpolicy="no-referrer">`).join('')}
-      <button type="button" class="building-photo-enlarge" data-building-photo-enlarge aria-label="查看大图" aria-haspopup="dialog" aria-controls="${galleryId}-viewer" hidden><span>${enlargeIcon}</span></button>
+      <button type="button" class="building-photo-enlarge" data-building-photo-enlarge aria-label="查看大图" title="双击查看大图" aria-haspopup="dialog" aria-controls="${galleryId}-viewer" hidden></button>
       <div class="building-pilot-photo-message">
         <span data-building-photo-status role="status"></span>
         <button type="button" class="building-pilot-photo-control" data-building-photo-retry hidden>重试</button>
@@ -44,8 +45,13 @@ export function buildPhotoGallery(galleryId: string, name: string, photos: reado
       <div class="building-photo-viewer__content">
         <header class="building-photo-viewer__header">
           <h2 id="${galleryId}-viewer-title">${name}</h2>
-          <button type="button" class="building-pilot-photo-control" data-building-photo-viewer-close aria-label="关闭大图" autofocus>${closeIcon}</button>
+          <div class="building-photo-viewer__actions">
+            <button type="button" class="building-photo-viewer__action" data-building-photo-download hidden>${downloadIcon}<span>下载原图</span></button>
+            <a class="building-photo-viewer__action" data-building-photo-original hidden target="_blank" rel="noopener noreferrer">${externalIcon}<span>打开原图</span></a>
+            <button type="button" class="building-pilot-photo-control building-photo-viewer__close" data-building-photo-viewer-close aria-label="关闭大图" autofocus>${closeIcon}</button>
+          </div>
         </header>
+        <p class="building-photo-viewer__notice" data-building-photo-download-status role="status"></p>
       </div>
     </dialog>
   </div>`;
@@ -60,6 +66,10 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const viewer = gallery?.querySelector<HTMLDialogElement>('.building-photo-viewer');
   const viewerContent = viewer?.querySelector<HTMLElement>('.building-photo-viewer__content');
   const viewerClose = viewer?.querySelector<HTMLButtonElement>('[data-building-photo-viewer-close]');
+  const downloadButton = viewer?.querySelector<HTMLButtonElement>('[data-building-photo-download]');
+  const downloadLabel = downloadButton?.querySelector('span');
+  const originalLink = viewer?.querySelector<HTMLAnchorElement>('[data-building-photo-original]');
+  const downloadStatus = viewer?.querySelector<HTMLElement>('[data-building-photo-download-status]');
   const images = Array.from(gallery?.querySelectorAll<HTMLImageElement>('[data-building-photo]') ?? []);
   const status = gallery?.querySelector<HTMLElement>('[data-building-photo-status]');
   const caption = gallery?.querySelector<HTMLElement>('[data-building-photo-caption]');
@@ -71,11 +81,21 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const attribution = gallery?.querySelector<HTMLElement>('[data-building-photo-attribution]');
   const license = gallery?.querySelector<HTMLAnchorElement>('[data-building-photo-license]');
   if (!trigger || !gallery || !figure || !stage || !enlarge || !viewer || !viewerContent || !viewerClose
+    || !downloadButton || !downloadLabel || !originalLink || !downloadStatus
     || !status || !caption || !retry || !images.length || images.length !== photos.length) return null;
 
   const listeners = new AbortController();
   const eventOptions = { signal: listeners.signal };
   const loaded = new Set<number>();
+  const externalPhotos = new Map<number, string>();
+  let pendingDownload: AbortController | null = null;
+  const cancelDownload = () => {
+    pendingDownload?.abort();
+    pendingDownload = null;
+    downloadButton.removeAttribute('aria-disabled');
+    downloadLabel.textContent = '下载原图';
+    downloadStatus.textContent = '';
+  };
   const sources = new Map<number, { url: string; name: string; attribution: string; license: string }>();
   const showSource = (selected: number) => {
     if (!source) return;
@@ -93,6 +113,14 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     }
   };
   let index = 0;
+  const showViewerAction = () => {
+    const ready = loaded.has(index);
+    const externalUrl = externalPhotos.get(index);
+    downloadButton.hidden = !ready || Boolean(externalUrl);
+    originalLink.hidden = !ready || !externalUrl;
+    if (ready && externalUrl) originalLink.href = externalUrl;
+    else originalLink.removeAttribute('href');
+  };
   let touchStart: { x: number; y: number } | null = null;
   let pending: { controller: AbortController; image: HTMLImageElement } | null = null;
   const cancel = () => {
@@ -104,7 +132,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   };
   const fitViewer = (image: HTMLImageElement) => {
     if (image.naturalWidth && image.naturalHeight) {
-      stage.style.setProperty('--building-photo-ratio', `${image.naturalWidth} / ${image.naturalHeight}`);
+      viewer.style.setProperty('--building-photo-ratio', String(image.naturalWidth / image.naturalHeight));
     }
   };
 
@@ -122,6 +150,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     retry.hidden = true;
     status.hidden = loaded.has(selected);
     enlarge.hidden = !loaded.has(selected);
+    showViewerAction();
     if (loaded.has(selected)) { fitViewer(image); return; }
 
     const controller = new AbortController();
@@ -144,6 +173,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       status.hidden = true;
       image.hidden = false;
       enlarge.hidden = false;
+      showViewerAction();
     };
     image.onerror = fail;
     const photo = photos[selected];
@@ -159,7 +189,20 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
           url: sourceUrl, name: access.source_name, attribution: access.attribution_text || '',
           license: licenseUrl,
         });
+        if (access.can_download === false) {
+          const originalUrl = publicPhotoUrl(access.url);
+          if (originalUrl) externalPhotos.set(selected, originalUrl);
+        }
         showSource(selected);
+        if (access.is_preview) image.onerror = () => {
+          if (!isCurrent()) return;
+          // Signing can succeed even when the storage renderer rejects the image.
+          // Retry the same scoped photo once as an original, under the same cancellation guard.
+          image.onerror = fail;
+          void loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'original').then(original => {
+            if (isCurrent()) image.src = original.url;
+          }).catch(fail);
+        };
         image.src = access.url;
       }).catch(fail);
     } else {
@@ -175,6 +218,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   const closeViewer = (returnFocus = true) => {
     if (!viewer.open) return;
     touchStart = null;
+    cancelDownload();
     gallery.insertBefore(figure, viewer);
     gallery.style.minHeight = '';
     viewer.close();
@@ -192,6 +236,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     const target = index + direction;
     if (gallery.hidden || target < 0 || target >= images.length) return;
     cancel();
+    cancelDownload();
     index = target;
     show();
   };
@@ -210,14 +255,63 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   previous?.addEventListener('click', event => { event.stopPropagation(); move(-1); }, eventOptions);
   next?.addEventListener('click', event => { event.stopPropagation(); move(1); }, eventOptions);
   retry.addEventListener('click', event => { event.stopPropagation(); show(); }, eventOptions);
-  enlarge.addEventListener('click', event => {
-    event.stopPropagation();
+  const openViewer = () => {
     if (gallery.hidden || viewer.open || !loaded.has(index) || !root.isConnected) return;
     // Keep the map popup's layout and reuse the current image, caption and navigation in the top layer.
     gallery.style.minHeight = `${figure.offsetHeight}px`;
-    viewerContent.append(figure);
+    viewerContent.insertBefore(figure, downloadStatus);
     viewer.showModal();
     viewer.scrollTop = 0;
+  };
+  // Some touch browsers report click as a MouseEvent. Keep the pointer type from the same tap.
+  let previewPointer = '';
+  enlarge.addEventListener('pointerdown', event => { previewPointer = event.pointerType; }, eventOptions);
+  enlarge.addEventListener('pointercancel', () => { previewPointer = ''; }, eventOptions);
+  enlarge.addEventListener('click', event => {
+    event.stopPropagation();
+    const pointer = ('pointerType' in event && event.pointerType) || previewPointer;
+    previewPointer = '';
+    if (event.detail === 0 || pointer === 'touch' || pointer === 'pen') openViewer();
+  }, eventOptions);
+  enlarge.addEventListener('dblclick', event => {
+    event.stopPropagation();
+    openViewer();
+  }, eventOptions);
+  downloadButton.addEventListener('click', async event => {
+    event.stopPropagation();
+    if (!viewer.open || downloadButton.hidden || pendingDownload || !loaded.has(index)) return;
+    const selected = index;
+    const photo = photos[selected];
+    const controller = new AbortController();
+    pendingDownload = controller;
+    downloadButton.setAttribute('aria-disabled', 'true');
+    downloadLabel.textContent = '正在准备…';
+    downloadStatus.textContent = '';
+    const isCurrent = () => pendingDownload === controller && root.isConnected && viewer.open && selected === index;
+    try {
+      const url = 'id' in photo
+        ? await import('../buildingPhotosClient').then(async ({ loadStoredBuildingPhoto }) =>
+          (await loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'download')).url)
+        : await import('../salesMaterialsClient').then(({ loadBuildingPhoto }) =>
+          loadBuildingPhoto(buildingId, photo.pilotIndex ?? selected, controller.signal, true));
+      if (!isCurrent()) return;
+      // The freshly signed Storage URL serves an attachment without fetching the bytes into JS.
+      const link = document.createElement('a');
+      link.href = url;
+      link.referrerPolicy = 'no-referrer';
+      link.hidden = true;
+      viewer.append(link);
+      link.click();
+      link.remove();
+    } catch {
+      if (isCurrent()) downloadStatus.textContent = '下载链接获取失败，请重试。';
+    } finally {
+      if (pendingDownload === controller) {
+        pendingDownload = null;
+        downloadButton.removeAttribute('aria-disabled');
+        downloadLabel.textContent = '下载原图';
+      }
+    }
   }, eventOptions);
   viewer.addEventListener('click', event => {
     event.stopPropagation();

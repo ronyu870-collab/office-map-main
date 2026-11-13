@@ -26,6 +26,8 @@ Describe behavior, data, security, performance, or deployment risk.
 - [ ] Affected mobile actions checked against [MOB-01](../docs/standards/03_模块规范.md#mob-01), with [MOB-05 evidence](../docs/standards/05_工程验证与交付规范.md#mob-05); not applicable when no UI/behavior changed.
 - [ ] For search, text filters and searchable selectors affected by this change, link [VERIFY-04](../docs/standards/05_工程验证与交付规范.md#verify-04) browser and CI evidence: type the first character, let the UI update, and keep typing without refocusing. Verify focus, caret or selection, and the final results. Otherwise mark not applicable.
 
+- [ ] For affected loading paths, link [VERIFY-06](../docs/standards/05_工程验证与交付规范.md#verify-06) evidence: budget, environment, before/after P50 and P90, failures, optimization rounds, and pass/fail. Mark not applicable with a reason for unrelated changes.
+
 ## Visual acceptance
 
 Apply [VERIFY-05](../docs/standards/05_工程验证与交付规范.md#verify-05) to any user-visible change, including a single label, a shared component or a role-specific state. A reviewer checks the rendered page in context for hierarchy, grouping, alignment and consistency. Link an accessible review record (HTTPS) with desktop and mobile comparisons, the baseline, roles, states, viewports and findings.
