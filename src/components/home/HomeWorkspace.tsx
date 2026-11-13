@@ -186,96 +186,101 @@ function HomeHeader({
         <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)] sm:text-sm">北京办公楼市场数据平台</div>
       </div>
 
-      <div
-        ref={menuRef}
-        className="relative shrink-0"
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMenuOpen(false);
-        }}
-      >
-        <button
-          ref={menuTriggerRef}
-          type="button"
-          onClick={() => setMenuOpen((value) => !value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowDown') return;
-            event.preventDefault();
-            if (menuOpen) {
-              focusFirstMenuItem();
-              return;
-            }
-            focusFirstOnOpenRef.current = true;
-            setMenuOpen(true);
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="[&>a]:min-w-11 [&>a]:justify-center">
+          <BrokerSearchLink />
+        </div>
+        <div
+          ref={menuRef}
+          className="relative shrink-0"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setMenuOpen(false);
           }}
-          className="inline-flex h-10 max-w-48 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:h-9"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-controls="home-user-menu"
-          aria-label="用户菜单"
         >
-          <UserRound size={16} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
-          <span className="hidden max-w-36 truncate sm:inline" title={displayName}>{displayName}</span>
-          <ChevronDown size={14} strokeWidth={1.55} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
-        </button>
-
-        {menuOpen ? (
-          <div
-            id="home-user-menu"
-            role="menu"
-            aria-label="账户操作"
-            onKeyDown={handleMenuKeyDown}
-            className="absolute right-0 top-full z-[var(--cd-z-dropdown)] mt-2 w-52 overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]"
+          <button
+            ref={menuTriggerRef}
+            type="button"
+            onClick={() => setMenuOpen((value) => !value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'ArrowDown') return;
+              event.preventDefault();
+              if (menuOpen) {
+                focusFirstMenuItem();
+                return;
+              }
+              focusFirstOnOpenRef.current = true;
+              setMenuOpen(true);
+            }}
+            className="inline-flex h-11 max-w-48 items-center gap-1.5 rounded-[var(--cd-radius-sm)] px-2 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] sm:h-9"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-controls="home-user-menu"
+            aria-label="用户菜单"
           >
-            <div className="border-b border-[var(--cd-color-border)] px-3.5 py-3">
-              <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)]" title={displayName}>{displayName}</div>
-              <div className="mt-0.5 text-sm text-[var(--cd-color-text-muted)]">{roleLabel}</div>
-            </div>
+            <UserRound size={16} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
+            <span className="hidden max-w-36 truncate sm:inline" title={displayName}>{displayName}</span>
+            <ChevronDown size={14} strokeWidth={1.55} className={`transition-transform ${menuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
 
-            <div className="p-1.5">
-              <HomeIntentLink
-                href="/settings"
-                mayPrefetch
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-                className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
-              >
-                <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
-                修改密码
-              </HomeIntentLink>
+          {menuOpen ? (
+            <div
+              id="home-user-menu"
+              role="menu"
+              aria-label="账户操作"
+              onKeyDown={handleMenuKeyDown}
+              className="absolute right-0 top-full z-[var(--cd-z-dropdown)] mt-2 w-52 overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]"
+            >
+              <div className="border-b border-[var(--cd-color-border)] px-3.5 py-3">
+                <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)]" title={displayName}>{displayName}</div>
+                <div className="mt-0.5 text-sm text-[var(--cd-color-text-muted)]">{roleLabel}</div>
+              </div>
 
-              {canSeeAdminWorkspace ? (
+              <div className="p-1.5">
                 <HomeIntentLink
-                  href={ADMIN_WORKSPACE.href}
+                  href="/settings"
                   mayPrefetch
                   role="menuitem"
-                  onClick={(event) => {
-                    setMenuOpen(false);
-                    onAdminActivate(event);
-                  }}
+                  onClick={() => setMenuOpen(false)}
                   className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                 >
-                  <Database size={14} strokeWidth={1.55} aria-hidden="true" />
-                  <span>系统管理</span>
+                  <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
+                  修改密码
                 </HomeIntentLink>
-              ) : null}
-            </div>
 
-            <div className="border-t border-[var(--cd-color-border)] p-1.5">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onLogout();
-                }}
-                className="flex min-h-10 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
-              >
-                <LogOut size={14} strokeWidth={1.55} aria-hidden="true" />
-                退出登录
-              </button>
+                {canSeeAdminWorkspace ? (
+                  <HomeIntentLink
+                    href={ADMIN_WORKSPACE.href}
+                    mayPrefetch
+                    role="menuitem"
+                    onClick={(event) => {
+                      setMenuOpen(false);
+                      onAdminActivate(event);
+                    }}
+                    className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+                  >
+                    <Database size={14} strokeWidth={1.55} aria-hidden="true" />
+                    <span>系统管理</span>
+                  </HomeIntentLink>
+                ) : null}
+              </div>
+
+              <div className="border-t border-[var(--cd-color-border)] p-1.5">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="flex min-h-10 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
+                >
+                  <LogOut size={14} strokeWidth={1.55} aria-hidden="true" />
+                  退出登录
+                </button>
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -413,10 +418,7 @@ export function HomeWorkspace() {
       <div className={styles.scrollArea}>
         <div className={styles.page}>
           <section aria-labelledby="home-title" className={styles.primary}>
-            <div className={styles.pageHeading}>
-              <h1 id="home-title">北京办公楼业务</h1>
-              {activeSession && <BrokerSearchLink />}
-            </div>
+            <h1 id="home-title" className="sr-only">主页</h1>
             <div className={styles.workSurface}>
               <div className={styles.queryArea}>
                 {activeSession ? <>
