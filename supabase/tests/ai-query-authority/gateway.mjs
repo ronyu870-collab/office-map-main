@@ -26,6 +26,7 @@ try{
       `export {createRpcAuditPort,sanitizeAuditContent} from ${JSON.stringify(root+'/src/lib/intelligence/query/auditStore.ts')};`,
       `export {loadDataAuthority} from ${JSON.stringify(root+'/src/lib/intelligence/query/serverAuthority.ts')};`,
       `export {decryptAuditContent} from ${JSON.stringify(root+'/src/lib/intelligence/query/auditCrypto.ts')};`,
+      `export {decodeGeneratedArchive} from ${JSON.stringify(root+'/src/lib/intelligence/query/resultArchive.ts')};`,
       `export {runAuditedQuery} from ${JSON.stringify(root+'/src/lib/intelligence/query/admission.ts')};`,
       `export {readQuerySnapshots} from ${JSON.stringify(root+'/src/lib/intelligence/query/snapshotReader.ts')};`,
       `export {executeQueryPlan} from ${JSON.stringify(root+'/src/lib/intelligence/query/executePlan.ts')};`,
@@ -89,6 +90,9 @@ try{
     assert.equal(result.status,'ready');const stored=await events(input.requestId);
     assert.deepEqual(stored.map(event=>event.kind),['received','running','response_generated','succeeded']);
     assert.equal(decrypt(stored[2]).content.result.answer,result.result.answer);
+    const recovered=api.decodeGeneratedArchive(stored.filter(event=>event.kind==='response_generated').map(event=>({...event,sequence:Number(event.sequence)})),
+      {requestId:input.requestId,actorId:OWNER,effectiveUserId:OWNER},new Map([[keys.keyId,keys]]));
+    assert.deepEqual(recovered.result,result.result);
     assert.equal(decrypt(stored[3]).content.delivery,'not_yet_sent');
   });
   await check('same request is durable-idempotent across a newly constructed adapter',async()=>{
@@ -112,10 +116,13 @@ try{
     const input=request();input.authority=await fresh();await audit.receive(input);await audit.append(input.requestId,'running',{});
     const detail={result:{cells:Array.from({length:5000},(_,i)=>({id:i,value:'楼宇数据'+i}))}};
     await audit.append(input.requestId,'response_generated',detail);
-    const parts=(await events(input.requestId)).filter(event=>event.kind==='response_generated').map(decrypt);
-    const manifest=parts.at(-1),chunks=parts.slice(0,-1);assert.ok(chunks.length>1);assert.equal(chunks.length,manifest.count);
-    const content=JSON.parse(Buffer.concat(chunks.map(chunk=>Buffer.from(chunk.bytes,'base64'))).toString('utf8'));
-    assert.deepEqual(content.content,detail);
+    const stored=(await events(input.requestId)).filter(event=>event.kind==='response_generated').map(event=>({...event,sequence:Number(event.sequence)}));
+    assert.ok(stored.length>2);
+    const context={requestId:input.requestId,actorId:OWNER,effectiveUserId:OWNER},ring=new Map([[keys.keyId,keys]]);
+    const recovered=api.decodeGeneratedArchive(stored,context,ring);
+    assert.deepEqual(recovered.result,detail.result);
+    assert.throws(()=>api.decodeGeneratedArchive(stored.slice(1),context,ring));
+    assert.throws(()=>api.decodeGeneratedArchive(stored,{...context,actorId:ADMIN},ring));
   });
   await check('actual tables reproduce 170 rent, 17.5% vacancy, missing/conflicting heights and both comparisons',async()=>{
     const currentAuthority=await fresh();

@@ -5,6 +5,7 @@
 | 责任 | 当前入口 |
 | --- | --- |
 | HTTP输入、拒绝审计、真实身份、幂等和交付边界 | [HTTP与真实Auth](trusted-query-http.md) |
+| 历史结果解密、分块完整性与待接恢复边界 | [结果恢复](result-recovery.md) |
 | 会话/资格、同一数据库快照、真实来源与字段范围 | [权限与完整读取](trusted-query-authority.md) |
 | 数值/来源/公式、表图导出、加密事件基础 | [基础实施记录](trusted-query-foundation.md) |
 | 实际字段与公式版本 | `src/lib/intelligence/query/registry.ts` |

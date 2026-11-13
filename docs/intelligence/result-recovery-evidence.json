@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-13",
+  "baseCommit": "4cce8d3334651545a820ea8837f20e63a26c419f",
+  "scope": "generated-result encrypted archive codec only; recovery API not implemented",
+  "sourceSha256": {
+    "src/lib/intelligence/query/resultArchive.ts": "f0bc05cac55c03d76f8094f69f9318913e410f2c56cfb4a9ba6293cb323ccb23",
+    "src/lib/intelligence/query/auditStore.ts": "6e0ac605a12af3cfca0ed667ddaa51492705dc281c8df6a0c46e76bf864ada35",
+    "src/lib/intelligence/query/__tests__/resultArchive.test.ts": "4510e3e4a36ab67ea01d6b8a40a618cbdfaf915d99bba1bbb9a2495907fa0090",
+    "supabase/tests/ai-query-authority/gateway.mjs": "76ebc8da11220c6de458a6ddda9e4721ee561adfe28e8f884a7514f76c070dd5",
+    ".github/workflows/verify.yml": "0dd952db39b2dcaaf35ac18f1746ccd65c2c9101544efbb92421a807d011831f"
+  },
+  "verification": {
+    "fullVerify": {
+      "exitCode": 0,
+      "files": 209,
+      "tests": 1333,
+      "lintErrors": 0,
+      "lintWarnings": 826,
+      "typecheck": "passed",
+      "build": "passed",
+      "log": "/private/tmp/colliers-query-archive-verify.log"
+    },
+    "archiveUnitScenarios": 10,
+    "actualGateway": {
+      "scenarios": 11,
+      "postgres": "17.11",
+      "postgrest": "16.5",
+      "log": "/private/tmp/colliers-query-archive-gateway-final.log",
+      "includes": "actual inline and 5000-row encrypted RPC persistence and production decoder, missing chunk and foreign actor refusal",
+      "identity": "SQL fixture, not a new real Auth login"
+    },
+    "initialHarnessAttempt": {
+      "log": "/private/tmp/colliers-query-archive-gateway.log",
+      "result": "missing disposable acknowledgement; failed before database connect; corrected command passed"
+    }
+  },
+  "cleanup": "owned PostgreSQL stopped; gateway test database and process cleaned by harness",
+  "notPerformed": [
+    "remote CI",
+    "production writes or activation",
+    "model calls",
+    "HTTP recovery",
+    "browser/device validation"
+  ],
+  "remaining": [
+    "fresh current source and row authorization for restored snapshots",
+    "authorized complete stream retrieval and terminal validation",
+    "external audit checkpoints",
+    "status/recovery endpoint",
+    "client receipt",
+    "crash reconciliation",
+    "key lifecycle"
+  ]
+}

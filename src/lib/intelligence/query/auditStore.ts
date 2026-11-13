@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { auditPayloadDigest, encryptAuditContent, redactSubmittedCredentials } from './auditCrypto';
 import type { AuditPort } from './admission';
 import type { VerifiedQueryIdentity } from './serverAuthority';
+import { encodeGeneratedArchive } from './resultArchive';
 
 export type AuditKeys = { keyId: string; encryptionKey: Uint8Array; digestKey: Uint8Array };
 const receiptSchema = z.object({ event_id: z.uuid(), sequence: z.number().int().positive(), event_hash: z.string().regex(/^[0-9a-f]{64}$/), replayed: z.boolean() });
@@ -86,11 +87,8 @@ export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQue
       const content=JSON.stringify(sanitizeAuditContent(detail));
       const bytes=Buffer.from(content,'utf8');
       if(bytes.length<=80*1024) {await appendOne(requestId,kind,content);return;}
-      if(kind!=='response_generated' || bytes.length>16*1024*1024)throw new Error('AUDIT_CONTENT_LIMIT');
-      // Preserve large result snapshots; never truncate or silently omit their provenance.
-      const chunkSize=48*1024, count=Math.ceil(bytes.length/chunkSize), groupId=randomUUID();
-      for(let index=0;index<count;index++)await appendOne(requestId,kind,JSON.stringify({payloadType:'chunk',groupId,index,count,encoding:'base64',bytes:bytes.subarray(index*chunkSize,(index+1)*chunkSize).toString('base64')}));
-      await appendOne(requestId,kind,JSON.stringify({payloadType:'manifest',groupId,count,byteLength:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')}));
+      if(kind!=='response_generated')throw new Error('AUDIT_CONTENT_LIMIT');
+      for(const part of encodeGeneratedArchive(content))await appendOne(requestId,kind,part);
     },
   };
 }
