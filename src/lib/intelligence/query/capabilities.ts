@@ -15,7 +15,7 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
     if (!authority.grants.includes('query:catalog')) return json({ enabled: false, examples: [] });
     const market = QUESTION_SUBMARKETS.find(name => authority.allSubmarkets || authority.submarkets.includes(name)) ?? '全部获权楼宇';
     // Examples describe syntax, not the existence, period coverage or value of data.
-    const examples = [`${market}有哪些楼`, `${market}最高的楼是什么`, `2026年第三季度${market}净有效租金`, `2026年第三季度${market}空置率`, `${market}净有效租金2026Q1至2026Q3趋势各期样本`, '2026Q3全部获权楼宇净有效租金按子市场比较']
+    const examples = [`${market}有哪些楼`, `${market}最高的楼是什么`, `2026年第三季度${market}净有效租金`, `2026年第三季度${market}空置率`, `${market}净有效租金2026Q1至2026Q3趋势各期样本`, '2026Q3全部获权楼宇净有效租金按子市场比较', '2026Q3全部获权楼宇空置率按子市场和等级交叉统计']
       .filter(question => {
         const result = resolveBusinessQuestion(question);
         if (result.kind !== 'plan') return false;

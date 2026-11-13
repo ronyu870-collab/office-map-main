@@ -60,3 +60,12 @@
 .scatterScroll svg { font-size: 14px; font-family: inherit; fill: var(--cd-color-text-primary); }
 @media (max-width: 639px), (pointer: coarse) { .chartSelect select, .exportMenu summary { min-height: 44px; } }
 @media (max-width: 639px) { .barRow { grid-template-columns: minmax(0, 1fr) minmax(48px, 1fr) minmax(0, 1fr); gap: 8px; } }
+
+.heatmapScroll { overflow: auto; max-height: 560px; max-width: 100%; margin-top: 12px; }
+.heatmapScroll:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.heatmap { border-collapse: collapse; width: max-content; min-width: 100%; font-size: inherit; }
+.heatmap caption { text-align: left; padding-block: 8px; }
+.heatmap th, .heatmap td { min-width: 120px; max-width: 200px; padding: 12px; border: 1px solid var(--cd-color-border); vertical-align: top; overflow-wrap: anywhere; }
+.heatmap th { text-align: left; font-weight: 500; background: var(--cd-color-surface-alt); }
+.heatmap td { text-align: right; color: var(--cd-color-text-primary); }
+.heatmap td p { margin-top: 4px; }

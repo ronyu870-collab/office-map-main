@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
-import { chartBounds, chartFacets, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
+import { chartBounds, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import styles from './HomeQuery.module.css';
@@ -17,11 +17,12 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(0);
-  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
+  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
   const active = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
   const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
-  const request: ChartRequest = result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
+  const isCross = result.operation === 'cross_aggregate';
+  const request: ChartRequest = isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
   async function run(input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') {
     if (active.current) return;
     const controller = new AbortController(); active.current = controller;
@@ -52,9 +53,9 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const position = (value: number) => (value - min) / span * 100;
   return <div className={styles.artifacts}>
     <div className={styles.actions}>
-      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
-      {isTrend && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
+      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
+      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => setChart(null)}>收起图表</Button>}
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
@@ -66,7 +67,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
     <p role="status" className={styles.notice}>{message}</p>
     {chart && <figure className={styles.chart} aria-label="同源查询图表">
       <figcaption>{chart.kind === 'scatter' ? `${chart.xLabel}与${chart.yLabel}` : chart.yLabel}（{units[chart.yUnit] ?? chart.yUnit}）。有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项；未知不画成零。</figcaption>
-      {chart.kind === 'bar' ? <>
+      {chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
         <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>
         <div>{shown.map((point, i) => <div className={styles.barRow} key={`${point.yCell.entityId}:${point.yCell.key}:${i}`}>
           <span>{point.label}</span><div className={styles.barTrack} aria-hidden="true"><i className={styles.zero} style={{ left: `${position(0)}%` }} />{point.y !== null && <i className={styles.bar} style={{ left: `${Math.min(position(0), position(point.y))}%`, width: `${Math.abs(position(point.y) - position(0))}%` }} />}</div>
@@ -101,4 +102,22 @@ function TrendLine({chart,height=380,bounds}:{chart:ResultChart;height?:number;b
       <text x={plot.left} y={plot.height-8}>季度；{chart.yLabel}（{units[chart.yUnit]??chart.yUnit}）</text>
     </svg>
   </div>;
+}
+
+function Heatmap({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}) {
+  const grid = chart.grid;
+  if (!grid) return null;
+  const bounds = chartBounds(chart, 'y');
+  return <><p className={styles.notice}>{heatmapLegend(chart)}</p>
+    <div className={styles.heatmapScroll} tabIndex={0} aria-label="子市场与等级热力表，可横向滚动">
+      <table className={styles.heatmap}><caption>各子市场 × 等级的{chart.yLabel}（{units[chart.yUnit] ?? chart.yUnit}）</caption>
+        <thead><tr><th scope="col">子市场 / 等级</th>{grid.columns.map(column=><th scope="col" key={column.key}>{column.label}</th>)}</tr></thead>
+        <tbody>{grid.rows.map((row,i)=><tr key={row.key}><th scope="row">{row.label}</th>{grid.columns.map((column,j)=>{
+          const point=chart.points[i*grid.columns.length+j];
+          return <td key={column.key} style={{backgroundColor:heatmapFill(point.y,bounds)}}><button type="button" className={styles.cell}
+            aria-label={`查看来源：${point.label}，${point.yText}，有效 ${point.sampleCount} 栋`}
+            onClick={event=>onSource(point.yCell.sourceIds,`${point.label}：${point.yText}`,event.currentTarget)}>{point.y===null?'未知':point.yText}</button><p>有效 {point.sampleCount} 栋</p></td>;
+        })}</tr>)}</tbody>
+      </table>
+    </div></>;
 }

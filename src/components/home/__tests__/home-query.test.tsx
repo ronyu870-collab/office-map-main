@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
-import { buildAggregateResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
@@ -20,6 +20,28 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('shows a complete accessible cross table with cell sources, same-result chart switch and receipt', async () => {
+    const original = fixture();
+    const snapshot = { ...original, rows: original.rows.map((row, i) => ({ ...row, dimensions: Object.fromEntries(['submarket', 'grade'].map(field => {
+      const value = field === 'submarket' ? (i < 2 ? 'CBD' : '金融街') : (i % 2 ? 'B' : 'A');
+      return [field, { value, source: { ...row.nameSource, id: `${field}/${row.id}`, field, rawValue: value } }];
+    })) })) };
+    const result = resultViewSchema.parse(buildCrossTabResult(snapshot, snapshot, 'rent'));
+    client.submit.mockResolvedValue({ requestId, status: 'ready', result });
+    client.chart.mockImplementation(async (_scope, _id, result, request) => buildResultChart(result, request));
+    render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { value: '季度交叉统计' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    fireEvent.click(await screen.findByRole('button', { name: '查看热力表' }));
+    const table = await screen.findByRole('table', { name: /各子市场 × 等级/ }); expect(table.querySelectorAll('td')).toHaveLength(4);
+    const sourceButton = screen.getByRole('button', { name: '查看来源：CBD / A，100，有效 1 栋' });
+    fireEvent.click(sourceButton); expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('grade');
+    expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('submarket');
+    fireEvent.click(screen.getByRole('button', { name: '关闭来源' })); expect(sourceButton).toHaveFocus();
+    await waitFor(() => expect(client.reportDelivery.mock.calls.some(call => call[3]?.layout === 'heatmap_all')).toBe(true));
+    fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
+    await waitFor(() => expect(screen.queryByRole('table', { name: /各子市场 × 等级/ })).not.toBeInTheDocument());
+    expect(client.submit).toHaveBeenCalledOnce(); expect(client.chart.mock.calls.map(call => call[3].kind)).toEqual(['heatmap', 'bar']);
+  });
   it('keeps group facets on one scale with provenance and clears them when eligibility is revoked', async () => {
     const snapshots = [2, 3].map(quarter => {
       const original = fixture({ year: 2026, quarter });

@@ -1,7 +1,7 @@
 import { assertComplete, quarterKey, type FactSnapshot } from './contracts';
 import { assertFieldContext, evaluatePredicate, type Predicate } from './facts';
 import { parseQueryPlan, planPeriods } from './plan';
-import { attachFilterEvidence, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
+import { attachFilterEvidence, buildCrossTabResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
 import type { NumericField } from './registry';
 
 /** Execute only against server-read snapshots, never client-provided rows.
@@ -43,7 +43,8 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     return { ...item.snapshot, rows, expectedCount: rows.length };
   });
   const find = (period: FactSnapshot['period']) => selected.find(snapshot => key(snapshot.period) === key(period))!;
-  const result = plan.operation === 'group_aggregate' || plan.operation === 'group_trend'
+  const result = plan.operation === 'cross_aggregate' ? buildCrossTabResult(find(plan.period), snapshots[0], plan.metric)
+    : plan.operation === 'group_aggregate' || plan.operation === 'group_trend'
     ? buildGroupedResult(periods.map(find), periods.map(period => snapshots.find(snapshot => key(snapshot.period) === key(period))!), plan.groupBy, plan.metric, plan.operation === 'group_trend' ? plan.mode : 'per_period')
     : plan.operation === 'trend' ? buildTrendResult(periods.map(find), plan.metric, plan.mode)
     : plan.operation === 'compare' ? buildCompareResult(find(plan.base), find(plan.current), plan.metric, plan.mode)

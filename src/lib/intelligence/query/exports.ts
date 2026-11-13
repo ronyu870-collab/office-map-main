@@ -1,3 +1,5 @@
+import { buildResultChart } from './charts';
+import { resultViewSchema, units } from './presentation';
 import type { QueryResult, ResultCell } from './result';
 import { resultDigest } from './result';
 
@@ -49,6 +51,7 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
       if (typeof typed.v === 'string') { typed.t = 's'; delete typed.f; }
     }
     XLSX.utils.book_append_sheet(workbook, sheet, name);
+    return sheet;
   };
   const metadataRows = (key: string, value: string): string[][] => {
     if (value.length <= 30000) return [[key, value]];
@@ -59,6 +62,26 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['entity_id', ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
     ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
+  if (result.operation === 'cross_aggregate') {
+    // Reuse the exact axis/cell validator, then copy original typed cells. No
+    // regrouping, pivot aggregate, fresh data read or rounded recomputation.
+    const chart = buildResultChart(resultViewSchema.parse(result), { kind: 'heatmap' }), grid = chart.grid!;
+    for (const [field, name] of [['value', '交叉指标'], ['usedCount', '交叉样本'], ['denominator', '交叉分母']] as const) {
+      const column = result.table.columns.find(c => c.key === field)!;
+      const sheet = append(name, [
+        ['result_id', result.resultId], ['指标', `${column.label} (${units[column.unit ?? ''] ?? column.unit ?? ''})`],
+        ['子市场 / 等级', ...grid.columns.map(c => c.label)],
+        ...grid.rows.map((row, i) => [row.label, ...grid.columns.map((_, j) => {
+          const cell = result.table.rows[i * grid.columns.length + j].cells[field];
+          return cell.kind === 'unknown' ? '未知（无有效样本）' : cellValue(cell);
+        })]),
+      ]);
+      if (column.unit === 'ratio') grid.rows.forEach((_, i) => grid.columns.forEach((_, j) => {
+        const cell = sheet[XLSX.utils.encode_cell({ r: i + 3, c: j + 1 })];
+        if (cell?.t === 'n') cell.z = '0.00%';
+      }));
+    }
+  }
   append('精确值与来源', [
     ['entity_id', 'field', 'state', 'numerator', 'denominator', 'source_ids'],
     ...result.table.rows.flatMap(row => result.table.columns.map(column => {

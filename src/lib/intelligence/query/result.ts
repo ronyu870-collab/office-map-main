@@ -6,6 +6,7 @@ import { assertFieldContext, getFact } from './facts';
 import { FIELD_REGISTRY_VERSION, numericFields, type NumericField } from './registry';
 import { DIMENSION_REGISTRY_VERSION, catalogDimensions, type CatalogDimension } from './registry';
 import { groupedQuarterAnalysis } from './grouping';
+import { crossTabQuarter } from './crossTab';
 
 const BROCHURE_LIMITATION = '楼书记录尚未确定有效版本优先级；不同值按冲突处理，相同值也不能据此确认当前现实状态。';
 
@@ -25,10 +26,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;
@@ -121,6 +122,38 @@ export function buildAggregateResult(snapshot: FactSnapshot, metric: Parameters<
         : { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] } } }],
     },
   }, fields);
+}
+
+export function buildCrossTabResult(selected: FactSnapshot, universe: FactSnapshot, metric: Parameters<typeof aggregateQuarter>[1]): QueryResult {
+  const analysis = crossTabQuarter(selected, universe, metric);
+  const fields: NumericField[] = metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
+  const unit = metric === 'rent' ? 'CNY/m2/month' : metric === 'vacancy' ? 'ratio' : 'm2';
+  const count = (n: number, sourceIds: readonly string[]): ResultCell => ({ kind: 'number', value: { exact: { numerator: String(n), denominator: '1' }, numeric: n }, sourceIds });
+  const result = envelope(universe, { operation: 'cross_aggregate', analysis,
+    parameters: { metric, period: universe.period, dimensionVersion: DIMENSION_REGISTRY_VERSION, tableVersion: 'cross-quarter/1',
+      rowDimension: 'submarket', columnDimension: 'grade', rowGroups: analysis.rows, columnGroups: analysis.columns },
+    table: { id: 'cross_quarters', columns: [
+      { key: 'name', label: '子市场', unit: null }, { key: 'grade', label: '等级', unit: null },
+      { key: 'value', label: metric === 'rent' ? '面积加权净有效租金' : metric === 'vacancy' ? '空置率' : '总面积', unit },
+      { key: 'usedCount', label: '有效样本', unit: 'building_count' },
+      { key: 'denominator', label: metric === 'totalArea' ? '样本分母' : '有效面积分母', unit: metric === 'totalArea' ? 'building_count' : 'm2' },
+      { key: 'coverage', label: '候选覆盖', unit: null },
+    ], rows: analysis.cells.map(cell => {
+      const row = analysis.rows.find(r => r.key === cell.regionKey)!, column = analysis.columns.find(c => c.key === cell.gradeKey)!;
+      const a = cell.analysis, c = a.coverage;
+      const sourceIds = [...new Set([...cell.membershipSourceIds, ...a.contributions.flatMap(c => c.sourceIds), ...a.excluded.flatMap(e => e.sourceIds)])];
+      return { entityId: cell.key, cells: {
+        name: { kind: 'text', value: row.label, sourceIds: row.sourceIds }, grade: { kind: 'text', value: column.label, sourceIds: column.sourceIds },
+        value: a.value ? { kind: 'number', value: a.value, sourceIds } : { kind: 'unknown', state: c.conflict ? 'conflict' : c.invalid ? 'invalid' : c.unverified ? 'unverified' : 'missing', reason: 'no_valid_sample', sourceIds },
+        usedCount: count(c.valid, sourceIds), denominator: { kind: 'number', value: a.denominator, sourceIds },
+        coverage: { kind: 'text', value: `候选 ${c.total}；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}`, sourceIds },
+      } };
+    }) } }, fields);
+  return deepFreeze({ ...result, sources: mergeSources([result.sources, analysis.membershipSources]), limitations: [...result.limitations,
+    '按当前目录子市场与等级交叉，不代表历史季度分类；未填写分类单列未知。',
+    '每格独立使用有效样本与分母；空组合或没有有效样本的指标未知，不是零。不对格均值再次平均，不相加空置率。',
+    '颜色仅帮助比较数值，不代表推荐、风险或因果关系；单楼小样本不能代表整个类别。',
+  ] });
 }
 
 function mergeSources(groups: readonly (readonly SourceRef[])[]): SourceRef[] {

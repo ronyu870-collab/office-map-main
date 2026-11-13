@@ -16,7 +16,7 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
@@ -42,6 +42,8 @@ export function formatExact(value: z.infer<typeof number>, unit: string | null):
   return `${negative && rounded !== BigInt(0) ? '-' : ''}${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? '.' + fraction : ''}`;
 }
 export function cellText(cell: DisplayCell, unit: string | null): string {
+  if (cell.kind === 'unknown' && cell.reason === 'no_valid_sample') return '未知：无有效样本';
+  if (cell.kind === 'unknown' && cell.reason === 'no_common_valid_sample') return '未知：无共同有效样本';
   return cell.kind === 'text' ? cell.value : cell.kind === 'unknown' ? unknownLabels[cell.state] : formatExact(cell.value, unit);
 }
 const coverageSchema = z.object({ total: z.number().int().nonnegative(), valid: z.number().int().nonnegative(),
@@ -74,6 +76,12 @@ export function resultSummary(result: QueryResultView): string[] {
     result.parameters.mode==='paired'?'按全期间共同有效样本查看趋势，各季度使用相同楼宇集合。':'按各期有效样本查看趋势，各季度参与楼宇可能不同。',
     result.parameters.metric==='rent'?'净有效租金按各期有效总面积加权；分母、参与数量和缺失情况见表。':result.parameters.metric==='vacancy'?'空置率按同一有效样本的空置面积合计除以总面积合计；缺期保留未知。':'累加各期有效季度总面积；没有有效样本时显示未知，不记零。',
     ...(rows.every(r=>r.cells.value?.kind!=='number')?['不知道：当前范围没有可用的趋势数值；不会用其他季度或模型知识补齐。']:[])];
+  if (result.operation === 'cross_aggregate') return [
+    '按当前目录子市场 × 等级交叉统计，未填写分类单列未知。',
+    '每格使用独立有效样本与分母，空组合保持未知；单楼小样本不能代表整个类别。',
+    result.parameters.metric === 'rent' ? '净有效租金按有效总面积加权；不能对格均值再求简单平均。' : result.parameters.metric === 'vacancy' ? '空置面积合计除同一有效记录的总面积合计；各格百分比不能相加。' : '累加各格有效季度总面积，未填或无效值不按零处理。',
+    ...(rows.length === 0 || rows.every(row => row.cells.value?.kind !== 'number') ? ['不知道：当前获权范围没有可用的交叉指标值。'] : []),
+  ];
   if (result.operation === 'group_aggregate' || result.operation === 'group_trend') return [
     `按当前目录${result.parameters.groupBy === 'grade' ? '等级' : '子市场'}分别计算，未填写分类单列未知。`,
     result.operation === 'group_trend' && result.parameters.mode === 'paired' ? '每组各自使用全期间共同有效楼宇；不同组不是同一楼宇样本。' : '每组使用当期有效楼宇；参与数量、分母和缺失情况见表。',

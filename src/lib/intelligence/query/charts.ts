@@ -10,15 +10,17 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('period_comparison') }),
   z.strictObject({ kind: z.literal('time_series') }),
   z.strictObject({ kind: z.literal('grouped_time_series') }),
+  z.strictObject({ kind: z.literal('heatmap') }),
 ]);
 export type ChartRequest = z.infer<typeof chartRequestSchema>;
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
-  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown' };
+  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number };
 export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId: string; request: ChartRequest;
-  kind: 'bar' | 'scatter' | 'line' | 'faceted_line'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
+  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
   points: ChartPoint[]; summary: string[]; limitations: string[]; renderedCount: number; unknownCount: number;
   facets?: { key: string; label: string; points: ChartPoint[] }[];
+  grid?: { rows: { key: string; label: string }[]; columns: { key: string; label: string }[] };
   connectNulls: false; zeroBaseline: true };
 
 const projected = (cell: DisplayCell, unit: string | null) => {
@@ -40,7 +42,24 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
   let facets: ResultChart['facets'];
-  if (request.kind === 'grouped_time_series') {
+  let grid: ResultChart['grid'];
+  if (request.kind === 'heatmap') {
+    if (result.operation !== 'cross_aggregate' || result.parameters.tableVersion !== 'cross-quarter/1') throw new Error('CHART_CROSS_TAB_REQUIRED');
+    const axis = z.array(z.object({ key: z.string().min(1), label: z.string() })).max(50);
+    grid = { rows: axis.parse(result.parameters.rowGroups), columns: axis.parse(result.parameters.columnGroups) };
+    if (grid.rows.length * grid.columns.length > 400 || result.table.rows.length !== grid.rows.length * grid.columns.length
+      || new Set(grid.rows.map(r => r.key)).size !== grid.rows.length || new Set(grid.columns.map(c => c.key)).size !== grid.columns.length) throw new Error('CHART_CROSS_AXIS_MISMATCH');
+    yColumn = column('value'); xLabel = '等级';
+    points = grid.rows.flatMap((region, i) => grid!.columns.map((grade, j) => {
+      const row = result.table.rows[i * grid!.columns.length + j], cell = row.cells.value;
+      if (row.entityId !== `${region.key}/${grade.key}` || row.cells.name?.kind !== 'text' || row.cells.name.value !== region.label
+        || row.cells.grade?.kind !== 'text' || row.cells.grade.value !== grade.label || row.cells.usedCount?.kind !== 'number'
+        || !Number.isSafeInteger(row.cells.usedCount.value.numeric) || row.cells.usedCount.value.numeric < 0) throw new Error('CHART_CROSS_AXIS_MISMATCH');
+      return { label: `${region.label} / ${grade.label}`, x: grade.label, y: projected(cell, yColumn.unit), xText: grade.label, yText: cellText(cell, yColumn.unit),
+        xCell: binding(row.entityId, 'grade', row.cells.grade), yCell: binding(row.entityId, 'value', cell), sampleCount: row.cells.usedCount.value.numeric,
+        state: cell.kind === 'number' ? 'valid' as const : 'unknown' as const };
+    }));
+  } else if (request.kind === 'grouped_time_series') {
     if (result.operation !== 'group_trend') throw new Error('CHART_GROUPED_TREND_REQUIRED');
     const periods = quarterRange(quarterSchema.parse(result.parameters.start), quarterSchema.parse(result.parameters.end));
     const groups = z.array(z.object({ key: z.string().min(1), label: z.string(), value: z.string().nullable() })).max(50).parse(result.parameters.groups);
@@ -80,7 +99,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     }
     points = result.table.rows.map(row => {
       const y = row.cells[yColumn.key], x = xColumn ? row.cells[xColumn.key] : null;
-      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation === 'group_trend' && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
+      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation === 'cross_aggregate' && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + (result.operation === 'group_trend' && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
       const numericX = request.kind === 'scatter' && x ? projected(x, xUnit) : label;
       const numericY = projected(y, yColumn.unit);
       return { label, x: numericX, y: numericY, xText: x ? cellText(x, xUnit) : label, yText: cellText(y, yColumn.unit),
@@ -95,9 +114,9 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     if (!Number.isFinite(bounds[1] - bounds[0])) throw new Error('CHART_RANGE_UNSUPPORTED');
   }
   return { version: 'result-chart/1', resultId: result.resultId, tableId: result.table.id, request,
-    kind: request.kind === 'grouped_time_series' ? 'faceted_line' : request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
+    kind: request.kind === 'heatmap' ? 'heatmap' : request.kind === 'grouped_time_series' ? 'faceted_line' : request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
     yLabel: request.kind === 'period_comparison' ? ({ rent: '面积加权净有效租金', vacancy: '空置率', totalArea: '总面积' }[result.parameters.metric as 'rent' | 'vacancy' | 'totalArea'] ?? '指标') : yColumn.label,
-    xUnit, yUnit: yColumn.unit!, points, ...(facets ? { facets } : {}), renderedCount, unknownCount: points.length - renderedCount, connectNulls: false, zeroBaseline: true,
+    xUnit, yUnit: yColumn.unit!, points, ...(facets ? { facets } : {}), ...(grid ? { grid } : {}), renderedCount, unknownCount: points.length - renderedCount, connectNulls: false, zeroBaseline: true,
     summary: resultSummary(result), limitations: [...result.limitations,
       ...(request.kind==='time_series'?['按连续季度等间距排列；未知季度断开折线，单个有效季度只显示点。']:[]),
       ...(request.kind==='grouped_time_series'?['每组单独一行折线，共用相同季度和纵轴范围；未知季度断线，不连接不同组。']:[]),
@@ -142,14 +161,34 @@ const wrap = (value: string, size: number): string[] => {
  * bindings. Large plots fail explicitly rather than silently dropping rows. */
 export function renderChartSvg(chart: ResultChart): string {
   if (chart.points.length > (chart.kind === 'bar' ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
-  const width = 960, left = 300, right = 780, top = 36;
+  const width = chart.kind === 'heatmap' ? Math.max(960, 260 + (chart.grid?.columns.length ?? 0) * 160) : 960, left = 300, right = 780, top = 36;
   const elements: string[] = [];
   const text = (x: number, y: number, value: string, extra = '') => elements.push(`<text x="${x}" y="${y}" ${extra}>${xml(value)}</text>`);
   const paragraph = (content: string, y: number, size = 64) => { const lines = wrap(content, size); lines.forEach((line, i) => text(24, y + i * 22, line)); return y + lines.length * 22 + 8; };
   let y = paragraph(chart.title, top);
   for (const line of chart.summary) y = paragraph(line, y);
   y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
-  if (chart.kind === 'bar') {
+  if (chart.kind === 'heatmap') {
+    if (!chart.grid) throw new Error('CHART_CROSS_TAB_REQUIRED');
+    const { rows, columns } = chart.grid, cellWidth = 160, labelWidth = 240;
+    y = paragraph(heatmapLegend(chart), y);
+    const headerHeight = Math.max(44, ...columns.map(c => wrap(c.label, 9).length * 22 + 16));
+    text(24, y + 24, '子市场 / 等级');
+    columns.forEach((c, j) => wrap(c.label, 9).forEach((line, n) => text(labelWidth + j * cellWidth + 12, y + 24 + n * 22, line)));
+    y += headerHeight;
+    rows.forEach((r, i) => {
+      const height = Math.max(74, wrap(r.label, 14).length * 22 + 16, ...columns.map((_, j) => wrap(chart.points[i * columns.length + j].yText, 10).length * 22 + 44));
+      wrap(r.label, 14).forEach((line, n) => text(24, y + 24 + n * 22, line));
+      columns.forEach((c, j) => {
+        const point = chart.points[i * columns.length + j], x = labelWidth + j * cellWidth;
+        elements.push(`<rect x="${x}" y="${y}" width="${cellWidth}" height="${height}" fill="${heatmapFill(point.y, chartBounds(chart, 'y'))}" stroke="#cbd5e1"/>`);
+        const valueLines = wrap(point.y === null ? '未知' : point.yText, 10);
+        valueLines.forEach((line, n) => text(x + 12, y + 28 + n * 22, line));
+        text(x + 12, y + 32 + valueLines.length * 22, `有效 ${point.sampleCount} 栋`);
+      });
+      y += height;
+    });
+  } else if (chart.kind === 'bar') {
     const [min, max] = chartBounds(chart, 'y');
     const span = max - min;
     if (!Number.isFinite(span)) throw new Error('CHART_RANGE_UNSUPPORTED');
@@ -198,4 +237,15 @@ export function renderChartSvg(chart: ResultChart): string {
   for (const limitation of chart.limitations) y = paragraph(limitation, y);
   y = paragraph(`结果 ${chart.resultId}；完整来源、精确值及条件见同包 manifest.json。仅供内部分析。`, y);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${y + 16}" viewBox="0 0 ${width} ${y + 16}" role="img"><title>${xml(chart.yLabel)}</title><desc>${xml(chart.title)}</desc><metadata>${xml(JSON.stringify(chart))}</metadata><rect width="100%" height="100%" fill="#fff"/><g font-family="system-ui, sans-serif" font-size="14" font-weight="400" fill="#172033">${elements.join('')}</g></svg>`;
+}
+
+/** A restrained single-hue scale; text and sample counts carry the facts. */
+export function heatmapFill(value: number | null, bounds: [number, number]): string {
+  if (value === null) return '#f3f4f6';
+  const t = Math.max(0, Math.min(1, (value - bounds[0]) / (bounds[1] - bounds[0] || 1)));
+  return `rgb(${[242, 246, 250].map((base, i) => Math.round(base + ([186, 209, 232][i] - base) * t)).join(',')})`;
+}
+export function heatmapLegend(chart: ResultChart): string {
+  const [min, max] = chartBounds(chart, 'y');
+  return `统一色阶 ${min}–${max} ${units[chart.yUnit] ?? chart.yUnit}，颜色越深数值越大；灰色“未知”不按零着色。有效样本见各格，分母与排除情况见原表。`;
 }
