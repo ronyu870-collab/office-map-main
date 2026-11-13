@@ -96,8 +96,9 @@
   color: var(--cd-color-text-secondary);
   padding: 8px;
 }
-.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; }
 .actions, .footer { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.footer { margin-left: auto; }
 .iconButton {
   display: inline-grid;
   place-items: center;
