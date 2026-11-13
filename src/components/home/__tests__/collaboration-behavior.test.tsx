@@ -69,10 +69,11 @@ describe('market communication on homepage', () => {
     state.notificationUpdate.mockReset().mockResolvedValue({ error: null });
     state.fetch.mockReset().mockImplementation(async (url: string, options?: RequestInit) => {
       if (options?.method === 'POST') return { ok: true, status: 201, json: async () => ({ id: 42 }) };
-      return { ok: true, json: async () => ({ members: [
-        { id: '22222222-2222-4222-8222-222222222222', name: '测试同事' },
-        { id: '33333333-3333-4333-8333-333333333333', name: '测试经理' },
-      ], canMentionEveryone: true }) };
+      const name = new URL(url, 'https://synthetic.invalid').searchParams.get('name');
+      return { ok: true, json: async () => ({
+        members: name === 'alice' ? [{ id: '22222222-2222-4222-8222-222222222222', name: 'Alice Wang' }]
+          : name === '所有人' ? [{ id: '__everyone__', name: '所有人' }] : [],
+      }) };
     });
     vi.stubGlobal('fetch', state.fetch);
     window.history.replaceState({}, '', '/');
@@ -121,29 +122,59 @@ describe('market communication on homepage', () => {
     expect(JSON.parse(String(request?.[1]?.body)).replyToId).toBe(1);
   });
 
-  it('searches actual directory members and publishes selected user and everyone tokens', async () => {
+  it('keeps bare @ and partial names ordinary text, showing only a completed English first-name match', async () => {
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('暂无市场交流');
-    await user.type(editor(), '@测试');
-    const chosen = await screen.findByRole('option', { name: '@测试同事' });
+    await user.type(editor(), '@');
+    expect(screen.queryByRole('listbox', { name: '匹配的提及成员' })).not.toBeInTheDocument();
+    expect(state.fetch.mock.calls.some(call => String(call[0]).includes('name='))).toBe(false);
+    await user.type(editor(), 'Ali');
+    await new Promise(resolve => setTimeout(resolve, 240));
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    const sentQueries = state.fetch.mock.calls.filter(call => String(call[0]).includes('?name='));
+    expect(sentQueries.every(call => String(call[0]).includes('name=ali'))).toBe(true);
+    await user.type(editor(), 'ce');
+    const chosen = await screen.findByRole('option', { name: '@Alice Wang' });
+    expect(editor()).toHaveFocus();
     await user.click(chosen);
-    expect(editor().textContent).toContain('@测试同事');
+    expect(editor().textContent).toContain('@Alice Wang');
     await user.type(editor(), '请看');
     fireEvent.keyDown(editor(), { key: 'Enter', ctrlKey: true });
     await waitFor(() => expect(state.fetch.mock.calls.some(call => call[1]?.method === 'POST')).toBe(true));
-    const request = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
-    expect(JSON.parse(String(request?.[1]?.body)).segments).toEqual(expect.arrayContaining([
-      expect.objectContaining({ mentionUserId: '22222222-2222-4222-8222-222222222222' }),
+    const post = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '@Alice Wang', mentionUserId: '22222222-2222-4222-8222-222222222222' }),
     ]));
+    expect(state.fetch.mock.calls.some(call => String(call[0]) === '/api/communication' && !call[1]?.method)).toBe(false);
+  });
+
+  it('treats typed @alice as plain content until a suggestion is explicitly selected', async () => {
+    const user = userEvent.setup();
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+    await screen.findByText('暂无市场交流');
+    await user.type(editor(), '@alice');
+    await screen.findByRole('option', { name: '@Alice Wang' });
+    fireEvent.keyDown(editor(), { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(state.fetch.mock.calls.some(call => call[1]?.method === 'POST')).toBe(true));
+    const post = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual([{ text: '@alice' }]);
+  });
+
+  it('never suggests administrators broadcast until the full @所有人 token is entered', async () => {
+    const user = userEvent.setup();
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+    await screen.findByText('暂无市场交流');
     await user.type(editor(), '@所');
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    await user.type(editor(), '有人');
     await user.click(await screen.findByRole('option', { name: /@所有人/ }));
     fireEvent.keyDown(editor(), { key: 'Enter', ctrlKey: true });
-    await waitFor(() => expect(state.fetch.mock.calls.filter(call => call[1]?.method === 'POST').length).toBe(2));
-    const last = state.fetch.mock.calls.filter(call => call[1]?.method === 'POST').at(-1);
-    expect(JSON.parse(String(last?.[1]?.body)).segments).toEqual(expect.arrayContaining([
+    await waitFor(() => expect(state.fetch.mock.calls.filter(call => call[1]?.method === 'POST').length).toBe(1));
+    const post = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual([
       expect.objectContaining({ everyone: true, text: '@所有人' }),
-    ]));
+    ]);
   });
 
   it('retains content when sending fails, and blocks duplicate in-flight request', async () => {
