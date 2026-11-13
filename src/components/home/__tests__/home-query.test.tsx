@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
-import { buildAggregateResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
@@ -20,6 +20,30 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('keeps group facets on one scale with provenance and clears them when eligibility is revoked', async () => {
+    const snapshots = [2, 3].map(quarter => {
+      const original = fixture({ year: 2026, quarter });
+      return { ...original, rows: original.rows.map((row, i) => { const value = i < 2 ? 'CBD' : '金融街'; return { ...row,
+        dimensions: { submarket: { value, source: { ...row.nameSource, id: `submarket/${row.id}`, field: 'submarket', rawValue: value } } },
+      }; }) };
+    });
+    const result = resultViewSchema.parse(buildGroupedResult(snapshots, snapshots, 'submarket', 'rent', 'per_period'));
+    client.submit.mockResolvedValue({ requestId, status: 'ready', result });
+    client.chart.mockImplementation(async (_scope, _id, result, request) => buildResultChart(result, request));
+    render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { value: '分区域趋势' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    fireEvent.click(await screen.findByRole('button', { name: '查看折线图' }));
+    const figure = await screen.findByRole('figure', { name: '同源查询图表' });
+    expect(figure).toHaveTextContent('各组共用相同纵轴范围'); expect(figure.querySelectorAll('svg')).toHaveLength(2);
+    expect(screen.getByRole('img', { name: /^CBD，面积加权净有效租金季度趋势/ })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /^金融街，面积加权净有效租金季度趋势/ })).toBeInTheDocument();
+    await waitFor(() => expect(client.reportDelivery.mock.calls.some(call => call[3]?.layout === 'faceted_line_all')).toBe(true));
+    fireEvent.click(screen.getAllByRole('button', { name: '查看来源：子市场 CBD' })[0]);
+    expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('submarket');
+    client.capabilities.mockResolvedValue({ enabled: false, examples: [] }); fireEvent.focus(window);
+    await waitFor(() => expect(screen.queryByRole('figure')).not.toBeInTheDocument());
+    expect(screen.queryByRole('region', { name: '来源详情' })).not.toBeInTheDocument();
+  });
   it('renders a quarterly gap and switches graph type without rerunning data', async () => {
     const snapshots = [1, 2, 3, 4].map(quarter => fixture({ year: 2026, quarter }));
     snapshots[2] = { ...snapshots[2], rows: snapshots[2].rows.map(row => ({ ...row, facts: { ...row.facts,

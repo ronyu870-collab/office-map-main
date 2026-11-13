@@ -21,6 +21,8 @@ const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
   z.strictObject({ ...common, operation: z.literal('aggregate'), metric: metricSchema, period: quarterSchema }),
   z.strictObject({ ...common, operation: z.literal('trend'), metric: metricSchema, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
+  z.strictObject({ ...common, operation: z.literal('group_aggregate'), metric: metricSchema, period: quarterSchema, groupBy: z.enum(['submarket', 'grade']) }),
+  z.strictObject({ ...common, operation: z.literal('group_trend'), metric: metricSchema, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']), groupBy: z.enum(['submarket', 'grade']) }),
   z.strictObject({ ...common, operation: z.literal('compare'), metric: metricSchema, base: quarterSchema, current: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
 ]);
 export type QueryPlan = z.infer<typeof planSchema>;
@@ -44,7 +46,7 @@ export function parseQueryPlan(input: unknown): QueryPlan {
   }
   const plan = planSchema.parse(input);
   if (plan.operation === 'list' && new Set(plan.fields).size !== plan.fields.length) throw new Error('DUPLICATE_QUERY_FIELD');
-  if (plan.operation === 'trend') quarterRange(plan.start, plan.end);
+  if (plan.operation === 'trend' || plan.operation === 'group_trend') quarterRange(plan.start, plan.end);
   return plan;
 }
 
@@ -56,5 +58,5 @@ export function quarterRange(start: Quarter, end: Quarter): Quarter[] {
   return Array.from({length:last-first+1},(_,i)=>({year:Math.floor((first+i)/4),quarter:(first+i)%4+1}));
 }
 export function planPeriods(plan: QueryPlan): (Quarter|null)[] {
-  return plan.operation==='trend'?quarterRange(plan.start,plan.end):plan.operation==='compare'?[plan.base,plan.current]:[plan.period];
+  return plan.operation==='trend'||plan.operation==='group_trend'?quarterRange(plan.start,plan.end):plan.operation==='compare'?[plan.base,plan.current]:[plan.period];
 }

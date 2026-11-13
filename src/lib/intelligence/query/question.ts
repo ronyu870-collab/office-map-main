@@ -1,6 +1,6 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/3';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/4';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -25,6 +25,12 @@ export function resolveBusinessQuestion(question: string): QuestionResolution {
     message: '还不能可靠理解完整条件。请明确子市场、指标及年份季度，每次查询一个问题；例如“CBD有哪些楼”“CBD最高的楼是什么”或“2026年第三季度CBD净有效租金”。租金需明确口径，暂不支持的条件不会被忽略。' } };
   if (!question || question.length > 6000) return clarification;
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
+  const marketList = `(${QUESTION_SUBMARKETS.join('|')})(?:、(?:${QUESTION_SUBMARKETS.join('|')}))*`;
+  const groupedScope = (value: string): QueryPlan['scope'] => ({ inventory: 'tracked', ...(value === '全部获权楼宇' ? {} : { submarkets: [...new Set(value.split('、'))] }) });
+  let grouped = new RegExp(`^${period}((?:${marketList})|全部获权楼宇)${metric}按(子市场|等级)比较$`).exec(text);
+  if (grouped) return { kind: 'plan', plan: parseQueryPlan({ operation: 'group_aggregate', period: quarter(grouped[1], grouped[2], grouped[3]), scope: groupedScope(grouped[4]), metric: metrics[grouped[6] as keyof typeof metrics], groupBy: grouped[7] === '等级' ? 'grade' : 'submarket' }) };
+  grouped = new RegExp(`^((?:${marketList})|全部获权楼宇)${metric}${period}(?:至|到)${period}按(子市场|等级)趋势(各期样本|全期间共同样本)$`).exec(text);
+  if (grouped) { try { return { kind: 'plan', plan: parseQueryPlan({ operation: 'group_trend', scope: groupedScope(grouped[1]), metric: metrics[grouped[3] as keyof typeof metrics], start: quarter(grouped[4], grouped[5], grouped[6]), end: quarter(grouped[7], grouped[8], grouped[9]), groupBy: grouped[10] === '等级' ? 'grade' : 'submarket', mode: grouped[11] === '各期样本' ? 'per_period' : 'paired' }) }; } catch { return clarification; } }
   let match = new RegExp(`^${markets}(?:里|内)?(?:有哪些楼(?:宇)?|有多少栋楼|楼宇列表)$`).exec(text);
   if (match) return { kind: 'plan', plan: parseQueryPlan({ operation: 'list', scope: scope(match[1]), fields: [], period: null }) };
   match = new RegExp(`^${markets}(?:里|内)?(?:最高的楼(?:是什么|是哪栋)?|建筑高度最高的楼(?:是什么|是哪栋)?)$`).exec(text);

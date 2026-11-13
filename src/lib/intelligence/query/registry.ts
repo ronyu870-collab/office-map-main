@@ -1,4 +1,10 @@
 export const FIELD_REGISTRY_VERSION = 'trusted-query-fields/1';
+export const DIMENSION_REGISTRY_VERSION = 'current-catalog-dimensions/1';
+export const catalogDimensions = {
+  submarket: { label: '子市场', table: 'buildings', column: 'submarket', temporal: 'current_catalog' },
+  grade: { label: '等级', table: 'buildings', column: 'grade', temporal: 'current_catalog' },
+} as const;
+export type CatalogDimension = keyof typeof catalogDimensions;
 
 /** Only reviewed numeric semantics enter this registry. Existence of a SQL column is insufficient. */
 export const numericFields = {

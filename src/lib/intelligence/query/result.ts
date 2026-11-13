@@ -4,6 +4,8 @@ import { aggregateQuarter, compareQuarters, rankBuildings, trendQuarters } from 
 import { assertComplete, quarterKey, type FactSnapshot, type NumericOutput, type SourceRef } from './contracts';
 import { assertFieldContext, getFact } from './facts';
 import { FIELD_REGISTRY_VERSION, numericFields, type NumericField } from './registry';
+import { DIMENSION_REGISTRY_VERSION, catalogDimensions, type CatalogDimension } from './registry';
+import { groupedQuarterAnalysis } from './grouping';
 
 const BROCHURE_LIMITATION = '楼书记录尚未确定有效版本优先级；不同值按冲突处理，相同值也不能据此确认当前现实状态。';
 
@@ -23,10 +25,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;
@@ -174,6 +176,43 @@ export function buildTrendResult(snapshots: readonly FactSnapshot[], metric: Par
           coverage:{kind:'text',value:`候选 ${c.total}；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}`,sourceIds:all}}};})}},fields);
   return deepFreeze({...result,sources,limitations:[...result.limitations,'时间范围逐季连续展开；没有有效值的季度保留未知，不跨期补值或填零。',
     mode==='paired'?'共同样本是全部查询季度中均满足条件且指标有效的楼宇交集；任一期全缺会使共同样本为空。':'各期分别使用当期有效样本，样本变化可能影响趋势，不据此解释市场原因。']});
+}
+
+export function buildGroupedResult(selected: readonly FactSnapshot[], universe: readonly FactSnapshot[], dimension: CatalogDimension,
+  metric: Parameters<typeof trendQuarters>[1], mode: 'per_period' | 'paired'): QueryResult {
+  const analysis = groupedQuarterAnalysis(selected, universe, dimension, metric, mode);
+  const fields: NumericField[] = metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
+  const unit = metric === 'rent' ? 'CNY/m2/month' : metric === 'vacancy' ? 'ratio' : 'm2';
+  const sources = mergeSources([...universe.map(s => collectSources(s, fields)), analysis.membershipSources]);
+  const count = (n: number, sourceIds: readonly string[]): ResultCell => ({ kind: 'number', value: { exact: { numerator: String(n), denominator: '1' }, numeric: n }, sourceIds });
+  const trend = selected.length > 1;
+  const result = envelope(universe.at(-1)!, { operation: trend ? 'group_trend' : 'group_aggregate',
+    parameters: { metric, mode, groupBy: dimension, dimensionVersion: DIMENSION_REGISTRY_VERSION, tableVersion: 'grouped-quarter/1',
+      ...(trend ? { start: selected[0].period, end: selected.at(-1)!.period } : { period: selected[0].period }),
+      groups: analysis.groups.map(g => ({ key: g.key, value: g.value, label: g.label })) }, analysis,
+    table: { id: 'grouped_quarters', columns: [
+      { key: 'name', label: catalogDimensions[dimension].label, unit: null }, { key: 'period', label: '季度', unit: null },
+      { key: 'value', label: metric === 'rent' ? '面积加权净有效租金' : metric === 'vacancy' ? '空置率' : '总面积', unit },
+      { key: 'usedCount', label: '实际参与', unit: 'building_count' }, { key: 'availableCount', label: '有效样本', unit: 'building_count' },
+      { key: 'denominator', label: metric === 'totalArea' ? '样本分母' : '有效面积分母', unit: metric === 'totalArea' ? 'building_count' : 'm2' },
+      { key: 'coverage', label: '候选覆盖', unit: null },
+    ], rows: analysis.groups.flatMap(group => group.analysis.periods.map((p, i) => {
+      const ids = new Set(group.entityIds), all = [...group.sourceIds, ...universe[i].rows.filter(row => ids.has(row.id)).flatMap(row => [row.nameSource.id, ...fields.flatMap(field => getFact(row, field).sources.map(s => s.id))])];
+      const used = [...new Set([...p.sourceIds, ...group.sourceIds])], coverage = p.availableCoverage;
+      return { entityId: `${group.key}/${quarterKey(p.period)}`, cells: {
+        name: { kind: 'text', value: group.label, sourceIds: group.sourceIds }, period: { kind: 'text', value: quarterKey(p.period), sourceIds: [] },
+        value: p.value ? { kind: 'number', value: p.value, sourceIds: used } : { kind: 'unknown', state: 'missing', reason: mode === 'paired' ? 'no_common_valid_sample' : 'no_valid_sample', sourceIds: [...new Set(all)] },
+        usedCount: count(p.usedEntityIds.length, used), availableCount: count(coverage.valid, [...new Set(all)]),
+        denominator: { kind: 'number', value: p.denominator, sourceIds: used },
+        coverage: { kind: 'text', value: `候选 ${coverage.total}；缺失 ${coverage.missing}、无效 ${coverage.invalid}、冲突 ${coverage.conflict}、未核验 ${coverage.unverified}`, sourceIds: [...new Set(all)] },
+      } };
+    })) },
+  }, fields);
+  return deepFreeze({ ...result, sources, limitations: [...result.limitations,
+    `按当前目录的${catalogDimensions[dimension].label}分组，不代表历史季度的分类；未填写的分类单列未知。`,
+    '空组或无有效样本的指标未知，不是零；当前获权样本不代表该区域或等级的现实全集。',
+    ...(trend ? [mode === 'paired' ? '每组分别取全部查询季度的共同有效楼宇交集；不是跨区域取同一批楼宇。' : '每组各期独立取有效样本；样本变化可能影响趋势，不推断市场原因。', '缺期保留未知，不跨期补值。'] : []),
+  ] });
 }
 
 /** Trusted executor adds the complete authorized filter decision trail, including

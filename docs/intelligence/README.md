@@ -36,3 +36,5 @@
 审计导出中断恢复：[持久观察、失败补记、独立对账及未知交付语义](audit-export-reconciliation.md)。
 
 多季度趋势：[连续期间、全期间共同样本、同源折线和导出](quarter-trends.md)。
+
+区域与等级分组：[同一快照、各组独立样本、共同纵轴折线与分组来源](grouped-quarters.md)。

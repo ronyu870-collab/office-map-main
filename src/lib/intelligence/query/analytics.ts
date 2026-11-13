@@ -146,7 +146,13 @@ export function compareQuarters(base: FactSnapshot, current: FactSnapshot, metri
 /** Paired means the intersection of valid, selected entities over EVERY quarter,
  * not a different pair at each adjacent point. Empty quarters stay in the series. */
 export function trendQuarters(snapshots: readonly FactSnapshot[], metric: AggregateMetric, mode: 'per_period'|'paired') {
-  if(!['per_period','paired'].includes(mode) || snapshots.length<2 || snapshots.length>40)throw new Error('INVALID_TREND');
+  if(snapshots.length<2)throw new Error('INVALID_TREND');
+  return quarterSeries(snapshots,metric,mode);
+}
+
+/** Shared aggregate series; a single quarter is also used by grouped comparison. */
+export function quarterSeries(snapshots: readonly FactSnapshot[], metric: AggregateMetric, mode: 'per_period'|'paired') {
+  if(!['per_period','paired'].includes(mode) || snapshots.length<1 || snapshots.length>40)throw new Error('INVALID_TREND');
   if(new Set(snapshots.map(s=>s.dataVersion)).size!==1 || new Set(snapshots.map(s=>s.scopeFingerprint)).size!==1)throw new Error('TREND_SCOPE_MISMATCH');
   for(let i=0;i<snapshots.length;i++){
     const p=snapshots[i].period,prev=snapshots[i-1]?.period;

@@ -30,6 +30,7 @@ export type BuildingFacts = Readonly<{
   id: string;
   name: string;
   nameSource: SourceRef;
+  dimensions?: Readonly<Partial<Record<'submarket' | 'grade', Readonly<{ value: string | null; source: SourceRef }>>>>;
   facts: Readonly<Partial<Record<NumericField, NumericFact>>>;
 }>;
 

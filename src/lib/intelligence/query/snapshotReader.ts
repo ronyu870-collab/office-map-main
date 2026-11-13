@@ -78,6 +78,7 @@ export function normalizeSnapshot(input:unknown,plan:QueryPlan,authority:DataAut
       queryScope:{...plan.scope,filter:plan.filter??null,requestedFields:read.fields,inventoryTime:raw.inventory_time,brochureSelection:raw.brochure_selection,readAt:raw.read_at},
       rows:raw.rows.map(row=>({id:row.id,name:row.name,
         nameSource:{id:`buildings/${row.id}/name/${row.version}`,table:'buildings',recordId:row.id,field:'name',entityId:row.id,recordVersion:row.version,rawValue:row.name,unit:'text',period:null,recordedAt:null,businessAsOf:null,verification:'database_only',original:null},
+        dimensions:Object.fromEntries((['submarket','grade'] as const).map(field=>[field,{value:row[field],source:{id:`buildings/${row.id}/${field}/${row.version}`,table:'buildings',recordId:row.id,field,entityId:row.id,recordVersion:row.version,rawValue:row[field],unit:'text',period:null,recordedAt:null,businessAsOf:null,verification:'database_only',original:null}}])),
         facts:Object.fromEntries(read.fields.map(field=>{
           const records=numericFields[field].temporal==='quarter'?row.metrics.filter(metric=>period&&metric.year===period.year&&metric.quarter===period.quarter):row.brochures;
           return [field,resolveNumericFact(field,row.id,records.map(record=>toRef(row.id,field,record,numericFields[field].temporal==='quarter'?period:null)),period)];

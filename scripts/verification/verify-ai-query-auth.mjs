@@ -17,6 +17,7 @@ import { verifyAuditExport } from './ai-audit-export-scenarios.mjs';
 import { verifyAuditPeople } from './ai-audit-people-scenarios.mjs';
 import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
+import { verifyGroupedQuarter } from './ai-query-group-scenarios.mjs';
 import { verifyAuditConsole } from './ai-audit-console-scenarios.mjs';
 import { addSnapshotFixture, BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
 
@@ -93,6 +94,7 @@ try{
   await db.query(await load('20261113130012_ai_audit_actor_directory.sql'));
   await db.query(await load('20261113132136_ai_audit_controlled_export.sql'));
   await db.query(await load('20261113135841_ai_audit_export_reconciliation.sql'));
+  await db.query(await load('20261113145743_ai_query_group_dimensions.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -131,7 +133,7 @@ try{
   await check('主页能力清单遵守真实身份、独立资格与当前字段权限',async()=>{
     assert.equal((await capabilities(null)).status,403);
     assert.equal((await capabilities(admin)).body.enabled,false);
-    const allowed=await capabilities(queryAdmin);assert.equal(allowed.body.enabled,true);assert.equal(allowed.body.examples.length,5);assert.match(allowed.headers.get('cache-control'),/no-store/);
+    const allowed=await capabilities(queryAdmin);assert.equal(allowed.body.enabled,true);assert.equal(allowed.body.examples.length,6);assert.match(allowed.headers.get('cache-control'),/no-store/);
     assert.equal((await capabilities(queryAdmin,{'X-Colliers-Impersonate-User':admin.id})).body.enabled,false);
     await grantQuery({setup:db},queryAdmin.id,{fields:[]});
     const catalog=await capabilities(queryAdmin);assert.deepEqual(catalog.body.examples,['CBD有哪些楼']);assert.notEqual(catalog.body.permissionRevision,allowed.body.permissionRevision);
@@ -143,7 +145,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(queryAdmin,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/3');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/4');
     }
     const compared=await call(queryAdmin,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -552,6 +554,8 @@ try{
   await verifyAuditExport({db,app,check,person,successful,blocker,until,startApp,settings,stopApp:async()=>{const stopped=once(server,'exit');server.kill('SIGKILL');assert.equal((await stopped)[1],'SIGKILL');}});
   await verifyAdminOnly({db,app,check,person,call,input,capabilities,recover,artifact,acknowledge,exportCaps});
   await verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps});
+  const dataApiDbUrl=new URL(settings.DB_URL);dataApiDbUrl.username='authenticator';
+  await verifyGroupedQuarter({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load,dataApiConnectionString:dataApiDbUrl.href});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
