@@ -294,6 +294,7 @@ jobs:
           node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
           node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
+          node scripts/verification/lease-expiry-timeline-browser.mjs http://127.0.0.1:3210
 
       - name: Retain homepage browser evidence
         if: always()
@@ -329,7 +330,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lease-expiry-review-verification
-          path: verification/lease-expiry
+          path: |
+            verification/lease-expiry
+            verification/lease-expiry-timeline
           if-no-files-found: ignore
           retention-days: 7
 

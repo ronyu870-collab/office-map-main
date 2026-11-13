@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { leaseServiceBrowserBundle } from './lease-service-browser.mjs';
-import { verifyLeaseBackProtection, verifyLeaseFormWorkflow } from './lease-form-browser.mjs';
+import { verifyLeaseExpiryNavigation, verifyLeaseFormWorkflow } from './lease-form-browser.mjs';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { readFile, mkdir, writeFile, open } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
@@ -133,10 +133,11 @@ try{
   assert.equal(submitted.data.transaction_date,null);assert.equal(submitted.data.lease_term_months,3);
   let live=(await call(browserUser)).body.items.find(item=>item.source.id===liveId&&item.source_kind==='live');assert.ok(live);assert.equal(live.review,null);
   assert.equal((await call(viewer)).status,403);
-  await page.goto(app+'/intelligence/lease-expiry');await page.getByRole('button',{name:/合成日常填报接入/}).click();
-  await page.getByText('系统内日常成交填报，按最新已保存数据计算',{exact:true}).waitFor();
-  await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();await page.getByLabel('补充备注').fill('合成日常成交的补充记录');await page.getByRole('button',{name:'保存补充记录',exact:true}).click();await page.getByText('补充记录已保存，预计到期区间仍按成交数据计算。').waitFor();
-  await page.reload();await page.getByRole('button',{name:/合成日常填报接入/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();assert.equal(await page.getByLabel('补充备注').inputValue(),'合成日常成交的补充记录');
+  await page.goto(app+'/intelligence/lease-expiry');await page.waitForURL(app+'/lease-submission/expiry');
+  await page.getByText('合成日常填报接入',{exact:true}).waitFor();
+  assert.equal(await page.locator('form').count(),0);
+  // Compatibility API still preserves prior notes; there is no write form in the new timeline.
+  assert.equal((await call(browserUser,'POST',{source_kind:'live',source_id:liveId,expected_revision:0,source_fingerprint:live.source_fingerprint,request_id:randomUUID(),status:'pending',notes:'合成日常成交的补充记录',evidence_reference:''})).status,200);
   live=(await call(browserUser)).body.items.find(item=>item.source.id===liveId&&item.source_kind==='live');assert.equal(live.review.revision,1);
   await page.addScriptTag({content:serviceBundle});
   const modified=await page.evaluate(async p=>window.F6ActualSubmission.updateTransaction(p.id,{lease_term_months:4},p.user,p.updatedAt),{id:liveId,user:browserUser.id,updatedAt:submitted.data.updated_at});assert.equal(modified.success,true,modified.error);
@@ -144,26 +145,26 @@ try{
   assert.equal((await call(browserUser,'POST',{source_kind:'live',source_id:liveId,expected_revision:1,source_fingerprint:live.source_fingerprint,request_id:randomUUID(),status:'pending',notes:'旧依据',evidence_reference:''})).status,409);
   const removed=await page.evaluate(async id=>{const {error}=await window.F6ActualSubmission.getSupabaseClient().from('lease_transactions').delete().eq('id',id);return error?.message??null;},liveId);assert.equal(removed,null);
   assert.ok(!(await call(browserUser)).body.items.some(item=>item.source.id===liveId&&item.source_kind==='live'));
-  await page.reload();await page.getByLabel('范围').selectOption('saved');await page.getByRole('button',{name:/合成日常填报接入/}).click();await page.getByText('原成交已删除，以下为已存补充记录，不再参与预计到期计算。',{exact:true}).waitFor();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();assert.equal(await page.getByRole('button',{name:'保存补充记录',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('补充备注').inputValue(),'合成日常成交的补充记录');
+  await page.reload();await page.getByRole('table').waitFor();
+  assert.equal(await page.getByText('合成日常填报接入',{exact:true}).count(),0);
+  assert.equal((await db.query("select notes from public.lease_expiry_reviews where source_kind='live' and source_id=$1",[liveId])).rows[0].notes,'合成日常成交的补充记录');
   assert.equal((await db.query("select count(*)::int n from public.lease_expiry_review_events where source_kind='live' and source_id=$1",[liveId])).rows[0].n,1);
-  pass('实际日常填报服务→真实写入→自动入选→浏览器补充回读→修改重算→删除后只读保留');
+  pass('实际日常填报→只读时间图→兼容备注API→修改重算→删除退出且旧备注保留');
   const formResult=await verifyLeaseFormWorkflow({page,db,app,actorId:browserUser.id,dataClient:browserUser.client});pass('完整成交表单、重复确认、空白选填、编辑重算与断网重试',formResult);
-  for(const width of [1280,390]){await page.setViewportSize({width,height:900});await verifyLeaseBackProtection({page,app,company:'合成联调 主要样本'});}
-  pass('真实入口下浏览器返回／链接离开的未保存保护：取消保留，确认离开，单次提示');
-  await page.setViewportSize({width:1280,height:900});
+  for(const width of [1280,390]){await page.setViewportSize({width,height:900});await verifyLeaseExpiryNavigation({page,app,company:'合成联调 主要样本'});}
+  pass('租赁成交入口→时间图→返回成交，无编辑步骤');
   for(const width of [1280,390,320]){
-   await page.setViewportSize({width,height:900});await page.goto(app+'/intelligence/lease-expiry');
-   await page.getByRole('button',{name:/合成联调 主要样本/}).waitFor();await page.screenshot({path:path.join(output,`f6-list-${width}.png`)});
-   await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.screenshot({path:path.join(output,`f6-detail-${width}.png`)});
-   await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();await page.mouse.move(width/2,600);await page.mouse.wheel(0,10000);
-   await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});
-   await page.screenshot({path:path.join(output,`f6-notes-${width}.png`)});
+   await page.setViewportSize({width,height:900});await page.goto(app+'/lease-submission/expiry');
+   await page.getByText('合成联调 主要样本',{exact:true}).waitFor();
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+   await page.screenshot({path:path.join(output,`f6-timeline-${width}.png`),fullPage:true});
   }
-  await page.setViewportSize({width:1280,height:900});
-  await page.goto(app+'/intelligence/lease-expiry');await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();await page.mouse.move(640,600);await page.mouse.wheel(0,10000);await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});await page.getByLabel('补充备注').fill('真实登录浏览器核实，仍缺起租日');await page.getByRole('button',{name:'保存补充记录',exact:true}).click();await page.getByText('补充记录已保存，预计到期区间仍按成交数据计算。').waitFor();await page.reload();await page.getByRole('button',{name:/合成联调 主要样本/}).click();await page.getByText('补充资料或标记问题（可选）',{exact:true}).click();assert.equal(await page.getByLabel('补充备注').inputValue(),'真实登录浏览器核实，仍缺起租日');
-  await page.screenshot({path:path.join(output,'real-login-desktop.png'),fullPage:true});
-  await page.setViewportSize({width:390,height:844});await page.mouse.move(195,600);await page.mouse.wheel(0,10000);await page.waitForFunction(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.textContent==='保存补充记录')?.getBoundingClientRect();return b&&b.top>=0&&b.bottom<=innerHeight;});await page.screenshot({path:path.join(output,'real-login-mobile.png'),fullPage:true});
-  await db.query("update public.user_roles set role='viewer' where user_id=$1",[browserUser.id]);const deniedResponse=page.waitForResponse(res=>res.url().includes('/api/intelligence/lease-expiry')&&res.status()===403);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await deniedResponse;await page.getByLabel('补充备注').waitFor({state:'detached'});assert.equal(await page.getByLabel('补充备注').count(),0);pass('实际登录页→Auth→页面→RPC 保存回读；撤权后清空浏览器数据');
+  await db.query("update public.user_roles set role='viewer' where user_id=$1",[browserUser.id]);
+  const deniedResponse=page.waitForResponse(res=>res.url().includes('/api/lease-transactions/expiry')&&res.status()===403);
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await deniedResponse;
+  await page.getByRole('table').waitFor({state:'detached'});
+  assert.equal(await page.getByText('合成联调 主要样本',{exact:true}).count(),0);
+  pass('实际登录页→Auth→时间图→RPC读取；撤权后清空浏览器数据');
  }
 }catch(error){if(browser){for(const context of browser.contexts())for(const page of context.pages()){const diagnostic=await page.evaluate(()=>({path:location.pathname,ready:document.readyState,forms:[...document.querySelectorAll('form')].map(form=>({props:Object.keys(form).filter(k=>k.startsWith('__react')),submitHandler:Object.keys(form).some(k=>k.startsWith('__reactProps$')&&typeof form[k]?.onSubmit==='function')}))})).catch(()=>null);results.push({diagnostic});}}let message=error.message;for(const person of people){message=message.replaceAll(person.password,'[test-secret]').replaceAll(person.token??'__absent__','[test-token]');}results.push({status:'failed',error:message});console.error(message);process.exitCode=1;}
 finally{
