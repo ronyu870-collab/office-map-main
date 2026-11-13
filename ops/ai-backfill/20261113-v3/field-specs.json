@@ -1,0 +1,506 @@
+{
+  "batch_id": "ai_building_field_backfill_20261113_v3",
+  "description": "50 individually reviewed historical source facts. Static building engineering parameters only; no brokerage submissions, personal data, or tokens. The remaining 50 entries are guarded SQL selections inside the production database.",
+  "manual_facts": [
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 31340,
+      "scope": "park_total_separate_office_retail",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_office",
+      "value": 18731,
+      "scope": "park_total_separate_office_retail",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_retail",
+      "value": 2328,
+      "scope": "park_total_separate_office_retail",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 4,
+      "target_table": "building_brochure_data",
+      "field": "elevator_passenger",
+      "value": 6,
+      "scope": "two_towers_sum_3plus3_1plus1",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 4,
+      "target_table": "building_brochure_data",
+      "field": "elevator_freight",
+      "value": 2,
+      "scope": "two_towers_sum_3plus3_1plus1",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 5,
+      "target_table": "building_brochure_data",
+      "field": "hvac_system",
+      "value": "两管制风机盘管+新风系统",
+      "scope": "park_office_equipment",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "嘉铭奥森产业园",
+      "material_id": "688d491f-7bc1-5588-8f7d-7eddf3fe3b0a",
+      "fact_index": 5,
+      "target_table": "building_brochure_data",
+      "field": "hvac_fresh_air_capacity",
+      "value": 40,
+      "scope": "park_office_equipment",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "国航世纪大厦",
+      "material_id": "f74138a0-3e6c-5cbf-8a8e-a9d1762c085b",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_total",
+      "value": 720,
+      "scope": "project_total_parking_standard_floor",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "国航世纪大厦",
+      "material_id": "f74138a0-3e6c-5cbf-8a8e-a9d1762c085b",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "standard_floor_area",
+      "value": 3552,
+      "scope": "project_total_parking_standard_floor",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "国航世纪大厦",
+      "material_id": "f74138a0-3e6c-5cbf-8a8e-a9d1762c085b",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floor_height",
+      "value": 4.05,
+      "scope": "project_total_parking_standard_floor",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "国航世纪大厦",
+      "material_id": "f74138a0-3e6c-5cbf-8a8e-a9d1762c085b",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "clear_height",
+      "value": 2.7,
+      "scope": "project_total_parking_standard_floor",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "国航世纪大厦",
+      "material_id": "f74138a0-3e6c-5cbf-8a8e-a9d1762c085b",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "elevator_passenger",
+      "value": 22,
+      "scope": "main_and_podium_passenger_only",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 54732,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_above",
+      "value": 22,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_below",
+      "value": 3,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floor_height",
+      "value": 3.4,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_total",
+      "value": 278,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_above",
+      "value": 22,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "北京佳隆国际大厦",
+      "material_id": "fa047a85-54ce-5236-8c3e-584ef50ba56d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_underground",
+      "value": 256,
+      "scope": "single_building_total_vs_above_below",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "天润财富中心",
+      "material_id": "b4a43fe6-4268-50c1-86e9-222538e4932d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 75150,
+      "scope": "complex_excludes_courtyard_tenants",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "天润财富中心",
+      "material_id": "b4a43fe6-4268-50c1-86e9-222538e4932d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_below",
+      "value": 4,
+      "scope": "complex_excludes_courtyard_tenants",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "天润财富中心",
+      "material_id": "b4a43fe6-4268-50c1-86e9-222538e4932d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "elevator_passenger",
+      "value": 8,
+      "scope": "complex_excludes_courtyard_tenants",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "天润财富中心",
+      "material_id": "b4a43fe6-4268-50c1-86e9-222538e4932d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "elevator_freight",
+      "value": 2,
+      "scope": "complex_excludes_courtyard_tenants",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "天润财富中心",
+      "material_id": "b4a43fe6-4268-50c1-86e9-222538e4932d",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "hvac_fresh_air_capacity",
+      "value": 35,
+      "scope": "complex_excludes_courtyard_tenants",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "丰融国际大厦",
+      "material_id": "70396ae2-fb24-4e7f-a275-a70a672c0e8c",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "building_height",
+      "value": 65,
+      "scope": "physical_attributes_no_conflicting_area",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "丰融国际大厦",
+      "material_id": "70396ae2-fb24-4e7f-a275-a70a672c0e8c",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_total",
+      "value": 510,
+      "scope": "physical_attributes_no_conflicting_area",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "丰融国际大厦",
+      "material_id": "70396ae2-fb24-4e7f-a275-a70a672c0e8c",
+      "fact_index": 2,
+      "target_table": "building_brochure_data",
+      "field": "floor_height",
+      "value": 4.2,
+      "scope": "standard_floor_not_elevator_conflict",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "复星国际中心",
+      "material_id": "6a820a78-e9f7-5183-8824-762b260ec4ac",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 73833.41,
+      "scope": "whole_complex_does_not_modify_office_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "复星国际中心",
+      "material_id": "6a820a78-e9f7-5183-8824-762b260ec4ac",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_above",
+      "value": 27,
+      "scope": "whole_complex_does_not_modify_office_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "复星国际中心",
+      "material_id": "6a820a78-e9f7-5183-8824-762b260ec4ac",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_below",
+      "value": 4,
+      "scope": "whole_complex_does_not_modify_office_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "复星国际中心",
+      "material_id": "6a820a78-e9f7-5183-8824-762b260ec4ac",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floor_height",
+      "value": 3.5,
+      "scope": "whole_complex_does_not_modify_office_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "复星国际中心",
+      "material_id": "6a820a78-e9f7-5183-8824-762b260ec4ac",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_total",
+      "value": 539,
+      "scope": "whole_complex_does_not_modify_office_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "泰康金融大厦",
+      "material_id": "0d61ce03-5484-55b8-83ec-f9c125754e37",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "building_height",
+      "value": 150,
+      "scope": "historic_tower_not_marketing_floors",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "泰康金融大厦",
+      "material_id": "0d61ce03-5484-55b8-83ec-f9c125754e37",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_below",
+      "value": 3,
+      "scope": "historic_tower_not_marketing_floors",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "泰康金融大厦",
+      "material_id": "0d61ce03-5484-55b8-83ec-f9c125754e37",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "parking_underground",
+      "value": 415,
+      "scope": "historic_tower_not_marketing_floors",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "现代汽车大厦",
+      "material_id": "b0dfc703-4378-5925-8b34-e754367f951e",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 68000,
+      "scope": "specific_building_xiaoyun_road_38",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "现代汽车大厦",
+      "material_id": "b0dfc703-4378-5925-8b34-e754367f951e",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "standard_floor_area",
+      "value": 2500,
+      "scope": "specific_building_xiaoyun_road_38",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "现代汽车大厦",
+      "material_id": "b0dfc703-4378-5925-8b34-e754367f951e",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "clear_height",
+      "value": 2.7,
+      "scope": "specific_building_xiaoyun_road_38",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "金融街国际大厦",
+      "material_id": "e43b9afd-f154-5e67-814a-84bdfd7e8eec",
+      "fact_index": 2,
+      "target_table": "building_brochure_data",
+      "field": "gfa_office",
+      "value": 38600,
+      "scope": "office_building_area_not_total_or_leasable",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "中国电子大厦",
+      "material_id": "d2bee273-4c54-59d0-8a67-bcc71781f574",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_above",
+      "value": 17,
+      "scope": "physical_floors_not_elevator_number",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "保利国际广场1座",
+      "material_id": "3019e5a2-55d8-50c7-8684-8fd9f791800f",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "floor_height",
+      "value": 4.2,
+      "scope": "tower_T1_standard_floor",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "恒通国际商务园",
+      "material_id": "e13b9ffc-b1ae-4064-a51e-2716f239c605",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 310000,
+      "scope": "approx_historical_whole_park",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "泰康人寿大厦",
+      "material_id": "d8b9bcf8-18f0-5584-868e-27441b42af02",
+      "fact_index": 0,
+      "target_table": "buildings",
+      "field": "leasable_area",
+      "value": 19000,
+      "scope": "approx_historical_total_leasable_not_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "泰康金融大厦",
+      "material_id": "0d61ce03-5484-55b8-83ec-f9c125754e37",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 73000,
+      "scope": "approx_historical_total_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "泰康金融大厦",
+      "material_id": "0d61ce03-5484-55b8-83ec-f9c125754e37",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "floor_height",
+      "value": 4.1,
+      "scope": "standard_floor_excludes_special_5_1m",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "玖安广场",
+      "material_id": "0d7cef09-4317-51cf-8151-ff0ef1e2b1f8",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "floors_above",
+      "value": 13,
+      "scope": "historic_floor_1_through_13",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "现代汽车大厦",
+      "material_id": "b0dfc703-4378-5925-8b34-e754367f951e",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "building_floors",
+      "value": 25,
+      "scope": "reported_total_storeys",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "聚杰金融大厦",
+      "material_id": "d48886f5-6728-5188-8232-b647949f5da6",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 76165,
+      "scope": "project_total_distinct_from_existing_office_gfa",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "聚杰金融大厦",
+      "material_id": "d48886f5-6728-5188-8232-b647949f5da6",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "hvac_cooling_water_24h",
+      "value": true,
+      "scope": "machine_room_cooling_water_capability",
+      "qualifier": "historical_archived_material"
+    },
+    {
+      "name": "金地 启汇中心",
+      "material_id": "41fd3b08-46c3-577d-8ed9-2f46b4bbd7cb",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 194400,
+      "scope": "whole_A_to_F_project_including_self_held_not_AB_subset",
+      "qualifier": "historical_archived_material"
+    }
+  ]
+}
