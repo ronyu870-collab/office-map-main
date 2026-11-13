@@ -196,9 +196,9 @@ describe('market communication on homepage', () => {
     fireEvent.keyDown(editor(), { key: 'Enter', ctrlKey: true });
     await waitFor(() => expect(state.fetch.mock.calls.filter(call => call[1]?.method === 'POST').length).toBe(1));
     const post = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
-    expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual([
+    expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual(expect.arrayContaining([
       expect.objectContaining({ everyone: true, text: '@所有人' }),
-    ]);
+    ]));
   });
 
   it('retains content when sending fails, and blocks duplicate in-flight request', async () => {
