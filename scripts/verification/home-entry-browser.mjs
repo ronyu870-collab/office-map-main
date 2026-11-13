@@ -99,7 +99,7 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('button', { name: '用户菜单' }).evaluate(e => e === document.activeElement), true);
     if (variant === 'after') {
-      assert.equal(await page.getByRole('textbox', { name: '对话查询' }).isDisabled(), true);
+      assert.equal(await page.getByRole('textbox', { name: 'Colliers AI' }).isDisabled(), true);
       assert.equal(await page.getByRole('button', { name: '发送问题' }).isDisabled(), true);
       assert.ok(!calls.some(c => /\/api\/(ai|intelligence\/chat)/.test(c.path)), 'no new AI request');
     }

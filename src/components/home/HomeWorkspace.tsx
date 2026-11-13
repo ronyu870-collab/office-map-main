@@ -426,7 +426,7 @@ export function HomeWorkspace() {
               <div className={styles.queryArea}>
                 {activeSession ? <>
                   <div className={styles.queryHeading}>
-                    <label htmlFor="home-query">对话查询</label>
+                    <label htmlFor="home-query">Colliers AI</label>
                     {canSeeIntelligence ? <HomeIntentLink
                       href={INTELLIGENCE_WORKSPACE.href}
                       mayPrefetch={canAccessModule(INTELLIGENCE_WORKSPACE.module, activeRole)}
@@ -441,7 +441,7 @@ export function HomeWorkspace() {
                     </HomeIntentLink> : null}
                   </div>
                   <div className={styles.composer}>
-                    <textarea id="home-query" aria-describedby="home-query-status" disabled rows={1} placeholder="对话查询尚未开放" />
+                    <textarea id="home-query" aria-describedby="home-query-status" disabled rows={1} placeholder="AI 助手尚未开放" />
                     <div className={styles.composerFooter}>
                       <p id="home-query-status" className="sr-only">目前请使用下方业务入口。</p>
                       <button type="button" disabled aria-label="发送问题"><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></button>

@@ -598,7 +598,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       expect(account).toBeEnabled();
       const send = screen.getByRole('button', { name: '发送问题' });
       expect(send).toBeDisabled();
-      expect(screen.getByRole('textbox', { name: '对话查询' })).toBeDisabled();
+      expect(screen.getByRole('textbox', { name: 'Colliers AI' })).toBeDisabled();
       const existingButtons = Array.from(container.querySelectorAll('button')).filter(button => button !== send);
       expect(existingButtons.length).toBeGreaterThan(0);
       existingButtons.forEach(button => expect(button).toBeEnabled());

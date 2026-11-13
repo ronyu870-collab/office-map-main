@@ -106,10 +106,10 @@ describe('Home workspace behavior', () => {
   it.each(['admin', 'editor', 'viewer'] as const)('keeps the new query unavailable for %s without replacing existing navigation', (role) => {
     setSession(role);
     render(<HomeWorkspace />);
-    const query = screen.getByRole('textbox', { name: '对话查询' });
+    const query = screen.getByRole('textbox', { name: 'Colliers AI' });
     expect(query).toBeDisabled();
     expect(query).toHaveValue('');
-    expect(query).toHaveAttribute('placeholder', '对话查询尚未开放');
+    expect(query).toHaveAttribute('placeholder', 'AI 助手尚未开放');
     expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled();
     expect(screen.getByRole('link', { name: '北京办公楼市场地图' })).toHaveAttribute('href', '/map');
     expect(screen.getByRole('link', { name: '季度数据填报' })).toHaveAttribute('href', '/update');
