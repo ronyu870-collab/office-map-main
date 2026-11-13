@@ -1,0 +1,537 @@
+{
+  "schema_version": "public-evidence-v1",
+  "batch_ref": "730b6efb-9441-404c-887b-a9c5e9571b4f",
+  "results": [
+    {
+      "task_ref": "d3dd73e6-81e9-4f76-bb4e-ba1385491b24",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "检索到大厦2026年安防改造招标，未找到明确记载建筑本体实际竣工年份的原始资料；不把装修年份作为竣工年份。"
+    },
+    {
+      "task_ref": "9134364d-bde0-4271-b69e-0a6a91b76e0d",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市朝阳区建国路甲92号",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.yangzijiang.com/Bidding/4330.html",
+              "publisher": "扬子江药业集团",
+              "excerpt": "项目名称：扬子江健康大厦监控系统建设项目；建设地点：北京市朝阳区建国路甲92号",
+              "locator": "招标采购／项目基本信息",
+              "accessed_on": "2026-11-13",
+              "document_date": "2026-04-01",
+              "document_date_meaning": "招标公告发布日期"
+            },
+            {
+              "url": "https://www.yangzijiang.com/Bidding/4827.html",
+              "publisher": "扬子江药业集团",
+              "excerpt": "建设地点：北京市朝阳区建国路甲92号扬子江健康大厦",
+              "locator": "招标采购／建设地点",
+              "accessed_on": "2026-11-13",
+              "document_date": "2026-07-23",
+              "document_date_meaning": "招标公告发布日期"
+            }
+          ]
+        }
+      ],
+      "note": null
+    },
+    {
+      "task_ref": "542034d1-050d-4b56-a980-c2a2cb2eb5b4",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "已有北京扬子江置业有限公司作为2026年改造项目招标人/当前业主的证据，但这不能证明其为大厦原始开发主体。"
+    },
+    {
+      "task_ref": "20513e19-94ca-4b06-a292-8590b18cc4a4",
+      "status": "found",
+      "claims": [
+        {
+          "value": 1989,
+          "unit": "year",
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.bfb.com.cn/bfb-design.html",
+              "publisher": "北京发展大厦有限公司（项目运营方官网）",
+              "excerpt": "开工时间 1987年4月15日；完工时间 1989年10月17日",
+              "locator": "建筑设计／建筑参数",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            },
+            {
+              "url": "https://www.bfb.com.cn/bfb-design.html",
+              "publisher": "北京发展大厦有限公司",
+              "excerpt": "1989年 竣工",
+              "locator": "建筑设计／改造更新年表",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": null
+    },
+    {
+      "task_ref": "9fe767d2-a5d8-490b-b566-579bf828795d",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市朝阳区东三环北路5号",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.bfb.com.cn/bfb-intro.html",
+              "publisher": "北京发展大厦有限公司",
+              "excerpt": "住 所：北京市朝阳区东三环北路5号",
+              "locator": "公司介绍／工商信息",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            },
+            {
+              "url": "https://www.shoukaigufen.com/projectList_287_page4.html",
+              "publisher": "北京首都开发股份有限公司",
+              "excerpt": "北京发展大厦；地理位置：北京市东三环北路5号",
+              "locator": "房产经营／写字楼",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "生产楼书表已记录该地址，本条是独立来源复核，不应作为新增空字段计数。"
+    },
+    {
+      "task_ref": "39e32cba-29aa-49a8-a7e0-8dd6318e7a86",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京发展大厦有限公司",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.bfb.com.cn/bfb-intro.html",
+              "publisher": "北京发展大厦有限公司",
+              "excerpt": "北京发展大厦有限公司成立于1986年10月，曾是由北京首都开发股份有限公司与日本野村•中国投资株式会社共同投资设立的独立法人中日合资企业",
+              "locator": "公司介绍／公司简介",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            },
+            {
+              "url": "https://www.jd-china.cn/lease/room_details/id/283.html",
+              "publisher": "京东联行",
+              "excerpt": "开发商：北京发展大厦有限公司",
+              "locator": "项目介绍／开发商",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "项目公司为原合资开发主体；其原出资建设双方为首开股份与日本野村·中国投资株式会社。"
+    },
+    {
+      "task_ref": "6d91bdb1-b729-4650-9056-e37de04ffba3",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "未找到对‘太阳宫商业大厦’建筑本体的实际竣工年份有可核证明的原始资料；排除名称相近的太阳宫科技文化创业大厦及太阳宫大厦。"
+    },
+    {
+      "task_ref": "321a2244-857e-4a8e-8ad1-04949f5b0ffe",
+      "status": "identity_uncertain",
+      "claims": [
+        {
+          "value": "北京市朝阳区太阳宫中路10号",
+          "unit": null,
+          "scope": "project",
+          "evidence": [
+            {
+              "url": "https://www.sbzszx.com/productinfo/1942455.html?templateId=1133605",
+              "publisher": "写字楼招商信息平台（转引北京郝鹏）",
+              "excerpt": "原‘太阳宫珠宝城’（更早时曾为‘桑尼摩尔’）……宣传资料中，有一段时间曾用过‘太阳宫商业大厦’的名字",
+              "locator": "进展：太阳宫广场挂牌，2020-10-23",
+              "accessed_on": "2026-11-13",
+              "document_date": "2020-10-23",
+              "document_date_meaning": "所转引事件日期"
+            },
+            {
+              "url": "https://poi.mapbar.com/beijing/MAPICPSWCNHICNHIQETIC",
+              "publisher": "图吧地图",
+              "excerpt": "桑尼摩尔太阳宫珠宝城；地址：北京 朝阳区 太阳宫中路10",
+              "locator": "地点信息／地址",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "2020年招商平台提到‘太阳宫商业大厦’曾为太阳宫广场/珠宝城宣传用名，但未取得官方楼宇实体同一性证明；禁止自动写入或与太阳宫中路12号的‘太阳宫大厦’混同。"
+    },
+    {
+      "task_ref": "ec1ae692-291f-422d-96f2-000366e81ee5",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "未找到‘太阳宫商业大厦’对应原始开发主体的直接证据；太阳宫科技文化创业大厦是另一项目，不可移植开发商。"
+    },
+    {
+      "task_ref": "a5095ebb-2d76-47ef-a974-e48fcf917e2d",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "仅检得政府采购中明确大厦地址/楼座的信息，未检得大厦本体竣工日期。"
+    },
+    {
+      "task_ref": "8c294230-7ed7-4c6e-a66e-1d5f0a802356",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市海淀区海淀南路甲21号",
+          "unit": null,
+          "scope": "project",
+          "evidence": [
+            {
+              "url": "https://ggzyfw.beijing.gov.cn/jyxxzbjggg/20260601/5554300.html",
+              "publisher": "北京市公共资源交易服务平台",
+              "excerpt": "北京市海淀区海淀南路甲21号中关村知识产权大厦A座3层",
+              "locator": "政府采购／成交供应商地址",
+              "accessed_on": "2026-11-13",
+              "document_date": "2026-06-01",
+              "document_date_meaning": "政府采购公告发布日期"
+            },
+            {
+              "url": "https://map.beijing.gov.cn/place?categoryId=zjtxfwz&placeId=67ecfd89f8f52a79c0ac267a",
+              "publisher": "北京市12345服务导图，来源北京市经济和信息化局",
+              "excerpt": "北京市海淀区海淀南路甲21号中关村知识产权大厦B座",
+              "locator": "北京IP专精特新服务站／办公地址",
+              "accessed_on": "2026-11-13",
+              "document_date": "2025-04-30",
+              "document_date_meaning": "地图资料更新时间"
+            }
+          ]
+        }
+      ],
+      "note": "官方资料分别证明大厦A、B座共用海淀南路甲21号门牌；此处记录整个项目的门牌地址。"
+    },
+    {
+      "task_ref": "c83ccf0a-1a72-49ca-b3b2-bed61fa251f4",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "仅找到入驻服务平台及所属中发展集团等当前关系，未能由公开可访问的原始文件确认具体原始开发主体。"
+    },
+    {
+      "task_ref": "66c50638-932c-4d40-95d8-497c59669f7a",
+      "status": "found",
+      "claims": [
+        {
+          "value": 2001,
+          "unit": "year",
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.bjlzxz.cn/",
+              "publisher": "北京量子芯座写字楼信息平台（商业招商站点）",
+              "excerpt": "竣工年月：2001年06月",
+              "locator": "项目参数／竣工年月",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            },
+            {
+              "url": "https://pdf.dfcfw.com/pdf/H2_AN202604031821013906_1.pdf",
+              "publisher": "海问律师事务所，创金合信北京国资商业不动产REIT法律意见书",
+              "excerpt": "2001年11月29日，北京天鸿集团公司……楼宇买卖协议书；天鸿集团经批准……合法建造了大运村11号楼",
+              "locator": "法律意见书 §3.3.1（1）b，原件第57页",
+              "accessed_on": "2026-11-13",
+              "document_date": "2026-04",
+              "document_date_meaning": "法律意见书披露月份"
+            }
+          ]
+        }
+      ],
+      "note": "2001年06月具体竣工月份仅见商业站点，法律意见书证明截至2001年11月已建成出售，尚未独立核实实际竣工月份；仅建议候选年份，不直接写入正式库。"
+    },
+    {
+      "task_ref": "f33854fa-8c44-414e-9058-d824f8a9f8d9",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市海淀区知春路27号",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://pdf.dfcfw.com/pdf/H2_AN202604031821013906_1.pdf",
+              "publisher": "海问律师事务所，创金合信北京国资商业不动产REIT法律意见书",
+              "excerpt": "北京市海淀区知春路23号（量子银座）和27号（量子芯座）",
+              "locator": "法律意见书 §3.3.1（1）a，原件第57页",
+              "accessed_on": "2026-11-13",
+              "document_date": "2026-04",
+              "document_date_meaning": "法律意见书披露月份"
+            },
+            {
+              "url": "https://www.bjlzxz.cn/",
+              "publisher": "量子芯座写字楼信息平台",
+              "excerpt": "地址：北京市海淀区知春路27号",
+              "locator": "项目参数／地址",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": null
+    },
+    {
+      "task_ref": "4b543ab0-4018-4c0e-8f9e-b819710ada9a",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京天鸿集团公司",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://pdf.dfcfw.com/pdf/H2_AN202604031821013906_1.pdf",
+              "publisher": "海问律师事务所，创金合信北京国资商业不动产REIT法律意见书",
+              "excerpt": "天鸿集团以划拨方式取得……地块使用权；天鸿集团经批准在上述地块合法建造了大运村11号楼",
+              "locator": "法律意见书 §3.3.1（1）b，原件第57页",
+              "accessed_on": "2026-11-13",
+              "document_date": "2026-04",
+              "document_date_meaning": "法律意见书披露月份"
+            },
+            {
+              "url": "https://www.bjlzxz.cn/",
+              "publisher": "量子芯座写字楼招商平台",
+              "excerpt": "开发商：天鸿集团",
+              "locator": "项目参数／开发商",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "律师核查文件确认天鸿为该楼原始建设和出售方；商业招商站点另标其为开发商，区别于后续产权方北京国资/集智未来。"
+    },
+    {
+      "task_ref": "b43cca89-60d6-4b34-9cc8-9f0093aa4cf9",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "仅获得泰康集团/泰康人寿旧址相关官方公告，尚无建筑本体明确竣工年份证据；不以保险公司成立或搬迁日期替代。"
+    },
+    {
+      "task_ref": "8b888825-4d6a-40f0-bf29-5b11040e6569",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市西城区复兴门内大街156号",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://m.taikanglife.com/mobile/uploader/informationFile/2021/08/26/551d3f30-3ce9-4b35-8068-75b057f3bae3.pdf",
+              "publisher": "泰康人寿保险有限责任公司",
+              "excerpt": "本公司原营业场所为：北京市西城区复兴门内大街156号泰康人寿大厦4层、5层、6层",
+              "locator": "关于变更营业场所的公告",
+              "accessed_on": "2026-11-13",
+              "document_date": "2021-08-26",
+              "document_date_meaning": "企业公告发布日期"
+            }
+          ]
+        }
+      ],
+      "note": "生产楼书表已填地址，本条是来源复核，不作为新增字段计数。"
+    },
+    {
+      "task_ref": "eff6efa6-3bc1-4bf6-bf78-7a4859d4e8ac",
+      "status": "no_evidence",
+      "claims": [],
+      "note": "‘泰康’为现有楼书宽泛标注且泰康公司是曾经使用方，未发现可确定原始开发主体全称的可靠证据。"
+    },
+    {
+      "task_ref": "2da8af4f-d8f2-43f9-b1b8-1a4b14bde742",
+      "status": "found",
+      "claims": [
+        {
+          "value": 2010,
+          "unit": "year",
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://zjw.beijing.gov.cn/bjjs/gcjs/sznj/zjcg/sz/10934391/2021020215520857661.pdf",
+              "publisher": "北京市住房和城乡建设委员会《北京志·建设志（1991—2010）》",
+              "excerpt": "E3（恒奥中心写字楼C、D座）；C座；开/竣工时间 2007.12/2010.5",
+              "locator": "第四篇／1991—2010金融街办公楼建设项目表，印刷页332",
+              "accessed_on": "2026-11-13",
+              "document_date": "2021-02-02",
+              "document_date_meaning": "政府网站文件发布/归档日期"
+            }
+          ]
+        }
+      ],
+      "note": "明确针对恒奥中心C座；同一表中的2009年竣工为D座，不得混淆。"
+    },
+    {
+      "task_ref": "5aa618e9-1358-4aaf-9d33-651628800df4",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市西城区太平桥大街17号",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://zjw.beijing.gov.cn/bjjs/gcjs/sznj/zjcg/sz/10934391/2021020215520857661.pdf",
+              "publisher": "北京市住房和城乡建设委员会《北京志·建设志（1991—2010）》",
+              "excerpt": "E3（恒奥中心写字楼C、D座）；建筑地址 西城区太平桥大街17号",
+              "locator": "第四篇／1991—2010金融街办公楼建设项目表，印刷页332",
+              "accessed_on": "2026-11-13",
+              "document_date": "2021-02-02",
+              "document_date_meaning": "政府网站文件发布/归档日期"
+            }
+          ]
+        }
+      ],
+      "note": "该门牌来自政府建设志E3地块C、D座建设项目表；部分商业网站把整体项目写为锦什坊街26号，须在展示层核对门牌入口及别名。"
+    },
+    {
+      "task_ref": "74f7fcb0-c75a-4dea-b80a-26fbe4b59cd0",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市恒奥房地产开发有限公司",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://zjw.beijing.gov.cn/bjjs/gcjs/sznj/zjcg/sz/10934391/2021020215520857661.pdf",
+              "publisher": "北京市住房和城乡建设委员会《北京志·建设志（1991—2010）》",
+              "excerpt": "E3（恒奥中心写字楼C、D座）；建设单位 北京市恒奥房地产开发有限公司",
+              "locator": "第四篇／1991—2010金融街办公楼建设项目表，印刷页332",
+              "accessed_on": "2026-11-13",
+              "document_date": "2021-02-02",
+              "document_date_meaning": "政府网站文件发布/归档日期"
+            },
+            {
+              "url": "https://www.bjhazx.cn/",
+              "publisher": "恒奥中心写字楼招商资料",
+              "excerpt": "是由北京市恒奥房地产开发有限公司倾力开发；整体由……A、B、C、D座建筑围合",
+              "locator": "项目概述／开发商",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "官方建设志注明E3地块C、D座的建设单位为该公司，商业招商页标为开发商；不是仅据现业主推断。"
+    },
+    {
+      "task_ref": "70d6e6b5-6365-4959-a817-7e170d97f518",
+      "status": "conflict",
+      "claims": [
+        {
+          "value": 1990,
+          "unit": "year",
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://cn.govopendata.com/renminribao/1990/10/21/2/",
+              "publisher": "人民日报1990年10月21日第2版（第三方历史转录）",
+              "excerpt": "京广中心工程……已全部竣工，10月20日在北京通过专家和质量监督部门的竣工总验收",
+              "locator": "第2版《京广中心工程达到国际先进水平》",
+              "accessed_on": "2026-11-13",
+              "document_date": "1990-10-21",
+              "document_date_meaning": "人民日报刊登日期"
+            }
+          ]
+        },
+        {
+          "value": 1989,
+          "unit": "year",
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.jg-zx.cn/index.html",
+              "publisher": "京广中心商务楼宇商业招商网站",
+              "excerpt": "竣工年月：1989年2月",
+              "locator": "项目参数／竣工年月",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "1990年10月20日官方报刊报道与商业招商站点1989年2月主张冲突。更可信的正式竣工验收年份为1990，但候选阶段按规范保留冲突，不自动选择。"
+    },
+    {
+      "task_ref": "b6c3b72e-78be-4de9-8843-aff64813400e",
+      "status": "found",
+      "claims": [
+        {
+          "value": "北京市朝阳区朝阳门外大街1号",
+          "unit": null,
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.jg-zx.cn/index.html",
+              "publisher": "京广中心商务楼宇商业招商网站",
+              "excerpt": "地址：北京市朝阳区朝阳门外大街1号",
+              "locator": "楼宇参数／地址",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            },
+            {
+              "url": "https://www.biwuke.com/jingguang/lianxi.html",
+              "publisher": "京广中心写字楼招商信息页",
+              "excerpt": "京广中心商务楼地址：北京市朝阳区呼家楼（朝阳门外大街1号）",
+              "locator": "联系我们／项目地址",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "现有楼书只记录‘朝阳区呼家楼’，本候选补充到街道门牌。"
+    },
+    {
+      "task_ref": "599e77aa-2fb3-425b-b0b4-452f5e0f8b20",
+      "status": "identity_uncertain",
+      "claims": [
+        {
+          "value": "香港京广中心有限公司、北京华阳经济开发有限公司",
+          "unit": null,
+          "scope": "project",
+          "evidence": [
+            {
+              "url": "https://www.jg-zx.cn/index.html",
+              "publisher": "京广中心商务楼宇商业招商网站",
+              "excerpt": "开发商：香港京广中心有限公司、北京华阳经济开发有限公司",
+              "locator": "楼宇参数／开发商",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
+        }
+      ],
+      "note": "仅商业招商页面标示开发商，暂缺原始合同、政府资料或企业正式披露，尚不能核定两家公司是否为原始项目开发主体。"
+    }
+  ]
+}
