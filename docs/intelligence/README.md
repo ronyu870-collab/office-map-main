@@ -42,3 +42,5 @@
 双维交叉分析：[子市场 × 等级、热力表、逐格来源和 Excel 矩阵](cross-quarter.md)。
 
 - [同季度租金与空置率关系](rent-vacancy-relationship.md)：联合有效样本、精确矩与近似Pearson、同源散点和文件；本地验证不代表生产开放。
+
+- [楼宇分布与分位数](building-distributions.md)：Type 7分位、离群标记、直方/箱线与同源导出；本地能力，未生产启用。

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysis } from './distribution';
 import { quarterRange } from './plan';
 import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
@@ -11,15 +12,18 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('time_series') }),
   z.strictObject({ kind: z.literal('grouped_time_series') }),
   z.strictObject({ kind: z.literal('heatmap') }),
+  z.strictObject({ kind: z.literal('histogram') }),
+  z.strictObject({ kind: z.literal('box_plot') }),
 ]);
 export type ChartRequest = z.infer<typeof chartRequestSchema>;
-type CellBinding = { entityId: string; key: string; sourceIds: readonly string[] };
+type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
-  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number };
+  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null };
 export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId: string; request: ChartRequest;
-  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
+  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
   points: ChartPoint[]; summary: string[]; limitations: string[]; renderedCount: number; unknownCount: number;
   facets?: { key: string; label: string; points: ChartPoint[] }[];
+  distribution?: { stats: DistributionAnalysis['stats']; unit:string; label:string; validCount:number; excludedCount:number; outlierCount:number; assessment:DistributionAnalysis['outlierAssessment']; sourceIds:readonly string[] };
   grid?: { rows: { key: string; label: string }[]; columns: { key: string; label: string }[] };
   connectNulls: false; zeroBaseline: true };
 
@@ -32,6 +36,7 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 
 export function buildResultChart(result: QueryResultView, request: ChartRequest): ResultChart {
   request = chartRequestSchema.parse(request);
+  if (request.kind === 'histogram' || request.kind === 'box_plot') return buildDistributionChart(result, request);
   const column = (key: string) => {
     const found = result.table.columns.find(c => c.key === key);
     if (!found || !found.unit || result.table.rows.some(row => row.cells[key]?.kind === 'text')) throw new Error('CHART_NUMERIC_COLUMN_REQUIRED');
@@ -127,6 +132,35 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
 }
 
 /** Ratio levels use the full 0–100% domain, not the current largest value. */
+function buildDistributionChart(result: QueryResultView, request: Extract<ChartRequest,{kind:'histogram'|'box_plot'}>): ResultChart {
+  if(result.operation!=='distribution')throw new Error('CHART_DISTRIBUTION_REQUIRED');
+  const d=distributionAnalysisSchema.parse(result.analysis);
+  if(d.observations.length!==result.table.rows.length||d.coverage.total!==d.observations.length)throw new Error('CHART_DISTRIBUTION_MISMATCH');
+  d.observations.forEach((o,i)=>{const row=result.table.rows[i],cell=row.cells.value;
+    if(row.entityId!==o.entityId||row.cells.name?.kind!=='text'||row.cells.name.value!==o.name||JSON.stringify(cell.sourceIds)!==JSON.stringify(o.sourceIds)
+      ||(o.value?cell.kind!=='number'||JSON.stringify(cell.value)!==JSON.stringify(o.value):cell.kind!=='unknown'||cell.state!==o.state))throw new Error('CHART_DISTRIBUTION_MISMATCH');
+  });
+  if(d.bins.reduce((n,b)=>n+b.count,0)!==d.coverage.valid||d.observations.filter(o=>o.value!==null).length!==d.coverage.valid)throw new Error('CHART_DISTRIBUTION_MISMATCH');
+  d.bins.forEach((b,i)=>{const members=d.observations.filter(o=>o.bin===i);if(b.count!==members.length||JSON.stringify([...b.entityIds].sort())!==JSON.stringify(members.map(o=>o.entityId).sort()))throw new Error('CHART_DISTRIBUTION_MISMATCH');});
+  const points:ChartPoint[]=request.kind==='histogram'?d.bins.map((b,i)=>({label:`区间 ${i+1}：[${cellText({kind:'number',value:b.lower,sourceIds:[]},d.unit)}, ${cellText({kind:'number',value:b.upper,sourceIds:[]},d.unit)}${b.upperInclusive?']':')'}`,
+    x:i,y:b.count,xText:`区间 ${i+1}`,yText:String(b.count),xCell:null,yCell:{entityId:b.id,key:'count',sourceIds:b.sourceIds,analysisPath:['bins',i,'count']},state:'valid',sampleCount:b.count
+  })):d.observations.map((o,i)=>({label:o.name,x:o.name,y:o.value?o.value.numeric*(d.unit==='ratio'?100:1):null,xText:o.name,yText:cellText(result.table.rows[i].cells.value,d.unit),
+    xCell:null,yCell:{entityId:o.entityId,key:'value',sourceIds:o.sourceIds},outlier:o.outlier,state:o.value?'valid':'unknown'}));
+  const label=distributionLabel(d.measure);
+  return {version:'result-chart/1',resultId:result.resultId,tableId:result.table.id,request,kind:request.kind,title:resultScopeText(result),xLabel:label,yLabel:request.kind==='histogram'?'楼宇数量':label,xUnit:d.unit,yUnit:request.kind==='histogram'?'building_count':d.unit,
+    points,summary:resultSummary(result),limitations:[...result.limitations,'分箱标签只作显示舍入，精确边界与完整分位数见结果文件；同色图示不表示推荐。'],renderedCount:points.filter(p=>p.state==='valid').length,unknownCount:points.filter(p=>p.state==='unknown').length,connectNulls:false,zeroBaseline:true,
+    distribution:{stats:d.stats,unit:d.unit,label,validCount:d.coverage.valid,excludedCount:d.coverage.total-d.coverage.valid,outlierCount:d.observations.filter(o=>o.outlier===true).length,assessment:d.outlierAssessment,sourceIds:[...new Set(d.observations.flatMap(o=>o.sourceIds))]}};
+}
+
+/** Geometry only: statistical values already belong to the immutable result. */
+export function distributionGeometry(chart: ResultChart) {
+  const d=chart.distribution;if(!d)throw new Error('CHART_DISTRIBUTION_REQUIRED');
+  const stat=(key:keyof NonNullable<typeof d.stats>)=>d.stats?d.stats[key].numeric*(d.unit==='ratio'?100:1):0;
+  const min=d.unit==='ratio'?0:Math.min(0,stat('min')),max=d.unit==='ratio'?100:stat('max');
+  const scale=(n:number)=>70+(n-min)/(max-min||1)*530;
+  return {min,max,scale,stat,empty:d.stats===null};
+}
+
 export function chartBounds(chart: ResultChart, axis: 'x' | 'y'): [number, number] {
   if ((axis === 'x' ? chart.xUnit : chart.yUnit) === 'ratio') return [0, 100];
   return chart.points.reduce<[number, number]>(([min, max], point) => typeof point[axis] === 'number'
@@ -168,7 +202,15 @@ export function renderChartSvg(chart: ResultChart): string {
   let y = paragraph(chart.title, top);
   for (const line of chart.summary) y = paragraph(line, y);
   y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
-  if (chart.kind === 'heatmap') {
+  if (chart.kind === 'histogram') {
+    const max=Math.max(1,...chart.points.map(p=>p.y??0)),barWidth=660/Math.max(1,chart.points.length),bottom=y+260;
+    for(let i=0;i<chart.points.length;i++){const p=chart.points[i],h=(p.y??0)/max*210,x=120+i*barWidth;elements.push(`<rect x="${x}" y="${bottom-h}" width="${Math.max(1,barWidth-2)}" height="${h}" fill="#bacfe5"><title>${xml(p.label+'：'+p.yText+'栋')}</title></rect>`);text(x+barWidth/2,bottom+24,String(i+1),'text-anchor="middle"');text(x+barWidth/2,bottom-h-8,p.yText,'text-anchor="middle"');}
+    y=bottom+52;for(const p of chart.points)y=paragraph(`${p.label}：${p.yText} 栋`,y);
+  } else if (chart.kind === 'box_plot') {
+    const g=distributionGeometry(chart);const offset=y+100;
+    if(!g.empty){const x=(key:keyof NonNullable<NonNullable<ResultChart['distribution']>['stats']>)=>g.scale(g.stat(key));elements.push(`<line x1="${x('lowerWhisker')}" x2="${x('upperWhisker')}" y1="${offset}" y2="${offset}" stroke="#667085"/><rect x="${x('q1')}" y="${offset-25}" width="${x('q3')-x('q1')}" height="50" fill="#bacfe5" stroke="#667085"/>`);for(const key of ['lowerWhisker','median','upperWhisker'] as const)elements.push(`<line x1="${x(key)}" x2="${x(key)}" y1="${offset-25}" y2="${offset+25}" stroke="#003e7e"/>`);for(const p of chart.points)if(p.y!==null&&p.outlier===true)elements.push(`<circle cx="${g.scale(p.y)}" cy="${offset}" r="4" fill="#003e7e"><title>${xml(p.label+'：'+p.yText)}</title></circle>`);text(70,offset+60,String(g.min));text(600,offset+60,String(g.max),'text-anchor="end"');}
+    y=offset+100;
+  } else if (chart.kind === 'heatmap') {
     if (!chart.grid) throw new Error('CHART_CROSS_TAB_REQUIRED');
     const { rows, columns } = chart.grid, cellWidth = 160, labelWidth = 240;
     y = paragraph(heatmapLegend(chart), y);

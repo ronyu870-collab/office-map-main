@@ -7,6 +7,7 @@ import { FIELD_REGISTRY_VERSION, numericFields, type NumericField } from './regi
 import { DIMENSION_REGISTRY_VERSION, catalogDimensions, type CatalogDimension } from './registry';
 import { groupedQuarterAnalysis } from './grouping';
 import { crossTabQuarter } from './crossTab';
+import { buildingDistribution, distributionFields, distributionLabel, type DistributionMeasure } from './distribution';
 import { rentVacancyRelationship } from './relationship';
 
 const BROCHURE_LIMITATION = '楼书记录尚未确定有效版本优先级；不同值按冲突处理，相同值也不能据此确认当前现实状态。';
@@ -27,10 +28,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate' | 'relationship';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate' | 'relationship' | 'distribution';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | ReturnType<typeof buildingDistribution> | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;
@@ -123,6 +124,24 @@ export function buildAggregateResult(snapshot: FactSnapshot, metric: Parameters<
         : { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] } } }],
     },
   }, fields);
+}
+
+export function buildDistributionResult(snapshot: FactSnapshot, measure: DistributionMeasure): QueryResult {
+  const analysis=buildingDistribution(snapshot,measure);
+  const result=envelope(snapshot,{operation:'distribution',parameters:{measure,period:snapshot.period,formulaVersion:analysis.version},analysis,
+    table:{id:'distribution_observations',columns:[{key:'name',label:'楼宇',unit:null},{key:'value',label:distributionLabel(measure),unit:analysis.unit},{key:'bin',label:'所属区间',unit:null},{key:'outlier',label:'离群标记',unit:null}],
+      rows:analysis.observations.map((o,i)=>({entityId:o.entityId,cells:{
+        name:{kind:'text',value:o.name,sourceIds:[snapshot.rows[i].nameSource.id]},
+        value:o.value?{kind:'number',value:o.value,sourceIds:o.sourceIds}:{kind:'unknown',state:o.state==='valid'?'missing':o.state,reason:o.reason??'no_valid_sample',sourceIds:o.sourceIds},
+        bin:{kind:'text',value:o.bin===null?'未参与':`区间 ${o.bin+1}`,sourceIds:o.sourceIds},
+        outlier:{kind:'text',value:o.value===null?'未参与':o.outlier===null?'样本不足4栋，未判定':o.outlier?'超出1.5×IQR围栏，保留':'围栏内',sourceIds:o.sourceIds},
+      }}))}},distributionFields(measure));
+  return deepFreeze({...result,limitations:[...result.limitations,
+    '逐楼等权分布，分位采用Type 7线性插值；简单平均不替代市场租金面积加权口径。',
+    '等宽分箱数为ceil(log2(n)+1)，最多20箱；左闭右开，最后一箱含上界，常量仅一箱。区间用未舍入值判断。',
+    '少于4栋不判定离群；其余按Q1−1.5×IQR与Q3+1.5×IQR标记，异常值保留，不等于数据错误。',
+    '小样本和缺失可能影响分布，不能据此推断整个现实市场；所有统计只使用本次有效记录。',
+  ]});
 }
 
 export function buildRelationshipResult(snapshot: FactSnapshot): QueryResult {

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
-import { buildAggregateResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
@@ -20,6 +20,20 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('shows distribution bins and boxplot from one result with expandable statistics and source focus',async()=>{
+    const result=resultViewSchema.parse(buildDistributionResult(fixture(),'rent'));
+    client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_scope,_id,result,request)=>buildResultChart(result,request));
+    render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'2026Q3CBD净有效租金分布'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
+    fireEvent.click(await screen.findByRole('button',{name:'查看直方图'}));
+    expect(await screen.findByRole('img',{name:'净有效租金直方图，3栋有效样本'})).toBeInTheDocument();
+    const table=screen.getByRole('table',{name:'分箱边界与数量'});expect(table.querySelectorAll('tbody tr')).toHaveLength(3);
+    fireEvent.click(screen.getByText('分位数与箱线数值'));expect(screen.getByRole('table',{name:/分位算法Type 7/})).toHaveTextContent('简单平均');
+    const source=screen.getAllByRole('button',{name:'1 栋'})[0];fireEvent.click(source);expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('net_effective_rent');fireEvent.click(screen.getByRole('button',{name:'关闭来源'}));expect(source).toHaveFocus();
+    fireEvent.click(screen.getByRole('button',{name:'查看箱线图'}));const box=await screen.findByRole('img',{name:'净有效租金箱线图，3栋有效样本'});expect(box).toHaveAttribute('width','100%');
+    // A fixed 640px box hid every observation beyond the initial 324px mobile scrollport.
+    expect(box.querySelector('rect')).toHaveAttribute('x','62.6953125%');expect(box.querySelector('rect')).toHaveAttribute('width','20.703125%');
+    await waitFor(()=>expect(client.reportDelivery.mock.calls.some(c=>c[3]?.layout==='box_plot_all')).toBe(true));expect(client.submit).toHaveBeenCalledOnce();
+  });
   it('shows joint sample scatter with separate units, missing reasons and source focus return', async () => {
     const result = resultViewSchema.parse(buildRelationshipResult(fixture()));
     client.submit.mockResolvedValue({ requestId, status: 'ready', result });

@@ -1,0 +1,28 @@
+{
+  "resultId": "fb2524a9-4831-4682-956b-14f34c55388a",
+  "chart": "histogram",
+  "median": 150,
+  "mean": 150,
+  "bins": [
+    1,
+    1,
+    1
+  ],
+  "missing": 1,
+  "sources": 12,
+  "sheets": [
+    "数据",
+    "分位统计",
+    "分箱统计",
+    "分箱成员",
+    "精确值与来源",
+    "来源",
+    "口径与快照"
+  ],
+  "files": [
+    "/Users/yuhang/Downloads/query-fb2524a9-4831-4682-956b-14f34c55388a-svg_zip.zip",
+    "/Users/yuhang/Downloads/query-fb2524a9-4831-4682-956b-14f34c55388a-xlsx.xlsx"
+  ],
+  "browser": "IAB",
+  "production": false
+}

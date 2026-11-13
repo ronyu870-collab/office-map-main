@@ -1,6 +1,6 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/6';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/7';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -27,6 +27,11 @@ export function resolveBusinessQuestion(question: string): QuestionResolution {
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
   const marketList = `(${QUESTION_SUBMARKETS.join('|')})(?:、(?:${QUESTION_SUBMARKETS.join('|')}))*`;
   const groupedScope = (value: string): QueryPlan['scope'] => ({ inventory: 'tracked', ...(value === '全部获权楼宇' ? {} : { submarkets: [...new Set(value.split('、'))] }) });
+  const distributionMeasures={建筑高度:'height',楼层数:'floors',总车位数:'parking',季度总面积:'totalArea',空置面积:'vacantArea',净有效租金:'rent',空置率:'vacancy'} as const;
+  const distribution=new RegExp(`^${period}((?:${marketList})|全部获权楼宇)(建筑高度|楼层数|总车位数|季度总面积|空置面积|净有效租金|空置率)分布$`).exec(text);
+  if(distribution)return {kind:'plan',plan:parseQueryPlan({operation:'distribution',period:quarter(distribution[1],distribution[2],distribution[3]),scope:groupedScope(distribution[4]),measure:distributionMeasures[distribution[6] as keyof typeof distributionMeasures]})};
+  const catalogDistribution=new RegExp(`^${markets}(建筑高度|楼层数|总车位数)分布$`).exec(text);
+  if(catalogDistribution)return {kind:'plan',plan:parseQueryPlan({operation:'distribution',period:null,scope:scope(catalogDistribution[1]),measure:distributionMeasures[catalogDistribution[2] as keyof typeof distributionMeasures]})};
   const relation = new RegExp(`^${period}((?:${marketList})|全部获权楼宇)净有效租金(?:和|与)空置率(?:关系|相关性)$`).exec(text);
   if (relation) return { kind: 'plan', plan: parseQueryPlan({ operation: 'relationship', period: quarter(relation[1], relation[2], relation[3]), scope: groupedScope(relation[4]) }) };
   const cross = new RegExp(`^${period}((?:${marketList})|全部获权楼宇)${metric}按子市场(?:和|与|×)等级交叉统计$`).exec(text);

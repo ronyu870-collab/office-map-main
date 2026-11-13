@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-11-13T19:56:55.243Z",
+  "environment": "isolated local synthetic",
+  "mobile": {
+    "boxLeft": 203.1328125,
+    "boxRight": 270.2109375,
+    "boxVisible": true,
+    "contentWidth": 324,
+    "page": 390,
+    "plotWidth": 324,
+    "textSize": "14px",
+    "viewport": 390
+  },
+  "boxSvg": "/Users/yuhang/Downloads/query-a539eb46-2739-44dd-9919-a506a53818dd-svg_zip.zip",
+  "adminDowngrade": {
+    "aiLinkVisible": false,
+    "businessLinks": [
+      "/map",
+      "/update",
+      "/lease-submission",
+      "/oss"
+    ],
+    "queryInputVisible": false
+  },
+  "binSourceFields": [
+    "net_effective_rent",
+    "total_area"
+  ],
+  "sourceFocusReturned": true,
+  "realDevice": false,
+  "independentVisualReview": false,
+  "productionChanged": false,
+  "boxFileReadback": {
+    "passed": true,
+    "resultId": "a539eb46-2739-44dd-9919-a506a53818dd",
+    "median": 150,
+    "q1": 125,
+    "q3": 175,
+    "sourceCount": 12
+  }
+}

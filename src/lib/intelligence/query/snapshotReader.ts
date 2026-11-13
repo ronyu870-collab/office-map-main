@@ -1,3 +1,4 @@
+import { distributionFields } from './distribution';
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -24,7 +25,7 @@ type RawSnapshot=z.infer<typeof rawSchema>;
 
 export function describePlanRead(plan:QueryPlan):{fields:NumericField[];periods:Quarter[]} {
   const fields=new Set<NumericField>(plan.operation==='list'?plan.fields:plan.operation==='rank'?[plan.field]
-    : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] :plan.metric==='rent'?['totalArea','netEffectiveRent']:plan.metric==='vacancy'?['totalArea','vacantArea']:['totalArea']);
+    : plan.operation === 'distribution' ? distributionFields(plan.measure) : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] :plan.metric==='rent'?['totalArea','netEffectiveRent']:plan.metric==='vacancy'?['totalArea','vacantArea']:['totalArea']);
   const visit=(filter:NonNullable<QueryPlan['filter']>)=>{
     if ('terms' in filter) filter.terms.forEach(visit);
     else fields.add(filter.field);

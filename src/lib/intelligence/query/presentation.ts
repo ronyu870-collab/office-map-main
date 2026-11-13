@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { distributionAnalysisSchema } from './distribution';
 import { quarterSchema } from './contracts';
 
 const text = z.string().max(10000);
@@ -16,7 +17,7 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship', 'distribution']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
@@ -76,6 +77,11 @@ export function resultSummary(result: QueryResultView): string[] {
     result.parameters.mode==='paired'?'按全期间共同有效样本查看趋势，各季度使用相同楼宇集合。':'按各期有效样本查看趋势，各季度参与楼宇可能不同。',
     result.parameters.metric==='rent'?'净有效租金按各期有效总面积加权；分母、参与数量和缺失情况见表。':result.parameters.metric==='vacancy'?'空置率按同一有效样本的空置面积合计除以总面积合计；缺期保留未知。':'累加各期有效季度总面积；没有有效样本时显示未知，不记零。',
     ...(rows.every(r=>r.cells.value?.kind!=='number')?['不知道：当前范围没有可用的趋势数值；不会用其他季度或模型知识补齐。']:[])];
+  if (result.operation === 'distribution') {
+    const d=distributionAnalysisSchema.parse(result.analysis),s=d.stats,unit=units[d.unit]??d.unit;
+    return [...(coverage?[coverage]:[]),s?`中位数 ${formatExact(s.median,d.unit)} ${unit}；P25 ${formatExact(s.q1,d.unit)}、P75 ${formatExact(s.q3,d.unit)}；最小 ${formatExact(s.min,d.unit)}、最大 ${formatExact(s.max,d.unit)}。`:'不知道：没有有效记录，不能计算分位数或分布。',
+      '逐楼等权，Type 7线性插值；区间按未舍入值判断，异常值保留。',d.outlierAssessment==='insufficient_sample'?'有效样本不足4栋，不判定离群。':`1.5×IQR围栏外 ${d.observations.filter(o=>o.outlier===true).length} 栋；只作标记，不代表数据错误。`];
+  }
   if (result.operation === 'relationship') {
     const a = z.object({ coverage: z.object({ candidates: z.number().int().nonnegative(), rentValid: z.number().int().nonnegative(), vacancyValid: z.number().int().nonnegative(), jointValid: z.number().int().nonnegative(), excluded: z.number().int().nonnegative() }),
       correlation: z.object({ value: z.number().min(-1).max(1).nullable(), unavailableReason: z.enum(['fewer_than_three_joint_samples', 'constant_variable']).nullable() }) }).parse(result.analysis);

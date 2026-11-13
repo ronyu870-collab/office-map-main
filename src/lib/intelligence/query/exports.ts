@@ -1,3 +1,4 @@
+import { distributionAnalysisSchema, distributionStatLabels } from './distribution';
 import { buildResultChart } from './charts';
 import { resultViewSchema, resultSummary, units } from './presentation';
 import type { QueryResult, ResultCell } from './result';
@@ -81,6 +82,19 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
         if (cell?.t === 'n') cell.z = '0.00%';
       }));
     }
+  }
+  if (result.operation === 'distribution') {
+    const d=distributionAnalysisSchema.parse(result.analysis);
+    buildResultChart(resultViewSchema.parse(result),{kind:'histogram'});
+    append('分位统计',[['result_id',result.resultId],['统计量',`数值 (${d.unit})`,'精确分子','精确分母'],
+      ...(Object.keys(distributionStatLabels) as (keyof typeof distributionStatLabels)[]).map(key=>[distributionStatLabels[key],d.stats?.[key].numeric??'未知',d.stats?.[key].exact.numerator??'',d.stats?.[key].exact.denominator??'']),
+      ['有效样本',d.coverage.valid],['排除样本',d.coverage.total-d.coverage.valid],['算法','Type 7；逐楼等权；1.5×IQR仅标记，不删除异常值'],
+    ]);
+    append('分箱统计',[['result_id',result.resultId],['区间','下界','上界','包含上界','栋数'],
+      ...d.bins.map((b,i)=>[`区间 ${i+1}`,b.lower.numeric,b.upper.numeric,b.upperInclusive?'是':'否',b.count]),
+      ['区间定义','左闭右开，最后一箱含上界；精确边界见口径与快照analysis'],
+    ]);
+    append('分箱成员',[['result_id',result.resultId],['区间','楼宇ID','来源ID'],...d.observations.filter(o=>o.bin!==null).map(o=>[`区间 ${o.bin!+1}`,o.entityId,o.sourceIds.join(';')])]);
   }
   if (result.operation === 'relationship') {
     const summary = resultSummary(resultViewSchema.parse(result));

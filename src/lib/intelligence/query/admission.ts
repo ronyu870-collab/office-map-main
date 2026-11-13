@@ -1,3 +1,4 @@
+import { distributionFields } from './distribution';
 import type { QueryPlan } from './plan';
 import { parseQueryPlan } from './plan';
 import { numericFields, type NumericField } from './registry';
@@ -18,7 +19,7 @@ export type QueryAuthority = Readonly<{
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
   const fields: readonly NumericField[] = plan.operation === 'list' ? plan.fields : plan.operation === 'rank' ? [plan.field]
-    : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] : plan.metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : plan.metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
+    : plan.operation === 'distribution' ? distributionFields(plan.measure) : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] : plan.metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : plan.metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
   const required = new Set<NumericField>(fields);
   const visit = (filter: NonNullable<QueryPlan['filter']>) => {
     if ('terms' in filter) filter.terms.forEach(visit);

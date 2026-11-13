@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { distributionMeasureSchema } from './distribution';
 import { quarterSchema, type Quarter } from './contracts';
 import type { Predicate } from './facts';
 
@@ -20,6 +21,7 @@ const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('list'), fields: z.array(fieldSchema).max(6), period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
   z.strictObject({ ...common, operation: z.literal('aggregate'), metric: metricSchema, period: quarterSchema }),
+  z.strictObject({ ...common, operation: z.literal('distribution'), measure: distributionMeasureSchema, period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('relationship'), period: quarterSchema }),
   z.strictObject({ ...common, operation: z.literal('cross_aggregate'), metric: metricSchema, period: quarterSchema }),
   z.strictObject({ ...common, operation: z.literal('trend'), metric: metricSchema, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
@@ -47,6 +49,7 @@ export function parseQueryPlan(input: unknown): QueryPlan {
     } else if (typeof item.value === 'string' && item.value.length > 200) throw new Error('QUERY_PLAN_VALUE_TOO_LONG');
   }
   const plan = planSchema.parse(input);
+  if (plan.operation === 'distribution' && !['height','floors','parking'].includes(plan.measure) && !plan.period) throw new Error('QUARTER_REQUIRED');
   if (plan.operation === 'list' && new Set(plan.fields).size !== plan.fields.length) throw new Error('DUPLICATE_QUERY_FIELD');
   if (plan.operation === 'trend' || plan.operation === 'group_trend') quarterRange(plan.start, plan.end);
   return plan;
