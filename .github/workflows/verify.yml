@@ -133,6 +133,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 market communication and recipient authorization
+        run: node supabase/tests/market-communication/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 building identity rename regressions
         run: npm run test:db:building-renames
         env:
