@@ -1,5 +1,6 @@
 'use client';
 
+import { LeaseExpiryLink } from '@/src/components/lease/LeaseExpiryLink';
 import { BrokerSearchLink } from '@/src/components/BrokerSearchLink';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
@@ -11,7 +12,7 @@ import { Building2, CheckCircle2, CircleAlert, Edit2, Gift, Plus, RotateCcw } fr
 import { getSessionFast } from '@/src/services/Auth';
 import { getAllBrokers, getAllSubmissions, getMySubmissions, getWeeklyProgress } from '@/src/services/leaseTransactionSubmitService';
 import { logAction } from '@/src/utils/audit';
-import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
+import { getImpersonationTargetUserId, withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { canViewLeaseTeamSubmissions, canWriteBusinessData, isUserAdmin } from '@/src/utils/accessControl';
 import { retryAsync } from '@/src/utils/retryAsync';
 import { MaskedCell } from '@/src/components/demo';
@@ -287,6 +288,7 @@ export default function LeaseSubmissionPage() {
       </header>
 
       <main className="mx-auto max-w-[1500px] space-y-3 p-3 sm:p-5">
+        {admin && !getImpersonationTargetUserId() && <div className="flex justify-end"><LeaseExpiryLink /></div>}
         <section className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] sm:flex sm:items-center sm:justify-between sm:gap-4 sm:px-5" aria-label="租赁成交填报状态">
           <dl className="grid grid-cols-2 px-3 py-3 sm:w-1/2 sm:max-w-[22rem] sm:shrink-0 sm:px-0 sm:py-2">
             <div className="min-w-0 pr-3">

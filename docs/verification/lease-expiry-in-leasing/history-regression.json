@@ -1,0 +1,68 @@
+{
+  "mode": "candidate",
+  "browser": "157.0.8103.52",
+  "observations": [
+    {
+      "width": 1280,
+      "rowsBeforeCount": true,
+      "calls": [
+        {
+          "mode": "rows",
+          "company": "",
+          "offset": 0
+        },
+        {
+          "mode": "count",
+          "company": "",
+          "offset": 0
+        },
+        {
+          "mode": "rows",
+          "company": "",
+          "offset": 50
+        },
+        {
+          "mode": "rows",
+          "company": "Beta",
+          "offset": 0
+        },
+        {
+          "mode": "count",
+          "company": "Beta",
+          "offset": 0
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "rowsBeforeCount": true,
+      "calls": [
+        {
+          "mode": "rows",
+          "company": "",
+          "offset": 0
+        },
+        {
+          "mode": "count",
+          "company": "",
+          "offset": 0
+        },
+        {
+          "mode": "rows",
+          "company": "",
+          "offset": 50
+        },
+        {
+          "mode": "rows",
+          "company": "Beta",
+          "offset": 0
+        },
+        {
+          "mode": "count",
+          "company": "Beta",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}
