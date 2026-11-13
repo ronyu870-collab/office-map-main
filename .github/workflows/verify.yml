@@ -163,6 +163,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 historical industry backfill and rollback
+        run: node supabase/tests/history-industry-backfill/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 building photo constraints and access regressions
         run: node supabase/tests/building-photos/run.mjs
         env:
