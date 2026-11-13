@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import { rolldown } from 'rolldown';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
+import { verifyAuditPeople } from './ai-audit-people-scenarios.mjs';
 import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyAuditConsole } from './ai-audit-console-scenarios.mjs';
 import { addSnapshotFixture, BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
@@ -87,6 +88,7 @@ try{
   if(!(await db.query("select 1 from information_schema.columns where table_schema='private' and table_name='ai_query_ingress_events' and column_name='cipher'")).rowCount)await db.query(await load('20261113084732_ai_query_atomic_intake.sql'));
   if(!(await db.query("select to_regclass('private.ai_audit_console_access') r")).rows[0].r)await db.query(await load('20261113090954_ai_audit_console_read.sql'));
   await db.query(await load('20261113123123_ai_admin_only_access.sql'));
+  await db.query(await load('20261113130012_ai_audit_actor_directory.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -542,6 +544,7 @@ try{
     assert.ok(anonymous.length>0);assert.ok(anonymous.every(r=>r.cipher===null));
   });
   await verifyAuditConsole({db,service,app,check,person,queryAdmin,other,admin,call,input,successful,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
+  await verifyAuditPeople({db,service,app,check,person,other,call,input,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
   await verifyAdminOnly({db,app,check,person,call,input,capabilities,recover,artifact,acknowledge,exportCaps});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);

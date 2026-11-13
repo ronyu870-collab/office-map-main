@@ -12,16 +12,17 @@ export const auditStateLabels: Record<typeof auditStates[number], string> = {
   received: '已接收', running: '处理中', succeeded: '执行成功', failed: '执行失败', denied: '已拒绝', cancelled: '已取消', unstarted: '未关联执行',
 };
 export const auditFilterSchema = z.object({
-  action: z.literal('list'), from: stamp, to: stamp, actorId: z.uuid().optional(),
+  action: z.literal('list'), from: stamp, to: stamp, actorId: z.uuid().optional(), actorSearch: z.string().trim().min(1).max(120).optional(),
   state: z.enum(auditStates).optional(), entry: z.enum(auditEntries).optional(), keyword: z.string().trim().min(1).max(200).optional(), cursor: z.string().max(3000).optional(),
 });
 export type AuditFilter = z.infer<typeof auditFilterSchema>;
 export type AuditRead = AuditFilter | { action: 'intake' | 'stream'; id: string };
 const summary = z.object({ id: z.uuid(), requestId: z.uuid(), kind: z.enum(['intake', 'stream']), at: stamp,
-  actorId: z.uuid(), effectiveUserId: z.uuid(), entry: z.enum(auditEntries), relatedExecutionState: z.enum(auditStates),
+  actorId: z.uuid(), effectiveUserId: z.uuid(), actorName: z.string().max(320).nullable(), actorNameTruncated: z.boolean(), effectiveUserName: z.string().max(320).nullable(), effectiveUserNameTruncated: z.boolean(), entry: z.enum(auditEntries), relatedExecutionState: z.enum(auditStates),
   contentState: z.enum(['available', 'unavailable', 'integrity_unavailable']), excerpt: z.string().max(400).nullable(), truncated: z.boolean(),
 });
 export const auditListSchema = z.object({ status: z.literal('ready'), accessId: z.uuid(), items: z.array(summary).max(50),
+  directoryAsOf: stamp, identitySemantics: z.literal('current_directory_not_historical'),
   scanned: z.number().int().min(0).max(50), unreadable: z.number().int().nonnegative(), nextCursor: z.string().max(3000).nullable(),
   searchComplete: z.boolean(), totalUnreadable: z.number().int().nonnegative(), totalMatches: z.null(), semantics: z.literal('attempts_and_legacy_streams'),
 });

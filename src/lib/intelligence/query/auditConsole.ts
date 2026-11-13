@@ -15,13 +15,14 @@ const hash = z.string().regex(/^[0-9a-f]{64}$/);
 const entry = z.enum(['query_submission','query_result_recovery','query_result_artifact','query_delivery_report','legacy_intake','legacy_stream']);
 const state = z.enum(['received','running','succeeded','failed','denied','cancelled','unstarted']);
 export const auditConsoleInput = z.discriminatedUnion('action', [
-  z.strictObject({ action: z.literal('list'), from: stamp, to: stamp, actorId: z.uuid().optional(), state: state.optional(),
+  z.strictObject({ action: z.literal('list'), from: stamp, to: stamp, actorId: z.uuid().optional(), actorSearch: z.string().trim().min(1).max(120).optional(), state: state.optional(),
     entry: entry.optional(), keyword: z.string().trim().min(1).max(200).optional(), cursor: z.string().max(3000).optional() }),
   z.strictObject({ action: z.literal('intake'), id: z.uuid() }),
   z.strictObject({ action: z.literal('stream'), id: z.uuid() }),
 ]);
 type Input = z.infer<typeof auditConsoleInput>;
 const pageRow = z.object({ record_id: z.uuid(), request_id: z.uuid(), occurred_at: stamp, actor_id: z.uuid(), effective_user_id: z.uuid(),
+  actor_name: z.string().max(320).nullable(), actor_name_truncated: z.boolean(), effective_name: z.string().max(320).nullable(), effective_name_truncated: z.boolean(),
   kind: z.enum(['intake','stream']), entry, related_state: state, cipher: z.unknown(), payload_digest: hash.nullable(), event_id: z.uuid().optional() });
 const eventRow = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().min(1).max(2048), kind: z.string(), occurred_at: stamp, payload_digest: hash, cipher: z.unknown() });
 const streamSchema = z.object({ request_id: z.uuid(), actor_id: z.uuid(), effective_user_id: z.uuid(), state, head_sequence: z.number().int().min(1).max(2048), head_hash: hash }).passthrough();
@@ -54,7 +55,7 @@ function question(document: unknown, intake: boolean): string {
 const cursorSchema = z.strictObject({ version:z.literal('audit-page/1'),actor:z.uuid(),session:z.uuid(),query:hash,revision:z.uuid(),
   beforeTime:stamp,beforeId:z.uuid(),unreadable:z.number().int().nonnegative(),expires:z.number().int() });
 function queryDigest(input: Extract<Input,{action:'list'}>, keys: AuditKeys) {
-  return auditPayloadDigest(JSON.stringify({from:input.from,to:input.to,actorId:input.actorId??null,state:input.state??null,entry:input.entry??null,keyword:input.keyword??null}),keys.digestKey);
+  return auditPayloadDigest(JSON.stringify({from:input.from,to:input.to,actorId:input.actorId??null,actorSearch:input.actorSearch??null,state:input.state??null,entry:input.entry??null,keyword:input.keyword??null}),keys.digestKey);
 }
 function cursorMac(data: string, keys: AuditKeys) { return createHmac('sha256',keys.digestKey).update('audit-page/1:'+data).digest('hex'); }
 function decodeCursor(token: string, input: Extract<Input,{action:'list'}>, identity: VerifiedQueryIdentity, keys: AuditKeys) {
@@ -90,7 +91,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
     const valid = dependencies.auditEnabled && input && !request.headers.has(IMPERSONATION_REQUEST_HEADER)
       && isQuerySameOrigin(request) && /^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')??'');
     const filter = !valid || !input ? {action:'invalid'} : input.action==='list' ? {action:input.action,from:input.from,to:input.to,
-      actorId:input.actorId??null,state:input.state??null,entry:input.entry??null,beforeTime:cursor?.beforeTime??null,beforeId:cursor?.beforeId??null} : input;
+      actorId:input.actorId??null,actorSearch:input.actorSearch??null,state:input.state??null,entry:input.entry??null,beforeTime:cursor?.beforeTime??null,beforeId:cursor?.beforeId??null} : input;
     const logged = encodeIntakeDocument(sanitizeAuditContent({rawRequest:body.text,entry:'audit_console',requestId:accessId,
       inputDigest:body.digest,impersonationRequested:request.headers.has(IMPERSONATION_REQUEST_HEADER)}));
     const context = {requestId:accessId,eventId:accessId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId};
@@ -100,7 +101,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
     }).abortSignal(AbortSignal.timeout(25000));
     if(read.error || read.data?.unavailable)throw new Error('AUDIT_CONSOLE_UNAVAILABLE');
     if(!valid || !input || read.data?.allowed!==true)return reply({status:'denied'},403);
-    const value=z.object({allowed:z.literal(true),access_policy:z.literal('admin-only/1'),revision:z.uuid(),records:z.array(z.unknown()).max(2048),stream:z.unknown(),has_more:z.boolean()}).parse(read.data);
+    const value=z.object({allowed:z.literal(true),access_policy:z.literal('admin-only/1'),directory_policy:z.literal('audit-actors/1'),directory_as_of:stamp,revision:z.uuid(),records:z.array(z.unknown()).max(2048),stream:z.unknown(),has_more:z.boolean()}).parse(read.data);
     if(cursor && cursor.revision!==value.revision)return reply({status:'denied'},403);
     let response:unknown, returned:string[];
     if(input.action==='list') {
@@ -113,6 +114,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
           catch {contentState='integrity_unavailable';unreadable++;} }
         if(input.keyword && (text===null || !text.normalize('NFKC').toLocaleLowerCase().includes(input.keyword.normalize('NFKC').toLocaleLowerCase())))continue;
         items.push({id:row.record_id,requestId:row.request_id,kind:row.kind,at:row.occurred_at,actorId:row.actor_id,effectiveUserId:row.effective_user_id,
+          actorName:row.actor_name,actorNameTruncated:row.actor_name_truncated,effectiveUserName:row.effective_name,effectiveUserNameTruncated:row.effective_name_truncated,
           entry:row.entry,relatedExecutionState:row.related_state,contentState,excerpt:text?.slice(0,400)??null,truncated:(text?.length??0)>400});
       }
       let nextCursor:string|null=null;
@@ -122,7 +124,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
           beforeTime:last.occurred_at,beforeId:last.record_id,unreadable:(cursor?.unreadable??0)+unreadable,expires:Math.min(identity.expiresAt,Date.now()+15*60000)})).toString('base64url');
         nextCursor=data+'.'+cursorMac(data,keys);
       }
-      returned=items.map(item=>item.id);response={status:'ready',accessId,items,scanned:rows.length,unreadable,nextCursor,
+      returned=items.map(item=>item.id);response={status:'ready',accessId,items,directoryAsOf:value.directory_as_of,identitySemantics:'current_directory_not_historical',scanned:rows.length,unreadable,nextCursor,
         searchComplete:!value.has_more && (cursor?.unreadable??0)+unreadable===0,totalUnreadable:(cursor?.unreadable??0)+unreadable,totalMatches:null,semantics:'attempts_and_legacy_streams'};
     } else if(input.action==='intake') {
       const rows=z.array(intakeRow).max(1).parse(value.records), row=rows[0];

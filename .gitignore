@@ -65,3 +65,5 @@ next-env.d.ts
 /verification/ai-audit-console/
 
 /verification/ai-admin-only/
+
+/verification/ai-audit-people/

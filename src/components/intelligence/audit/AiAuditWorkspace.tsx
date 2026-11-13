@@ -15,8 +15,8 @@ import styles from './AiAuditWorkspace.module.css';
 const localTime = (value: string) => new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
 const dateTimeInput = (time: number) => new Date(time + 8 * 3600000).toISOString().slice(0, 19);
 const inputTimestamp = (value: string) => `${value.length === 16 ? value + ':00' : value}+08:00`;
-type Draft = { from: string; to: string; keyword: string; actorId: string; state: string; entry: string };
-const initialDraft = (): Draft => ({ from: dateTimeInput(Date.now() - 7 * 86400000), to: dateTimeInput(Date.now()), keyword: '', actorId: '', state: '', entry: '' });
+type Draft = { from: string; to: string; keyword: string; actorId: string; actorSearch: string; state: string; entry: string };
+const initialDraft = (): Draft => ({ from: dateTimeInput(Date.now() - 7 * 86400000), to: dateTimeInput(Date.now()), keyword: '', actorId: '', actorSearch: '', state: '', entry: '' });
 const validRange = (filter: AuditFilter) => Date.parse(filter.to) > Date.parse(filter.from)
   && Date.parse(filter.to) - Date.parse(filter.from) <= 31 * 86400000 && Date.parse(filter.to) <= Date.now();
 type Selected = { item: AuditItem; intake?: AuditIntake; stream?: AuditStream };
@@ -29,7 +29,7 @@ function DocumentDetails({ value, label = '查看留存字段' }: { value: unkno
   return <details className={styles.document}><summary>{label}</summary><pre>{JSON.stringify(value, null, 2) ?? '未留存'}</pre></details>;
 }
 
-function RecordDetails({ selected, loadStream, busy }: { selected: Selected; loadStream: () => void; busy: boolean }) {
+function RecordDetails({ selected, loadStream, busy, directoryAsOf }: { selected: Selected; loadStream: () => void; busy: boolean; directoryAsOf: string }) {
   const { item, intake, stream } = selected;
   const original = intake?.record?.document ?? stream?.record?.events.find(event => event.kind === 'received')?.document;
   const question = auditSubmittedText(original);
@@ -41,11 +41,13 @@ function RecordDetails({ selected, loadStream, busy }: { selected: Selected; loa
     {question !== null ? <p className={styles.question}>{question}</p> : <p>此记录没有可显示的提问原文。可展开留存字段核对技术回执或缺失状态。</p>}
     {original != null && <DocumentDetails value={original} label="查看完整提交字段与脱敏类型" />}
     <dl className={styles.identifiers}>
+      <dt>当前目录姓名</dt><dd>{item.actorName ?? '姓名未知或目录未匹配'}{item.actorNameTruncated ? '…（名称已缩短）' : ''}</dd>
       <dt>操作账号</dt><dd>{item.actorId}</dd>
-      {item.effectiveUserId !== item.actorId && <><dt>有效身份</dt><dd>{item.effectiveUserId}</dd></>}
+      {item.effectiveUserId !== item.actorId && <><dt>有效身份</dt><dd>{item.effectiveUserName ?? '姓名未知或目录未匹配'}{item.effectiveUserNameTruncated ? '…（名称已缩短）' : ''} · {item.effectiveUserId}</dd></>}
       <dt>请求编号</dt><dd>{item.requestId}</dd>
       <dt>提交编号</dt><dd>{item.id}</dd>
     </dl>
+    <p className={styles.muted}>姓名取自 {localTime(directoryAsOf)} 的当前人员目录，不是提交时姓名快照；原始账号编号保持不变。</p>
     {!stream && <button type="button" onClick={loadStream} disabled={busy}>查看关联回答与来源</button>}
     {stream?.record === null && <p>没有可读取的关联执行记录，无法据此确认是否执行或产生回答。</p>}
     {stream?.record && <>
@@ -115,6 +117,7 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
   function submit(event: React.FormEvent) {
     event.preventDefault(); if (composing.current) return;
     const parsed = auditFilterSchema.safeParse({ action: 'list', from: inputTimestamp(draft.from), to: inputTimestamp(draft.to),
+      ...(draft.actorSearch.trim() ? { actorSearch: draft.actorSearch.trim() } : {}),
       ...(draft.keyword.trim() ? { keyword: draft.keyword.trim() } : {}), ...(draft.actorId.trim() ? { actorId: draft.actorId.trim() } : {}),
       ...(draft.state ? { state: draft.state } : {}), ...(draft.entry ? { entry: draft.entry } : {}) });
     if (!parsed.success || !validRange(parsed.data)) {
@@ -143,23 +146,28 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
         <label>关联执行状态<select {...field('state')}><option value="">全部状态</option>{auditStates.map(state => <option key={state} value={state}>{auditStateLabels[state]}</option>)}</select></label>
         <label>入口<select {...field('entry')}><option value="">全部入口</option>{auditEntries.map(entry => <option key={entry} value={entry}>{auditEntryLabels[entry]}</option>)}</select></label>
       </div>
-      <details className={styles.more}><summary>按操作账号筛选</summary><label>操作账号 UUID<input type="text" maxLength={36} autoComplete="off" {...field('actorId')} /></label><p className={styles.muted}>人员姓名目录尚未接入，请使用完整账号编号；不根据问题内容猜测姓名。</p></details>
+      <details className={styles.more}><summary>按人员筛选</summary><label>人员姓名<input type="text" maxLength={120} autoComplete="off" placeholder="当前目录中的中英文姓名" {...field('actorSearch')} /></label><label>操作账号 UUID<input type="text" maxLength={36} autoComplete="off" {...field('actorId')} /></label><p className={styles.muted}>姓名按当前目录包含匹配，同名账号分别保留；需要精确筛选时填写完整账号编号。目录改名或缺失时，可通过编号查历史记录。</p></details>
     </form>
     <p role="status" className={styles.status}>{message}</p>
     {page && <section aria-label="检索结果" className={styles.results}>
       <div className={styles.resultHeading}><h2>提交记录</h2><span>本页匹配 {page.items.length} 条，检查 {page.scanned} 条候选</span></div>
       <p className={styles.muted}>时间范围 {applied && localTime(applied.from)} 至 {applied && localTime(applied.to)}。筛选草稿修改后须重新检索。</p>
+      <p className={styles.muted}>人员姓名来自 {localTime(page.directoryAsOf)} 的当前目录，不是历史身份快照。{applied?.actorSearch ? ` 当前姓名条件：${applied.actorSearch}。` : ''}{applied?.actorId ? ` 当前账号条件：${applied.actorId}。` : ''}</p>
       {page.totalUnreadable > 0 && <p>累计 {page.totalUnreadable} 条候选正文缺失或无法校验；关键词检索可能遗漏，不能视为完整结果。</p>}
       {!page.items.length && <p>{page.nextCursor ? '本批候选未匹配，仍有后续记录。请继续检查下一批。' : page.searchComplete ? '已检查当前条件的全部候选，没有匹配记录。' : '本页没有匹配记录，但存在无法检索的正文，不能确认完全没有匹配。'}</p>}
       <ul className={styles.rows}>{page.items.map(item => <li key={item.id}>
         <button className={styles.row} aria-expanded={selected?.item.id === item.id && detailOpen} onClick={event => open(item, event.currentTarget)}>
           <span className={styles.rowMeta}><time dateTime={item.at}>{localTime(item.at)}</time><span>{auditEntryLabels[item.entry]}，{auditStateLabels[item.relatedExecutionState]}</span></span>
           <span className={styles.excerpt}>{item.excerpt ?? '正文缺失或校验不可用'}{item.truncated ? '…（展开全文）' : ''}</span>
-          <span className={styles.actor}>操作账号 {item.actorId}</span>
+          <span className={styles.actor}>{item.actorName ?? '姓名未知或目录未匹配'}{item.actorNameTruncated ? '…（名称已缩短）' : ''} · 账号 {item.actorId.slice(0, 8)}（完整编号见详情）</span>
         </button>
+        {applied && applied.actorId !== item.actorId && <button className={styles.personFilter} aria-label={`仅看此账号 ${item.actorId}`} onClick={() => {
+          setDraft(current => ({ ...current, actorId: item.actorId, actorSearch: '' }));
+          search({ ...applied, actorId: item.actorId, actorSearch: undefined, cursor: undefined });
+        }}>仅看此账号</button>}
         {detailOpen && selected?.item.id === item.id && <div ref={detail} tabIndex={-1} className={styles.detailContainer}>
           <button className={styles.close} onClick={() => { setDetailOpen(false); setSelected(null); activeButton.current?.focus(); }}>收起详情</button>
-          <RecordDetails selected={selected} busy={busy} loadStream={() => {
+          <RecordDetails selected={selected} directoryAsOf={page.directoryAsOf} busy={busy} loadStream={() => {
             const current = selected; setMessage('正在读取关联执行…');
             void run(async signal => { const stream = await aiAuditClient.stream(scope, current.item.requestId, signal); valid(signal); setSelected({ ...current, stream }); setMessage(''); });
           }} />

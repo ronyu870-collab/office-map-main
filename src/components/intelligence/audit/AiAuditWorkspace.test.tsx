@@ -15,9 +15,10 @@ const actorId = '11111111-1111-4111-8111-111111111111', sessionId = '22222222-22
 const requestId = '33333333-3333-4333-8333-333333333333', id = '44444444-4444-4444-8444-444444444444';
 const scope = { actorId, sessionId };
 const item = { id, requestId, kind: 'intake' as const, at: '2026-11-13T00:00:00Z', actorId, effectiveUserId: actorId,
+  actorName: '张明 / Ming Zhang', actorNameTruncated: false, effectiveUserName: '张明 / Ming Zhang', effectiveUserNameTruncated: false,
   entry: 'query_submission' as const, relatedExecutionState: 'succeeded' as const, contentState: 'available' as const, excerpt: 'CBD最高的楼', truncated: false };
 const page = (change: Partial<AuditList> = {}): AuditList => ({ status: 'ready', accessId: id, items: [item], scanned: 1,
-  unreadable: 0, nextCursor: null, searchComplete: true, totalUnreadable: 0, totalMatches: null, semantics: 'attempts_and_legacy_streams', ...change });
+  directoryAsOf: '2026-11-13T01:00:00Z', identitySemantics: 'current_directory_not_historical', unreadable: 0, nextCursor: null, searchComplete: true, totalUnreadable: 0, totalMatches: null, semantics: 'attempts_and_legacy_streams', ...change });
 const clickSearch = () => fireEvent.click(screen.getByRole('button', { name: /检索记录|重新检索/ }));
 beforeEach(() => {
   fixture.list.mockReset().mockResolvedValue(page()); fixture.intake.mockReset(); fixture.stream.mockReset();
@@ -138,4 +139,48 @@ test('rejects invalid ranges locally and states incomplete keyword coverage accu
   expect(fixture.list).not.toHaveBeenCalled(); expect(screen.getByText(/时间跨度最多 31 天/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('结束时间（北京时间）'), { target: { value: '2026-01-02T00:00' } }); clickSearch();
   expect(await screen.findByText(/累计 4 条候选正文/)).toBeInTheDocument(); expect(screen.getByText(/不能确认完全没有匹配/)).toBeInTheDocument();
+});
+
+test('keeps personnel search focus, caret and IME while results change and binds pagination to applied names', async () => {
+  const user = userEvent.setup(); let resolve!: (value: AuditList) => void;
+  fixture.list.mockImplementationOnce(() => new Promise<AuditList>(done => { resolve = done; }));
+  render(<AiAuditSearch scope={scope} />);
+  await user.click(screen.getByText('按人员筛选'));
+  const input = screen.getByLabelText('人员姓名') as HTMLInputElement;
+  await user.click(input); await user.type(input, 'Zhang'); await user.keyboard('{Enter}');
+  expect(fixture.list.mock.calls[0][1].actorSearch).toBe('Zhang');
+  expect(input).toHaveFocus(); input.setSelectionRange(1, 3); await user.keyboard('H');
+  expect(input.value).toBe('ZHng'); expect(input.selectionStart).toBe(2);
+  await act(async () => resolve(page({ items: [], scanned: 50, nextCursor: 'person-cursor', searchComplete: false })));
+  expect(input).toHaveFocus(); expect(input.selectionStart).toBe(2);
+  fireEvent.compositionStart(input); fireEvent.change(input, { target: { value: '张明' } });
+  fireEvent.submit(input.closest('form')!); expect(fixture.list).toHaveBeenCalledTimes(1);
+  fireEvent.compositionEnd(input);
+  fireEvent.click(screen.getByRole('button', { name: '继续检查下一批' }));
+  await screen.findByText('CBD最高的楼');
+  expect(fixture.list.mock.calls[1][1].actorSearch).toBe('Zhang'); expect(input.value).toBe('张明');
+  await user.click(input); await user.keyboard('{Enter}');
+  expect(fixture.list.mock.calls[2][1].actorSearch).toBe('张明');
+  fixture.list.mockRejectedValueOnce(new AuditReadError('unavailable'));
+  await user.keyboard('{Enter}'); await screen.findByText(/服务暂时不可用/);
+  expect(input).toHaveFocus(); await user.clear(input); await user.type(input, '李'); expect(input.value).toBe('李');
+});
+
+test('keeps names as text, distinguishes duplicate accounts and narrows by immutable ID rather than name', async () => {
+  const secondId = '55555555-5555-4555-8555-555555555555';
+  const name = '<img src=x onerror=alert(1)> / 同名';
+  fixture.list.mockResolvedValue(page({ items: [{ ...item, actorName: name }, { ...item, id: secondId, actorId: secondId, actorName: name }], scanned: 2 }));
+  render(<AiAuditSearch scope={scope} />); clickSearch(); await screen.findAllByText(/同名/);
+  expect(document.querySelector('img')).toBeNull(); expect(screen.getByText(/不是历史身份快照/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: `仅看此账号 ${secondId}` }));
+  await waitFor(() => expect(fixture.list).toHaveBeenCalledTimes(2));
+  expect(fixture.list.mock.calls[1][1]).toMatchObject({ actorId: secondId, actorSearch: undefined, cursor: undefined });
+  expect(screen.getByLabelText('操作账号 UUID')).toHaveValue(secondId);
+});
+
+test('does not invent names for unresolved identities and discloses shortened directory labels', async () => {
+  fixture.list.mockResolvedValue(page({ items: [{ ...item, actorName: null }, { ...item, id: sessionId, actorName: '长姓名', actorNameTruncated: true }], scanned: 2 }));
+  render(<AiAuditSearch scope={scope} />); clickSearch();
+  expect(await screen.findByText(/姓名未知或目录未匹配/)).toBeInTheDocument();
+  expect(screen.getByText(/长姓名…（名称已缩短）/)).toBeInTheDocument();
 });

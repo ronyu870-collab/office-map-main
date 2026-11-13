@@ -8,7 +8,7 @@ const actorId = '11111111-1111-4111-8111-111111111111', sessionId = '22222222-22
 const scope = { actorId, sessionId }, session = { session: { user: { id: actorId }, access_token: 'synthetic-only' }, user: { id: actorId }, sessionId };
 const filter = { action: 'list' as const, from: '2026-11-12T00:00:00Z', to: '2026-11-13T00:00:00Z' };
 const response = () => Response.json({ status: 'ready', accessId: actorId, items: [], scanned: 0, unreadable: 0, nextCursor: null,
-  searchComplete: true, totalUnreadable: 0, totalMatches: null, semantics: 'attempts_and_legacy_streams' });
+  directoryAsOf: '2026-11-13T00:00:00Z', identitySemantics: 'current_directory_not_historical', searchComplete: true, totalUnreadable: 0, totalMatches: null, semantics: 'attempts_and_legacy_streams' });
 beforeEach(() => { fixture.target = null; fixture.getSession.mockReset().mockResolvedValue(session); vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => response())); });
 afterEach(() => { vi.unstubAllGlobals(); });
 test('uses the existing session, no-store HTTP and validates a real-shaped response', async () => {

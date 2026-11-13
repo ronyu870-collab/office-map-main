@@ -20,7 +20,8 @@
 .filterGrid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-top:16px; }
 .workspace summary { cursor:pointer; min-height:44px; padding:10px 0; color:#003E7E; overflow-wrap:anywhere; }
 .more { margin-top:8px; }
-.more label { max-width:480px; }
+.more label { max-width:480px; margin-top:8px; }
+.workspace .personFilter { margin:0 12px 12px; }
 .more p { margin-top:8px; }
 .status { min-height:24px; margin:16px 0 !important; }
 .resultHeading, .rowMeta, .eventHeading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; }

@@ -3,7 +3,7 @@
     "id": "ai-audit-question-search",
     "roots": ["src/components/intelligence/audit/AiAuditWorkspace.tsx", "src/app/intelligence/audit/page.tsx"],
     "file": "src/components/intelligence/audit/AiAuditWorkspace.test.tsx",
-    "cases": ["preserves input focus, caret and IME across pending, empty and final results"]
+    "cases": ["preserves input focus, caret and IME across pending, empty and final results", "keeps personnel search focus, caret and IME while results change and binds pagination to applied names"]
   },
   {
     "id": "homepage-query-composer",
