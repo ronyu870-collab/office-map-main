@@ -47,6 +47,10 @@ async function call(who,body=input(),headers={}){
   const response=await fetch(app+'/api/intelligence/query',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:typeof body==='string'?body:JSON.stringify(body)});
   return {status:response.status,body:await response.json(),headers:response.headers};
 }
+async function recover(who,requestId,action='recover',headers={}){
+  const response=await fetch(app+'/api/intelligence/query/recover',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify({requestId,action})});
+  return {status:response.status,body:await response.json()};
+}
 const events=async id=>(await db.query('select e.*,s.actor_id,s.effective_user_id from private.ai_query_audit_events e join private.ai_query_audit_streams s using(request_id) where request_id=$1 order by sequence',[id])).rows;
 try{
   const version=(await db.query('select version() v')).rows[0].v;assert.match(version,/PostgreSQL 17\./);
@@ -58,12 +62,13 @@ try{
     await addSnapshotFixture({setup:db},{existingTables:true});
     await db.query(await load('20261113032515_ai_query_http_security.sql'));
   }
+  if(!(await db.query("select to_regclass('private.ai_query_result_access') r")).rows[0].r)await db.query(await load('20261113042352_ai_query_result_recovery.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
   const bundle=await rolldown({input:path.join(root,'src/lib/intelligence/query/auditCrypto.ts'),platform:'node'});
   try{await bundle.write({file:path.join(output,'audit-crypto.cjs'),format:'cjs'});}finally{await bundle.close();}
-  const {decryptAuditContent}=createRequire(import.meta.url)(path.join(output,'audit-crypto.cjs'));
+  const {decryptAuditContent,encryptAuditContent,auditPayloadDigest}=createRequire(import.meta.url)(path.join(output,'audit-crypto.cjs'));
   const decrypt=e=>JSON.parse(decryptAuditContent(e.cipher,{requestId:e.request_id,eventId:e.event_id,actorId:e.actor_id,effectiveUserId:e.effective_user_id},new Map([[keyId,encryptionKey]])));
   const viewer=await person('viewer','viewer'),admin=await person('admin','admin'),other=await person('viewer','other');
   results.push({scenario:'真实Auth创建、密码登录和会话落库',status:'passed'});
@@ -117,7 +122,10 @@ try{
   });
   await check('真实管理员模拟取资格交集，不借目标权限扩权',async()=>{
     await grantQuery({setup:db},admin.id,{fields:['height']});
-    assert.equal((await call(admin,input(),{'X-Colliers-Impersonate-User':viewer.id})).status,200);
+    const simulated=await call(admin,input(),{'X-Colliers-Impersonate-User':viewer.id});assert.equal(simulated.status,200);
+    assert.equal((await recover(admin,simulated.body.requestId,'recover',{'X-Colliers-Impersonate-User':viewer.id})).status,200);
+    assert.equal((await recover(admin,simulated.body.requestId)).status,403);
+    assert.equal((await recover(viewer,simulated.body.requestId)).status,403);
     assert.equal((await call(admin,input({operation:'aggregate',scope:rank.scope,metric:'rent',period:{year:2026,quarter:3}}),{'X-Colliers-Impersonate-User':viewer.id})).status,403);
   });
   await check('问题和原始JSON中的明确凭证均脱敏，保留业务文字',async()=>{
@@ -134,6 +142,89 @@ try{
     assert.equal(decrypt((await events(conflict.body.requestId))[0]).content.submittedText,'这是不同的正式问题');
     await grantQuery({setup:db},other.id);const across=await call(other,body);assert.equal(across.status,200);assert.notEqual(across.body.requestId,both[0].body.requestId);
   });
+  await check('历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据',async()=>{
+    const status=await recover(viewer,successful.body.requestId,'status');assert.equal(status.status,200);assert.equal(status.body.status,'succeeded');assert.equal(status.body.result,undefined);
+    await db.query('update public.building_brochure_data set building_height=999 where building_id=$1',[BUILDINGS[0]]);
+    try{
+      const restored=await recover(viewer,successful.body.requestId);assert.equal(restored.status,200);assert.deepEqual(restored.body.result,successful.body.result);
+      assert.equal((await call(viewer)).body.result.table.rows[0].cells.height.value.numeric,999);
+      const stored=await events(restored.body.attemptId);assert.equal(stored.at(-1).kind,'delivery_receipt');assert.equal(decrypt(stored.at(-1)).content.clientReceipt,'unconfirmed');
+      assert.ok((await db.query("select 1 from private.ai_query_result_access where request_id=$1 and action='sources' and outcome='allowed'",[successful.body.requestId])).rowCount);
+    }finally{await db.query('update public.building_brochure_data set building_height=210 where building_id=$1',[BUILDINGS[0]]);}
+  });
+  await check('恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份',async()=>{
+    for(const action of ['status','recover']){
+      const foreign=await recover(other,successful.body.requestId,action),unknown=await recover(other,randomUUID(),action);
+      assert.equal(foreign.status,403);assert.equal(unknown.status,403);assert.equal(foreign.body.error,unknown.body.error);
+      assert.equal((await recover(admin,successful.body.requestId,action,{'X-Colliers-Impersonate-User':viewer.id})).status,403);
+    }
+    assert.equal((await recover(null,successful.body.requestId)).status,401);
+    const forged=await recover(viewer,successful.body.requestId,'recover',{'X-Colliers-Impersonate-User':admin.id});assert.equal(forged.status,403);
+    const first=(await events(forged.body.attemptId))[0];assert.equal(first.actor_id,viewer.id);assert.equal(decrypt(first).content.metadata.impersonationDenied,true);
+  });
+  await check('历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限',async()=>{
+    try{
+      await grantQuery({setup:db},viewer.id,{fields:['totalArea']});assert.equal((await recover(viewer,successful.body.requestId)).status,403);
+      await grantQuery({setup:db},viewer.id,{allBuildings:false,buildingIds:[BUILDINGS[0]]});assert.equal((await recover(viewer,successful.body.requestId)).status,403);
+      await grantQuery({setup:db},viewer.id,{allSubmarkets:false,submarkets:['CBD']});
+      await db.query('update public.buildings set submarket=null where id=$1',[BUILDINGS[1]]);assert.equal((await recover(viewer,successful.body.requestId)).status,403);
+      await db.query("update public.buildings set submarket='CBD',merged_into_id=$2 where id=$1",[BUILDINGS[1],BUILDINGS[0]]);assert.equal((await recover(viewer,successful.body.requestId)).status,403);
+    }finally{await db.query("update public.buildings set submarket='CBD',merged_into_id=null where id=$1",[BUILDINGS[1]]);await grantQuery({setup:db},viewer.id);}
+    const absent=(await db.query('delete from public.building_brochure_data where building_id=$1 returning *',[BUILDINGS[0]])).rows;
+    try{assert.equal((await recover(viewer,successful.body.requestId)).status,403);}
+    finally{for(const row of absent)await db.query('insert into public.building_brochure_data select * from jsonb_populate_record(null::public.building_brochure_data,$1::jsonb)',[JSON.stringify(row)]);}
+  });
+  await check('季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170',async()=>{
+    const result=await call(viewer,input({operation:'aggregate',scope:rank.scope,metric:'rent',period:{year:2026,quarter:3}}));assert.equal(result.status,200);
+    await db.query('update public.building_metrics set is_draft=true where building_id=$1 and record_quarter=3',[BUILDINGS[0]]);
+    try{assert.equal((await recover(viewer,result.body.requestId)).status,403);}
+    finally{await db.query('update public.building_metrics set is_draft=false where building_id=$1 and record_quarter=3',[BUILDINGS[0]]);}
+    assert.deepEqual((await recover(viewer,result.body.requestId)).body.result,result.body.result);
+  });
+  await check('空结果仍检查原始查询范围，不能通过无来源绕过撤权',async()=>{
+    const result=await call(viewer,input({...rank,scope:{inventory:'tracked',submarkets:['金融街']}}));assert.equal(result.status,200);
+    await grantQuery({setup:db},viewer.id,{allSubmarkets:false,submarkets:['CBD']});
+    try{assert.equal((await recover(viewer,result.body.requestId)).status,403);}
+    finally{await grantQuery({setup:db},viewer.id);}
+  });
+  await check('审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果',async()=>{
+    const last=(await events(successful.body.requestId)).at(-1);
+    await db.query("update private.ai_query_audit_events set event_hash=repeat('0',64) where event_id=$1",[last.event_id]);
+    try{const res=await recover(viewer,successful.body.requestId);assert.equal(res.status,503);assert.equal(res.body.result,undefined);}
+    finally{await db.query('update private.ai_query_audit_events set event_hash=$2 where event_id=$1',[last.event_id,last.event_hash]);}
+    await db.query("create or replace function private.fail_result_access() returns trigger language plpgsql set search_path='' as $$ begin raise exception 'injected recovery audit failure'; end $$;create trigger fail_result_access before insert on private.ai_query_result_access for each row execute function private.fail_result_access()");
+    try{const res=await recover(viewer,successful.body.requestId);assert.equal(res.status,503);assert.equal(res.body.result,undefined);}
+    finally{await db.query('drop trigger fail_result_access on private.ai_query_result_access');}
+  });
+  await check('恢复响应准备后来源撤回仍阻止交付，追加未发送修正',async()=>{
+    await db.query(`create or replace function private.withdraw_source_after_recovery() returns trigger language plpgsql set search_path='' as $$ begin if new.kind='delivery_receipt' then update public.buildings set merged_into_id='${BUILDINGS[0]}' where id='${BUILDINGS[1]}'; end if;return new;end $$;create trigger withdraw_source_after_recovery after insert on private.ai_query_audit_events for each row execute function private.withdraw_source_after_recovery()`);
+    try{const res=await recover(viewer,successful.body.requestId);assert.equal(res.status,403);assert.equal(res.body.result,undefined);assert.equal((await events(res.body.attemptId)).at(-1).kind,'correction');}
+    finally{await db.query('drop trigger withdraw_source_after_recovery on private.ai_query_audit_events');await db.query('update public.buildings set merged_into_id=null where id=$1',[BUILDINGS[1]]);}
+  });
+  await check('失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功',async()=>{
+    const denied=await call(viewer,input({...rank,field:'contact_phone'}));assert.equal(denied.status,403);
+    assert.equal((await recover(viewer,denied.body.requestId)).body.status,'denied');
+    const original=(await db.query("select pg_get_functiondef('public.ai_query_snapshot_read(uuid,uuid,uuid,text,text[],jsonb,text,text[],uuid[])'::regprocedure) definition")).rows[0].definition;
+    await db.query("create or replace function public.ai_query_snapshot_read(p_actor uuid,p_effective uuid,p_session uuid,p_permission_revision text,p_fields text[],p_periods jsonb,p_inventory text,p_submarkets text[],p_building_ids uuid[]) returns jsonb language plpgsql security invoker set search_path='' as $$ begin raise exception 'injected snapshot service failure'; end $$");
+    let failed;
+    try{failed=await call(viewer);assert.equal(failed.status,503);}
+    finally{await db.query(original);}
+    assert.equal((await recover(viewer,failed.body.requestId)).body.status,'failed');
+    await db.query("update private.ai_query_audit_streams set state='succeeded' where request_id=$1",[failed.body.requestId]);
+    try{assert.equal((await recover(viewer,failed.body.requestId,'status')).status,503);}
+    finally{await db.query("update private.ai_query_audit_streams set state='failed' where request_id=$1",[failed.body.requestId]);}
+  });
+  await check('状态轮询期间事件追加不误报撤权，恢复期间变化则409重试',async()=>{
+    for(const action of ['status','recover']){
+      const eventId=randomUUID(),target=successful.body.requestId;
+      const content=JSON.stringify({content:{kind:'synthetic_accounting_update'},redactionTypes:[]});
+      const cipher=encryptAuditContent(content,{requestId:target,eventId,actorId:viewer.id,effectiveUserId:viewer.id},keyId,encryptionKey);
+      const digest=auditPayloadDigest(content,digestKey);
+      await db.query(`create or replace function private.advance_result_after_prepare() returns trigger language plpgsql set search_path='' as $$ begin if new.kind='delivery_receipt' then perform private.ai_query_audit_append('${target}','${eventId}','accounting','${digest}','${JSON.stringify(cipher)}'::jsonb); end if;return new;end $$;create trigger advance_result_after_prepare after insert on private.ai_query_audit_events for each row execute function private.advance_result_after_prepare()`);
+      try{const res=await recover(viewer,target,action);assert.equal(res.status,action==='status'?200:409);assert.equal(res.body.result,undefined);assert.equal(res.body.status,action==='status'?'succeeded':'changed');}
+      finally{await db.query('drop trigger advance_result_after_prepare on private.ai_query_audit_events');}
+    }
+  });
   await check('超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整',async()=>{
     const big=await call(viewer,'中'.repeat(10000));assert.equal(big.status,413);
     const row=(await db.query('select * from private.ai_query_ingress_events where request_id=$1',[big.body.requestId])).rows[0];
@@ -149,8 +240,9 @@ try{
   });
   await check('入口与问答存储故障分别阻止新查询，失败不返回结果',async()=>{
     for(const table of ['ai_query_ingress_events','ai_query_audit_events']){
-      await db.query(`create or replace function private.fail_query_http() returns trigger language plpgsql as $$ begin raise exception 'injected audit failure'; end $$;create trigger query_http_fault before insert on private.${table} for each row execute function private.fail_query_http()`);
-      try{const res=await call(viewer);assert.equal(res.status,503);assert.equal(res.body.result,undefined);assert.equal((await events(res.body.requestId)).length,0);}
+      await db.query(`create or replace function private.fail_query_http() returns trigger language plpgsql set search_path='' as $$ begin raise exception 'injected audit failure'; end $$;create trigger query_http_fault before insert on private.${table} for each row execute function private.fail_query_http()`);
+      try{const res=await call(viewer);assert.equal(res.status,503);assert.equal(res.body.result,undefined);assert.equal((await events(res.body.requestId)).length,0);
+        const restore=await recover(viewer,successful.body.requestId);assert.equal(restore.status,503);assert.equal(restore.body.result,undefined);}
       finally{await db.query(`drop trigger query_http_fault on private.${table}`);}
     }
   });
@@ -163,6 +255,8 @@ try{
     try{
       pending=call(viewer);
       await until(async()=>Boolean((await db.query("select 1 from pg_stat_activity where datname=current_database() and wait_event='advisory' and query like '%ai_query_snapshot_read%' and pid<>pg_backend_pid()")).rowCount),'snapshot waiting on synthetic barrier',10000);
+      const runningId=(await db.query("select request_id from private.ai_query_audit_streams where actor_id=$1 and state='running' order by received_at desc limit 1",[viewer.id])).rows[0].request_id;
+      const status=await recover(viewer,runningId,'status');assert.equal(status.status,200);assert.equal(status.body.status,'running');assert.equal(status.body.result,undefined);
       change=withdrawal.query('update private.ai_query_grants set enabled=false where user_id=$1',[viewer.id]);
       await until(async()=>Boolean((await db.query('select 1 from pg_stat_activity where pid=$1 and wait_event_type=$2',[withdrawal.processID,'Lock'])).rowCount),'withdrawal waiting on in-flight read',10000);
       await blocker.query('select pg_advisory_unlock(761113)');
@@ -174,14 +268,14 @@ try{
     }
   });
   await check('响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果',async()=>{
-    await db.query(`create or replace function private.narrow_query_after_prepare() returns trigger language plpgsql as $$ begin if new.kind='delivery_receipt' then update private.ai_query_grants set fields=array['height'] where user_id=(select actor_id from private.ai_query_audit_streams where request_id=new.request_id); end if;return new;end $$;create trigger narrow_query_after_prepare after insert on private.ai_query_audit_events for each row execute function private.narrow_query_after_prepare()`);
+    await db.query(`create or replace function private.narrow_query_after_prepare() returns trigger language plpgsql set search_path='' as $$ begin if new.kind='delivery_receipt' then update private.ai_query_grants set fields=array['height'] where user_id=(select actor_id from private.ai_query_audit_streams where request_id=new.request_id); end if;return new;end $$;create trigger narrow_query_after_prepare after insert on private.ai_query_audit_events for each row execute function private.narrow_query_after_prepare()`);
     try{
       const res=await call(viewer,input({operation:'aggregate',scope:rank.scope,metric:'rent',period:{year:2026,quarter:3}}));assert.equal(res.status,403);assert.equal(res.body.result,undefined);
       assert.equal((await events(res.body.requestId)).at(-1).kind,'correction');
     }finally{await db.query('drop trigger narrow_query_after_prepare on private.ai_query_audit_events');await grantQuery({setup:db},viewer.id);}
   });
   await check('响应准备后权限服务故障明确为无法确认，不误报撤权',async()=>{
-    await db.query(`create or replace function private.fail_authority_after_prepare() returns trigger language plpgsql as $$ begin if new.kind='delivery_receipt' then revoke execute on function public.ai_query_authority(uuid,uuid,uuid) from service_role; end if;return new;end $$;create trigger fail_authority_after_prepare after insert on private.ai_query_audit_events for each row execute function private.fail_authority_after_prepare()`);
+    await db.query(`create or replace function private.fail_authority_after_prepare() returns trigger language plpgsql set search_path='' as $$ begin if new.kind='delivery_receipt' then revoke execute on function public.ai_query_authority(uuid,uuid,uuid) from service_role; end if;return new;end $$;create trigger fail_authority_after_prepare after insert on private.ai_query_audit_events for each row execute function private.fail_authority_after_prepare()`);
     try{
       const res=await call(viewer);assert.equal(res.status,503);assert.equal(res.body.result,undefined);
       assert.equal(decrypt((await events(res.body.requestId)).at(-1)).content.reason,'authorization_unavailable_before_response');
@@ -192,10 +286,17 @@ try{
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await call(viewer,body)).status,403);
     await grantQuery({setup:db},viewer.id);const old=viewer.token;assert.equal((await viewer.client.auth.signOut({scope:'local'})).error,null);
     viewer.token=old;const revoked=await call(viewer,input());assert.ok([401,403].includes(revoked.status));assert.equal(revoked.body.result,undefined);
+    assert.ok([401,403].includes((await recover(viewer,successful.body.requestId)).status));
   });
   await check('普通用户无法直读审计/入口表或直接调用服务端RPC',async()=>{
     const direct=await other.client.rpc('ai_query_authority',{p_actor:other.id,p_effective:other.id,p_session:other.sessionId});assert.ok(direct.error);
-    for(const table of ['ai_query_audit_streams','ai_query_ingress_events'])assert.ok((await other.client.schema('private').from(table).select('*')).error);
+    for(const table of ['ai_query_audit_streams','ai_query_ingress_events','ai_query_result_access'])assert.ok((await other.client.schema('private').from(table).select('*')).error);
+    assert.ok((await other.client.rpc('ai_query_result_read',{p_actor:viewer.id,p_effective:viewer.id,p_session:viewer.sessionId,p_request_id:successful.body.requestId,p_action:'archive'})).error);
+    assert.ok((await other.client.rpc('ai_query_result_sources_allowed',{p_actor:other.id,p_effective:other.id,p_session:other.sessionId,p_request_id:successful.body.requestId,p_permission_revision:'0'.repeat(64),p_sources:[]})).error);
+    const functions=(await db.query("select n.nspname,p.prosecdef,p.proconfig,has_function_privilege('anon',p.oid,'execute') anon,has_function_privilege('authenticated',p.oid,'execute') authenticated,has_function_privilege('service_role',p.oid,'execute') service from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.proname in ('ai_query_result_read','ai_query_result_sources_allowed')")).rows;
+    assert.equal(functions.length,4);
+    for(const fn of functions){assert.equal(fn.anon,false);assert.equal(fn.authenticated,false);assert.equal(fn.service,true);assert.equal(fn.prosecdef,fn.nspname==='private');assert.ok(fn.proconfig.includes('search_path=""'));}
+    assert.equal((await db.query("select relrowsecurity from pg_class where oid='private.ai_query_result_access'::regclass")).rows[0].relrowsecurity,true);
   });
   await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,browserValidation:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
