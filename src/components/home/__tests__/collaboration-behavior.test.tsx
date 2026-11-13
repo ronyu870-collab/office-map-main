@@ -110,7 +110,7 @@ describe('market communication on homepage', () => {
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('初始消息');
     await user.click(screen.getByRole('button', { name: '回复' }));
-    expect(screen.getByText(/回复/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '取消回复' })).toBeInTheDocument();
     await user.type(editor(), '确认');
     await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
     expect(screen.getByRole('dialog', { name: '市场交流' })).toBeInTheDocument();
