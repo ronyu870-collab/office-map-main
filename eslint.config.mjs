@@ -53,6 +53,9 @@ const eslintConfig = defineConfig([
     "public/vendor/**",
     ".local/sales-materials/**",
     ".local/f6-admin-pilot/**",
+    // Generated dependency bundle used only by the real Auth integration harness.
+    // The TypeScript implementation and the harness itself remain linted.
+    "verification/ai-query-auth/audit-crypto.cjs",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

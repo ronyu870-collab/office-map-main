@@ -5,7 +5,7 @@ import { auditPayloadDigest, encryptAuditContent, redactSubmittedCredentials } f
 import type { AuditPort } from './admission';
 import type { VerifiedQueryIdentity } from './serverAuthority';
 
-type AuditKeys = { keyId: string; encryptionKey: Uint8Array; digestKey: Uint8Array };
+export type AuditKeys = { keyId: string; encryptionKey: Uint8Array; digestKey: Uint8Array };
 const receiptSchema = z.object({ event_id: z.uuid(), sequence: z.number().int().positive(), event_hash: z.string().regex(/^[0-9a-f]{64}$/), replayed: z.boolean() });
 
 function firstEventId(requestId: string): string {
@@ -30,6 +30,16 @@ export function sanitizeAuditContent(input: unknown): { content: unknown; redact
     if (typeof value==='object') return Object.fromEntries(Object.entries(value).map(([key,child])=>{
       if (/^(password|passwd|api[_ -]?key|secret[_ -]?key|access[_ -]?token|refresh[_ -]?token|密码)$/i.test(key)) {
         types.add('credential_field'); return [key,'[已脱敏:credential_field]'];
+      }
+      if (key==='rawRequest' && typeof child==='string') {
+        try {
+          const decoded=JSON.parse(child);
+          const clean=visit(decoded,depth+1);
+          // Decode JSON escapes before masking credentials inside question strings.
+          // Preserve exact formatting if nothing was redacted; otherwise retain
+          // canonical redacted JSON, while ingress keeps the original keyed digest.
+          if(JSON.stringify(decoded)!==JSON.stringify(clean))return [key,JSON.stringify(clean)];
+        } catch { /* Malformed JSON still follows bounded plain-text masking. */ }
       }
       return [key,visit(child,depth+1)];
     }));
@@ -59,12 +69,16 @@ export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQue
       z.uuid().parse(request.requestId);
       if(request.authority.actorId!==identity.actorId || request.authority.effectiveUserId!==identity.effectiveUserId)throw new Error('AUDIT_IDENTITY_MISMATCH');
       const eventId=firstEventId(request.requestId);
-      const content=JSON.stringify(sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,authority:request.authority,sessionId:identity.sessionId,entry:'query_api',timezone:'Asia/Shanghai'}));
+      const submitted=sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,metadata:request.metadata??null});
+      const content=JSON.stringify(sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,authority:request.authority,metadata:request.metadata??null,sessionId:identity.sessionId,entry:'query_api',timezone:'Asia/Shanghai',idempotencyVersion:'submission/2'}));
       const { data,error }=await client.rpc('ai_query_audit_receive',{
         p_request_id:request.requestId,p_event_id:eventId,p_actor:identity.actorId,p_effective:identity.effectiveUserId,
         p_policy_version:request.authority.policyVersion,...sealed(request.requestId,eventId,content),
+        // Session/role refresh does not change a submitted question's identity.
+        // Cipher AEAD + the database event chain still bind the full first context.
+        p_payload_digest:auditPayloadDigest(JSON.stringify(submitted),keys.digestKey),
       }).abortSignal(AbortSignal.timeout(8000));
-      if(error)throw new Error('AUDIT_PERSISTENCE_UNAVAILABLE');
+      if(error)throw new Error(error.code==='22023'&&error.message==='audit idempotency conflict'?'AUDIT_IDEMPOTENCY_CONFLICT':'AUDIT_PERSISTENCE_UNAVAILABLE');
       const receipt=receiptSchema.parse(data);
       return {replayed:receipt.replayed};
     },

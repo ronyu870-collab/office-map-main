@@ -34,8 +34,8 @@ export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void 
 }
 
 export type AuditPort = {
-  receive: (request: { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority }) => Promise<{ replayed: boolean }>;
-  append: (requestId: string, kind: 'running' | 'response_generated' | 'succeeded' | 'denied' | 'failed' | 'cancelled' | 'correction', detail: unknown) => Promise<void>;
+  receive: (request: { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; metadata?: unknown }) => Promise<{ replayed: boolean }>;
+  append: (requestId: string, kind: 'running' | 'response_generated' | 'succeeded' | 'denied' | 'failed' | 'cancelled' | 'correction' | 'delivery_receipt', detail: unknown) => Promise<void>;
 };
 export type QueryExecutionPort<T> = {
   freshAuthority: () => Promise<QueryAuthority>;
@@ -43,14 +43,41 @@ export type QueryExecutionPort<T> = {
 };
 
 /** A reusable execution boundary; it is not an enabled HTTP endpoint or a substitute for durable storage. */
+type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown };
+type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'already_received' | 'denied' | 'cancelled' | 'failed' };
+
 export async function runAuditedQuery<T>(
-  request: { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal },
+  request: AuditedRequest,
   audit: AuditPort,
   execution: QueryExecutionPort<T>,
-): Promise<{ status: 'ready'; result: T } | { status: 'already_received' | 'denied' | 'cancelled' | 'failed' }> {
+): Promise<ExecutionResult<T>> {
   // Even invalid/denied plans are recorded. No database query or model invocation precedes this await.
-  const receipt = await audit.receive({ requestId: request.requestId, submittedText: request.submittedText, plan: request.plan, authority: request.authority });
+  const receipt = await audit.receive(request);
   if (receipt.replayed) return { status: 'already_received' };
+  return executeReceived(request, audit, execution);
+}
+
+/** HTTP admission records a verified actor's full submission before querying
+ * feature eligibility. The initial authority is explicitly unevaluated, not a grant. */
+export async function runAuditedSubmission<T>(request: AuditedRequest, audit: AuditPort, execution: QueryExecutionPort<T>): Promise<ExecutionResult<T>> {
+  const receipt = await audit.receive(request);
+  let authority: QueryAuthority;
+  try {
+    if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
+    authority = await execution.freshAuthority();
+    if (authority.actorId !== request.authority.actorId || authority.effectiveUserId !== request.authority.effectiveUserId) throw new Error('QUERY_DENIED');
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : '';
+    const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';
+    const status = timedOut ? 'failed' : request.signal.aborted || reason === 'QUERY_CANCELLED' ? 'cancelled' : reason === 'QUERY_DENIED' ? 'denied' : 'failed';
+    if (!receipt.replayed) await audit.append(request.requestId, status, { status, delivery: 'not_sent', reason: timedOut ? 'execution_deadline_exceeded' : 'admission_not_granted' });
+    return { status };
+  }
+  if (receipt.replayed) return { status: 'already_received' };
+  return executeReceived({ ...request, authority }, audit, execution);
+}
+
+async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, execution: QueryExecutionPort<T>): Promise<ExecutionResult<T>> {
   let executionRecorded = false;
   const recheck = async (plan: QueryPlan) => {
     if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
@@ -63,7 +90,7 @@ export async function runAuditedQuery<T>(
     let plan: QueryPlan;
     try { plan = parseQueryPlan(request.plan); } catch { throw new Error('QUERY_DENIED'); }
     const authority = await recheck(plan);
-    await audit.append(request.requestId, 'running', { policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision });
+    await audit.append(request.requestId, 'running', { policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision, authority });
     const beforeRead = await recheck(plan);
     const result = await execution.execute(plan, beforeRead, request.signal);
     await recheck(plan);
@@ -75,9 +102,10 @@ export async function runAuditedQuery<T>(
     return { status: 'ready', result };
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    const status = request.signal.aborted || message === 'QUERY_CANCELLED' ? 'cancelled' : message === 'QUERY_DENIED' ? 'denied' : 'failed';
+    const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';
+    const status = timedOut ? 'failed' : request.signal.aborted || message === 'QUERY_CANCELLED' ? 'cancelled' : message === 'QUERY_DENIED' ? 'denied' : 'failed';
     // Storage failures propagate if terminal recording is also unavailable; never deliver the result.
-    await audit.append(request.requestId, executionRecorded ? 'correction' : status, { delivery: 'not_sent', status, reason: status === 'denied' ? 'authorization_or_plan_rejected' : status === 'cancelled' ? 'request_cancelled' : 'execution_unavailable' });
+    await audit.append(request.requestId, executionRecorded ? 'correction' : status, { delivery: 'not_sent', status, reason: timedOut ? 'execution_deadline_exceeded' : status === 'denied' ? 'authorization_or_plan_rejected' : status === 'cancelled' ? 'request_cancelled' : 'execution_unavailable' });
     return { status };
   }
 }

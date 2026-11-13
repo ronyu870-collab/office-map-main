@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { authorizePlan, runAuditedQuery, type AuditPort, type QueryAuthority } from '../admission';
+import { authorizePlan, runAuditedQuery, runAuditedSubmission, type AuditPort, type QueryAuthority } from '../admission';
 import { parseQueryPlan } from '../plan';
 
 const authority: QueryAuthority = { actorId: 'actor', effectiveUserId: 'effective', sessionActive: true, policyVersion: 'v1', permissionRevision: 'r1', grants: ['query:catalog', 'query:brochure'], fields: ['height'] };
@@ -8,6 +8,30 @@ const request = () => ({ requestId: crypto.randomUUID(), submittedText: 'CBD最�
 const ports = () => ({ audit: { receive: vi.fn().mockResolvedValue({ replayed: false }), append: vi.fn().mockResolvedValue(undefined) } satisfies AuditPort, execution: { freshAuthority: vi.fn().mockResolvedValue(authority), execute: vi.fn().mockResolvedValue({ answer: '仅已知高度记录中的最高楼', resultId: 'synthetic' }) } });
 
 describe('fail-closed audited query admission', () => {
+  it('records a server deadline as failure rather than falsely claiming the user cancelled', async () => {
+    const { audit, execution } = ports();
+    const controller = new AbortController(); controller.abort(new DOMException('deadline', 'TimeoutError'));
+    expect(await runAuditedSubmission({ ...request(), signal: controller.signal }, audit, execution)).toEqual({ status: 'failed' });
+    expect(audit.append).toHaveBeenCalledWith(expect.anything(), 'failed', expect.objectContaining({ reason: 'execution_deadline_exceeded' }));
+  });
+  it('records submitted text before even checking whether the user has feature eligibility', async () => {
+    const { audit, execution } = ports();
+    execution.freshAuthority.mockImplementation(async () => {
+      expect(audit.receive).toHaveBeenCalledOnce();
+      throw new Error('QUERY_DENIED');
+    });
+    expect(await runAuditedSubmission(request(), audit, execution)).toEqual({ status: 'denied' });
+    expect(audit.append).toHaveBeenCalledWith(expect.anything(), 'denied', expect.anything());
+    expect(execution.execute).not.toHaveBeenCalled();
+  });
+  it('rechecks eligibility on duplicate submissions without rerunning or rewriting their terminal state', async () => {
+    const { audit, execution } = ports();
+    audit.receive.mockResolvedValue({ replayed: true });
+    execution.freshAuthority.mockRejectedValue(new Error('QUERY_DENIED'));
+    expect(await runAuditedSubmission(request(), audit, execution)).toEqual({ status: 'denied' });
+    expect(execution.execute).not.toHaveBeenCalled();
+    expect(audit.append).not.toHaveBeenCalled();
+  });
   it('does not read data when durable receipt fails', async () => {
     const { audit, execution } = ports();
     audit.receive.mockRejectedValue(new Error('storage unavailable'));

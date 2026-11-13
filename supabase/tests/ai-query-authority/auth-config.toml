@@ -1,0 +1,29 @@
+# Dedicated disposable stack for actual Auth / Data API integration. No remote link or seeds.
+project_id = "ai-query-auth-integration"
+[api]
+enabled = true
+port = 55991
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+[db]
+port = 55992
+shadow_port = 55990
+major_version = 17
+[db.seed]
+enabled = false
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3289"
+additional_redirect_urls = ["http://127.0.0.1:3289"]
+jwt_expiry = 3600
+enable_signup = false
+[auth.email]
+# CLI 2.95 uses this provider switch for email login; global auth.enable_signup remains false.
+enable_signup = true
+enable_confirmations = false
+[inbucket]
+enabled = true
+port = 55994
+[analytics]
+enabled = false

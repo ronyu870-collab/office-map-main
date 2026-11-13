@@ -1,0 +1,163 @@
+{
+  "baseLocalCommit": "de33f6e056ea589bf4c8d5b2609829b2d0bd29f3",
+  "environment": "local isolated synthetic data; actual GoTrue, Data API, PostgreSQL and Next production build",
+  "verify": {
+    "exitCode": 0,
+    "testFiles": 208,
+    "tests": 1323,
+    "lintWarnings": 826,
+    "lintErrors": 0,
+    "build": "passed",
+    "log": "/private/tmp/colliers-query-http-verify-final-v2.log"
+  },
+  "realAuthHttp": {
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": [
+      {
+        "scenario": "真实Auth创建、密码登录和会话落库",
+        "status": "passed"
+      },
+      {
+        "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+        "status": "passed"
+      },
+      {
+        "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实管理员模拟取资格交集，不借目标权限扩权",
+        "status": "passed"
+      },
+      {
+        "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+        "status": "passed"
+      },
+      {
+        "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+        "status": "passed"
+      },
+      {
+        "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false,
+    "browserValidation": false,
+    "log": "/private/tmp/colliers-query-http-auth-final-v2.log"
+  },
+  "previousGatewayRegression": {
+    "scenarios": 11,
+    "database": "PostgreSQL 17.11",
+    "gateway": "PostgREST 16.5",
+    "log": "/private/tmp/colliers-query-http-previous-gateway.log"
+  },
+  "negativeRegression": {
+    "duplicateBefore": "/private/tmp/colliers-query-http-auth-before.log",
+    "deliveryScopeBefore": {
+      "result": "1 failed",
+      "log": "/private/tmp/colliers-query-http-delivery-before.log"
+    },
+    "authorityUnavailableBefore": {
+      "result": "1 failed / 1 passed",
+      "log": "/private/tmp/colliers-query-http-unavailable-before.log"
+    },
+    "deliveryAfter": {
+      "result": "2 passed",
+      "log": "/private/tmp/colliers-query-http-delivery-after.log"
+    }
+  },
+  "schemaDictionaryCheck": "passed",
+  "gitDiffCheck": "passed",
+  "localAuthStack": "stopped and synthetic volumes removed",
+  "localNativePg": "stopped",
+  "existingF6Containers": "still running",
+  "remoteCI": "not run",
+  "productionMigration": false,
+  "homepageQueryEnabled": false,
+  "modelCalls": false,
+  "browserValidation": false,
+  "clientDeliveryConfirmation": "not implemented",
+  "sha256": {
+    ".github/workflows/verify.yml": "0dd952db39b2dcaaf35ac18f1746ccd65c2c9101544efbb92421a807d011831f",
+    "eslint.config.mjs": "6dbe377e0d0337d2118ad0fb6e42061607bd8c044d113cc004546a32767bb5fb",
+    "scripts/verification/verify-ai-query-auth.mjs": "5e7f2108bee29e404cc677818724b7b6436a2df80da8165d63972fb8e6ed0256",
+    "src/app/api/intelligence/query/route.ts": "a0bcf08516f5353836aefe25ca7b1dccb8c97bcf3977349e2d8a7486556d6db6",
+    "src/lib/intelligence/query/__tests__/admission.test.ts": "d918afda7b19a15cd1a7c41ef32c8ed3726b9d959ecc5c7a4902844fea1aaf49",
+    "src/lib/intelligence/query/__tests__/analytics.test.ts": "0570ddc3c0617bb0cf0ab768e6e5d7d1656b2ef5cb4b37c790db9e8dadff2ea3",
+    "src/lib/intelligence/query/__tests__/auditCrypto.test.ts": "52febed9160a662938ae53ba363e37c76acb7bb07d27f2c6838250f7e8953e4c",
+    "src/lib/intelligence/query/__tests__/executePlan.test.ts": "12828ba9867857257703e6fa1c2ecd57c71da8aade13dd828ec450a11ca8770e",
+    "src/lib/intelligence/query/__tests__/fixtures.ts": "a591fc34171b852638af6207d8f8d705058f47a75f93643ae3404489a6197c60",
+    "src/lib/intelligence/query/__tests__/http.test.ts": "6a6483e3bc12ef47d3b6defe4da3b5037e6641288b32a457a6d24806ebeeda85",
+    "src/lib/intelligence/query/__tests__/httpAudit.test.ts": "5dff58c09587323abfe360b698cce02d28cafd127f811a9435c5d73e92caf56a",
+    "src/lib/intelligence/query/__tests__/httpBody.test.ts": "f57c6176b5d331fd27d75d662de84e155fb83d82fdcfe23f96a200521af4da71",
+    "src/lib/intelligence/query/__tests__/result.test.ts": "4dd0efd0224236f0f83d98e559d7b991ec322e718286c117ca3553a7a6711bcf",
+    "src/lib/intelligence/query/__tests__/snapshotReader.test.ts": "24bcdd4c2c3111f02a733774d5c7dc3154eace48771c6af7797720d824dac8b6",
+    "src/lib/intelligence/query/admission.ts": "157a834a4e041c2d4239a2e43f42f4b0a25c11b5374d279eeb3de0dd4e6d5947",
+    "src/lib/intelligence/query/analytics.ts": "52eac170d9348dd109f53df915d11d9f493f3b1f7d8bfc67507ce42b636c2c19",
+    "src/lib/intelligence/query/auditCrypto.ts": "70bf5562e8bb5cedc91235b61aa0a3192bdb2b44a6c574c6cc93f7f7e5c09929",
+    "src/lib/intelligence/query/auditStore.ts": "968bfcbdc9fc4955caaf4b94bdf36688dda21ee8fc576d578c6a846fc718598c",
+    "src/lib/intelligence/query/contracts.ts": "0f9a0b8e97e4276b112e1bf1d0d0fa794db8ea6dbd1d12bd3f9ac6d6b6b415f0",
+    "src/lib/intelligence/query/decimal.ts": "baa74b287f8f0c6327b3b409bec3dcac0506b0e35d4c17bdc714df3f377312f3",
+    "src/lib/intelligence/query/executePlan.ts": "9020bb7376810b7c005279381a5c329b9a5ec25f63676439147c259458571495",
+    "src/lib/intelligence/query/exports.ts": "0f5e04ab064e1a7b1c0898ab1e1f8e38159df11b760780dd821c29c677856488",
+    "src/lib/intelligence/query/facts.ts": "a875d6fdb417c2171a47c17d68e3f1225a8e49b4b6595dc5558d698ed271d7df",
+    "src/lib/intelligence/query/http.ts": "2de771d1e522ae7350b1a52e58f506a857ba17ea5191b66d44fa6e3e4046507a",
+    "src/lib/intelligence/query/httpBody.ts": "b07ab9d9637d2e4fcaeec6b7479d449c60824fad7c1560b848b33e5280d7f3ed",
+    "src/lib/intelligence/query/plan.ts": "67731be318c4167bacacbe7ea04f2c9d66b705f400d9e5923ae76f0065dbfb1c",
+    "src/lib/intelligence/query/registry.ts": "93431e8b67711cad01799c5740f46be425c302accb5d2a85ff166ed012366f8a",
+    "src/lib/intelligence/query/result.ts": "60f95220c698e2d6e16749e695b992ec1f0c505fa06529f1c6ed42c4dd8cb9b8",
+    "src/lib/intelligence/query/serverAuthority.ts": "a2f19fd23d7eba4a088275a7c3590f7796a55c1b5b17f0a3ba8abf2e788c54cc",
+    "src/lib/intelligence/query/snapshotReader.ts": "e95c00875e2f27e1948a4e18e61ef1eeeb6c739a70e7475fe1c2fc1e2be131d5",
+    "supabase/migrations/20261113003933_ai_query_audit_foundation.sql": "2e89fca58e2f3217de6cc640650ff3924f9835a90603aac396c31059014dec80",
+    "supabase/migrations/20261113023341_ai_query_authority.sql": "b5090c9f632efb93d0f87e0e7f754ea60709ce67bdc1126683d2e7422c2f8dc0",
+    "supabase/migrations/20261113024629_ai_query_snapshot_read.sql": "82cca4d7681b8c2164dbcacc566df7ed926b2fb3f4be9c8ab9514a58d02e19c7",
+    "supabase/migrations/20261113032515_ai_query_http_security.sql": "4a2ecd457f6400265925a104f2ac7c77dd5f200094b1f73b6f60d6c9f86d4272",
+    "supabase/tests/ai-query-authority/auth-config.toml": "de8ae02372831d6cb07e6a5405d804e7cdd9e56024ee245e4b2a7788cade0416",
+    "supabase/tests/ai-query-authority/database.mjs": "26c4cfe2ab5f767e376cb2a68686d7f59c44b5f5f571a5caa8bedf28b4f6eab2",
+    "supabase/tests/ai-query-authority/gateway.mjs": "cdd9d5935e799b5bea0eaa225c030fb33f7747cf4cfcb732a6d3267bc5419937",
+    "supabase/tests/ai-query-authority/run.mjs": "2e7ff48988a2544b3f83086cad5c8543a08367ba20a2b9866b097fa401170d18",
+    "supabase/tests/ai-query-authority/snapshot-fixture.mjs": "4b86b2d21799630d6d0d7dfdc9c1a3260e71765f775654f30c40ffe69941f64f"
+  }
+}

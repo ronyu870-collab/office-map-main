@@ -53,6 +53,7 @@ next-env.d.ts
 /verification/lease-expiry/
 
 /verification/lease-expiry-auth/
+/verification/ai-query-auth/
 
 # Private local pilot: authorized samples, credentials, database config and runtime snapshot.
 /.local/f6-admin-pilot/

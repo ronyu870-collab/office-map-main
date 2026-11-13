@@ -2,11 +2,11 @@ import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const source=file=>readFile(new URL(`../../migrations/${file}`,import.meta.url),'utf8');
 export const BUILDINGS=['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4'];
-export async function addSnapshotFixture(db){
+export async function addSnapshotFixture(db,{existingTables=false}={}){
   const base=await source('20260730043721_create_colliers_lite_schema.sql');
   const tables=base.slice(base.indexOf('create table public.buildings ('),base.indexOf('create table public.lease_transactions ('));
   assert.ok(tables.includes('unique (building_id, record_year, record_quarter)'));
-  await db.setup.query(tables);
+  if(!existingTables)await db.setup.query(tables);
   await db.setup.query("alter table public.buildings add column tracking_scope text not null default 'tracked',add column merged_into_id uuid references public.buildings(id)");
   await db.setup.query(await source('20260910160000_add_building_brochure_compare_data.sql'));
   const parity=await source('20260927045505_viewer_readonly_editor_parity.sql');
