@@ -5,6 +5,7 @@ import { auditPayloadDigest, encryptAuditContent, redactSubmittedCredentials } f
 import type { AuditPort } from './admission';
 import type { VerifiedQueryIdentity } from './serverAuthority';
 import { encodeGeneratedArchive } from './resultArchive';
+import { relativeQuarterContextSchema } from './relativeQuarter';
 
 export type AuditKeys = { keyId: string; encryptionKey: Uint8Array; digestKey: Uint8Array };
 const receiptSchema = z.object({ event_id: z.uuid(), sequence: z.number().int().positive(), event_hash: z.string().regex(/^[0-9a-f]{64}$/), replayed: z.boolean() });
@@ -49,6 +50,23 @@ export function sanitizeAuditContent(input: unknown): { content: unknown; redact
   return { content: visit(input,0), redactionTypes: [...types].sort() };
 }
 
+/** Server-created resolution metadata is not a new user submission on a retry.
+ * Preserve the first resolved plan in encrypted content; bind idempotency to the
+ * complete original request and grammar version, not a moving calendar quarter. */
+export function submissionIdentityContent(request: { submittedText: string; plan: unknown; metadata?: unknown }) {
+  const metadata = request.metadata;
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    && 'questionTimeResolution' in metadata) {
+    z.object({ relation: z.literal('initial_question_submission'), grammarVersion: z.string().min(1),
+      rawRequest: z.string(), questionTimeResolution: relativeQuarterContextSchema }).parse(metadata);
+    const stable = { ...metadata };
+    delete stable.questionTimeResolution;
+    return sanitizeAuditContent({ submittedText: request.submittedText,
+      plan: { resolution: 'server_relative_question/1' }, metadata: stable });
+  }
+  return sanitizeAuditContent({ submittedText: request.submittedText, plan: request.plan, metadata: metadata ?? null });
+}
+
 /** Real durable RPC adapter. Keys must be provisioned server-side; no fallback or browser key. */
 export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQueryIdentity, keys: AuditKeys): AuditPort {
   if (keys.encryptionKey.byteLength!==32 || keys.digestKey.byteLength!==32) throw new Error('AUDIT_KEY_UNAVAILABLE');
@@ -70,8 +88,8 @@ export function createRpcAuditPort(client: SupabaseClient, identity: VerifiedQue
       z.uuid().parse(request.requestId);
       if(request.authority.actorId!==identity.actorId || request.authority.effectiveUserId!==identity.effectiveUserId)throw new Error('AUDIT_IDENTITY_MISMATCH');
       const eventId=firstEventId(request.requestId);
-      const submitted=sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,metadata:request.metadata??null});
-      const content=JSON.stringify(sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,authority:request.authority,metadata:request.metadata??null,sessionId:identity.sessionId,entry:'query_api',timezone:'Asia/Shanghai',idempotencyVersion:'submission/2'}));
+      const submitted=submissionIdentityContent(request);
+      const content=JSON.stringify(sanitizeAuditContent({submittedText:request.submittedText,plan:request.plan,authority:request.authority,metadata:request.metadata??null,sessionId:identity.sessionId,entry:'query_api',timezone:'Asia/Shanghai',idempotencyVersion:'submission/3'}));
       const { data,error }=await client.rpc('ai_query_audit_receive',{
         p_request_id:request.requestId,p_event_id:eventId,p_actor:identity.actorId,p_effective:identity.effectiveUserId,
         p_policy_version:request.authority.policyVersion,...sealed(request.requestId,eventId,content),

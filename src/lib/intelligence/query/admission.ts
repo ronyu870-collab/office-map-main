@@ -69,6 +69,12 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     authority = await execution.freshAuthority();
     if (authority.actorId !== request.authority.actorId || authority.effectiveUserId !== request.authority.effectiveUserId) throw new Error('QUERY_DENIED');
     if (request.clarification) authorizePlan({ operation: 'list', fields: [], period: null, scope: { inventory: 'all_authorized' } }, authority);
+    if (receipt.replayed && !request.clarification) {
+      // A retry is not a new execution, but withdrawn tool/field access must
+      // still reject before reporting that the request can be resumed.
+      try { authorizePlan(parseQueryPlan(request.plan), authority); }
+      catch { throw new Error('QUERY_DENIED'); }
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : '';
     const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';

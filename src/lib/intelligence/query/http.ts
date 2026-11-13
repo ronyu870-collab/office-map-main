@@ -5,6 +5,7 @@ import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth
 import { runAuditedSubmission, type QueryAuthority } from './admission';
 import { createRpcAuditPort, type AuditKeys } from './auditStore';
 import { executeQueryPlan } from './executePlan';
+import { attachRelativeQuarterContext } from './result';
 import { readQueryBody } from './httpBody';
 import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 import { readQuerySnapshots } from './snapshotReader';
@@ -39,6 +40,7 @@ export function queryHttpDependencies(): { client: SupabaseClient; keys: AuditKe
 
 /** Complete structured HTTP submission boundary; this never calls a model. */
 export async function handleQuerySubmission(request: Request, dependencies: ReturnType<typeof queryHttpDependencies>): Promise<Response> {
+  const receivedAt = new Date();
   const { client, keys } = dependencies;
   let requestId: string = randomUUID();
   try {
@@ -77,18 +79,20 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       return loadDataAuthority(client, verified, signal);
     };
     let boundedPlan: unknown = null;
-    const resolution = parsed && !Object.hasOwn(parsed, 'plan') ? resolveBusinessQuestion(parsed.question) : null;
+    const resolution = parsed && !Object.hasOwn(parsed, 'plan') ? resolveBusinessQuestion(parsed.question, receivedAt) : null;
     try { if (parsed) boundedPlan = resolution?.kind === 'plan' ? resolution.plan : resolution ? null : parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
     let usedRevision: string | null = null;
     const submission = { requestId, submittedText: parsed?.question ?? body.text!, plan: boundedPlan,
       ...(resolution?.kind === 'clarification' ? { clarification: resolution.clarification } : {}),
       authority: pending, signal, metadata: { rawRequest: body.text, conversationId: requestId, turnId: requestId, relation: resolution ? 'initial_question_submission' : 'initial_structured_submission',
-        ...(resolution ? { grammarVersion: QUESTION_GRAMMAR_VERSION } : {}), impersonationDenied, inputBytes: body.bytesObserved } };
+        ...(resolution ? { grammarVersion: QUESTION_GRAMMAR_VERSION } : {}),
+        ...(resolution?.kind === 'plan' && resolution.timeResolution ? { questionTimeResolution: resolution.timeResolution } : {}), impersonationDenied, inputBytes: body.bytesObserved } };
     const result = await runAuditedSubmission(submission, audit, {
       freshAuthority: fresh,
       execute: async plan => {
         const authority = await fresh(); usedRevision = authority.permissionRevision;
-        return executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
+        const value = executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
+        return resolution?.kind === 'plan' && resolution.timeResolution ? attachRelativeQuarterContext(value, resolution.timeResolution) : value;
       },
     }).catch(async error => {
       if (!(error instanceof Error) || error.message !== 'AUDIT_IDEMPOTENCY_CONFLICT') throw error;

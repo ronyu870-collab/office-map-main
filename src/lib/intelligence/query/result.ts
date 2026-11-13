@@ -9,6 +9,7 @@ import { groupedQuarterAnalysis } from './grouping';
 import { crossTabQuarter } from './crossTab';
 import { buildingDistribution, distributionFields, distributionLabel, type DistributionMeasure } from './distribution';
 import { rentVacancyRelationship } from './relationship';
+import { relativeQuarterContextSchema, relativeQuarterNotice, type RelativeQuarterContext } from './relativeQuarter';
 
 const BROCHURE_LIMITATION = '楼书记录尚未确定有效版本优先级；不同值按冲突处理，相同值也不能据此确认当前现实状态。';
 
@@ -350,4 +351,11 @@ export function bindChart(result: QueryResult, binding: ChartBinding) {
     }),
     limitations: result.limitations,
   });
+}
+
+/** Attach server-resolved calendar semantics before auditing or delivering the result. */
+export function attachRelativeQuarterContext(result: QueryResult, context: RelativeQuarterContext): QueryResult {
+  const parsed = relativeQuarterContextSchema.parse(context);
+  return deepFreeze({ ...result, parameters: { ...result.parameters, timeResolution: parsed },
+    limitations: [...result.limitations, relativeQuarterNotice(parsed)] });
 }

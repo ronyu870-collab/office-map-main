@@ -1,10 +1,11 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
+import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/7';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/8';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
-export type QuestionResolution = { kind: 'plan'; plan: QueryPlan } | { kind: 'clarification'; clarification: QuestionClarification };
+export type QuestionResolution = { kind: 'plan'; plan: QueryPlan; timeResolution?: RelativeQuarterContext } | { kind: 'clarification'; clarification: QuestionClarification };
 const markets = `(${QUESTION_SUBMARKETS.join('|')}|全部获权楼宇)`;
 const period = '(19\\d{2}|20\\d{2}|21\\d{2}|2200)(?:年?Q([1-4])|年第?([一二三四1-4])季度)';
 const metric = '(净有效租金|空置率|季度总面积)';
@@ -18,11 +19,22 @@ function scope(market: string, quarterly = false): QueryPlan['scope'] {
   return { inventory: quarterly ? 'tracked' : 'all_authorized', ...(market === '全部获权楼宇' ? {} : { submarkets: [market] }) };
 }
 
-/** Full-string grammar only. No substring fallback, SQL, external model, or guessed dates.
- * Unconsumed conditions, negation, multi-intent and relative periods require clarification. */
-export function resolveBusinessQuestion(question: string): QuestionResolution {
+/** Relative dates use a trusted server clock, then the same full-string grammar.
+ * A client cannot supply the clock or reinterpret an old result. */
+export function resolveBusinessQuestion(question: string, clock?: Date): QuestionResolution {
+  if (!clock || !question || question.length > 6000) return resolveExplicitQuestion(question);
+  try {
+    const normalized = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
+    const expanded = expandRelativeQuarters(normalized, clock);
+    const resolved = resolveExplicitQuestion(expanded.text);
+    return resolved.kind === 'plan' && expanded.context ? { ...resolved, timeResolution: expanded.context } : resolved;
+  } catch { return resolveExplicitQuestion(''); }
+}
+
+/** Reject every unconsumed condition, negation or unsupported multi-intent. */
+function resolveExplicitQuestion(question: string): QuestionResolution {
   const clarification: QuestionResolution = { kind: 'clarification', clarification: { code: 'conditions_required',
-    message: '还不能可靠理解完整条件。请明确子市场、指标及年份季度，每次查询一个问题；例如“CBD有哪些楼”“CBD最高的楼是什么”或“2026年第三季度CBD净有效租金”。租金需明确口径，暂不支持的条件不会被忽略。' } };
+    message: '还不能可靠理解完整条件。请明确子市场、指标及年份季度，每次查询一个问题；例如“CBD有哪些楼”“CBD最高的楼是什么”或“2026年第三季度CBD净有效租金”。租金需明确口径；最近几个季度需说明“已结束”或“含本季度”，“最新”不能代替明确季度。暂不支持的条件不会被忽略。' } };
   if (!question || question.length > 6000) return clarification;
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
   const marketList = `(${QUESTION_SUBMARKETS.join('|')})(?:、(?:${QUESTION_SUBMARKETS.join('|')}))*`;
@@ -57,6 +69,14 @@ export function resolveBusinessQuestion(question: string): QuestionResolution {
     if (fields[0] === fields[1]) return clarification;
     return { kind: 'plan', plan: parseQueryPlan({ operation: 'list', scope: scope(match[4], true), fields,
       period: quarter(match[1], match[2], match[3]) }) };
+  }
+  match = new RegExp(`^${period}${markets}(?:的)?${metric}(同比|环比)(各期样本|配对样本)$`).exec(text);
+  if (match) {
+    try {
+      const current = quarter(match[1], match[2], match[3]);
+      return { kind: 'plan', plan: parseQueryPlan({ operation: 'compare', scope: scope(match[4], true), metric: metrics[match[5] as keyof typeof metrics],
+        base: shiftQuarter(current, match[6] === '同比' ? -4 : -1), current, mode: match[7] === '配对样本' ? 'paired' : 'per_period' }) };
+    } catch { return clarification; }
   }
   match = new RegExp(`^${period}${markets}(?:的)?${metric}(?:是多少)?$`).exec(text);
   if (match) return { kind: 'plan', plan: parseQueryPlan({ operation: 'aggregate', scope: scope(match[4], true),

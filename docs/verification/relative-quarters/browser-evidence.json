@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-11-13T20:28:13.306Z",
+  "environment": "isolated local synthetic",
+  "lastQuarter": {
+    "period": "2026Q3",
+    "rent": 170
+  },
+  "currentQuarter": {
+    "period": "2026Q4",
+    "value": null,
+    "missing": 4
+  },
+  "ambiguousWindowClarified": true,
+  "trend": {
+    "start": "2025Q4",
+    "end": "2026Q3",
+    "values": [
+      null,
+      null,
+      155.71428571428572,
+      170
+    ]
+  },
+  "svg": "/Users/yuhang/Downloads/query-f978ec78-081b-4a1e-9a51-073f8ae9965a-svg_zip.zip",
+  "xlsx": "/Users/yuhang/Downloads/query-f978ec78-081b-4a1e-9a51-073f8ae9965a-xlsx.xlsx",
+  "mobile": {
+    "page": 390,
+    "plot": [
+      {
+        "content": 640,
+        "width": 324
+      }
+    ],
+    "viewport": 390
+  },
+  "realDevice": false,
+  "independentVisualReview": false,
+  "productionChanged": false,
+  "readback": {
+    "passed": true,
+    "resultId": "f978ec78-081b-4a1e-9a51-073f8ae9965a",
+    "timeResolution": {
+      "version": "shanghai-calendar-quarter/1",
+      "timezone": "Asia/Shanghai",
+      "receivedAt": "2026-11-13T20:27:37.218Z",
+      "anchorQuarter": {
+        "year": 2026,
+        "quarter": 4
+      },
+      "resolvedQuestion": "CBD净有效租金2025Q4至2026Q3趋势各期样本"
+    },
+    "values": [
+      null,
+      null,
+      155.71428571428572,
+      170
+    ],
+    "sourceCount": 20
+  }
+}

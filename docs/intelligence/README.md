@@ -44,3 +44,5 @@
 - [同季度租金与空置率关系](rent-vacancy-relationship.md)：联合有效样本、精确矩与近似Pearson、同源散点和文件；本地验证不代表生产开放。
 
 - [楼宇分布与分位数](building-distributions.md)：Type 7分位、离群标记、直方/箱线与同源导出；本地能力，未生产启用。
+
+相对季度与比较：[北京时间锚定、明确滚动区间、跨季幂等与同源输出](relative-quarters.md)。
