@@ -1,0 +1,267 @@
+{
+  "environment": "actual local Next production routes, synthetic HTTP data and identity; no production reads",
+  "browser": "157.0.8103.52",
+  "results": [
+    {
+      "width": 640,
+      "headingRight": 247,
+      "labels": [
+        {
+          "right": 211,
+          "bottom": 25.5,
+          "top": 4.5
+        },
+        {
+          "right": 243,
+          "bottom": 49.5,
+          "top": 25.5
+        }
+      ],
+      "inHeader": true,
+      "headerBottom": 55,
+      "contentTop": 75,
+      "entryY": 11,
+      "entryHeight": 32,
+      "entryWidth": 94,
+      "noOverflow": true,
+      "controls": [
+        {
+          "name": "统一搜索",
+          "x": 20,
+          "right": 115,
+          "height": 44
+        },
+        {
+          "name": "主页",
+          "x": 259,
+          "right": 323,
+          "height": 32
+        },
+        {
+          "name": "团队监控",
+          "x": 335,
+          "right": 407,
+          "height": 32
+        },
+        {
+          "name": "租约到期",
+          "x": 415,
+          "right": 509,
+          "height": 32
+        },
+        {
+          "name": "新增成交",
+          "x": 517,
+          "right": 620,
+          "height": 32
+        }
+      ],
+      "createDialog": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "headingRight": 183,
+      "labels": [
+        {
+          "right": 133,
+          "bottom": 25.5,
+          "top": 4.5
+        },
+        {
+          "right": 165,
+          "bottom": 49.5,
+          "top": 25.5
+        }
+      ],
+      "inHeader": true,
+      "headerBottom": 55,
+      "contentTop": 67,
+      "entryY": 5,
+      "entryHeight": 44,
+      "entryWidth": 44,
+      "noOverflow": true,
+      "controls": [
+        {
+          "name": "统一搜索",
+          "x": 12,
+          "right": 45,
+          "height": 44
+        },
+        {
+          "name": "主页",
+          "x": 187,
+          "right": 219,
+          "height": 32
+        },
+        {
+          "name": "租约到期",
+          "x": 223,
+          "right": 267,
+          "height": 44
+        },
+        {
+          "name": "新增成交",
+          "x": 275,
+          "right": 378,
+          "height": 44
+        }
+      ],
+      "createDialog": true,
+      "pageErrors": []
+    },
+    {
+      "width": 384,
+      "headingRight": 177,
+      "labels": [
+        {
+          "right": 133,
+          "bottom": 25.5,
+          "top": 4.5
+        },
+        {
+          "right": 165,
+          "bottom": 49.5,
+          "top": 25.5
+        }
+      ],
+      "inHeader": true,
+      "headerBottom": 55,
+      "contentTop": 67,
+      "entryY": 5,
+      "entryHeight": 44,
+      "entryWidth": 44,
+      "noOverflow": true,
+      "controls": [
+        {
+          "name": "统一搜索",
+          "x": 12,
+          "right": 45,
+          "height": 44
+        },
+        {
+          "name": "主页",
+          "x": 181,
+          "right": 213,
+          "height": 32
+        },
+        {
+          "name": "租约到期",
+          "x": 217,
+          "right": 261,
+          "height": 44
+        },
+        {
+          "name": "新增成交",
+          "x": 269,
+          "right": 372,
+          "height": 44
+        }
+      ],
+      "createDialog": true,
+      "pageErrors": []
+    },
+    {
+      "width": 383,
+      "headingRight": 235,
+      "labels": [
+        {
+          "right": 133,
+          "bottom": 25.5,
+          "top": 4.5
+        },
+        {
+          "right": 165,
+          "bottom": 49.5,
+          "top": 25.5
+        }
+      ],
+      "inHeader": true,
+      "headerBottom": 55,
+      "contentTop": 67,
+      "entryY": 5,
+      "entryHeight": 44,
+      "entryWidth": 44,
+      "noOverflow": true,
+      "controls": [
+        {
+          "name": "统一搜索",
+          "x": 12,
+          "right": 45,
+          "height": 44
+        },
+        {
+          "name": "主页",
+          "x": 239,
+          "right": 271,
+          "height": 32
+        },
+        {
+          "name": "租约到期",
+          "x": 275,
+          "right": 319,
+          "height": 44
+        },
+        {
+          "name": "新增成交",
+          "x": 327,
+          "right": 371,
+          "height": 44
+        }
+      ],
+      "createDialog": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "headingRight": 172,
+      "labels": [
+        {
+          "right": 133,
+          "bottom": 25.5,
+          "top": 4.5
+        },
+        {
+          "right": 165,
+          "bottom": 49.5,
+          "top": 25.5
+        }
+      ],
+      "inHeader": true,
+      "headerBottom": 55,
+      "contentTop": 67,
+      "entryY": 5,
+      "entryHeight": 44,
+      "entryWidth": 44,
+      "noOverflow": true,
+      "controls": [
+        {
+          "name": "统一搜索",
+          "x": 12,
+          "right": 45,
+          "height": 44
+        },
+        {
+          "name": "主页",
+          "x": 176,
+          "right": 208,
+          "height": 32
+        },
+        {
+          "name": "租约到期",
+          "x": 212,
+          "right": 256,
+          "height": 44
+        },
+        {
+          "name": "新增成交",
+          "x": 264,
+          "right": 308,
+          "height": 44
+        }
+      ],
+      "createDialog": true,
+      "pageErrors": []
+    }
+  ]
+}
