@@ -68,10 +68,11 @@ export async function POST(request: NextRequest) {
     if (text.length > 16 * 1024) return response({ error: '消息内容过长' }, 413);
     let body: { segments?: unknown; replyToId?: unknown };
     try { body = JSON.parse(text) as typeof body; } catch { return response({ error: '消息格式无效' }, 400); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return response({ error: '消息格式无效' }, 400);
     const segments = normalizeMarketSegments(body.segments);
     if (!segments?.length || !segmentText(segments).trim()) return response({ error: '请输入有效的消息内容（不超过2000字）' }, 400);
     const replyToId = body.replyToId === null || body.replyToId === undefined ? null : body.replyToId;
-    if (replyToId !== null && (!Number.isSafeInteger(replyToId) || (replyToId as number) < 1)) {
+    if (replyToId !== null && (typeof replyToId !== 'number' || !Number.isSafeInteger(replyToId) || replyToId < 1)) {
       return response({ error: '回复对象无效' }, 400);
     }
     if (segments.some(part => part.everyone) && context.identity.effectiveRole !== 'admin') {
