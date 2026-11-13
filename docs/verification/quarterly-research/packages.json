@@ -1,0 +1,14 @@
+[
+  {
+    "edition": "2026Q3",
+    "bytes": 1046597,
+    "sha256": "5d57ce0e080b15ec0045d3aaf03a47cbe75b0d98f09796f43d4c9988bb85f866",
+    "body_matches_previously_reviewed_file": true
+  },
+  {
+    "edition": "2026Q2",
+    "bytes": 1229351,
+    "sha256": "a6700d3e0c99338f13d6edf767d31ecab9b89d3b6d36384e3a8d43193301d747",
+    "body_matches_previously_reviewed_file": true
+  }
+]

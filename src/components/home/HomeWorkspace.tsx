@@ -28,6 +28,7 @@ import { useAppSession, useCanStartHomeNavigation } from '@/src/components/Sessi
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
+import { canReadQuarterlyResearch } from '@/src/config/quarterlyResearch';
 import { canSeeOccupierReportCard } from '@/src/config/occupierReportCard';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
@@ -44,7 +45,7 @@ type WorkspaceModule = {
   module: string;
   title: string;
   /** 首页入口的可见范围；缺省表示所有合法角色都能看到。 */
-  homeVisibility?: 'occupier-report';
+  homeVisibility?: 'occupier-report' | 'admin-research';
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -63,6 +64,7 @@ const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
 };
 
 const BUSINESS_WORKSPACES: WorkspaceModule[] = [
+  { href: '/quarterly-research', module: 'quarterly-research', title: '北京写字楼季度研究', homeVisibility: 'admin-research', icon: FileText },
   {
     href: '/update',
     module: 'update',
@@ -300,7 +302,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       title={canAccess ? undefined : '当前账号无访问权限'}
       {...accessibilityProps}
     >
-      <Icon size={22} strokeWidth={1.5} className={styles.workspaceIcon} aria-hidden="true" />
+      <span className={styles.workspaceIcon}><Icon size={20} strokeWidth={1.5} aria-hidden="true" /></span>
       <h3>{workspace.title}</h3>
       {canAccess ? <ArrowRight size={16} strokeWidth={1.5} className={styles.linkArrow} aria-hidden="true" />
         : <span>无访问权限</span>}
@@ -365,8 +367,9 @@ export function HomeWorkspace() {
   const canSeeIntelligence = Boolean(activeSession && isIntelligencePreviewEnabled(activeRole));
   // This card's visibility does not change the report's public access.
   const visibleBusinessWorkspaces = activeSession ? BUSINESS_WORKSPACES.filter(workspace =>
-    workspace.homeVisibility !== 'occupier-report'
-    || canSeeOccupierReportCard(activeRole, activeSession.user.email),
+    workspace.homeVisibility === 'admin-research'
+      ? canReadQuarterlyResearch(activeRole, isImpersonating)
+      : workspace.homeVisibility !== 'occupier-report' || canSeeOccupierReportCard(activeRole, activeSession.user.email),
   ) : [];
 
   async function handleLogout() {
@@ -438,16 +441,15 @@ export function HomeWorkspace() {
                     </HomeIntentLink> : null}
                   </div>
                   <div className={styles.composer}>
-                    <textarea id="home-query" aria-describedby="home-query-status" disabled rows={2} placeholder="对话查询尚未开放" />
+                    <textarea id="home-query" aria-describedby="home-query-status" disabled rows={1} placeholder="对话查询尚未开放" />
                     <div className={styles.composerFooter}>
-                      <p id="home-query-status">目前请使用下方业务入口。</p>
+                      <p id="home-query-status" className="sr-only">目前请使用下方业务入口。</p>
                       <button type="button" disabled aria-label="发送问题"><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></button>
                     </div>
                   </div>
                 </> : <div className={styles.querySkeleton} aria-hidden="true" />}
               </div>
-              <div className={styles.navigationHeading}><h2>常用工作</h2></div>
-              <div className={styles.navigation}>
+              <nav className={styles.navigation} aria-label="业务入口">
                 {canStartMap ? <HomeIntentLink
                   href={MAP_WORKSPACE.href}
                   mayPrefetch={Boolean(activeSession) && canAccessModule(MAP_WORKSPACE.module, activeRole)}
@@ -456,7 +458,7 @@ export function HomeWorkspace() {
                   aria-label={MAP_WORKSPACE.title}
                   {...mapAccessibilityProps}
                 >
-                  <MapIcon size={32} strokeWidth={1.35} aria-hidden="true" />
+                  <span className={styles.mapIcon}><MapIcon size={32} strokeWidth={1.5} aria-hidden="true" /></span>
                   <div className={styles.mapTitle}>
                     <h2 id="home-heading">{MAP_WORKSPACE.title}</h2>
                     <ArrowRight size={18} strokeWidth={1.5} aria-hidden="true" />
@@ -466,7 +468,7 @@ export function HomeWorkspace() {
                   {activeSession ? visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)
                     : [0, 1, 2, 3].map(item => <div key={item} className={styles.linkSkeleton} aria-hidden="true" />)}
                 </div>
-              </div>
+              </nav>
             </div>
           </section>
           {activeSession ? <aside className={styles.activity} aria-label="团队动态">
