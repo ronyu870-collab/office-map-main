@@ -1,0 +1,58 @@
+{
+  "batch": "ai_building_field_backfill_20261113_v4_geo_governed",
+  "production_project": "qhgxougfzzmgqjzzwudf",
+  "date": "2026-11-13",
+  "committed": true,
+  "committed_utc": "2026-11-13T09:30:05.714093+00:00",
+  "successful_distinct_null_values": 100,
+  "building_count": 76,
+  "by_target_table": {
+    "buildings": 26,
+    "building_brochure_data": 74
+  },
+  "sources": {
+    "archival_material": 10,
+    "existing_key_business_field_sync": 42,
+    "canonical_geo_brochure_sync": 48,
+    "external_web_new_records": 0
+  },
+  "by_kind": {
+    "archived_confirmed_historical_material": 10,
+    "canonical_master_district_to_brochure": 25,
+    "canonical_master_submarket_to_brochure": 23,
+    "curated_master_pm_to_brochure": 16,
+    "historical_brochure_date_to_main_year": 6,
+    "historical_brochure_gold_level_to_main": 12,
+    "historical_brochure_pm_to_main": 8
+  },
+  "independent_readback": {
+    "audit_records": 100,
+    "provenance_records": 100,
+    "inspected_fields": 100,
+    "covered_buildings": 76,
+    "unique_field_targets": 100,
+    "missing_provenance": 0,
+    "provenance_live_mismatch": 0,
+    "provenance_audit_mismatch": 0,
+    "audit_live_mismatch": 0,
+    "incorrect_original_null": 0,
+    "invalid_provenance": 0,
+    "invalid_ai_audit": 0,
+    "invalid_building": 0,
+    "missing_archived_source": 0,
+    "missing_master_source": 0,
+    "missing_brochure_source": 0,
+    "actual_rollback_audits": 0
+  },
+  "rollback_preview": {
+    "staged_rollback_audits_inside_transaction": 100,
+    "staged_current_provenance_inside_transaction": 0,
+    "transaction_end": "ROLLBACK",
+    "persistent_rollback_audits": 0,
+    "persistent_current_provenance": 100
+  },
+  "source_status": "legacy_backfill",
+  "github_branch": "codex/ai-building-field-backfill-20261113-v4-geo-governed",
+  "no_main_merge": true,
+  "no_frontend_deployment": true
+}
