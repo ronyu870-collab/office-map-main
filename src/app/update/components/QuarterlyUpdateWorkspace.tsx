@@ -1,5 +1,7 @@
 'use client';
 
+import { QuarterlyBatchEditor } from './QuarterlyBatchEditor';
+import { BATCH_COLUMNS, cellNoteKey, planQuarterlyBatch, restoreQuarterlyNotes } from '../quarterlyBatch';
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -193,6 +195,8 @@ export function QuarterlyUpdateWorkspace() {
   const [futureSupplyData, setFutureSupplyData] = React.useState<Record<string, any>>({});
   const [assignedBuildingIds, setAssignedBuildingIds] = React.useState<string[] | null>(null);
   const [metricsMap, setMetricsMap] = React.useState<Record<string, any[]>>({});
+  const [referenceStatus, setReferenceStatus] = React.useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const referencePending = referenceStatus === 'loading';
   const [assignmentsError, setAssignmentsError] = React.useState<string | null>(null);
   const [assignmentsRetryKey, setAssignmentsRetryKey] = React.useState(0);
   const [showIncompleteDialog, setShowIncompleteDialog] = React.useState(false);
@@ -209,6 +213,9 @@ export function QuarterlyUpdateWorkspace() {
   const [provenanceError, setProvenanceError] = React.useState<string | null>(null);
   const [formalRefresh, setFormalRefresh] = React.useState(0);
   const [showRecovery, setShowRecovery] = React.useState(false);
+  const [batch, setBatch] = React.useState<{ scope: string; row: number; column: number; text: string; projectKeys: string[] } | null>(null);
+  const [note, setNote] = React.useState<{ scope: string; project: string; field: string } | null>(null);
+  const [batchStatus, setBatchStatus] = React.useState<{ scope: string; text: string }>();
   const submissionLock = React.useRef(false);
   const tabSwitchLock = React.useRef(false);
   const stores = React.useRef(new Map<string, QuarterlyDraftStore>());
@@ -306,6 +313,7 @@ export function QuarterlyUpdateWorkspace() {
     setPreviewUserName('');
     setAssignedBuildingIds(null);
     setMetricsMap({});
+    setReferenceStatus('loading');
     setFutureSupplyAssignments([]);
     setFutureSupplyData({});
     setFormalRows([]);
@@ -415,9 +423,12 @@ export function QuarterlyUpdateWorkspace() {
         const ids = assignments.map((assignment: any) => assignment.building_id as string);
         setAssignedBuildingIds(ids);
 
-        if (ids.length > 0) {
+        // The authorized draft can load as soon as the period and assignments
+        // are known. Keep writes locked until the historical area used for
+        // validation has settled, as it was before separating these reads.
+        void (async () => {
           try {
-            const metrics = await retryAsync(async () => {
+            const metrics = ids.length === 0 ? [] : await retryAsync(async () => {
               return readQuarterlyPages<Record<string, any>>((from, to) => supabase
                 .from('building_metrics')
                 .select('building_id,record_year,record_quarter,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent,vacancy_rate,vacant_area,total_area')
@@ -427,11 +438,15 @@ export function QuarterlyUpdateWorkspace() {
             }, { attempts: 3, baseDelayMs: 250 });
             const grouped: Record<string, any[]> = {};
             for (const row of metrics) (grouped[row.building_id] ||= []).push(row);
-            if (!cancelled) setMetricsMap(grouped);
+            if (!cancelled) {
+              setMetricsMap(grouped);
+              setReferenceStatus('ready');
+            }
           } catch (error) {
+            if (!cancelled) setReferenceStatus('unavailable');
             console.warn('[QuarterlyUpdate] building_metrics unavailable; continuing without prior-quarter reference', error);
           }
-        }
+        })();
 
         if (await periodReadyPromise && !cancelled) {
           setResolvedPreviewQuery(previewAsUserId);
@@ -532,17 +547,19 @@ export function QuarterlyUpdateWorkspace() {
   const lastSavedAt = draftSnapshot.updatedAt;
 
   React.useEffect(() => {
-    if (draftUserId && periodReady && scopeReady) void draftStore.load();
+    if (!draftUserId || !periodReady || !scopeReady) return;
+    void draftStore.load();
+    return () => draftStore.cancelLoad();
   }, [draftStore, draftUserId, periodReady, scopeReady]);
 
   const manualSave = React.useCallback(async () => {
-    if (!scopeReady) return false;
+    if (!scopeReady || referencePending) return false;
     if (!periodReady || !editingAcknowledged || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return false;
     return draftStore.flush();
-  }, [draftStore, editingAcknowledged, isImpersonating, isPreview, periodReady, scopeReady, userRole]);
+  }, [draftStore, editingAcknowledged, isImpersonating, isPreview, periodReady, referencePending, scopeReady, userRole]);
 
   React.useEffect(() => {
-    if (!scopeReady || !periodReady || !editingAcknowledged || !draftUserId || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return;
+    if (!scopeReady || !periodReady || referencePending || !editingAcknowledged || !draftUserId || isPreview || isImpersonating || !canWriteBusinessData(userRole)) return;
     let nextAttemptAt = Date.now() + 2_000;
     let stopped = false;
     const retry = async (online = false) => {
@@ -558,7 +575,7 @@ export function QuarterlyUpdateWorkspace() {
     const online = () => { void retry(true); };
     window.addEventListener('online', online);
     return () => { stopped = true; window.clearInterval(timer); window.removeEventListener('online', online); };
-  }, [draftStore, draftUserId, editingAcknowledged, isImpersonating, isPreview, manualSave, periodReady, scopeReady, userRole]);
+  }, [draftStore, draftUserId, editingAcknowledged, isImpersonating, isPreview, manualSave, periodReady, referencePending, scopeReady, userRole]);
 
   React.useEffect(() => {
     const hasUnsaved = () => Array.from(stores.current.values()).some((store) => store.getSnapshot().dirty || store.getSnapshot().saving);
@@ -579,7 +596,7 @@ export function QuarterlyUpdateWorkspace() {
     try {
       // Read-only navigation must not require a write the user cannot perform.
       // Each category keeps its scoped controller and durable recovery copy.
-      const canSave = periodReady && editingAcknowledged && !isPreview && !isImpersonating && canWriteBusinessData(userRole) && !draftSnapshot.quarantined;
+      const canSave = periodReady && !referencePending && editingAcknowledged && !isPreview && !isImpersonating && canWriteBusinessData(userRole) && !draftSnapshot.quarantined;
       if (canSave && (draftStore.getSnapshot().dirty || draftStore.getSnapshot().saving) && !await manualSave()) return;
       setCurrentTab(nextTab);
       setCompletionNotice(null);
@@ -664,6 +681,7 @@ export function QuarterlyUpdateWorkspace() {
   const mobileIndex = Math.max(0, selectedIndex);
   const mobileBuilding = filteredBuildings[mobileIndex];
   const mobileKey = mobileBuilding ? projectKey(mobileBuilding) : '';
+  const notedBuilding = note?.scope === mobileScope ? filteredBuildings.find(building => projectKey(building) === note.project) : undefined;
   const selectMobileProject = (index: number) => {
     const building = filteredBuildings[index];
     if (building) setMobileSelection((selection) => ({ ...selection, [mobileScope]: projectKey(building) }));
@@ -674,14 +692,64 @@ export function QuarterlyUpdateWorkspace() {
   const rowState = (building: any) => building._isFutureSupply
     ? futureSupplyDrafts[building.id] || futureSupplyDrafts[building._assignmentId] || {}
     : draftData[building.id] || {};
+  const rowNeedsReference = (building: any) => referencePending && !building._isFutureSupply;
   const totalAreaFor = (building: any) => building._isFutureSupply
     ? safeNum(building.total_area)
-    : safeNum(getVal(building, ['总面积', 'Total Area']));
+    : referencePending ? 0 : safeNum(getVal(building, ['总面积', 'Total Area']));
+  const rowIssuesFor = (building: any) => rowNeedsReference(building)
+    ? [] : getQuarterlyRowIssues(rowState(building), totalAreaFor(building));
 
   const completedCount = filteredBuildings.filter((building: any) => isQuarterlyRowComplete(rowState(building))).length;
-  const exceptionCount = filteredBuildings.filter((building: any) => getQuarterlyRowIssues(rowState(building), totalAreaFor(building)).length > 0).length;
+  const exceptionCount = filteredBuildings.filter((building: any) => rowIssuesFor(building).length > 0).length;
   const incompleteBuildings = filteredBuildings.filter((building: any) => !isQuarterlyRowComplete(rowState(building)));
-  const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating || !periodReady || !editingAcknowledged || submitting || !scopeReady || Boolean(draftSnapshot.quarantined);
+  const readOnly = !canWriteBusinessData(userRole) || isPreview || isImpersonating || !periodReady || referencePending || !editingAcknowledged || submitting || !scopeReady || Boolean(draftSnapshot.quarantined);
+
+  const projectLabel = (building: any) => String(building._isFutureSupply ? building.name : getVal(building, ['写字楼名称', 'name']) || '未命名项目');
+  const referenceLabel = (reference: any) => {
+    if (!reference) return '上季暂无可用数据';
+    const lastQuarter = submitQuarter === 1 ? 4 : submitQuarter - 1;
+    const lastYear = submitQuarter === 1 ? submitYear - 1 : submitYear;
+    return `${Number(reference.record_year) === lastYear && Number(reference.record_quarter) === lastQuarter ? '上季度' : '上季缺失 · 参考'} ${reference.record_year} Q${reference.record_quarter}`;
+  };
+  const applyBatch = (changes: ReturnType<typeof planQuarterlyBatch>) => {
+    if (readOnly || submissionLock.current || batch?.scope !== mobileScope) return '当前范围不可写，请重新打开批量填写。';
+    if (batch.projectKeys.length !== filteredBuildings.length || filteredBuildings.some((building, index) => batch.projectKeys[index] !== projectKey(building))) {
+      return '项目分配或顺序已变化，请重新打开批量填写。';
+    }
+    const candidates = new Map<number, Record<string, unknown>>();
+    const changed = new Map<number, Set<string>>();
+    for (const cell of changes) {
+      const building = filteredBuildings[cell.row];
+      if (!building) return '项目范围已变化，请重新打开批量填写。';
+      candidates.set(cell.row, { ...(candidates.get(cell.row) ?? rowState(building)), [cell.field]: cell.value });
+      const fields = changed.get(cell.row) ?? new Set<string>();
+      fields.add(cell.field);
+      changed.set(cell.row, fields);
+    }
+    for (const [index, values] of candidates) {
+      const building = filteredBuildings[index];
+      const problem = getQuarterlyRowIssues(values as ReturnType<typeof rowState>, totalAreaFor(building))
+        .find(issue => issue.severity === 'error' && issue.field && changed.get(index)?.has(issue.field));
+      if (problem) return `${projectLabel(building)}：${problem.message}`;
+    }
+    draftStore.editCells(changes.map(cell => {
+      const building = filteredBuildings[cell.row];
+      return { kind: building._isFutureSupply ? 'future' : 'regular', id: building.id, legacyId: building._assignmentId, field: cell.field, value: cell.value };
+    }));
+    setCompletionNotice(null);
+    setBatchStatus({ scope: mobileScope, text: `已写入草稿 ${changes.length} 格` });
+  };
+  const handleGridPaste = (event: React.ClipboardEvent<HTMLTableElement>) => {
+    if (readOnly) return;
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+    const text = event.clipboardData.getData('text/plain');
+    const row = Number(target.closest('tr')?.dataset.batchRow);
+    const column = BATCH_COLUMNS.findIndex(item => item.field === target.dataset.quarterlyField);
+    if (!/[\t\r\n]/.test(text) || !Number.isInteger(row) || column < 0) return;
+    event.preventDefault();
+    setBatch({ scope: mobileScope, row, column, text, projectKeys: filteredBuildings.map(projectKey) });
+  };
 
   const attemptState = React.useMemo(() => {
     try { return { attempt: new QuarterlySubmissionAttempt(draftStore.identity, isPreview || isImpersonating ? null : storage), error: null }; }
@@ -750,7 +818,8 @@ export function QuarterlyUpdateWorkspace() {
       const row = formalRows.find((item) => building._isFutureSupply ? item.future_supply_id === building.id : item.building_id === building.id);
       if (!row) continue;
       const draft: QuarterlyDraftRow = {};
-      for (const [field, column] of Object.entries({ qQuote: 'asking_rent', qProp: 'management_fee', qFace: 'face_rent', qFree: 'rent_free_period', qVacArea: 'vacant_area', qOwner: 'owner', qPropMan: 'property_management', qRemark: 'notes' })) draft[field] = row[column] == null ? '' : String(row[column]);
+      Object.assign(draft, restoreQuarterlyNotes(String(row.notes ?? '')));
+      for (const [field, column] of Object.entries({ qQuote: 'asking_rent', qProp: 'management_fee', qFace: 'face_rent', qFree: 'rent_free_period', qVacArea: 'vacant_area', qOwner: 'owner', qPropMan: 'property_management' })) draft[field] = row[column] == null ? '' : String(row[column]);
       payload[building._isFutureSupply ? 'future' : 'regular'][building.id] = draft;
     }
     if (!draftStore.replaceFromFormal(payload)) setSubmitError('本机恢复版本无法保存。请先导出草稿，再尝试载入正式记录。');
@@ -815,6 +884,33 @@ export function QuarterlyUpdateWorkspace() {
         {isPreview && <div className="border-t border-amber-200 bg-amber-50 px-4 py-1.5 text-[11px] text-amber-700">管理员预览模式：正在查看 {previewUserName} 的分配与草稿，不允许写入。</div>}
       </header>
 
+      {filteredBuildings.length > 0 && (!readOnly || filteredBuildings.some(building => BATCH_COLUMNS.some(({ field }) => rowState(building)[cellNoteKey(field)]))) && <div className="flex shrink-0 flex-wrap items-center gap-x-2 border-b border-zinc-200 bg-white px-3 sm:px-5">
+        {!readOnly && <Button type="button" variant="ghost" onClick={() => setBatch({ scope: mobileScope, row: mobileIndex, column: 0, text: '', projectKeys: filteredBuildings.map(projectKey) })}>批量填写 / 复制</Button>}
+        <Button type="button" variant="ghost" onClick={() => setNote({ scope: mobileScope, project: mobileKey, field: 'qQuote' })}>单元格备注</Button>
+        {batchStatus?.scope === mobileScope && <span className="text-sm" role="status">{batchStatus.text}</span>}
+      </div>}
+      {!readOnly && batch?.scope === mobileScope && <QuarterlyBatchEditor
+        initial={batch} rows={filteredBuildings.map(building => ({ name: projectLabel(building), values: BATCH_COLUMNS.map(({ field }) => String(rowState(building)[field] ?? '')) }))}
+        onClose={() => setBatch(null)} onApply={applyBatch} />}
+      {note && notedBuilding && <Dialog open onOpenChange={open => { if (!open) setNote(null); }} title="单元格备注"
+        description={readOnly ? '当前为只读模式。' : '备注随季度草稿保存，并在正式提交时一同记录。'}
+        footer={<Button onClick={() => setNote(null)}>完成</Button>}>
+        <div className="grid gap-3 text-sm">
+          <label>项目<select className="mt-1 block min-h-11 w-full rounded-md border px-2" value={note.project} onChange={event => setNote({ ...note, project: event.target.value })}>
+            {filteredBuildings.map((building) => <option key={projectKey(building)} value={projectKey(building)}>{projectLabel(building)}</option>)}
+          </select></label>
+          <label>字段<select className="mt-1 block min-h-11 w-full rounded-md border px-2" value={note.field} onChange={event => setNote({ ...note, field: event.target.value })}>
+            {BATCH_COLUMNS.slice(0, -1).map(({ label, field }) => <option key={field} value={field}>{label}</option>)}
+          </select></label>
+          <label>备注内容<textarea rows={4} className="mt-1 block w-full rounded-md border p-2" readOnly={readOnly}
+            value={String(rowState(notedBuilding)[cellNoteKey(note.field)] ?? '')} onChange={event => {
+              if (readOnly) return;
+              if (notedBuilding._isFutureSupply) updateFutureField(notedBuilding.id, notedBuilding._assignmentId, cellNoteKey(note.field), event.target.value);
+              else updateRegularField(notedBuilding.id, cellNoteKey(note.field), event.target.value);
+            }} /></label>
+        </div>
+      </Dialog>}
+
       <div className="flex shrink-0 items-center gap-1 border-b border-zinc-200 bg-white px-3 py-2 sm:px-5">
         {(['GradeA', 'GradeB', 'BP'] as const).map((tab) => (
           <button
@@ -830,16 +926,20 @@ export function QuarterlyUpdateWorkspace() {
         <div className="ml-auto hidden items-center divide-x divide-zinc-200 text-[10px] text-zinc-500 md:flex">
           <span className="px-2">项目 <strong className="tabular-nums text-zinc-800">{filteredBuildings.length}</strong></span>
           <span className="px-2">草稿完整 <strong className="tabular-nums text-emerald-700">{completedCount}</strong></span>
-          <span className="pl-2">待检查 <strong className="tabular-nums text-amber-700">{exceptionCount}</strong></span>
+          <span className="pl-2">待检查 <strong className="tabular-nums text-amber-700">{referencePending ? '—' : exceptionCount}</strong></span>
         </div>
         <button type="button" className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-1 rounded px-2 text-[11px] text-zinc-500 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-[#003e7e] md:ml-2" onClick={() => setShowRecovery(true)} aria-haspopup="dialog">
           <History size={14} aria-hidden="true" />历史记录
         </button>
       </div>
 
+      {referenceStatus !== 'ready' && <p role="status" className="shrink-0 border-b border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 sm:px-5">
+        {referencePending ? '正在读取历史参考，暂时只读。' : '历史参考暂不可用，按已有楼宇资料显示。'}
+      </p>}
+
       {!editingAcknowledged && canWriteBusinessData(userRole) && !isPreview && !isImpersonating && <section className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 sm:px-5" aria-label="新版编辑安全确认">
         <p className="min-w-0 flex-1 basis-52 leading-relaxed">请先保存并关闭其他设备或标签页中的旧版填报页面。</p>
-        <button type="button" className="min-h-9 shrink-0 rounded border border-amber-400 bg-white px-3 py-1.5 font-semibold" onClick={() => {
+        <button type="button" disabled={referencePending} className="min-h-9 shrink-0 rounded border border-amber-400 bg-white px-3 py-1.5 font-semibold disabled:opacity-50" onClick={() => {
           if (!clientAckKey) return;
           try { storage?.setItem(clientAckKey, 'saved-closed-legacy-pages'); } catch { /* The current page can still record the explicit acknowledgement. */ }
           setAcknowledgedEditorKey(clientAckKey);
@@ -925,7 +1025,7 @@ export function QuarterlyUpdateWorkspace() {
           )}
 
           <div className="hidden min-h-0 flex-1 overflow-auto md:block">
-            <table className="w-full min-w-[1760px] border-collapse text-[11px]">
+            <table onPaste={handleGridPaste} className="w-full min-w-[1760px] border-collapse text-[11px]">
               <thead className="sticky top-0 z-20 bg-white">
                 <tr className="border-b border-zinc-200 text-[10px] text-zinc-500">
                   <th colSpan={5} className="border-r border-zinc-200 bg-zinc-50 px-2 py-1.5 text-left">项目概况</th>
@@ -944,8 +1044,8 @@ export function QuarterlyUpdateWorkspace() {
                 ) : filteredBuildings.map((building: any, index: number) => {
                   const draft = rowState(building);
                   const totalArea = totalAreaFor(building);
-                  const issues = getQuarterlyRowIssues(draft, totalArea);
-                  const issueFor = (field: string) => issues.find((issue) => issue.field === field)?.message;
+                  const issues = rowIssuesFor(building);
+                  const issueFor = (field: string) => issues.find(issue => issue.field === field && issue.severity === 'error')?.message ?? issues.find(issue => issue.field === field)?.message;
                   const isFuture = building._isFutureSupply === true;
                   const name = isFuture ? building.name : getVal(building, ['写字楼名称', 'Project Name CN', 'name']) || '-';
                   const submarket = isFuture ? building.submarket || '-' : getVal(building, ['子市场', 'SUBMARKET']) || '-';
@@ -955,12 +1055,12 @@ export function QuarterlyUpdateWorkspace() {
                   const defaultPm = isFuture ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || '');
 
                   return (
-                    <tr key={`${isFuture ? 'future' : 'building'}-${building.id}`} className={`border-b border-zinc-100 hover:bg-zinc-50/70 ${isFuture ? 'bg-amber-50/40' : ''}`}>
+                    <tr data-batch-row={index} key={`${isFuture ? 'future' : 'building'}-${building.id}`} className={`border-b border-zinc-100 hover:bg-zinc-50/70 ${isFuture ? 'bg-amber-50/40' : ''}`}>
                       <td className="px-2 py-1.5 text-center text-zinc-400">{index + 1}</td>
-                      <td className={`sticky left-0 z-10 min-w-44 border-r border-zinc-200 px-2 py-1.5 font-semibold ${isFuture ? 'bg-amber-50 text-amber-800' : 'bg-white text-[#003e7e]'}`}><div className="truncate" title={String(name)}>{String(name)}</div>{building._referenceData && <span className="block text-[10px] font-normal text-zinc-500">参考期 {building._referenceData.record_year} Q{building._referenceData.record_quarter}</span>}{issues.length > 0 && <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-700"><AlertTriangle size={10} /> 待检查</span>}</td>
+                      <td className={`sticky left-0 z-10 min-w-44 border-r border-zinc-200 px-2 py-1.5 font-semibold ${isFuture ? 'bg-amber-50 text-amber-800' : 'bg-white text-[#003e7e]'}`}><div className="truncate" title={String(name)}>{String(name)}</div>{!isFuture && <span className="block text-[10px] font-normal text-zinc-500">{referenceLabel(building._referenceData)}</span>}{issues.length > 0 && <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-700"><AlertTriangle size={10} /> 待检查</span>}</td>
                       <td className="px-2 py-1.5 text-zinc-600">{String(submarket)}</td>
                       <td className="min-w-40 px-1 py-1"><div className="grid grid-cols-2 gap-1"><RowField value={draft.qOwner ?? defaultOwner} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline /><RowField value={draft.qPropMan ?? defaultPm} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline /></div></td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-zinc-600">{totalArea > 0 ? Math.round(totalArea).toLocaleString() : '未知'}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-zinc-600">{rowNeedsReference(building) ? '确认中' : totalArea > 0 ? Math.round(totalArea).toLocaleString() : '未知'}</td>
                       {Object.entries(presentation.historical).map(([field, value]) => <td key={field} className="bg-slate-50/70 px-2 py-1.5 text-right tabular-nums text-zinc-500">{value}</td>)}
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qQuote} onChange={(value) => change('qQuote', value)} field="qQuote" readOnly={readOnly} issue={issueFor('qQuote')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
                       <td className="bg-[#fffdf7] px-1 py-1"><RowField value={draft.qProp} onChange={(value) => change('qProp', value)} field="qProp" readOnly={readOnly} issue={issueFor('qProp')} type="number" step="1" onKeyDown={handleGridKeyDown} /></td>
@@ -1002,7 +1102,7 @@ export function QuarterlyUpdateWorkspace() {
             {mobileBuilding && [mobileBuilding].map((building: any) => {
               const draft = rowState(building);
               const totalArea = totalAreaFor(building);
-              const issues = getQuarterlyRowIssues(draft, totalArea);
+              const issues = rowIssuesFor(building);
               const issueFor = (field: string) => issues.find((issue) => issue.field === field && issue.severity === 'error') ?? issues.find((issue) => issue.field === field);
               const change = (field: string, value: string) => building._isFutureSupply ? updateFutureField(building.id, building._assignmentId, field, value) : updateRegularField(building.id, field, value);
               const name = building._isFutureSupply ? building.name : getVal(building, ['写字楼名称', 'name']) || '-';
@@ -1013,18 +1113,19 @@ export function QuarterlyUpdateWorkspace() {
               return (
                 <section key={projectKey(building)} className="px-3 py-3" aria-label={`${String(name)}填报`}>
                   <p className="mb-2 text-[11px] leading-4 text-slate-500">{String(building.submarket || '')}</p>
+                  {!building._isFutureSupply && <p className="mb-2 text-sm text-slate-600">{referenceLabel(reference)}</p>}
                   <div className="grid grid-cols-2 gap-3">
                     <label><span className="mb-1 block text-[11px] font-medium text-slate-500">业主</span><RowField value={draft.qOwner ?? (building._isFutureSupply ? '' : String(getVal(building, ['业主', 'Landlord']) || ''))} onChange={(value) => change('qOwner', value)} field="qOwner" readOnly={readOnly} multiline appearance="mobile" /></label>
                     <label><span className="mb-1 block text-[11px] font-medium text-slate-500">物业</span><RowField value={draft.qPropMan ?? (building._isFutureSupply ? '' : String(getVal(building, ['物业', '物业公司', 'Property Management']) || ''))} onChange={(value) => change('qPropMan', value)} field="qPropMan" readOnly={readOnly} multiline appearance="mobile" /></label>
                   </div>
-                  <div className="my-2 flex items-center justify-between text-[11px] leading-5 text-slate-500"><span>总面积</span><span className="tabular-nums">{totalArea > 0 ? `${Math.round(totalArea).toLocaleString()} ㎡` : '未知'}</span></div>
+                  <div className="my-2 flex items-center justify-between text-[11px] leading-5 text-slate-500"><span>总面积</span><span className="tabular-nums">{rowNeedsReference(building) ? '确认中' : totalArea > 0 ? `${Math.round(totalArea).toLocaleString()} ㎡` : '未知'}</span></div>
                   <table className="w-full table-fixed border-collapse text-xs" aria-label={`${String(name)}季度指标对照`}>
                     <caption className="sr-only">指标按电脑端表格顺序排列，历史参考在左，本季填写在右。</caption>
                     <colgroup><col className="w-[30%]" /><col className="w-[27%]" /><col className="w-[43%]" /></colgroup>
                     <thead>
                       <tr className="border-y border-slate-200 text-left">
                         <th scope="col" className="py-2 text-[11px] font-medium text-slate-500">指标</th>
-                        <th scope="col" className="bg-slate-50 px-2 py-2 text-right font-normal"><span className="block text-[10px] leading-4 text-slate-500">历史参考</span><span className="block text-[11px] leading-4 tabular-nums text-slate-600">{reference ? `${reference.record_year} Q${reference.record_quarter}` : '暂无历史数据'}</span></th>
+                        <th scope="col" className="bg-slate-50 px-2 py-2 text-right font-normal"><span className="block text-[10px] leading-4 text-slate-500">历史参考</span><span className="block text-[11px] leading-4 tabular-nums text-slate-600">{rowNeedsReference(building) ? '加载中' : reference ? `${reference.record_year} Q${reference.record_quarter}` : referenceStatus === 'unavailable' && !building._isFutureSupply ? '暂不可用' : '暂无历史数据'}</span></th>
                         <th scope="col" className="pl-3 py-2 text-right"><span className="block text-[10px] font-medium leading-4 text-[#003e7e]">本季填写</span><span className="block text-[11px] font-medium leading-4 tabular-nums text-[#003e7e]">{submitYear} Q{submitQuarter}</span></th>
                       </tr>
                     </thead>
@@ -1059,7 +1160,7 @@ export function QuarterlyUpdateWorkspace() {
           <DataEntryToolbar className="shrink-0" leading={<span className="hidden text-[10px] text-zinc-500 md:inline">草稿自动保存</span>}>
             {!readOnly && <button type="button" onClick={() => { void manualSave(); }} disabled={saveState === 'saving' || submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"><Save size={13} /> 保存草稿</button>}
             {!readOnly && <button type="button" onClick={() => { void submitData(); }} disabled={submitting} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-[#003e7e] px-3.5 text-[11px] font-semibold text-white hover:bg-[#003566] disabled:opacity-50">{submitting ? <RotateCcw size={13} className="animate-spin" /> : null}{submitting ? '提交中…' : '提交当前分类'}</button>}
-            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{userRole === 'viewer' ? '只读模式' : isImpersonating ? '模拟模式' : isPreview ? '预览模式' : !editingAcknowledged ? '点击“开始填写”后可编辑' : '暂时无法编辑'}</span>}
+            {readOnly && <span className="text-[11px] font-medium text-zinc-400">{userRole === 'viewer' ? '只读模式' : isImpersonating ? '模拟模式' : isPreview ? '预览模式' : referencePending ? '等待历史参考' : !editingAcknowledged ? '点击“开始填写”后可编辑' : '暂时无法编辑'}</span>}
           </DataEntryToolbar>
         </div>
       </main>

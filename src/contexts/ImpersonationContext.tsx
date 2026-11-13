@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { clearImpersonationCache } from '@/src/services/Auth';
+import { useAppSession } from '@/src/components/SessionProvider';
+import { isAdminRole } from '@/src/utils/adminAccess';
 
 const STORAGE_KEY = '__impersonation_state';
 
@@ -22,7 +24,8 @@ interface ImpersonationContextValue {
   targetEmail: string | null;
   targetDisplayName: string | null;
   targetRole: string | null;
-  startImpersonation: (userId: string) => Promise<void>;
+  isStopping: boolean;
+  startImpersonation: (userId: string, operatorUserId: string, signal: AbortSignal) => Promise<void>;
   stopImpersonation: () => void;
 }
 
@@ -33,6 +36,7 @@ const ImpersonationContext = createContext<ImpersonationContextValue>({
   targetEmail: null,
   targetDisplayName: null,
   targetRole: null,
+  isStopping: false,
   startImpersonation: async () => {},
   stopImpersonation: () => {},
 });
@@ -67,78 +71,83 @@ function setStoredState(state: ImpersonationStoredState | null) {
   }
 }
 
-async function getAccessToken(): Promise<string | null> {
-  try {
-    const { supabase } = await import('@/src/services/supabaseClient');
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
-  } catch {
-    return null;
-  }
+async function getCredential() {
+  const { supabase } = await import('@/src/services/supabaseClient');
+  const { data, error } = await supabase.auth.getSession();
+  return error ? null : data.session;
 }
 
 export function ImpersonationProvider({ children }: { children: React.ReactNode }) {
   // 直接从 sessionStorage 读取初始状态（同步，不阻塞渲染）
   const [state, setState] = useState<ImpersonationStoredState | null>(() => getStoredState());
+  const [isStopping, setIsStopping] = useState(false);
+  const stopPending = useRef(false);
   const stopImpersonationRef = useRef<() => void>(() => {});
+  const { session, status } = useAppSession();
+
+  useEffect(() => {
+    if (!state || status === 'loading') return;
+    const realUser = session?.session.user;
+    if (realUser?.id === state.adminUserId && realUser.email === state.adminEmail &&
+      (session?.user.id !== realUser.id || isAdminRole(session.role))) return;
+    clearImpersonationCache();
+    setState(null);
+  }, [session, state, status]);
 
   // 后台验证模拟状态有效性（不阻塞子组件渲染）
   useEffect(() => {
     const stored = getStoredState();
     if (!stored) return; // 无模拟状态，无需验证
 
-    // 异步验证当前登录用户是否是发起模拟的 admin
-    import('@/src/services/supabaseClient').then(({ supabase }) => {
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (!user || user.email !== stored.adminEmail) {
-          // admin 已切换，清除残留的模拟状态
-          setStoredState(null);
-          setState(null);
-        }
-        // 如果验证通过，state 已在初始化时设置，无需额外操作
-      });
-    });
+    let active = true;
+    const clearIfCurrent = () => {
+      if (!active) return;
+      const current = getStoredState();
+      if (current && current.startedAt === stored.startedAt && current.targetUserId === stored.targetUserId) {
+        clearImpersonationCache();
+      }
+      setState(previous => previous?.startedAt === stored.startedAt && previous.targetUserId === stored.targetUserId ? null : previous);
+    };
+    // Keep the existing fresh Auth verification on reload. Only its original
+    // stored transition can be cleared by a response from that verification.
+    void import('@/src/services/supabaseClient').then(async ({ supabase }) => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user || user.id !== stored.adminUserId || user.email !== stored.adminEmail) clearIfCurrent();
+    }).catch(clearIfCurrent);
+    return () => { active = false; };
   }, []);
 
-  const startImpersonation = useCallback(async (userId: string) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      alert('无法获取认证信息，请重新登录');
-      return;
-    }
+  const startImpersonation = useCallback(async (userId: string, operatorUserId: string, signal: AbortSignal) => {
+    const credential = await getCredential();
+    if (!credential?.access_token || credential.user.id !== operatorUserId) throw new Error('登录状态已变化，请重新进入管理后台');
+    const accessToken = credential.access_token;
+    signal.throwIfAborted();
 
-    // Fetch target user profile
+    // The existing server route independently verifies this token, role and target.
     const res = await fetch(`/api/admin/impersonate?user_id=${encodeURIComponent(userId)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal,
+      cache: 'no-store',
     });
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || '获取用户信息失败');
-      return;
+      throw new Error(typeof data.error === 'string' ? data.error : '获取用户信息失败');
     }
 
     const profile = await res.json();
+    if (profile.user_id !== userId || !profile.email) throw new Error('返回的模拟用户信息不完整');
 
-    // Get current admin info
-    const { supabase } = await import('@/src/services/supabaseClient');
-    const { data: { user: adminUser } } = await supabase.auth.getUser();
+    async function assertCurrentCredential() {
+      const current = await getCredential();
+      signal.throwIfAborted();
+      if (current?.user.id !== operatorUserId || current.access_token !== accessToken) {
+        throw new Error('登录状态已变化，请重新进入管理后台');
+      }
+    }
 
-    const stored: ImpersonationStoredState = {
-      targetUserId: profile.user_id,
-      targetEmail: profile.email,
-      targetDisplayName: profile.displayName,
-      targetRole: profile.role,
-      adminUserId: adminUser?.id || '',
-      adminEmail: adminUser?.email || '',
-      startedAt: Date.now(),
-    };
-
-    setStoredState(stored);
-    setState(stored);
-
-    // Log audit
-    await fetch('/api/admin/impersonate', {
+    await assertCurrentCredential();
+    const audit = await fetch('/api/admin/impersonate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -149,39 +158,55 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
         target_user_id: profile.user_id,
         target_email: profile.email,
       }),
-    }).catch(() => {}); // non-blocking
+    });
+    if (!audit.ok) throw new Error('无法记录模拟操作，请重试');
+    await assertCurrentCredential();
 
-    // Navigate to homepage with impersonate param
+    const stored: ImpersonationStoredState = {
+      targetUserId: profile.user_id,
+      targetEmail: profile.email,
+      targetDisplayName: profile.displayName,
+      targetRole: profile.role,
+      adminUserId: credential.user.id,
+      adminEmail: credential.user.email ?? '',
+      startedAt: Date.now(),
+    };
+    clearImpersonationCache();
+    setStoredState(stored);
+    setState(stored);
     window.location.href = `/?impersonate=${encodeURIComponent(userId)}`;
   }, []);
 
   const stopImpersonation = useCallback(async () => {
+    if (stopPending.current) return;
+    stopPending.current = true;
+    setIsStopping(true);
     const currentState = getStoredState();
-    if (currentState) {
-      const accessToken = await getAccessToken();
-      if (accessToken) {
-        // Log audit
+    try {
+      const credential = currentState ? await getCredential() : null;
+      if (currentState && credential?.user.id === currentState.adminUserId && credential.user.email === currentState.adminEmail) {
         await fetch('/api/admin/impersonate', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${credential.access_token}`,
           },
           body: JSON.stringify({
             action: 'impersonate_end',
             target_user_id: currentState.targetUserId,
             target_email: currentState.targetEmail,
           }),
-        }).catch(() => {});
+        });
       }
+    } catch {
+      // A network failure cannot trap the operator in simulated mode.
+    } finally {
+      // Even an offline or expired session must be able to leave read-only mode.
+      setStoredState(null);
+      setState(null);
+      clearImpersonationCache();
+      window.location.href = '/admin';
     }
-
-    setStoredState(null);
-    setState(null);
-    clearImpersonationCache();
-
-    // Navigate to admin page
-    window.location.href = '/admin';
   }, []);
 
   // Keep ref updated
@@ -210,6 +235,7 @@ export function ImpersonationProvider({ children }: { children: React.ReactNode 
     targetEmail: state?.targetEmail ?? null,
     targetDisplayName: state?.targetDisplayName ?? null,
     targetRole: state?.targetRole ?? null,
+    isStopping,
     startImpersonation,
     stopImpersonation,
   };

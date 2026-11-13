@@ -9,6 +9,7 @@ import { supabase } from "./supabaseClient";
 import { isDemoMode } from "@/src/config/demoMode";
 import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
+import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
@@ -758,6 +759,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       }
       const amapKey = getSafeAmapKey();
 
+      recordMapStartup('sdk_start');
       if (!_amapLoadPromise) {
         _amapLoadPromise = (async () => {
           const mod = await import("@amap/amap-jsapi-loader");
@@ -778,6 +780,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
       const AMap = await _amapLoadPromise;
       if (this._destroyed) return;
+      recordMapStartup('sdk_ready');
       this.AMap = AMap;
 
       const containerEl = document.getElementById(containerId);
@@ -793,7 +796,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       // A warm map can complete before the runtime resumes after awaiting initMap.
       // Keep this listener until map destruction so other listeners see the same event.
       initialMap.on("complete", () => {
-        if (!this._destroyed && this.map === initialMap) this.initialTilesReady = true;
+        if (!this._destroyed && this.map === initialMap && !this.initialTilesReady) {
+          this.initialTilesReady = true;
+          recordMapStartup('tiles_complete');
+        }
       });
       this.infoWindow = new AMap.InfoWindow({
         isCustom: false,
@@ -2516,10 +2522,12 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             <button type="button" class="building-popup__action" data-map-action="nearby-compare" data-popup-action="nearby">周边项目对比</button>
             <button type="button" class="building-popup__action" data-map-action="building-compare">楼宇对比</button>
             <button type="button" class="building-popup__action" data-map-action="related-leases">关联成交</button>
-            <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">趋势追踪</button>
+            <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">季度趋势</button>
             <button type="button" class="building-popup__action" data-map-action="contact" data-popup-action="contact">联系方式</button>
             <button type="button" class="building-popup__action" data-map-action="building-sales-control"
-              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}">项目资料与佣金</button>
+              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}" data-category="availability">销控与佣金</button>
+            <button type="button" class="building-popup__action" data-map-action="building-sales-control"
+              data-building-id="${id}" data-building-name="${escapeHtml(building.name)}" data-category="brochure">楼书与资料</button>
           </div>
           <div class="building-popup__proposal" data-map-proposal-slot hidden></div>
           <div id="info-chart-panel" class="building-popup__trend" style="display:none">

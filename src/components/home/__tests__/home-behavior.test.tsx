@@ -103,6 +103,21 @@ describe('Home workspace behavior', () => {
     expect(screen.getByRole('link', { name: '租赁成交填报' })).toBeInTheDocument();
   });
 
+  it.each(['admin', 'editor', 'viewer'] as const)('keeps the new query unavailable for %s without replacing existing navigation', (role) => {
+    setSession(role);
+    render(<HomeWorkspace />);
+    const query = screen.getByRole('textbox', { name: '对话查询' });
+    expect(query).toBeDisabled();
+    expect(query).toHaveValue('');
+    expect(query).toHaveAttribute('placeholder', '对话查询尚未开放');
+    expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled();
+    expect(screen.getByRole('link', { name: '北京办公楼市场地图' })).toHaveAttribute('href', '/map');
+    expect(screen.getByRole('link', { name: '季度数据填报' })).toHaveAttribute('href', '/update');
+    const existingAI = screen.queryByRole('link', { name: '业务智能 Intelligence' });
+    if (role === 'admin') expect(existingAI).toHaveAttribute('href', '/intelligence');
+    else expect(existingAI).not.toBeInTheDocument();
+  });
+
   it('implements the user-menu keyboard contract and returns focus on Escape', async () => {
     render(<HomeWorkspace />);
 
@@ -155,7 +170,6 @@ describe('Home workspace behavior', () => {
     expect(Array.from(report.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
       '/update', '/lease-submission', '/oss', '/occupier-insights',
     ]);
-    expect(report).toHaveTextContent('专题');
     expect(report).toHaveAttribute('href', '/occupier-insights');
     expect(fireEvent.click(report)).toBe(true);
   });

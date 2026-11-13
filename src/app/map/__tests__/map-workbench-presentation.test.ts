@@ -12,7 +12,7 @@ describe('Map 2.0 presentation seam', () => {
   it('loads map-route presentation styles without moving behavior into the page shell', () => {
     const page = read('src/app/map/page.tsx');
     expect(page).toContain("import './map-workbench.css';");
-    expect(page).toContain('<MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} />');
+    expect(page).toContain('<MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} />');
     expect(page).not.toContain('MapController');
     expect(page).not.toContain('MapDataStore');
   });

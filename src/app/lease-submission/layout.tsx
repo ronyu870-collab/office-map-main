@@ -52,6 +52,8 @@ export default function LeaseSubmissionLayout({ children }: { children: React.Re
 
   const inDatabase = pathname?.startsWith('/lease-submission/history');
   if (inDatabase) return <>{children}</>;
+  const inMonitoring = pathname?.startsWith('/lease-submission/monitoring');
+  if (inMonitoring) return <>{children}</>;
 
   return (
     <>

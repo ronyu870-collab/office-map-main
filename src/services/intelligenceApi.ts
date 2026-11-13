@@ -28,6 +28,7 @@ export async function parseIntelligenceRequirement(
 export async function recommendIntelligenceBuildings(
   requirement: string,
   accessToken: string,
+  signal?: AbortSignal,
 ): Promise<RecommendationResponse> {
   const response = await fetch('/api/intelligence/recommend', {
     method: 'POST',
@@ -37,6 +38,7 @@ export async function recommendIntelligenceBuildings(
     }),
     body: JSON.stringify({ requirement }),
     cache: 'no-store',
+    signal,
   });
   return readJson<RecommendationResponse>(response, 'AI 推荐生成失败，请稍后重试');
 }

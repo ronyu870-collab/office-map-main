@@ -13,9 +13,11 @@ import {
   normalizeRequirementAgainstVocabulary,
   resolveRequirementCapabilities,
 } from '@/src/lib/intelligence/requirementResolver';
+import { loadRecommendationCatalog } from '@/src/lib/intelligence/recommendationServer';
 import {
+  createIntelligenceRequestScope,
   isIntelligenceContext,
-  loadVocabularyAndPeriod,
+  loadLatestRecommendationMetricPeriod,
   requireIntelligenceAccess,
 } from '@/src/lib/intelligence/serverContext';
 
@@ -63,10 +65,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
   }
 
-  const context = await requireIntelligenceAccess(request);
-  if (!isIntelligenceContext(context)) return context;
-
+  const { signal, deadline, close } = createIntelligenceRequestScope(request);
   try {
+    const context = await requireIntelligenceAccess(request);
+    if (!isIntelligenceContext(context)) return context;
+    signal.throwIfAborted();
     const raw = await request.text();
     if (raw.length > MAX_BODY_BYTES) return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
 
@@ -82,9 +85,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: input.error.issues[0]?.message || '客户需求格式无效' }, { status: 400 });
     }
 
-    const { vocabulary, latestMetricPeriod } = await loadVocabularyAndPeriod(context.client);
+    const [{ vocabulary }, latestMetricPeriod] = await Promise.all([
+      loadRecommendationCatalog(context.client, context.catalogScope, signal),
+      loadLatestRecommendationMetricPeriod(context.client, signal),
+    ]);
     const startedAt = Date.now();
-    const aiResult = await parseRequirementWithDeepSeek(input.data.requirement, vocabulary);
+    const aiResult = await parseRequirementWithDeepSeek(input.data.requirement, vocabulary, signal);
     const parsed = normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary);
     const capabilities = resolveRequirementCapabilities(parsed, { latestMetricPeriod });
 
@@ -97,15 +103,20 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    signal.throwIfAborted();
     await auditAIParse(context.client, context.caller.id, result, input.data.requirement.length);
     return NextResponse.json(result, {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
+    if (request.signal.aborted) return new NextResponse(null, { status: 499 });
+    if (deadline.aborted) return NextResponse.json({ error: '需求解析超时，请稍后重试' }, { status: 504 });
     if (error instanceof IntelligenceAIError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error('[intelligence] parse-requirement failed', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: '客户需求解析失败，请稍后重试' }, { status: 500 });
+  } finally {
+    close();
   }
 }

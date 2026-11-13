@@ -1,0 +1,101 @@
+{
+  "browser": "157.0.8103.52",
+  "results": [
+    {
+      "version": "before",
+      "type": "stock",
+      "width": 1280,
+      "height": 800,
+      "viewer": {
+        "x": 0,
+        "y": 0,
+        "width": 1152,
+        "height": 637.984375
+      }
+    },
+    {
+      "version": "before",
+      "type": "future",
+      "width": 1280,
+      "height": 800,
+      "viewer": {
+        "x": 0,
+        "y": 0,
+        "width": 1152,
+        "height": 637.984375
+      }
+    },
+    {
+      "version": "after",
+      "type": "stock",
+      "width": 1280,
+      "height": 800,
+      "viewer": {
+        "x": 194.53125,
+        "y": 71.640625,
+        "width": 890.9375,
+        "height": 656.71875
+      }
+    },
+    {
+      "version": "after",
+      "type": "future",
+      "width": 1280,
+      "height": 800,
+      "viewer": {
+        "x": 194.53125,
+        "y": 71.640625,
+        "width": 890.9375,
+        "height": 656.71875
+      }
+    },
+    {
+      "version": "before",
+      "type": "stock",
+      "width": 390,
+      "height": 844,
+      "viewer": {
+        "x": 0,
+        "y": 0,
+        "width": 358,
+        "height": 309.328125
+      }
+    },
+    {
+      "version": "before",
+      "type": "future",
+      "width": 390,
+      "height": 844,
+      "viewer": {
+        "x": 0,
+        "y": 0,
+        "width": 358,
+        "height": 309.328125
+      }
+    },
+    {
+      "version": "after",
+      "type": "stock",
+      "width": 390,
+      "height": 844,
+      "viewer": {
+        "x": 12,
+        "y": 259.328125,
+        "width": 366,
+        "height": 325.328125
+      }
+    },
+    {
+      "version": "after",
+      "type": "future",
+      "width": 390,
+      "height": 844,
+      "viewer": {
+        "x": 12,
+        "y": 259.328125,
+        "width": 366,
+        "height": 325.328125
+      }
+    }
+  ]
+}

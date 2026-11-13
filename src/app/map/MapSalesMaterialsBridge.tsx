@@ -7,7 +7,7 @@ import type { SalesMaterialReader } from '@/src/services/salesMaterialsClient';
 // Keep the viewer and data client out of the map startup path.
 const SalesMaterialsPanel = dynamic(() => import('./components/sales-materials/SalesMaterialsPanel'));
 
-type Context = { buildingId: string; buildingName: string };
+type Context = { buildingId: string; buildingName: string; initialCategory?: 'brochure' | 'availability' };
 
 export function MapSalesMaterialsBridge({ reader }: { reader?: SalesMaterialReader } = {}) {
   const [context, setContext] = useState<Context | null>(null);
@@ -18,10 +18,21 @@ export function MapSalesMaterialsBridge({ reader }: { reader?: SalesMaterialRead
       if (!button?.dataset.buildingId) return;
       event.preventDefault();
       event.stopPropagation();
-      setContext({ buildingId: button.dataset.buildingId, buildingName: button.dataset.buildingName || '当前楼宇' });
+      const initialCategory = button.dataset.category;
+      setContext({ buildingId: button.dataset.buildingId, buildingName: button.dataset.buildingName || '当前楼宇',
+        initialCategory: initialCategory === 'brochure' || initialCategory === 'availability' ? initialCategory : undefined });
+
+    };
+    const onSection = (event: Event) => {
+      const { id, name, section } = (event as CustomEvent).detail;
+      if (section === 'brochure' || section === 'availability') setContext({ buildingId: id, buildingName: name, initialCategory: section });
     };
     document.addEventListener('click', onClick, true);
-    return () => document.removeEventListener('click', onClick, true);
+    window.addEventListener('broker:building-section', onSection);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      window.removeEventListener('broker:building-section', onSection);
+    };
   }, []);
-  return context ? <SalesMaterialsPanel key={context.buildingId} {...context} reader={reader} onClose={() => setContext(null)} /> : null;
+  return context ? <SalesMaterialsPanel key={`${context.buildingId}:${context.initialCategory ?? ""}`} {...context} reader={reader} onClose={() => setContext(null)} /> : null;
 }

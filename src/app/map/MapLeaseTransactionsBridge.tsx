@@ -1,5 +1,8 @@
 'use client';
 
+import { dealHistoryHref, mapBuildingHref } from '@/src/lib/broker/links';
+import { useAppSession } from '@/src/components/SessionProvider';
+import { canAccessModule } from '@/src/utils/accessControl';
 import * as React from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Database, X } from 'lucide-react';
 
@@ -132,6 +135,7 @@ async function loadBuildingLeases(buildingId: string, page: number): Promise<Lea
 }
 
 export function MapLeaseTransactionsBridge() {
+  const { session } = useAppSession();
   const [context, setContext] = React.useState<BuildingContext | null>(null);
   const [page, setPage] = React.useState(0);
   const [payload, setPayload] = React.useState<LeasePayload | null>(null);
@@ -155,8 +159,18 @@ export function MapLeaseTransactionsBridge() {
       setContext(nextContext);
     };
 
+    const onSection = (event: Event) => {
+      const { id, name, section } = (event as CustomEvent).detail;
+      if (section !== 'deals') return;
+      setPage(0);
+      setContext({ buildingId: id, buildingName: name });
+    };
     document.addEventListener('click', handleClick, true);
-    return () => document.removeEventListener('click', handleClick, true);
+    window.addEventListener('broker:building-section', onSection);
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+      window.removeEventListener('broker:building-section', onSection);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -237,7 +251,10 @@ export function MapLeaseTransactionsBridge() {
         <span className="text-[12px] leading-5 text-[var(--cd-color-text-secondary)]">
           <strong className="font-semibold tabular-nums text-[var(--cd-color-text-primary)]">{count.toLocaleString('zh-CN')}</strong> 条成交
         </span>
-        <span className="text-[11px] leading-5 text-[var(--cd-color-text-muted)]">最新优先</span>
+        {canAccessModule('lease-submission', session?.role) && <a className="inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline" href={dealHistoryHref(
+          { id: context.buildingId, name: context.buildingName || '当前楼宇' },
+          mapBuildingHref(context.buildingId, { section: 'deals' }),
+        )}>在成交库查看</a>}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

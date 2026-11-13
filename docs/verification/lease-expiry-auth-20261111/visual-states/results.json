@@ -1,0 +1,132 @@
+{
+  "browser": "157.0.8103.50",
+  "source": "actual component and built CSS; isolated synthetic session and HTTP for visual states; not authorization evidence",
+  "results": [
+    {
+      "width": 1280,
+      "state": "denied",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "state": "empty",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "state": "loading",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "state": "read-error",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "state": "save-error",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "state": "saving",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "state": "readonly",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "denied",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "empty",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "loading",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "read-error",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "save-error",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "saving",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "state": "readonly",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "denied",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "empty",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "loading",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "read-error",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "save-error",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "saving",
+      "noOverflow": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "state": "readonly",
+      "noOverflow": true,
+      "pageErrors": []
+    }
+  ]
+}

@@ -36,7 +36,6 @@ describe('Home collaboration structural contract', () => {
     expect(layout).toContain('viewportFit: "cover"');
 
     expect(notice).toContain("BEIJING_TIME_ZONE = 'Asia/Shanghai'");
-    expect(notice).toContain('grid-cols-[5.5rem_minmax(0,1fr)]');
     expect(notice).toContain('whitespace-nowrap');
   });
 

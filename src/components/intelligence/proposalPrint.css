@@ -1,0 +1,19 @@
+@page candidate-proposal {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  .proposal-print {
+    page: candidate-proposal;
+    min-height: 0;
+  }
+
+  .proposal-print article {
+    overflow-wrap: anywhere;
+  }
+
+  body:has(.proposal-print) [role="dialog"] {
+    display: none;
+  }
+}

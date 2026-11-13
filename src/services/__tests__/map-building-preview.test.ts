@@ -228,7 +228,7 @@ describe('地图项目预览仅按需加载', () => {
       const popup = trigger.closest<HTMLElement>('.building-popup')!;
       const actions = within(popup).getByRole('group', { name: '楼宇操作' });
       expect(within(actions).getAllByRole('button').map(button => button.textContent?.trim())).toEqual([
-        '周边项目对比', '楼宇对比', '关联成交', '趋势追踪', '联系方式', '项目资料与佣金',
+        '周边项目对比', '楼宇对比', '关联成交', '季度趋势', '联系方式', '销控与佣金', '楼书与资料',
       ]);
       expect(within(popup).getByRole('button', { name: '关闭楼宇详情' })).toBeInTheDocument();
       expect(image.closest('.building-popup__summary')).not.toBeNull();

@@ -18,7 +18,13 @@ concurrency:
 jobs:
   search-focus:
     name: Search and filter focus coverage
-    runs-on: ubuntu-24.04
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && vars.CI_TEMP_RUNNER_BRANCH != ''
+          && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
+          && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
+          || 'ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +33,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          # The temporary runner already has a warm npm cache on disk.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - run: npm ci
       - name: Verify the coverage contract
         run: node --test scripts/verify-search-focus-gate.mjs
@@ -38,7 +45,13 @@ jobs:
 
   verify:
     name: Typecheck, lint, test and build
-    runs-on: ubuntu-24.04
+    runs-on: >-
+      ${{ github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && vars.CI_TEMP_RUNNER_BRANCH != ''
+          && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
+          && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
+          || 'ubuntu-24.04' }}
     timeout-minutes: 20
     services:
       postgres:
@@ -65,7 +78,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          # The temporary runner already has a warm npm cache on disk.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: Install dependencies
         run: npm ci
@@ -77,6 +91,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Check schema dictionary catalog and search index
+        run: node scripts/generate-schema-dictionary.mjs --check
 
       - name: Lint
         run: npm run lint
@@ -103,6 +120,16 @@ jobs:
 
       - name: Real PostgreSQL 17 lease edit and audit regressions
         run: npm run test:db:lease-audit
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL 17 lease expiry review regressions
+        run: node supabase/tests/lease-expiry/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL 17 lease company AI regressions
+        run: node supabase/tests/lease-company-ai/run.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
@@ -168,8 +195,52 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: PostgreSQL 17 and PostgREST memo preview regression
+        run: node supabase/tests/memo-list-preview/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST display override regression
+        run: node supabase/tests/display-overrides/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST lease history count regression
+        run: node supabase/tests/lease-history-count/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST feedback thread regression
+        run: node supabase/tests/feedback-thread/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST changelog preview regression
+        run: node supabase/tests/changelog-list-preview/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST announcement preview regression
+        run: node supabase/tests/notice-list-preview/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST recommendation catalog regression
+        run: node supabase/tests/intelligence-recommendation-catalog/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
       - name: Production build
         run: npm run build
+        env:
+          NEXT_PUBLIC_AMAP_KEY: syntheticfixture
 
       - name: Browser measurement calibration and anonymous production-build regression
         shell: bash
@@ -180,6 +251,9 @@ jobs:
           export PERF_BROWSER_CHANNEL=chromium
           node scripts/performance/verify-summary.mjs
           node scripts/performance/verify-capture.mjs
+          node scripts/performance/verify-api-server-timing.mjs
+          node scripts/performance/verify-intelligence-pipeline.mjs
+          node --experimental-strip-types scripts/performance/verify-auth-transitions.mjs
           node scripts/verification/verify-building-photos.mjs
           node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3210 > "$RUNNER_TEMP/performance-server.log" 2>&1 &
           performance_server_pid=$!
@@ -190,7 +264,47 @@ jobs:
           done
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
+          node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
+          node scripts/performance/verify-admin-ledger-first-open.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-home-cold-start.mjs --prefetch-policy http://127.0.0.1:3210
+          node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-oss-directory.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-oss-upload-queue.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-map-startup-stages.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-frozen-meeting-map.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-map-pdf-preview.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-lease-workspace-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-lease-history-count.mjs http://127.0.0.1:3210
+          node scripts/verification/verify-broker-workflows.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-lease-team-monitor.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-feedback-thread.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-operator.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-database-discovery.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-debug-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-memo-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-changelog-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-notice-read.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-schema-dictionary.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-submission-progress.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-impersonation.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-admin-user-directory.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-display-overrides.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-quarterly-reference.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
+          node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
+
+      - name: Retain homepage browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: homepage-entry-verification
+          path: |
+            docs/verification/home-ai-entry/after-*.png
+            docs/verification/home-ai-entry/after-browser.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Retain isolated report verification evidence
         if: always()
@@ -207,5 +321,56 @@ jobs:
         with:
           name: building-photo-verification
           path: verification/building-photos
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retain isolated lease expiry review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lease-expiry-review-verification
+          path: verification/lease-expiry
+          if-no-files-found: ignore
+          retention-days: 7
+
+  lease-expiry-auth:
+    name: Real Auth lease expiry integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start disposable local Auth and Data API stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/f6-auth-integration/supabase"
+          cp supabase/tests/lease-expiry/auth-config.toml "$RUNNER_TEMP/f6-auth-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/f6-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/f6-auth-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/f6-auth-integration" -o json > "$RUNNER_TEMP/f6-auth-status.json"
+          chmod 600 "$RUNNER_TEMP/f6-auth-status.json"
+      - name: Real account, authorization, concurrency and revocation regressions
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/f6-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/f6-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          F6_AUTH_TEST_ALLOW_LOCAL=disposable F6_LOCAL_SUPABASE_STATUS="$RUNNER_TEMP/f6-auth-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/f6-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-lease-expiry-auth.mjs
+      - name: Stop only the disposable F6 stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/f6-auth-integration" --no-backup
+      - name: Retain credential-free integration results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lease-expiry-real-auth
+          path: |
+            verification/lease-expiry-auth/results.json
+            verification/lease-expiry-auth/*.png
           if-no-files-found: ignore
           retention-days: 7

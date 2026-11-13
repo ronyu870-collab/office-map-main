@@ -7,57 +7,70 @@ interface UseMemosOptions {
   search?: string;
 }
 
-interface UseMemosReturn {
+interface MemoListResult extends UseMemosOptions {
+  version: number;
   memos: MemoListItem[];
-  loading: boolean;
   error: string | null;
-  tags: string[];
-  refresh: () => Promise<void>;
-  createNew: (title: string, content: string, tags: string[], email: string) => Promise<string>;
-  remove: (id: string) => Promise<void>;
-  togglePin: (id: string, isPinned: boolean) => Promise<void>;
 }
 
-export function useMemos(options?: UseMemosOptions): UseMemosReturn {
-  const [memos, setMemos] = useState<MemoListItem[]>([]);
+export function useMemos({ tag, search }: UseMemosOptions = {}) {
+  const [list, setList] = useState<MemoListResult | null>(null);
   const [tags, setTags] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [tagError, setTagError] = useState(false);
+  const [listVersion, setListVersion] = useState(0);
+  const [tagVersion, setTagVersion] = useState(0);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [memoList, tagList] = await Promise.all([
-        listMemos(options),
-        getAllTags(),
-      ]);
-      setMemos(memoList);
-      setTags(tagList);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
-    } finally {
-      setLoading(false);
-    }
-  }, [options?.tag, options?.search]);
+  const refreshList = useCallback(() => setListVersion(version => version + 1), []);
+  const refreshTags = useCallback(() => {
+    setTagError(false);
+    setTagVersion(version => version + 1);
+  }, []);
+  const refresh = useCallback(() => { refreshList(); refreshTags(); }, [refreshList, refreshTags]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const scope = { tag, search, version: listVersion };
+    void listMemos({ tag, search }, controller.signal).then(
+      memos => {
+        if (!controller.signal.aborted) setList({ ...scope, memos, error: null });
+      },
+      error => {
+        if (!controller.signal.aborted) setList({ ...scope, memos: [], error: error instanceof Error ? error.message : '加载失败' });
+      },
+    );
+    return () => controller.abort();
+  }, [tag, search, listVersion]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getAllTags(controller.signal).then(
+      values => { if (!controller.signal.aborted) setTags(values); },
+      () => { if (!controller.signal.aborted) setTagError(true); },
+    );
+    return () => controller.abort();
+  }, [tagVersion]);
 
   const createNew = useCallback(async (title: string, content: string, tagList: string[], email: string) => {
     const memo = await createMemo(title, content, tagList, email);
-    await refresh();
+    refresh();
     return memo.id;
   }, [refresh]);
 
   const remove = useCallback(async (id: string) => {
     await deleteMemo(id);
-    await refresh();
+    refresh();
   }, [refresh]);
 
-  const togglePinFn = useCallback(async (id: string, isPinned: boolean) => {
+  const togglePin = useCallback(async (id: string, isPinned: boolean) => {
     await toggleMemoPin(id, isPinned);
-    await refresh();
-  }, [refresh]);
+    refreshList();
+  }, [refreshList]);
 
-  return { memos, loading, error, tags, refresh, createNew, remove: remove, togglePin: togglePinFn };
+  const current = list?.version === listVersion && list.tag === tag && list.search === search ? list : null;
+  return {
+    memos: current?.memos ?? [],
+    loading: !current,
+    error: current?.error ?? null,
+    tags, tagError, refresh, refreshList, refreshTags, createNew, remove, togglePin,
+  };
 }

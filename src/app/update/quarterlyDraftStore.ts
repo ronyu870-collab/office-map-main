@@ -146,13 +146,19 @@ export class QuarterlyDraftStore {
     }
   }
   edit(kind: 'regular' | 'future', id: string, field: string, value: string, legacyId?: string) {
-    if (this.snapshot.quarantined) return;
-    const rows = this.snapshot.payload[kind];
-    const nextRows = { ...rows, [id]: { ...(legacyId ? rows[legacyId] : {}), ...rows[id], [field]: value } };
-    if (legacyId && legacyId !== id) delete nextRows[legacyId];
+    this.editCells([{ kind, id, field, value, legacyId }]);
+  }
+  editCells(cells: ReadonlyArray<{ kind: 'regular' | 'future'; id: string; field: string; value: string; legacyId?: string }>) {
+    if (this.snapshot.quarantined || !cells.length) return;
+    const next = { regular: { ...this.snapshot.payload.regular }, future: { ...this.snapshot.payload.future } };
+    for (const { kind, id, field, value, legacyId } of cells) {
+      const rows = next[kind];
+      rows[id] = { ...(legacyId ? rows[legacyId] : {}), ...rows[id], [field]: value };
+      if (legacyId && legacyId !== id) delete rows[legacyId];
+    }
     this.editVersion++;
-    this.publish({ payload: { ...this.snapshot.payload, [kind]: nextRows }, dirty: true });
-    // Synchronous persistence at the edit boundary also covers immediate reload.
+    this.publish({ payload: next, dirty: true });
+    // Persist the entire paste as one edit so reload cannot see a partial range.
     this.persist();
   }
   replaceFromFormal(payload: DraftPayload) {
@@ -197,12 +203,18 @@ export class QuarterlyDraftStore {
         }
         this.persist();
       } catch (error) {
+        if (generation !== this.generation) return;
         if (this.quarantine(error)) return;
         this.publish({ error: '云端草稿读取失败；已保留本页及本机副本，重试读取后才能同步。', retryCount: this.snapshot.retryCount + 1 });
-      } finally { this.loading = null; }
+      } finally { if (generation === this.generation) this.loading = null; }
     })();
     return this.loading;
   };
+  cancelLoad(): void {
+    if (!this.loading) return;
+    this.generation += 1;
+    this.loading = null;
+  }
   flush = (): Promise<boolean> => {
     if (this.inFlight) return this.inFlight;
     this.inFlight = this.drain().finally(() => { this.inFlight = null; });

@@ -1,0 +1,72 @@
+{
+  "id": "future",
+  "title": "未来供应",
+  "desc": "即将入市的新楼宇项目。与现有楼宇独立管理，项目正式入市后需在楼宇基础信息中新建。",
+  "tables": [
+    {
+      "name": "future_supplies",
+      "label": "未来供应项目",
+      "desc": "即将入市的楼宇项目主表。",
+      "rules": [
+        "与buildings表完全独立，不会出现在地图上",
+        "项目正式入市后需在buildings中新建对应楼宇"
+      ],
+      "fields": [
+        {"name":"id","label":"供应ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"name","label":"项目名称","type":"文本","desc":"项目名称","who":"管理员"},
+        {"name":"owner","label":"业主","type":"文本","desc":"业主/开发商","who":"管理员"},
+        {"name":"district","label":"行政区","type":"文本","desc":"所在行政区","who":"管理员"},
+        {"name":"submarket","label":"子市场","type":"文本","desc":"所属商圈","who":"管理员"},
+        {"name":"grade","label":"楼宇等级","type":"文本","desc":"预期等级P/A/B/BP","who":"管理员"},
+        {"name":"launch_year","label":"入市年份","type":"文本","desc":"预计入市年份","who":"管理员"},
+        {"name":"launch_quarter","label":"入市季度","type":"文本","desc":"预计入市季度(1-4)","who":"管理员"},
+        {"name":"total_area","label":"总面积","type":"数值","desc":"总建筑面积(平方米)","who":"管理员"},
+        {"name":"notes","label":"备注","type":"文本","desc":"补充信息","who":"管理员"},
+        {"name":"location_lng","label":"经度","type":"数值","desc":"位置经度","who":"管理员"},
+        {"name":"location_lat","label":"纬度","type":"数值","desc":"位置纬度","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"type","label":"物业类型","type":"文本","desc":"写字楼或产业园","who":"管理员"}
+      ]
+    },
+    {
+      "name": "future_supply_assignments",
+      "label": "未来供应分配",
+      "desc": "把未来供应项目分配给负责人，由负责人定期更新进展。",
+      "fields": [
+        {"name":"id","label":"分配ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"future_supply_id","label":"分配供应","type":"UUID","desc":"关联future_supplies.id","who":"管理员"},
+        {"name":"user_id","label":"负责用户","type":"UUID","desc":"关联user_roles.user_id","who":"管理员"},
+        {"name":"user_name","label":"负责人姓名","type":"文本","desc":"冗余存储","who":"系统自动"},
+        {"name":"record_year","label":"年份","type":"整数","desc":"分配年份","who":"系统自动"},
+        {"name":"record_quarter","label":"季度","type":"整数","desc":"分配季度","who":"系统自动"},
+        {"name":"created_at","label":"分配时间","type":"时间戳","desc":"创建时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "future_supply_submissions",
+      "label": "未来供应填报",
+      "desc": "负责人填报的未来供应项目进展数据。",
+      "fields": [
+        {"name":"id","label":"填报ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"future_supply_id","label":"填报供应","type":"UUID","desc":"关联future_supplies.id","who":"系统自动"},
+        {"name":"user_id","label":"填报用户","type":"UUID","desc":"关联auth.users.id","who":"系统自动"},
+        {"name":"user_name","label":"填报人","type":"文本","desc":"填报人姓名","who":"系统自动"},
+        {"name":"record_year","label":"填报年份","type":"整数","desc":"数据年份","who":"系统自动"},
+        {"name":"record_quarter","label":"填报季度","type":"整数","desc":"数据季度(1-4)","who":"系统自动"},
+        {"name":"total_area","label":"总面积","type":"数值","desc":"总面积(平方米)","who":"负责人"},
+        {"name":"vacant_area","label":"空置面积","type":"数值","desc":"空置面积(平方米)","who":"负责人"},
+        {"name":"vacancy_rate","label":"空置率","type":"数值","desc":"自动计算","who":"系统自动"},
+        {"name":"asking_rent","label":"报价租金","type":"数值","desc":"报价租金","who":"负责人"},
+        {"name":"management_fee","label":"物业费","type":"数值","desc":"物业费","who":"负责人"},
+        {"name":"face_rent","label":"表面租金","type":"数值","desc":"表面租金","who":"负责人"},
+        {"name":"rent_free_period","label":"免租期","type":"数值","desc":"免租期(月)","who":"负责人"},
+        {"name":"net_effective_rent","label":"净有效租金","type":"数值","desc":"净有效租金","who":"负责人"},
+        {"name":"owner","label":"业主","type":"文本","desc":"业主","who":"负责人"},
+        {"name":"property_management","label":"物业公司","type":"文本","desc":"物业公司","who":"负责人"},
+        {"name":"notes","label":"备注","type":"文本","desc":"备注","who":"负责人"},
+        {"name":"created_at","label":"提交时间","type":"时间戳","desc":"提交时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"}
+      ]
+    }
+  ]
+}

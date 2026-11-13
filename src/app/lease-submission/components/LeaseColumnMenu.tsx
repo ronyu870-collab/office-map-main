@@ -103,9 +103,9 @@ export function LeaseColumnMenu({ columnKey, filter, sort, options, open, onOpen
           if (!open) { setDraft({ ...filter }); setOptionSearch(''); }
           onOpenChange(!open);
         }}
-        className={`flex min-w-0 items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/40 ${variant === 'toolbar' ? 'border px-2 py-1 text-xs' : 'w-full py-0.5 text-left text-xs font-semibold'} ${active || sorted ? 'border-[#003e7e] bg-blue-50 text-[#003e7e]' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-100'}`}
+        className={`flex min-w-0 items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/40 ${variant === 'toolbar' ? 'border px-2 py-1 text-xs' : 'w-full py-0.5 text-left text-xs font-semibold lg:gap-0.5'} ${active || sorted ? 'border-[#003e7e] bg-blue-50 text-[#003e7e]' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-100'}`}
       >
-        <span className="truncate">{label}</span>
+        <span className={variant === 'header' ? 'truncate lg:text-balance lg:whitespace-normal lg:[overflow-wrap:anywhere]' : 'truncate'}>{label}</span>
         {sorted
           ? sort.direction === 'asc' ? <ArrowUp size={11} className="shrink-0" /> : <ArrowDown size={11} className="shrink-0" />
           : active ? <Filter size={11} className="shrink-0" /> : <ChevronDown size={11} className="shrink-0" />}

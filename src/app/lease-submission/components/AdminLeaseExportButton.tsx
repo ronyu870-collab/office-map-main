@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { Check, Download, Loader2 } from 'lucide-react';
 
+import { ExportReview } from '@/src/components/ExportReview';
+import { Button } from '@/src/components/ui/Button';
 import { getSessionFast } from '@/src/services/Auth';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { logAction } from '@/src/utils/audit';
@@ -17,6 +19,7 @@ import {
 type ExportState = 'idle' | 'loading' | 'success' | 'error';
 
 export function AdminLeaseExportButton() {
+  const [review, setReview] = React.useState(false);
   const [state, setState] = React.useState<ExportState>('idle');
   const [error, setError] = React.useState('');
   const resetTimer = React.useRef<number | null>(null);
@@ -55,6 +58,7 @@ export function AdminLeaseExportButton() {
       if (!response.ok) throw new Error(body.error || '导出失败');
 
       const records = Array.isArray(body.records) ? body.records : [];
+      if (!Number.isSafeInteger(body.count) || body.count !== records.length) throw new Error('返回数量与导出范围不一致，文件未生成。');
       const XLSX = await import('xlsx');
       const rows = buildLeaseExportRows(records);
       const worksheet = XLSX.utils.aoa_to_sheet(rows);
@@ -73,6 +77,7 @@ export function AdminLeaseExportButton() {
         file_name: filename,
         target_name: filename,
       });
+      setReview(false);
       setState('success');
       scheduleReset();
     } catch (cause) {
@@ -83,29 +88,31 @@ export function AdminLeaseExportButton() {
   };
 
   return (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={() => { void exportAll(); }}
+    <div className="min-w-0 max-w-44">
+      {review && <ExportReview title="核对成交导出"
+        scope="全部系统成交（管理员），不受当前列表的筛选或分页影响。"
+        contents="Excel 包含原始字段、数值精度和筛选表头。导出前核对返回记录数量。"
+        confirmLabel="下载 Excel" busy={state === 'loading'} error={error} onClose={() => setReview(false)} onConfirm={() => { void exportAll(); }} />}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => { setState('idle'); setError(''); setReview(true); }}
         disabled={state === 'loading'}
-        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-wait ${
-          state === 'error'
-            ? 'text-red-600 hover:bg-red-50'
-            : state === 'success'
-              ? 'text-emerald-700 bg-emerald-50'
-              : 'text-zinc-500 hover:bg-zinc-100'
-        }`}
+        aria-busy={state === 'loading'}
+        data-state={state}
+        className="w-full sm:w-auto data-[state=error]:text-red-700 data-[state=error]:hover:bg-[var(--cd-color-danger-soft)] data-[state=success]:bg-[var(--cd-color-success-soft)] data-[state=success]:text-[var(--cd-color-text-primary)]"
         title={error || '导出全部租赁成交数据'}
       >
         {state === 'loading'
-          ? <Loader2 size={13} className="animate-spin" />
+          ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />
           : state === 'success'
-            ? <Check size={13} />
-            : <Download size={13} />}
+            ? <Check aria-hidden="true" className="text-[var(--cd-color-success)]" />
+            : <Download aria-hidden="true" />}
         {state === 'loading' ? '导出中…' : state === 'success' ? '已导出' : state === 'error' ? '导出失败' : '导出数据'}
-      </button>
+      </Button>
       {state === 'error' && error && (
-        <span className="max-w-48 truncate text-[11px] text-red-600" title={error}>{error}</span>
+        <p role="alert" className="px-3 text-xs text-red-700 [overflow-wrap:anywhere]">{error}</p>
       )}
     </div>
   );

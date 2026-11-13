@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 import {
   IntelligenceAIError,
@@ -10,15 +11,19 @@ import {
   RECOMMENDATION_RANKING_VERSION,
   type RecommendationResponse,
 } from '@/src/lib/intelligence/recommendationEngine';
-import { loadRecommendationUniverse } from '@/src/lib/intelligence/recommendationServer';
+import {
+  buildRecommendationUniverse,
+  loadRecommendationCatalog,
+  loadRecommendationEvidence,
+} from '@/src/lib/intelligence/recommendationServer';
 import { RequirementParseInputSchema, type RequirementParseResult } from '@/src/lib/intelligence/requirementSchema';
 import {
   normalizeRequirementAgainstVocabulary,
   resolveRequirementCapabilities,
 } from '@/src/lib/intelligence/requirementResolver';
 import {
+  createIntelligenceRequestScope,
   isIntelligenceContext,
-  loadVocabularyAndPeriod,
   requireIntelligenceAccess,
 } from '@/src/lib/intelligence/serverContext';
 
@@ -67,16 +72,18 @@ async function auditRecommendation(
 }
 
 export async function POST(request: NextRequest) {
+  const timing = createIsolatedRequestTiming(request);
   const contentLength = Number(request.headers.get('content-length') ?? '0');
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
   }
 
-  const context = await requireIntelligenceAccess(request);
-  if (!isIntelligenceContext(context)) return context;
-
-  const startedAt = Date.now();
+  const { signal, deadline, close } = createIntelligenceRequestScope(request);
   try {
+    const context = await timing.measure('auth', () => requireIntelligenceAccess(request));
+    if (!isIntelligenceContext(context)) return context;
+    signal.throwIfAborted();
+    const startedAt = Date.now();
     const raw = await request.text();
     if (raw.length > MAX_BODY_BYTES) return NextResponse.json({ error: '客户需求内容过长' }, { status: 413 });
 
@@ -92,23 +99,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: input.error.issues[0]?.message || '客户需求格式无效' }, { status: 400 });
     }
 
-    const [{ vocabulary, latestMetricPeriod }, universe] = await Promise.all([
-      loadVocabularyAndPeriod(context.client),
-      loadRecommendationUniverse(context.client),
-    ]);
+    const catalog = loadRecommendationCatalog(context.client, context.catalogScope, signal);
+    const facts = timing.measure('candidates', () => Promise.all([catalog, loadRecommendationEvidence(context.client, signal)]));
+    const parsing = (async () => {
+      const vocabulary = await timing.measure('vocabulary', async () => (await catalog).vocabulary);
+      signal.throwIfAborted();
+      const aiStartedAt = Date.now();
+      const aiResult = await timing.measure('model', () => parseRequirementWithDeepSeek(input.data.requirement, vocabulary, signal));
+      return {
+        parsed: normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary),
+        meta: { ...aiResult.meta, durationMs: Date.now() - aiStartedAt },
+      };
+    })();
 
-    const aiStartedAt = Date.now();
-    const aiResult = await parseRequirementWithDeepSeek(input.data.requirement, vocabulary);
-    const parsed = normalizeRequirementAgainstVocabulary(aiResult.parsed, vocabulary);
-    const capabilities = resolveRequirementCapabilities(parsed, { latestMetricPeriod });
+    const [[{ buildings }, evidence], ai] = await Promise.all([facts, parsing]);
+    signal.throwIfAborted();
 
+    const rankStarted = timing.start();
+    const { latestMetricPeriod } = evidence;
+    const universe = buildRecommendationUniverse(buildings, evidence);
     const result: RequirementParseResult = {
-      parsed,
-      capabilities,
-      meta: {
-        ...aiResult.meta,
-        durationMs: Date.now() - aiStartedAt,
-      },
+      ...ai,
+      capabilities: resolveRequirementCapabilities(ai.parsed, { latestMetricPeriod }),
     };
 
     const fullPlan = buildRecommendationPlan(result, input.data.requirement, universe);
@@ -127,6 +139,9 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    timing.finish('rank', rankStarted);
+    signal.throwIfAborted();
+    const auditStarted = timing.start();
     await auditRecommendation(
       context.client,
       context.caller.id,
@@ -135,13 +150,18 @@ export async function POST(request: NextRequest) {
       input.data.requirement.length,
       Date.now() - startedAt,
     );
+    timing.finish('audit', auditStarted);
 
-    return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } });
+    return timing.response(() => NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } }));
   } catch (error) {
+    if (request.signal.aborted) return new NextResponse(null, { status: 499 });
+    if (deadline.aborted) return NextResponse.json({ error: '推荐生成超时，请稍后重试' }, { status: 504 });
     if (error instanceof IntelligenceAIError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error('[intelligence] recommend failed', error instanceof Error ? error.message : error);
     return NextResponse.json({ error: 'AI 推荐生成失败，请稍后重试' }, { status: 500 });
+  } finally {
+    close();
   }
 }

@@ -32,7 +32,7 @@
 
 有私有副本且文件大于 192 KiB 的目录照片先签发最长边 1120 px、保留比例的预览。点开大图复用已加载预览；下载仍重新签发原件。小文件、只有第三方链接的照片和原试点 WebP 沿用现有文件。预览签发失败时直接返回原图，预览图片加载失败时在同一权限范围自动重试一次原图。楼宇与照片的受限查询在身份验证之后并行，只有两项都通过才签发。
 
-私有预览使用 [Supabase Storage Image Transformations](https://supabase.com/docs/guides/storage/serving/image-transformations)。上线前核对目标项目套餐、开关和私有签名预览实际响应；不自动变更设置或套餐。必要时可用服务端 `BUILDING_PHOTO_PREVIEWS_ENABLED=0` 恢复原图链路。性能验收执行 [VERIFY-05](standards/05_工程验证与交付规范.md#verify-05)，测试命令见[性能采集](../scripts/performance/README.md#地图看图-ab)。
+私有预览使用 [Supabase Storage Image Transformations](https://supabase.com/docs/guides/storage/serving/image-transformations)。上线前核对目标项目套餐、开关和私有签名预览实际响应；不自动变更设置或套餐。必要时可用服务端 `BUILDING_PHOTO_PREVIEWS_ENABLED=0` 恢复原图链路。性能验收执行 [VERIFY-06](standards/05_工程验证与交付规范.md#verify-06)，测试命令见[性能采集](../scripts/performance/README.md#地图看图-ab)。
 
 桌面双击已加载的照片打开居中的大图查看器，手机轻点一次即可打开；键盘聚焦照片后可按 Enter 或空格打开。照片上不叠放放大图标。照片按比例完整展示，沿用当前图注及署名；多图可用按钮、左右方向键或触屏横滑翻页，单图不显示翻页控件。关闭大图回到地图详情的当前照片。
 

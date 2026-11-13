@@ -14,7 +14,7 @@ This document defines the measurement contract for Data 2.0 and records the 2026
 | INP | < 200 ms |
 | CLS | As close to 0 as practical |
 
-These are the historical product targets. New or changed loading paths follow the [VERIFY-05 delivery gate](standards/05_工程验证与交付规范.md#verify-05) and the applicable [scenario budgets](../scripts/performance/budgets.json).
+These are the historical product targets. New or changed loading paths follow the [VERIFY-06 delivery gate](standards/05_工程验证与交付规范.md#verify-06) and the applicable [scenario budgets](../scripts/performance/budgets.json).
 
 ## Performance Hardening — 2026-08-25
 
@@ -101,9 +101,9 @@ For a production-like authenticated target, capture cold and warm runs separatel
 
 1. Warm and cold navigation must be recorded separately.
 2. Do not compare local development with production deployment.
-3. Use exploratory runs only for diagnosis. Delivery samples, P50/P90 and failure counts follow VERIFY-05.
+3. Use exploratory runs only for diagnosis. Delivery samples, P50/P90 and failure counts follow VERIFY-06.
 4. Keep UI responsiveness and network completion as separate timestamps.
-5. Shared CI checks behavior and resource contracts; collect quantitative acceptance timings under controlled conditions under VERIFY-05.
+5. Shared CI checks behavior and resource contracts; collect quantitative acceptance timings under controlled conditions under VERIFY-06.
 6. Any performance refactor that changes business output is a product change, not an optimization shortcut.
 
 ## 2026-11-02 measurement tooling preparation

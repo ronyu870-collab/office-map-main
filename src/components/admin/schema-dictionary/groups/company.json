@@ -1,0 +1,132 @@
+{
+  "id": "company",
+  "title": "企业与行业",
+  "desc": "企业基础数据、别名映射、融资事件、私募成交、天眼查详情和行业分类。",
+  "tables": [
+    {
+      "name": "companies",
+      "label": "企业数据",
+      "desc": "企业基础核心数据池。以统一社会信用代码为主键。",
+      "fields": [
+        {"name":"uscc","label":"统一社会信用代码","type":"文本","desc":"企业唯一标识(主键)","who":"管理员"},
+        {"name":"company_full","label":"企业全称","type":"文本","desc":"完整企业名称","who":"管理员"},
+        {"name":"company_short","label":"企业简称","type":"文本","desc":"常用简称","who":"管理员"},
+        {"name":"district","label":"行政区","type":"文本","desc":"所在行政区","who":"管理员"},
+        {"name":"industry_tags","label":"行业标签","type":"数组","desc":"行业标签数组","who":"管理员"},
+        {"name":"insured_staff","label":"参保人数","type":"整数","desc":"社保参保人数","who":"管理员"},
+        {"name":"est_area_min","label":"预估面积(最小)","type":"整数","desc":"预估使用面积下限","who":"系统计算"},
+        {"name":"est_area_max","label":"预估面积(最大)","type":"整数","desc":"预估使用面积上限","who":"系统计算"},
+        {"name":"status","label":"企业状态","type":"文本","desc":"存续/注销/吊销等","who":"管理员"},
+        {"name":"phone","label":"联系电话","type":"文本","desc":"联系电话","who":"管理员"},
+        {"name":"address","label":"企业地址","type":"文本","desc":"注册/经营地址","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "company_aliases",
+      "label": "企业别名",
+      "desc": "企业名称别名映射，用于清洗成交数据中的不规范公司名称。",
+      "fields": [
+        {"name":"alias_name","label":"企业别名","type":"文本","desc":"别名(主键)","who":"管理员"},
+        {"name":"uscc","label":"统一社会信用代码","type":"文本","desc":"关联companies.uscc","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "financing_events",
+      "label": "融资事件",
+      "desc": "企业的私募融资历史记录。",
+      "fields": [
+        {"name":"id","label":"事件ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"uscc","label":"统一社会信用代码","type":"文本","desc":"关联companies.uscc","who":"管理员"},
+        {"name":"financing_date","label":"融资日期","type":"日期","desc":"融资发生日期","who":"管理员"},
+        {"name":"round","label":"融资轮次","type":"文本","desc":"天使轮/A轮/B轮等","who":"管理员"},
+        {"name":"amount_rmb_my","label":"融资金额(百万元)","type":"数值","desc":"金额(百万元)","who":"管理员"},
+        {"name":"investors","label":"投资方","type":"文本","desc":"投资机构","who":"管理员"},
+        {"name":"post_money_valuation","label":"投后估值","type":"数值","desc":"投后估值","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "tianyancha_company_details",
+      "label": "天眼查企业详情",
+      "desc": "从天眼查导入的企业详细工商信息。",
+      "fields": [
+        {"name":"id","label":"详情ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"original_import_name","label":"原始导入名称","type":"文本","desc":"导入时的原始名称(唯一)","who":"系统自动"},
+        {"name":"matched_company_name","label":"匹配企业名称","type":"文本","desc":"匹配到的企业名称","who":"系统自动"},
+        {"name":"registration_status","label":"登记状态","type":"文本","desc":"存续/注销等","who":"天眼查"},
+        {"name":"unified_social_credit_code","label":"统一社会信用代码","type":"文本","desc":"企业唯一标识","who":"天眼查"},
+        {"name":"legal_representative","label":"法定代表人","type":"文本","desc":"法人姓名","who":"天眼查"},
+        {"name":"establishment_date","label":"成立日期","type":"文本","desc":"企业成立日期","who":"天眼查"},
+        {"name":"approval_date","label":"核准日期","type":"文本","desc":"核准日期","who":"天眼查"},
+        {"name":"registered_capital","label":"注册资本","type":"文本","desc":"注册资本","who":"天眼查"},
+        {"name":"paid_in_capital","label":"实缴资本","type":"文本","desc":"实缴资本","who":"天眼查"},
+        {"name":"phone","label":"联系电话","type":"文本","desc":"联系电话","who":"天眼查"},
+        {"name":"additional_phones","label":"其他电话","type":"文本","desc":"其他联系电话","who":"天眼查"},
+        {"name":"email","label":"邮箱","type":"文本","desc":"企业邮箱","who":"天眼查"},
+        {"name":"additional_emails","label":"其他邮箱","type":"文本","desc":"其他邮箱","who":"天眼查"},
+        {"name":"province","label":"省份","type":"文本","desc":"所在省份","who":"天眼查"},
+        {"name":"city","label":"城市","type":"文本","desc":"所在城市","who":"天眼查"},
+        {"name":"district_region","label":"区/县","type":"文本","desc":"所在区县","who":"天眼查"},
+        {"name":"company_address","label":"企业地址","type":"文本","desc":"注册地址","who":"天眼查"},
+        {"name":"mailing_address","label":"通讯地址","type":"文本","desc":"通讯地址","who":"天眼查"},
+        {"name":"registration_authority","label":"登记机关","type":"文本","desc":"工商登记机关","who":"天眼查"},
+        {"name":"company_type","label":"企业类型","type":"文本","desc":"有限责任/股份有限等","who":"天眼查"},
+        {"name":"taxpayer_qualification","label":"纳税人资质","type":"文本","desc":"一般纳税人/小规模等","who":"天眼查"},
+        {"name":"taxpayer_id","label":"纳税人识别号","type":"文本","desc":"税务识别号","who":"天眼查"},
+        {"name":"registration_number","label":"注册号","type":"文本","desc":"工商注册号","who":"天眼查"},
+        {"name":"organization_code","label":"组织机构代码","type":"文本","desc":"组织机构代码","who":"天眼查"},
+        {"name":"business_term","label":"营业期限","type":"文本","desc":"营业期限","who":"天眼查"},
+        {"name":"industry_category_level1","label":"行业分类(一级)","type":"文本","desc":"一级行业","who":"天眼查"},
+        {"name":"industry_category_level2","label":"行业分类(二级)","type":"文本","desc":"二级行业","who":"天眼查"},
+        {"name":"industry_category_level3","label":"行业分类(三级)","type":"文本","desc":"三级行业","who":"天眼查"},
+        {"name":"industry_category_level4","label":"行业分类(四级)","type":"文本","desc":"四级行业","who":"天眼查"},
+        {"name":"former_names","label":"曾用名","type":"文本","desc":"企业曾用名","who":"天眼查"},
+        {"name":"english_name","label":"英文名称","type":"文本","desc":"英文名","who":"天眼查"},
+        {"name":"company_size","label":"企业规模","type":"文本","desc":"大型/中型/小型/微型","who":"天眼查"},
+        {"name":"business_scope","label":"经营范围","type":"文本","desc":"工商登记的经营范围","who":"天眼查"},
+        {"name":"company_profile","label":"企业简介","type":"文本","desc":"企业简介","who":"天眼查"},
+        {"name":"website","label":"企业网站","type":"文本","desc":"官方网站","who":"天眼查"},
+        {"name":"latest_annual_report_year","label":"最新年报年份","type":"文本","desc":"最近一次年报年份","who":"天眼查"},
+        {"name":"insured_employees_count","label":"参保人数","type":"文本","desc":"参保人数","who":"天眼查"},
+        {"name":"insured_employees_report_year","label":"参保人数年报年份","type":"文本","desc":"参保数据年份","who":"天眼查"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"导入时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "industry_classification",
+      "label": "行业分类",
+      "desc": "行业分类标准表。",
+      "fields": [
+        {"name":"id","label":"分类ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"industry_level1","label":"一级行业","type":"文本","desc":"一级行业名称","who":"管理员"},
+        {"name":"sub_industry","label":"子行业","type":"文本","desc":"二级行业名称","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "private_equity_transactions",
+      "label": "私募成交",
+      "desc": "私募股权融资成交记录。与企业融资事件(financing_events)互补，记录更详细的成交信息。",
+      "fields": [
+        {"name":"id","label":"成交ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"financing_date","label":"融资日期","type":"日期","desc":"融资发生日期","who":"管理员"},
+        {"name":"company_name","label":"企业名称","type":"文本","desc":"融资企业","who":"管理员"},
+        {"name":"industry","label":"行业","type":"文本","desc":"企业行业","who":"管理员"},
+        {"name":"business_detail","label":"业务详情","type":"文本","desc":"业务描述","who":"管理员"},
+        {"name":"funding_round","label":"融资轮次","type":"文本","desc":"天使轮/A轮/B轮等","who":"管理员"},
+        {"name":"amount_text","label":"融资金额","type":"文本","desc":"融资金额文本","who":"管理员"},
+        {"name":"investors","label":"投资方","type":"文本","desc":"投资机构","who":"管理员"},
+        {"name":"district","label":"行政区","type":"文本","desc":"所在行政区","who":"管理员"},
+        {"name":"building_name","label":"楼宇名称","type":"文本","desc":"所在楼宇(文本)","who":"管理员"},
+        {"name":"sub_market","label":"子市场","type":"文本","desc":"所在子市场","who":"管理员"},
+        {"name":"remarks","label":"备注","type":"文本","desc":"备注","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"}
+      ]
+    }
+  ]
+}

@@ -643,6 +643,7 @@ export async function getLeaseTeamAccess(): Promise<boolean> {
 
 export async function getAllSubmissions(
   userRole: string,
+  { signal }: { signal?: AbortSignal } = {},
 ): Promise<LeaseTransaction[]> {
   // 参数验证
   if (!userRole || !userRole.trim()) {
@@ -652,6 +653,7 @@ export async function getAllSubmissions(
     const {
       data: { session },
     } = await supabase.auth.getSession();
+    signal?.throwIfAborted();
     const token = session?.access_token;
     if (!token) {
       throw new Error("未登录，无法获取团队提交记录");
@@ -663,7 +665,7 @@ export async function getAllSubmissions(
     try {
       response = await fetch("/api/lease-submission/team-submissions", {
         headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
-        signal: controller.signal,
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
       });
     } catch (error) {
       if (controller.signal.aborted) {
@@ -696,7 +698,7 @@ export async function getAllSubmissions(
  * const brokers = await getAllBrokers();
  * console.log(`共有 ${brokers.length} 位业务员`);
  */
-export async function getAllBrokers(): Promise<
+export async function getAllBrokers({ signal }: { signal?: AbortSignal } = {}): Promise<
   Array<{ user_id: string; name: string }>
 > {
   try {
@@ -704,6 +706,7 @@ export async function getAllBrokers(): Promise<
     const {
       data: { session },
     } = await supabase.auth.getSession();
+    signal?.throwIfAborted();
     const token = session?.access_token;
 
     if (!token) {
@@ -713,6 +716,7 @@ export async function getAllBrokers(): Promise<
     // 通过 API route 查询（使用 service_role key 绕过 RLS）
     const res = await fetch("/api/brokers", {
       headers: withImpersonationHeaders({ Authorization: `Bearer ${token}` }),
+      signal,
     });
 
     if (!res.ok) {

@@ -1,0 +1,154 @@
+{
+  "baseline": "d898a8c6d49b5a5259b76b3524126181fa1e30f3; uncommitted codex/lease-expiry-review",
+  "localVerify": {
+    "testFiles": 176,
+    "tests": 1138,
+    "result": "passed",
+    "lintErrors": 0,
+    "lintWarnings": 832
+  },
+  "postgres17": {
+    "scenarios": 20,
+    "result": "passed",
+    "includesUpgradeFromHistoricalDraft": true
+  },
+  "realAuthIntegration": {
+    "environment": "loopback-only Supabase Auth + PostgREST + PostgreSQL 17 + actual Next production build",
+    "authMocks": false,
+    "accounts": "disposable test accounts; removed after run",
+    "results": [
+      {
+        "scenario": "真实 Auth 登录与会话落库",
+        "status": "passed",
+        "detail": {
+          "roles": [
+            "admin A",
+            "admin B",
+            "editor",
+            "viewer"
+          ],
+          "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit"
+        }
+      },
+      {
+        "scenario": "真实角色、匿名及用户模拟的读取／保存边界",
+        "status": "passed"
+      },
+      {
+        "scenario": "篡改用户 metadata、目录角色和直接 Data API／RPC 均不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "HTTP 保存、回读、内容绑定重试及真实审计身份快照",
+        "status": "passed"
+      },
+      {
+        "scenario": "两个真实管理员同时修改／首次创建，以及同请求并发重试",
+        "status": "passed"
+      },
+      {
+        "scenario": "加载后来源变化阻止旧依据保存",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤权后原 JWT 读取、保存、已成功请求重放都拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤权事务先开始：已在途保存等待后拒绝，不落草稿或审计",
+        "status": "passed"
+      },
+      {
+        "scenario": "保存先取得权限锁：完整提交后撤权生效，后续请求拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实 Auth 封禁立即阻断已有令牌",
+        "status": "passed"
+      },
+      {
+        "scenario": "服务端退出会话后旧 JWT 无法访问",
+        "status": "passed"
+      },
+      {
+        "scenario": "删除测试账号后旧 JWT 无法访问",
+        "status": "passed"
+      },
+      {
+        "scenario": "实际日常填报服务→真实写入→自动入选→浏览器补充回读→修改重算→删除后只读保留",
+        "status": "passed"
+      },
+      {
+        "scenario": "实际登录页→Auth→页面→RPC 保存回读；撤权后清空浏览器数据",
+        "status": "passed"
+      }
+    ]
+  },
+  "browser": [
+    {
+      "width": 1280,
+      "estimateWithoutEvidence": true,
+      "optionalNotesCollapsed": true,
+      "saveRetry": true,
+      "readBack": true,
+      "noOverflow": true,
+      "userCanScrollToSave": true,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "estimateWithoutEvidence": true,
+      "optionalNotesCollapsed": true,
+      "saveRetry": true,
+      "readBack": true,
+      "noOverflow": true,
+      "userCanScrollToSave": true,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "estimateWithoutEvidence": true,
+      "optionalNotesCollapsed": true,
+      "saveRetry": true,
+      "readBack": true,
+      "noOverflow": true,
+      "userCanScrollToSave": true,
+      "pageErrors": []
+    }
+  ],
+  "pilotPreview": {
+    "widths": [
+      1280,
+      390,
+      320
+    ],
+    "liveSourceLabel": true,
+    "optionalNotes": true,
+    "saveScrollAccessible": true,
+    "noHorizontalOverflow": true,
+    "browsingWrites": 0
+  },
+  "localAdvisors": [
+    {
+      "name": "auth_rls_initplan",
+      "title": "Auth RLS Initialization Plan",
+      "level": "WARN",
+      "facing": "EXTERNAL",
+      "categories": [
+        "PERFORMANCE"
+      ],
+      "description": "Detects if calls to `current_setting()` and `auth.<function>()` in RLS policies are being unnecessarily re-evaluated for each row",
+      "detail": "Table `public.messages` has a row level security policy `authenticated users post messages as themselves` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing `auth.<function>()` with `(select auth.<function>())`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
+      "metadata": {
+        "name": "messages",
+        "type": "table",
+        "schema": "public"
+      },
+      "cache_key": "auth_rls_init_plan_public_messages_authenticated users post messages as themselves"
+    }
+  ],
+  "physicalPhone": "not tested",
+  "remoteCI": "not run",
+  "production": "unchanged"
+}

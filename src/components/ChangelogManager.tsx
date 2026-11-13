@@ -23,6 +23,31 @@ interface ChangelogEntry {
 }
 
 type FormData = Omit<ChangelogEntry, 'id' | 'created_at' | 'updated_at'>;
+type ListEntry = Omit<ChangelogEntry, 'description' | 'sort_order' | 'updated_at'> & {
+  description_preview: string;
+};
+const LIST_FIELDS = 'id,code,title,status,category,module,version,released_at,created_at';
+const PREVIEW_FIELD = 'description_preview:changelog_description_preview';
+const FORM_FIELDS = 'code,title,description,status,category,module,version,released_at,sort_order';
+
+async function readList(signal: AbortSignal): Promise<ListEntry[]> {
+  const query = (field: string) => supabase.from('changelog')
+    .select(`${LIST_FIELDS},${field}`)
+    .order('sort_order', { ascending: false })
+    .order('created_at', { ascending: false })
+    .abortSignal(signal);
+  const summary = await query(PREVIEW_FIELD).returns<ListEntry[]>();
+  if (!summary.error) return summary.data ?? [];
+  // The app can ship before the migration, or use the old schema during rollback.
+  if (signal.aborted || summary.error.code !== '42703' || !/\bchangelog_description_preview\b/.test(summary.error.message)) {
+    throw summary.error;
+  }
+  const legacy = await query('description').returns<(Omit<ListEntry, 'description_preview'> & { description: string })[]>();
+  if (legacy.error) throw legacy.error;
+  return (legacy.data ?? []).map(({ description, ...entry }) => ({
+    ...entry, description_preview: Array.from(description ?? '').slice(0, 160).join(''),
+  }));
+}
 
 const EMPTY_FORM: FormData = {
   code: null,
@@ -65,60 +90,89 @@ const MODULE_ORDER = ['map', 'database', 'lease', 'bi', 'cloud', 'admin', 'gener
 /* ── 组件 ────────────────────────────────────────────────────────────────── */
 
 export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
-  const [entries, setEntries] = React.useState<ChangelogEntry[]>([]);
+  const [entries, setEntries] = React.useState<ListEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [editing, setEditing] = React.useState<ChangelogEntry | null>(null);
+  const [listError, setListError] = React.useState(false);
+  const [editing, setEditing] = React.useState<ListEntry | null>(null);
+  const [detailState, setDetailState] = React.useState<'loading' | 'error' | 'ready'>('ready');
   const [form, setForm] = React.useState<FormData>(EMPTY_FORM);
   const [showForm, setShowForm] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [toast, setToast] = React.useState<{ msg: string; ok: boolean } | null>(null);
   const [filterStatus, setFilterStatus] = React.useState<string>('planned');
   const [filterModule, setFilterModule] = React.useState<string>('all');
+  const listRequest = React.useRef<AbortController | null>(null);
+  const detailRequest = React.useRef<AbortController | null>(null);
+  const toastTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const mounted = React.useRef(false);
 
   const showToast = (msg: string, ok = true) => {
+    if (!mounted.current) return;
+    clearTimeout(toastTimer.current);
     setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
+    toastTimer.current = setTimeout(() => setToast(null), 3000);
   };
 
   /* ── 数据加载 ── */
 
   const fetchEntries = React.useCallback(async () => {
+    if (!mounted.current) return;
+    listRequest.current?.abort();
+    const request = new AbortController();
+    listRequest.current = request;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('changelog')
-      .select('*')
-      .order('sort_order', { ascending: false })
-      .order('created_at', { ascending: false });
-    if (error) {
-      console.error('[Changelog] 加载失败:', error.message);
-      showToast('加载失败: ' + error.message, false);
+    setListError(false);
+    try {
+      const data = await readList(request.signal);
+      if (!request.signal.aborted) setEntries(data);
+    } catch {
+      if (!request.signal.aborted) setListError(true);
+    } finally {
+      if (listRequest.current === request) {
+        listRequest.current = null;
+        if (!request.signal.aborted) setLoading(false);
+      }
     }
-    setEntries(data ?? []);
-    setLoading(false);
   }, []);
 
-  React.useEffect(() => { fetchEntries(); }, [fetchEntries]);
+  React.useEffect(() => {
+    mounted.current = true;
+    void fetchEntries();
+    return () => {
+      mounted.current = false;
+      listRequest.current?.abort();
+      detailRequest.current?.abort();
+      clearTimeout(toastTimer.current);
+    };
+  }, [fetchEntries]);
 
   /* ── 快速切换状态 ── */
 
-  const quickChangeStatus = async (entry: ChangelogEntry, newStatus: ChangelogEntry['status']) => {
-    const updates: Record<string, any> = { status: newStatus };
+  const quickChangeStatus = async (entry: ListEntry, newStatus: ChangelogEntry['status']) => {
+    if (saving || newStatus === entry.status) return;
+    const updates: Pick<FormData, 'status'> & Partial<Pick<FormData, 'released_at'>> = { status: newStatus };
     if (newStatus === 'released' && !entry.released_at) {
       updates.released_at = new Date().toISOString().slice(0, 10);
     }
-    const { error } = await supabase.from('changelog').update(updates).eq('id', entry.id);
-    if (error) {
-      showToast('状态更新失败: ' + error.message, false);
-      return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('changelog').update(updates).eq('id', entry.id);
+      if (error) throw error;
+      showToast(`已更新为「${STATUS_CONFIG[newStatus].label}」`);
+      await fetchEntries();
+    } catch (error) {
+      showToast('状态更新失败: ' + errorMessage(error), false);
+    } finally {
+      setSaving(false);
     }
-    showToast(`已更新为「${STATUS_CONFIG[newStatus].label}」`);
-    await fetchEntries();
   };
 
   /* ── 表单操作 ── */
 
   const openNew = () => {
+    detailRequest.current?.abort();
     setEditing(null);
+    setDetailState('ready');
     // 自动生成下一个编号
     const maxNum = entries.reduce((max, e) => {
       if (!e.code) return max;
@@ -129,29 +183,37 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
     setShowForm(true);
   };
 
-  const openEdit = (entry: ChangelogEntry) => {
+  const openEdit = async (entry: ListEntry) => {
+    detailRequest.current?.abort();
+    const request = new AbortController();
+    detailRequest.current = request;
     setEditing(entry);
-    setForm({
-      code: entry.code,
-      title: entry.title,
-      description: entry.description,
-      status: entry.status,
-      category: entry.category,
-      module: entry.module || 'general',
-      version: entry.version,
-      released_at: entry.released_at,
-      sort_order: entry.sort_order,
-    });
+    setForm(EMPTY_FORM);
     setShowForm(true);
+    setDetailState('loading');
+    try {
+      const { data, error } = await supabase.from('changelog').select(FORM_FIELDS)
+        .eq('id', entry.id).abortSignal(request.signal).single<FormData>();
+      if (error || !data) throw error ?? new Error('记录不存在');
+      if (request.signal.aborted) return;
+      setForm({ ...data, module: data.module || 'general' });
+      setDetailState('ready');
+    } catch {
+      if (!request.signal.aborted) setDetailState('error');
+    } finally {
+      if (detailRequest.current === request) detailRequest.current = null;
+    }
   };
 
   const closeForm = () => {
+    detailRequest.current?.abort();
     setShowForm(false);
     setEditing(null);
     setForm(EMPTY_FORM);
   };
 
   const handleSave = async () => {
+    if (saving || detailState !== 'ready') return;
     if (!form.title.trim()) { showToast('标题不能为空', false); return; }
     setSaving(true);
     try {
@@ -179,21 +241,28 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
       }
       closeForm();
       await fetchEntries();
-    } catch (e: any) {
-      showToast('保存失败: ' + (e.message ?? e), false);
+    } catch (error) {
+      showToast('保存失败: ' + errorMessage(error), false);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (entry: ChangelogEntry) => {
-    if (!confirm(`确认删除「${entry.title}」？`)) return;
-    const { error } = await supabase.from('changelog').delete().eq('id', entry.id);
-    if (error) { showToast('删除失败: ' + error.message, false); return; }
-    logAction(adminEmail || 'unknown', 'CHANGELOG_DELETE', { code: entry.code, title: entry.title });
-    showToast('已删除');
-    if (editing?.id === entry.id) closeForm();
-    await fetchEntries();
+  const handleDelete = async (entry: ListEntry) => {
+    if (saving || !confirm(`确认删除「${entry.title}」？`)) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('changelog').delete().eq('id', entry.id);
+      if (error) throw error;
+      logAction(adminEmail || 'unknown', 'CHANGELOG_DELETE', { code: entry.code, title: entry.title });
+      showToast('已删除');
+      if (editing?.id === entry.id) closeForm();
+      await fetchEntries();
+    } catch (error) {
+      showToast('删除失败: ' + errorMessage(error), false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* ── 筛选与分组 ── */
@@ -213,7 +282,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
   }, [entries, filterStatus, filterModule]);
 
   const grouped = React.useMemo(() => {
-    const g: Record<string, ChangelogEntry[]> = {};
+    const g: Record<string, ListEntry[]> = {};
     filtered.forEach(e => {
       const m = e.module || 'general';
       (g[m] ?? (g[m] = [])).push(e);
@@ -246,7 +315,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
       )}
 
       {/* ── 左侧：列表 ── */}
-      <div className={`flex flex-1 flex-col overflow-hidden border-r border-zinc-200/60 ${showForm ? 'min-w-[380px] max-w-[460px]' : ''}`}>
+      <div className={`min-w-0 flex-1 flex-col overflow-hidden border-zinc-200/60 lg:border-r ${showForm ? 'hidden lg:flex lg:max-w-[460px]' : 'flex'}`}>
         {/* 头部 */}
         <div className="shrink-0 flex items-center justify-between border-b border-zinc-200/60 px-5 py-3">
           <div>
@@ -255,7 +324,8 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
           </div>
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 active:scale-[0.98] transition-all"
+            disabled={loading || listError || saving}
+            className="flex min-h-11 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 lg:min-h-0"
           >
             <Plus size={14} strokeWidth={2} />
             新增
@@ -304,11 +374,17 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
 
         {/* 列表：按模块分组 */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
-          {loading ? (
+          {listError && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+              <span>更新日志列表读取失败</span>
+              <button type="button" className="min-h-11 rounded-md px-2 font-medium underline lg:min-h-0" onClick={() => void fetchEntries()}>重试加载列表</button>
+            </div>
+          )}
+          {loading && entries.length === 0 ? (
             <div className="space-y-2">
               {[0, 1, 2].map(i => <div key={i} className="h-16 animate-pulse rounded-lg bg-zinc-100" />)}
             </div>
-          ) : entries.length === 0 ? (
+          ) : listError && entries.length === 0 ? null : entries.length === 0 ? (
             <div className="py-16 text-center text-sm text-zinc-400">
               暂无更新记录，点击右上角「新增」创建
             </div>
@@ -339,6 +415,7 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
                       return (
                         <div
                           key={entry.id}
+                          data-changelog-id={entry.id}
                           className={`rounded-lg border px-3.5 py-2.5 transition-all group ${
                             isActive
                               ? 'border-primary bg-primary/5 shadow-sm'
@@ -348,7 +425,8 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
                           <div className="flex items-start gap-2">
                             {/* 左侧内容区：点击打开编辑 */}
                             <button
-                              onClick={() => openEdit(entry)}
+                              onClick={() => void openEdit(entry)}
+                              disabled={saving}
                               className="min-w-0 flex-1 text-left"
                             >
                               <div className="flex items-center gap-1.5 mb-1">
@@ -360,8 +438,8 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
                                 )}
                                 <span className="text-xs font-medium text-zinc-900 truncate">{entry.title}</span>
                               </div>
-                              {entry.description && (
-                                <p className="text-[11px] text-zinc-500 line-clamp-1 leading-relaxed">{entry.description}</p>
+                              {entry.description_preview && (
+                                <p className="text-[11px] text-zinc-500 line-clamp-1 leading-relaxed">{entry.description_preview}</p>
                               )}
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${staCfg.color}`}>
@@ -381,27 +459,34 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
                               {/* 快速状态切换 */}
                               <select
                                 value={entry.status}
+                                aria-label="快速切换状态"
+                                disabled={saving || isActive}
                                 onChange={e => { e.stopPropagation(); quickChangeStatus(entry, e.target.value as ChangelogEntry['status']); }}
                                 onClick={e => e.stopPropagation()}
-                                className={`rounded border-0 px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer outline-none ring-1 ring-inset ${staCfg.color} transition-all hover:brightness-95`}
+                                className={`min-h-11 rounded border-0 px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer ring-1 ring-inset ${staCfg.color} transition-all hover:brightness-95 lg:min-h-0`}
                               >
                                 <option value="planned">即将更新</option>
                                 <option value="in_progress">开发中</option>
                                 <option value="released">已上线</option>
                               </select>
-                              {/* 编辑/删除（hover 显示） */}
-                              <span
-                                onClick={e => { e.stopPropagation(); openEdit(entry); }}
-                                className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                              <button
+                                type="button"
+                                aria-label="编辑记录"
+                                onClick={() => void openEdit(entry)}
+                                disabled={saving}
+                                className="hidden rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 lg:inline-flex [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                               >
                                 <Pencil size={13} />
-                              </span>
-                              <span
-                                onClick={e => { e.stopPropagation(); handleDelete(entry); }}
-                                className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="删除记录"
+                                disabled={saving}
+                                onClick={() => void handleDelete(entry)}
+                                className="flex min-h-11 min-w-11 items-center justify-center rounded p-1 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 lg:min-h-0 lg:min-w-0 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                               >
                                 <Trash2 size={13} />
-                              </span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -417,17 +502,25 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
 
       {/* ── 右侧：编辑面板 ── */}
       {showForm && (
-        <div className="flex w-[380px] shrink-0 flex-col overflow-hidden bg-zinc-50/50">
+        <section aria-label="更新日志编辑" className="flex w-full min-w-0 shrink-0 flex-col overflow-hidden bg-zinc-50/50 lg:w-[46%] lg:max-w-[380px]">
           {/* 表头 */}
           <div className="shrink-0 flex items-center justify-between border-b border-zinc-200/60 px-5 py-3">
             <h3 className="text-sm font-semibold text-zinc-800">
               {editing ? '编辑记录' : '新增记录'}
             </h3>
-            <button onClick={closeForm} className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-600 transition-colors">
+            <button type="button" onClick={closeForm} disabled={saving} aria-label="关闭编辑面板" className="flex min-h-11 min-w-11 items-center justify-center rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-600 lg:min-h-0 lg:min-w-0">
               <X size={16} />
             </button>
           </div>
 
+          {detailState === 'loading' ? (
+            <p role="status" className="px-5 py-4 text-sm text-zinc-500">正在读取记录…</p>
+          ) : detailState === 'error' && editing ? (
+            <div role="alert" className="space-y-2 px-5 py-4 text-sm text-zinc-700">
+              <p>无法读取完整记录，请重试。</p>
+              <button type="button" className="min-h-11 rounded-md border border-zinc-300 bg-white px-3 text-xs font-medium lg:min-h-0 lg:py-1.5" onClick={() => void openEdit(editing)}>重试读取记录</button>
+            </div>
+          ) : <>
           {/* 表单 */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             {/* 编号（只读） */}
@@ -533,8 +626,9 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
           <div className="shrink-0 flex items-center justify-between border-t border-zinc-200/60 px-5 py-3">
             {editing ? (
               <button
-                onClick={() => handleDelete(editing)}
-                className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                onClick={() => void handleDelete(editing)}
+                disabled={saving}
+                className="min-h-11 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 lg:min-h-0"
               >
                 删除
               </button>
@@ -542,27 +636,33 @@ export function ChangelogManager({ adminEmail = '' }: { adminEmail?: string }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={closeForm}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 transition-colors"
+                disabled={saving}
+                className="min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 lg:min-h-0"
               >
                 取消
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !form.title.trim()}
-                className="flex items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-all active:scale-[0.98]"
+                className="flex min-h-11 items-center gap-1.5 rounded-md bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50 lg:min-h-0"
               >
                 <Save size={13} />
                 {saving ? '保存中…' : '保存'}
               </button>
             </div>
           </div>
-        </div>
+          </>}
+        </section>
       )}
     </div>
   );
 }
 
 /* ── 辅助组件 ── */
+
+function errorMessage(error: unknown) {
+  return typeof error === 'object' && error && 'message' in error ? String(error.message) : String(error);
+}
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (

@@ -30,6 +30,8 @@ export interface BuildingRow {
   id: string;
 
   name: string;
+  former_names?: string[];
+  address?: string | null;
   district: string | null;
   submarket: string | null; // 🔥 子市场字段
   sort_order: number;
@@ -101,7 +103,7 @@ export async function getBuildings(params?: {
   // 🚨 修复：使用数据库实际的字段名（移除 total_area，该字段不存在）
   const select =
     params?.select ??
-    "id,name,district,submarket,completion_year,grade,leed_certification,location_lng,location_lat,owner,property_management,sort_order,leasable_area";
+    "id,name,former_names,district,submarket,completion_year,grade,leed_certification,location_lng,location_lat,owner,property_management,sort_order,leasable_area";
 
   console.log("🚨 [getBuildings] 开始执行, select:", select);
 
@@ -121,6 +123,8 @@ export async function getBuildings(params?: {
   const result = data.map((b: any) => ({
     id: b.id,
     name: b.name,
+    former_names: Array.isArray(b.former_names) ? b.former_names.filter((name: unknown): name is string => typeof name === "string") : [],
+    address: b.address ?? null,
     district: b.district,
     submarket: b.submarket, // 🔥 新增：映射 submarket 字段
     sort_order: b.sort_order ?? 0,
@@ -311,30 +315,68 @@ export interface NoticeRow {
   updated_by: string;
 }
 
+export const MAX_ACTIVE_NOTICES = 3;
+const NOTICE_PREVIEW_LENGTH = 160;
+const NOTICE_LIST_FIELDS = 'id,updated_at,updated_by';
+
+export type NoticeSummary = Pick<NoticeRow, 'id' | 'updated_at' | 'updated_by'> & {
+  contentPreview: string;
+  hasMore: boolean;
+};
+
+export function toNoticeSummary(row: Pick<NoticeRow, 'id' | 'updated_at' | 'updated_by' | 'content'>): NoticeSummary {
+  const { id, updated_at, updated_by, content } = row;
+  const characters = Array.from(content);
+  return {
+    id, updated_at, updated_by,
+    contentPreview: characters.slice(0, NOTICE_PREVIEW_LENGTH).join(''),
+    hasMore: characters.length > NOTICE_PREVIEW_LENGTH,
+  };
+}
+
+function activeNoticesQuery(fields: string, signal?: AbortSignal) {
+  const query = supabase.from('notices').select(fields).eq('is_active', true)
+    .order('updated_at', { ascending: true }).limit(MAX_ACTIVE_NOTICES);
+  return signal ? query.abortSignal(signal) : query;
+}
+
 /**
  * 获取当前生效的最新一条公告（兼容旧调用）。
  */
 export async function getLatestNotice(): Promise<NoticeRow | null> {
-  const rows = await getAllActiveNotices();
-  return rows[0] ?? null;
+  try {
+    const rows = await getAllActiveNotices();
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * 获取所有生效公告（最多3条），按发布时间升序排列（最早的在上）。
  */
-export async function getAllActiveNotices(): Promise<NoticeRow[]> {
-  const { data, error } = await supabase
-    .from("notices")
-    .select("*")
-    .eq("is_active", true)
-    .order("updated_at", { ascending: true })
-    .limit(3);
+export async function getAllActiveNotices(signal?: AbortSignal): Promise<NoticeRow[]> {
+  const { data, error } = await activeNoticesQuery(`${NOTICE_LIST_FIELDS},content,is_active`, signal).returns<NoticeRow[]>();
+  if (error) throw error;
+  return data ?? [];
+}
 
-  if (error) {
-    console.warn("getAllActiveNotices 查询失败（静默降级）:", error.message);
-    return [];
-  }
-  return (data ?? []) as NoticeRow[];
+export async function getActiveNoticeSummaries(signal: AbortSignal): Promise<NoticeSummary[]> {
+  type SummaryRow = Omit<NoticeSummary, 'contentPreview' | 'hasMore'> & { content_preview: string };
+  const { data, error } = await activeNoticesQuery(
+    `${NOTICE_LIST_FIELDS},content_preview:notice_content_preview`, signal,
+  ).returns<SummaryRow[]>();
+  if (!error) return (data ?? []).map(({ content_preview, ...row }) => toNoticeSummary({ ...row, content: content_preview }));
+  // Frontend-first deploys and rollbacks can still use the original schema.
+  if (signal.aborted || error.code !== '42703' || !/\bnotice_content_preview\b/.test(error.message)) throw error;
+  return (await getAllActiveNotices(signal)).map(toNoticeSummary);
+}
+
+export async function getActiveNoticeContent(id: string, signal: AbortSignal): Promise<string> {
+  const { data, error } = await supabase.from('notices').select('content')
+    .eq('id', id).eq('is_active', true).abortSignal(signal).single<{ content: string }>();
+  if (error) throw error;
+  return data.content;
 }
 
 // ─── 会话管理和 API 拦截器 ──────────────────────────────────────────────────

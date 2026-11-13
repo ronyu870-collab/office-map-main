@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { supabase } from '@/src/services/supabaseClient';
 import type { BuildingWithMetrics, BuildingMetric } from '@/src/types';
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
+import { Button, ErrorState } from '@/src/components/ui';
 import { DebugFilter } from './DebugFilter';
 import { filterBuildings } from '@/src/utils/filterBuildings';
 import { computeDebugStats, type DebugStatsResult, type BuildingContribution } from '@/src/utils/debugStats';
@@ -121,18 +122,28 @@ function BreakdownCard({ title, formula, numerator, denominator, result, exclude
 export function DataDebugPanel() {
   const [allBuildings, setAllBuildings] = useState<BuildingWithMetrics[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [filterState, setFilterState] = useState<SidebarFilterState | null>(null);
 
-  // Fetch buildings data
   useEffect(() => {
+    const controller = new AbortController();
     void (async () => {
-      setLoading(true);
       const { data, error } = await supabase
         .from('buildings')
-        .select('*, building_metrics(*)')
+        .select(`id, name, submarket, grade, city, district, location_lng, location_lat,
+          completion_year, leed_certification, owner, property_management,
+          building_metrics(id, building_id, total_area, asking_rent, management_fee, face_rent,
+            rent_free_period, net_effective_rent, vacancy_rate, vacant_area, record_year, record_quarter)`)
         .eq('is_active', true)
-        .eq('tracking_scope', 'tracked');
-      if (error) { console.error('[DataDebug] fetch error:', error); setAllBuildings([]); setLoading(false); return; }
+        .eq('tracking_scope', 'tracked')
+        .abortSignal(controller.signal);
+      if (controller.signal.aborted) return;
+      if (error) {
+        setLoadFailed(true);
+        setLoading(false);
+        return;
+      }
       const rows = Array.isArray(data) ? data : [];
       const buildings: BuildingWithMetrics[] = [];
       for (const r of rows) {
@@ -157,14 +168,18 @@ export function DataDebugPanel() {
           leed_certification: String(r.leed_certification ?? ''),
           owner: r.owner ? String(r.owner) : undefined,
           property_management: r.property_management ? String(r.property_management) : undefined,
-          contact_phone: r.contact_phone ? String(r.contact_phone) : undefined,
           metrics,
         });
       }
       setAllBuildings(buildings.filter(b => b.id !== '' && b.name !== ''));
       setLoading(false);
-    })();
-  }, []);
+    })().catch(() => {
+      if (controller.signal.aborted) return;
+      setLoadFailed(true);
+      setLoading(false);
+    });
+    return () => controller.abort();
+  }, [attempt]);
 
   // Extract filter options from data
   const filterOptions = useMemo(() => {
@@ -197,15 +212,29 @@ export function DataDebugPanel() {
     );
   }
 
+  if (loadFailed) {
+    return (
+      <div className="p-4 sm:p-6">
+        <ErrorState title="楼宇数据加载失败" action={
+          <Button variant="secondary" onClick={() => {
+            setLoading(true);
+            setLoadFailed(false);
+            setAttempt(value => value + 1);
+          }}>重试</Button>
+        } />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full overflow-hidden w-full">
+    <div className="flex h-full w-full flex-col overflow-y-auto md:flex-row md:overflow-hidden">
       <DebugFilter
         districts={filterOptions.districts}
         submarkets={filterOptions.submarkets}
         leeds={filterOptions.leeds}
         onFilterChange={setFilterState}
       />
-      <main className="flex-1 min-w-0 overflow-y-auto bg-zinc-50/50 p-6">
+      <main className="w-full min-w-0 flex-1 bg-zinc-50/50 p-4 md:w-auto md:overflow-y-auto md:p-6">
         {!stats ? (
           <div className="flex items-center justify-center h-full text-zinc-400 text-sm">
             无匹配数据，请调整筛选条件

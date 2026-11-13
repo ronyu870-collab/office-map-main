@@ -1,0 +1,169 @@
+[
+  {
+    "id": "building",
+    "title": "楼宇数据",
+    "tables": [
+      {
+        "name": "buildings",
+        "label": "楼宇基础信息",
+        "fieldCount": 18
+      },
+      {
+        "name": "building_metrics",
+        "label": "季度指标数据",
+        "fieldCount": 13
+      },
+      {
+        "name": "building_display_overrides",
+        "label": "楼宇显示覆盖",
+        "fieldCount": 7
+      }
+    ]
+  },
+  {
+    "id": "submission",
+    "title": "填报管理",
+    "tables": [
+      {
+        "name": "quarterly_submissions",
+        "label": "季度填报数据",
+        "fieldCount": 19
+      },
+      {
+        "name": "quarterly_updates",
+        "label": "填报记录",
+        "fieldCount": 6
+      },
+      {
+        "name": "update_drafts",
+        "label": "草稿管理",
+        "fieldCount": 5
+      },
+      {
+        "name": "building_assignments",
+        "label": "任务分配",
+        "fieldCount": 8
+      }
+    ]
+  },
+  {
+    "id": "future",
+    "title": "未来供应",
+    "tables": [
+      {
+        "name": "future_supplies",
+        "label": "未来供应项目",
+        "fieldCount": 14
+      },
+      {
+        "name": "future_supply_assignments",
+        "label": "未来供应分配",
+        "fieldCount": 7
+      },
+      {
+        "name": "future_supply_submissions",
+        "label": "未来供应填报",
+        "fieldCount": 19
+      }
+    ]
+  },
+  {
+    "id": "transaction",
+    "title": "租赁成交",
+    "tables": [
+      {
+        "name": "lease_transactions",
+        "label": "租赁成交",
+        "fieldCount": 37
+      }
+    ]
+  },
+  {
+    "id": "company",
+    "title": "企业与行业",
+    "tables": [
+      {
+        "name": "companies",
+        "label": "企业数据",
+        "fieldCount": 13
+      },
+      {
+        "name": "company_aliases",
+        "label": "企业别名",
+        "fieldCount": 3
+      },
+      {
+        "name": "financing_events",
+        "label": "融资事件",
+        "fieldCount": 8
+      },
+      {
+        "name": "tianyancha_company_details",
+        "label": "天眼查企业详情",
+        "fieldCount": 41
+      },
+      {
+        "name": "industry_classification",
+        "label": "行业分类",
+        "fieldCount": 4
+      },
+      {
+        "name": "private_equity_transactions",
+        "label": "私募成交",
+        "fieldCount": 14
+      }
+    ]
+  },
+  {
+    "id": "user",
+    "title": "用户管理",
+    "tables": [
+      {
+        "name": "user_roles",
+        "label": "用户列表",
+        "fieldCount": 12
+      }
+    ]
+  },
+  {
+    "id": "system",
+    "title": "系统管理",
+    "tables": [
+      {
+        "name": "admin_issues",
+        "label": "问题反馈",
+        "fieldCount": 13
+      },
+      {
+        "name": "admin_issue_comments",
+        "label": "问题评论",
+        "fieldCount": 7
+      },
+      {
+        "name": "messages",
+        "label": "消息",
+        "fieldCount": 5
+      },
+      {
+        "name": "notices",
+        "label": "通知",
+        "fieldCount": 5
+      },
+      {
+        "name": "changelog",
+        "label": "更新日志",
+        "fieldCount": 12
+      },
+      {
+        "name": "audit_logs",
+        "label": "审计日志",
+        "fieldCount": 5
+      },
+      {
+        "name": "app_settings",
+        "label": "系统设置",
+        "fieldCount": 3
+      }
+    ]
+  }
+]

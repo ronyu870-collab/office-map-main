@@ -1,6 +1,6 @@
 # 高力国际网页系统 AGENT 协作与工程规则
 
-版本：V2.3｜日期：2026-11-11｜适用于本仓库全部目录。
+版本：V2.4｜日期：2026-11-13｜适用于本仓库全部目录。
 
 ## 入口与长期边界
 
@@ -26,13 +26,13 @@
 
 ## Verification
 
-实质代码或样式改动完成前运行 `npm run verify`；迭代可用 `npm run check`。命令实际组成以 [package.json](package.json) 为准，合并门槛以 [Verify workflow](.github/workflows/verify.yml) 为准，不在其他说明中手工维护第二份命令清单。
+实质代码或样式改动完成前运行 `npm run verify`；迭代可用 `npm run check`。命令实际组成以 [package.json](package.json) 为准，工程 CI 以 [Verify workflow](.github/workflows/verify.yml) 为准；视觉记录由 [Visual acceptance workflow](.github/workflows/visual-acceptance.yml) 检查。
 
 本地 verify 当前包含审计覆盖、类型、Lint、测试和生产构建；CI 另有隔离 SQL 与真实 PostgreSQL 并发回归。两者是不同证据，不能用本地通过代替精确 PR head 的 CI 通过。对应环境和任务的手工、视觉及手机验收执行 [05](docs/standards/05_工程验证与交付规范.md)。
 
 **涉及代码／数据库行为的变更，提交就绪前必须执行 [VERIFY-03](docs/standards/05_工程验证与交付规范.md#verify-03)。** 明确受影响的实际操作及间接依赖；数据库函数／触发器必须在与目标库相同主版本的真实 PostgreSQL 中执行受影响操作，不能只检查 SQL 文本或迁移创建成功。缺陷修复必须有旧实现复现失败、修复后通过的回归；必需执行回归须随改动接入 CI，不能只留在临时脚本或被跳过。适用的必需验证未通过／未执行时，不得标记为提交就绪；CI 绿但未覆盖这些必需回归时也不得合并。详细场景、角色和证据由 VERIFY-03 唯一维护，本条不增加第二份命令清单。
 
-**适用加载速度变更须通过 [VERIFY-05](docs/standards/05_工程验证与交付规范.md#verify-05)**，PR 提供同条件速度预算与前后证据。停止优化不代表通过；缺少证据或未达预算不得标为合并就绪。
+**适用加载速度变更须通过 [VERIFY-06](docs/standards/05_工程验证与交付规范.md#verify-06)**，PR 提供同条件速度预算与前后证据。停止优化不代表通过；缺少证据或未达预算不得标为合并就绪。
 
 遇到失败时记录命令、版本、原因与前后结果；称为已有基线问题必须有证据。可交付明确受限的成果，但未通过不计为验证完成。**基线失败说明不自动豁免合并要求；精确 PR head 的 Verify 未通过时不得合并。** 如用户要求改变门槛，须作为独立规则决定，不能默默绕过检查。
 
@@ -43,7 +43,8 @@
 - 每个完整代码变更使用独立 feature／fix 分支，默认 `codex/` 前缀；不在 main 迭代。任务优先复用合适工作区，必要时隔离。
 - 本地编辑与验证完成后批量推送；不要为了触发远端测试逐文件、逐阶段或空标记推送。
 - 优先一个稳定可审阅的 Preview 节点和合并前最终已验证版本；CI／Preview 反馈要求真实修改时再推送。
-- 仅在精确 PR head 通过 Verify 且具备相应授权后合并 main。Vercel Ready 只是部署健康证据，不代替 CI、业务或手机验收。
+- 合并 main 前须取得相应授权，且精确 PR head 的 Verify 与 Visual acceptance evidence 均通过。用户可见变更还须有 [VERIFY-05](docs/standards/05_工程验证与交付规范.md#verify-05) 的实际视觉通过结论；证据缺失、待验或不通过均不得合并。无界面影响须记录不适用理由，由评审者核对。Vercel Ready 只是部署健康证据。
+- 在 GitHub 的 main 保护规则中将 Visual acceptance evidence 设为必需检查，与现有检查并行。托管配置未生效时仍执行上述合并要求；工作流文件存在不代表 GitHub 已强制阻止合并。
 - 日志与小文档修订尽量纳入同一完整变更。仅本地文档整理且未要求提交时不自动切分支、提交、推送或部署。
 
 ## Persistent change record

@@ -32,16 +32,18 @@ export function NoticeBanner() {
 
   React.useEffect(() => {
     let active = true;
+    const request = new AbortController();
     let visibleFrameId: number | null = null;
     const timeoutId = setTimeout(() => {
       if (!active) return;
+      request.abort();
       setLoadError(true);
       setNotices([]);
     }, 3000);
 
-    getAllActiveNotices()
+    getAllActiveNotices(request.signal)
       .then((data) => {
-        if (!active) return;
+        if (!active || request.signal.aborted) return;
         clearTimeout(timeoutId);
         setLoadError(false);
         setNotices(data);
@@ -54,7 +56,7 @@ export function NoticeBanner() {
         }
       })
       .catch(() => {
-        if (!active) return;
+        if (!active || request.signal.aborted) return;
         clearTimeout(timeoutId);
         setLoadError(true);
         setNotices([]);
@@ -62,6 +64,7 @@ export function NoticeBanner() {
 
     return () => {
       active = false;
+      request.abort();
       clearTimeout(timeoutId);
       if (visibleFrameId !== null) cancelAnimationFrame(visibleFrameId);
     };
@@ -80,16 +83,16 @@ export function NoticeBanner() {
 
   if (loadError) {
     return (
-      <section className="border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-3" aria-label="系统公告加载失败">
+      <section className="bg-transparent py-2" aria-label="系统公告加载失败">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[13px] font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
-            <p className="mt-1 text-xs text-[var(--cd-color-text-muted)]">公告暂时无法加载</p>
+            <div className="text-sm font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
+            <p className="mt-1 text-sm text-[var(--cd-color-text-secondary)]">公告暂时无法加载</p>
           </div>
           <button
             type="button"
             onClick={retry}
-            className="min-h-9 rounded-[var(--cd-radius-sm)] px-2.5 text-xs font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
+            className="min-h-9 rounded-[var(--cd-radius-sm)] px-2.5 text-sm font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
           >
             重试
           </button>
@@ -103,12 +106,12 @@ export function NoticeBanner() {
   const visibleNotices = expanded ? notices : notices.slice(0, 3);
 
   return (
-    <section className={`border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-3.5 py-3 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`} aria-live="polite" aria-label="系统公告">
-      <div className="mb-2 text-[13px] font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
-      <div className="space-y-2">
+    <section className={`bg-transparent py-2 transition-opacity duration-300 motion-reduce:transition-none ${visible ? 'opacity-100' : 'opacity-0'}`} aria-live="polite" aria-label="系统公告">
+      <div className="mb-3 text-sm font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
+      <div className="space-y-3">
         {visibleNotices.map((notice) => (
-          <div key={notice.id} className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2.5 text-[13px] leading-5">
-            <time className="whitespace-nowrap text-xs tabular-nums text-[var(--cd-color-text-muted)]">{formatNoticeDate(notice.updated_at)}</time>
+          <div key={notice.id} className="flex flex-col gap-1 text-sm leading-6">
+            <time dateTime={notice.updated_at} className="whitespace-nowrap text-sm tabular-nums text-[var(--cd-color-text-secondary)]">{formatNoticeDate(notice.updated_at)}</time>
             <p className="break-words text-[var(--cd-color-text-secondary)] [overflow-wrap:anywhere]">{notice.content}</p>
           </div>
         ))}
@@ -118,7 +121,7 @@ export function NoticeBanner() {
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="mt-2.5 min-h-8 rounded-[var(--cd-radius-sm)] px-1.5 text-xs font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
+          className="mt-2.5 min-h-8 rounded-[var(--cd-radius-sm)] px-1.5 text-sm font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
           aria-expanded={expanded}
         >
           {expanded ? '收起公告' : `查看全部 ${notices.length} 条公告`}

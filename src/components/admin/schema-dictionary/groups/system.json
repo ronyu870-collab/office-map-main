@@ -1,0 +1,106 @@
+{
+  "id": "system",
+  "title": "系统管理",
+  "desc": "管理员工具：问题反馈、备忘录、公告、通知、更新日志、审计日志、系统设置。",
+  "tables": [
+    {
+      "name": "admin_issues",
+      "label": "问题反馈",
+      "desc": "管理员内部的问题反馈和需求记录。",
+      "fields": [
+        {"name":"id","label":"问题ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"title","label":"标题","type":"文本","desc":"问题标题","who":"管理员"},
+        {"name":"description","label":"问题描述","type":"文本","desc":"详细描述","who":"管理员"},
+        {"name":"status","label":"处理状态","type":"文本","desc":"open/in_progress/resolved/wontfix/duplicate","who":"管理员"},
+        {"name":"priority","label":"优先级","type":"文本","desc":"high/medium/low","who":"管理员"},
+        {"name":"images","label":"截图","type":"数组","desc":"截图URL数组","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"created_by","label":"创建人","type":"文本","desc":"创建人邮箱","who":"系统自动"},
+        {"name":"resolved_at","label":"解决时间","type":"时间戳","desc":"标记为已解决的时间","who":"系统自动"},
+        {"name":"category","label":"问题分类","type":"文本","desc":"bug/feature/data/other","who":"管理员"},
+        {"name":"module","label":"所属模块","type":"文本","desc":"涉及的系统模块","who":"管理员"},
+        {"name":"resolved_by","label":"解决人","type":"文本","desc":"解决问题的人","who":"系统自动"},
+        {"name":"reopened_at","label":"重新打开时间","type":"时间戳","desc":"重新打开的时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "admin_issue_comments",
+      "label": "问题评论",
+      "desc": "问题反馈下的评论和讨论。",
+      "fields": [
+        {"name":"id","label":"评论ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"issue_id","label":"所属问题","type":"UUID","desc":"关联admin_issues.id","who":"系统自动"},
+        {"name":"content","label":"评论内容","type":"文本","desc":"评论文字","who":"管理员"},
+        {"name":"images","label":"评论截图","type":"数组","desc":"截图URL数组","who":"管理员"},
+        {"name":"created_by","label":"评论人","type":"文本","desc":"评论人邮箱","who":"系统自动"},
+        {"name":"is_admin","label":"是否管理员","type":"布尔","desc":"评论人是否管理员","who":"系统自动"},
+        {"name":"created_at","label":"评论时间","type":"时间戳","desc":"评论时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "messages",
+      "label": "消息",
+      "desc": "用户消息记录。",
+      "fields": [
+        {"name":"id","label":"消息ID","type":"大整数","desc":"自增主键","who":"系统自动"},
+        {"name":"user_email","label":"用户邮箱","type":"文本","desc":"接收用户邮箱","who":"系统自动"},
+        {"name":"user_name","label":"用户姓名","type":"文本","desc":"用户姓名","who":"系统自动"},
+        {"name":"content","label":"消息内容","type":"文本","desc":"消息文字","who":"系统自动"},
+        {"name":"created_at","label":"发送时间","type":"时间戳","desc":"发送时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "notices",
+      "label": "通知",
+      "desc": "系统通知配置。",
+      "fields": [
+        {"name":"id","label":"通知ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"content","label":"通知内容","type":"文本","desc":"通知文字","who":"管理员"},
+        {"name":"is_active","label":"是否启用","type":"布尔","desc":"控制是否显示","who":"管理员"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"},
+        {"name":"updated_by","label":"更新人","type":"文本","desc":"更新人邮箱","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "changelog",
+      "label": "更新日志",
+      "desc": "系统版本更新记录。",
+      "fields": [
+        {"name":"id","label":"日志ID","type":"UUID","desc":"系统自动生成","who":"系统自动"},
+        {"name":"title","label":"更新标题","type":"文本","desc":"更新标题","who":"管理员"},
+        {"name":"description","label":"更新描述","type":"文本","desc":"详细描述","who":"管理员"},
+        {"name":"status","label":"状态","type":"文本","desc":"planned/in_progress/released","who":"管理员"},
+        {"name":"category","label":"分类","type":"文本","desc":"feature/improvement/fix","who":"管理员"},
+        {"name":"version","label":"版本号","type":"文本","desc":"版本号如v2.1","who":"管理员"},
+        {"name":"released_at","label":"发布日期","type":"日期","desc":"发布日期","who":"管理员"},
+        {"name":"sort_order","label":"排序序号","type":"整数","desc":"显示顺序","who":"管理员"},
+        {"name":"created_at","label":"创建时间","type":"时间戳","desc":"创建时间","who":"系统自动"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"},
+        {"name":"module","label":"所属模块","type":"文本","desc":"map/database/lease/bi/cloud/admin/general","who":"管理员"},
+        {"name":"code","label":"编号","type":"文本","desc":"唯一编号如CL-001","who":"管理员"}
+      ]
+    },
+    {
+      "name": "audit_logs",
+      "label": "审计日志",
+      "desc": "系统操作审计记录。记录所有用户的操作行为。",
+      "fields": [
+        {"name":"id","label":"日志ID","type":"大整数","desc":"自增主键","who":"系统自动"},
+        {"name":"user_id","label":"操作用户","type":"文本","desc":"操作人标识","who":"系统自动"},
+        {"name":"action_type","label":"操作类型","type":"文本","desc":"操作类型","who":"系统自动"},
+        {"name":"details","label":"操作详情","type":"JSON","desc":"操作详细信息","who":"系统自动"},
+        {"name":"created_at","label":"操作时间","type":"时间戳","desc":"操作时间","who":"系统自动"}
+      ]
+    },
+    {
+      "name": "app_settings",
+      "label": "系统设置",
+      "desc": "系统级配置项。键值对存储。",
+      "fields": [
+        {"name":"key","label":"设置键","type":"文本","desc":"配置项名称(主键)","who":"管理员"},
+        {"name":"value","label":"设置值","type":"文本","desc":"配置值","who":"管理员"},
+        {"name":"updated_at","label":"更新时间","type":"时间戳","desc":"最后更新","who":"系统自动"}
+      ]
+    }
+  ]
+}

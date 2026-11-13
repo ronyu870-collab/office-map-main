@@ -1,0 +1,12 @@
+{
+  "src/components/intelligence/LeaseExpiryWorkspace.tsx": "95d10a579d948122212c959b14d7951adde47a16622837e8ce881dfc902789dc",
+  "src/app/api/intelligence/lease-expiry/route.ts": "de2e855b6a556b610da09fe8ad6b42ef14f91a3fe273142e68767d8bdd179bd6",
+  "src/lib/leaseExpiry/server.ts": "49ffc7d21b2d5843df50d149115bfca7ac98145eeffa1cdfe65b95766841b064",
+  "src/lib/leaseExpiry/contracts.ts": "5b547025478cad298db6075f94c4c3a8750cb2a601b5cd99b1051512bffb7546",
+  "src/services/leaseExpiryApi.ts": "5769e5ed2ff9d49e1495e6ccec89f9824a8b94a57e28295eae70b7c3ba0e8da8",
+  "supabase/migrations/20261111034942_lease_expiry_review_workspace.sql": "2c246e10e95fb31fd336c262dc4454d803acc6f50bc318a762ca83039d2b5051",
+  "scripts/verification/verify-lease-expiry-auth.mjs": "b6e96ed7d4fc3ef23e9cfc0f99a0528893cf38ce8bcbf4c7a0f2a228f17ed437",
+  "scripts/verification/verify-lease-expiry.mjs": "6327e5be574551b05b6873463201f36d4728424379ddbef3fac2ac4b4f895f79",
+  "supabase/tests/lease-expiry/auth-config.toml": "091275c948e223d0f5d8b73b7a9036ae912ef350662a879e2ccd9fe0bd92a330",
+  ".github/workflows/verify.yml": "cdfa2515d16371e432008881724668c182cd010ef111451b0d142267a3b27238"
+}

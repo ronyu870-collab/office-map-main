@@ -26,7 +26,7 @@ import type {
   RecommendationResponse,
   RecommendedBuilding,
 } from '@/src/lib/intelligence/recommendationEngine';
-import { beginProposalDraft, setProposalCandidates } from '@/src/lib/intelligence/proposalDraft';
+import { beginProposalDraft, getProposalDraftScope, type ProposalDraftScope } from '@/src/lib/intelligence/proposalDraft';
 import { recommendIntelligenceBuildings } from '@/src/services/intelligenceApi';
 
 const EXAMPLES = [
@@ -223,35 +223,53 @@ function RecommendationCard({
 export function IntelligenceRecommendationWorkspace() {
   const router = useRouter();
   const { session, status } = useAppSession();
+  React.useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/login');
+  }, [router, status]);
+
+  if (status === 'loading' || !session) return <IntelligenceLoadingShell />;
+  if (!isIntelligencePreviewEnabled(session.role)) return <PreviewUnavailable />;
+  const draftScope = getProposalDraftScope(session);
+  const key = draftScope ?? JSON.stringify([session.session.user.id, session.user.id, session.role]);
+  return <RecommendationForm key={key} accessToken={session.session.access_token} draftScope={draftScope} canOpenLeaseExpiry={session.role === 'admin'} />;
+}
+
+function RecommendationForm({ accessToken, draftScope, canOpenLeaseExpiry }: { accessToken: string; draftScope: ProposalDraftScope | null; canOpenLeaseExpiry: boolean }) {
+  const router = useRouter();
   const [requirement, setRequirement] = React.useState('');
   const [submittedRequirement, setSubmittedRequirement] = React.useState('');
   const [response, setResponse] = React.useState<RecommendationResponse | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [canceled, setCanceled] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showAll, setShowAll] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [aiPreselectedIds, setAiPreselectedIds] = React.useState<Set<string>>(new Set());
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
   const [selectionMessage, setSelectionMessage] = React.useState<string | null>(null);
+  const active = React.useRef<AbortController | null>(null);
 
-  React.useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/login');
-  }, [router, status]);
+  React.useEffect(() => () => {
+    active.current?.abort();
+    active.current = null;
+  }, []);
 
-  const previewEnabled = isIntelligencePreviewEnabled(session?.role);
   const plan = response?.plan ?? null;
   const isDirty = Boolean(plan && requirement.trim() !== submittedRequirement);
 
   async function handleRecommend() {
-    const accessToken = session?.session?.access_token;
     const input = requirement.trim();
-    if (!accessToken || !input || loading) return;
+    if (!accessToken || !input || active.current) return;
+    const request = new AbortController();
+    active.current = request;
 
     setLoading(true);
+    setCanceled(false);
     setError(null);
     setSelectionMessage(null);
     try {
-      const next = await recommendIntelligenceBuildings(input, accessToken);
+      const next = await recommendIntelligenceBuildings(input, accessToken, request.signal);
+      if (active.current !== request) return;
       setResponse(next);
       setSubmittedRequirement(input);
       setShowAll(false);
@@ -260,14 +278,23 @@ export function IntelligenceRecommendationWorkspace() {
       setSelectedIds(initialSelection);
       setAiPreselectedIds(new Set(initialSelection));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '推荐生成失败，请稍后重试。');
+      if (active.current === request) setError(cause instanceof Error ? cause.message : '推荐生成失败，请稍后重试。');
     } finally {
-      setLoading(false);
+      if (active.current === request) {
+        active.current = null;
+        setLoading(false);
+      }
     }
   }
 
-  if (status === 'loading' || !session) return <IntelligenceLoadingShell />;
-  if (!previewEnabled) return <PreviewUnavailable />;
+  function cancelRecommendation() {
+    const request = active.current;
+    if (!request) return;
+    active.current = null;
+    request.abort();
+    setLoading(false);
+    setCanceled(true);
+  }
 
   const visible = plan?.recommendations.slice(0, showAll ? response?.meta.returnedCount ?? 5 : 5) ?? [];
   const mapHandoff = plan ? createIntelligenceMapHandoff(plan.effectiveResult) : null;
@@ -301,14 +328,11 @@ export function IntelligenceRecommendationWorkspace() {
 
   function prepareDraft() {
     if (!plan || !mapHandoff) return false;
-    const draft = beginProposalDraft(plan.effectiveResult, mapHandoff.appliedCapabilities);
+    const draft = draftScope && beginProposalDraft(draftScope, plan.effectiveResult, mapHandoff.appliedCapabilities, {
+      candidates: selectedBuildings.map(item => ({ buildingId: item.id, buildingName: item.name })),
+    });
     if (!draft) {
       setError('浏览器会话存储不可用，暂时无法创建客户方案。');
-      return false;
-    }
-    const seeded = setProposalCandidates(selectedBuildings.map(item => ({ buildingId: item.id, buildingName: item.name })));
-    if (!seeded) {
-      setError('无法写入推荐项目，请刷新页面后重试。');
       return false;
     }
     return true;
@@ -321,6 +345,8 @@ export function IntelligenceRecommendationWorkspace() {
     >
       <main className="h-full overflow-y-auto overscroll-contain pb-8">
         <div className="mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8">
+          {/* A document boundary lets beforeunload protect browser back from the optional editor. */}
+          {canOpenLeaseExpiry ? <a href="/intelligence/lease-expiry" className="mb-4 inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline">预计到期线索（管理员试点）</a> : null}
           <section className="mb-5">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-[var(--cd-color-brand)]" aria-hidden="true" />
@@ -340,6 +366,7 @@ export function IntelligenceRecommendationWorkspace() {
               <Badge tone="brand">DeepSeek</Badge>
             </div>
             <textarea
+              aria-label="客户需求"
               value={requirement}
               onChange={event => {
                 setRequirement(event.target.value);
@@ -370,9 +397,12 @@ export function IntelligenceRecommendationWorkspace() {
                 ))}
                 <span className="self-center text-[10px] text-slate-400">⌘/Ctrl + Enter 快速推荐</span>
               </div>
-              <Button type="button" variant="primary" disabled={!requirement.trim() || loading} onClick={() => void handleRecommend()}>
-                {loading ? '正在理解、检索与排序…' : plan ? '重新推荐' : '开始推荐'} <ArrowRight size={14} aria-hidden="true" />
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {loading && <Button variant="secondary" className="min-h-11 sm:min-h-0" onClick={cancelRecommendation}>取消推荐</Button>}
+                <Button type="button" variant="primary" className="min-h-11 sm:min-h-0" disabled={!requirement.trim() || loading} onClick={() => void handleRecommend()}>
+                  {loading ? '正在生成推荐…' : plan ? '重新推荐' : '开始推荐'} <ArrowRight size={14} aria-hidden="true" />
+                </Button>
+              </div>
             </div>
             {isDirty ? (
               <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
@@ -380,9 +410,11 @@ export function IntelligenceRecommendationWorkspace() {
               </div>
             ) : null}
             {error ? <div className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2.5 text-sm text-red-600" role="alert">{error}</div> : null}
+            {loading && plan ? <p role="status" className="mt-3 text-sm text-slate-500">正在生成新推荐，下方仍是上一轮结果。</p> : null}
+            {canceled ? <p role="status" className="mt-3 text-sm text-slate-500">已取消推荐，需求文字已保留。</p> : null}
           </section>
 
-          {loading ? (
+          {loading && !plan ? (
             <section className="mt-5 rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-white p-6">
               <LoadingState rows={4} label="AI 正在理解需求，并从真实楼宇数据中生成候选项目" />
             </section>

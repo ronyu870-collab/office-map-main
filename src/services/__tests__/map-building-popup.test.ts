@@ -70,11 +70,11 @@ afterEach(() => {
 });
 
 describe('real stock-building popup opened by the map controller', () => {
-  it('keeps six ordered actions after clicking a rendered map marker and binds edit to its building and role', () => {
+  it('keeps the ordered actions after clicking a rendered map marker and binds edit to its building and role', () => {
     const { instance, building, next, edit, popup } = openPopup(true);
     const actions = within(within(popup).getByRole('group', { name: '楼宇操作' })).getAllByRole('button');
     expect(actions.map(button => button.textContent?.trim())).toEqual([
-      '周边项目对比', '楼宇对比', '关联成交', '趋势追踪', '联系方式', '项目资料与佣金',
+      '周边项目对比', '楼宇对比', '关联成交', '季度趋势', '联系方式', '销控与佣金', '楼书与资料',
     ]);
     expect(actions[5]).toHaveAttribute('data-building-id', building.id);
     expect(actions[5]).toHaveAttribute('data-building-name', building.name);

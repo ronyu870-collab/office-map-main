@@ -1,0 +1,94 @@
+{
+  "browser": "157.0.8103.50",
+  "results": [
+    {
+      "width": 1280,
+      "composition": true,
+      "continuousInput": true,
+      "selection": "keyboard",
+      "recentOnDemand": true,
+      "draftRoundTrip": true,
+      "syntheticSubmission": true,
+      "requests": [
+        {
+          "mode": "suggestions",
+          "query": "演"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企业"
+        },
+        {
+          "mode": "recent",
+          "query": "演示企业"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企业"
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "composition": true,
+      "continuousInput": true,
+      "selection": "touch",
+      "recentOnDemand": true,
+      "draftRoundTrip": true,
+      "syntheticSubmission": true,
+      "requests": [
+        {
+          "mode": "suggestions",
+          "query": "演"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企业"
+        },
+        {
+          "mode": "recent",
+          "query": "演示企业"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企业"
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "composition": true,
+      "continuousInput": true,
+      "selection": "touch",
+      "recentOnDemand": true,
+      "draftRoundTrip": true,
+      "syntheticSubmission": false,
+      "requests": [
+        {
+          "mode": "suggestions",
+          "query": "演"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企"
+        },
+        {
+          "mode": "suggestions",
+          "query": "演示企业"
+        },
+        {
+          "mode": "recent",
+          "query": "演示企业"
+        }
+      ]
+    }
+  ]
+}
