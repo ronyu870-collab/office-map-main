@@ -14,12 +14,13 @@ type Props = {
   reply: Reply | null;
   onClearReply: () => void;
   sendError: string | null;
+  draftRef: React.RefObject<MarketSegment[]>;
 };
 
 const COLOR_HEX: Record<MarketColor, string> = { blue: '#003e7e', red: '#c9362b', green: '#16855b' };
 type MentionPosition = { node: Text; start: number; end: number };
 
-export function CommunicationComposer({ onSend, sending, reply, onClearReply, sendError }: Props) {
+export function CommunicationComposer({ onSend, sending, reply, onClearReply, sendError, draftRef }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const mentionPositionRef = useRef<MentionPosition | null>(null);
   const composingRef = useRef(false);
@@ -59,10 +60,33 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
     }
   }, []);
 
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !draftRef.current.length) return;
+    for (const part of draftRef.current) {
+      const node = document.createElement('span');
+      node.textContent = part.text;
+      if (part.bold) node.style.fontWeight = 'bold';
+      if (part.color) node.style.color = COLOR_HEX[part.color];
+      if (part.mentionUserId || part.everyone) {
+        node.contentEditable = 'false';
+        node.className = styles.mention;
+        if (part.mentionUserId) node.dataset.mentionUserId = part.mentionUserId;
+        if (part.everyone) node.dataset.mentionEveryone = 'true';
+      }
+      editor.appendChild(node);
+    }
+    setLength(segmentText(draftRef.current).length);
+    // Restore only on mount: rebuilding DOM during typing would reset the caret.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const refreshInput = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    setLength(segmentText(editorSegments(editor)).length);
+    const nextSegments = editorSegments(editor);
+    draftRef.current = nextSegments;
+    setLength(segmentText(nextSegments).length);
     if (composingRef.current) return;
     const selection = window.getSelection();
     const node = selection?.anchorNode;
@@ -84,7 +108,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
     setMentionQuery(match[1]);
     setActiveMention(0);
     void loadMembers();
-  }, [loadMembers]);
+  }, [draftRef, loadMembers]);
 
   const candidates = mentionQuery === null ? [] : [
     ...(everyoneAllowed && '所有人'.includes(mentionQuery) ? [{ id: '__everyone__', name: '所有人' }] : []),
@@ -160,6 +184,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
       if (await onSend(segments)) {
         editor.replaceChildren();
         setLength(0);
+        draftRef.current = [];
         mentionPositionRef.current = null;
         setMentionQuery(null);
         editor.focus();
