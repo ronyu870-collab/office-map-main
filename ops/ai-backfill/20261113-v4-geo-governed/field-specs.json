@@ -1,0 +1,128 @@
+{
+  "batch": "ai_building_field_backfill_20261113_v4_geo_governed",
+  "archived_specs": [
+    {
+      "name": "信达中心",
+      "material_prefix": "ce95352a",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "building_floors",
+      "value": 34,
+      "expect": "34实际层数",
+      "scope": "physical_floor_number_not_marketing_elevator_number",
+      "unit": "floors"
+    },
+    {
+      "name": "北京来福士中心",
+      "material_prefix": "9a0e01b6",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "floors_above",
+      "value": 21,
+      "expect": "实际21层",
+      "scope": "office_tower_actual_above_ground_floor_number",
+      "unit": "floors"
+    },
+    {
+      "name": "国际财源中心（IFC）",
+      "material_prefix": "0f6fcb25",
+      "fact_index": 0,
+      "target_table": "building_brochure_data",
+      "field": "gfa_total",
+      "value": 170000,
+      "expect": "约17万㎡",
+      "scope": "historical_approximate_whole_project_gfa_not_leasable",
+      "unit": "sqm"
+    },
+    {
+      "name": "恒通-之所ICC",
+      "material_prefix": "843ee5ab",
+      "fact_index": 5,
+      "target_table": "building_brochure_data",
+      "field": "column_spacing",
+      "value": 12,
+      "expect": "柱距12米",
+      "scope": "overall_ICC_park_office_column_spacing",
+      "unit": "m"
+    },
+    {
+      "name": "王府77项目",
+      "material_prefix": "660bdb1f",
+      "fact_index": 6,
+      "target_table": "building_brochure_data",
+      "field": "elevator_passenger",
+      "value": 12,
+      "expect": "客梯12部",
+      "scope": "three_tower_shared_office_complex_total_not_each_tower",
+      "unit": "count"
+    },
+    {
+      "name": "玖安广场",
+      "material_prefix": "3e5567e3",
+      "fact_index": 2,
+      "target_table": "building_brochure_data",
+      "field": "elevator_passenger",
+      "value": 12,
+      "expect": "12客",
+      "scope": "whole_project_passenger_lifts_excluding_fire_transfer_escalators",
+      "unit": "count"
+    },
+    {
+      "name": "玖安广场",
+      "material_prefix": "3e5567e3",
+      "fact_index": 2,
+      "target_table": "building_brochure_data",
+      "field": "elevator_freight",
+      "value": 1,
+      "expect": "1货",
+      "scope": "whole_project_dedicated_freight_lifts_not_fire",
+      "unit": "count"
+    },
+    {
+      "name": "玖安广场",
+      "material_prefix": "3e5567e3",
+      "fact_index": 2,
+      "target_table": "building_brochure_data",
+      "field": "elevator_vip",
+      "value": 1,
+      "expect": "1VIP",
+      "scope": "whole_project_VIP_lifts",
+      "unit": "count"
+    },
+    {
+      "name": "玖安广场",
+      "material_prefix": "3e5567e3",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "raised_floor_cm",
+      "value": 15,
+      "expect": "网络地板15厘米",
+      "scope": "whole_project_office_standard_floor_network_floor",
+      "unit": "cm"
+    },
+    {
+      "name": "玖安广场",
+      "material_prefix": "3e5567e3",
+      "fact_index": 1,
+      "target_table": "building_brochure_data",
+      "field": "hvac_fresh_air_capacity",
+      "value": 40,
+      "expect": "新风40m³/人/小时",
+      "scope": "historical_whole_project_new_air_capacity",
+      "unit": "m3_per_person_hour"
+    }
+  ],
+  "planned_source_breakdown": {
+    "archived": 10,
+    "existing_business_sync": 42,
+    "geographic_brochure_sync": 48
+  },
+  "rules": [
+    "No non-NULL overwrite",
+    "Only stock tracked unmerged buildings",
+    "No future or preregistration certifications",
+    "No geographic grade changes",
+    "No external verification claimed",
+    "No raw Broker submissions committed"
+  ]
+}
