@@ -5,6 +5,7 @@ import { AtSign, Bold, Send, X } from 'lucide-react';
 import { supabase } from '@/src/services/supabaseClient';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import { editorSegments, segmentText, type MarketColor, type MarketMember, type MarketSegment } from '@/src/lib/communication/segments';
+import { normalizeMentionLookupTerm } from '@/src/lib/communication/mentionLookup';
 import styles from './CommunicationComposer.module.css';
 
 type Reply = { id: number; name: string; content: string };
@@ -24,41 +25,42 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
   const editorRef = useRef<HTMLDivElement>(null);
   const mentionPositionRef = useRef<MentionPosition | null>(null);
   const composingRef = useRef(false);
-  const loadingMembersRef = useRef(false);
-  const membersLoadedRef = useRef(false);
   const sendingRef = useRef(false);
   const [length, setLength] = useState(0);
-  const [members, setMembers] = useState<MarketMember[]>([]);
-  const [everyoneAllowed, setEveryoneAllowed] = useState(false);
-  const [memberError, setMemberError] = useState(false);
+  const [lookup, setLookup] = useState<{ term: string; members: MarketMember[] } | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [activeMention, setActiveMention] = useState(0);
 
-  const loadMembers = useCallback(async () => {
-    if (membersLoadedRef.current || loadingMembersRef.current) return;
-    loadingMembersRef.current = true;
-    setMemberError(false);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('未登录');
-      const response = await fetch('/api/communication', {
-        headers: withImpersonationHeaders({ Authorization: `Bearer ${session.access_token}` }),
-        cache: 'no-store',
-      });
-      if (!response.ok) throw new Error('directory unavailable');
-      const data = await response.json() as {
-        members?: MarketMember[]; canMentionEveryone?: boolean;
-      };
-      if (!Array.isArray(data.members)) throw new Error('invalid directory');
-      setMembers(data.members);
-      setEveryoneAllowed(Boolean(data.canMentionEveryone));
-      membersLoadedRef.current = true;
-    } catch {
-      setMemberError(true);
-    } finally {
-      loadingMembersRef.current = false;
-    }
-  }, []);
+  useEffect(() => {
+    const term = normalizeMentionLookupTerm(mentionQuery);
+    if (!term) return;
+    let current = true;
+    const controller = new AbortController();
+    // Debounce lookups and cancel stale results; never download the user directory.
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) return;
+          const response = await fetch(`/api/communication?name=${encodeURIComponent(term)}`, {
+            headers: withImpersonationHeaders({ Authorization: `Bearer ${session.access_token}` }),
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+          if (!response.ok) return;
+          const data = await response.json() as { members?: MarketMember[] };
+          if (current && Array.isArray(data.members)) setLookup({ term, members: data.members.slice(0, 8) });
+        } catch {
+          // Network failure does not turn plain @text into a directed mention.
+        }
+      })();
+    }, 180);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [mentionQuery]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -109,13 +111,10 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
     mentionPositionRef.current = { node: textNode, start: cursor - match[0].length + (match[0].startsWith('@') ? 0 : 1), end: cursor };
     setMentionQuery(match[1]);
     setActiveMention(0);
-    void loadMembers();
-  }, [draftRef, loadMembers]);
+  }, [draftRef]);
 
-  const candidates = mentionQuery === null ? [] : [
-    ...(everyoneAllowed && '所有人'.includes(mentionQuery) ? [{ id: '__everyone__', name: '所有人' }] : []),
-    ...members.filter(member => member.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 8),
-  ];
+  const lookupTerm = normalizeMentionLookupTerm(mentionQuery);
+  const candidates = lookup && lookupTerm === lookup.term ? lookup.members : [];
 
   const insertMention = (member: MarketMember) => {
     const editor = editorRef.current;
@@ -219,10 +218,10 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
           suppressContentEditableWarning
           spellCheck
           className={styles.editor}
-          data-placeholder="分享市场动态，输入 @ 提及同事…"
+          data-placeholder="分享市场动态，输入 @Alice 提及同事…"
           data-empty={length === 0 ? 'true' : 'false'}
           onInput={refreshInput}
-          onCompositionStart={() => { composingRef.current = true; }}
+          onCompositionStart={() => { composingRef.current = true; setMentionQuery(null); }}
           onCompositionEnd={() => { composingRef.current = false; refreshInput(); }}
           onPaste={event => {
             event.preventDefault();
@@ -237,7 +236,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
                 event.preventDefault(); insertMention(candidates[activeMention] || candidates[0]); return;
               }
             }
-            if (event.key === 'Escape' && mentionQuery !== null) {
+            if (event.key === 'Escape' && candidates.length > 0) {
               event.preventDefault(); event.stopPropagation(); setMentionQuery(null); return;
             }
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -248,18 +247,16 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
             }
           }}
         />
-        {mentionQuery !== null && (
-          <div className={styles.suggestions} role="listbox" aria-label="提及团队成员">
-            {memberError ? (
-              <button type="button" className={styles.option} onMouseDown={event => event.preventDefault()} onClick={() => { setMemberError(false); void loadMembers(); }}>成员列表加载失败，重试</button>
-            ) : candidates.length ? candidates.map((member, index) => (
+        {candidates.length > 0 && (
+          <div className={styles.suggestions} role="listbox" aria-label="匹配的提及成员">
+            {candidates.map((member, index) => (
               <button
                 key={member.id} type="button" role="option" aria-selected={index === activeMention}
                 className={styles.option} data-active={index === activeMention}
                 onMouseDown={event => event.preventDefault()}
                 onClick={() => insertMention(member)}
-              >@{member.name}{member.id === '__everyone__' ? ' · 全体站内提醒' : ''}</button>
-            )) : <div className={styles.noMatches}>暂无匹配成员</div>}
+              >@${member.name}{member.id === '__everyone__' ? ' · 全体站内提醒' : ''}</button>
+            ))}
           </div>
         )}
       </div>
