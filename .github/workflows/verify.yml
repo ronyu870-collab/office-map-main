@@ -172,6 +172,7 @@ jobs:
           node supabase/tests/ai-admin-only/run.mjs
           node supabase/tests/ai-audit-people/run.mjs
           node supabase/tests/ai-audit-export/run.mjs
+          node supabase/tests/ai-audit-export-reconciliation/run.mjs
           node supabase/tests/ai-query-authority/run.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
@@ -355,6 +356,7 @@ jobs:
             verification/ai-admin-only/results.json
             verification/ai-audit-people/results.json
             verification/ai-audit-export/results.json
+            verification/ai-audit-export-reconciliation/results.json
           if-no-files-found: ignore
           retention-days: 7
 

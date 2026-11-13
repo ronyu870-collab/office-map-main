@@ -91,6 +91,7 @@ try{
   await db.query(await load('20261113123123_ai_admin_only_access.sql'));
   await db.query(await load('20261113130012_ai_audit_actor_directory.sql'));
   await db.query(await load('20261113132136_ai_audit_controlled_export.sql'));
+  await db.query(await load('20261113135841_ai_audit_export_reconciliation.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -547,7 +548,7 @@ try{
   });
   await verifyAuditConsole({db,service,app,check,person,queryAdmin,other,admin,call,input,successful,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
   await verifyAuditPeople({db,service,app,check,person,other,call,input,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
-  await verifyAuditExport({db,app,check,person,successful});
+  await verifyAuditExport({db,app,check,person,successful,blocker,until,startApp,settings,stopApp:async()=>{const stopped=once(server,'exit');server.kill('SIGKILL');assert.equal((await stopped)[1],'SIGKILL');}});
   await verifyAdminOnly({db,app,check,person,call,input,capabilities,recover,artifact,acknowledge,exportCaps});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);

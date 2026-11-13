@@ -32,3 +32,5 @@
 当前人员识别与检索：[姓名目录语义、同名区分与受控筛选](audit-people.md)。
 
 受控审计下载：[独立导出资格、JSON问答档案、文件凭据与客户端报告](audit-export.md)。
+
+审计导出中断恢复：[持久观察、失败补记、独立对账及未知交付语义](audit-export-reconciliation.md)。
