@@ -161,6 +161,30 @@ describe('market communication on homepage', () => {
     expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual([{ text: '@alice' }]);
   });
 
+  it('never resurfaces a stale member after the user changes an @ name', async () => {
+    let releaseAlice!: () => void;
+    state.fetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') return Promise.resolve({ ok: true, json: async () => ({ id: 42 }) });
+      if (url.includes('name=alice')) {
+        return new Promise(resolve => {
+          releaseAlice = () => resolve({ ok: true, json: async () => ({
+            members: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Alice Wang' }],
+          }) });
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({ members: [] }) });
+    });
+    const user = userEvent.setup();
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+    await screen.findByText('暂无市场交流');
+    await user.type(editor(), '@Alice');
+    await waitFor(() => expect(state.fetch.mock.calls.some(call => String(call[0]).includes('name=alice'))).toBe(true));
+    await user.type(editor(), '{backspace}{backspace}{backspace}');
+    expect(editor().textContent).toBe('@Al');
+    await act(async () => { releaseAlice(); });
+    expect(screen.queryByRole('option', { name: '@Alice Wang' })).not.toBeInTheDocument();
+  });
+
   it('never suggests administrators broadcast until the full @所有人 token is entered', async () => {
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
