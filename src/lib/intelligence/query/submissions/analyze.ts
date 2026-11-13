@@ -7,14 +7,14 @@ import { SUBMISSION_POLICY, submissionFields, submissionFieldKeys, validateSubmi
 type Submission = SubmissionSnapshot['submissions'][number];
 export type SubmissionIssue = { kind: 'missing' | 'invalid' | 'inconsistent' | 'unavailable'; code: string; fields: SubmissionField[]; sourceIds: string[] };
 const sourceId = (table: string, id: string, field: string, version: string) => `${table}/${id}/${field}/${version}`;
-const refId = (s: Submission, field: string) => sourceId('quarterly_submissions', s.id, field, s.version);
+const refId = (s: Pick<Submission,'id'|'version'>, field: string, table='quarterly_submissions') => sourceId(table, s.id, field, s.version);
 const required: SubmissionField[] = ['asking_rent', 'management_fee', 'face_rent', 'rent_free_period', 'vacant_area'];
 const D = (value: string) => Decimal.parse(value)!;
 
 /** Same five required inputs as quarterly entry; completeness is NOT validity or approval. */
-export function inspectSubmission(s: Submission) {
+export function inspectSubmission(s: Pick<Submission,'id'|'version'|'values'>, table: 'quarterly_submissions'|'future_supply_submissions'='quarterly_submissions') {
   const issues: SubmissionIssue[] = [];
-  const issue = (kind: SubmissionIssue['kind'], code: string, fields: SubmissionField[]) => issues.push({ kind, code, fields, sourceIds: fields.map(f => refId(s, f)) });
+  const issue = (kind: SubmissionIssue['kind'], code: string, fields: SubmissionField[]) => issues.push({ kind, code, fields, sourceIds: fields.map(f => refId(s, f, table)) });
   const missing = (f: SubmissionField) => s.values[f] === null || s.values[f]?.trim() === '';
   const numbers = Object.fromEntries(submissionFieldKeys.map(f => [f, Decimal.parse(s.values[f])])) as Record<SubmissionField, Decimal | null>;
   for (const f of submissionFieldKeys) {
