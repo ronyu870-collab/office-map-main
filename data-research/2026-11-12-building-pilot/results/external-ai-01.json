@@ -232,7 +232,7 @@
     },
     {
       "task_ref": "66c50638-932c-4d40-95d8-497c59669f7a",
-      "status": "found",
+      "status": "conflict",
       "claims": [
         {
           "value": 2001,
@@ -258,9 +258,25 @@
               "document_date_meaning": "法律意见书披露月份"
             }
           ]
+        },
+        {
+          "value": 2002,
+          "unit": "year",
+          "scope": "tower",
+          "evidence": [
+            {
+              "url": "https://www.liangzidasha.cn/index.html",
+              "publisher": "量子芯座大厦第三方招商网站",
+              "excerpt": "芯座：竣工年月2002年01月（同页银座2001年06月）",
+              "locator": "芯座项目参数／竣工年月",
+              "accessed_on": "2026-11-13",
+              "document_date": null,
+              "document_date_meaning": null
+            }
+          ]
         }
       ],
-      "note": "2001年06月具体竣工月份仅见商业站点，法律意见书证明截至2001年11月已建成出售，尚未独立核实实际竣工月份；仅建议候选年份，不直接写入正式库。"
+      "note": "两个商业招商站点分别主张芯座2001年6月、2002年1月；律师报告记载该楼2001年11月已进行楼宇出售，但未直接披露建设项目竣工验收日期。2002年信息可能为投入使用或网站错误，仍应列为冲突，不得自动写生产库。"
     },
     {
       "task_ref": "f33854fa-8c44-414e-9058-d824f8a9f8d9",
