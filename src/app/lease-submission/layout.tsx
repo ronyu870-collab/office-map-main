@@ -50,6 +50,8 @@ export default function LeaseSubmissionLayout({ children }: { children: React.Re
 
   if (!authorized) return <LeaseSubmissionGuardLoading />;
 
+  if (pathname?.startsWith('/lease-submission/expiry')) return <>{children}</>;
+
   const inDatabase = pathname?.startsWith('/lease-submission/history');
   if (inDatabase) return <>{children}</>;
   const inMonitoring = pathname?.startsWith('/lease-submission/monitoring');

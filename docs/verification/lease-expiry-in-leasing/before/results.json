@@ -1,0 +1,21 @@
+{
+  "environment": "actual local Next production routes, synthetic HTTP data and identity; no production reads",
+  "browser": "157.0.8103.52",
+  "results": [
+    {
+      "width": 1280,
+      "baseline": true,
+      "noLeasingEntry": true
+    },
+    {
+      "width": 390,
+      "baseline": true,
+      "noLeasingEntry": true
+    },
+    {
+      "width": 320,
+      "baseline": true,
+      "noLeasingEntry": true
+    }
+  ]
+}
