@@ -44,7 +44,7 @@ try{
  `);
  for(let i=0;i<ids.length;i++){
   await client.query('insert into auth.users(id,email,banned_until) values($1,$2,$3)',[ids[i],'synthetic'+i+'@example.test',i===4?new Date(Date.now()+86400000):null]);
-  await client.query('insert into user_roles(user_id,role,full_name) values($1,$2,$3)',[ids[i],i===0?'admin':i===1?'editor':i===2?'viewer':'editor','synthetic'+i]);
+  await client.query('insert into user_roles(user_id,role,full_name) values($1,$2,$3)',[ids[i],i===0?'admin':i===1?'editor':i===2?'viewer':'editor',i===2?'Alice Wang':'synthetic'+i]);
  }
  await client.query("insert into messages(user_email,user_name,content) values('old@example.test','Old','保留旧消息')");
  await client.query(await readFile(new URL('../../migrations/20261113195000_market_communication_p0.sql',import.meta.url),'utf8'));
@@ -57,12 +57,20 @@ try{
  const count=async(table)=>Number((await client.query('select count(*)::int n from '+table)).rows[0].n);
  assert.equal((await role(serviceFixtureRole,"select has_table_privilege(current_user,'auth.users','SELECT') as can_read")).rows[0].can_read,false);
  pass('service role has no direct auth.users read, as in hosted production');
- const first=(await send(ids[1],[{text:'租金 '},{text:'@同事',mentionUserId:ids[2],bold:true},{text:' 下降',color:'red'}])).rows[0].id;
- assert.equal((await client.query('select content from messages where id=$1',[first])).rows[0].content,'租金 @同事 下降');
+ const first=(await send(ids[1],[{text:'租金 '},{text:'@Alice Wang',mentionUserId:ids[2],bold:true},{text:' 下降',color:'red'}])).rows[0].id;
+ assert.equal((await client.query('select content from messages where id=$1',[first])).rows[0].content,'租金 @Alice Wang 下降');
  assert.equal((await client.query('select recipient_user_id from message_notifications where message_id=$1',[first])).rows[0].recipient_user_id,ids[2]);
  assert.equal((await client.query('select count(*)::int n from audit_logs where target_id=$1',[String(first)])).rows[0].n,1);
  assert.equal((await client.query('select content from messages order by id limit 1')).rows[0].content,'保留旧消息');
  pass('rich post, exact recipient and audit; historic text retained');
+ // A guessed or free-typed @ alias must never notify the wrong UUID.
+ const messagesBeforeAlias=await count('messages');
+ const notificationsBeforeAlias=await count('message_notifications');
+ await assert.rejects(send(ids[1],[{text:'@Bob Chen',mentionUserId:ids[2]}]),e=>e.code==='22023');
+ await assert.rejects(send(ids[1],[{text:'@Alice',mentionUserId:ids[2]}]),e=>e.code==='22023');
+ assert.equal(await count('messages'),messagesBeforeAlias);
+ assert.equal(await count('message_notifications'),notificationsBeforeAlias);
+ pass('forged or incomplete mention labels cannot generate notifications');
  const reply=(await send(ids[0],[{text:'回复',bold:true}],first)).rows[0].id;
  assert.equal((await client.query('select reply_to_id from messages where id=$1',[reply])).rows[0].reply_to_id,String(first));
  await assert.rejects(send(ids[0],[{text:'x'}],999999),e=>e.code==='22023');pass('reply points to existing message');
