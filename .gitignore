@@ -60,3 +60,7 @@ next-env.d.ts
 # Generated local lease expiry timeline browser evidence (curated records live in docs)
 /verification/lease-expiry-timeline/
 /verification/lease-expiry-timeline-before/
+
+# Generated local timing and before screenshots; curated evidence lives under docs/verification.
+/verification/lease-expiry-context-before/
+/verification/lease-expiry-context-performance/

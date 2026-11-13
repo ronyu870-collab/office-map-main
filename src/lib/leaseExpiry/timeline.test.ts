@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expiryBar, expiryLabel, expiryMonths } from './timeline';
+import { expiryBar, expiryLabel, expiryMonths, expiryAxisMonths } from './timeline';
 
 describe('lease expiry timeline display', () => {
   it('clips inclusive estimates to the half-open server window without dropping its last day', () => {
@@ -25,4 +25,13 @@ describe('lease expiry timeline display', () => {
     expect(months[2].label).toBe('2027/1月');
     expect(expiryMonths('2026-11-13', '2026-11-12')).toEqual([]);
   });
+});
+
+it('keeps compact axis labels apart at month-end and across the year without shifting date positions', () => {
+  for (const day of ['2026-11-13', '2026-11-30', '2026-12-31']) {
+    const all = expiryMonths(day, '2027-05-31'), compact = expiryAxisMonths(day, '2027-05-31');
+    expect(compact.some(month => month.label === '2027/1月')).toBe(true);
+    for (const month of compact) { const original=all.find(value=>value.key===month.key)!; expect(month.left).toBeGreaterThan(original.left); expect(month.left).toBeLessThan(100); }
+    for (let i = 1; i < compact.length; i++) expect(compact[i].left - compact[i - 1].left).toBeGreaterThanOrEqual(12);
+  }
 });

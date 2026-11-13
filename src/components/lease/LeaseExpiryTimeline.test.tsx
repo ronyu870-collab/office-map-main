@@ -73,3 +73,15 @@ describe('read-only expiry under leasing', () => {
     await waitFor(() => expect(screen.getByText(/目前仅对管理员开放/)).toBeVisible());
   });
 });
+
+
+it('groups original period, term, area, industry and deal-building submarket', async () => {
+  state.list.mockResolvedValue({ ...data, items: [{ ...item, details: { area_sqm: 1250.5, industry: '信息技术', sub_industry: '软件', sub_market: '合成子市场' } }] });
+  render(<LeaseExpiryTimeline />);await screen.findByText('合成验证企业');
+  expect(screen.getByText('2021 年第四季度')).toBeVisible();expect(screen.getByText('60 个月')).toBeVisible();expect(screen.getByText('1,250.5 ㎡')).toBeVisible();expect(screen.getByText('信息技术 / 软件')).toBeVisible();expect(screen.getByText('合成子市场')).toBeVisible();
+  expect(screen.queryByText(/签约日|起租日|联网补充/)).toBeNull();
+});
+it('keeps missing details unknown and marks an inferred deal period', async () => {
+  state.list.mockResolvedValue({...data,items:[{...item,source:{...item.source,period_source:'info_date_inferred_same_year'},details:{area_sqm:null,industry:null,sub_industry:null,sub_market:null}}]});
+  render(<LeaseExpiryTimeline />);await screen.findByText('合成验证企业');expect(screen.getByText('成交期间（推定）')).toBeVisible();expect(screen.getAllByText('未记录')).toHaveLength(3);
+});

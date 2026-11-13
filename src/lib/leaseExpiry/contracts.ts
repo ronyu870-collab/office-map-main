@@ -27,3 +27,8 @@ export type CandidatePage = { items: Candidate[]; total: number; page: number; p
 export function chinaToday(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
+
+/** Separate from the immutable review snapshot and its fingerprint. */
+export type ExpiryDetails = { area_sqm: number | null; industry: string | null; sub_industry: string | null; sub_market: string | null };
+export type ExpiryCandidate = Candidate & { details?: ExpiryDetails };
+export type ExpiryPage = Omit<CandidatePage, 'items'> & { items: ExpiryCandidate[] };
