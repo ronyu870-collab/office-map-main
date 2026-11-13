@@ -81,6 +81,7 @@ try{
   }
   if(!(await db.query("select to_regclass('private.ai_query_result_access') r")).rows[0].r)await db.query(await load('20261113042352_ai_query_result_recovery.sql'));
   await db.query(await load('20261113063257_ai_query_internal_export_grant.sql'));
+  if(!(await db.query("select to_regclass('private.ai_query_execution_watch') r")).rows[0].r)await db.query(await load('20261113080906_ai_query_execution_reconciliation.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -98,8 +99,11 @@ try{
   assert.equal((await once(types,'exit'))[0],0,'Typecheck must pass before the production build');
   const build=spawn('npm',['run','build'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
   assert.equal((await once(build,'exit'))[0],0,'Actual Next production build must pass');
-  server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3289'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
-  await until(async()=>{try{return (await fetch(app+'/api/intelligence/query')).status===405;}catch{return false;}},'Next route startup');
+  const startApp=async()=>{
+    server=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3289'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
+    await until(async()=>{try{return (await fetch(app+'/api/intelligence/query')).status===405;}catch{return false;}},'Next route startup');
+  };
+  await startApp();
   await check('匿名请求不伪造身份，留有界入口事件且不进入业务查询',async()=>{
     const res=await call(null);assert.equal(res.status,401);
     const row=(await db.query('select * from private.ai_query_ingress_events where request_id=$1',[res.body.requestId])).rows[0];
@@ -479,6 +483,30 @@ try{
     const prior=await call(temporary);assert.equal(prior.status,200);await temporary.client.auth.signOut({scope:'local'});
     assert.ok([401,403].includes((await acknowledge(temporary,prior)).status));
   });
+  await check('真实请求接收后进程SIGKILL，独立CLI补记未知终态，重启不重跑原查询',async()=>{
+    const submitted=input();const before=new Set((await db.query('select request_id from private.ai_query_audit_streams where actor_id=$1',[viewer.id])).rows.map(r=>r.request_id));
+    await blocker.query('begin');await blocker.query('lock table private.ai_query_control in access exclusive mode');
+    let abandonedId;const pending=call(viewer,submitted).catch(()=>null);
+    try{
+      await until(async()=>{const rows=(await db.query("select request_id from private.ai_query_audit_streams where actor_id=$1 and state='received'",[viewer.id])).rows;abandonedId=rows.find(r=>!before.has(r.request_id))?.request_id;return Boolean(abandonedId);},'durable received request before blocked authority');
+      const stopped=once(server,'exit');server.kill('SIGKILL');assert.equal((await stopped)[1],'SIGKILL');
+    }finally{await blocker.query('rollback');}
+    const lost=await pending;assert.notEqual(lost?.body?.status,'ready');
+    assert.deepEqual((await events(abandonedId)).map(e=>e.kind),['received']);
+    assert.equal(decrypt((await events(abandonedId))[0]).content.submittedText,submitted.question);
+    await db.query("update private.ai_query_execution_watch set due_at=case when request_id=$1 then clock_timestamp()-interval '1 second' else clock_timestamp()+interval '180 seconds' end where state='pending'",[abandonedId]);
+    const worker=spawn(process.execPath,['scripts/intelligence/reconcile-query-audit.mjs'],{cwd:root,env:{...env,
+      AI_QUERY_RECONCILE_ALLOW_LOCAL:'disposable',AI_QUERY_RECONCILE_URL:settings.API_URL,AI_QUERY_RECONCILE_SECRET:settings.SERVICE_ROLE_KEY,AI_QUERY_RECONCILE_WORKER:'auth-crash-reconciler'},stdio:['ignore','pipe',log.fd]});
+    let text='';worker.stdout.on('data',chunk=>{text+=chunk;});assert.equal((await once(worker,'exit'))[0],0);
+    const repaired=JSON.parse(text);assert.equal(repaired.outcomes.find(x=>x.requestId===abandonedId)?.status,'settled');
+    const stored=await events(abandonedId);assert.deepEqual(stored.map(e=>e.kind),['received','failed']);
+    const conclusion=decrypt(stored.at(-1)).content;assert.equal(conclusion.executionOutcome,'unknown');assert.equal(conclusion.delivery,'unconfirmed');assert.equal(conclusion.providerCost,'unknown_not_zero');assert.equal(conclusion.originalActorId,viewer.id);
+    assert.equal((await db.query('select state from private.ai_query_execution_watch where request_id=$1',[abandonedId])).rows[0].state,'settled');
+    await startApp();const status=await recover(viewer,abandonedId);assert.equal(status.status,200);assert.equal(status.body.status,'failed');assert.equal(status.body.result,undefined);
+    assert.equal((await call(viewer,submitted)).status,202);assert.equal((await events(abandonedId)).length,2);
+    assert.equal((await call(viewer,input())).status,200);
+    const overview=await service.rpc('ai_query_reconcile_overview',{p_since:new Date(Date.now()-86400000).toISOString()});assert.equal(overview.error,null);assert.equal(overview.data.missing_watch,0);
+  });
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(viewer,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await call(viewer,body)).status,403);
@@ -488,9 +516,10 @@ try{
   });
   await check('普通用户无法直读审计/入口表或直接调用服务端RPC',async()=>{
     const direct=await other.client.rpc('ai_query_authority',{p_actor:other.id,p_effective:other.id,p_session:other.sessionId});assert.ok(direct.error);
-    for(const table of ['ai_query_audit_streams','ai_query_ingress_events','ai_query_result_access'])assert.ok((await other.client.schema('private').from(table).select('*')).error);
+    for(const table of ['ai_query_audit_streams','ai_query_ingress_events','ai_query_result_access','ai_query_execution_watch','ai_query_reconciliation_events'])assert.ok((await other.client.schema('private').from(table).select('*')).error);
     assert.ok((await other.client.rpc('ai_query_result_read',{p_actor:viewer.id,p_effective:viewer.id,p_session:viewer.sessionId,p_request_id:successful.body.requestId,p_action:'archive'})).error);
     assert.ok((await other.client.rpc('ai_query_result_sources_allowed',{p_actor:other.id,p_effective:other.id,p_session:other.sessionId,p_request_id:successful.body.requestId,p_permission_revision:'0'.repeat(64),p_sources:[]})).error);
+    assert.ok((await other.client.rpc('ai_query_reconcile_claim',{p_worker_ref:'forged-admin',p_limit:1})).error);
     const functions=(await db.query("select n.nspname,p.prosecdef,p.proconfig,has_function_privilege('anon',p.oid,'execute') anon,has_function_privilege('authenticated',p.oid,'execute') authenticated,has_function_privilege('service_role',p.oid,'execute') service from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.proname in ('ai_query_result_read','ai_query_result_sources_allowed')")).rows;
     assert.equal(functions.length,4);
     for(const fn of functions){assert.equal(fn.anon,false);assert.equal(fn.authenticated,false);assert.equal(fn.service,true);assert.equal(fn.prosecdef,fn.nspname==='private');assert.ok(fn.proconfig.includes('search_path=""'));}

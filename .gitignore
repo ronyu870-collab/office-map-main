@@ -57,3 +57,5 @@ next-env.d.ts
 
 # Private local pilot: authorized samples, credentials, database config and runtime snapshot.
 /.local/f6-admin-pilot/
+
+/verification/ai-query-reconciliation/
