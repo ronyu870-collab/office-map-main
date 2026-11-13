@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), maybeSingle: vi.fn() }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { getUser: mocks.getUser }, from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.maybeSingle }) }) }), rpc: mocks.rpc }) }));
 import { GET, POST } from './route';
+import * as expiryRoute from '@/src/app/api/lease-transactions/expiry/route';
 import { chinaToday } from '@/src/lib/leaseExpiry/contracts';
 const body = { source_kind:'history',source_id:'11111111-1111-4111-8111-111111111111',expected_revision:0,source_fingerprint:'a'.repeat(32),request_id:'22222222-2222-4222-8222-222222222222',status:'pending',notes:'',evidence_reference:'' };
 const request = (method='GET',input: unknown=body,headers: Record<string,string>={}) => new Request('http://localhost/api/intelligence/lease-expiry',{method,headers:{Authorization:'Bearer synthetic',...headers},...(method==='POST'?{body:JSON.stringify(input)}:{})});
@@ -11,6 +12,20 @@ beforeEach(() => {
   mocks.rpc.mockReset().mockResolvedValue({data:{items:[],total:0},error:null}); mocks.getUser.mockReset().mockResolvedValue({data:{user:{id:'verified-actor'}},error:null}); mocks.maybeSingle.mockReset().mockResolvedValue({data:{role:'admin'},error:null});
 });
 describe('F6 route authorization and validation',()=>{
+  it('keeps the leasing read endpoint admin-only, uncached and without a write handler', async () => {
+    expect('POST' in expiryRoute).toBe(false);
+    const read = () => expiryRoute.GET(new Request('http://localhost/api/lease-transactions/expiry?page=2&scope=window', { headers: { Authorization: 'Bearer synthetic' } }));
+    mocks.maybeSingle.mockResolvedValue({ data: { role: 'viewer' } });
+    expect((await read()).status).toBe(403);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.maybeSingle.mockResolvedValue({ data: { role: 'admin' } });
+    const result = await read();
+    expect(result.status).toBe(200);
+    expect(result.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(mocks.rpc).toHaveBeenCalledWith('lease_expiry_review_list', expect.objectContaining({ p_actor: 'verified-actor', p_page: 2, p_scope: 'window' }));
+    mocks.rpc.mockResolvedValue({ error: { code: '42501', message: 'private' } });
+    expect((await read()).status).toBe(403);
+  });
   it('is closed by default and denies anonymous, viewer and simulated access before data reads',async()=>{
     vi.stubEnv('LEASE_EXPIRY_REVIEW_ENABLED','');expect((await GET(request())).status).toBe(403);vi.stubEnv('LEASE_EXPIRY_REVIEW_ENABLED','true');
     expect((await GET(request('GET',null,{Authorization:''}))).status).toBe(401);

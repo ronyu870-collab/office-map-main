@@ -1,0 +1,64 @@
+{
+  "status": "pass",
+  "browser": "157.0.8103.52",
+  "layoutWidths": [
+    [
+      1280,
+      "admin"
+    ],
+    [
+      390,
+      "editor"
+    ],
+    [
+      320,
+      "editor"
+    ]
+  ],
+  "layoutOnly": false,
+  "fixtures": "isolated Auth, map adapter and synthetic rows",
+  "results": [
+    {
+      "width": 1280,
+      "role": "admin",
+      "workspaceLayout": true,
+      "searchCompositionAndCaret": true,
+      "futureProject": true,
+      "brochure": true,
+      "mapHistoryRoundTrip": true,
+      "exactCompany": true,
+      "commonViews": true,
+      "mapRecentSearch": true,
+      "confirmedSuggestionAndAlias": true,
+      "excel": true
+    },
+    {
+      "width": 390,
+      "role": "editor",
+      "workspaceLayout": true,
+      "searchCompositionAndCaret": true,
+      "futureProject": true,
+      "brochure": true,
+      "mapHistoryRoundTrip": true,
+      "exactCompany": true,
+      "commonViews": true,
+      "mapRecentSearch": true,
+      "confirmedSuggestionAndAlias": true,
+      "excel": false
+    },
+    {
+      "width": 320,
+      "role": "editor",
+      "workspaceLayout": true,
+      "searchCompositionAndCaret": true,
+      "futureProject": true,
+      "brochure": true,
+      "mapHistoryRoundTrip": true,
+      "exactCompany": true,
+      "commonViews": true,
+      "mapRecentSearch": true,
+      "confirmedSuggestionAndAlias": true,
+      "excel": false
+    }
+  ]
+}
