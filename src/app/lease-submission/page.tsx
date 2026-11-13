@@ -273,7 +273,7 @@ export default function LeaseSubmissionPage() {
         <AppHeader
           leading={<BrokerSearchLink />}
           className="max-sm:gap-1 max-sm:px-3"
-          title={<span className="flex items-center gap-2 max-sm:flex-col max-sm:items-start max-sm:gap-0">
+          title={<span className="flex flex-wrap items-center gap-x-2 max-sm:flex-col max-sm:items-start max-sm:gap-0">
             <span>租赁成交填报</span>
             <Badge className="shrink-0 whitespace-nowrap" tone={complete ? 'success' : 'warning'}>{progressLabel}</Badge>
           </span>}
@@ -281,14 +281,14 @@ export default function LeaseSubmissionPage() {
           actions={(
             <>
               {admin && <Link href="/lease-submission/monitoring" className="hidden h-8 items-center rounded-[var(--cd-radius-md)] px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] sm:inline-flex">团队监控</Link>}
-              {canWrite ? <Button type="button" size="sm" onClick={openCreate}><Plus size={13} />新增成交</Button> : <span className="text-[11px] font-medium text-slate-400">只读模式</span>}
+              {admin && !getImpersonationTargetUserId() && <LeaseExpiryLink variant="compact" />}
+              {canWrite ? <Button type="button" size="sm" aria-label="新增成交" title="新增成交" className="max-sm:min-h-11 max-[384px]:min-w-11 max-[384px]:px-0" onClick={openCreate}><Plus size={13} aria-hidden="true" /><span className="max-[384px]:hidden">新增成交</span></Button> : <span className="text-[11px] font-medium text-slate-400">只读模式</span>}
             </>
           )}
         />
       </header>
 
       <main className="mx-auto max-w-[1500px] space-y-3 p-3 sm:p-5">
-        {admin && !getImpersonationTargetUserId() && <div className="flex justify-end"><LeaseExpiryLink /></div>}
         <section className="overflow-hidden rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] sm:flex sm:items-center sm:justify-between sm:gap-4 sm:px-5" aria-label="租赁成交填报状态">
           <dl className="grid grid-cols-2 px-3 py-3 sm:w-1/2 sm:max-w-[22rem] sm:shrink-0 sm:px-0 sm:py-2">
             <div className="min-w-0 pr-3">
