@@ -29,7 +29,6 @@ import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
 import { canReadQuarterlyResearch } from '@/src/config/quarterlyResearch';
-import { canSeeOccupierReportCard } from '@/src/config/occupierReportCard';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
 import { canAccessAdminConsole } from '@/src/utils/adminAccess';
@@ -44,8 +43,7 @@ type WorkspaceModule = {
   href: string;
   module: string;
   title: string;
-  /** 首页入口的可见范围；缺省表示所有合法角色都能看到。 */
-  homeVisibility?: 'occupier-report' | 'admin-research';
+  adminOnly?: boolean;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -64,18 +62,17 @@ const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
 };
 
 const BUSINESS_WORKSPACES: WorkspaceModule[] = [
-  { href: '/quarterly-research', module: 'quarterly-research', title: '北京写字楼季度研究', homeVisibility: 'admin-research', icon: FileText },
-  {
-    href: '/update',
-    module: 'update',
-    title: '季度数据填报',
-    icon: ClipboardList,
-  },
   {
     href: '/lease-submission',
     module: 'lease-submission',
     title: '租赁成交填报',
     icon: Handshake,
+  },
+  {
+    href: '/update',
+    module: 'update',
+    title: '季度数据填报',
+    icon: ClipboardList,
   },
   {
     href: '/oss',
@@ -84,10 +81,17 @@ const BUSINESS_WORKSPACES: WorkspaceModule[] = [
     icon: FileSearch,
   },
   {
+    href: '/quarterly-research',
+    module: 'quarterly-research',
+    title: '北京写字楼季度研究',
+    adminOnly: true,
+    icon: FileText,
+  },
+  {
     href: '/occupier-insights',
     module: 'occupier-insights',
     title: '企业选址洞察报告',
-    homeVisibility: 'occupier-report',
+    adminOnly: true,
     icon: FileText,
   },
 ];
@@ -290,6 +294,7 @@ function HomeHeader({
 
 function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceModule; role: UserRole; onActivate: (event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void }) {
   const Icon = workspace.icon;
+  const visibilityNoteId = React.useId();
   const canAccess = canAccessModule(workspace.module, role);
   const accessibilityProps = getAccessibilityProps(workspace.module, workspace.title, role);
 
@@ -300,10 +305,15 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       onClick={(event) => onActivate(event, workspace)}
       className={`${styles.workspaceLink} ${canAccess ? '' : styles.unavailable}`}
       title={canAccess ? undefined : '当前账号无访问权限'}
+      aria-label={workspace.adminOnly ? workspace.title : undefined}
+      aria-describedby={workspace.adminOnly ? visibilityNoteId : undefined}
       {...accessibilityProps}
     >
       <span className={styles.workspaceIcon}><Icon size={20} strokeWidth={1.5} aria-hidden="true" /></span>
-      <h3>{workspace.title}</h3>
+      <div className={styles.workspaceText}>
+        <h3>{workspace.title}</h3>
+        {workspace.adminOnly && <p id={visibilityNoteId} className={styles.workspaceNote}>仅管理员可见</p>}
+      </div>
       {canAccess ? <ArrowRight size={16} strokeWidth={1.5} className={styles.linkArrow} aria-hidden="true" />
         : <span>无访问权限</span>}
     </HomeIntentLink>
@@ -365,11 +375,10 @@ export function HomeWorkspace() {
     impersonationActive: isImpersonating,
   }));
   const canSeeIntelligence = Boolean(activeSession && isIntelligencePreviewEnabled(activeRole));
-  // This card's visibility does not change the report's public access.
+  const canSeeAdminReportCards = canReadQuarterlyResearch(activeRole, isImpersonating);
+  // 首页入口的可见范围不改变企业选址洞察报告的公开分享链接。
   const visibleBusinessWorkspaces = activeSession ? BUSINESS_WORKSPACES.filter(workspace =>
-    workspace.homeVisibility === 'admin-research'
-      ? canReadQuarterlyResearch(activeRole, isImpersonating)
-      : workspace.homeVisibility !== 'occupier-report' || canSeeOccupierReportCard(activeRole, activeSession.user.email),
+    !workspace.adminOnly || canSeeAdminReportCards,
   ) : [];
 
   async function handleLogout() {

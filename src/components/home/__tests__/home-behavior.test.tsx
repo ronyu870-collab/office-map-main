@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -151,33 +151,33 @@ describe('Home workspace behavior', () => {
     );
   });
 
-  it('hides the occupier report card from users outside its audience', () => {
-    setSession('viewer');
+  it.each([
+    ['viewer', 'viewer@colliers.com'],
+    ['editor', 'tony.yan@colliers.com'],
+  ] as const)('shows only the three shared business entries to a %s', (role, email) => {
+    setSession(role, email);
     render(<HomeWorkspace />);
 
-    expect(screen.queryByRole('link', { name: '企业选址洞察报告' })).not.toBeInTheDocument();
-    const lease = screen.getByRole('link', { name: '租赁成交填报' });
-    expect(Array.from(lease.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
-      '/update', '/lease-submission', '/oss',
+    const navigation = within(screen.getByRole('navigation', { name: '业务入口' }));
+    expect(navigation.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual([
+      '/map', '/lease-submission', '/update', '/oss',
     ]);
+    expect(navigation.queryByText('仅管理员可见')).not.toBeInTheDocument();
   });
 
-  it('shows the occupier report card to the named report owner', () => {
-    setSession('editor', 'tony.yan@colliers.com');
+  it('shows all five business entries in order and identifies the two administrator entries', () => {
     render(<HomeWorkspace />);
 
-    const report = screen.getByRole('link', { name: '企业选址洞察报告' });
-    expect(Array.from(report.parentElement!.children).map(link => link.getAttribute('href'))).toEqual([
-      '/update', '/lease-submission', '/oss', '/occupier-insights',
+    const navigation = within(screen.getByRole('navigation', { name: '业务入口' }));
+    expect(navigation.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual([
+      '/map', '/lease-submission', '/update', '/oss', '/quarterly-research', '/occupier-insights',
     ]);
-    expect(report).toHaveAttribute('href', '/occupier-insights');
-    expect(fireEvent.click(report)).toBe(true);
-  });
-
-  it('shows the occupier report card to administrators', () => {
-    render(<HomeWorkspace />);
-
-    expect(screen.getByRole('link', { name: '企业选址洞察报告' })).toHaveAttribute('href', '/occupier-insights');
+    expect(navigation.getAllByText('仅管理员可见')).toHaveLength(2);
+    for (const name of ['北京写字楼季度研究', '企业选址洞察报告']) {
+      const link = navigation.getByRole('link', { name });
+      expect(link).toHaveAccessibleDescription('仅管理员可见');
+      expect(fireEvent.click(link)).toBe(true);
+    }
   });
 
   it('does not expose the admin entry while impersonating', () => {
@@ -186,5 +186,7 @@ describe('Home workspace behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '用户菜单' }));
     expect(screen.queryByRole('menuitem', { name: '系统管理' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '北京写字楼季度研究' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '企业选址洞察报告' })).not.toBeInTheDocument();
   });
 });
