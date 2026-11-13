@@ -1,5 +1,5 @@
 import { buildResultChart } from './charts';
-import { resultViewSchema, units } from './presentation';
+import { resultViewSchema, resultSummary, units } from './presentation';
 import type { QueryResult, ResultCell } from './result';
 import { resultDigest } from './result';
 
@@ -81,6 +81,13 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
         if (cell?.t === 'n') cell.z = '0.00%';
       }));
     }
+  }
+  if (result.operation === 'relationship') {
+    const summary = resultSummary(resultViewSchema.parse(result));
+    append('联合统计', [['result_id', result.resultId], ...summary.map(line => ['统计说明', line]),
+      ['公式', 'r = (nΣxy−ΣxΣy) / sqrt((nΣx²−(Σx)²)(nΣy²−(Σy)²))；每栋等权'],
+      ['精确计算', '未舍入矩与r²见口径与快照analysis；r为6位小数近似，不作显著性或因果推断。'],
+    ]);
   }
   append('精确值与来源', [
     ['entity_id', 'field', 'state', 'numerator', 'denominator', 'source_ids'],

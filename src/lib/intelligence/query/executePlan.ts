@@ -1,7 +1,7 @@
 import { assertComplete, quarterKey, type FactSnapshot } from './contracts';
 import { assertFieldContext, evaluatePredicate, type Predicate } from './facts';
 import { parseQueryPlan, planPeriods } from './plan';
-import { attachFilterEvidence, buildCrossTabResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
+import { attachFilterEvidence, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
 import type { NumericField } from './registry';
 
 /** Execute only against server-read snapshots, never client-provided rows.
@@ -23,7 +23,7 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
   const visit = (predicate: Predicate) => { if ('terms' in predicate) predicate.terms.forEach(visit); else filterFields.add(predicate.field); };
   if (plan.filter) visit(plan.filter);
   const requiredFields = new Set<NumericField>(plan.operation === 'list' ? plan.fields : plan.operation === 'rank' ? [plan.field]
-    : plan.metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : plan.metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea']);
+    : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] : plan.metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : plan.metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea']);
   for (const field of filterFields) requiredFields.add(field);
   for (const snapshot of snapshots) {
     const scope = snapshot.queryScope;
@@ -43,7 +43,8 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     return { ...item.snapshot, rows, expectedCount: rows.length };
   });
   const find = (period: FactSnapshot['period']) => selected.find(snapshot => key(snapshot.period) === key(period))!;
-  const result = plan.operation === 'cross_aggregate' ? buildCrossTabResult(find(plan.period), snapshots[0], plan.metric)
+  const result = plan.operation === 'relationship' ? buildRelationshipResult(find(plan.period))
+    : plan.operation === 'cross_aggregate' ? buildCrossTabResult(find(plan.period), snapshots[0], plan.metric)
     : plan.operation === 'group_aggregate' || plan.operation === 'group_trend'
     ? buildGroupedResult(periods.map(find), periods.map(period => snapshots.find(snapshot => key(snapshot.period) === key(period))!), plan.groupBy, plan.metric, plan.operation === 'group_trend' ? plan.mode : 'per_period')
     : plan.operation === 'trend' ? buildTrendResult(periods.map(find), plan.metric, plan.mode)

@@ -1,0 +1,65 @@
+{
+  "checkedAt": "2026-11-13T16:25:57.578Z",
+  "environment": "isolated localhost synthetic data",
+  "currentSample": {
+    "quarter": "2026Q3",
+    "candidates": 4,
+    "joint": 2,
+    "correlation": null,
+    "missingAndInvalidDistinct": true
+  },
+  "completeSample": {
+    "quarter": "2026Q2",
+    "candidates": 4,
+    "joint": 4,
+    "correlation": -0.523205,
+    "svg": "/Users/yuhang/Downloads/query-db6e4a5f-225c-4474-a9fb-e3369f20f6e9-svg_zip.zip",
+    "xlsx": "/Users/yuhang/Downloads/query-db6e4a5f-225c-4474-a9fb-e3369f20f6e9-xlsx.xlsx",
+    "sourceFields": [
+      "net_effective_rent",
+      "total_area"
+    ],
+    "focusReturned": true
+  },
+  "mobile": {
+    "content": 640,
+    "left": 316,
+    "page": 390,
+    "plotWidth": 324,
+    "points": 4,
+    "viewport": 390
+  },
+  "realDevice": false,
+  "independentVisualReview": false,
+  "readback": {
+    "passed": true,
+    "resultId": "db6e4a5f-225c-4474-a9fb-e3369f20f6e9",
+    "pearson": -0.523205,
+    "rSquaredExact": {
+      "numerator": "49",
+      "denominator": "179"
+    },
+    "rows": 4,
+    "scatterPoints": 4,
+    "sourceCount": 16,
+    "rawValues": [
+      [
+        90,
+        0.2
+      ],
+      [
+        180,
+        0.1
+      ],
+      [
+        160,
+        0.2
+      ],
+      [
+        140,
+        0.1
+      ]
+    ],
+    "sameResult": true
+  }
+}

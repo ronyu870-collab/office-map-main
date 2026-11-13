@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
-import { buildAggregateResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
+import { buildAggregateResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
@@ -20,6 +20,22 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('shows joint sample scatter with separate units, missing reasons and source focus return', async () => {
+    const result = resultViewSchema.parse(buildRelationshipResult(fixture()));
+    client.submit.mockResolvedValue({ requestId, status: 'ready', result });
+    client.chart.mockImplementation(async (_scope, _id, result, request) => buildResultChart(result, request));
+    render(view()); const input=screen.getByRole('textbox'); await waitFor(()=>expect(input).toBeEnabled());
+    fireEvent.change(input,{target:{value:'2026Q3CBD净有效租金与空置率关系'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
+    fireEvent.click(await screen.findByRole('button',{name:'查看散点图'}));
+    const figure=await screen.findByRole('figure',{name:'同源查询图表'});
+    expect(figure.querySelector('figcaption')).toHaveTextContent('净有效租金（元/㎡/月）与楼宇空置率（%）');
+    expect(figure.querySelectorAll('circle')).toHaveLength(2);expect(screen.getByText(/联合有效样本不足3栋/)).toBeInTheDocument();
+    const sourceButton=screen.getByRole('button',{name:'查看来源：楼宇空置率 10'});fireEvent.click(sourceButton);
+    expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('vacant_area');expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('total_area');
+    fireEvent.click(screen.getByRole('button',{name:'关闭来源'}));expect(sourceButton).toHaveFocus();
+    await waitFor(()=>expect(client.reportDelivery.mock.calls.some(call=>call[3]?.layout==='scatter_all')).toBe(true));
+    expect(client.submit).toHaveBeenCalledOnce();
+  });
   it('shows a complete accessible cross table with cell sources, same-result chart switch and receipt', async () => {
     const original = fixture();
     const snapshot = { ...original, rows: original.rows.map((row, i) => ({ ...row, dimensions: Object.fromEntries(['submarket', 'grade'].map(field => {

@@ -40,3 +40,5 @@
 区域与等级分组：[同一快照、各组独立样本、共同纵轴折线与分组来源](grouped-quarters.md)。
 
 双维交叉分析：[子市场 × 等级、热力表、逐格来源和 Excel 矩阵](cross-quarter.md)。
+
+- [同季度租金与空置率关系](rent-vacancy-relationship.md)：联合有效样本、精确矩与近似Pearson、同源散点和文件；本地验证不代表生产开放。

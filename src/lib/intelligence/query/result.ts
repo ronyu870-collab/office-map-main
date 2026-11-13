@@ -7,6 +7,7 @@ import { FIELD_REGISTRY_VERSION, numericFields, type NumericField } from './regi
 import { DIMENSION_REGISTRY_VERSION, catalogDimensions, type CatalogDimension } from './registry';
 import { groupedQuarterAnalysis } from './grouping';
 import { crossTabQuarter } from './crossTab';
+import { rentVacancyRelationship } from './relationship';
 
 const BROCHURE_LIMITATION = '楼书记录尚未确定有效版本优先级；不同值按冲突处理，相同值也不能据此确认当前现实状态。';
 
@@ -26,10 +27,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate' | 'relationship';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;
@@ -122,6 +123,29 @@ export function buildAggregateResult(snapshot: FactSnapshot, metric: Parameters<
         : { kind: 'unknown', state: 'missing', reason: 'no_valid_sample', sourceIds: [] } } }],
     },
   }, fields);
+}
+
+export function buildRelationshipResult(snapshot: FactSnapshot): QueryResult {
+  const analysis = rentVacancyRelationship(snapshot);
+  const metricCell = (metric: ReturnType<typeof aggregateQuarter>): ResultCell => {
+    const sourceIds = [...new Set([...metric.contributions.flatMap(row => row.sourceIds), ...metric.excluded.flatMap(row => row.sourceIds)])];
+    const c = metric.coverage;
+    return metric.value ? { kind: 'number', value: metric.value, sourceIds } : { kind: 'unknown', state: c.conflict ? 'conflict' : c.invalid ? 'invalid' : c.unverified ? 'unverified' : 'missing', reason: metric.excluded[0]?.reason ?? 'no_valid_sample', sourceIds };
+  };
+  const result = envelope(snapshot, { operation: 'relationship', parameters: { period: snapshot.period, formulaVersion: analysis.version, weighting: analysis.weighting }, analysis,
+    table: { id: 'rent_vacancy_relationship', columns: [
+      { key: 'name', label: '楼宇', unit: null }, { key: 'rent', label: '净有效租金', unit: 'CNY/m2/month' },
+      { key: 'vacancy', label: '楼宇空置率', unit: 'ratio' }, { key: 'joint', label: '联合样本', unit: null },
+    ], rows: analysis.rows.map((row, i) => {
+      const rent = metricCell(row.rent), vacancy = metricCell(row.vacancy);
+      return { entityId: row.entityId, cells: { name: { kind: 'text', value: snapshot.rows[i].name, sourceIds: [snapshot.rows[i].nameSource.id] }, rent, vacancy,
+        joint: { kind: 'text', value: row.jointValid ? '参与' : '不参与：至少一项缺失、无效、冲突或未核验', sourceIds: [...new Set([...rent.sourceIds, ...vacancy.sourceIds])] } } };
+    }) } }, ['totalArea', 'netEffectiveRent', 'vacantArea']);
+  return deepFreeze({ ...result, limitations: [...result.limitations,
+    '每栋楼为一个等权观察值，空置率由同栋同季有效空置面积除总面积；租金和空置率均沿用现有有效性规则。',
+    'Pearson系数只描述联合有效样本的线性关系，按6位小数近似；不足3栋或变量恒定时不计算。',
+    '未作显著性检验；小样本、异常值与样本选择可能显著影响结果，不代表现实市场，不推断因果或预测。',
+  ] });
 }
 
 export function buildCrossTabResult(selected: FactSnapshot, universe: FactSnapshot, metric: Parameters<typeof aggregateQuarter>[1]): QueryResult {

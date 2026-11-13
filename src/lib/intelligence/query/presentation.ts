@@ -16,7 +16,7 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
@@ -76,6 +76,13 @@ export function resultSummary(result: QueryResultView): string[] {
     result.parameters.mode==='paired'?'按全期间共同有效样本查看趋势，各季度使用相同楼宇集合。':'按各期有效样本查看趋势，各季度参与楼宇可能不同。',
     result.parameters.metric==='rent'?'净有效租金按各期有效总面积加权；分母、参与数量和缺失情况见表。':result.parameters.metric==='vacancy'?'空置率按同一有效样本的空置面积合计除以总面积合计；缺期保留未知。':'累加各期有效季度总面积；没有有效样本时显示未知，不记零。',
     ...(rows.every(r=>r.cells.value?.kind!=='number')?['不知道：当前范围没有可用的趋势数值；不会用其他季度或模型知识补齐。']:[])];
+  if (result.operation === 'relationship') {
+    const a = z.object({ coverage: z.object({ candidates: z.number().int().nonnegative(), rentValid: z.number().int().nonnegative(), vacancyValid: z.number().int().nonnegative(), jointValid: z.number().int().nonnegative(), excluded: z.number().int().nonnegative() }),
+      correlation: z.object({ value: z.number().min(-1).max(1).nullable(), unavailableReason: z.enum(['fewer_than_three_joint_samples', 'constant_variable']).nullable() }) }).parse(result.analysis);
+    return [`候选 ${a.coverage.candidates} 栋；租金有效 ${a.coverage.rentValid} 栋，空置率有效 ${a.coverage.vacancyValid} 栋，联合有效 ${a.coverage.jointValid} 栋；排除 ${a.coverage.excluded} 栋。`,
+      a.correlation.value === null ? `不知道：${a.correlation.unavailableReason === 'constant_variable' ? '联合样本中至少一个变量恒定，相关系数无定义。' : '联合有效样本不足3栋，不报告相关系数。'}` : `联合样本 Pearson 线性相关系数约为 ${a.correlation.value.toFixed(6)}；每栋等权，不按面积加权。`,
+      '只描述同栋同季度联合有效记录；未作显著性检验，不据此推断因果、预测或整个市场规律。'];
+  }
   if (result.operation === 'cross_aggregate') return [
     '按当前目录子市场 × 等级交叉统计，未填写分类单列未知。',
     '每格使用独立有效样本与分母，空组合保持未知；单楼小样本不能代表整个类别。',

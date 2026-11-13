@@ -94,7 +94,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     yColumn = column(request.kind === 'scatter' ? request.y : request.field);
     const xColumn = request.kind === 'scatter' ? column(request.x) : result.table.columns.find(c => c.key === 'name');
     if (request.kind === 'scatter') {
-      if (result.operation !== 'list' || request.x === request.y) throw new Error('CHART_JOINT_SAMPLE_REQUIRED');
+      if (!['list', 'relationship'].includes(result.operation) || request.x === request.y) throw new Error('CHART_JOINT_SAMPLE_REQUIRED');
       xLabel = xColumn!.label; xUnit = xColumn!.unit;
     }
     points = result.table.rows.map(row => {
