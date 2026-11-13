@@ -78,11 +78,18 @@ export function editorSegments(root: HTMLElement): MarketSegment[] {
       append('@所有人', { everyone: true });
       return;
     }
-    const color = element.dataset.marketColor;
+    const declaredColor = element.dataset.marketColor
+      ?? element.style.color
+      ?? (element.tagName === 'FONT' ? element.getAttribute('color') : null);
+    const normalizedCssColor = (declaredColor || '').toLowerCase().replaceAll(' ', '');
+    const color: MarketColor | null = normalizedCssColor === '#003e7e' || normalizedCssColor === 'rgb(0,62,126)'
+      ? 'blue' : normalizedCssColor === '#c9362b' || normalizedCssColor === 'rgb(201,54,43)'
+      ? 'red' : normalizedCssColor === '#16855b' || normalizedCssColor === 'rgb(22,133,91)'
+      ? 'green' : COLORS.has(normalizedCssColor as MarketColor) ? normalizedCssColor as MarketColor : null;
     const nextStyle = {
       ...style,
-      ...(element.tagName === 'STRONG' || element.tagName === 'B' ? { bold: true } : {}),
-      ...(color && COLORS.has(color as MarketColor) ? { color: color as MarketColor } : {}),
+      ...(element.tagName === 'STRONG' || element.tagName === 'B' || element.style.fontWeight === 'bold' || Number(element.style.fontWeight) >= 600 ? { bold: true } : {}),
+      ...(color ? { color } : {}),
     };
     const block = element.tagName === 'DIV' || element.tagName === 'P';
     if (block && result.length && !result[result.length - 1].text.endsWith('\n')) append('\n', style);
