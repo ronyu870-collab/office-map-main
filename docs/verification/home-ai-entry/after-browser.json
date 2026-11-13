@@ -1,0 +1,264 @@
+[
+  {
+    "width": 1280,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 1280,
+      "scrollWidth": 1280,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 390,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 390,
+      "scrollWidth": 390,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 320,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 320,
+      "scrollWidth": 320,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 639,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 639,
+      "scrollWidth": 639,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 640,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 640,
+      "scrollWidth": 640,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 959,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 959,
+      "scrollWidth": 959,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 960,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 960,
+      "scrollWidth": 960,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  },
+  {
+    "width": 390,
+    "role": "viewer",
+    "mode": "empty",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 390,
+      "scrollWidth": 390,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "empty activity state",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "restricted entries absent"
+    ],
+    "errors": []
+  },
+  {
+    "width": 390,
+    "role": "editor",
+    "mode": "error",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 390,
+      "scrollWidth": 390,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "notice and communication failure recovery",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "restricted entries absent"
+    ],
+    "errors": []
+  },
+  {
+    "width": 390,
+    "role": "admin",
+    "mode": "long",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 390,
+      "scrollWidth": 390,
+      "fonts": [
+        "20px",
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "bounded internal message scrolling",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow",
+      "query unavailable and disabled",
+      "no new AI request",
+      "initial page scroll remains zero",
+      "report navigation and browser back"
+    ],
+    "errors": []
+  }
+]

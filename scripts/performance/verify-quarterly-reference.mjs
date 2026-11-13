@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 
 const base = new URL(process.argv[2]);
 const baseline = process.argv.includes('--baseline');
@@ -22,6 +23,8 @@ try {
     try {
       let draftReads = 0;
       let writes = 0;
+      let savedDraft;
+      let revision = 1;
       const violations = [];
       await context.routeWebSocket(/.*/, ws => ws.close());
       await context.route('**/*', async route => {
@@ -33,6 +36,12 @@ try {
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
         if (url.pathname === '/auth/v1/user') return route.fulfill({ headers, json: user });
         const table = url.pathname.replace('/rest/v1/', '');
+        if (table === 'rpc/save_quarterly_draft_v2') {
+          writes++;
+          const payload = req.postDataJSON();
+          savedDraft = payload.p_draft_data;
+          return route.fulfill({ headers, json: [{ revision: ++revision, updated_at: '2026-11-11T00:00:00Z' }] });
+        }
         if (table.startsWith('rpc/')) { writes++; return route.fulfill({ status: 403, headers, json: { error: 'unexpected write' } }); }
         if (req.headers().authorization !== `Bearer ${token}`) violations.push(table);
         const offset = Number(url.searchParams.get('offset') ?? req.headers().range?.split('-')[0] ?? 0);
@@ -88,9 +97,31 @@ try {
       assert.equal(await quote.evaluate(input => input.value === '321' && !input.readOnly), true);
       const historicalPeriod = width === 390
         ? page.getByRole('columnheader', { name: '历史参考 2026 Q3' })
-        : page.getByText('参考期 2026 Q3');
+        : page.getByText(baseline ? '参考期 2026 Q3' : '上季度 2026 Q3').filter({ visible: true });
       await historicalPeriod.waitFor();
       assert.equal(writes, 0);
+      if (!baseline) {
+        await page.getByRole('button', { name: '批量填写 / 复制' }).click();
+        const pasted = page.getByLabel('粘贴表格内容');
+        await pasted.fill('120\t30\t110\t2\t0\t合成行备注');
+        await page.getByRole('button', { name: '预览填写' }).click();
+        assert.equal(await quote.inputValue(), '321');
+        if (process.env.BROKER_EVIDENCE_DIR) await page.screenshot({ path: join(process.env.BROKER_EVIDENCE_DIR, `quarterly-${width}.png`) });
+        await page.getByRole('button', { name: '写入草稿' }).click();
+        assert.equal(await quote.inputValue(), '120');
+        await page.getByRole('button', { name: '单元格备注' }).click();
+        await page.getByLabel('备注内容').fill('合成单元格备注');
+        await page.getByRole('button', { name: '完成' }).click();
+        if (await save.isEnabled()) {
+          await Promise.all([
+            page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/save_quarterly_draft_v2') && response.ok()),
+            save.click(),
+          ]);
+        }
+        assert.ok(writes >= 1);
+        assert.equal(savedDraft[building.id].qVacArea, '0');
+        assert.equal(savedDraft[building.id]['cellNote:qQuote'], '合成单元格备注');
+      }
       assert.deepEqual(violations, []);
       observations.push({ width, draftReadsWhileMetricsHeld, draftVisibleBeforeHistoricalReference: !baseline, protectedWrites: writes });
     } finally { release(); await context.close(); }

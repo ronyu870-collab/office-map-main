@@ -1,3 +1,5 @@
+import { composeQuarterlyNotes } from './quarterlyBatch';
+
 export type QuarterlyDraftRow = Record<string, string | number | null | undefined>;
 
 export const QUARTERLY_REQUIRED_FIELDS = ['qQuote', 'qProp', 'qFace', 'qFree', 'qVacArea'] as const;
@@ -105,6 +107,6 @@ export function buildQuarterlySubmissionPayload(
     total_area: safeTotalArea,
     owner: row.qOwner || null,
     property_management: row.qPropMan || null,
-    notes: row.qRemark || null,
+    notes: composeQuarterlyNotes(row),
   };
 }

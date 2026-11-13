@@ -1,5 +1,8 @@
 'use client';
 
+import { readMapFilterPreference } from './model/mapFilterPreference';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
+import type { BuildingFocus } from './MapRouteGate';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import type { SidebarFilterState, CompareGroup, SidebarFilterCommand } from '@/src/components/SidebarFilter';
@@ -44,7 +47,7 @@ const BuildingMetricsEditModal = dynamic(
   { ssr: false },
 );
 
-export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initialIntelligenceHandoff: IntelligenceMapRouteState | null }) {
+export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingFocus }: { initialIntelligenceHandoff: IntelligenceMapRouteState | null; buildingFocus?: BuildingFocus | null }) {
   const { session: appSession, status: appSessionStatus } = useAppSession();
   const allowed = appSessionStatus === 'authenticated' && Boolean(appSession);
   const userRole = appSession?.role || 'viewer';
@@ -52,11 +55,16 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
   const { isImpersonating } = useImpersonation();
   const authSessionId = getSessionIdFromAccessToken(appSession?.session?.access_token);
   const returnScope = allowed && !isImpersonating && authSessionId ? JSON.stringify([currentUserId, authSessionId, userRole]) : null;
-  const [initialReturn] = React.useState(() => readMapCompareReturn(returnScope));
+  const [initialReturn] = React.useState(() => initialIntelligenceHandoff || buildingFocus ? null : readMapCompareReturn(returnScope));
   const restorePending = React.useRef(true);
-  const initialFilters = initialReturn?.filter ?? initialIntelligenceHandoff?.filterState ?? null;
   const userRoleRef = React.useRef(userRole);
   userRoleRef.current = userRole;
+
+  const preferenceKey = currentUserId ? `broker-map:v1:${JSON.stringify([currentUserId, userRole, getImpersonationTargetUserId()])}` : '';
+  const [savedPreferences] = React.useState(() => !initialIntelligenceHandoff && preferenceKey ? readMapFilterPreference(preferenceKey) : null);
+  const initialFilters = initialReturn
+    ? initialReturn.filter
+    : initialIntelligenceHandoff?.filterState ?? savedPreferences?.filters ?? null;
 
   const [allBuildings, setAllBuildings] = React.useState<any[]>([]);
   const [futureSupplies, setFutureSupplies] = React.useState<any[]>([]);
@@ -151,7 +159,15 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     setFilterCommand(previous => ({ id: (previous?.id ?? 0) + 1, type, patch }));
   }, []);
   
-  const [searchInput, setSearchInput] = React.useState(initialReturn?.search ?? '');
+  const [searchInput, setSearchInput] = React.useState(initialReturn?.search ?? savedPreferences?.input ?? '');
+  React.useEffect(() => {
+    if (!preferenceKey || initialIntelligenceHandoff || buildingFocus) return;
+    try {
+      // Station objects belong to the live SDK; persist user-entered criteria only.
+      const filters = filterState ? { ...filterState, subwayLine: filterState.subwayStation ? null : filterState.subwayLine, subwayStation: null } : null;
+      window.sessionStorage.setItem(preferenceKey, JSON.stringify({ input: searchInput.slice(0, 200), filters }));
+    } catch { /* Map filtering remains available when storage is blocked. */ }
+  }, [preferenceKey, buildingFocus, initialIntelligenceHandoff, filterState, searchInput]);
   const keyword = searchInput.trim();
   const fullListFilterKey = React.useMemo(() => JSON.stringify([keyword, filterState, compareGroups]), [keyword, filterState, compareGroups]);
   const [settledFullListFilterKey, setSettledFullListFilterKey] = React.useState<string | null>(null);
@@ -580,6 +596,38 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
     });
   }, [fullListBusy, cancelPendingBuildingNavigation, changeWorkspaceView, controllerRef, workspaceViewRef, handleBuildingClick]);
 
+  const [focusStatus, setFocusStatus] = React.useState<{ key: string; found: boolean }>();
+  const openedFocus = React.useRef('');
+  const focusKey = buildingFocus ? JSON.stringify(buildingFocus) : '';
+  React.useEffect(() => {
+    const ctrl = controllerRef.current;
+    if (!buildingFocus || !mapReady || !ctrl || openedFocus.current === focusKey) return;
+    let cancelled = false;
+    const open = async () => {
+      if (!buildingFocus.future && mapDataLoading) return;
+      const items: typeof allBuildings = buildingFocus.future ? await ctrl.fetchFutureSupplies() : allBuildings;
+      if (cancelled || controllerRef.current !== ctrl) return;
+      const item = items.find(entry => entry.id === buildingFocus.id);
+      if (!item) { setFocusStatus({ key: focusKey, found: false }); return; }
+      openedFocus.current = focusKey;
+      changeWorkspaceView('map');
+      const located = hasBuildingLocation(item);
+      if (located) {
+        ctrl.map.setZoomAndCenter(16, [item.location_lng, item.location_lat], true);
+        if (buildingFocus.future) ctrl.openFutureSupplyInfoWindow(item);
+        else ctrl.openBuildingInfoWindow(item.id);
+      }
+      if (!buildingFocus.future && buildingFocus.section) {
+        window.dispatchEvent(new CustomEvent('broker:building-section', {
+          detail: { id: item.id, name: item.name, section: buildingFocus.section },
+        }));
+      }
+      setFocusStatus({ key: focusKey, found: located });
+    };
+    void open().catch(() => { if (!cancelled) setFocusStatus({ key: focusKey, found: false }); });
+    return () => { cancelled = true; };
+  }, [buildingFocus, focusKey, allBuildings, changeWorkspaceView, controllerRef, mapDataLoading, mapReady]);
+
   // 🌟 2. 抽离出的地图搜索处理函数及埋点逻辑
   const handleSearch = (val: string) => {
     cancelPendingBuildingNavigation();
@@ -655,6 +703,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff }: { initi
         combinedBuildingList={combinedBuildingList}
         displayOverrides={displayOverrides}
         targetBuildingId={targetBuildingId}
+        brokerContext={buildingFocus ? {
+          back: buildingFocus.back,
+          unavailable: focusStatus?.key === focusKey && !focusStatus.found,
+        } : null}
         intelligenceContext={initialIntelligenceHandoff ? {
           candidateCount: intelligenceCandidatesResolved ? filteredBuildings.length : null,
           appliedCapabilities: initialIntelligenceHandoff.appliedCapabilities,

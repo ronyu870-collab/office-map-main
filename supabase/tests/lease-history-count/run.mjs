@@ -141,6 +141,25 @@ try {
     const plan = result.rows[0]['QUERY PLAN'][0];
     console.log(JSON.stringify({ label, executionMs: plan['Execution Time'], root: plan.Plan['Node Type'], sharedHits: plan.Plan['Shared Hit Blocks'] }));
   }
+  // Confirm the exact-match request against the real view and PostgREST:
+  // punctuation remains literal, matching is case/edge-space insensitive,
+  // and a branch name does not inherit a different company's records.
+  await db.setup.query(`
+    insert into public.lease_transactions(company,new_building,transaction_year,transaction_quarter,area_sqm,industry,sub_market)
+    values (' A.B_(测试)*% ','Synthetic project',2025,'Q3',150,'合成行业','合成子市场'),
+           ('a.b_(测试)*%','Synthetic project',2024,'Q2',160,'合成行业','合成子市场'),
+           ('A.B_(测试)*% 分公司','Synthetic project',2025,'Q3',170,'不同法人','合成子市场');
+    insert into public.lease_transactions_history(source_uid,company,new_building,transaction_year,transaction_quarter,area_sqm)
+    values ('exact-archived','A.B_(测试)*%','Synthetic project',2023,'Q1',180);
+  `);
+  const exact = String.raw`^[[:space:]]*A\.B_\(测试\)\*%[[:space:]]*$`;
+  const allExact = assertOk(await relation().select('company,record_source', { count: 'exact' }).regexIMatch('company', exact));
+  const confirmed = assertOk(await relation().select('industry,sub_market,quality_status,transaction_year,transaction_quarter', { count: 'exact' })
+    .regexIMatch('company', exact).eq('record_source', 'live').not('transaction_period_start', 'is', null));
+  assert.equal(allExact.count, 3);
+  assert.equal(confirmed.count, 2);
+  assert.ok(confirmed.data.every(row => row.quality_status === 'OPERATIONAL' && row.industry === '合成行业'));
+  console.log('PASS exact company punctuation, branch exclusion, archive separation and confirmed recommendation fields');
   console.log(`PASS history page and exact HEAD count match the combined request, source rules and project association on ${db.version}`);
 } finally {
   if (gateway && gateway.exitCode === null && gateway.pid) {

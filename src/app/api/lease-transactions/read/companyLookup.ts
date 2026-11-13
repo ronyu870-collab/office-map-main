@@ -40,7 +40,7 @@ export async function readLeaseCompany(
   const exact = `^[[:space:]]*${fragment}[[:space:]]*$`;
 
   if (mode === 'recent') {
-    const { data, error } = await select('read_id,record_source,new_building,demand_type,area_sqm,effective_rent,transaction_date,transaction_year,transaction_quarter')
+    const { data, error } = await select('read_id,record_source,new_building,demand_type,area_sqm,effective_rent,transaction_date,transaction_year,transaction_quarter,industry,sub_market,building_match_scope,quality_status')
       .regexIMatch('company', exact)
       .not('transaction_period_start', 'is', null)
       .order('transaction_period_start', { ascending: false, nullsFirst: false })
@@ -50,9 +50,11 @@ export async function readLeaseCompany(
     return NextResponse.json({ records: data ?? [] }, { headers });
   }
 
+  const stem = company.replace(/(?:股份有限公司|有限责任公司|股份公司|有限公司|公司)$/, '').trim();
+  const stemPattern = stem.length >= 3 && stem !== company ? escapeLeaseCompanyRegex(stem) : fragment;
   const [match, names, fullNames] = await Promise.all([
     select('company').regexIMatch('company', exact).not('transaction_period_start', 'is', null).limit(1),
-    select('company').regexIMatch('company', fragment).order('company').limit(MAX_CANDIDATE_ROWS),
+    select('company,suspected_company_fullname').regexIMatch('company', stemPattern).order('company').limit(MAX_CANDIDATE_ROWS),
     select('company,suspected_company_fullname')
       .regexIMatch('suspected_company_fullname', fragment)
       .order('company').limit(MAX_CANDIDATE_ROWS),
@@ -66,14 +68,14 @@ export async function readLeaseCompany(
     const key = name.toLowerCase();
     if (!name || name.length > LEASE_COMPANY_NAME_MAX_LENGTH) return;
     const previous = matches.get(key);
-    if (previous && !(name === company && previous.company !== company)) return;
     const alias = typeof fullName === 'string' ? fullName.trim() : '';
-    matches.set(key, alias && alias.toLowerCase() !== key
-      ? { company: name, matchedFullName: alias }
-      : { company: name });
+    const option = previous ?? { company: name };
+    if (name === company) option.company = name;
+    if (alias && alias.toLowerCase() !== key && !option.matchedFullName) option.matchedFullName = alias;
+    matches.set(key, option);
   };
   for (const row of match.data ?? []) add(row.company);
-  for (const row of names.data ?? []) add(row.company);
+  for (const row of names.data ?? []) add(row.company, row.suspected_company_fullname);
   for (const row of fullNames.data ?? []) {
     add(row.company, row.suspected_company_fullname);
   }
@@ -82,7 +84,11 @@ export async function readLeaseCompany(
     const name = suggestion.company.toLowerCase();
     return name === needle ? 0 : name.startsWith(needle) ? 1 : suggestion.matchedFullName ? 3 : 2;
   }
-  const ordinary = [...matches.values()]
+  const stemKey = (value: string) => value.toLowerCase().replace(/(?:股份有限公司|有限责任公司|股份公司|有限公司|公司)$/, '').trim();
+  const ordinary = [...matches.values()].map(option =>
+    option.company.toLowerCase() !== needle && stem.length >= 3 && stemKey(option.company) === stemKey(company)
+      ? { ...option, nameSimilarity: true }
+      : option)
     .sort((a, b) => rank(a) - rank(b) || a.company.localeCompare(b.company, 'zh-CN'));
   const configured = allowAssessment ? getCompanyAssessmentConfig() : null;
   const config = configured && shouldAssessCompany(company, ordinary) ? configured : null;

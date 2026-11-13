@@ -33,3 +33,9 @@
 修复版在 Chrome 157.0.8103.52 的两组浏览器回归均通过。390px 下实测来源 46×44px、筛选／查询 332×44px；表单取消 54×44px、保存／提交／更新 82×44px。320px 窄屏和 920px 触控也均达到 44×44px，1280px 鼠标保留原高度。逐屏复核确认按钮分组与阅读顺序保持，手机表单底栏完整入屏。完整本地 `npm run verify`（Vitest 4 workers、合成高德 key）通过 195 个文件的 1,250 项测试及构建。
 
 此前 head 的 CI 结果仍见 [PR #176](https://github.com/ronyu870-collab/office-map-main/pull/176)。修复后的远端结果按新 head 核对；预览角色页与 iOS Safari／Android Chrome 真机仍需另验。
+
+## 同步 main 后复验（PR #176）
+
+将 `main` 的 `f6c9c81` 合入 PR 分支，保留 Broker 的楼宇／企业检索、成交历史筛选与返回、地图筛选偏好，以及本 PR 的云草稿保护、触控尺寸、关联成交状态和楼宇对比返回。成交表单候选留在滚动区，底部操作留在独立底栏；关联成交只在成功读取后显示计数和原权限下的成交库入口。双方的浏览器回归均保留在 Verify。
+
+同步后的结果以 [PR #176 的精确提交检查](https://github.com/ronyu870-collab/office-map-main/pull/176/checks)为准。预览独立视觉验收待验；iOS Safari 和 Android Chrome 均为「未执行：无可用真机」。

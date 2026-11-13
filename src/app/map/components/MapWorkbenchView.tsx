@@ -1,5 +1,6 @@
 'use client';
 
+import { BrokerSearchLink } from '@/src/components/BrokerSearchLink';
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -72,6 +73,7 @@ type MapWorkbenchViewProps = {
   combinedBuildingList: any[];
   displayOverrides: Map<string, Map<string, DisplayOverride>>;
   targetBuildingId: string | null;
+  brokerContext?: { back?: string; unavailable: boolean } | null;
   intelligenceContext?: {
     candidateCount: number | null;
     appliedCapabilities: string[];
@@ -346,6 +348,7 @@ export function MapWorkbenchView({
   combinedBuildingList,
   displayOverrides,
   targetBuildingId,
+  brokerContext,
   intelligenceContext = null,
   onFilterPanelOpenChange,
   onSupplyOpenChange,
@@ -444,7 +447,7 @@ export function MapWorkbenchView({
       <div ref={mapWorkspaceRef} className={isFullListVisible ? 'opacity-0 pointer-events-none absolute inset-0' : 'absolute inset-0'} inert={isFullListVisible || undefined} aria-hidden={isFullListVisible || undefined}>
     <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
-        <AppHeader
+        <AppHeader leading={<BrokerSearchLink />} className="max-sm:gap-1 max-sm:px-3"
           title="北京办公楼市场地图"
           homeHref="/"
           actions={<>
@@ -466,6 +469,10 @@ export function MapWorkbenchView({
             </Button>
           ) : null}</>}
         />
+        {(brokerContext?.back || brokerContext?.unavailable) && <div className="flex flex-wrap items-center gap-x-3 px-4 text-sm">
+          {brokerContext.back && <a className="inline-flex min-h-11 items-center text-[var(--cd-color-brand)] underline" href={brokerContext.back}>返回来源</a>}
+          {brokerContext.unavailable && <span role="status">未找到可定位的楼宇或项目。</span>}
+        </div>}
       </header>
 
       <main className="relative min-h-0 flex-1 overflow-hidden">
@@ -563,7 +570,7 @@ export function MapWorkbenchView({
           </div>
         </div>
 
-        <div className="pointer-events-auto absolute bottom-[80px] right-3 z-[265] flex overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:hidden" role="group" aria-label="移动端地图显示模式">
+        <div data-map-popup-bottom-control className="pointer-events-auto absolute bottom-[80px] right-3 z-[265] flex overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:hidden" role="group" aria-label="移动端地图显示模式">
           {MODE_OPTIONS.map(({ mode, label }, index) => (
             <button
               key={mode}

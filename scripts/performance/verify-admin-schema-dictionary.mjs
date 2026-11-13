@@ -161,7 +161,14 @@ try {
       assert.equal(chunks.filter(chunk => chunk.kind === 'company').length, 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       results.push({ width, role, detailWidth, initialGzipBytes: initialBytes, initial, schemaChunks: chunks });
-    } finally { releaseSearch(); await context.close(); }
+    } finally {
+      // A rejected viewer may still be fetching the redirected homepage's chunks.
+      // Release fixture holds and finish route callbacks before closing their context.
+      delaySearch = false;
+      releaseSearch();
+      try { await context.unrouteAll({ behavior: 'wait' }); }
+      finally { await context.close(); }
+    }
   }
   console.log(JSON.stringify({ status: 'pass', baseline, browser: browser.version(), results }, null, 2));
 } finally { await browser.close(); }

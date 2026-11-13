@@ -77,11 +77,19 @@ try {
       const initial = page.getByRole('button', { name: 'Initial report.pdf' });
       await initial.waitFor();
       assert.equal(await page.getByRole('button', { name: '上传文件' }).count(), 0);
+      const search = page.getByRole('textbox', { name: '搜索当前目录资料' });
+      const fileType = page.locator('select').filter({ has: page.getByRole('option', { name: 'PDF 文档' }) });
+      await search.fill('Initial');
+      await fileType.selectOption('pdf');
       await page.locator('header a[href="/"]').click();
       await page.waitForURL(base.href);
       await page.goBack();
       await initial.waitFor();
       assert.deepEqual(reads, [null], 'a reader returning immediately must not list the same directory twice');
+      assert.equal(await search.inputValue(), 'Initial');
+      assert.equal(await fileType.inputValue(), 'pdf');
+      await search.fill('');
+      await fileType.selectOption('all');
 
       const updater = await context.newPage();
       await updater.goto(new URL('/login', base).href);
@@ -91,7 +99,6 @@ try {
       const more = page.getByRole('button', { name: '加载更多' });
       await more.waitFor();
       assert.equal(await initial.count(), 0);
-      const search = page.getByRole('textbox', { name: '搜索当前目录资料' });
       await search.pressSequentially('Second');
       await more.click();
       await search.focus();
@@ -114,7 +121,7 @@ try {
       assert.equal(access.length, 2, 'each file open needs a new authorized access request');
       assert.equal(await result.count(), 0);
       assert.deepEqual(violations, []);
-      observations.push({ width, shortReturnRequests: 0, crossTabRefresh: 'pass', continuation: 'pass', accessRequestPerOpen: 'pass', denial: 'pass', searchFocus: 'pass' });
+      observations.push({ width, shortReturnRequests: 0, crossTabRefresh: 'pass', continuation: 'pass', accessRequestPerOpen: 'pass', denial: 'pass', searchFocus: 'pass', recentFilter: 'pass' });
     } finally { await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', browser: await browser.version(), environment: 'local production build, isolated browser data', observations }));

@@ -146,13 +146,19 @@ export class QuarterlyDraftStore {
     }
   }
   edit(kind: 'regular' | 'future', id: string, field: string, value: string, legacyId?: string) {
-    if (this.snapshot.quarantined) return;
-    const rows = this.snapshot.payload[kind];
-    const nextRows = { ...rows, [id]: { ...(legacyId ? rows[legacyId] : {}), ...rows[id], [field]: value } };
-    if (legacyId && legacyId !== id) delete nextRows[legacyId];
+    this.editCells([{ kind, id, field, value, legacyId }]);
+  }
+  editCells(cells: ReadonlyArray<{ kind: 'regular' | 'future'; id: string; field: string; value: string; legacyId?: string }>) {
+    if (this.snapshot.quarantined || !cells.length) return;
+    const next = { regular: { ...this.snapshot.payload.regular }, future: { ...this.snapshot.payload.future } };
+    for (const { kind, id, field, value, legacyId } of cells) {
+      const rows = next[kind];
+      rows[id] = { ...(legacyId ? rows[legacyId] : {}), ...rows[id], [field]: value };
+      if (legacyId && legacyId !== id) delete rows[legacyId];
+    }
     this.editVersion++;
-    this.publish({ payload: { ...this.snapshot.payload, [kind]: nextRows }, dirty: true });
-    // Synchronous persistence at the edit boundary also covers immediate reload.
+    this.publish({ payload: next, dirty: true });
+    // Persist the entire paste as one edit so reload cannot see a partial range.
     this.persist();
   }
   replaceFromFormal(payload: DraftPayload) {

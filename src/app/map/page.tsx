@@ -1,3 +1,4 @@
+import { BROKER_ID, brokerReturn } from '@/src/lib/broker/links';
 import { MapSalesMaterialsBridge } from './MapSalesMaterialsBridge';
 import './map-workbench.css';
 import './map-native-overlays.css';
@@ -27,7 +28,15 @@ function toUrlSearchParams(input: Record<string, string | string[] | undefined>)
 
 export default async function MapPage({ searchParams }: MapPageProps) {
   const resolvedSearchParams = await searchParams;
-  const initialIntelligenceHandoff = parseIntelligenceMapHandoff(toUrlSearchParams(resolvedSearchParams));
+  const params = toUrlSearchParams(resolvedSearchParams);
+  const initialIntelligenceHandoff = parseIntelligenceMapHandoff(params);
+  const future = params.get('future');
+  const id = future ?? params.get('building');
+  const section = params.get('section');
+  const buildingFocus = id && BROKER_ID.test(id) ? {
+    id, future: Boolean(future), section: section === 'brochure' || section === 'availability' || section === 'deals' ? section : undefined,
+    back: brokerReturn(params.get('back')),
+  } as const : null;
 
   return (
     <>
@@ -36,7 +45,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
       <MapSalesMaterialsBridge />
       {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
-      <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} />
+      <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} />
     </>
   );
 }
