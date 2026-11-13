@@ -1,0 +1,1526 @@
+{
+  "passed": true,
+  "browser": "157.0.8103.52",
+  "originalBytes": 5982552,
+  "mockInterserviceLatencyMs": 45,
+  "mockStorageReadLatencyMs": 160,
+  "scope": "local production-built API + source gallery; simulated browser network, viewer identity, and Storage",
+  "profiles": {
+    "desktop": {
+      "profile": {
+        "width": 1280,
+        "height": 800,
+        "latencyMs": 60,
+        "downloadMbps": 30,
+        "firstPhotoP90Ms": 1500
+      },
+      "before": {
+        "samples": 20,
+        "failures": 0,
+        "feedbackP90Ms": 55,
+        "firstPhotoP50Ms": 560,
+        "firstPhotoP90Ms": 605,
+        "reopenP90Ms": 47,
+        "photoBytesP90": 269738,
+        "apiP90Ms": 298,
+        "imageRequestP90Ms": 245
+      },
+      "after": {
+        "samples": 20,
+        "failures": 0,
+        "feedbackP90Ms": 68,
+        "firstPhotoP50Ms": 630,
+        "firstPhotoP90Ms": 867,
+        "reopenP90Ms": 47,
+        "photoBytesP90": 269738,
+        "apiP90Ms": 500,
+        "imageRequestP90Ms": 0
+      },
+      "passed": true,
+      "rows": {
+        "before": [
+          {
+            "cold": {
+              "feedbackMs": 52,
+              "visibleMs": 932.2999999523163,
+              "bytes": 269738,
+              "imageMs": 535.1999998092651,
+              "apiMs": 348.59999990463257,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 12.800000190734863,
+              "visibleMs": 46.30000019073486,
+              "bytes": 269738,
+              "imageMs": 535.1999998092651,
+              "apiMs": 348.59999990463257,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 42.200000047683716,
+              "visibleMs": 570.2999999523163,
+              "bytes": 269738,
+              "imageMs": 237.39999985694885,
+              "apiMs": 284,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 11.799999952316284,
+              "visibleMs": 45,
+              "bytes": 269738,
+              "imageMs": 237.39999985694885,
+              "apiMs": 284,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 55,
+              "visibleMs": 543.4000000953674,
+              "bytes": 269738,
+              "imageMs": 234.60000014305115,
+              "apiMs": 270.80000019073486,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 7.200000047683716,
+              "visibleMs": 40.5,
+              "bytes": 269738,
+              "imageMs": 234.60000014305115,
+              "apiMs": 270.80000019073486,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 53,
+              "visibleMs": 581.8999998569489,
+              "bytes": 269738,
+              "imageMs": 238.70000004768372,
+              "apiMs": 298.10000014305115,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 13.100000143051147,
+              "visibleMs": 45.60000014305115,
+              "bytes": 269738,
+              "imageMs": 238.70000004768372,
+              "apiMs": 298.10000014305115,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 51.299999952316284,
+              "visibleMs": 679.5999999046326,
+              "bytes": 269738,
+              "imageMs": 240,
+              "apiMs": 378.80000019073486,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 6.599999904632568,
+              "visibleMs": 40.700000047683716,
+              "bytes": 269738,
+              "imageMs": 240,
+              "apiMs": 378.80000019073486,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 53.59999990463257,
+              "visibleMs": 560.4000000953674,
+              "bytes": 269738,
+              "imageMs": 245.5,
+              "apiMs": 264.5,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 12.5,
+              "visibleMs": 45.5,
+              "bytes": 269738,
+              "imageMs": 245.5,
+              "apiMs": 264.5,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 37.799999952316284,
+              "visibleMs": 534.8999998569489,
+              "bytes": 269738,
+              "imageMs": 233.90000009536743,
+              "apiMs": 252.79999995231628,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 13.400000095367432,
+              "visibleMs": 47,
+              "bytes": 269738,
+              "imageMs": 233.90000009536743,
+              "apiMs": 252.79999995231628,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 49.799999952316284,
+              "visibleMs": 567.5,
+              "bytes": 269738,
+              "imageMs": 240.90000009536743,
+              "apiMs": 288,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 13.799999952316284,
+              "visibleMs": 47.59999990463257,
+              "bytes": 269738,
+              "imageMs": 240.90000009536743,
+              "apiMs": 288,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 52.09999990463257,
+              "visibleMs": 527.0999999046326,
+              "bytes": 269738,
+              "imageMs": 234,
+              "apiMs": 246.29999995231628,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 11.5,
+              "visibleMs": 45,
+              "bytes": 269738,
+              "imageMs": 234,
+              "apiMs": 246.29999995231628,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 44,
+              "visibleMs": 543.8999998569489,
+              "bytes": 269738,
+              "imageMs": 235.5,
+              "apiMs": 254.80000019073486,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 13.599999904632568,
+              "visibleMs": 45.89999985694885,
+              "bytes": 269738,
+              "imageMs": 235.5,
+              "apiMs": 254.80000019073486,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 47.10000014305115,
+              "visibleMs": 525.9000000953674,
+              "bytes": 269738,
+              "imageMs": 236.29999995231628,
+              "apiMs": 245.70000004768372,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 2.299999952316284,
+              "visibleMs": 36,
+              "bytes": 269738,
+              "imageMs": 236.29999995231628,
+              "apiMs": 245.70000004768372,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 46.60000014305115,
+              "visibleMs": 605.4000000953674,
+              "bytes": 269738,
+              "imageMs": 244.79999995231628,
+              "apiMs": 267.89999985694885,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 2.700000047683716,
+              "visibleMs": 36,
+              "bytes": 269738,
+              "imageMs": 244.79999995231628,
+              "apiMs": 267.89999985694885,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 44.700000047683716,
+              "visibleMs": 516.5,
+              "bytes": 269738,
+              "imageMs": 234.20000004768372,
+              "apiMs": 242,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 0.40000009536743164,
+              "visibleMs": 30.799999952316284,
+              "bytes": 269738,
+              "imageMs": 234.20000004768372,
+              "apiMs": 242,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 47.80000019073486,
+              "visibleMs": 577.9000000953674,
+              "bytes": 269738,
+              "imageMs": 238.09999990463257,
+              "apiMs": 281.2000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 8.300000190734863,
+              "visibleMs": 41.700000047683716,
+              "bytes": 269738,
+              "imageMs": 238.09999990463257,
+              "apiMs": 281.2000000476837,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 53.90000009536743,
+              "visibleMs": 560.8000001907349,
+              "bytes": 269738,
+              "imageMs": 237.5,
+              "apiMs": 261.89999985694885,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 14.799999952316284,
+              "visibleMs": 48.10000014305115,
+              "bytes": 269738,
+              "imageMs": 237.5,
+              "apiMs": 261.89999985694885,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 63.5,
+              "visibleMs": 577.0999999046326,
+              "bytes": 269738,
+              "imageMs": 237.20000004768372,
+              "apiMs": 291.2000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 9.100000143051147,
+              "visibleMs": 42.200000047683716,
+              "bytes": 269738,
+              "imageMs": 237.20000004768372,
+              "apiMs": 291.2000000476837,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 39.299999952316284,
+              "visibleMs": 535.5,
+              "bytes": 269738,
+              "imageMs": 239,
+              "apiMs": 243,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 8.600000143051147,
+              "visibleMs": 41.60000014305115,
+              "bytes": 269738,
+              "imageMs": 239,
+              "apiMs": 243,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 53.5,
+              "visibleMs": 552.0999999046326,
+              "bytes": 269738,
+              "imageMs": 236.70000004768372,
+              "apiMs": 263.40000009536743,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 12.799999952316284,
+              "visibleMs": 45.799999952316284,
+              "bytes": 269738,
+              "imageMs": 236.70000004768372,
+              "apiMs": 263.40000009536743,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 55.09999990463257,
+              "visibleMs": 581,
+              "bytes": 269738,
+              "imageMs": 235.90000009536743,
+              "apiMs": 295.89999985694885,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 12.5,
+              "visibleMs": 45.799999952316284,
+              "bytes": 269738,
+              "imageMs": 235.90000009536743,
+              "apiMs": 295.89999985694885,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 49,
+              "visibleMs": 528.5,
+              "bytes": 269738,
+              "imageMs": 234.10000014305115,
+              "apiMs": 257.40000009536743,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 11.400000095367432,
+              "visibleMs": 43.80000019073486,
+              "bytes": 269738,
+              "imageMs": 234.10000014305115,
+              "apiMs": 257.40000009536743,
+              "inline": false
+            }
+          }
+        ],
+        "after": [
+          {
+            "cold": {
+              "feedbackMs": 47.60000014305115,
+              "visibleMs": 690.9000000953674,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 592.4000000953674,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.800000190734863,
+              "visibleMs": 46,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 592.4000000953674,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 74.70000004768372,
+              "visibleMs": 784.6000001430511,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 485.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 6.400000095367432,
+              "visibleMs": 38.60000014305115,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 485.2999999523163,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 48.799999952316284,
+              "visibleMs": 857.7000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 460.90000009536743,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 14.299999952316284,
+              "visibleMs": 48.200000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 460.90000009536743,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 73.59999990463257,
+              "visibleMs": 3432.2999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 493.69999980926514,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 4.200000047683716,
+              "visibleMs": 37.39999985694885,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 493.69999980926514,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 63,
+              "visibleMs": 1524.5999999046326,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 604.0999999046326,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 8.100000143051147,
+              "visibleMs": 42.200000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 604.0999999046326,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 67.89999985694885,
+              "visibleMs": 866.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 473.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.599999904632568,
+              "visibleMs": 46.39999985694885,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 473.2999999523163,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 52.89999985694885,
+              "visibleMs": 591.7999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 450.40000009536743,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 5.599999904632568,
+              "visibleMs": 38.90000009536743,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 450.40000009536743,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 51.80000019073486,
+              "visibleMs": 613,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 448.2000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 0.40000009536743164,
+              "visibleMs": 26.700000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 448.2000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 39.200000047683716,
+              "visibleMs": 596.2999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 470.19999980926514,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 13,
+              "visibleMs": 46.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 470.19999980926514,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 52.799999952316284,
+              "visibleMs": 712.2999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 439.90000009536743,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 14.200000047683716,
+              "visibleMs": 47.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 439.90000009536743,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 55.10000014305115,
+              "visibleMs": 538.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 456.2000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 1.0999999046325684,
+              "visibleMs": 34.39999985694885,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 456.2000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 51.10000014305115,
+              "visibleMs": 626.2000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 439.90000009536743,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 2.9000000953674316,
+              "visibleMs": 36.40000009536743,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 439.90000009536743,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 43.89999985694885,
+              "visibleMs": 549.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 500.40000009536743,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.200000047683716,
+              "visibleMs": 45.40000009536743,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 500.40000009536743,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 57.60000014305115,
+              "visibleMs": 629.7000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 448.89999985694885,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 5.700000047683716,
+              "visibleMs": 39.10000014305115,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 448.89999985694885,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 47.40000009536743,
+              "visibleMs": 528.2000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 444.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.600000143051147,
+              "visibleMs": 46.200000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 444.2999999523163,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 43,
+              "visibleMs": 543.7000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 500.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 13.299999952316284,
+              "visibleMs": 46.69999980926514,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 500.2999999523163,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 49.59999990463257,
+              "visibleMs": 675.4000000953674,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 447.7000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.200000047683716,
+              "visibleMs": 45.80000019073486,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 447.7000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 63,
+              "visibleMs": 678.5999999046326,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 449.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 7,
+              "visibleMs": 40.299999952316284,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 449.2999999523163,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 55.69999980926514,
+              "visibleMs": 717.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 482.7000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 13.599999904632568,
+              "visibleMs": 46.799999952316284,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 482.7000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 52.700000047683716,
+              "visibleMs": 595.6000001430511,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 439,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 7,
+              "visibleMs": 40.799999952316284,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 439,
+              "inline": true
+            }
+          }
+        ]
+      }
+    },
+    "mobile": {
+      "profile": {
+        "width": 390,
+        "height": 844,
+        "latencyMs": 120,
+        "downloadMbps": 10,
+        "firstPhotoP90Ms": 2000
+      },
+      "before": {
+        "samples": 20,
+        "failures": 0,
+        "feedbackP90Ms": 15,
+        "firstPhotoP50Ms": 692,
+        "firstPhotoP90Ms": 754,
+        "reopenP90Ms": 49,
+        "photoBytesP90": 269738,
+        "apiP90Ms": 305,
+        "imageRequestP90Ms": 382
+      },
+      "after": {
+        "samples": 20,
+        "failures": 0,
+        "feedbackP90Ms": 15,
+        "firstPhotoP50Ms": 673,
+        "firstPhotoP90Ms": 1029,
+        "reopenP90Ms": 49,
+        "photoBytesP90": 269738,
+        "apiP90Ms": 625,
+        "imageRequestP90Ms": 0
+      },
+      "passed": true,
+      "rows": {
+        "before": [
+          {
+            "cold": {
+              "feedbackMs": 8.199999809265137,
+              "visibleMs": 1119.3999998569489,
+              "bytes": 269738,
+              "imageMs": 676,
+              "apiMs": 395.5,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 0.6999998092651367,
+              "visibleMs": 34.5,
+              "bytes": 269738,
+              "imageMs": 676,
+              "apiMs": 395.5,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 5.199999809265137,
+              "visibleMs": 722,
+              "bytes": 269738,
+              "imageMs": 377.10000014305115,
+              "apiMs": 281.60000014305115,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.899999856948853,
+              "visibleMs": 49.09999990463257,
+              "bytes": 269738,
+              "imageMs": 377.10000014305115,
+              "apiMs": 281.60000014305115,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 15.400000095367432,
+              "visibleMs": 681.4000000953674,
+              "bytes": 269738,
+              "imageMs": 377.2000000476837,
+              "apiMs": 259.59999990463257,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 8.600000143051147,
+              "visibleMs": 42,
+              "bytes": 269738,
+              "imageMs": 377.2000000476837,
+              "apiMs": 259.59999990463257,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 11.5,
+              "visibleMs": 694.1000001430511,
+              "bytes": 269738,
+              "imageMs": 378.40000009536743,
+              "apiMs": 279.80000019073486,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 5.200000047683716,
+              "visibleMs": 37.700000047683716,
+              "bytes": 269738,
+              "imageMs": 378.40000009536743,
+              "apiMs": 279.80000019073486,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 5.099999904632568,
+              "visibleMs": 724.7000000476837,
+              "bytes": 269738,
+              "imageMs": 383.19999980926514,
+              "apiMs": 292.5,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 14.799999952316284,
+              "visibleMs": 48,
+              "bytes": 269738,
+              "imageMs": 383.19999980926514,
+              "apiMs": 292.5,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 13.400000095367432,
+              "visibleMs": 696.2999999523163,
+              "bytes": 269738,
+              "imageMs": 377.7999999523163,
+              "apiMs": 270,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 13.099999904632568,
+              "visibleMs": 46.59999990463257,
+              "bytes": 269738,
+              "imageMs": 377.7999999523163,
+              "apiMs": 270,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.599999904632568,
+              "visibleMs": 664.7999999523163,
+              "bytes": 269738,
+              "imageMs": 377.30000019073486,
+              "apiMs": 248.5,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.799999952316284,
+              "visibleMs": 49,
+              "bytes": 269738,
+              "imageMs": 377.30000019073486,
+              "apiMs": 248.5,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 7.1000001430511475,
+              "visibleMs": 673.9000000953674,
+              "bytes": 269738,
+              "imageMs": 382,
+              "apiMs": 253.70000004768372,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 16.40000009536743,
+              "visibleMs": 49.200000047683716,
+              "bytes": 269738,
+              "imageMs": 382,
+              "apiMs": 253.70000004768372,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 8.599999904632568,
+              "visibleMs": 674.9000000953674,
+              "bytes": 269738,
+              "imageMs": 379.60000014305115,
+              "apiMs": 256.2000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 14.5,
+              "visibleMs": 47.799999952316284,
+              "bytes": 269738,
+              "imageMs": 379.60000014305115,
+              "apiMs": 256.2000000476837,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.199999809265137,
+              "visibleMs": 697.1999998092651,
+              "bytes": 269738,
+              "imageMs": 377.09999990463257,
+              "apiMs": 258.39999985694885,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.700000047683716,
+              "visibleMs": 49.200000047683716,
+              "bytes": 269738,
+              "imageMs": 377.09999990463257,
+              "apiMs": 258.39999985694885,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 15.5,
+              "visibleMs": 1014.5,
+              "bytes": 269738,
+              "imageMs": 380.2999999523163,
+              "apiMs": 595.2999999523163,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 0.5999999046325684,
+              "visibleMs": 33.90000009536743,
+              "bytes": 269738,
+              "imageMs": 380.2999999523163,
+              "apiMs": 595.2999999523163,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 6.099999904632568,
+              "visibleMs": 753.7999999523163,
+              "bytes": 269738,
+              "imageMs": 378.09999990463257,
+              "apiMs": 304.7000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.799999952316284,
+              "visibleMs": 49.19999980926514,
+              "bytes": 269738,
+              "imageMs": 378.09999990463257,
+              "apiMs": 304.7000000476837,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 7.200000047683716,
+              "visibleMs": 674.2000000476837,
+              "bytes": 269738,
+              "imageMs": 379.40000009536743,
+              "apiMs": 253.09999990463257,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 2,
+              "visibleMs": 35.40000009536743,
+              "bytes": 269738,
+              "imageMs": 379.40000009536743,
+              "apiMs": 253.09999990463257,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.099999904632568,
+              "visibleMs": 680.5999999046326,
+              "bytes": 269738,
+              "imageMs": 379.2000000476837,
+              "apiMs": 262.10000014305115,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.900000095367432,
+              "visibleMs": 49.299999952316284,
+              "bytes": 269738,
+              "imageMs": 379.2000000476837,
+              "apiMs": 262.10000014305115,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.5,
+              "visibleMs": 681.2999999523163,
+              "bytes": 269738,
+              "imageMs": 377,
+              "apiMs": 252.20000004768372,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 12.299999952316284,
+              "visibleMs": 45.700000047683716,
+              "bytes": 269738,
+              "imageMs": 377,
+              "apiMs": 252.20000004768372,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 13.599999904632568,
+              "visibleMs": 697,
+              "bytes": 269738,
+              "imageMs": 378.40000009536743,
+              "apiMs": 275.7000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 10.399999856948853,
+              "visibleMs": 43.69999980926514,
+              "bytes": 269738,
+              "imageMs": 378.40000009536743,
+              "apiMs": 275.7000000476837,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 12.699999809265137,
+              "visibleMs": 680,
+              "bytes": 269738,
+              "imageMs": 378.2999999523163,
+              "apiMs": 260.5,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.299999952316284,
+              "visibleMs": 48.59999990463257,
+              "bytes": 269738,
+              "imageMs": 378.2999999523163,
+              "apiMs": 260.5,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 12.799999952316284,
+              "visibleMs": 696.2999999523163,
+              "bytes": 269738,
+              "imageMs": 379.2000000476837,
+              "apiMs": 264.7000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 10,
+              "visibleMs": 43.200000047683716,
+              "bytes": 269738,
+              "imageMs": 379.2000000476837,
+              "apiMs": 264.7000000476837,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 12.600000143051147,
+              "visibleMs": 678.5,
+              "bytes": 269738,
+              "imageMs": 379.30000019073486,
+              "apiMs": 255.89999985694885,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.700000047683716,
+              "visibleMs": 49.30000019073486,
+              "bytes": 269738,
+              "imageMs": 379.30000019073486,
+              "apiMs": 255.89999985694885,
+              "inline": false
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 8.399999856948853,
+              "visibleMs": 692.2999999523163,
+              "bytes": 269738,
+              "imageMs": 380.7999999523163,
+              "apiMs": 260.2000000476837,
+              "inline": false
+            },
+            "warm": {
+              "feedbackMs": 15.299999952316284,
+              "visibleMs": 48.200000047683716,
+              "bytes": 269738,
+              "imageMs": 380.7999999523163,
+              "apiMs": 260.2000000476837,
+              "inline": false
+            }
+          }
+        ],
+        "after": [
+          {
+            "cold": {
+              "feedbackMs": 5,
+              "visibleMs": 722,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 591.8999998569489,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.800000190734863,
+              "visibleMs": 49.200000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 591.8999998569489,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 10.900000095367432,
+              "visibleMs": 661.2999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 588,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 2,
+              "visibleMs": 35.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 588,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 11.5,
+              "visibleMs": 1595.0999999046326,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 1027,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 14.600000143051147,
+              "visibleMs": 47.90000009536743,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 1027,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 16,
+              "visibleMs": 1050.0999999046326,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 874.9000000953674,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 13.699999809265137,
+              "visibleMs": 47,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 874.9000000953674,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.099999904632568,
+              "visibleMs": 997.2999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 584.0999999046326,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 11.600000143051147,
+              "visibleMs": 45.10000014305115,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 584.0999999046326,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.700000047683716,
+              "visibleMs": 814.4000000953674,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 583.5,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.099999904632568,
+              "visibleMs": 45.40000009536743,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 583.5,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 5,
+              "visibleMs": 653.5999999046326,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 596,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.399999856948853,
+              "visibleMs": 49,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 596,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 6.200000047683716,
+              "visibleMs": 673.4000000953674,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 584.3999998569489,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 8.900000095367432,
+              "visibleMs": 42,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 584.3999998569489,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.899999856948853,
+              "visibleMs": 681,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 590.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.899999856948853,
+              "visibleMs": 49.299999952316284,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 590.2999999523163,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 15.300000190734863,
+              "visibleMs": 631.7000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 578,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.599999904632568,
+              "visibleMs": 49,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 578,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 4,
+              "visibleMs": 653.8999998569489,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 598.0999999046326,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 11.200000047683716,
+              "visibleMs": 44,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 598.0999999046326,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 11.899999856948853,
+              "visibleMs": 645.3999998569489,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 588.2000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.899999856948853,
+              "visibleMs": 49.200000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 588.2000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 13.699999809265137,
+              "visibleMs": 647.0999999046326,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 582.9000000953674,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 14.200000047683716,
+              "visibleMs": 47.59999990463257,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 582.9000000953674,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 12.400000095367432,
+              "visibleMs": 1029,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 625.0999999046326,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 16.300000190734863,
+              "visibleMs": 49.700000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 625.0999999046326,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 13.699999809265137,
+              "visibleMs": 681.3999998569489,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 618.8999998569489,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.299999952316284,
+              "visibleMs": 49.09999990463257,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 618.8999998569489,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 13.099999904632568,
+              "visibleMs": 696.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 586.5,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.200000047683716,
+              "visibleMs": 48.90000009536743,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 586.5,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 14.799999952316284,
+              "visibleMs": 648.2000000476837,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 575.2000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 15.699999809265137,
+              "visibleMs": 49.09999990463257,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 575.2000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 3.5999999046325684,
+              "visibleMs": 650.5,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 606.2000000476837,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 14.400000095367432,
+              "visibleMs": 48.10000014305115,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 606.2000000476837,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 11.599999904632568,
+              "visibleMs": 645.2999999523163,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 590.8999998569489,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 8.599999904632568,
+              "visibleMs": 41.59999990463257,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 590.8999998569489,
+              "inline": true
+            }
+          },
+          {
+            "cold": {
+              "feedbackMs": 13.5,
+              "visibleMs": 680.3999998569489,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 603.2999999523163,
+              "inline": true
+            },
+            "warm": {
+              "feedbackMs": 12.200000047683716,
+              "visibleMs": 45.700000047683716,
+              "bytes": 269738,
+              "imageMs": 0,
+              "apiMs": 603.2999999523163,
+              "inline": true
+            }
+          }
+        ]
+      }
+    }
+  }
+}

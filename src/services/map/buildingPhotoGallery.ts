@@ -123,11 +123,18 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
   };
   let touchStart: { x: number; y: number } | null = null;
   let pending: { controller: AbortController; image: HTMLImageElement } | null = null;
+  const objectUrls = new Map<HTMLImageElement, string>();
+  const releaseObjectUrl = (image: HTMLImageElement) => {
+    const url = objectUrls.get(image);
+    if (url) URL.revokeObjectURL(url);
+    objectUrls.delete(image);
+  };
   const cancel = () => {
     if (!pending) return;
     pending.controller.abort();
     pending.image.onload = pending.image.onerror = null;
     pending.image.removeAttribute('src');
+    releaseObjectUrl(pending.image);
     pending = null;
   };
   const fitViewer = (image: HTMLImageElement) => {
@@ -199,11 +206,16 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
           // Signing can succeed even when the storage renderer rejects the image.
           // Retry the same scoped photo once as an original, under the same cancellation guard.
           image.onerror = fail;
+          releaseObjectUrl(image);
           void loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'original').then(original => {
             if (isCurrent()) image.src = original.url;
           }).catch(fail);
         };
-        image.src = access.url;
+        if (access.previewBlob) {
+          const objectUrl = URL.createObjectURL(access.previewBlob);
+          objectUrls.set(image, objectUrl);
+          image.src = objectUrl;
+        } else image.src = access.url;
       }).catch(fail);
     } else {
       void import('../salesMaterialsClient').then(({ loadBuildingPhoto }) => {
@@ -346,5 +358,6 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     closeViewer(false);
     listeners.abort();
     cancel();
+    for (const image of objectUrls.keys()) releaseObjectUrl(image);
   };
 }

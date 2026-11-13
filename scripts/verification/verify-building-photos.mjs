@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import ts from 'typescript';
 
 const require = createRequire(import.meta.url);
+const sharp = require('sharp');
 const output = path.resolve('verification/building-photos');
 fs.mkdirSync(output, { recursive: true });
 const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), {
@@ -51,6 +52,7 @@ const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><
 const portrait = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1000"><rect width="600" height="1000" fill="#c3ccd8"/></svg>';
 const externalUrl = 'https://images.archdaily.com/synthetic-fixture.svg';
 const assetFor = id => id.startsWith('3333') ? portrait : svg;
+const firstPreview = await sharp(Buffer.from(svg)).webp().toBuffer();
 let reads = [];
 let downloadReads = [];
 let fallbackReads = [];
@@ -103,6 +105,12 @@ const server = http.createServer((request, response) => {
       ? { source_url: 'https://www.example.com/building', source_name: '项目报道', attribution_text: '摄影者与商用授权未确认。', license_url: null }
       : { source_url: 'https://commons.wikimedia.org/wiki/File:Fixture.jpg', source_name: 'Wikimedia Commons', attribution_text: '摄影者署名与原作品名称 Photograph by Example Photographer / CC BY-SA 4.0（合成验证）', license_url: 'https://creativecommons.org/licenses/by-sa/4.0/' };
     const external = id.startsWith('4444');
+    if (id.startsWith('2222')) {
+      assert.equal(request.headers.accept, 'image/webp');
+      response.setHeader('Content-Type', 'image/webp');
+      response.setHeader('X-Building-Photo-Metadata', Buffer.from(JSON.stringify({ can_download: true, ...provenance })).toString('base64url'));
+      return response.end(firstPreview);
+    }
     return response.end(JSON.stringify({ url: external ? externalUrl : '/image.svg?id='+id, can_download: !external, ...provenance }));
   }
   response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.end(html);
@@ -169,7 +177,7 @@ try {
     assert.equal(await closeViewer.evaluate(button => button === document.activeElement), true);
     assert.ok((await images.nth(0).boundingBox()).height > previewHeight);
     assert.equal(reads.length, 1);
-    assert.equal(imageReads, 1);
+    assert.equal(imageReads, 0, 'same-origin preview does not fetch a second URL');
     await assertCaptionOnly();
     await page.screenshot({ path: path.join(output, `${width}-enlarged.png`) });
     assert.equal(downloadReads.length, 0);
@@ -209,7 +217,7 @@ try {
     assert.equal(await description.locator('[data-building-photo-caption]').innerText(), '室内空间');
     assert.ok(await images.nth(1).isVisible());
     assert.equal(reads.length, 3);
-    assert.equal(imageReads, 2);
+    assert.equal(imageReads, 1);
     await page.getByRole('button', { name: '上一张' }).click();
     await images.nth(0).waitFor({ state: 'visible' });
     assert.equal(reads.length, 3);

@@ -24,6 +24,7 @@ const storagePath = `building-photos/v1/${buildingId}/${photoId}/original.jpg`;
 const objectKey = 'building-sales-materials/' + storagePath;
 const authHeader = 'Bearer synthetic-photo-viewer';
 const interserviceLatencyMs = 45;
+const storageReadLatencyMs = 160;
 const sourceWidth = 3200, sourceHeight = 2200;
 const pixels = Buffer.alloc(sourceWidth * sourceHeight * 3);
 let seed = 42;
@@ -38,7 +39,8 @@ const servers = [];
 const children = [];
 const listener = async handler => {
   const server = http.createServer((req, res) => {
-    void handler(req, res).catch(() => {
+    void handler(req, res).catch(error => {
+      console.error('Local fixture failed:', error);
       if (!res.headersSent) res.writeHead(500);
       res.end();
     });
@@ -59,10 +61,30 @@ const body = async req => {
 };
 const storageBase = await listener(async (req, res) => {
   const url = new URL(req.url, 'http://fixture.local');
+  const render = transform => {
+    const key = JSON.stringify(transform);
+    if (!transformed.has(key)) {
+      transformed.set(key, sharp(original).resize({
+        width: transform.width, height: transform.height, fit: 'inside', withoutEnlargement: true,
+      }).webp({ quality: transform.quality }).toBuffer());
+    }
+    return transformed.get(key);
+  };
+  if (req.method === 'GET' && url.pathname === '/storage/v1/render/image/authenticated/' + objectKey) {
+    assert.equal(req.headers.authorization, 'Bearer synthetic-only');
+    await delay(storageReadLatencyMs);
+    const bytes = await render({
+      width: Number(url.searchParams.get('width')), height: Number(url.searchParams.get('height')),
+      resize: url.searchParams.get('resize'), quality: Number(url.searchParams.get('quality')),
+    });
+    res.writeHead(200, { 'Content-Type': 'image/webp', 'Content-Length': bytes.length });
+    return res.end(bytes);
+  }
   if (req.method === 'GET' && (url.pathname.endsWith('/' + objectKey))) {
     const token = signed.get(url.searchParams.get('token'));
     if (!token) return json(res, { error: 'invalid link' }, 403);
     const bytes = token.preview ? await token.preview : original;
+    if (token.preview) await delay(storageReadLatencyMs);
     res.writeHead(200, {
       'Content-Type': token.preview ? 'image/webp' : 'image/jpeg', 'Content-Length': bytes.length,
       'Timing-Allow-Origin': '*', 'Cache-Control': 'no-store',
@@ -88,7 +110,8 @@ const storageBase = await listener(async (req, res) => {
       assert.equal(url.searchParams.get('id'), 'eq.' + photoId);
       assert.equal(url.searchParams.get('status'), 'eq.ready');
       return json(res, [{ id: photoId, caption: '外观', width: sourceWidth, height: sourceHeight,
-        storage_path: storagePath, file_size: original.length, source_name: 'Synthetic', source_url: 'https://www.archdaily.com/project' }]);
+        storage_path: storagePath, file_size: original.length, sha256: 'a'.repeat(64),
+        source_name: 'Synthetic', source_url: 'https://www.archdaily.com/project' }]);
     case '/rest/v1/audit_logs':
       assert.equal((await body(req)).action_type, 'BUILDING_PHOTO_ACCESS');
       res.writeHead(201);
@@ -102,13 +125,7 @@ const storageBase = await listener(async (req, res) => {
       if (transform) {
         assert.equal(transform.resize, 'contain');
         assert.ok(transform.width > 0 && transform.height > 0 && transform.quality > 0);
-        const key = JSON.stringify(transform);
-        if (!transformed.has(key)) {
-          transformed.set(key, sharp(original).resize({
-            width: transform.width, height: transform.height, fit: 'inside', withoutEnlargement: true,
-          }).webp({ quality: transform.quality }).toBuffer());
-        }
-        preview = transformed.get(key);
+        preview = render(transform);
       }
       signed.set(token, { preview });
       return json(res, { signedURL: `/${route}/${objectKey}?token=${token}` });
@@ -124,6 +141,7 @@ async function startApp(directory) {
       BUILDING_PHOTO_PREVIEWS_ENABLED: '1' },
   });
   children.push(next);
+  next.stderr.on('data', chunk => process.stderr.write(chunk));
   const app = await new Promise((resolve, reject) => {
     let logs = '';
     const timer = setTimeout(() => reject(new Error('Local build did not start')), 20000);
@@ -163,8 +181,13 @@ async function startApp(directory) {
   const css = await fs.readFile(path.join(directory, 'src/app/map/map-building-popup.css'), 'utf8');
   return listener(async (req, res) => {
     if (req.url.startsWith('/api/map/building-photos?')) {
-      const result = await fetch(app + req.url, { headers: { Authorization: req.headers.authorization ?? '' } });
-      return json(res, await result.json(), result.status);
+      const result = await fetch(app + req.url, { headers: {
+        Authorization: req.headers.authorization ?? '', Accept: req.headers.accept ?? '*/*',
+      } });
+      const headers = Object.fromEntries(['content-type', 'x-building-photo-metadata']
+        .map(key => [key, result.headers.get(key)]).filter(([, value]) => value !== null));
+      res.writeHead(result.status, { ...headers, 'Cache-Control': 'no-store' });
+      return res.end(Buffer.from(await result.arrayBuffer()));
     }
     if (req.url === '/fixture.js') {
       res.writeHead(200, { 'Content-Type': 'text/javascript' });
@@ -193,8 +216,10 @@ async function readPhoto(page, trigger, touch) {
               clearTimeout(timeout);
               const resource = performance.getEntriesByName(image.currentSrc).at(-1);
               const api = performance.getEntriesByType('resource').find(entry => entry.name.includes('/api/map/building-photos?'));
+              const inline = image.currentSrc.startsWith('blob:');
               resolve({ feedbackMs: feedback, visibleMs: performance.now() - start,
-                bytes: resource?.encodedBodySize ?? null, imageMs: resource?.duration ?? null, apiMs: api?.duration ?? null });
+                bytes: inline ? api?.encodedBodySize ?? null : resource?.encodedBodySize ?? null,
+                imageMs: inline ? 0 : resource?.duration ?? null, apiMs: api?.duration ?? null, inline });
             }))).catch(error => { clearTimeout(timeout); reject(error); });
           } else requestAnimationFrame(check);
         };
@@ -224,10 +249,10 @@ async function sample(browser, url, name, profile) {
     if (touch) await trigger.tap();
     else await trigger.click();
     const warm = await readPhoto(page, trigger, touch);
-    assert.ok(cold.bytes > 0 && cold.apiMs > 0 && cold.imageMs > 0);
+    assert.ok(cold.bytes > 0 && cold.apiMs > 0 && (cold.inline || cold.imageMs > 0));
     return { cold, warm };
   } catch (error) {
-    return { error: error.name };
+    return { error: error.name, detail: error.message };
   } finally {
     await page.close();
   }
@@ -269,6 +294,7 @@ try {
   })));
   const passed = Object.values(profiles).every(row => row.passed);
   const report = { passed, browser: browser.version(), originalBytes: original.length, mockInterserviceLatencyMs: interserviceLatencyMs,
+    mockStorageReadLatencyMs: storageReadLatencyMs,
     scope: 'local production-built API + source gallery; simulated browser network, viewer identity, and Storage', profiles };
   await fs.writeFile(output, JSON.stringify(report, null, 2) + '\n');
   console.log(JSON.stringify({ ...report, profiles: Object.fromEntries(Object.entries(profiles).map(([name, { profile, before, after, passed }]) => [name, { profile, before, after, passed }])) }, null, 2));
