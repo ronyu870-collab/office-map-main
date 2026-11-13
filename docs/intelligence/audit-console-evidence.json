@@ -1,0 +1,351 @@
+{
+  "date": "2026-11-13",
+  "baseCommit": "1dae2bc7a830e3e134344d3e1965b0f051d74b1d",
+  "scope": "Explicit auditor qualification, protected search/detail HTTP and access receipts; local/isolated only",
+  "sourceSha256": {
+    ".github/workflows/verify.yml": "d2c02e7f32f78bb6dd56250aa471336869ddce27d91640fc19c21cb6cf571b6e",
+    ".gitignore": "ffb077ec970f7edf9f6e4409c21dec38f4154006cb8677f54bca7fe0c0251ed9",
+    "scripts/verification/verify-ai-query-auth.mjs": "d3ad921f5ec0155023bbd6af08c9672884ed7ee66be89adb3fb8ad3dfed31d7d",
+    "scripts/verification/ai-audit-console-scenarios.mjs": "e04eb44c3467876eab683bbd859bfe5b2d627a5c77a4f05232e8be90e4203ecd",
+    "src/app/api/intelligence/audit/route.ts": "5be186ce8ea1c9b9efc6fd6bfaaa43bc8eacde246aba117048afc83fe3f96087",
+    "src/lib/intelligence/query/auditConsole.ts": "3333f56c9b768013de331fdff0dcbbc789d405fb244a3b774702f80350e3de87",
+    "src/lib/intelligence/query/intake.ts": "ca634cba36c5028bcb9c95fab21263762bb4f80547a08569cfad0bd606847973",
+    "supabase/migrations/20261113090954_ai_audit_console_read.sql": "c71c99f15b4068243d4ada27699ee42685f950d800d11835aea8060f1fe30b58",
+    "supabase/tests/ai-audit-console/run.mjs": "044dc1201fc5d425902c59d71743dfccb6ed275b8766c79cad9ff3d5d9938494"
+  },
+  "postgresAuditConsole": {
+    "database": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+    "scenarios": [
+      {
+        "scenario": "old sessionless audit read bypasses revoked-session boundary; reproduce before upgrade",
+        "status": "passed"
+      },
+      {
+        "scenario": "old entry is closed and new entry requires a current live session even for explicit auditors",
+        "status": "passed"
+      },
+      {
+        "scenario": "admin, simulation, missing grant, expired session, banned user and expired grant are denied with access history",
+        "status": "passed"
+      },
+      {
+        "scenario": "grant change rotates revision, is audited, and prevents prepared data from being delivered",
+        "status": "passed"
+      },
+      {
+        "scenario": "keyset pagination retains identical timestamps and every intake attempt without pretending they executed",
+        "status": "passed"
+      },
+      {
+        "scenario": "chain damage blocks stream content and access-history failures roll back read receipts",
+        "status": "passed"
+      },
+      {
+        "scenario": "session and grant revocation serialize against read transactions and recheck before delivery",
+        "status": "passed"
+      },
+      {
+        "scenario": "anonymous/authenticated RPC execution and raw service table access are denied",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false
+  },
+  "postgresIntakeRegression": {
+    "database": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+    "scenarios": [
+      {
+        "scenario": "old two-step ingress loses original content if execution ends before audit receive",
+        "status": "passed"
+      },
+      {
+        "scenario": "actual application intake commits identity, observation and decryptable original body together",
+        "status": "passed"
+      },
+      {
+        "scenario": "credential masking decodes JSON escapes and leaves business question intact",
+        "status": "passed"
+      },
+      {
+        "scenario": "full bounded malformed control-character input survives JSON expansion without truncation",
+        "status": "passed"
+      },
+      {
+        "scenario": "transaction failure leaves neither accepted count nor content; later retry commits both",
+        "status": "passed"
+      },
+      {
+        "scenario": "same HTTP request retried creates separate attempts; same event transport replay is exact and concurrent-safe",
+        "status": "passed"
+      },
+      {
+        "scenario": "anonymous and incomplete bodies stay bounded digest-only; invalid technical receipts never retain tokens",
+        "status": "passed"
+      },
+      {
+        "scenario": "orphan overview distinguishes retained new content from missing historical originals",
+        "status": "passed"
+      },
+      {
+        "scenario": "ordinary roles cannot invoke intake and service cannot read, update or delete raw bodies",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false
+  },
+  "authHttp": {
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": [
+      {
+        "scenario": "真实Auth创建、密码登录和会话落库",
+        "status": "passed"
+      },
+      {
+        "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+        "status": "passed"
+      },
+      {
+        "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实管理员模拟取资格交集，不借目标权限扩权",
+        "status": "passed"
+      },
+      {
+        "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+        "status": "passed"
+      },
+      {
+        "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+        "status": "passed"
+      },
+      {
+        "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+        "status": "passed"
+      },
+      {
+        "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+        "status": "passed"
+      },
+      {
+        "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+        "status": "passed"
+      },
+      {
+        "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+        "status": "passed"
+      },
+      {
+        "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+        "status": "passed"
+      },
+      {
+        "scenario": "模拟身份的导出权取交集，管理员不自动获权，撤权后不可下载旧快照",
+        "status": "passed"
+      },
+      {
+        "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+        "status": "passed"
+      },
+      {
+        "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+        "status": "passed"
+      },
+      {
+        "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+        "status": "passed"
+      },
+      {
+        "scenario": "交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现",
+        "status": "passed"
+      },
+      {
+        "scenario": "回执审计失败不报成功，撤权与旧JWT不得绕过身份检查",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实请求接收后进程SIGKILL，独立CLI补记未知终态，重启不重跑原查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "并发重试和同键冲突每次均保存独立入口正文，业务只执行一次",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复/图表/下载/回执入口同时留存，技术回执不会复制可用令牌",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计默认拒绝管理员/普通用户/匿名，未知与存在的目标没有泄漏差异",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计检索接口的限额内非法控制字符正文也完整加密留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "明确审计资格独立于AI使用权，真实API可读他人原文、回答快照和交付事件",
+        "status": "passed"
+      },
+      {
+        "scenario": "孤立入口可按原文检索及展开，原文检索条件加密记录，不假装已经查询成功",
+        "status": "passed"
+      },
+      {
+        "scenario": "原文凭证保持脱敏，旧无入口问答也能检索，模拟/跨源/越界条件均拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "关键词分页允许首批零命中，继续查找不会漏掉后续原文；游标不能换条件或伪造",
+        "status": "passed"
+      },
+      {
+        "scenario": "读取后撤销审计资格不交付正文，查看凭据写入失败同样拒绝返回",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计链或入口密文受损不冒称可信正文，真实注销和停用账号不能继续查看",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false,
+    "browserValidation": false
+  },
+  "fullVerification": {
+    "command": "VITEST_MAX_WORKERS=2 npm run verify",
+    "exitCode": 0,
+    "testFiles": 218,
+    "tests": 1394,
+    "types": "passed",
+    "productionBuild": "passed",
+    "lintWarnings": 826,
+    "lintErrors": 0,
+    "log": "/private/tmp/colliers-console-verify-final.log"
+  },
+  "securityAdvisors": {
+    "command": "supabase db advisors --workdir /private/tmp/colliers-ai-query-auth-integration --local --type security --level warn --fail-on warn",
+    "result": "No issues found",
+    "log": "/private/tmp/colliers-console-advisors.log"
+  },
+  "ciRegistration": {
+    "workflow": ".github/workflows/verify.yml",
+    "requiredCommand": "node supabase/tests/ai-audit-console/run.mjs",
+    "yamlParsed": true,
+    "authHttpJobRunsAdditionalScenarios": true
+  },
+  "failureHistory": [
+    "The first final verify/advisors requests were not executed because automatic approval review hit a usage limit. After the user resumed the goal, normal approval succeeded and both checks were started; no bypass."
+  ],
+  "limits": [
+    "No audit UI, browser or physical-device acceptance in this server-only package.",
+    "No production permission grants, migrations, activation, paid model calls or post-homepage main merge.",
+    "No audit export, all model/cost/rejection filters, independent anchors or complete lifecycle management yet.",
+    "Remote exact-head CI not run; local checkpoint only.",
+    "Current database chain verification does not prove an independently anchored complete archive."
+  ],
+  "cleanup": {
+    "ownedAuthStackAndSyntheticVolume": "stopped and removed",
+    "ownedNativePostgres": "stopped",
+    "otherProjects": "untouched"
+  }
+}

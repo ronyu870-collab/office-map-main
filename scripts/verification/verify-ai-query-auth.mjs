@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import { rolldown } from 'rolldown';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
+import { verifyAuditConsole } from './ai-audit-console-scenarios.mjs';
 import { addSnapshotFixture, BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
 
 assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL,'disposable');
@@ -83,6 +84,7 @@ try{
   await db.query(await load('20261113063257_ai_query_internal_export_grant.sql'));
   if(!(await db.query("select to_regclass('private.ai_query_execution_watch') r")).rows[0].r)await db.query(await load('20261113080906_ai_query_execution_reconciliation.sql'));
   if(!(await db.query("select 1 from information_schema.columns where table_schema='private' and table_name='ai_query_ingress_events' and column_name='cipher'")).rowCount)await db.query(await load('20261113084732_ai_query_atomic_intake.sql'));
+  if(!(await db.query("select to_regclass('private.ai_audit_console_access') r")).rows[0].r)await db.query(await load('20261113090954_ai_audit_console_read.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -94,7 +96,7 @@ try{
   results.push({scenario:'真实Auth创建、密码登录和会话落库',status:'passed'});
   log=await open(path.join(output,'next-local.log'),'w',0o600);
   const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,
-    AI_QUERY_HTTP_ENABLED:'true',AI_QUERY_AUDIT_KEY_ID:keyId,AI_QUERY_AUDIT_ENCRYPTION_KEY:encryptionKey.toString('hex'),AI_QUERY_AUDIT_DIGEST_KEY:digestKey.toString('hex'),
+    AI_QUERY_HTTP_ENABLED:'true',AI_AUDIT_HTTP_ENABLED:'true',AI_QUERY_AUDIT_KEY_ID:keyId,AI_QUERY_AUDIT_ENCRYPTION_KEY:encryptionKey.toString('hex'),AI_QUERY_AUDIT_DIGEST_KEY:digestKey.toString('hex'),
     DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'',NEXT_PUBLIC_AMAP_SECURITY_CODE:''};
   const types=spawn('npm',['run','typecheck'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
   assert.equal((await once(types,'exit'))[0],0,'Typecheck must pass before the production build');
@@ -537,6 +539,7 @@ try{
     const anonymous=(await db.query("select * from private.ai_query_ingress_events where reason<>'request_received'")).rows;
     assert.ok(anonymous.length>0);assert.ok(anonymous.every(r=>r.cipher===null));
   });
+  await verifyAuditConsole({db,service,app,check,person,viewer,other,admin,call,input,successful,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(viewer,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[viewer.id]);assert.equal((await call(viewer,body)).status,403);

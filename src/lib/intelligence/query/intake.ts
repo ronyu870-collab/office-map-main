@@ -9,6 +9,14 @@ import type { VerifiedQueryIdentity } from './serverAuthority';
 
 type Entry = 'query_submission' | 'query_result_recovery' | 'query_result_artifact' | 'query_delivery_report';
 
+/** Shared bounded audit document encoding; compression stays inside AEAD. */
+export function encodeIntakeDocument(value: unknown): string {
+  const document = JSON.stringify(value);
+  return Buffer.byteLength(document, 'utf8') <= 80 * 1024 ? document : JSON.stringify({
+    version: 'query-intake-envelope/1', encoding: 'gzip-base64', data: gzipSync(document).toString('base64'),
+  });
+}
+
 /** Only consume authenticated, decrypted intake content; cap decompression. */
 export function decodeIntakeDocument(plaintext: string): unknown {
   const value = JSON.parse(plaintext);
@@ -45,15 +53,12 @@ export async function recordQueryIntake(client: SupabaseClient, keys: AuditKeys,
     payload = { inputValid: Boolean(report), report: report ? { ...report, deliveryToken: '[已脱敏:delivery_token]',
       tokenSha256: createHash('sha256').update(report.deliveryToken).digest('hex') } : null };
   }
-  const document = JSON.stringify(sanitizeAuditContent({ version: 'query-intake/1', entry: input.entry,
+  const content = encodeIntakeDocument(sanitizeAuditContent({ version: 'query-intake/1', entry: input.entry,
     payload, impersonationDenied: input.impersonationDenied, sessionId: identity.sessionId,
     inputBytes: body.bytesObserved, inputDigest: body.digest, policyVersion: 'http-receipt/1:authorization-pending',
     authorization: 'not_evaluated', execution: 'not_started', timezone: 'Asia/Shanghai' }));
   // A bounded malformed body full of control characters expands up to sixfold
   // in JSON. Compress inside encryption rather than silently dropping its text.
-  const content = Buffer.byteLength(document, 'utf8') <= 80 * 1024 ? document : JSON.stringify({
-    version: 'query-intake-envelope/1', encoding: 'gzip-base64', data: gzipSync(document).toString('base64'),
-  });
   const { error } = await client.rpc('ai_query_record_intake', { ...base, p_effective: identity.effectiveUserId,
     p_entry: input.entry, p_content_digest: auditPayloadDigest(content, keys.digestKey),
     p_cipher: encryptAuditContent(content, { requestId: input.requestId, eventId, actorId: identity.actorId,
