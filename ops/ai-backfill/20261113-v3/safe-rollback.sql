@@ -27,7 +27,7 @@ DECLARE
  new_value jsonb;
  row_updated timestamptz;
  max_batch_ts timestamptz;
- count_orig int; n_done int := 0;
+ count_orig int; n_done int := 0; changed int;
 BEGIN
  SELECT count(*) INTO count_orig FROM public.audit_logs
  WHERE action_type='AI_FIELD_FILL' AND details->>'batch_ref'='ai_building_field_backfill_20261113_v3';
@@ -96,7 +96,8 @@ BEGIN
 
    EXECUTE format('UPDATE public.%I SET %I=NULL WHERE id=$1 AND to_jsonb(%I)=$2',r.target_table,r.field_name,r.field_name)
      USING r.target_id::uuid,new_value;
-   IF NOT FOUND THEN RAISE EXCEPTION 'rollback guarded update affected 0, audit %',r.id; END IF;
+   GET DIAGNOSTICS changed = ROW_COUNT;
+   IF changed<>1 THEN RAISE EXCEPTION 'rollback guarded update affected % rows, audit %',changed,r.id; END IF;
    UPDATE public.building_data_field_provenance SET is_current=false
     WHERE id=p.id AND is_current;
    IF NOT FOUND THEN RAISE EXCEPTION 'provenance concurrent modification at audit %',r.id; END IF;
