@@ -131,6 +131,21 @@ begin
   if v_requested_count <> v_valid_count then
     raise exception 'Mentioned member is unavailable' using errcode='22023';
   end if;
+  -- A directed token must identify the selected member *and* carry that
+  -- member's canonical English name; free-typed @text is not a notification.
+  -- Prevent a forged client from mentioning an unrelated UUID behind a label.
+  if exists (
+    select 1 from jsonb_array_elements(p_segments) as s(part)
+    join public.user_roles r on r.user_id = (s.part->>'mentionUserId')::uuid
+    where s.part ? 'mentionUserId'
+      and (
+        nullif(btrim(r.full_name), '') is null
+        or s.part->>'text' is distinct from
+          ('@' || regexp_replace(btrim(r.full_name), '[[:space:]]+', ' ', 'g'))
+      )
+  ) then
+    raise exception 'Mention label does not match account' using errcode='22023';
+  end if;
   if v_broadcast then
     perform pg_advisory_xact_lock(72248113);
     if exists (
