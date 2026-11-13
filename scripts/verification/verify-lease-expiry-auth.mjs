@@ -66,6 +66,7 @@ try{
   await db.query(await load('supabase/migrations/20260909084927_sync_auth_session_audit_context.sql'));
  }
  if(!(await db.query("select 1 from information_schema.columns where table_schema='public' and table_name='lease_expiry_reviews' and column_name='source_kind'")).rowCount) await db.query(await load('supabase/migrations/20261111055947_lease_expiry_live_sources.sql'));
+ if(!(await db.query("select to_regprocedure('public.lease_expiry_context_list(uuid,date,integer)') r")).rows[0].r) await db.query(await load('supabase/migrations/20261113054057_lease_expiry_context.sql'));
  await db.query("notify pgrst,'reload schema'");await pause(1500);
  const admin=await freshPerson('admin','admin-a'),other=await freshPerson('admin','admin-b'),editor=await freshPerson('editor','editor'),viewer=await freshPerson('viewer','viewer');
  pass('真实 Auth 登录与会话落库',{roles:['admin A','admin B','editor','viewer'],database:version});
@@ -80,6 +81,13 @@ try{
  assert.equal((await call(admin,'GET',null,{'X-Colliers-Impersonate-User':editor.id})).status,403);
  assert.equal((await call(admin,'POST',draft,{'X-Colliers-Impersonate-User':other.id})).status,403);
  pass('真实角色、匿名及用户模拟的读取／保存边界');
+ await db.query("update lease_transactions_history set area_sqm=1250.5,industry='合成行业',sub_industry='合成子行业',sub_market='合成子市场' where id=$1",[id]);
+ for(const person of [null,editor,viewer,admin]){
+  const response=await fetch(app+'/api/lease-transactions/expiry',{headers:person?{Authorization:'Bearer '+person.token}:{}});
+  assert.equal(response.status,person===admin?200:person?403:401);
+  if(person===admin){const body=await response.json();assert.deepEqual(body.items.find(item=>item.source.id===id).details,{area_sqm:1250.5,industry:'合成行业',sub_industry:'合成子行业',sub_market:'合成子市场'});}
+ }
+ pass('真实 Auth 和 PostgREST 详情读取、行业面积子市场字段及拒绝边界');
  await viewer.client.auth.updateUser({data:{role:'admin'}});assert.equal((await call(viewer)).status,403);
  const upgrade=await viewer.client.from('user_roles').update({role:'admin'}).eq('user_id',viewer.id);assert.ok(upgrade.error);
  for(const client of [admin.client,editor.client,viewer.client]){

@@ -3,24 +3,22 @@
 .main { max-width:1440px;margin:0 auto;padding:24px; }
 .heading { display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;margin-bottom:20px; }
 .heading h2 { margin:0;font-size:20px;line-height:1.5;font-weight:600; }
-.heading>span,.note,.footer,.identity>span { color:var(--cd-color-text-secondary); }
+.heading>span,.note,.footer,.company>span { color:var(--cd-color-text-secondary); }
 .timeline { background:var(--cd-color-surface-alt);border:1px solid var(--cd-color-border);border-radius:8px;overflow:hidden; }
-.tableHead,.row { display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;padding:0 24px; }
+.tableHead,.row { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,min(40%,460px));gap:32px;padding:0 24px; }
 .tableHead { min-height:56px;align-items:center;border-bottom:1px solid var(--cd-color-border);color:var(--cd-color-text-secondary); }
 .months { height:30px;position:relative; }
 .months>span { position:absolute;top:5px;white-space:nowrap;transform:translateX(-50%); }
-.months>span:first-child { transform:none; }
-.months>span:last-child { transform:translateX(-100%); }
-.row { min-height:80px;align-items:center;border-bottom:1px solid var(--cd-color-border); }
+.row { min-height:136px;align-items:center;border-bottom:1px solid var(--cd-color-border); }
 .row:last-child { border-bottom:0; }
-.identity { display:flex;flex-direction:column;gap:4px;min-width:0;padding:12px 0;overflow-wrap:anywhere; }
+.identity { display:flex;flex-direction:column;gap:12px;min-width:0;padding:20px 0;overflow-wrap:anywhere; }
 .identity strong { font-weight:600; }
-.plot { position:relative;min-width:0;padding:32px 0 12px; }
+.plot { position:relative;min-width:0;padding:32px 0 12px;align-self:center; }
 .bar { position:absolute;top:16px;min-width:5px;height:6px;border-radius:3px;background:var(--cd-color-brand);opacity:.65; }
 .point {height:7px;border-radius:50%; }
 .continued { border-radius:3px 0 0 3px; }
 .continued::after { content:'';position:absolute;right:0;top:-1px;width:7px;height:7px;border-top:2px solid var(--cd-color-brand);border-right:2px solid var(--cd-color-brand);transform:rotate(45deg); }
-.date { display:block;position:relative;left:clamp(0px,var(--start),max(0px,calc(100% - 260px)));width:max-content;max-width:100%;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;color:var(--cd-color-text-secondary); }
+.date { display:block;width:100%;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;color:var(--cd-color-text-secondary); }
 .footer { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap; }
 .footer p { margin:0; }
 .footer nav { display:flex;align-items:center;gap:12px; }
@@ -31,7 +29,7 @@
   .main { padding:20px 12px; }
   .heading { padding:0 4px; }
   .tableHead,.bar { display:none; }
-  .row { grid-template-columns:minmax(0,1fr);gap:6px;padding:12px 16px; }
+  .row { grid-template-columns:minmax(0,1fr);gap:12px;padding:20px 16px; }
   .identity { padding:0; }
   .plot { padding:0; }
   .date { left:0; }
@@ -44,3 +42,22 @@
 .back { display:inline-flex;min-height:44px;align-items:center;gap:4px;padding:0 8px;font-size:14px;color:var(--cd-color-text-secondary);border-radius:6px; }
 .back:hover { background:var(--cd-color-surface-alt); }
 .back:focus-visible { outline:2px solid var(--cd-color-brand);outline-offset:2px; }
+
+.company { display:flex;flex-direction:column;gap:2px; }
+.facts { display:flex;flex-wrap:wrap;gap:6px 24px;margin:0;font-variant-numeric:tabular-nums; }
+.facts>div { display:flex;gap:8px; }
+.facts dt,.label { color:var(--cd-color-text-secondary); }
+.facts dd { margin:0; }
+.context { display:flex;flex-wrap:wrap;gap:0 24px;align-items:baseline; }
+.context>div { display:flex;gap:8px;align-items:baseline;flex-wrap:wrap; }
+.mobileDateLabel { display:none; }
+@media(max-width:1023px) {
+  .mobileDateLabel { display:inline; }
+  .context { gap:8px 24px; }
+  .date { color:var(--cd-color-text-primary); }
+}
+@media(max-width:479px) {
+  .facts { gap:4px 16px; }
+  .facts>div:first-child { flex-basis:100%; }
+  .context { flex-direction:column;gap:6px; }
+}
