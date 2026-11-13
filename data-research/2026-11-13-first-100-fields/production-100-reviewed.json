@@ -2,9 +2,9 @@
   "schema_version": "ai-building-field-verified-production-v1",
   "batch_ref": "ai_building_field_backfill_20261113_100_v1",
   "base_file": "data-research/2026-11-13-first-100-fields/research-100.json",
-  "status": "preflight_ready",
+  "status": "applied_verified_production",
   "count": 100,
-  "production_changes": 0,
+  "production_changes": 100,
   "source_tiers": {
     "official": 44,
     "industry": 4,
@@ -2402,5 +2402,37 @@
       "reconciliation_date": "2026-11-13",
       "batch_ref": "ai_building_field_backfill_20261113_100_v1"
     }
-  ]
+  ],
+  "applied_on": "2026-11-13",
+  "production_target": "Supabase: qhgxougfzzmgqjzzwudf",
+  "production_result": {
+    "unique_field_writes": 100,
+    "physical_records_touched": 10,
+    "building_main_fields_updated": 5,
+    "building_brochure_fields_updated": 95,
+    "building_brochure_rows_created": 7,
+    "exact_readback": 100,
+    "readback_mismatch": 0,
+    "audit_events": 100,
+    "tool_attributed_events": 100,
+    "active_provenance_rows": 100,
+    "source_url_present": 100,
+    "source_types": {
+      "other": 100
+    },
+    "source_verification_statuses": {
+      "single_authoritative": 50,
+      "legacy_backfill": 50
+    },
+    "evidence_group_id": "85f138d2-b0aa-46ff-bd5b-ff4c13b2145f",
+    "audit_id_range": [
+      9924,
+      10023
+    ],
+    "rollback_audit_events": 0,
+    "rollback_test": "full 100-field rollback verified inside BEGIN / ROLLBACK; production remains populated",
+    "rollback_script": "data-research/2026-11-13-first-100-fields/rollback-100.sql",
+    "sql_apply_script": "data-research/2026-11-13-first-100-fields/apply-100.sql",
+    "warning": "The only allowed non-cross-verified AI source_type is 'other'. AI source URLs and original values remain in provenance/audit. Third-party single-source facts remain provisional in evidence status."
+  }
 }
