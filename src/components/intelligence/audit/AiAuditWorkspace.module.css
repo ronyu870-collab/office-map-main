@@ -1,0 +1,61 @@
+.workspace { min-height:100dvh; background:#F5F7FA; color:#172033; font:400 .875rem/1.65 Arial,"PingFang SC","Microsoft YaHei",sans-serif; }
+.header, .body { width:min(100%, 1120px); margin-inline:auto; padding:24px; }
+.header { display:flex; align-items:center; justify-content:space-between; gap:24px; padding-top:32px; border-bottom:1px solid #D9E0E8; }
+.workspace h1 { font-size:1.25rem; font-weight:600; margin:0; }
+.workspace h2, .workspace strong { font-size:inherit; font-weight:600; }
+.workspace h2, .workspace p { margin:0; }
+.header p, .muted, .access, .notice, .actor, .rowMeta, .resultHeading > span { color:#667085; }
+.header p { margin-top:4px; }
+.workspace button, .workspace input, .workspace select, .workspace a, .workspace summary { font:inherit; }
+.workspace button, .workspace a { min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:8px 12px; border:1px solid #D9E0E8; border-radius:6px; background:#F8FAFC; color:#003E7E; cursor:pointer; text-decoration:none; }
+.workspace button:disabled { opacity:.6; cursor:wait; }
+.workspace button:hover:not(:disabled), .workspace a:hover { background:#EDF4FB; }
+.workspace :is(button,a,input,select,summary):focus-visible { outline:2px solid #003E7E; outline-offset:3px; }
+.workspace input, .workspace select { width:100%; min-width:0; min-height:44px; color:#172033; background:#F8FAFC; border:1px solid #C3CCD8; border-radius:6px; padding:8px 10px; }
+.workspace label { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.filters { margin-top:20px; padding-bottom:20px; border-bottom:1px solid #D9E0E8; }
+.searchRow { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:12px; }
+.searchRow > button { background:#003E7E; border-color:#003E7E; color:#F8FAFC; }
+.searchRow > button:hover:not(:disabled) { background:#003265; }
+.filterGrid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-top:16px; }
+.workspace summary { cursor:pointer; min-height:44px; padding:10px 0; color:#003E7E; overflow-wrap:anywhere; }
+.more { margin-top:8px; }
+.more label { max-width:480px; }
+.more p { margin-top:8px; }
+.status { min-height:24px; margin:16px 0 !important; }
+.resultHeading, .rowMeta, .eventHeading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; }
+.results > p { margin-top:8px; }
+.rows { list-style:none; padding:0; margin:16px 0 0; border-top:1px solid #D9E0E8; }
+.rows > li { border-bottom:1px solid #D9E0E8; }
+.workspace .row { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; border:0; border-radius:0; background:transparent; color:inherit; padding:16px 12px; text-align:left; }
+.row[aria-expanded=true] { background:#EDF4FB; }
+.excerpt, .question { white-space:pre-wrap; overflow-wrap:anywhere; text-align:left; }
+.excerpt { font-weight:600; }
+.actor { overflow-wrap:anywhere; }
+.detailContainer { background:#F8FAFC; padding:16px 20px 24px; border-left:2px solid #003E7E; min-width:0; }
+.detail { display:flex; flex-direction:column; align-items:stretch; gap:12px; min-width:0; }
+.detail > h2:not(:first-child) { margin-top:12px; }
+.workspace .close { margin-bottom:16px; }
+.question { max-width:80ch; }
+.identifiers { display:grid; grid-template-columns:90px minmax(0,1fr); gap:8px 12px; margin:0; }
+.identifiers dt { color:#667085; }
+.identifiers dd { margin:0; overflow-wrap:anywhere; }
+.document pre { margin:0; padding:12px; background:#EDF4FB; font:inherit; white-space:pre-wrap; overflow-wrap:anywhere; max-height:420px; overflow:auto; }
+.events ol { list-style:none; padding:0; margin:12px 0 0; }
+.events li { padding:12px 0; border-top:1px solid #D9E0E8; }
+.pagination { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:16px; }
+.notice { margin-top:24px !important; }
+@media(max-width:1023px) { .filterGrid { grid-template-columns:1fr 1fr; } }
+@media(max-width:639px) {
+  .header, .body { padding:16px; }
+  .header { align-items:flex-start; flex-wrap:wrap; gap:12px; }
+  .header > div { flex:1 1 230px; }
+  .header > a { flex-shrink:0; }
+  .filterGrid { grid-template-columns:minmax(0,1fr); }
+  .searchRow { grid-template-columns:minmax(0,1fr); }
+  .searchRow > button { justify-self:start; }
+  .rowMeta { flex-direction:column; }
+  .detailContainer { padding:12px; }
+  .identifiers { grid-template-columns:1fr; gap:4px; }
+  .identifiers dd { margin-bottom:8px; }
+}

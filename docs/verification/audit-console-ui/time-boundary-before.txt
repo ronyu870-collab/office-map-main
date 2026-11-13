@@ -1,0 +1,28 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.6 /Users/yuhang/Documents/ChatGPT/高力国际/tmp/home-ai-entry
+
+ ❯ src/components/intelligence/audit/AiAuditWorkspace.test.tsx (8 tests | 1 failed | 7 skipped) 31ms
+   × includes submissions from the current minute in the initial time window 30ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/intelligence/audit/AiAuditWorkspace.test.tsx > includes submissions from the current minute in the initial time window
+AssertionError: expected 1794571860000 to be greater than 1794571889000
+ ❯ src/components/intelligence/audit/AiAuditWorkspace.test.tsx:35:33
+     33|   const end = (screen.getByLabelText('结束时间（北京时间）') as HTMLInputElement…
+     34|   const timestamp = `${end.length === 16 ? end + ':00' : end}+08:00`;
+     35|   expect(Date.parse(timestamp)).toBeGreaterThan(Date.parse('2026-11-13…
+       |                                 ^
+     36|   expect(Date.parse(timestamp)).toBeLessThanOrEqual(Date.now());
+     37| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 skipped (8)
+   Start at  20:15:02
+   Duration  1.17s (transform 136ms, setup 75ms, import 281ms, tests 31ms, environment 665ms)

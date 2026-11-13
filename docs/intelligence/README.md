@@ -4,6 +4,7 @@
 
 | 责任 | 当前入口 |
 | --- | --- |
+| 提问审计页面、同源问答/来源查看与客户端隔离 | [审计页面](audit-console-ui.md) |
 | 主页受控问题、能力开关、结果表格及本人恢复 | [主页查数](home-query.md) |
 | HTTP输入、拒绝审计、真实身份、幂等和交付边界 | [HTTP与真实Auth](trusted-query-http.md) |
 | 历史结果状态/恢复HTTP、当前来源授权和分块完整性 | [结果恢复](result-recovery.md) |

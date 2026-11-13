@@ -562,6 +562,7 @@ try{
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
   if(previewFile){
     const preview=await person('viewer','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
+    await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
     await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
     console.log('LOCAL_SYNTHETIC_PREVIEW_READY');
