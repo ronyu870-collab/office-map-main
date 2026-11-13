@@ -28,6 +28,7 @@ import { useAppSession, useCanStartHomeNavigation } from '@/src/components/Sessi
 import { useImpersonation } from '@/src/contexts/ImpersonationContext';
 import { isDemoMode } from '@/src/config/demoMode';
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
+import { canReadQuarterlyResearch } from '@/src/config/quarterlyResearch';
 import { canSeeOccupierReportCard } from '@/src/config/occupierReportCard';
 import { signOut } from '@/src/services/Auth';
 import { getUserRoleLabel, parseUserRole, type UserRole } from '@/src/types/auth';
@@ -44,7 +45,7 @@ type WorkspaceModule = {
   module: string;
   title: string;
   /** 首页入口的可见范围；缺省表示所有合法角色都能看到。 */
-  homeVisibility?: 'occupier-report';
+  homeVisibility?: 'occupier-report' | 'admin-research';
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -63,6 +64,7 @@ const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
 };
 
 const BUSINESS_WORKSPACES: WorkspaceModule[] = [
+  { href: '/quarterly-research', module: 'quarterly-research', title: '北京写字楼季度研究', homeVisibility: 'admin-research', icon: FileText },
   {
     href: '/update',
     module: 'update',
@@ -365,8 +367,9 @@ export function HomeWorkspace() {
   const canSeeIntelligence = Boolean(activeSession && isIntelligencePreviewEnabled(activeRole));
   // This card's visibility does not change the report's public access.
   const visibleBusinessWorkspaces = activeSession ? BUSINESS_WORKSPACES.filter(workspace =>
-    workspace.homeVisibility !== 'occupier-report'
-    || canSeeOccupierReportCard(activeRole, activeSession.user.email),
+    workspace.homeVisibility === 'admin-research'
+      ? canReadQuarterlyResearch(activeRole, isImpersonating)
+      : workspace.homeVisibility !== 'occupier-report' || canSeeOccupierReportCard(activeRole, activeSession.user.email),
   ) : [];
 
   async function handleLogout() {
