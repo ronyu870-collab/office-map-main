@@ -2,8 +2,9 @@ import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Candidate, CandidatePage } from '@/src/lib/leaseExpiry/contracts';
-const state = vi.hoisted(() => ({ role: 'admin', user: 'synthetic-admin', token: 'synthetic-token', impersonating: false, list: vi.fn() }));
-vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: 'authenticated', session: { role: state.role, user: { id: state.user }, session: { access_token: state.token } } }) }));
+const state = vi.hoisted(() => ({ role: 'admin', status: 'authenticated', user: 'synthetic-admin', token: 'synthetic-token', impersonating: false, list: vi.fn(), replace: vi.fn() }));
+vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: state.status, session: { role: state.role, user: { id: state.user }, session: { access_token: state.token } } }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: state.replace }) }));
 vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: state.impersonating }) }));
 vi.mock('@/src/services/leaseExpiryTimelineApi', () => ({ listLeaseExpiries: state.list }));
 import { LeaseExpiryTimeline } from './LeaseExpiryTimeline';
@@ -15,7 +16,7 @@ const item: Candidate = {
   source_fingerprint: 'a'.repeat(32), proxy_start: '2026-10-01', proxy_end: '2026-12-31', has_later_name_match: true, review: null,
 };
 const data: CandidatePage = { items: [item], total: 1, page: 1, page_size: 25, as_of: '2026-11-13', window_end: '2027-05-13' };
-beforeEach(() => { state.role = 'admin'; state.user = 'synthetic-admin'; state.token = 'synthetic-token'; state.impersonating = false; state.list.mockReset().mockResolvedValue(structuredClone(data)); });
+beforeEach(() => { state.role = 'admin'; state.status = 'authenticated'; state.replace.mockReset(); state.user = 'synthetic-admin'; state.token = 'synthetic-token'; state.impersonating = false; state.list.mockReset().mockResolvedValue(structuredClone(data)); });
 afterEach(cleanup);
 
 describe('read-only expiry under leasing', () => {
@@ -29,13 +30,32 @@ describe('read-only expiry under leasing', () => {
     expect(screen.queryByRole('button', { name: /保存|跟进|核实/ })).toBeNull();
     expect(screen.queryByText(/AI 分析/)).toBeNull();
   });
-  it.each(['broker', 'manager', 'viewer'])('does not request data for %s', role => {
-    state.role = role; render(<LeaseExpiryTimeline />);
+  it.each(['editor', 'viewer', 'broker', 'manager'])('hides both entries and returns %s to leasing without a data request', role => {
+    state.role = role;
+    render(<><LeaseExpiryLink /><LeaseExpiryLink variant="compact" /><LeaseExpiryTimeline /></>);
+    expect(screen.queryByRole('link', { name: '租约到期' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: '租约到期' })).toBeNull();
+    expect(state.replace).toHaveBeenCalledWith('/lease-submission');
     expect(state.list).not.toHaveBeenCalled();
-    expect(screen.getByText(/目前仅对管理员开放/)).toBeVisible();
   });
-  it('does not request data while impersonating', () => {
-    state.impersonating = true; render(<LeaseExpiryTimeline />); expect(state.list).not.toHaveBeenCalled();
+  it('hides the entry and page while impersonating, even when the operator is admin', () => {
+    state.impersonating = true;
+    render(<><LeaseExpiryLink /><LeaseExpiryTimeline /></>);
+    expect(screen.queryByRole('link', { name: '租约到期' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: '租约到期' })).toBeNull();
+    expect(state.replace).toHaveBeenCalledWith('/lease-submission');
+    expect(state.list).not.toHaveBeenCalled();
+  });
+  it('keeps the feature hidden while checking the session and sends signed-out users to login', () => {
+    state.status = 'loading';
+    const view = render(<><LeaseExpiryLink /><LeaseExpiryTimeline /></>);
+    expect(screen.queryByText('租约到期')).toBeNull();
+    expect(state.replace).not.toHaveBeenCalled();
+    state.status = 'unauthenticated';
+    view.rerender(<><LeaseExpiryLink /><LeaseExpiryTimeline /></>);
+    expect(screen.queryByText('租约到期')).toBeNull();
+    expect(state.replace).toHaveBeenCalledWith('/login');
+    expect(state.list).not.toHaveBeenCalled();
   });
   it('clears records when a permission recheck fails', async () => {
     render(<LeaseExpiryTimeline />); await screen.findByText('合成验证企业');
@@ -70,7 +90,8 @@ describe('read-only expiry under leasing', () => {
     const view = render(<LeaseExpiryTimeline />); await screen.findByText('合成验证企业');
     state.role = 'broker'; view.rerender(<LeaseExpiryTimeline />);
     expect(screen.queryByText('合成验证企业')).toBeNull();
-    await waitFor(() => expect(screen.getByText(/目前仅对管理员开放/)).toBeVisible());
+    await waitFor(() => expect(state.replace).toHaveBeenCalledWith('/lease-submission'));
+    expect(screen.queryByRole('heading', { name: '租约到期' })).toBeNull();
   });
 });
 

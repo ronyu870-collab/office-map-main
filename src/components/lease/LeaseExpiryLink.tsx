@@ -1,8 +1,12 @@
+'use client';
+
 import Link from 'next/link';
 import { CalendarRange } from 'lucide-react';
+import { useLeaseExpiryAccess } from './useLeaseExpiryAccess';
 
-/** Callers show this only to a real administrator; the destination also authorizes. */
 export function LeaseExpiryLink({ variant = 'standard' }: { variant?: 'standard' | 'compact' }) {
+  const { permitted } = useLeaseExpiryAccess();
+  if (!permitted) return null;
   const compact = variant === 'compact';
   return <Link href="/lease-submission/expiry" prefetch={false} aria-label="租约到期" title="租约到期" className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[var(--cd-radius-md)] hover:bg-[var(--cd-color-surface-alt)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${compact
     ? 'h-8 px-2 text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)] hover:text-[var(--cd-color-brand)] max-sm:min-h-11 max-sm:min-w-11'

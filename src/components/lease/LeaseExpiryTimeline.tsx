@@ -3,8 +3,8 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import { useAppSession } from '@/src/components/SessionProvider';
-import { useImpersonation } from '@/src/contexts/ImpersonationContext';
+import { useRouter } from 'next/navigation';
+import { useLeaseExpiryAccess } from './useLeaseExpiryAccess';
 import { AppHeader, Button, LoadingState } from '@/src/components/ui';
 import type { ExpiryPage, ExpiryCandidate } from '@/src/lib/leaseExpiry/contracts';
 import { expiryBar, expiryLabel, expiryAxisMonths, expiryNeedsReview } from '@/src/lib/leaseExpiry/timeline';
@@ -13,14 +13,19 @@ import { listLeaseExpiries } from '@/src/services/leaseExpiryTimelineApi';
 import styles from './LeaseExpiryTimeline.module.css';
 
 export function LeaseExpiryTimeline() {
-  const { session, status } = useAppSession();
-  const { isImpersonating } = useImpersonation();
-  const permitted = status === 'authenticated' && session?.role === 'admin' && !isImpersonating;
+  const router = useRouter();
+  const { permitted, session, status } = useLeaseExpiryAccess();
+  React.useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/login');
+    if (status === 'authenticated' && !permitted) router.replace('/lease-submission');
+  }, [router, status, permitted]);
+
+  if (status === 'loading') return <LoadingState label="正在校验账号" rows={0} />;
+  if (!permitted || !session) return null;
   return <div className={styles.workspace}>
     <header className={styles.header}><AppHeader title="租约到期" actions={<Link href="/lease-submission" aria-label="返回租赁成交" className={styles.back}><ChevronLeft size={16} aria-hidden="true" />租赁成交</Link>} /></header>
     <main className={styles.main}>
-      {permitted && session ? <LeaseExpiryTimelinePanel key={`${session.user.id}:${session.session.access_token}`} token={session.session.access_token} /> :
-        <p role="status">{status === 'loading' ? '正在校验账号…' : '租约到期目前仅对管理员开放，请登录管理员账号并退出用户模拟。'}</p>}
+      <LeaseExpiryTimelinePanel key={`${session.user.id}:${session.session.access_token}`} token={session.session.access_token} />
     </main>
   </div>;
 }
