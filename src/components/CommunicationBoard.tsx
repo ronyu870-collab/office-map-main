@@ -457,7 +457,7 @@ export function CommunicationBoard({ userEmail }: CommunicationBoardProps) {
   }
 
   return (
-    <section className="flex h-full flex-col overflow-hidden bg-[var(--cd-color-surface)]" aria-label="市场交流摘要">
+    <section className="relative flex h-full flex-col overflow-visible bg-[var(--cd-color-surface)]" aria-label="市场交流摘要">
       {boardContent}
     </section>
   );
