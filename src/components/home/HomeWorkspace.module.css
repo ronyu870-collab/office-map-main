@@ -40,7 +40,9 @@
 .workspaceLink::after { content: ''; position: absolute; bottom: 0; left: 12px; right: 12px; height: 1px; background: var(--cd-color-border); }
 .workspaceLink:nth-last-child(-n + 2):nth-child(odd)::after, .workspaceLink:last-child::after { display: none; }
 .workspaceLink:last-child:nth-child(odd) { grid-column: 1 / -1; }
-.workspaceLink h3 { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; text-wrap: balance; }
+.workspaceText { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.workspaceText h3 { font-size: 14px; font-weight: 500; text-wrap: balance; }
+.workspaceNote { color: var(--cd-color-text-secondary); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .workspaceIcon { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 8px; background: var(--cd-color-surface-alt); color: var(--cd-color-brand); }
 .linkArrow { flex-shrink: 0; color: var(--cd-color-text-secondary); }
 .workspaceLink:hover, .workspaceLink:focus-visible { background: var(--cd-color-surface-alt); }

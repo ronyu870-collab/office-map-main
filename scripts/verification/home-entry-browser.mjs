@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 const require = createRequire(import.meta.url);
@@ -7,7 +8,9 @@ const { chromium } = require(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-c
 const [variant = 'after', base = 'http://127.0.0.1:3210'] = process.argv.slice(2);
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(base).hostname));
 assert.ok(['before', 'after'].includes(variant));
-const out = new URL('../../docs/verification/home-ai-entry/', import.meta.url);
+const out = process.env.HOME_ENTRY_EVIDENCE_DIR
+  ? pathToFileURL(resolve(process.env.HOME_ENTRY_EVIDENCE_DIR) + '/')
+  : new URL('../../docs/verification/home-ai-entry/', import.meta.url);
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch({ ...(process.env.PERF_BROWSER_CHANNEL === 'chromium' ? {} : { channel: 'chrome' }), headless: true });
 const id = '12345678-1111-4111-8111-111111111111';
@@ -70,6 +73,19 @@ try {
       await page.getByText('环球金融', { exact: true }).waitFor();
       await page.getByRole('button', { name: '查看全部 4 条公告' }).waitFor();
     }
+    const nav = page.getByRole('navigation', { name: '业务入口' });
+    const businessOrder = await nav.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')));
+    if (variant === 'after') {
+      assert.deepEqual(businessOrder, ['/map', '/lease-submission', '/update', '/oss',
+        ...(role === 'admin' ? ['/quarterly-research', '/occupier-insights'] : [])]);
+      assert.equal(await nav.getByText('仅管理员可见', { exact: true }).count(), role === 'admin' ? 2 : 0);
+      if (role === 'admin') {
+        for (const name of ['北京写字楼季度研究', '企业选址洞察报告']) {
+          const link = nav.getByRole('link', { name, exact: true });
+          assert.equal(await link.getByText('仅管理员可见', { exact: true }).isVisible(), true);
+        }
+      }
+    }
     const initialScrollTop = await page.locator('main > div').evaluate(el => el.scrollTop);
     if (variant === 'after') assert.equal(initialScrollTop, 0, 'loading team activity must not scroll the homepage');
     await page.screenshot({ path: fileURLToPath(new URL(`${variant}-${key}.png`, out)), fullPage: true });
@@ -117,7 +133,7 @@ try {
       }
     }
     assert.equal(errors.length, 0, errors.join('\n'));
-    records.push({ width, role, mode, initialScrollTop, browser: browser.version(), metrics, checks: [...(mode === 'empty' ? ['empty activity state'] : ['notice expand/collapse']), ...(mode === 'error' ? ['notice and communication failure recovery'] : []), ...(mode === 'long' ? ['bounded internal message scrolling'] : []), 'communication open/close', 'account menu escape focus', 'no horizontal overflow', ...(variant === 'after' ? ['query unavailable and disabled', 'no new AI request', 'initial page scroll remains zero', ...(role === 'admin' ? ['report navigation and browser back'] : ['restricted entries absent'])] : [])], errors });
+    records.push({ width, role, mode, businessOrder, initialScrollTop, browser: browser.version(), metrics, checks: [...(mode === 'empty' ? ['empty activity state'] : ['notice expand/collapse']), ...(mode === 'error' ? ['notice and communication failure recovery'] : []), ...(mode === 'long' ? ['bounded internal message scrolling'] : []), 'communication open/close', 'account menu escape focus', 'no horizontal overflow', ...(variant === 'after' ? ['query unavailable and disabled', 'no new AI request', 'initial page scroll remains zero', ...(role === 'admin' ? ['report navigation and browser back'] : ['restricted entries absent'])] : [])], errors });
     await context.close();
   }
   await writeFile(new URL(`${variant}-browser.json`, out), JSON.stringify(records, null, 2));
