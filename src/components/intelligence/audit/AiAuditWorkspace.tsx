@@ -10,6 +10,7 @@ import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { auditEntries, auditStates, auditEntryLabels, auditStateLabels, auditFilterSchema, auditSubmittedText,
   type AuditFilter, type AuditItem, type AuditList, type AuditIntake, type AuditStream } from '@/src/lib/intelligence/query/auditConsoleView';
 import { aiAuditClient, AuditReadError, type AuditScope } from '@/src/services/aiAuditClient';
+import type { AuditExportTarget } from '@/src/lib/intelligence/query/auditExportView';
 import styles from './AiAuditWorkspace.module.css';
 
 const localTime = (value: string) => new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
@@ -29,7 +30,7 @@ function DocumentDetails({ value, label = '查看留存字段' }: { value: unkno
   return <details className={styles.document}><summary>{label}</summary><pre>{JSON.stringify(value, null, 2) ?? '未留存'}</pre></details>;
 }
 
-function RecordDetails({ selected, loadStream, busy, directoryAsOf }: { selected: Selected; loadStream: () => void; busy: boolean; directoryAsOf: string }) {
+function RecordDetails({ selected, loadStream, busy, directoryAsOf, exportRecord }: { selected: Selected; loadStream: () => void; busy: boolean; directoryAsOf: string; exportRecord: () => void }) {
   const { item, intake, stream } = selected;
   const original = intake?.record?.document ?? stream?.record?.events.find(event => event.kind === 'received')?.document;
   const question = auditSubmittedText(original);
@@ -48,6 +49,7 @@ function RecordDetails({ selected, loadStream, busy, directoryAsOf }: { selected
       <dt>提交编号</dt><dd>{item.id}</dd>
     </dl>
     <p className={styles.muted}>姓名取自 {localTime(directoryAsOf)} 的当前人员目录，不是提交时姓名快照；原始账号编号保持不变。</p>
+    <button type="button" onClick={exportRecord} disabled={busy}>导出此记录及关联回答（JSON）</button>
     {!stream && <button type="button" onClick={loadStream} disabled={busy}>查看关联回答与来源</button>}
     {stream?.record === null && <p>没有可读取的关联执行记录，无法据此确认是否执行或产生回答。</p>}
     {stream?.record && <>
@@ -103,7 +105,9 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
     const ticket = ++generation.current; setBusy(true);
     try { await work(next.signal); }
     catch (error) {
-      if (!next.signal.aborted && ticket === generation.current) clear(error instanceof AuditReadError && error.reason === 'denied'
+      if (!next.signal.aborted && ticket === generation.current) clear(error instanceof AuditReadError && error.reason === 'export_denied'
+        ? '当前账号没有可用的独立审计导出资格，或导出条件已失效。可重新检索查看记录。'
+        : error instanceof AuditReadError && error.reason === 'denied'
         ? '当前账号没有可用的审计资格，或本次访问条件已失效。内容已收起，请核对资格后重新检索。'
         : error instanceof AuditReadError && error.reason === 'identity' ? '登录身份已变化，审计内容已收起。请使用本人账号重新进入。'
           : '审计服务暂时不可用或内容无法校验。内容已收起，请稍后重新检索。');
@@ -113,6 +117,20 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
   function search(next: AuditFilter) {
     setSelected(null); setDetailOpen(false); setPage(null); setMessage('正在核对权限并检索…');
     void run(async signal => { const result = await aiAuditClient.list(scope, next, signal); valid(signal); setPage(result); setApplied(next); setMessage(''); });
+  }
+  function exportRecords(targets: AuditExportTarget[]) {
+    setMessage('正在核对独立导出资格并生成审计文件…');
+    void run(async signal => {
+      const file = await aiAuditClient.exportRecords(scope, targets, signal); valid(signal);
+      const url = URL.createObjectURL(file.blob), anchor = document.createElement('a');
+      try { anchor.href = url; anchor.download = file.filename; document.body.appendChild(anchor); anchor.click(); }
+      finally { anchor.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000); }
+      let reported = true;
+      try { await aiAuditClient.reportExport(scope, file, signal); } catch { reported = false; }
+      valid(signal);
+      setMessage(reported ? '浏览器已发起审计文件下载，并记录客户端报告。请自行确认文件是否保存；已下载文件无法远程撤回。'
+        : '浏览器已发起下载，但客户端报告未确认。请核对文件；不能据此断定文件未保存。');
+    });
   }
   function submit(event: React.FormEvent) {
     event.preventDefault(); if (composing.current) return;
@@ -153,6 +171,10 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
       <div className={styles.resultHeading}><h2>提交记录</h2><span>本页匹配 {page.items.length} 条，检查 {page.scanned} 条候选</span></div>
       <p className={styles.muted}>时间范围 {applied && localTime(applied.from)} 至 {applied && localTime(applied.to)}。筛选草稿修改后须重新检索。</p>
       <p className={styles.muted}>人员姓名来自 {localTime(page.directoryAsOf)} 的当前目录，不是历史身份快照。{applied?.actorSearch ? ` 当前姓名条件：${applied.actorSearch}。` : ''}{applied?.actorId ? ` 当前账号条件：${applied.actorId}。` : ''}</p>
+      {page.items.length > 0 && <details className={styles.more}><summary>导出审计记录</summary>
+        <p className={styles.muted}>需独立审计导出资格。仅导出本页匹配记录及其关联回答、来源和事件，不含后续页或原始附件；文件仅供内部审计。</p>
+        <button type="button" disabled={busy} onClick={() => exportRecords(page.items.map(item => ({ kind: item.kind, id: item.id })))}>导出本页 {page.items.length} 条（JSON）</button>
+      </details>}
       {page.totalUnreadable > 0 && <p>累计 {page.totalUnreadable} 条候选正文缺失或无法校验；关键词检索可能遗漏，不能视为完整结果。</p>}
       {!page.items.length && <p>{page.nextCursor ? '本批候选未匹配，仍有后续记录。请继续检查下一批。' : page.searchComplete ? '已检查当前条件的全部候选，没有匹配记录。' : '本页没有匹配记录，但存在无法检索的正文，不能确认完全没有匹配。'}</p>}
       <ul className={styles.rows}>{page.items.map(item => <li key={item.id}>
@@ -167,7 +189,7 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
         }}>仅看此账号</button>}
         {detailOpen && selected?.item.id === item.id && <div ref={detail} tabIndex={-1} className={styles.detailContainer}>
           <button className={styles.close} onClick={() => { setDetailOpen(false); setSelected(null); activeButton.current?.focus(); }}>收起详情</button>
-          <RecordDetails selected={selected} directoryAsOf={page.directoryAsOf} busy={busy} loadStream={() => {
+          <RecordDetails selected={selected} directoryAsOf={page.directoryAsOf} busy={busy} exportRecord={() => exportRecords([{ kind: selected.item.kind, id: selected.item.id }])} loadStream={() => {
             const current = selected; setMessage('正在读取关联执行…');
             void run(async signal => { const stream = await aiAuditClient.stream(scope, current.item.requestId, signal); valid(signal); setSelected({ ...current, stream }); setMessage(''); });
           }} />
@@ -179,7 +201,7 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
         {!page.nextCursor && <p>{page.searchComplete ? '当前候选已检查完毕。' : '已到候选末尾，存在正文不可用记录。'}</p>}
       </div>
     </section>}
-    <p className={styles.notice}>页面隐藏或本次查看超过一分钟后收起内容；重新检索会再次核对资格。这里的查看权限不包含原始文件下载或对外导出。</p>
+    <p className={styles.notice}>页面隐藏或本次查看超过一分钟后收起内容；重新检索会再次核对资格。审计导出另需独立资格，不包含原始附件下载或对外发送权限。</p>
   </>;
 }
 

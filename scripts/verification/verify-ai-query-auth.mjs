@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 import { rolldown } from 'rolldown';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
+import { verifyAuditExport } from './ai-audit-export-scenarios.mjs';
 import { verifyAuditPeople } from './ai-audit-people-scenarios.mjs';
 import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyAuditConsole } from './ai-audit-console-scenarios.mjs';
@@ -89,6 +90,7 @@ try{
   if(!(await db.query("select to_regclass('private.ai_audit_console_access') r")).rows[0].r)await db.query(await load('20261113090954_ai_audit_console_read.sql'));
   await db.query(await load('20261113123123_ai_admin_only_access.sql'));
   await db.query(await load('20261113130012_ai_audit_actor_directory.sql'));
+  await db.query(await load('20261113132136_ai_audit_controlled_export.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -545,6 +547,7 @@ try{
   });
   await verifyAuditConsole({db,service,app,check,person,queryAdmin,other,admin,call,input,successful,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
   await verifyAuditPeople({db,service,app,check,person,other,call,input,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
+  await verifyAuditExport({db,app,check,person,successful});
   await verifyAdminOnly({db,app,check,person,call,input,capabilities,recover,artifact,acknowledge,exportCaps});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
@@ -569,6 +572,7 @@ try{
   if(previewFile){
     const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
     await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
+    await db.query("insert into private.ai_audit_export_grants(user_id,enabled,valid_until,grant_reference) values($1,true,now()+interval '1 day','synthetic browser export')",[preview.id]);
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
     await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
     console.log('LOCAL_SYNTHETIC_PREVIEW_READY');

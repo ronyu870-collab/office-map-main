@@ -37,3 +37,28 @@ test('suppresses a late response after cancellation', async () => {
   vi.mocked(fetch).mockImplementationOnce(async () => { control.abort(); return response(); });
   await expect(aiAuditClient.list(scope, filter, control.signal)).rejects.toThrow();
 });
+
+test('downloads only a hash-checked file bound to the selected records and current account, then reports software dispatch', async () => {
+  const {createHash,webcrypto}=await import('node:crypto');vi.stubGlobal('crypto',webcrypto);
+  const targets=[{kind:'intake' as const,id:actorId}];
+  const document={format:'audit-export/1',exportId:sessionId,requestedBy:actorId,exportedAt:'2026-11-13T00:00:00Z',purpose:'internal_audit_only',coverage:'selected_records_only',targets,
+    records:[{target:targets[0],capturedAt:'2026-11-13T00:00:00Z',requestId:actorId,intake:{document:'原始问题'},execution:null}],limitations:['selected records']};
+  const text=JSON.stringify(document),digest=createHash('sha256').update(text).digest('hex');
+  const fileResponse=(sha=digest)=>new Response(text,{headers:{'content-type':'application/json','content-disposition':'attachment; filename="../../wrong.json"','x-audit-export-id':sessionId,'x-audit-export-sha256':sha,'x-audit-export-receipt':'synthetic-receipt'}});
+  vi.mocked(fetch).mockResolvedValueOnce(fileResponse());
+  const file=await aiAuditClient.exportRecords(scope,targets,new AbortController().signal);
+  expect(file.filename).toBe(`ai-audit-${sessionId}.json`);expect(file.blob.size).toBe(new TextEncoder().encode(text).length);
+  vi.mocked(fetch).mockResolvedValueOnce(Response.json({status:'accepted'}));await aiAuditClient.reportExport(scope,file,new AbortController().signal);
+  expect(fetch).toHaveBeenLastCalledWith('/api/intelligence/audit/export',expect.objectContaining({body:JSON.stringify({action:'report',receiptToken:'synthetic-receipt'})}));
+  vi.mocked(fetch).mockResolvedValueOnce(fileResponse('0'.repeat(64)));
+  await expect(aiAuditClient.exportRecords(scope,targets,new AbortController().signal)).rejects.toMatchObject({reason:'unavailable'});
+  vi.mocked(fetch).mockResolvedValueOnce(fileResponse());
+  await expect(aiAuditClient.exportRecords(scope,[{kind:'stream',id:actorId}],new AbortController().signal)).rejects.toMatchObject({reason:'unavailable'});
+});
+
+test('rejects export-only denial and identity changes before a download can be dispatched', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce(Response.json({status:'denied'},{status:403}));
+  await expect(aiAuditClient.exportRecords(scope,[{kind:'intake',id:actorId}],new AbortController().signal)).rejects.toMatchObject({reason:'export_denied'});
+  fixture.getSession.mockResolvedValueOnce(session).mockResolvedValueOnce({...session,sessionId:actorId});
+  await expect(aiAuditClient.exportRecords(scope,[{kind:'intake',id:actorId}],new AbortController().signal)).rejects.toMatchObject({reason:'identity'});
+});

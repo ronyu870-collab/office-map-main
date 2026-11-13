@@ -5,10 +5,10 @@ import { AiAuditSearch, AiAuditWorkspace } from './AiAuditWorkspace';
 import { AuditReadError } from '@/src/services/aiAuditClient';
 import type { AuditList } from '@/src/lib/intelligence/query/auditConsoleView';
 
-const fixture = vi.hoisted(() => ({ list: vi.fn(), intake: vi.fn(), stream: vi.fn(), session: null as unknown,
+const fixture = vi.hoisted(() => ({ list: vi.fn(), intake: vi.fn(), stream: vi.fn(), exportRecords: vi.fn(), reportExport: vi.fn(), session: null as unknown,
   status: 'authenticated', impersonating: false, target: null as string | null }));
 vi.mock('@/src/services/aiAuditClient', async importOriginal => ({ ...await importOriginal<typeof import('@/src/services/aiAuditClient')>(),
-  aiAuditClient: { list: fixture.list, intake: fixture.intake, stream: fixture.stream } }));
+  aiAuditClient: { list: fixture.list, intake: fixture.intake, stream: fixture.stream, exportRecords: fixture.exportRecords, reportExport: fixture.reportExport } }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ session: fixture.session, status: fixture.status }) }));
 vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: fixture.impersonating, targetUserId: fixture.target }) }));
 const actorId = '11111111-1111-4111-8111-111111111111', sessionId = '22222222-2222-4222-8222-222222222222';
@@ -21,12 +21,13 @@ const page = (change: Partial<AuditList> = {}): AuditList => ({ status: 'ready',
   directoryAsOf: '2026-11-13T01:00:00Z', identitySemantics: 'current_directory_not_historical', unreadable: 0, nextCursor: null, searchComplete: true, totalUnreadable: 0, totalMatches: null, semantics: 'attempts_and_legacy_streams', ...change });
 const clickSearch = () => fireEvent.click(screen.getByRole('button', { name: /检索记录|重新检索/ }));
 beforeEach(() => {
+  fixture.exportRecords.mockReset(); fixture.reportExport.mockReset().mockResolvedValue(undefined);
   fixture.list.mockReset().mockResolvedValue(page()); fixture.intake.mockReset(); fixture.stream.mockReset();
   fixture.session = { role: 'admin', session: { user: { id: actorId } }, user: { id: actorId }, sessionId };
   fixture.status = 'authenticated'; fixture.impersonating = false; fixture.target = null;
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
 });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 test('includes submissions from the current minute in the initial time window', () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-13T12:11:30Z'));
@@ -183,4 +184,33 @@ test('does not invent names for unresolved identities and discloses shortened di
   render(<AiAuditSearch scope={scope} />); clickSearch();
   expect(await screen.findByText(/姓名未知或目录未匹配/)).toBeInTheDocument();
   expect(screen.getByText(/长姓名…（名称已缩短）/)).toBeInTheDocument();
+});
+
+test('exports only currently matched page records and separately reports browser dispatch', async () => {
+  const file={blob:new Blob(['{}']),filename:'ai-audit-test.json',receiptToken:'synthetic'};
+  fixture.exportRecords.mockResolvedValue(file);
+  const create=vi.fn(()=> 'blob:synthetic'),revoke=vi.fn();
+  vi.stubGlobal('URL',class extends URL {static createObjectURL=create;static revokeObjectURL=revoke;});
+  const click=vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{});
+  render(<AiAuditSearch scope={scope} />);clickSearch();await screen.findByText('CBD最高的楼');
+  fireEvent.click(screen.getByText('导出审计记录'));fireEvent.click(screen.getByRole('button',{name:'导出本页 1 条（JSON）'}));
+  expect(await screen.findByText(/浏览器已发起审计文件下载/)).toBeInTheDocument();
+  expect(fixture.exportRecords).toHaveBeenCalledWith(scope,[{kind:'intake',id}],expect.any(AbortSignal));
+  expect(click).toHaveBeenCalledTimes(1);expect(create).toHaveBeenCalledWith(file.blob);
+  expect(fixture.reportExport).toHaveBeenCalledWith(scope,file,expect.any(AbortSignal));
+});
+
+test('does not dispatch denied or stale exports and explains an unconfirmed client report accurately', async () => {
+  const file={blob:new Blob(['{}']),filename:'ai-audit-test.json',receiptToken:'synthetic'};
+  const create=vi.fn(()=> 'blob:synthetic');vi.stubGlobal('URL',class extends URL {static createObjectURL=create;static revokeObjectURL=vi.fn();});
+  const click=vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{});
+  render(<AiAuditSearch scope={scope} />);clickSearch();await screen.findByText('CBD最高的楼');
+  fixture.exportRecords.mockRejectedValueOnce(new AuditReadError('export_denied'));
+  fireEvent.click(screen.getByRole('button',{name:'导出本页 1 条（JSON）'}));await screen.findByText(/没有可用的独立审计导出资格/);expect(click).not.toHaveBeenCalled();
+  clickSearch();await screen.findByText('CBD最高的楼');
+  fixture.exportRecords.mockResolvedValueOnce(file);fixture.reportExport.mockRejectedValueOnce(new AuditReadError('unavailable'));
+  fireEvent.click(screen.getByRole('button',{name:'导出本页 1 条（JSON）'}));await screen.findByText(/客户端报告未确认/);expect(click).toHaveBeenCalledTimes(1);
+  let resolve!:(value:typeof file)=>void;fixture.exportRecords.mockImplementationOnce(()=>new Promise(done=>{resolve=done;}));
+  fireEvent.click(screen.getByRole('button',{name:'导出本页 1 条（JSON）'}));
+  fireEvent(window,new Event('pagehide'));await act(async()=>resolve(file));expect(click).toHaveBeenCalledTimes(1);
 });

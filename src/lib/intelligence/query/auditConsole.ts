@@ -1,12 +1,12 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
-import { auditPayloadDigest, decryptAuditContent, encryptAuditContent } from './auditCrypto';
+import { auditPayloadDigest, encryptAuditContent } from './auditCrypto';
 import { sanitizeAuditContent, type AuditKeys } from './auditStore';
 import { readQueryBody } from './httpBody';
 import type { queryHttpDependencies } from './http';
-import { recordQueryIntake, decodeIntakeDocument, encodeIntakeDocument } from './intake';
-import { decodeGeneratedArchive } from './resultArchive';
+import { recordQueryIntake, encodeIntakeDocument } from './intake';
+import { decodeAuditIntake, decodeAuditStream, readAuditDocument } from './auditConsoleDecode';
 import { isQuerySameOrigin } from './sameOrigin';
 import { verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 
@@ -24,26 +24,11 @@ type Input = z.infer<typeof auditConsoleInput>;
 const pageRow = z.object({ record_id: z.uuid(), request_id: z.uuid(), occurred_at: stamp, actor_id: z.uuid(), effective_user_id: z.uuid(),
   actor_name: z.string().max(320).nullable(), actor_name_truncated: z.boolean(), effective_name: z.string().max(320).nullable(), effective_name_truncated: z.boolean(),
   kind: z.enum(['intake','stream']), entry, related_state: state, cipher: z.unknown(), payload_digest: hash.nullable(), event_id: z.uuid().optional() });
-const eventRow = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().min(1).max(2048), kind: z.string(), occurred_at: stamp, payload_digest: hash, cipher: z.unknown() });
-const streamSchema = z.object({ request_id: z.uuid(), actor_id: z.uuid(), effective_user_id: z.uuid(), state, head_sequence: z.number().int().min(1).max(2048), head_hash: hash }).passthrough();
-const intakeRow = z.object({ event_id: z.uuid(), request_id: z.uuid(), actor_id: z.uuid(), effective_user_id: z.uuid().nullable(), occurred_at: stamp,
-  entry: entry.nullable(), content_digest: hash.nullable(), cipher: z.unknown() }).passthrough();
 const reply = (value: unknown, status: number) => Response.json(value, { status, headers: {
   'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,
 } });
 
 function equalHash(a: string, b: string) { return /^[a-f0-9]{64}$/.test(a) && /^[a-f0-9]{64}$/.test(b) && timingSafeEqual(Buffer.from(a,'hex'),Buffer.from(b,'hex')); }
-function readDocument(cipher: unknown, context: {requestId:string;eventId:string;actorId:string;effectiveUserId:string}, digest: string, keys: AuditKeys, intake: boolean, received = false): unknown {
-  const text = decryptAuditContent(cipher,context,new Map([[keys.keyId,keys.encryptionKey]]));
-  if (!received && !equalHash(digest,auditPayloadDigest(text,keys.digestKey))) throw new Error('AUDIT_CONSOLE_INTEGRITY');
-  const document = intake ? decodeIntakeDocument(text) : JSON.parse(text);
-  if (received) {
-    const value = z.object({content:z.object({submittedText:z.string(),plan:z.unknown(),metadata:z.unknown()}),redactionTypes:z.array(z.string())}).parse(document);
-    const submitted = {content:{submittedText:value.content.submittedText,plan:value.content.plan,metadata:value.content.metadata},redactionTypes:value.redactionTypes};
-    if (!equalHash(digest,auditPayloadDigest(JSON.stringify(submitted),keys.digestKey))) throw new Error('AUDIT_CONSOLE_INTEGRITY');
-  }
-  return document;
-}
 function question(document: unknown, intake: boolean): string {
   const value = z.object({content:z.record(z.string(),z.unknown())}).parse(document).content;
   if (!intake) return z.string().parse(value.submittedText);
@@ -110,7 +95,7 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
       for(const row of rows) {
         let text:string|null=null, contentState='available';
         if(!row.cipher || !row.payload_digest) {contentState='unavailable';unreadable++;}
-        else { try {text=question(readDocument(row.cipher,{requestId:row.request_id,eventId:row.kind==='intake'?row.record_id:row.event_id!,actorId:row.actor_id,effectiveUserId:row.effective_user_id},row.payload_digest,keys,row.kind==='intake',row.kind==='stream'),row.kind==='intake');}
+        else { try {text=question(readAuditDocument(row.cipher,{requestId:row.request_id,eventId:row.kind==='intake'?row.record_id:row.event_id!,actorId:row.actor_id,effectiveUserId:row.effective_user_id},row.payload_digest,keys,row.kind==='intake',row.kind==='stream'),row.kind==='intake');}
           catch {contentState='integrity_unavailable';unreadable++;} }
         if(input.keyword && (text===null || !text.normalize('NFKC').toLocaleLowerCase().includes(input.keyword.normalize('NFKC').toLocaleLowerCase())))continue;
         items.push({id:row.record_id,requestId:row.request_id,kind:row.kind,at:row.occurred_at,actorId:row.actor_id,effectiveUserId:row.effective_user_id,
@@ -127,20 +112,11 @@ export async function handleAuditConsole(request: Request, dependencies: ReturnT
       returned=items.map(item=>item.id);response={status:'ready',accessId,items,directoryAsOf:value.directory_as_of,identitySemantics:'current_directory_not_historical',scanned:rows.length,unreadable,nextCursor,
         searchComplete:!value.has_more && (cursor?.unreadable??0)+unreadable===0,totalUnreadable:(cursor?.unreadable??0)+unreadable,totalMatches:null,semantics:'attempts_and_legacy_streams'};
     } else if(input.action==='intake') {
-      const rows=z.array(intakeRow).max(1).parse(value.records), row=rows[0];
-      const document=row?.cipher && row.content_digest && row.effective_user_id ? readDocument(row.cipher,{requestId:row.request_id,eventId:row.event_id,actorId:row.actor_id,effectiveUserId:row.effective_user_id},row.content_digest,keys,true):null;
-      returned=row?[row.event_id]:[];response={status:'ready',accessId,record:row?{id:row.event_id,requestId:row.request_id,actorId:row.actor_id,effectiveUserId:row.effective_user_id,at:row.occurred_at,entry:row.entry,
-        contentState:document?'available':'unavailable',document,meaning:'submitted_attempt_not_proof_of_execution'}:null};
+      const record=decodeAuditIntake(value.records,keys);
+      returned=record?[record.id]:[];response={status:'ready',accessId,record};
     } else {
-      const stream=value.stream===null?null:streamSchema.parse(value.stream), events=z.array(eventRow).max(2048).parse(value.records);
-      if(stream && (stream.request_id!==input.id || stream.head_sequence!==events.length || events.some((e,i)=>e.request_id!==input.id || e.sequence!==i+1)))throw new Error('AUDIT_CONSOLE_INTEGRITY');
-      const context=stream?{requestId:input.id,actorId:stream.actor_id,effectiveUserId:stream.effective_user_id}:null;
-      const decoded=context?events.map(e=>({id:e.event_id,sequence:e.sequence,at:e.occurred_at,kind:e.kind,
-        document:e.kind==='response_generated'?null:readDocument(e.cipher,{...context,eventId:e.event_id},e.payload_digest,keys,false,e.kind==='received')})):[];
-      const parts=events.filter(e=>e.kind==='response_generated');let archive:unknown=null,archiveState='absent';
-      if(context && parts.length) {try{archive=decodeGeneratedArchive(parts,context,new Map([[keys.keyId,keys]])).result;archiveState='available';}catch{archiveState='incomplete_or_invalid';}}
-      returned=stream?[stream.request_id]:[];response={status:'ready',accessId,record:stream?{stream,events:decoded,generatedArchive:archive,archiveState,
-        delivery:'inspect_delivery_events_not_proof_of_human_read',integrity:'current_database_chain_verified_not_independent_anchor'}:null};
+      const record=decodeAuditStream(input.id,value.stream,value.records,keys);
+      returned=record?[record.stream.request_id]:[];response={status:'ready',accessId,record};
     }
     if(identity.expiresAt<=Date.now())return reply({status:'denied'},403);
     const prepared=await client.rpc('ai_audit_console_prepare',{...base,p_access_id:randomUUID(),p_parent:accessId,p_returned:returned,

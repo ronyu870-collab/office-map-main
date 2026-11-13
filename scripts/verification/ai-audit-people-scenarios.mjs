@@ -44,7 +44,11 @@ export async function verifyAuditPeople({db,service,app,check,person,other,call,
     const old=await readFile(new URL('../../supabase/migrations/20261113123123_ai_admin_only_access.sql',import.meta.url),'utf8');
     const current=await readFile(new URL('../../supabase/migrations/20261113130012_ai_audit_actor_directory.sql',import.meta.url),'utf8');
     try{await db.query(old);const r=await request(other,{...window(),actorSearch:'张明'});assert.equal(r.status,503);assert.deepEqual(r.body,{status:'unavailable'});}
-    finally{await db.query(current);}
+    finally{
+      await db.query(current);
+      const latest=await readFile(new URL('../../supabase/migrations/20261113132136_ai_audit_controlled_export.sql',import.meta.url),'utf8');
+      await db.query(latest.slice(latest.indexOf('create or replace function private.ai_audit_console_read'),latest.indexOf('create table private.ai_audit_export_grants')));
+    }
     assert.equal((await request(other,{...window(),actorSearch:'张明'})).status,200);
   });
 }
