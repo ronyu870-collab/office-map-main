@@ -62,7 +62,9 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
 
   useEffect(() => {
     const editor = editorRef.current;
-    if (!editor || !draftRef.current.length) return;
+    if (!editor) return;
+    editor.replaceChildren();
+    if (!draftRef.current.length) return;
     for (const part of draftRef.current) {
       const node = document.createElement('span');
       node.textContent = part.text;
@@ -236,7 +238,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
               }
             }
             if (event.key === 'Escape' && mentionQuery !== null) {
-              event.preventDefault(); setMentionQuery(null); return;
+              event.preventDefault(); event.stopPropagation(); setMentionQuery(null); return;
             }
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
               event.preventDefault(); void submit(); return;
