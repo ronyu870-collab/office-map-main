@@ -1,0 +1,160 @@
+{
+  "environment": "actual local Next production routes, synthetic HTTP data and identity; no production reads",
+  "browser": "157.0.8103.52",
+  "results": [
+    {
+      "width": 1280,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 10,
+      "pageErrors": []
+    },
+    {
+      "width": 1024,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 10,
+      "pageErrors": []
+    },
+    {
+      "width": 1023,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 8,
+      "pageErrors": []
+    },
+    {
+      "width": 480,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 8,
+      "pageErrors": []
+    },
+    {
+      "width": 479,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 8,
+      "pageErrors": []
+    },
+    {
+      "width": 390,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 8,
+      "pageErrors": []
+    },
+    {
+      "width": 320,
+      "navigation": true,
+      "legacyRedirect": true,
+      "databaseEntry": true,
+      "readonly": true,
+      "pagination": true,
+      "errorRecovery": true,
+      "empty": true,
+      "revocationClearsData": true,
+      "noOverflow": true,
+      "reads": 8,
+      "pageErrors": []
+    },
+    {
+      "width": 1280,
+      "scenario": "admin",
+      "expiryEntry": true,
+      "expiryReads": 2,
+      "directAccess": "allowed"
+    },
+    {
+      "width": 1280,
+      "scenario": "editor",
+      "expiryEntry": false,
+      "expiryReads": 0,
+      "directAccess": "returned to leasing"
+    },
+    {
+      "width": 1280,
+      "scenario": "viewer",
+      "expiryEntry": false,
+      "expiryReads": 0,
+      "directAccess": "returned to leasing"
+    },
+    {
+      "width": 1280,
+      "scenario": "simulated",
+      "expiryEntry": false,
+      "expiryReads": 0,
+      "directAccess": "returned to leasing"
+    },
+    {
+      "width": 390,
+      "scenario": "admin",
+      "expiryEntry": true,
+      "expiryReads": 2,
+      "directAccess": "allowed"
+    },
+    {
+      "width": 390,
+      "scenario": "editor",
+      "expiryEntry": false,
+      "expiryReads": 0,
+      "directAccess": "returned to leasing"
+    },
+    {
+      "width": 390,
+      "scenario": "viewer",
+      "expiryEntry": false,
+      "expiryReads": 0,
+      "directAccess": "returned to leasing"
+    },
+    {
+      "width": 390,
+      "scenario": "simulated",
+      "expiryEntry": false,
+      "expiryReads": 0,
+      "directAccess": "returned to leasing"
+    }
+  ]
+}
