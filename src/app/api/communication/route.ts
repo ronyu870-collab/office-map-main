@@ -78,6 +78,8 @@ export async function POST(request: NextRequest) {
     if (segments.some(part => part.everyone) && context.identity.effectiveRole !== 'admin') {
       return response({ error: '仅管理员可以@所有人' }, 403);
     }
+    // This awaited RPC commits public.audit_logs together with the message and
+    // recipients; a separate best-effort log would weaken the atomic contract.
     const { data, error } = await context.client.rpc('post_market_message', {
       p_actor_user_id: context.identity.caller.id,
       p_segments: segments,
