@@ -76,6 +76,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const dialogRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const draftSegmentsRef = useRef<MarketSegment[]>([]);
   const fullscreenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const wasFullscreenRef = useRef(false);
@@ -428,6 +429,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         : "shrink-0 bg-[var(--cd-color-surface)] px-1"}>
         <CommunicationComposer
           onSend={handleSendMessage}
+          draftRef={draftSegmentsRef}
           sending={sending}
           sendError={sendError}
           reply={replyToId === null ? null : (() => {
