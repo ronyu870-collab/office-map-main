@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { getAllActiveNotices } from '@/src/services/apiClient';
 import type { NoticeRow } from '@/src/services/apiClient';
+import styles from './NoticeBanner.module.css';
 
 const BEIJING_TIME_ZONE = 'Asia/Shanghai';
 
@@ -106,11 +107,11 @@ export function NoticeBanner() {
   const visibleNotices = expanded ? notices : notices.slice(0, 3);
 
   return (
-    <section className={`bg-transparent py-2 transition-opacity duration-300 motion-reduce:transition-none ${visible ? 'opacity-100' : 'opacity-0'}`} aria-live="polite" aria-label="系统公告">
-      <div className="mb-3 text-sm font-medium text-[var(--cd-color-text-primary)]">系统公告</div>
-      <div className="space-y-3">
+    <section className={`${styles.notices} bg-transparent transition-opacity duration-300 motion-reduce:transition-none ${visible ? 'opacity-100' : 'opacity-0'}`} aria-live="polite" aria-label="系统公告">
+      <div className={styles.heading}>系统公告</div>
+      <div className={styles.list}>
         {visibleNotices.map((notice) => (
-          <div key={notice.id} className="flex flex-col gap-1 text-sm leading-6">
+          <div key={notice.id} className={styles.row}>
             <time dateTime={notice.updated_at} className="whitespace-nowrap text-sm tabular-nums text-[var(--cd-color-text-secondary)]">{formatNoticeDate(notice.updated_at)}</time>
             <p className="break-words text-[var(--cd-color-text-secondary)] [overflow-wrap:anywhere]">{notice.content}</p>
           </div>
@@ -121,7 +122,7 @@ export function NoticeBanner() {
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="mt-2.5 min-h-8 rounded-[var(--cd-radius-sm)] px-1.5 text-sm font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25"
+          className={`${styles.expand} rounded-[var(--cd-radius-sm)] text-sm font-medium text-[var(--cd-color-brand)] hover:bg-[var(--cd-color-brand-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25`}
           aria-expanded={expanded}
         >
           {expanded ? '收起公告' : `查看全部 ${notices.length} 条公告`}
