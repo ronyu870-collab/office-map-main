@@ -47,3 +47,15 @@ export function expiryLabel(start: string | null, end: string | null) {
 export function expiryNeedsReview(item: Candidate) {
   return item.has_later_name_match || item.review?.status === 'source_conflict' || Boolean(item.review && item.review.source_fingerprint !== item.source_fingerprint);
 }
+
+/** Month names sit inside their visible month span; tiny clipped months are unlabeled. Bars retain exact date geometry. */
+export function expiryAxisMonths(asOf: string, windowEnd: string) {
+  const months = expiryMonths(asOf, windowEnd);
+  return months.flatMap((month, i) => {
+    const right = months[i + 1]?.left ?? 100;
+    const width = right - month.left;
+    // At the 1024px layout boundary the axis is >= 350px. Reserve enough room
+    // for a year-bearing January label as well as ordinary month names.
+    return width >= (month.label.includes('/') ? 15 : 8) ? [{ ...month, left: month.left + width / 2 }] : [];
+  });
+}

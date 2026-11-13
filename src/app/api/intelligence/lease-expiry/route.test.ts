@@ -22,7 +22,7 @@ describe('F6 route authorization and validation',()=>{
     const result = await read();
     expect(result.status).toBe(200);
     expect(result.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(mocks.rpc).toHaveBeenCalledWith('lease_expiry_review_list', expect.objectContaining({ p_actor: 'verified-actor', p_page: 2, p_scope: 'window' }));
+    expect(mocks.rpc).toHaveBeenCalledWith('lease_expiry_context_list', expect.objectContaining({ p_actor: 'verified-actor', p_page: 2 }));
     mocks.rpc.mockResolvedValue({ error: { code: '42501', message: 'private' } });
     expect((await read()).status).toBe(403);
   });
