@@ -1,0 +1,45 @@
+{
+  "base": "f6c9c8142b73bb9ace9498efb311e1db97e8c38c",
+  "environment": "local isolated; synthetic records only",
+  "verify": {
+    "exitCode": 0,
+    "testFiles": 203,
+    "tests": 1303,
+    "lintErrors": 0,
+    "lintWarnings": 826,
+    "build": "passed",
+    "log": "/private/tmp/colliers-trusted-query-verify-final.log"
+  },
+  "database": {
+    "version": "PostgreSQL 17.11",
+    "scenarios": 13,
+    "environment": "disposable localhost",
+    "productionApplied": false
+  },
+  "credentialRegression": {
+    "before": "1 failed / 5 passed",
+    "after": "6 passed"
+  },
+  "remoteCI": "not run",
+  "productionActivation": false,
+  "sha256": {
+    ".github/workflows/verify.yml": "e79317f7b4f207283590e47224f29238b1fb50913a200194f7a8fd9ff71834e0",
+    "src/lib/intelligence/query/__tests__/admission.test.ts": "6b48fb1e47e4c267542411c30354183e5da0d0a30287a96e5fbb4fb128eafe72",
+    "src/lib/intelligence/query/__tests__/analytics.test.ts": "0570ddc3c0617bb0cf0ab768e6e5d7d1656b2ef5cb4b37c790db9e8dadff2ea3",
+    "src/lib/intelligence/query/__tests__/auditCrypto.test.ts": "52febed9160a662938ae53ba363e37c76acb7bb07d27f2c6838250f7e8953e4c",
+    "src/lib/intelligence/query/__tests__/fixtures.ts": "a591fc34171b852638af6207d8f8d705058f47a75f93643ae3404489a6197c60",
+    "src/lib/intelligence/query/__tests__/result.test.ts": "4dd0efd0224236f0f83d98e559d7b991ec322e718286c117ca3553a7a6711bcf",
+    "src/lib/intelligence/query/admission.ts": "1d4160ba8c25ce2a9e95b63044583c88a4cda6da3b43e8541a23d84b040d8a2c",
+    "src/lib/intelligence/query/analytics.ts": "52eac170d9348dd109f53df915d11d9f493f3b1f7d8bfc67507ce42b636c2c19",
+    "src/lib/intelligence/query/auditCrypto.ts": "70bf5562e8bb5cedc91235b61aa0a3192bdb2b44a6c574c6cc93f7f7e5c09929",
+    "src/lib/intelligence/query/contracts.ts": "b38a1e96a79d4a837f393b04e776cfcfc5119aebd1aac60d80169d6a9b55997e",
+    "src/lib/intelligence/query/decimal.ts": "baa74b287f8f0c6327b3b409bec3dcac0506b0e35d4c17bdc714df3f377312f3",
+    "src/lib/intelligence/query/exports.ts": "0f5e04ab064e1a7b1c0898ab1e1f8e38159df11b760780dd821c29c677856488",
+    "src/lib/intelligence/query/facts.ts": "a14d313c45e322febba5755a82e994c5795a58fd147adab4ede8bdda04c6aae1",
+    "src/lib/intelligence/query/plan.ts": "1b0c33a518e120b2e7695c1d1230d258dcd87e8f2d49a835ab6c93b658ba9835",
+    "src/lib/intelligence/query/registry.ts": "93431e8b67711cad01799c5740f46be425c302accb5d2a85ff166ed012366f8a",
+    "src/lib/intelligence/query/result.ts": "77531482f48c84b3079c52fd575b21a13d9747dcc3adde528722c46c2777da2e",
+    "supabase/migrations/20261113003933_ai_query_audit_foundation.sql": "2e89fca58e2f3217de6cc640650ff3924f9835a90603aac396c31059014dec80",
+    "supabase/tests/ai-query-audit/run.mjs": "683c52974ec04f7327138b175701f66a3e2490096a65d2e4c4d5fa347c84dd44"
+  }
+}
