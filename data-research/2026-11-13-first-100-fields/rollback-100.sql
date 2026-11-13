@@ -80,7 +80,7 @@ BEGIN
        jsonb_build_object('rollback_batch_ref','ai_building_field_backfill_20261113_100_v1','rolled_back_audit_id',r.id,
         'field_name',field,'building_id',r.details->>'building_id',
         'original_batch_ref',r.details->>'batch_ref','ai_generated',true),
-       'codex_mcp','ai_building_field_backfill_20261113_100_v1:'||r.details->>'candidate_ref'||':rollback',now());
+       'codex_mcp','ai_building_field_backfill_20261113_100_v1:'||(r.details->>'candidate_ref')||':rollback',now());
     n:=n+1;
   END LOOP;
   IF n<>100 OR
