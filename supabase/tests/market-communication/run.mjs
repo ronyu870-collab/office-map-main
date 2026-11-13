@@ -71,8 +71,12 @@ try{
   assert.ok(own.rows.length>=2&&own.rows.every(row=>row.recipient_user_id===ids[2]));
   await client.query('update message_notifications set read_at=now()');
   assert.equal(Number((await client.query('select count(*)::int n from message_notifications where read_at is null')).rows[0].n),0);
+  await client.query('savepoint forbidden_insert');
   await assert.rejects(client.query("insert into messages(user_email,content,rich_segments) values('synthetic2@example.test','x','[]')"),e=>e.code==='42501');
+  await client.query('rollback to savepoint forbidden_insert');
+  await client.query('savepoint forbidden_rpc');
   await assert.rejects(client.query('select public.post_market_message($1,$2::jsonb,null)',[ids[2],JSON.stringify([{text:'bypass'}])]),e=>e.code==='42501');
+  await client.query('rollback to savepoint forbidden_rpc');
  }finally{await client.query('rollback');}
  pass('recipient-only RLS and no direct structured INSERT/RPC');
  await client.query("create function public.fail_market_audit() returns trigger language plpgsql as $$begin raise exception 'synthetic audit failure';end$$");
