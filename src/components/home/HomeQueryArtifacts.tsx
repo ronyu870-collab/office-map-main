@@ -5,6 +5,7 @@ import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { chartBounds, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
+import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import styles from './HomeQuery.module.css';
 
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean;
@@ -16,6 +17,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(0);
+  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
   const active = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
   const request: ChartRequest = result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
@@ -30,6 +32,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
         if (controller.signal.aborted) return;
         const url = URL.createObjectURL(file.blob), anchor = document.createElement('a');
         anchor.href = url; anchor.download = file.filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        void trustedQueryClient.reportDelivery(scope, file, 'browser_download_dispatched');
         // Give the browser time to take ownership of the download, then release it.
         window.setTimeout(() => URL.revokeObjectURL(url), 30000);
         setMessage('文件已交给浏览器下载；包含原结果与来源。尚未确认本机保存完成，仅供内部分析。');

@@ -4,10 +4,11 @@ import * as React from 'react';
 import { Button } from '@/src/components/ui/Button';
 import { cellText, resultScopeText, resultSummary, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
+import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import styles from './HomeQuery.module.css';
 
-export function HomeQueryResult({ result, requestId, scope, internalExport = false }: { result: QueryResultView; requestId?: string; scope?: QueryClientScope; internalExport?: boolean }) {
+export function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false }: { result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean }) {
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<{ ids: readonly string[]; label: string } | null>(null);
   const [sourcePage, setSourcePage] = React.useState(0);
@@ -16,6 +17,7 @@ export function HomeQueryResult({ result, requestId, scope, internalExport = fal
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
+  useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) });
   function showSources(ids: readonly string[], label: string, trigger: HTMLButtonElement) {
     returnFocus.current = trigger; setSelected({ ids: [...new Set(ids)], label }); setSourcePage(0);
   }

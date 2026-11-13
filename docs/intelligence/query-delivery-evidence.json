@@ -1,0 +1,388 @@
+{
+  "date": "2026-11-13",
+  "baseCommit": "5469854bda86f4fde246bec4acf3560aaec07ccd",
+  "scope": "Signed server-prepared delivery challenge and bounded authenticated client reports; local only",
+  "sourceSha256": {
+    "scripts/verification/verify-ai-query-auth.mjs": "cb76a384285e0421e2f5260925aacb9a4ee292ea009c68b20c7067b8f120b103",
+    "src/app/api/intelligence/query/receipt/route.ts": "d38a0e94eae3f1884ecae14b3e9e9a60b56d9936bb8fd92c2f0263c8bd0e3478",
+    "src/components/home/HomeQuery.tsx": "455c275ed823258d6aeca7ca196a66c95224e7c6b2217359a5011ecc4fd2a300",
+    "src/components/home/HomeQueryArtifacts.tsx": "d6cef2970decefbdf335e2fda68bd57b3773ea82aeafd3b5378ca2650d953003",
+    "src/components/home/HomeQueryResult.tsx": "112f123321b542e9e1ad23ea17efab385f50c56559f6ee94f4f1027fff3d74e0",
+    "src/components/home/__tests__/home-query.test.tsx": "064bdb8f6cf9e540193a284076122608d0ef79e9d359ace0b5a7df7cf0c67b64",
+    "src/components/home/useQueryPresentationReceipt.ts": "dee740f2d444745f4a3339aaa80a0a8febd3097555e64a48ab47b956c211507d",
+    "src/lib/intelligence/query/__tests__/delivery.test.ts": "4d1c615fd035857a75b4f5849cf20a5e02da220c2d1af52bca0e7865d43b2c41",
+    "src/lib/intelligence/query/__tests__/recoveryHttp.test.ts": "3f7601691f22673b4a37e61c72969e3834f2ba856067a55858342c561089a6f2",
+    "src/lib/intelligence/query/delivery.ts": "bf8dafea6017883ff634d27e943b4b2a8b364dce48ba40ea35f246618b6e0b55",
+    "src/lib/intelligence/query/deliveryHttp.ts": "05c48148feb0076632592cf1b8539ba060c07228a5dbf0d58354af3711c0416c",
+    "src/lib/intelligence/query/deliveryToken.ts": "f77ae9ed64a04c0d3cb7edc4aabe063091443a0544f51b7155fc7a7622f3ce06",
+    "src/lib/intelligence/query/http.ts": "30e218d6e4b255b71ecc9a9824e30e3d3bc96cfc06049f13ba3074ea0c2bfee3",
+    "src/lib/intelligence/query/recoveryHttp.ts": "263051bb73c17f47f1161c55869d49ca877d5a0ffee81e46d0ca8b88bd82ebf7",
+    "src/services/__tests__/trustedQueryClient.test.ts": "2c5e955f7d033b72cfb02b8cd5f61defe880e3f870a5f79968bc26b6768fd1e7",
+    "src/services/trustedQueryClient.ts": "bce189d821d90299eab9c1702705b05b32e38cdcef30781c1d162b581fcf2292"
+  },
+  "artifactSha256": {
+    "docs/verification/query-delivery/browser-evidence.json": "0d15f4edb2bfd72bee7b8020fe8c7d66f8e5e467add502e37c16b00c5937f6a2",
+    "docs/verification/query-delivery/browser-query-chart.png": "251fce44edf775859a832690ffa883ff9333c07f9bb8db2c7e8dcd676ea9f466"
+  },
+  "fullVerification": {
+    "command": "VITEST_MAX_WORKERS=2 npm run verify",
+    "exitCode": 0,
+    "testFiles": 217,
+    "tests": 1391,
+    "lintWarnings": 826,
+    "lintErrors": 0,
+    "types": "passed",
+    "productionBuild": "passed",
+    "log": "/private/tmp/colliers-delivery-verify-final-v2.log"
+  },
+  "realAuthHttp": {
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": [
+      {
+        "scenario": "真实Auth创建、密码登录和会话落库",
+        "status": "passed"
+      },
+      {
+        "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+        "status": "passed"
+      },
+      {
+        "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实管理员模拟取资格交集，不借目标权限扩权",
+        "status": "passed"
+      },
+      {
+        "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+        "status": "passed"
+      },
+      {
+        "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+        "status": "passed"
+      },
+      {
+        "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+        "status": "passed"
+      },
+      {
+        "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+        "status": "passed"
+      },
+      {
+        "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+        "status": "passed"
+      },
+      {
+        "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+        "status": "passed"
+      },
+      {
+        "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+        "status": "passed"
+      },
+      {
+        "scenario": "模拟身份的导出权取交集，管理员不自动获权，撤权后不可下载旧快照",
+        "status": "passed"
+      },
+      {
+        "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+        "status": "passed"
+      },
+      {
+        "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+        "status": "passed"
+      },
+      {
+        "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+        "status": "passed"
+      },
+      {
+        "scenario": "交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现",
+        "status": "passed"
+      },
+      {
+        "scenario": "回执审计失败不报成功，撤权与旧JWT不得绕过身份检查",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false,
+    "browserValidation": false
+  },
+  "realAuthHttpLog": "/private/tmp/colliers-delivery-auth.log",
+  "browser": {
+    "browser": "Codex IAB; engine version not exposed",
+    "environment": "local synthetic GoTrue account, production-built Next",
+    "actions": [
+      "quarterly rent 170",
+      "open six source records",
+      "close sources",
+      "show same-result chart",
+      "Excel handed to browser"
+    ],
+    "auditStreams": [
+      {
+        "request_id": "2dfdf7f7-5c2b-837a-8dce-30d2b3e6562a",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "response_generated",
+          "succeeded",
+          "delivery_receipt"
+        ]
+      },
+      {
+        "request_id": "06a6b47e-d2ff-4941-be32-52ce2722c721",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "523314ff-5798-4ae4-b9fc-9182facfd0ce",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "f2b978a7-3daa-44de-8bdf-d8fe79d49067",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "a3b38cf5-c794-4477-b526-45fc325bd7c0",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "d2e0cf80-a63a-4780-9954-6a83c58febbc",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "response_generated",
+          "succeeded",
+          "delivery_receipt"
+        ]
+      },
+      {
+        "request_id": "16d31ad5-80a7-438c-a890-7e1c8b146989",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "09af671f-cd84-40ff-a178-d6a37bd27834",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "ecd081de-c39a-4e14-9f59-1a963cdfe97f",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "response_generated",
+          "succeeded",
+          "delivery_receipt"
+        ]
+      },
+      {
+        "request_id": "d7cc51ae-06f4-4bff-a1c6-460d73f4c5b7",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      },
+      {
+        "request_id": "ce0d03e3-cc9e-447b-8f52-60dbde58c00c",
+        "state": "succeeded",
+        "kinds": [
+          "received",
+          "running",
+          "delivery_receipt",
+          "succeeded"
+        ]
+      }
+    ],
+    "acceptedReceiptStreams": 8,
+    "limitations": [
+      "Receipt payload phases were decrypted in real HTTP tests; browser-specific checks inspect stream states/kinds only",
+      "No proof of human reading, viewport exposure, or disk save",
+      "No real mobile device or mobile file-system validation",
+      "No screenshot of final download status; observed AX status"
+    ],
+    "screenshot": "browser-query-chart.png"
+  },
+  "focusGate": {
+    "tests": 9,
+    "testFiles": 1,
+    "log": "/private/tmp/colliers-delivery-focus.log",
+    "exitCode": 0
+  },
+  "securityAdvisors": {
+    "result": "No issues found",
+    "level": "warn",
+    "exitCode": 0,
+    "log": "/private/tmp/colliers-delivery-advisors.log"
+  },
+  "verificationHistory": [
+    {
+      "log": "/private/tmp/colliers-delivery-verify.log",
+      "result": "1389 passed / 1 failed: old recovery test fixture lacked actual table; replaced fixture with real result builder, no assertions weakened"
+    },
+    {
+      "log": "/private/tmp/colliers-delivery-recovery-fixture.log",
+      "result": "3 passed"
+    },
+    {
+      "log": "/private/tmp/colliers-delivery-verify-final.log",
+      "result": "stopped during tests to avoid production build overwriting live local browser-preview artifacts; no build ran in that attempt"
+    }
+  ],
+  "cleanup": {
+    "ownedNextPreviewStopped": true,
+    "syntheticAccountsDeleted": true,
+    "temporaryLoginFileDeleted": true,
+    "browserTab": "temporary IAB, not retained as deliverable; closes at turn end",
+    "ownedAuthStack": "stopped and synthetic volumes removed; unrelated containers left running",
+    "stopLog": "/private/tmp/colliers-delivery-stop.log"
+  },
+  "limitations": [
+    "No push/merge/production migration or AI enablement",
+    "Client reports are not proof of human reading, viewport exposure or disk save",
+    "No streaming receipts, durable offline queue, crash/outbox reconciliation or full audit administration",
+    "No exact complete DOM snapshot/viewport tracking; only declared result page/source IDs/chart layout",
+    "No actual mobile device or mobile filesystem verification",
+    "No remote exact-head CI, independent merge visual review or multi-key challenge verification",
+    "Original full Goal remains active; no scope reduction"
+  ]
+}

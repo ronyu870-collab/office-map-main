@@ -42,4 +42,32 @@ describe('trusted query client current identity guard', () => {
     await expect(trustedQueryClient.download(scope, request, new AbortController().signal)).rejects.toThrow('身份已变化');
   });
 
+  it('acknowledges verified bytes and reports DOM separately, without resubmitting a query on receipt failure', async () => {
+    vi.stubGlobal('crypto', webcrypto);
+    const text = JSON.stringify({ status: 'clarification', message: '请明确季度。' });
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))).map(b => b.toString(16).padStart(2, '0')).join('');
+    const fetch = vi.fn(async (url: string) => url.endsWith('/receipt') ? Response.json({ status: 'recorded' })
+      : new Response(text, { status: 422, headers: { 'Content-Type': 'application/json', 'X-Query-Delivery-Token': 'synthetic-delivery-token', 'X-Query-Body-Sha256': hash } }));
+    vi.stubGlobal('fetch', fetch);
+    const reply = await trustedQueryClient.submit(scope, { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: '租金' }, new AbortController().signal);
+    await vi.waitFor(() => expect(fetch.mock.calls.filter(([url]) => url.endsWith('/receipt'))).toHaveLength(1));
+    expect(JSON.parse((fetch.mock.calls[1] as unknown as [string, RequestInit])[1].body as string)).toMatchObject({ phase: 'client_received', bodySha256: hash });
+    expect(await trustedQueryClient.reportDelivery(scope, reply, 'client_dom_committed', { surface: 'clarification' })).toBe(true);
+    fetch.mockImplementation(async () => Response.json({ status: 'unavailable' }, { status: 503 }));
+    expect(await trustedQueryClient.reportDelivery(scope, reply, 'client_dom_committed', { surface: 'clarification' })).toBe(false);
+    expect(fetch.mock.calls.filter(([url]) => url === '/api/intelligence/query')).toHaveLength(1);
+    state.actor = 'other'; const calls = fetch.mock.calls.length;
+    expect(await trustedQueryClient.reportDelivery(scope, reply, 'client_dom_committed', { surface: 'clarification' })).toBe(false);
+    expect(fetch.mock.calls).toHaveLength(calls);
+  });
+  it('does not acknowledge a tampered body or manufacture metadata for an old response', async () => {
+    vi.stubGlobal('crypto', webcrypto);
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ status: 'ready' }), { headers: { 'Content-Type': 'application/json', 'X-Query-Delivery-Token': 'synthetic', 'X-Query-Body-Sha256': '0'.repeat(64) } }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(trustedQueryClient.submit(scope, { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: 'CBD' }, new AbortController().signal)).rejects.toThrow('交付校验失败');
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(await trustedQueryClient.reportDelivery(scope, {}, 'client_received')).toBe(false);
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
 });

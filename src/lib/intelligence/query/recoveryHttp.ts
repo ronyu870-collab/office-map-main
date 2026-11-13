@@ -8,11 +8,12 @@ import { readQueryBody } from './httpBody';
 import { readOwnResult, recoverOwnResult } from './recovery';
 import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 import { isQuerySameOrigin } from './sameOrigin';
+import { prepareDelivery } from './deliveryToken';
 import { artifactInputSchema, buildResultArtifact, type ArtifactInput } from './artifacts';
 
 const inputSchema=z.strictObject({requestId:z.uuid(),action:z.enum(['status','recover'])});
-const json=(body:unknown,status:number)=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
-  Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,'X-Content-Type-Options':'nosniff'}});
+const json=(body:unknown,status:number,extraHeaders:Record<string,string>={})=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
+  Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,'X-Content-Type-Options':'nosniff',...extraHeaders}});
 
 /** Control requests have their own durable audit; they never execute a new query. */
 export async function handleResultRecovery(request:Request,dependencies:ReturnType<typeof queryHttpDependencies>,mode:'recover'|'artifact'='recover'):Promise<Response> {
@@ -62,7 +63,10 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       sourceHeadSequence:record.head_sequence,sourceHeadHash:record.head_hash,resultId:restored?.resultId??null,bodySha256,state:record.state,
       ...(artifact?{artifact:artifact.type==='chart'?{kind:'chart',spec:artifact.chart,resultDigest:artifact.resultDigest}:{kind:'download',format:(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
     await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent'});terminal=true;
-    await audit.append(attemptId,'delivery_receipt',{phase:'response_prepared',bodySha256,httpStatus:200,clientReceipt:'unconfirmed',sourceRequestId:input.requestId});
+    const deliveryHeaders=await prepareDelivery(audit,keys,verified,{requestId:attemptId,bodySha256,
+      kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':restored?'result':'status',
+      resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},
+      {httpStatus:200,sourceRequestId:input.requestId});
     if(restored)await restored.recheck();
     const final=await readOwnResult(client,verified,input.requestId,'status',signal);
     if(final.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
@@ -73,9 +77,9 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     if(artifact?.type==='download')return new Response(new Uint8Array(artifact.bytes),{status:200,headers:{
       'Content-Type':artifact.contentType,'Content-Disposition':`attachment; filename="${artifact.filename}"`,
       'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,
-      'X-Query-Result-Id':input.action==='export'?input.resultId:'','X-Artifact-Sha256':artifact.sha256,'X-Audit-Attempt-Id':attemptId,
+      'X-Query-Result-Id':input.action==='export'?input.resultId:'','X-Artifact-Sha256':artifact.sha256,'X-Audit-Attempt-Id':attemptId,...deliveryHeaders,
     }});
-    return json(responseBody,200);
+    return json(responseBody,200,deliveryHeaders);
   }catch(error){
     const denied=error instanceof Error&&error.message==='QUERY_DENIED';
     const changed=error instanceof Error&&error.message==='QUERY_RESULT_CHANGED';

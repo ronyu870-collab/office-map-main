@@ -53,7 +53,7 @@ async function call(who,body=input(),headers={}){
 }
 async function recover(who,requestId,action='recover',headers={}){
   const response=await fetch(app+'/api/intelligence/query/recover',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify({requestId,action})});
-  return {status:response.status,body:await response.json()};
+  return {status:response.status,body:await response.json(),headers:response.headers};
 }
 async function capabilities(who,headers={}){
   const response=await fetch(app+'/api/intelligence/query/capabilities',{headers:{...(who?{Authorization:'Bearer '+who.token}:{}),...headers}});
@@ -62,6 +62,11 @@ async function capabilities(who,headers={}){
 async function artifact(who,body,headers={}){
   const response=await fetch(app+'/api/intelligence/query/artifact',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify(body)});
   return {status:response.status,headers:response.headers,...(response.headers.get('content-type')?.includes('application/json')?{body:await response.json()}:{bytes:new Uint8Array(await response.arrayBuffer())})};
+}
+async function acknowledge(who,source,phase='client_received',view,overrides={},headers={}){
+  const body={deliveryToken:source.headers.get('x-query-delivery-token'),bodySha256:source.headers.get('x-query-body-sha256'),phase,...(view?{view}:{}),...overrides};
+  const response=await fetch(app+'/api/intelligence/query/receipt',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify(body)});
+  return {status:response.status,body:await response.json()};
 }
 const events=async id=>(await db.query('select e.*,s.actor_id,s.effective_user_id from private.ai_query_audit_events e join private.ai_query_audit_streams s using(request_id) where request_id=$1 order by sequence',[id])).rows;
 try{
@@ -422,6 +427,57 @@ try{
     try{for(const action of [{action:'chart',chart:{kind:'bar',field:'height'}},{action:'export',format:'xlsx'}]){
       const res=await artifact(viewer,{requestId:source.requestId,resultId:source.result.resultId,...action});assert.equal(res.status,503);assert.equal(res.bytes,undefined);assert.equal(res.body.chart,undefined);
     }}finally{await db.query('drop trigger fail_artifact_audit on private.ai_query_audit_events');await grantQuery({setup:db},viewer.id);}
+  });
+  await check('交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读',async()=>{
+    await grantQuery({setup:db},viewer.id);
+    const original=await call(viewer);assert.equal(original.status,200);
+    assert.equal(original.headers.get('x-query-body-sha256'),createHash('sha256').update(JSON.stringify(original.body)).digest('hex'));
+    const initial=(await events(original.body.requestId));assert.equal(decrypt(initial.at(-1)).content.clientReceipt,'unconfirmed');
+    const received=await acknowledge(viewer,original);assert.equal(received.status,200);
+    const presented=await acknowledge(viewer,original,'client_dom_committed',{surface:'answer_table',page:0,pageSize:25,sourceIds:[]});assert.equal(presented.status,200);
+    assert.equal((await acknowledge(viewer,original)).status,200,'Retries are separately retained, correlated by one deliveryId');
+    for(const ack of [received,presented]){
+      const entry=decrypt((await events(ack.body.attemptId)).find(e=>e.kind==='delivery_receipt')).content;
+      assert.equal(entry.humanRead,'unproven');assert.equal(entry.diskSave,'unproven');assert.equal(entry.evidence,'authenticated_client_report');
+      assert.equal(entry.delivery.requestId,original.body.requestId);assert.equal(entry.delivery.resultId,original.body.result.resultId);
+      assert.equal(entry.delivery.deliveryId,received.body.deliveryId);
+    }
+    assert.equal((await events(original.body.requestId)).length,initial.length,'Client reports do not mutate the original result stream');
+    const restored=await recover(viewer,original.body.requestId);assert.equal((await acknowledge(viewer,restored)).status,200);
+    const clarify=await call(viewer,{idempotencyKey:randomUUID(),question:'CBD租金是多少'});assert.equal(clarify.status,422);
+    assert.equal((await acknowledge(viewer,clarify,'client_dom_committed',{surface:'clarification'})).status,200);
+    const chart=await artifact(viewer,{requestId:original.body.requestId,resultId:original.body.result.resultId,action:'chart',chart:{kind:'bar',field:'height'}});
+    assert.equal(chart.status,200);assert.equal((await acknowledge(viewer,chart,'client_dom_committed',{surface:'chart',page:0,pageSize:25,layout:'bar_page'})).status,200);
+    await db.query("update private.ai_query_grants set capabilities=array_append(capabilities,'export:internal') where user_id=$1",[viewer.id]);
+    const file=await artifact(viewer,{requestId:original.body.requestId,resultId:original.body.result.resultId,action:'export',format:'xlsx'});
+    assert.equal(file.status,200);assert.equal((await acknowledge(viewer,file)).status,200);assert.equal((await acknowledge(viewer,file,'browser_download_dispatched')).status,200);
+    assert.equal((await acknowledge(viewer,file,'client_dom_committed',{surface:'answer_table',page:0,pageSize:25,sourceIds:[]})).status,403);
+    assert.equal((await acknowledge(viewer,original,'browser_download_dispatched')).status,403);
+  });
+  await check('伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现',async()=>{
+    const source=await call(viewer);assert.equal(source.status,200);
+    assert.equal((await acknowledge(null,source)).status,401);assert.equal((await acknowledge(other,source)).status,403);assert.equal((await acknowledge(admin,source)).status,403);
+    assert.equal((await acknowledge(viewer,source,'client_received',undefined,{bodySha256:'0'.repeat(64)})).status,403);
+    const token=source.headers.get('x-query-delivery-token');
+    assert.equal((await acknowledge(viewer,source,'client_received',undefined,{deliveryToken:'x'+token.slice(1)})).status,403);
+    assert.equal((await acknowledge(viewer,source,'client_received',undefined,{}, {'x-colliers-impersonate-user':admin.id})).status,403);
+    assert.equal((await acknowledge(viewer,source,'client_received',undefined,{}, {Origin:'https://example.invalid'})).status,403);
+    assert.equal((await acknowledge(viewer,source,'client_dom_committed',{surface:'answer_table',page:100,pageSize:25,sourceIds:[]})).status,403);
+    assert.equal((await acknowledge(viewer,source,'client_received',undefined,{humanRead:true})).status,403);
+    const another=createClient(settings.API_URL,settings.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+    const signed=await another.auth.signInWithPassword({email:viewer.email,password:viewer.password});assert.equal(signed.error,null);
+    try{assert.equal((await acknowledge({token:signed.data.session.access_token},source)).status,403);}finally{await another.auth.signOut({scope:'local'});}
+  });
+  await check('回执审计失败不报成功，撤权与旧JWT不得绕过身份检查',async()=>{
+    const source=await call(viewer);assert.equal(source.status,200);
+    await db.query("create or replace function private.fail_delivery_receipt() returns trigger language plpgsql set search_path='' as $$ begin if new.kind='delivery_receipt' then raise exception 'injected receipt audit failure'; end if; return new; end $$;create trigger fail_delivery_receipt before insert on private.ai_query_audit_events for each row execute function private.fail_delivery_receipt()");
+    try{assert.equal((await acknowledge(viewer,source)).status,503);}finally{await db.query('drop trigger fail_delivery_receipt on private.ai_query_audit_events;drop function private.fail_delivery_receipt()');}
+    assert.equal((await acknowledge(viewer,source)).status,200);
+    await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[viewer.id]);
+    assert.equal((await acknowledge(viewer,source)).status,403);await grantQuery({setup:db},viewer.id);
+    const temporary=await person('viewer','receipt-expiry');await grantQuery({setup:db},temporary.id);
+    const prior=await call(temporary);assert.equal(prior.status,200);await temporary.client.auth.signOut({scope:'local'});
+    assert.ok([401,403].includes((await acknowledge(temporary,prior)).status));
   });
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(viewer,body)).status,200);

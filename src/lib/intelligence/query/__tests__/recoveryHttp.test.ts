@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildAggregateResult } from '../result';
+import { fixture } from './fixtures';
 
 const state=vi.hoisted(()=>({reads:0,mode:'progress',action:'status'}));
 vi.mock('../serverAuthority',()=>({
@@ -13,7 +15,7 @@ vi.mock('../recovery',()=>({
       permission_revision:state.reads>1&&state.mode==='revoked'?'b'.repeat(64):'a'.repeat(64),
       head_hash:state.reads===1?'c'.repeat(64):'d'.repeat(64),head_sequence:state.reads===1?3:4,events:[]};
   },
-  recoverOwnResult:async()=>({result:{value:170},resultId:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',redactionTypes:[],recheck:async()=>{}}),
+  recoverOwnResult:async()=>{const result=buildAggregateResult(fixture(),'rent');return {result,resultId:result.resultId,redactionTypes:[],recheck:async()=>{}};},
 }));
 import { handleResultRecovery } from '../recoveryHttp';
 

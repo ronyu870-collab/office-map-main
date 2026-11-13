@@ -11,6 +11,7 @@ import { readQuerySnapshots } from './snapshotReader';
 import { parseQueryPlan } from './plan';
 import { QUESTION_GRAMMAR_VERSION, resolveBusinessQuestion } from './question';
 import { isQuerySameOrigin } from './sameOrigin';
+import { prepareDelivery } from './deliveryToken';
 
 const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional() });
 function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string {
@@ -19,8 +20,8 @@ function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string
   const hex = bytes.toString('hex');
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
 }
-const json = (body: unknown, status: number) => Response.json(body, { status, headers: {
-  'Cache-Control': 'private, no-store', Vary: `Authorization, ${IMPERSONATION_REQUEST_HEADER}`, 'X-Content-Type-Options': 'nosniff',
+const json = (body: unknown, status: number, extraHeaders: Record<string, string> = {}) => Response.json(body, { status, headers: {
+  'Cache-Control': 'private, no-store', Vary: `Authorization, ${IMPERSONATION_REQUEST_HEADER}`, 'X-Content-Type-Options': 'nosniff', ...extraHeaders,
 } });
 
 export function queryHttpDependencies(): { client: SupabaseClient; keys: AuditKeys; enabled: boolean } {
@@ -105,28 +106,28 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       const response = { requestId, status: 'clarification', ...result.clarification };
       const authority = await fresh();
       if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
-      await audit.append(requestId, 'delivery_receipt', { phase: 'response_prepared', response,
-        bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex'), httpStatus: 422, clientReceipt: 'unconfirmed' });
+      const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'clarification', resultId: null, itemCount: 0,
+        bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus: 422 });
       if ((await fresh()).permissionRevision !== authority.permissionRevision) {
         await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: 'authorization_changed_before_response' });
         return json({ requestId, status: 'denied', error: '查询权限已变化。' }, 403);
       }
-      return json(response, 422);
+      return json(response, 422, deliveryHeaders);
     }
     if (result.status !== 'ready') {
       const status = result.status === 'already_received' ? 202 : result.status === 'denied' ? 403 : result.status === 'cancelled' || result.status === 'conflict' ? 409 : 503;
       return json({ requestId, status: result.status, error: result.status === 'already_received' ? '此请求已接收，请勿重复执行。' : '本次查询未交付，请检查权限或稍后重试。' }, status);
     }
     const responseBody = { requestId, status: 'ready', result: result.result };
-    await audit.append(requestId, 'delivery_receipt', { phase: 'response_prepared', resultId: result.result.resultId,
-      bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex'), httpStatus: 200, clientReceipt: 'unconfirmed' });
+    const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'result', resultId: result.result.resultId, itemCount: result.result.table.rows.length,
+      bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex') }, { httpStatus: 200 });
     try { if ((await fresh()).permissionRevision !== usedRevision) throw new Error('QUERY_DENIED'); }
     catch (error) {
       const denied = error instanceof Error && error.message === 'QUERY_DENIED';
       await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: denied ? 'authorization_changed_before_response' : 'authorization_unavailable_before_response' });
       return json({ requestId, status: denied ? 'denied' : 'unavailable', error: denied ? '查询权限已变化，结果未交付。' : '暂时无法确认查询权限，结果未交付。' }, denied ? 403 : 503);
     }
-    return json(responseBody, 200);
+    return json(responseBody, 200, deliveryHeaders);
   } catch {
     // Do not expose SDK exceptions, raw questions, role lookups or source counts.
     return json({ requestId, status: 'unavailable', error: '查询或审计服务暂不可用，本次未交付结果。' }, 503);

@@ -5,6 +5,7 @@ import { ArrowUp } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientScope, type QueryReply } from '@/src/services/trustedQueryClient';
 import { HomeQueryResult } from './HomeQueryResult';
+import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import styles from './HomeQuery.module.css';
 import workspace from './HomeWorkspace.module.css';
 
@@ -26,6 +27,7 @@ export function HomeQuery({ scope }: { scope: QueryClientScope }) {
   const composing = React.useRef(false), alive = React.useRef(true);
   const current = React.useRef<AbortController | null>(null);
   const generation = React.useRef(0), revision = React.useRef<string | undefined>(undefined);
+  useQueryPresentationReceipt(scope, reply, access.enabled && reply?.status === 'clarification' ? { surface: 'clarification' } : null);
   const storageKey = `trusted-query:last:${queryScopeKey(scope)}`;
   const clearSaved = React.useCallback(() => { setSavedId(null); try { sessionStorage.removeItem(storageKey); } catch { /* Storage is optional. */ } }, [storageKey]);
 
@@ -118,7 +120,7 @@ export function HomeQuery({ scope }: { scope: QueryClientScope }) {
         {savedId && !busy && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId }, true)}>检查状态并恢复结果</Button>}
         {reply?.result && <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? '展开本次结果' : '收起本次结果'}</Button>}
       </div>
-      {reply?.status === 'ready' && reply.result && !collapsed && <><p className={styles.notice}>以下保留本次已提交查询的结果，不随输入框中的新草稿改变。</p><HomeQueryResult key={reply.result.resultId} result={reply.result} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} /></>}
+      {reply?.status === 'ready' && reply.result && !collapsed && <><p className={styles.notice}>以下保留本次已提交查询的结果，不随输入框中的新草稿改变。</p><HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} /></>}
     </>}
   </>;
 }

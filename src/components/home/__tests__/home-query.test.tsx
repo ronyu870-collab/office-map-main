@@ -7,7 +7,7 @@ import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { buildAggregateResult, buildRankResult } from '@/src/lib/intelligence/query/result';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 
-const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), chart: vi.fn(), download: vi.fn() }));
+const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), chart: vi.fn(), download: vi.fn(), reportDelivery: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client, queryScopeKey: (scope: { actorId: string }) => scope.actorId }));
 import { HomeQuery } from '../HomeQuery';
 const scope = { actorId: 'first', effectiveId: 'first', sessionId: 'session', targetId: null };
@@ -17,7 +17,7 @@ const view = (actor = 'first') => <><label htmlFor="home-query">对话查询</la
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { resolve, promise }; };
 
 describe('homepage trusted query actual input and result lifecycle', () => {
-  beforeEach(() => { sessionStorage.clear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
+  beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
   it('keeps character input, focus, selection and IME across pending and result updates', async () => {
     const pending = deferred<unknown>(); client.submit.mockReturnValue(pending.promise);
@@ -110,6 +110,37 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     await waitFor(() => expect(screen.getByRole('textbox')).toBeDisabled());
     await act(async () => pending.resolve(buildResultChart(resultViewSchema.parse(result), { kind: 'bar', field: 'value' })));
     expect(screen.queryByRole('figure')).not.toBeInTheDocument(); expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
+  });
+
+  it('reports committed result/source views and never reports input drafts as displayed answers', async () => {
+    const result = resultViewSchema.parse(buildAggregateResult(fixture(), 'rent'));
+    const reply = { requestId, status: 'ready', result }; client.submit.mockResolvedValue(reply);
+    render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { value: '季度租金问题' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    await screen.findByRole('region', { name: '查询结果' });
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledWith(scope, reply, 'client_dom_committed', { surface: 'answer_table', page: 0, pageSize: 25, sourceIds: [] }, expect.any(AbortSignal)));
+    fireEvent.click(screen.getAllByRole('button', { name: /查看来源/ })[0]);
+    await waitFor(() => expect(client.reportDelivery.mock.calls.some(call => call[3].sourceIds?.length > 0)).toBe(true));
+    const count = client.reportDelivery.mock.calls.length;
+    fireEvent.change(input, { target: { value: '未提交的新草稿' } });
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    expect(client.reportDelivery.mock.calls).toHaveLength(count);
+    expect(JSON.stringify(client.reportDelivery.mock.calls)).not.toContain('未提交的新草稿');
+  });
+
+  it('does not report a hidden document or an unmounted result as presented', async () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      client.submit.mockResolvedValue({ requestId, status: 'ready', result: resultViewSchema.parse(buildAggregateResult(fixture(), 'rent')) });
+      const mounted = render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
+      fireEvent.change(input, { target: { value: '季度租金' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+      await screen.findByRole('region', { name: '查询结果' });
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+      expect(client.reportDelivery).not.toHaveBeenCalled();
+      mounted.unmount(); visibility.mockReturnValue('visible'); fireEvent(document, new Event('visibilitychange'));
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+      expect(client.reportDelivery).not.toHaveBeenCalled();
+    } finally { visibility.mockRestore(); }
   });
 
 });
