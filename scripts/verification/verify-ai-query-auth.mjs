@@ -82,6 +82,7 @@ try{
   if(!(await db.query("select to_regclass('private.ai_query_result_access') r")).rows[0].r)await db.query(await load('20261113042352_ai_query_result_recovery.sql'));
   await db.query(await load('20261113063257_ai_query_internal_export_grant.sql'));
   if(!(await db.query("select to_regclass('private.ai_query_execution_watch') r")).rows[0].r)await db.query(await load('20261113080906_ai_query_execution_reconciliation.sql'));
+  if(!(await db.query("select 1 from information_schema.columns where table_schema='private' and table_name='ai_query_ingress_events' and column_name='cipher'")).rowCount)await db.query(await load('20261113084732_ai_query_atomic_intake.sql'));
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -302,6 +303,9 @@ try{
     for(const table of ['ai_query_ingress_events','ai_query_audit_events']){
       await db.query(`create or replace function private.fail_query_http() returns trigger language plpgsql set search_path='' as $$ begin raise exception 'injected audit failure'; end $$;create trigger query_http_fault before insert on private.${table} for each row execute function private.fail_query_http()`);
       try{const res=await call(viewer);assert.equal(res.status,503);assert.equal(res.body.result,undefined);assert.equal((await events(res.body.requestId)).length,0);
+        const ingress=(await db.query('select * from private.ai_query_ingress_events where request_id=$1',[res.body.requestId])).rows;
+        if(table==='ai_query_ingress_events')assert.equal(ingress.length,0);
+        else{assert.equal(ingress.length,1);assert.equal(JSON.parse(decrypt(ingress[0]).content.payload.rawRequest).question,'CBD最高的楼是什么？');}
         const restore=await recover(viewer,successful.body.requestId);assert.equal(restore.status,503);assert.equal(restore.body.result,undefined);}
       finally{await db.query(`drop trigger query_http_fault on private.${table}`);}
     }
@@ -506,6 +510,32 @@ try{
     assert.equal((await call(viewer,submitted)).status,202);assert.equal((await events(abandonedId)).length,2);
     assert.equal((await call(viewer,input())).status,200);
     const overview=await service.rpc('ai_query_reconcile_overview',{p_since:new Date(Date.now()-86400000).toISOString()});assert.equal(overview.error,null);assert.equal(overview.data.missing_watch,0);
+  });
+  await check('并发重试和同键冲突每次均保存独立入口正文，业务只执行一次',async()=>{
+    const submitted=input();const duplicate=await Promise.all(Array.from({length:4},()=>call(viewer,submitted)));
+    assert.equal(duplicate.filter(r=>r.status===200).length,1);assert.equal(duplicate.filter(r=>r.status===202).length,3);
+    const requestId=duplicate[0].body.requestId;
+    const conflict=await call(viewer,{...submitted,question:'CBD有哪些楼？'});assert.equal(conflict.status,409);
+    const attempts=(await db.query('select * from private.ai_query_ingress_events where request_id=$1 order by occurred_at',[requestId])).rows;
+    assert.equal(attempts.length,5);assert.equal(new Set(attempts.map(r=>r.event_id)).size,5);
+    assert.equal(attempts.filter(r=>JSON.parse(decrypt(r).content.payload.rawRequest).question===submitted.question).length,4);
+    assert.equal(JSON.parse(decrypt(attempts.at(-1)).content.payload.rawRequest).question,'CBD有哪些楼？');
+    assert.equal((await events(requestId)).filter(e=>e.kind==='running').length,1);
+    assert.equal(decrypt((await events(conflict.body.requestId))[0]).content.metadata.rejectedRetryOf,requestId);
+  });
+  await check('恢复/图表/下载/回执入口同时留存，技术回执不会复制可用令牌',async()=>{
+    const source=await call(viewer);assert.equal(source.status,200);
+    assert.equal((await recover(viewer,source.body.requestId)).status,200);
+    const report=await acknowledge(viewer,source);assert.equal(report.status,200);
+    const row=(await db.query('select * from private.ai_query_ingress_events where request_id=$1',[report.body.attemptId])).rows[0];
+    assert.equal(row.entry,'query_delivery_report');const content=decrypt(row).content;
+    assert.equal(content.payload.report.deliveryToken,'[已脱敏:delivery_token]');assert.ok(!JSON.stringify(content).includes(source.headers.get('x-query-delivery-token')));
+    for(const entry of ['query_submission','query_result_recovery','query_result_artifact','query_delivery_report']){
+      const entries=(await db.query('select * from private.ai_query_ingress_events where actor_id=$1 and entry=$2',[viewer.id,entry])).rows;
+      assert.ok(entries.length>0);for(const e of entries){assert.ok(e.cipher);assert.equal(decrypt(e).content.entry,entry);}
+    }
+    const anonymous=(await db.query("select * from private.ai_query_ingress_events where reason<>'request_received'")).rows;
+    assert.ok(anonymous.length>0);assert.ok(anonymous.every(r=>r.cipher===null));
   });
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(viewer,body)).status,200);

@@ -59,3 +59,5 @@ next-env.d.ts
 /.local/f6-admin-pilot/
 
 /verification/ai-query-reconciliation/
+
+/verification/ai-query-intake/

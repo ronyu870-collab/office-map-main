@@ -12,6 +12,7 @@ import { parseQueryPlan } from './plan';
 import { QUESTION_GRAMMAR_VERSION, resolveBusinessQuestion } from './question';
 import { isQuerySameOrigin } from './sameOrigin';
 import { prepareDelivery } from './deliveryToken';
+import { recordQueryIntake } from './intake';
 
 const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional() });
 function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string {
@@ -61,12 +62,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       } catch { /* No identity is invented from a decoded, unverified token. */ }
     }
     if (identity && parsed) requestId = scopedRequestId(identity, parsed.idempotencyKey);
-    const reason = body.rejection ?? (identity ? 'request_received' : 'unauthenticated');
-    const ingress = await client.rpc('ai_query_record_ingress', {
-      p_event_id: randomUUID(), p_request_id: requestId, p_actor: identity?.actorId ?? null, p_session: identity?.sessionId ?? null, p_reason: reason,
-      p_bytes: body.bytesObserved, p_complete: body.complete, p_digest: body.digest, p_digest_scope: body.digestScope,
-    }).abortSignal(AbortSignal.timeout(8000));
-    if (ingress.error) throw new Error('AUDIT_PERSISTENCE_UNAVAILABLE');
+    await recordQueryIntake(client, keys, { requestId, body, identity, entry: 'query_submission', impersonationDenied });
     if (body.rejection) return json({ requestId, status: 'rejected', code: body.rejection, error: '请求未完整接收，请缩短内容或重新提交。' }, body.rejection === 'body_too_large' ? 413 : 400);
     if (!identity) return json({ requestId, status: 'denied', error: '登录状态无效，请重新登录。' }, 401);
     const audit = createRpcAuditPort(client, identity, keys);

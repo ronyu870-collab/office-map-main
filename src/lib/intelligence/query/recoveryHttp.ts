@@ -10,6 +10,7 @@ import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } fr
 import { isQuerySameOrigin } from './sameOrigin';
 import { prepareDelivery } from './deliveryToken';
 import { artifactInputSchema, buildResultArtifact, type ArtifactInput } from './artifacts';
+import { recordQueryIntake } from './intake';
 
 const inputSchema=z.strictObject({requestId:z.uuid(),action:z.enum(['status','recover'])});
 const json=(body:unknown,status:number,extraHeaders:Record<string,string>={})=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
@@ -31,10 +32,8 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
         }
       }catch{/* Unverified callers never acquire an audit identity. */}
     }
-    const ingress=await client.rpc('ai_query_record_ingress',{p_event_id:randomUUID(),p_request_id:attemptId,
-      p_actor:identity?.actorId??null,p_session:identity?.sessionId??null,p_reason:body.rejection??(identity?'request_received':'unauthenticated'),
-      p_bytes:body.bytesObserved,p_complete:body.complete,p_digest:body.digest,p_digest_scope:body.digestScope}).abortSignal(AbortSignal.timeout(8000));
-    if(ingress.error)throw new Error('AUDIT_PERSISTENCE_UNAVAILABLE');
+    await recordQueryIntake(client,keys,{requestId:attemptId,body,identity,
+      entry:mode==='artifact'?'query_result_artifact':'query_result_recovery',impersonationDenied});
     if(body.rejection)return json({attemptId,status:'rejected',error:'请求未完整接收。'},body.rejection==='body_too_large'?413:400);
     if(!identity)return json({attemptId,status:'denied',error:'登录状态无效，请重新登录。'},401);
     audit=createRpcAuditPort(client,identity,keys);
