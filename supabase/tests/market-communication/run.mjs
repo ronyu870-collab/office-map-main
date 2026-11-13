@@ -8,12 +8,20 @@ const port=Number(process.env.LEASE_TEST_PG_PORT);assert.ok(port>0&&port<65536);
 const config={host:'127.0.0.1',port,user:'postgres',password:'synthetic_ci_only',connectionTimeoutMillis:5000};
 const admin=new pg.Client({...config,database:'postgres'}),db='market_synthetic_'+randomUUID().replaceAll('-','');
 const ids=Array.from({length:5},()=>randomUUID());let client,created=false,checks=0;
+const serviceFixtureRole='market_fixture_service';let fixtureRoleCreated=false;
 const pass=label=>{checks++;console.log('PASS '+label);};
 try{
  await admin.connect();const version=Number((await admin.query("select current_setting('server_version_num') n")).rows[0].n);
  assert.ok(version>=170000&&version<180000);
  for(const name of ['anon','authenticated','service_role'])if(!(await admin.query('select 1 from pg_roles where rolname=$1',[name])).rowCount)
   await admin.query('create role '+name+(name==='service_role'?' bypassrls':''));
+ // The shared CI cluster may already have a non-BYPASSRLS 'service_role'
+ // created by unrelated suites. Mimic hosted Supabase's BYPASSRLS service
+ // identity without mutating any shared role used by those suites.
+ if(!(await admin.query('select 1 from pg_roles where rolname=$1',[serviceFixtureRole])).rowCount){
+  await admin.query('create role '+serviceFixtureRole+' bypassrls');fixtureRoleCreated=true;
+ }
+ await admin.query('grant service_role to '+serviceFixtureRole);
  await admin.query('create database '+db);created=true;client=new pg.Client({...config,database:db});await client.connect();
  await client.query(`
  create schema auth;
@@ -45,7 +53,7 @@ try{
   try{await client.query('set local role '+name);const out=await client.query(sql,values);await client.query('commit');return out;}
   catch(e){await client.query('rollback');throw e;}
  }
- const send=(sender,segments,reply=null)=>role('service_role','select public.post_market_message($1,$2::jsonb,$3) id',[sender,JSON.stringify(segments),reply]);
+ const send=(sender,segments,reply=null)=>role(serviceFixtureRole,'select public.post_market_message($1,$2::jsonb,$3) id',[sender,JSON.stringify(segments),reply]);
  const count=async(table)=>Number((await client.query('select count(*)::int n from '+table)).rows[0].n);
  const first=(await send(ids[1],[{text:'租金 '},{text:'@同事',mentionUserId:ids[2],bold:true},{text:' 下降',color:'red'}])).rows[0].id;
  assert.equal((await client.query('select content from messages where id=$1',[first])).rows[0].content,'租金 @同事 下降');
@@ -88,5 +96,6 @@ try{
  console.log(JSON.stringify({suite:'market-communication',postgres:version,checks,status:'passed',fixtures:'synthetic'}));
 }finally{
  await client?.end().catch(()=>{});if(created)await admin.query('drop database if exists '+db+' with(force)');
+ if(fixtureRoleCreated) await admin.query('drop role if exists '+serviceFixtureRole).catch(()=>{});
  await admin.end().catch(()=>{});
 }
