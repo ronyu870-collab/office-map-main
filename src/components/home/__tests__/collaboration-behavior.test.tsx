@@ -99,7 +99,7 @@ describe('market communication on homepage', () => {
     await waitFor(() => expect(state.fetch).toHaveBeenCalledWith('/api/communication', expect.objectContaining({ method: 'POST' })));
     const request = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
     expect(JSON.parse(String(request?.[1]?.body)).segments.map((part: {text:string}) => part.text).join('')).toContain('第一行');
-    await waitFor(() => expect(editor().textContent).toBe('');
+    await waitFor(() => expect(editor().textContent).toBe(''));
   });
 
   it('replies to an existing message and can retain draft across full-screen transition', async () => {
