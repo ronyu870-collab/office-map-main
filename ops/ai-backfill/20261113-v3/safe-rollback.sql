@@ -94,6 +94,24 @@ BEGIN
    IF current_value IS DISTINCT FROM new_value
    THEN RAISE EXCEPTION 'field was edited after AI fill at target % field % expected % got %',r.target_id,r.field_name,new_value,current_value; END IF;
 
+ END LOOP;
+
+ -- PHASE 2: destructive updates are only permitted after ALL 100 independent field
+ -- guards have passed. The brochure.updated_at checks above are therefore not
+ -- confused by this rollback's own earlier updates to the same row.
+ FOR r IN
+ SELECT a.id,a.target_id,a.target_table,a.target_name,a.occurred_at,a.old_values,a.new_values,
+   a.details->>'field_name' field_name,
+   (a.details->>'evidence_group_id')::uuid evidence_id,
+   (a.details->>'building_id')::uuid building_id
+ FROM public.audit_logs a
+ WHERE a.action_type='AI_FIELD_FILL' AND a.details->>'batch_ref'='ai_building_field_backfill_20261113_v3'
+ ORDER BY a.id
+ LOOP
+   new_value := r.new_values->r.field_name;
+   SELECT x.* INTO STRICT p FROM public.building_data_field_provenance x
+   WHERE x.evidence_group_id=r.evidence_id AND x.target_table=r.target_table
+     AND x.field_name=r.field_name AND x.building_id=r.building_id AND x.is_current;
    EXECUTE format('UPDATE public.%I SET %I=NULL WHERE id=$1 AND to_jsonb(%I)=$2',r.target_table,r.field_name,r.field_name)
      USING r.target_id::uuid,new_value;
    GET DIAGNOSTICS changed = ROW_COUNT;
