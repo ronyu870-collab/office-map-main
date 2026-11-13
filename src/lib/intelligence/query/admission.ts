@@ -4,7 +4,7 @@ import { parseQueryPlan } from './plan';
 import { numericFields, type NumericField } from './registry';
 import type { QuestionClarification } from './question';
 
-export type QueryGrant = 'query:catalog' | 'query:brochure' | 'query:quarter' | 'export:internal';
+export type QueryGrant = 'query:catalog' | 'query:brochure' | 'query:quarter' | 'export:internal' | 'query:submission-progress' | 'query:submission-quality';
 /** Produced by a fresh trusted server authorization lookup, never by a request body. */
 export type QueryAuthority = Readonly<{
   actorId: string;

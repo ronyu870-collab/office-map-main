@@ -17,6 +17,7 @@ import { verifyAuditExport } from './ai-audit-export-scenarios.mjs';
 import { verifyAuditPeople } from './ai-audit-people-scenarios.mjs';
 import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
+import { setupSubmissionObservation, verifySubmissionObservation } from './ai-submission-observation-scenarios.mjs';
 import { verifyRelativeQuarter } from './ai-query-relative-quarter-scenarios.mjs';
 import { verifyDistribution } from './ai-query-distribution-scenarios.mjs';
 import { verifyRelationship } from './ai-query-relationship-scenarios.mjs';
@@ -99,6 +100,7 @@ try{
   await db.query(await load('20261113132136_ai_audit_controlled_export.sql'));
   await db.query(await load('20261113135841_ai_audit_export_reconciliation.sql'));
   await db.query(await load('20261113145743_ai_query_group_dimensions.sql'));
+  await setupSubmissionObservation(db);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -564,6 +566,7 @@ try{
   await verifyRelationship({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyDistribution({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
+  await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
