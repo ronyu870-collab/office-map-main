@@ -16,6 +16,16 @@
     },
     {
       "width": 1280,
+      "case": "offline map same snapshot; cluster keyboard, source focus, pan/zoom, missing coordinates and complete SVG/base readback",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "map base failure is explicit and retry retains coordinates and sources",
+      "passed": true
+    },
+    {
+      "width": 1280,
       "case": "same-result timeline, pinned names, source focus and complete SVG readback",
       "passed": true
     },
@@ -31,8 +41,24 @@
     },
     {
       "width": 1280,
+      "case": "all-unknown coordinate result remains a source-backed list without fabricated center or points",
+      "passed": true
+    },
+    {
+      "width": 1280,
       "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
       "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "31 archived map records retain full plotted scope while details paginate 25 then 6",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "actual browser map receipts accepted for base success/failure, selected points and page 1",
+      "passed": true,
+      "receiptCount": 6
     },
     {
       "width": 1280,
@@ -47,6 +73,16 @@
     {
       "width": 390,
       "case": "catalog unknown area and half-year original source; source close restores focus",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "offline map same snapshot; cluster keyboard, source focus, pan/zoom, missing coordinates and complete SVG/base readback",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "map base failure is explicit and retry retains coordinates and sources",
       "passed": true
     },
     {
@@ -71,8 +107,24 @@
     },
     {
       "width": 390,
+      "case": "all-unknown coordinate result remains a source-backed list without fabricated center or points",
+      "passed": true
+    },
+    {
+      "width": 390,
       "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
       "passed": true
+    },
+    {
+      "width": 390,
+      "case": "31 archived map records retain full plotted scope while details paginate 25 then 6",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "actual browser map receipts accepted for base success/failure, selected points and page 1",
+      "passed": true,
+      "receiptCount": 6
     },
     {
       "width": 320,
@@ -88,78 +140,93 @@
   "downloads": [
     {
       "width": 1280,
+      "format": "map_svg",
+      "resultId": "2c15d156-4157-4326-9d54-bcfe9844516b",
+      "sha256": "1a957e6950d8b29a2ff57b7eddf6034546093cacdc007e6445eaf7d335004a82",
+      "readback": true
+    },
+    {
+      "width": 1280,
       "format": "timeline_svg",
-      "resultId": "a4b6d55e-5976-4bf6-9f3a-065ba7e0ee57",
-      "sha256": "14f67b3aa21d0b46613e5602d1af4fcf4a9345d465e74ef56501417d2c790af9",
+      "resultId": "03937a28-69d1-4729-8978-f70b93e43d70",
+      "sha256": "eeffdbe3939c21daad32772b1b2ff58809c170d845bdceb4461a6d20e4eacaad",
       "readback": true
     },
     {
       "width": 1280,
       "format": "area_xlsx",
-      "resultId": "b013baf4-96c6-43e0-938b-219ccbb7232c",
-      "sha256": "531593e2d79be8911ede021e0c2de69d5f840efde7ea7ca319d1333ad9ed6b26",
+      "resultId": "8ee6df87-d51a-4641-8051-3607bc7fdd0f",
+      "sha256": "47eb73f79cda663092aae05531060328d05fccef5410d68f76c9950afbb31bd8",
       "readback": true
     },
     {
       "width": 1280,
       "format": "range_xlsx",
-      "resultId": "338c9a58-069d-4369-801f-190be5f05e74",
-      "sha256": "aa16f68f0978860a429195ab2e178c1e045dbf5363eb922082312cac49e75c7f",
+      "resultId": "a147dc70-4e78-4f45-9e06-f70df49fa212",
+      "sha256": "3a7a97741b3b0e08d563cffe73ca6121ca1ca929706087d0b7637486b3bb8256",
       "readback": true
     },
     {
       "width": 1280,
       "format": "xlsx",
-      "resultId": "c7fbae46-4ae2-46f4-b8c2-7c78521e1eaa",
-      "sha256": "73425d476c9c42a1ab33fc99cfcc710d52349c0cc0cfb1cd7371651b2bc0942f",
+      "resultId": "4a0bad2f-54ff-4a30-9e5a-b7adcf799104",
+      "sha256": "71c9c24dc4e2bd54744a84f03781b36a4c45f474f6a57eca59a89db0ada4182b",
       "readback": true
     },
     {
       "width": 1280,
       "format": "csv_zip",
-      "resultId": "c7fbae46-4ae2-46f4-b8c2-7c78521e1eaa",
-      "sha256": "378aba7cbc67ed765393f8dc7b350197e2798fc622fddc361322955f1a59b457",
+      "resultId": "4a0bad2f-54ff-4a30-9e5a-b7adcf799104",
+      "sha256": "d6ab1fe6de1f9af3eaa9094db027c3b9301fe306f4d6abb5ff50af6cc5373248",
       "readback": true
     },
     {
       "width": 1280,
       "format": "svg_zip",
-      "resultId": "c7fbae46-4ae2-46f4-b8c2-7c78521e1eaa",
-      "sha256": "d6fefd443446e459bcf73403b915913bf90ce51aed2044aef3450109742a9f01",
+      "resultId": "4a0bad2f-54ff-4a30-9e5a-b7adcf799104",
+      "sha256": "b9e2a558f8a302bc2123eb2eef2a2866ba4e4c34026a948c6b80756741fcc549",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "map_svg",
+      "resultId": "7992a1fd-3714-42b0-91b4-4f2e8c776a36",
+      "sha256": "cd05b46698631cdb91e3998cc742085f8278c4a061d260fc6a7351f3227db9d4",
       "readback": true
     },
     {
       "width": 390,
       "format": "timeline_svg",
-      "resultId": "83647928-edcb-414a-82b9-605fe387e695",
-      "sha256": "99e66f8c7a6e262d42c35c0c6f1447c1b8e2336b276bab36f237cb1d01c549bc",
+      "resultId": "9b8ff89a-3e37-49ea-a12d-ba8af71a4f14",
+      "sha256": "b1e602bcbb22f03f620c39ed04817ab589363eb7e9b4ea7a821385fc5dba6288",
       "readback": true
     },
     {
       "width": 390,
       "format": "area_xlsx",
-      "resultId": "8ec9c637-4d6b-430a-aafa-7f8ec72f36a4",
-      "sha256": "d97296ac534131158d04d278579f6f04abcf1b8f1008082c2869d89da9c1ad47",
+      "resultId": "15ab7554-323a-4445-806a-c302c45616bc",
+      "sha256": "ed9de71e8ddd89d346c9cf6c852f995f0e3c5647f5f421d82410e42c2e53a21c",
       "readback": true
     },
     {
       "width": 390,
       "format": "range_xlsx",
-      "resultId": "579d19d3-aaa7-4d12-9830-0cbc3cf9a908",
-      "sha256": "ad72bc9098eaf2ed5741267864539eda4c0af6704ff3adbd566551b22ede2009",
+      "resultId": "b5f6441e-a523-489b-9a77-76bb766e8966",
+      "sha256": "f823b9bde8149dcead0b196714d791ecc1845f23036f67b8d9973098f47ba218",
       "readback": true
     },
     {
       "width": 390,
       "format": "xlsx",
-      "resultId": "3a127e61-4d75-4fe6-84fb-70f6a49f28c2",
-      "sha256": "6a586f32a1e269dc46d78d39686f2f5680c8c9167f9da93092c392574037d130",
+      "resultId": "4c5a67e3-3840-4a6c-bf90-ddfdcf01a90b",
+      "sha256": "8869c30105a8d71e1c476633cc61d0d533ba3b14d82d870bdff2d1a6388aa3ff",
       "readback": true
     }
   ],
   "screenshots": [
     "1280-catalog.png",
     "1280-source.png",
+    "1280-location-map.png",
     "1280-launch-intervals.png",
     "1280-timeline.png",
     "1280-area-chart.png",
@@ -168,8 +235,10 @@
     "1280-progress-chart.png",
     "1280-quality.png",
     "1280-quality-scroll.png",
+    "1280-map-pagination.png",
     "390-catalog.png",
     "390-source.png",
+    "390-location-map.png",
     "390-launch-intervals.png",
     "390-timeline.png",
     "320-timeline-source.png",
@@ -179,6 +248,7 @@
     "390-progress-chart.png",
     "390-quality.png",
     "390-quality-scroll.png",
+    "390-map-pagination.png",
     "320-quality.png"
   ]
 }

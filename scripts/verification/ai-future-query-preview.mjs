@@ -3,17 +3,17 @@ import {randomUUID} from 'node:crypto';
 /** Synthetic rows for the explicitly requested disposable Auth harness preview. */
 export async function seedFutureQueryPreview(db,userId){
  const rows=[
-  ['合成未来甲座','2026','Q4','future',60000],
-  ['合成未来乙座','2026','H2','future',45000],
-  ['合成未来丙座','2027',null,'future',null],
-  ['合成待核项目',null,null,'pending',30000],
-  ['合成未来丁座','2027','Q1','future',20000],
+  ['合成未来甲座','2026','Q4','future',60000,116.4,39.9],
+  ['合成未来乙座','2026','H2','future',45000,116.4,39.9],
+  ['合成未来丙座','2027',null,'future',null,116.48,39.94],
+  ['合成待核项目',null,null,'pending',30000,0,0],
+  ['合成未来丁座','2027','Q1','future',20000,116.52,39.92],
  ];
  const ids=[];
- for(const [name,year,quarter,status,area] of rows){
+ for(const [name,year,quarter,status,area,lng,lat] of rows){
   const id=randomUUID();ids.push(id);
   await db.query(`insert into public.future_supplies(id,name,submarket,grade,launch_year,launch_quarter,status,total_area,location_lng,location_lat,is_entered_market)
-   values($1,$2,'CBD','A',$3,$4,$5,$6,116.4,39.9,false)`,[id,name,year,quarter,status,area]);
+   values($1,$2,'CBD','A',$3,$4,$5,$6,$7,$8,false)`,[id,name,year,quarter,status,area,lng,lat]);
  }
  await db.query("update private.ai_query_grants set capabilities=capabilities||array['query:future-catalog','query:future-progress','query:future-quality'],all_future_supplies=true where user_id=$1",[userId]);
  for(const id of ids.slice(0,3))await db.query("insert into public.future_supply_assignments(future_supply_id,user_id,user_name,record_year,record_quarter) values($1,$2,'合成验收账号',2026,3)",[id,userId]);

@@ -8,7 +8,7 @@ import type { DeliveryReport } from './delivery';
 const claimsSchema = z.strictObject({ version: z.literal('query-delivery/1'), keyId: z.string(), deliveryId: z.uuid(),
   requestId: z.uuid(), actorId: z.uuid(), effectiveUserId: z.uuid(), sessionId: z.uuid(),
   bodySha256: z.string().regex(/^[a-f0-9]{64}$/), kind: z.enum(['result', 'clarification', 'status', 'chart', 'download']),
-  resultId: z.uuid().nullable(), itemCount: z.number().int().min(0).max(5000000), issuedAt: z.number().int(), expiresAt: z.number().int(),
+  chartKind:z.literal('map').optional(), resultId: z.uuid().nullable(), itemCount: z.number().int().min(0).max(5000000), issuedAt: z.number().int(), expiresAt: z.number().int(),
 });
 export type DeliveryClaims = z.infer<typeof claimsSchema>;
 const sign = (payload: string, keys: AuditKeys) => createHmac('sha256', keys.digestKey).update(`query-delivery-token/1\n${payload}`).digest();
@@ -30,6 +30,11 @@ export function validateDeliveryReport(claims: DeliveryClaims, report: DeliveryR
   if (report.phase === 'browser_download_dispatched' && (claims.kind !== 'download' || report.view)) throw new Error('QUERY_DENIED');
   if (report.phase === 'client_dom_committed') {
     const view = report.view;
+    if(view?.surface==='map'){
+      if(claims.kind!=='chart'||claims.chartKind!=='map')throw new Error('QUERY_DENIED');
+      const selected=view.selectedIndices;
+      if(selected&&(selected.some((n,i)=>n>=claims.itemCount||(i>0&&n<=selected[i-1]))||view.page*25>=selected.length))throw new Error('QUERY_DENIED');
+    }else if(claims.chartKind==='map')throw new Error('QUERY_DENIED');
     if (!view || (view.surface === 'answer_table' && claims.kind !== 'result')
       || (view.surface === 'chart' && claims.kind !== 'chart') || (view.surface === 'clarification' && claims.kind !== 'clarification')
       || ('page' in view && view.page * view.pageSize >= Math.max(1, claims.itemCount))) throw new Error('QUERY_DENIED');
@@ -38,7 +43,7 @@ export function validateDeliveryReport(claims: DeliveryClaims, report: DeliveryR
 /** A signed challenge is returned only after the caller's final delivery checks.
  * It proves server preparation and binds the client's claim, not human reading. */
 export async function prepareDelivery(audit: AuditPort, keys: AuditKeys, identity: VerifiedQueryIdentity,
-  input: Pick<DeliveryClaims, 'requestId' | 'bodySha256' | 'kind' | 'resultId' | 'itemCount'>,
+  input: Pick<DeliveryClaims, 'requestId' | 'bodySha256' | 'kind' | 'resultId' | 'itemCount' | 'chartKind'>,
   detail: Record<string, unknown> = {}, now = Date.now()): Promise<Record<string, string>> {
   const claims = claimsSchema.parse({ ...input, version: 'query-delivery/1', keyId: keys.keyId, deliveryId: randomUUID(),
     actorId: identity.actorId, effectiveUserId: identity.effectiveUserId, sessionId: identity.sessionId,

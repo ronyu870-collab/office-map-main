@@ -91,3 +91,16 @@
 .intervalRange { background: var(--cd-color-brand-soft, #edf4fb); border-style: dashed; }
 
 @media (max-width: 639px) { .intervalTable th:first-child { width: 100px; } .intervalTable th:last-child { width: 150px; } }
+
+.queryMap { margin-block: 12px; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--cd-color-border); border-radius: 6px; background: #f8fafc; }
+.queryMap svg { display: block; font: inherit; touch-action: none; cursor: grab; }
+.queryMap svg:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: -3px; }
+.queryMap [role="button"] { cursor: pointer; }
+.queryMap [role="button"]:focus-visible circle:last-of-type, .queryMap [aria-pressed="true"] circle:last-of-type { stroke: #172033; stroke-width: 3px; }
+.mapRecords { list-style: none; margin: 0; padding: 0; }
+.mapRecords li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px; border-bottom: 1px solid var(--cd-color-border); }
+.mapRecords li > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow-wrap: anywhere; }
+.mapRecords li > button { flex-shrink: 0; }
+
+.mapContent { min-width: 0; }
+@media (max-width: 639px), (pointer: coarse) { .mapContent button { min-height: 44px; min-width: 44px; } }

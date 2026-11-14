@@ -1,3 +1,5 @@
+import {buildFutureMap,fitMap,mapGeometry,type MapBase} from './future/map';
+import type {mapBaseDescriptor} from './future/mapBaseDescriptor';
 import {buildFutureTimeline,intervalGeometry,intervalLegend} from './future/timeline';
 import { z } from 'zod';
 import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysis } from './distribution';
@@ -16,14 +18,16 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('histogram') }),
   z.strictObject({ kind: z.literal('box_plot') }),
   z.strictObject({ kind: z.literal('launch_intervals') }),
+  z.strictObject({ kind: z.literal('future_locations') }),
 ]);
 export type ChartRequest = z.infer<typeof chartRequestSchema>;
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
-  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null; intervalPrecision?: 'quarter'|'half_year'|'year'|'unknown'|'invalid' };
+  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null; coordinateState?: 'valid'|'unknown'|'invalid'; intervalPrecision?: 'quarter'|'half_year'|'year'|'unknown'|'invalid' };
 export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId: string; request: ChartRequest;
-  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot' | 'interval'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
+  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot' | 'interval' | 'map'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
   points: ChartPoint[]; summary: string[]; limitations: string[]; renderedCount: number; unknownCount: number;
+  mapBase?: typeof mapBaseDescriptor;
   facets?: { key: string; label: string; points: ChartPoint[] }[];
   distribution?: { stats: DistributionAnalysis['stats']; unit:string; label:string; validCount:number; excludedCount:number; outlierCount:number; assessment:DistributionAnalysis['outlierAssessment']; sourceIds:readonly string[] };
   grid?: { rows: { key: string; label: string }[]; columns: { key: string; label: string }[] };
@@ -38,6 +42,7 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 
 export function buildResultChart(result: QueryResultView, request: ChartRequest): ResultChart {
   request = chartRequestSchema.parse(request);
+  if(request.kind==='future_locations')return buildFutureMap(result);
   if(request.kind==='launch_intervals')return buildFutureTimeline(result);
   if (request.kind === 'histogram' || request.kind === 'box_plot') return buildDistributionChart(result, request);
   const column = (key: string) => {
@@ -197,16 +202,28 @@ const wrap = (value: string, size: number): string[] => {
 
 /** Standalone export retains scope, coverage, limitations and exact cell/source
  * bindings. Large plots fail explicitly rather than silently dropping rows. */
-export function renderChartSvg(chart: ResultChart): string {
-  if (chart.points.length > (['bar','interval'].includes(chart.kind) ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
+export function renderChartSvg(chart: ResultChart, base?: MapBase): string {
+  if (chart.points.length > (['bar','interval','map'].includes(chart.kind) ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
   const width = chart.kind === 'heatmap' ? Math.max(960, 260 + (chart.grid?.columns.length ?? 0) * 160) : 960, left = 300, right = 780, top = 36;
   const elements: string[] = [];
   const text = (x: number, y: number, value: string, extra = '') => elements.push(`<text x="${x}" y="${y}" ${extra}>${xml(value)}</text>`);
-  const paragraph = (content: string, y: number, size = 64) => { const lines = wrap(content, size); lines.forEach((line, i) => text(24, y + i * 22, line)); return y + lines.length * 22 + 8; };
+  const paragraph = (content: string, y: number, size = 64) => { const lines = wrap(content, size); if(chart.kind==='map')for(let i=1;i<lines.length;i++){if(/^[，。；：！？、）】]/.test(lines[i])){lines[i-1]+=lines[i][0];lines[i]=lines[i].slice(1);if(!lines[i]){lines.splice(i,1);i--;}}} lines.forEach((line, i) => text(24, y + i * 22, line)); return y + lines.length * 22 + 8; };
   let y = paragraph(chart.title, top);
   for (const line of chart.summary) y = paragraph(line, y);
-  y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
-  if(chart.kind==='interval'){
+  if(chart.kind!=='map')y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
+  if(chart.kind==='map'){
+    if(!base||base.version!==chart.mapBase?.version)throw Error('CHART_MAP_BASE_REQUIRED');
+    const view=fitMap(chart,912,460);
+    y=paragraph(`原坐标可显示 ${chart.renderedCount} 条；未知或无效 ${chart.unknownCount} 条。点位数字为记录数，完整清单如下。`,y);
+    if(view){const geometry=mapGeometry(chart,base,view,912,460);
+      elements.push(`<svg x="24" y="${y}" width="912" height="460" viewBox="0 0 912 460"><rect width="912" height="460" fill="#f8fafc"/>`);
+      for(const path of geometry.paths)elements.push(`<path d="${path.d}" fill="none" stroke="${path.kind==='district'?'#c5ced8':'#dce4ec'}" stroke-width="${path.kind==='district'?1:2}"/>`);
+      for(const label of geometry.labels)elements.push(`<text x="${label.x}" y="${label.y}" fill="#667085">${xml(label.name)}</text>`);
+      for(const group of geometry.groups){elements.push(`<circle cx="${group.x}" cy="${group.y}" r="18" fill="#003e7e"><title>${xml(group.indices.map(i=>chart.points[i].label).join('、'))}</title></circle><text x="${group.x}" y="${group.y+5}" text-anchor="middle" fill="#fff">${group.indices.length}</text>`);}
+      elements.push('</svg>');y+=484;
+    }else y=paragraph('没有可显示的原坐标，无法确定地图位置；未知记录保留在下方。',y);
+    for(const point of chart.points)y=paragraph(`${point.label}：${point.yText}`,y);
+  }else if(chart.kind==='interval'){
     const g=intervalGeometry(chart),plotLeft=260,plotWidth=420;
     y=paragraph(intervalLegend,y);
     if(!g.empty){for(const tick of g.ticks)text(plotLeft+tick.position/100*plotWidth,y+18,tick.label);y+=42;}

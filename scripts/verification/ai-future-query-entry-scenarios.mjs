@@ -6,7 +6,7 @@ import {grantQuery} from '../../supabase/tests/ai-query-authority/database.mjs';
 export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,ids,call,recover,artifact,acknowledge,capabilities}){
  const caps=['query:future-catalog','query:future-progress','query:future-quality','export:internal'];
  const ask=(question,who=queryAdmin,headers={})=>call(who,{idempotencyKey:randomUUID(),question},headers);
- let source,timeline;
+ let source,timeline,mapSource;
  await grant(caps);
  await check('未来专用admin通过真实HTTP提问、来源、本人恢复、图表和Excel，不需要存量权限',async()=>{
   const available=await capabilities(queryAdmin);assert.equal(available.status,200);assert.equal(available.body.enabled,true);
@@ -90,12 +90,36 @@ export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,id
   await db.query('update public.future_supplies set is_entered_market=true where id=$1',[ids[0]]);
   try{assert.equal((await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'launch_intervals'}})).status,403);assert.equal((await artifact(queryAdmin,{...common,action:'export',format:'svg_zip',chart:{kind:'launch_intervals'}})).status,403);}finally{await db.query('update public.future_supplies set is_entered_market=false where id=$1',[ids[0]]);}
  });
+ await check('未来位置图使用原坐标快照，未知不定位，SVG底图与来源同源；地图回执和撤权阻断',async()=>{
+  const original=(await db.query('select id,location_lng,location_lat from public.future_supplies where id=any($1::uuid[])',[ids.slice(0,5)])).rows;
+  await db.query('update public.future_supplies set location_lng=0,location_lat=0 where id=$1',[ids[3]]);
+  try{
+   mapSource=await ask('CBD未来供应有哪些');assert.equal(mapSource.status,200);const common={requestId:mapSource.body.requestId,resultId:mapSource.body.result.resultId};
+   const chart=await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'future_locations'}});assert.equal(chart.status,200);assert.equal(chart.body.chart.kind,'map');assert.equal(chart.body.chart.renderedCount,4);assert.equal(chart.body.chart.unknownCount,1);
+   assert.equal(chart.body.chart.points.find(p=>p.yCell.entityId===ids[3]).x,null);
+   const view={surface:'map',page:0,pageSize:25,viewport:{cx:89,cy:-39.9,span:0.1},width:390,height:360,selectedIndices:[0,1],baseStatus:'ready'};
+   assert.equal((await acknowledge(queryAdmin,chart,'client_dom_committed',view)).status,200);
+   assert.equal((await acknowledge(queryAdmin,chart,'client_dom_committed',{...view,selectedIndices:[5]})).status,403);
+   assert.equal((await acknowledge(queryAdmin,chart,'client_dom_committed',{surface:'chart',page:0,pageSize:25,layout:'scatter_all'})).status,403);
+   const exported=await artifact(queryAdmin,{...common,action:'export',format:'svg_zip',chart:{kind:'future_locations'}});assert.equal(exported.status,200);
+   const zip=await JSZip.loadAsync(exported.bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));
+   assert.deepEqual(manifest.chart,chart.body.chart);assert.deepEqual(manifest.sources,mapSource.body.result.sources);assert.ok(zip.file('map-base.json'));assert.match(await zip.file('chart.svg').async('string'),/坐标无效/);
+   await db.query('update public.future_supplies set location_lng=116.9 where id=$1',[ids[0]]);
+   assert.deepEqual((await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'future_locations'}})).body.chart,chart.body.chart);
+   assert.equal((await artifact(other,{...common,action:'chart',chart:{kind:'future_locations'}})).status,403);
+   const ranged=await ask('CBD未来供应预计在2026Q3至2026Q3入市有哪些');const selected=await artifact(queryAdmin,{requestId:ranged.body.requestId,resultId:ranged.body.result.resultId,action:'chart',chart:{kind:'future_locations'}});
+   assert.deepEqual(selected.body.chart.points.map(p=>p.yCell.entityId),[ids[0]]);
+   await db.query('update public.future_supplies set is_entered_market=true where id=$1',[ids[0]]);
+   try{for(const action of [{action:'chart'},{action:'export',format:'svg_zip'}])assert.equal((await artifact(queryAdmin,{...common,...action,chart:{kind:'future_locations'}})).status,403);}finally{await db.query('update public.future_supplies set is_entered_market=false where id=$1',[ids[0]]);}
+  }finally{for(const row of original)await db.query('update public.future_supplies set location_lng=$1,location_lat=$2 where id=$3',[row.location_lng,row.location_lat,row.id]);}
+ });
  await check('未来路径只准admin本人：viewer/editor持完整资格和旧JWT仍不能问、恢复、作图、下载或回执',async()=>{
   const common={requestId:source.body.requestId,resultId:source.body.result.resultId};
   for(const role of ['viewer','editor']){
    await db.query('update public.user_roles set role=$1 where user_id=$2',[role,queryAdmin.id]);
    try{
     assert.equal((await capabilities(queryAdmin)).body.enabled,false);
+    for(const action of [{action:'chart'},{action:'export',format:'svg_zip'}])assert.equal((await artifact(queryAdmin,{requestId:mapSource.body.requestId,resultId:mapSource.body.result.resultId,...action,chart:{kind:'future_locations'}})).status,403);
     assert.equal((await artifact(queryAdmin,{requestId:timeline.body.requestId,resultId:timeline.body.result.resultId,action:'chart',chart:{kind:'launch_intervals'}})).status,403);
     for(const question of ['CBD未来供应面积汇总','CBD未来供应预计入市区间'])assert.equal((await ask(question)).status,403);
     const denied=await ask('CBD未来供应有哪些');assert.equal(denied.status,403);assert.equal(denied.body.result,undefined);

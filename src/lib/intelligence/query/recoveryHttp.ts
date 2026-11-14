@@ -65,7 +65,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent'});terminal=true;
     const deliveryHeaders=await prepareDelivery(audit,keys,verified,{requestId:attemptId,bodySha256,
       kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':restored?'result':'status',
-      resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},
+      ...(artifact?.type==='chart'&&artifact.chart.kind==='map'?{chartKind:'map' as const}:{}),resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},
       {httpStatus:200,sourceRequestId:input.requestId});
     if(restored)await restored.recheck();
     const final=await readOwnResult(client,verified,input.requestId,'status',signal);
