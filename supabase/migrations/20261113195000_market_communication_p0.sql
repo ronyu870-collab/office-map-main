@@ -102,7 +102,7 @@ begin
     from auth.users u
     join public.user_roles r on r.user_id = u.id
     where u.id = p_actor_user_id
-      and (u.banned_until is null or u.banned_until <= now())
+      and u.deleted_at is null and (u.banned_until is null or u.banned_until <= now())
       and r.role in ('viewer','editor','admin');
   if v_email is null then
     raise exception 'Inactive sender' using errcode='42501';
@@ -126,7 +126,7 @@ begin
           join public.user_roles r on r.user_id=q.id
           join auth.users u on u.id=q.id
           where r.role in ('viewer','editor','admin')
-            and (u.banned_until is null or u.banned_until <= now()))
+            and u.deleted_at is null and (u.banned_until is null or u.banned_until <= now()))
     into v_requested_count,v_valid_count;
   if v_requested_count <> v_valid_count then
     raise exception 'Mentioned member is unavailable' using errcode='22023';
@@ -165,7 +165,7 @@ begin
   from public.user_roles r
   join auth.users u on u.id=r.user_id
   where r.role in ('viewer','editor','admin')
-    and (u.banned_until is null or u.banned_until <= now())
+    and u.deleted_at is null and (u.banned_until is null or u.banned_until <= now())
     and r.user_id <> p_actor_user_id
     and (v_broadcast or r.user_id in (
       select (s.part->>'mentionUserId')::uuid
