@@ -25,6 +25,14 @@
 - **防伪造**：发送 RPC 在数据库内同时校验提及 UUID 与 `@完整英文名` 的一致性，伪造 `@Bob` 指向 Alice 或把 `@Ali` 标记为 Alice 都拒绝，不能靠客户端自行声称目标。离线/失败/未选候选保留普通文本，不生成通知。
 - **已知边界**：精确名字查询仍然会向已登录用户确认*该名字是否存在*，这是定向 @ 的必要行为；本次关闭了“一次列出全部成员”与模糊枚举接口，不等同于对其他业务目录的全面权限审计。
 
+## 2026-11-14：禁用账号排除验证（本次）
+
+- 系统管理→停用账号使用 `auth.admin.updateUserById({ban_duration:'876000h'})`；后台 `/api/admin/users` 将 **`banned_until > 当前时间`** 判为 `disabled: true`，`user_roles` 无独立 `disabled` 字段。生产只读预检：30 个 Auth 用户，其中 6 个正在停用期；本次不改变任何账号状态。
+- `GET /api/communication?name=...` 在服务端仅返回真实 `auth.users` 已存在、未停用（`banned_until` 为 null 或已过期）且未软删除（`deleted_at IS NULL`）的精确英文首词匹配；无权限或请求/目录读取失败时不得回退到完整列表。异常禁用时间戳采取 fail-closed。
+- 输入框重新编辑提及查询时立即丢弃缓存候选，即使同一英文名重复输入，也需要重新取得有效账号；仅点击最新候选才生成带 UUID 的结构化提及。
+- 实际发送使用 PostgreSQL 17 的 RPC 复核发送者、目标 UUID 及 `@所有人` 收件人的 `banned_until` 与 `deleted_at`，禁用后的直接提及/广播不生成提醒；重新启用后恢复可被选择。涉及的禁用、重新启用、软删除、广播排除与事务回滚由 `mentionLookup.test.ts`、`mention-lookup.test.ts` 和 `supabase/tests/market-communication/run.mjs` 验证。
+- 现有公开生产消息与账号保持原样。**实现、自动测试、视觉/真机验收、合并与生产部署属于不同状态**，合并门槛仍以精确 PR head 的 Verify 与 Visual acceptance 为准。
+
 ## 数据与权限核对
 
 生产只读预检：\`public.messages\` 七条历史消息，\`user_roles\` 三十名用户，其中管理员 6、编辑 22、查看 2。老消息的 \`content\` 原样保留；迁移只新增可选富文本、回复和广播标记。
