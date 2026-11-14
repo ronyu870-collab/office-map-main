@@ -15,7 +15,6 @@ import { retryAsync } from '@/src/utils/retryAsync';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import {
   MAP_DISTRICTS as MOCK_DISTRICTS,
-  SUPPLY_CALENDAR_CATEGORIES,
   buildActiveFilterChips,
   buildDistrictLeedStats,
   buildFutureSupplyCalendar,
@@ -171,6 +170,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, [competitorBuildings, filteredBuildings, filteredFutureSupplies]);
   const fullListQueryKey = React.useMemo(() => JSON.stringify([fullListFilterKey, competitorBuildings?.map(building => building.id) ?? null]), [fullListFilterKey, competitorBuildings]);
   const prevKeywordRef = React.useRef(keyword);
+  const [searchSubmitRevision, setSearchSubmitRevision] = React.useState(0);
+  const previousSearchSubmitRef = React.useRef(0);
   const hadActiveFiltersRef = React.useRef(false);
   
   const [currentSubwayStations, setCurrentSubwayStations] = React.useState<any[]>([]);
@@ -400,9 +401,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
     setFullListWarning(null);
-    const searchAdditionalSupply = Boolean(keyword) && !activeFilterState.showFutureSupply;
-    const loadFuture = activeFilterState.showFutureSupply || searchAdditionalSupply;
-    const shouldFitSearch = Boolean(keyword) && keyword !== prevKeywordRef.current;
+    // A hidden future-supply layer must not return invisible search matches.
+    const loadFuture = activeFilterState.showFutureSupply;
+    const shouldFitSearch = Boolean(keyword) && (
+      keyword !== prevKeywordRef.current || searchSubmitRevision !== previousSearchSubmitRef.current
+    );
     if (!loadFuture) setSettledFullListFilterKey(fullListFilterKey);
     if (initialIntelligenceHandoff && !intelligenceCandidatesResolved) {
       setIntelligenceCandidatesResolved(true);
@@ -430,9 +433,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           const filteredSupplies = filterFutureSupplies(
             supplies,
-            searchAdditionalSupply
-              ? { ...activeFilterState, futureSupplyGrades: ['commercial', 'pending'], futureSupplyYears: [...SUPPLY_CALENDAR_CATEGORIES] }
-              : activeFilterState,
+            activeFilterState,
             keyword,
             (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
           );
@@ -441,7 +442,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           setFilteredFutureSupplies(filteredSupplies);
           setSettledFullListFilterKey(fullListFilterKey);
           if (!competitorModeRef.current) {
-            if (activeFilterState.showFutureSupply) ctrl.renderFutureMarkers(filteredSupplies, renderMode);
+            ctrl.renderFutureMarkers(filteredSupplies, renderMode);
             if (shouldFitSearch && filtered.length === 0 && filteredSupplies.length > 0) ctrl.fitToBuildings(filteredSupplies as typeof filtered);
           }
         } catch (e) {
@@ -464,14 +465,15 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     }
     hadActiveFiltersRef.current = hasActiveFilters;
 
-    if (keyword && keyword !== prevKeywordRef.current && filtered.length > 0) {
+    if (shouldFitSearch && filtered.length > 0 && !competitorModeRef.current) {
       ctrl.fitToBuildings(filtered);
     }
     prevKeywordRef.current = keyword;
+    previousSearchSubmitRef.current = searchSubmitRevision;
     });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterState, keyword, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey, showAreaPlaceholders]);
+  }, [filterState, keyword, searchSubmitRevision, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey, showAreaPlaceholders]);
 
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
     cancelPendingBuildingNavigation();
@@ -605,6 +607,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     }
   };
 
+  const handleSearchSubmit = (val: string) => {
+    handleSearch(val);
+    if (val.trim()) setSearchSubmitRevision(previous => previous + 1);
+  };
+
   const handleRenderModeChange = React.useCallback((mode: RenderMode) => {
     if (competitorBuildings !== null) controllerRef.current?.clearCompetitorElements?.();
     setRenderMode(mode);
@@ -679,6 +686,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         onCompareGroupsChange={handleCompareGroupsChange}
         onKeywordChange={value => { cancelPendingBuildingNavigation(); setSearchInput(value); }}
         onSearch={value => { if (workspaceViewRef.current === 'map') handleSearch(value); }}
+        onSearchSubmit={value => { if (workspaceViewRef.current === 'map') handleSearchSubmit(value); }}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
         onResetFilters={handleResetAllFilters}
         onRenderModeChange={handleRenderModeChange}

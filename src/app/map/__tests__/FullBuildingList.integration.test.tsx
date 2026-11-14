@@ -581,3 +581,44 @@ describe('asynchronous scope and view boundaries', () => {
     expect(controller.fetchMapData).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe('map search P0 navigation and visibility regressions', () => {
+  it('re-fits the active result when Search is submitted again after a pan', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目02' } });
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'b-2' }),
+    ]));
+    const initialFitCount = controller.fitToBuildings.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(initialFitCount + 1));
+    expect(controller.fitToBuildings).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'b-2' }),
+    ]);
+  });
+
+  it('omits future-only search matches when the future layer is disabled', async () => {
+    const hiddenFuture = {
+      id: 'future-hidden-by-filter', name: '独有商业未来项目', type: '商业', grade: 'A',
+      district: '朝阳区', submarket: 'CBD', launch_year: 2027, launch_quarter: 'Q1',
+      location_lng: 116.48, location_lat: 39.92,
+    };
+    controller.fetchFutureSupplies.mockResolvedValue([hiddenFuture]);
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: '筛选' }));
+    const panel = screen.getByRole('button', { name: '关闭筛选' }).closest('[aria-hidden]') as HTMLElement;
+    fireEvent.click(within(panel).getByText('项目类型', { exact: true }));
+    const toggle = within(panel).getByRole('checkbox', { name: '显示未来新增供应' });
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '独有商业未来项目' } });
+    fireEvent.click(screen.getByRole('button', { name: '完整列表' }));
+    const list = await screen.findByRole('region', { name: '完整楼宇列表' });
+    await within(list).findByText('0 栋楼宇');
+    expect(within(list).queryByRole('button', { name: hiddenFuture.name })).not.toBeInTheDocument();
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
+  });
+});

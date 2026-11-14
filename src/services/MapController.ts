@@ -1575,13 +1575,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         if (b.location_lat > maxLat) maxLat = b.location_lat;
       });
       const bounds = new this.AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
+      // Do not override the fitted extent with a forced minimum zoom: scattered
+      // search matches would be pushed out of the viewport after 50ms.
       this.map.setBounds(bounds);
-
-      setTimeout(() => {
-        if (this.map.getZoom() < 14) {
-          this.map.setZoom(14.5);
-        }
-      }, 50);
     }
   }
 
