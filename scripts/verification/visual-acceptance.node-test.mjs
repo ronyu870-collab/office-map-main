@@ -96,3 +96,19 @@ test('PR #191 reuses the prior visual/real-device waiver by explicit user instru
   assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields.filter(line => !line.startsWith('reason:'))) }), /specifically authorized/);
   assert.match(check(record(...fields)), /specifically authorized/);
 });
+
+test('allows the audit log exception only for PR #192 with the exact head, scope and reason', () => {
+  const reason = 'User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #192';
+  const body = record('result: waived', 'head: ' + head, 'scope: Audit log Codex exclusion, PR #192', 'reason: ' + reason);
+  const candidate = {
+    number: 192,
+    body,
+    head: { sha: head, ref: 'codex/audit-exclude-codex', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' },
+  };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 193 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+});
