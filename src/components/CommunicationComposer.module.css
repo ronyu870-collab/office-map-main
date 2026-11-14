@@ -8,6 +8,27 @@
   background: var(--cd-color-surface);
   padding: 12px 0 4px;
 }
+/* The homepage shows a single input and Send on one quiet row.
+   The expanded view keeps the original rich editor and toolbar. */
+.composerCompact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 8px 0;
+}
+.composerCompact .reply,
+.composerCompact .error { grid-column: 1 / -1; }
+.composerCompact .editorShell { min-width: 0; grid-column: 1; }
+.composerCompact .editor {
+  min-height: 40px;
+  max-height: 88px;
+  padding: 8px 10px;
+  line-height: 22px;
+}
+.composerCompact .toolbar { grid-column: 2; align-self: end; }
+.composerCompact .sendButton { min-height: 40px; }
+
 .reply {
   min-width: 0;
   display: flex;
@@ -132,10 +153,10 @@
 .sendButton:disabled { cursor: not-allowed; opacity: .45; }
 .sendButton:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 .sendButton:not(:disabled):hover { background: var(--cd-color-brand-hover); }
-.hint { color: var(--cd-color-text-muted); font-size: 12px; }
 .error { color: var(--cd-color-danger); font-size: 12px; }
 @media (max-width: 639px), (pointer: coarse) {
   .iconButton { width: 44px; height: 44px; }
   .sendButton { min-height: 44px; }
   .editor { min-height: 68px; }
+  .composerCompact .editor, .composerCompact .sendButton { min-height: 44px; }
 }
