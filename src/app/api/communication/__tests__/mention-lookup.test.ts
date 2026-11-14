@@ -82,6 +82,41 @@ describe('market mention lookup privacy', () => {
     }
   });
 
+  it('never exposes a disabled account in an exact-name lookup, even when its role remains active', async () => {
+    fixture.listUsers.mockResolvedValueOnce({ data: { users: [
+      { id: baseRows[0].user_id, banned_until: '2099-01-01T00:00:00Z' },
+      { id: baseRows[1].user_id, banned_until: null },
+      { id: baseRows[3].user_id, banned_until: '2099-01-01T00:00:00Z' },
+    ] }, error: null });
+    const result = await GET(request('Alice'));
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({
+      members: [{ id: baseRows[1].user_id, name: 'ALICE Chen' }],
+    });
+  });
+
+  it('reflects disable and re-enable changes from Auth immediately on successive searches', async () => {
+    fixture.listUsers.mockResolvedValueOnce({ data: { users: [
+      { id: baseRows[0].user_id, banned_until: '2099-01-01T00:00:00Z' },
+    ] }, error: null });
+    expect(await (await GET(request('alice'))).json()).toEqual({ members: [] });
+
+    fixture.listUsers.mockResolvedValueOnce({ data: { users: [
+      { id: baseRows[0].user_id, banned_until: null },
+    ] }, error: null });
+    expect(await (await GET(request('alice'))).json()).toEqual({
+      members: [{ id: baseRows[0].user_id, name: 'Alice Wang' }],
+    });
+  });
+
+  it('omits soft-deleted identities, invalid ban metadata and missing Auth accounts', async () => {
+    fixture.listUsers.mockResolvedValueOnce({ data: { users: [
+      { id: baseRows[0].user_id, banned_until: null, deleted_at: '2026-11-01T00:00:00Z' },
+      { id: baseRows[1].user_id, banned_until: 'invalid-date', deleted_at: null },
+    ] }, error: null });
+    expect(await (await GET(request('alice'))).json()).toEqual({ members: [] });
+  });
+
   it('returns only a single scoped first-name result even for a two-letter name', async () => {
     const body = await (await GET(request('li'))).json();
     expect(body).toEqual({ members: [{ id: baseRows[4].user_id, name: 'Li Wei' }] });
