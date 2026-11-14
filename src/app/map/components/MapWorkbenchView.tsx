@@ -11,6 +11,7 @@ import { MaskedText } from '@/src/components/demo';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { FullBuildingList } from './FullBuildingList';
 import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
+import { rankMapSearchCandidates } from '../model/mapSearchCandidates';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -382,6 +383,9 @@ export function MapWorkbenchView({
 }: MapWorkbenchViewProps) {
 
   const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
+  const [searchChoicesOpen, setSearchChoicesOpen] = React.useState(false);
+  const searchInputWrapRef = React.useRef<HTMLDivElement>(null);
+  const searchChoicesRef = React.useRef<HTMLDivElement>(null);
   const moreFiltersTriggerId = React.useId();
   const filtersPanelId = React.useId();
   const filterCloseRef = React.useRef<HTMLButtonElement>(null);
@@ -403,10 +407,14 @@ export function MapWorkbenchView({
   }, [isFullListVisible]);
 
   const searchTerm = keyword.trim();
+  const searchChoices = React.useMemo(() => rankMapSearchCandidates(combinedBuildingList, searchTerm), [combinedBuildingList, searchTerm]);
+  const searchChoicesVisible = searchChoicesOpen && Boolean(searchTerm) && !isFullListVisible
+    && !isFilterPanelOpen && !isSupplyOpen && !isListVisible && !competitorContext && mapReady && !mapError;
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(searchTerm) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
 
   const closeOpenWorkspaces = React.useCallback(() => {
+    setSearchChoicesOpen(false);
     if (isFilterPanelOpen) onFilterPanelOpenChange(false);
     if (isSupplyOpen) onSupplyOpenChange(false);
     if (isListVisible) onCloseList();
@@ -416,14 +424,23 @@ export function MapWorkbenchView({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]')) return;
+      if (searchChoicesVisible) {
+        event.preventDefault();
+        setSearchChoicesOpen(false);
+        if (event.target instanceof Element && event.target.closest('[aria-label="项目搜索候选"]')) {
+          searchInputWrapRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus({ preventScroll: true });
+        }
+        return;
+      }
       if (listMoreOpen) closeListMore();
       else closeOpenWorkspaces();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeOpenWorkspaces, closeListMore, listMoreOpen]);
+  }, [closeOpenWorkspaces, closeListMore, listMoreOpen, searchChoicesVisible]);
 
   const toggleFilterPanel = () => {
+    setSearchChoicesOpen(false);
     const nextOpen = !isFilterPanelOpen;
     if (nextOpen && isSupplyOpen) onSupplyOpenChange(false);
     if (nextOpen && isListVisible) onCloseList();
@@ -431,6 +448,7 @@ export function MapWorkbenchView({
   };
 
   const toggleSupplyPanel = () => {
+    setSearchChoicesOpen(false);
     const nextOpen = !isSupplyOpen;
     if (nextOpen && isFilterPanelOpen) onFilterPanelOpenChange(false);
     if (nextOpen && isListVisible) onCloseList();
@@ -438,6 +456,7 @@ export function MapWorkbenchView({
   };
 
   const openBuildingList = () => {
+    setSearchChoicesOpen(false);
     if (isFilterPanelOpen) onFilterPanelOpenChange(false);
     if (isSupplyOpen) onSupplyOpenChange(false);
     onOpenList();
@@ -488,8 +507,79 @@ export function MapWorkbenchView({
           </div>
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
-            <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
-              <SearchBar searchContextKey={searchContextKey} inputLabel="搜索楼宇、子市场、业主或物业" placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} onSubmit={onSearchSubmit} />
+            <div className="relative" ref={searchInputWrapRef}>
+              <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
+                <SearchBar
+                  searchContextKey={searchContextKey}
+                  inputLabel="搜索楼宇、子市场、业主或物业"
+                  placeholder="搜索楼宇、子市场、业主…"
+                  debounceMs={220}
+                  value={keyword}
+                  onChange={value => { setSearchChoicesOpen(Boolean(value.trim())); onKeywordChange(value); }}
+                  onSearch={onSearch}
+                  onSubmit={value => {
+                    setSearchChoicesOpen(Boolean(value.trim()));
+                    if (onSearchSubmit) onSearchSubmit(value);
+                    else void onSearch(value);
+                  }}
+                  onArrowDown={searchChoicesVisible && !fullListBusy && searchChoices.items.length > 0
+                    ? () => searchChoicesRef.current?.querySelector<HTMLButtonElement>('[data-map-search-choice]')?.focus()
+                    : undefined}
+                />
+              </div>
+              {searchChoicesVisible ? (
+                <div ref={searchChoicesRef} role="region" aria-label="项目搜索候选"
+                  className="absolute inset-x-0 top-full z-10 mt-1 max-h-[min(55dvh,400px)] overflow-y-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_8px_24px_rgba(23,32,51,0.16)]"
+                  onKeyDown={event => {
+                    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                    const choices = Array.from(searchChoicesRef.current?.querySelectorAll<HTMLButtonElement>('[data-map-search-choice]') ?? []);
+                    const index = choices.indexOf(event.target as HTMLButtonElement);
+                    if (index < 0) return;
+                    event.preventDefault();
+                    if (event.key === 'ArrowUp' && index === 0) {
+                      searchInputWrapRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+                    } else {
+                      choices[Math.max(0, Math.min(choices.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus();
+                    }
+                  }}>
+                  <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-[#e7ebf0] bg-[#f8fafc] px-3 py-2 text-xs">
+                    <span className="font-medium text-[#475569]">
+                      {fullListBusy ? '正在匹配项目…' : `匹配项目 · ${searchChoices.total}`}
+                    </span>
+                    <button type="button" className="min-h-9 px-2 text-xs text-[#64748b] hover:text-[#003e7e]"
+                      onClick={() => setSearchChoicesOpen(false)}>收起</button>
+                  </div>
+                  {fullListBusy ? (
+                    <div role="status" className="px-3 py-4 text-[13px] text-[#64748b]">正在更新匹配结果…</div>
+                  ) : searchChoices.items.length > 0 ? (
+                    <ul className="divide-y divide-[#edf0f4]">
+                      {searchChoices.items.map(building => (
+                        <li key={`${building._dataType ?? 'existing'}:${building.id}`}>
+                          <button type="button" data-map-search-choice
+                            className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[#f3f7fb] focus-visible:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#003e7e]"
+                            onClick={() => { setSearchChoicesOpen(false); onBuildingClick(building); }}>
+                            <span className="min-w-0 truncate text-[13px] font-medium text-[#172033]">{building.name || '未命名项目'}</span>
+                            <span className="shrink-0 text-xs text-[#64748b]">
+                              {building._dataType === 'future' ? '未来供应 · ' : ''}{building.submarket || building.district || '其他'}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div role="status" className="px-3 py-4 text-[13px] text-[#64748b]">
+                      没有可定位的匹配项目，请检查关键词或当前筛选条件。
+                    </div>
+                  )}
+                  {!fullListBusy && searchChoices.total > searchChoices.items.length ? (
+                    <button type="button"
+                      className="min-h-11 w-full border-t border-[#e7ebf0] px-3 text-left text-[13px] font-medium text-[#003e7e] hover:bg-[#f3f7fb]"
+                      onClick={() => { setSearchChoicesOpen(false); onOpenFullList?.(); }}>
+                      查看全部 {searchChoices.total} 个匹配项目
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {showFilterSummary ? (
               <div className="mt-2 flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" role="group" aria-label="已生效筛选条件">
