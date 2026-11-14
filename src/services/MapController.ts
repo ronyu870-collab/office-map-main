@@ -11,6 +11,7 @@ import { getSessionFast } from "./Auth";
 import { fetchBuildingTrendPayload, fetchFutureSupplyPayload, fetchMapBuildingPayload } from "./mapDataClient";
 import { recordMapStartup } from "@/src/utils/mapStartupProbe";
 import { futureSupplyDisplayLabel, isCommercialFutureSupply } from "@/src/app/map/model/mapDomain";
+import { panMapFocusIntoAvailableArea } from "@/src/app/map/runtime/mapFocusViewport";
 import { mapOptionalNumber, observedVacantArea } from "@/src/app/map/model/vacancyMetrics";
 import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
@@ -1553,8 +1554,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   fitToBuildings(buildingsData: BuildingWithMetrics[]) {
     if (!this.map || !this.AMap || buildingsData.length === 0) return;
 
-    this.clearCompetitorElements();
-
+    // Fitting results must not exit a separate, explicitly selected competitor session.
     const withCoords = buildingsData.filter(b => Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat));
     if (withCoords.length === 0) return;
 
@@ -1563,6 +1563,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         withCoords[0].location_lng,
         withCoords[0].location_lat,
       ]);
+      panMapFocusIntoAvailableArea(this.map);
     } else {
       let minLng = 180,
         maxLng = -180,
@@ -1937,7 +1938,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const info = new this.AMap.InfoWindow({
       isCustom: false,
       offset: new this.AMap.Pixel(0, -35),
-      autoMove: true,
+      // Popup placement is handled locally; opening a future card must not pan the map.
+      autoMove: false,
       content: containerDiv,
     });
     this.infoWindow = info;
@@ -1978,7 +1980,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       </button>` : '';
 
     return `
-      <div style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
+      <div class="map-future-popup" style="width:min(300px, calc(100vw - 72px)); max-width:300px; min-width:240px; box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system; background:#ffffff; padding:4px;">
         <div style="margin-bottom: 10px; border-bottom: 2px solid #10b981; padding-bottom: 8px;">
            <span style="background:#d1fae5; color:#047857; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:6px;">${futureSupplyDisplayLabel(supply)}</span>
            ${photoPilot

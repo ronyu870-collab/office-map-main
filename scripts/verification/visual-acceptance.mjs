@@ -77,6 +77,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Map search candidates and explicit positioning P1, PR #196',
         reason: 'User explicitly authorized the same independent visual and real-device waiver as PR #195 for map search second-batch changes in PR #196 on 2026-11-14',
       },
+      {
+        number: 197,
+        branch: 'codex/map-search-p2-viewport-20261114',
+        scope: 'Map third-batch viewport, popup stability and search consistency, PR #197',
+        reason: 'User explicitly authorized the same independent visual and real-device acceptance waiver as the previous map search batches for PR #197 on 2026-11-14',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

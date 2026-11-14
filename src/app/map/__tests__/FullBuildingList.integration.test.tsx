@@ -696,3 +696,32 @@ describe('map search P1 candidates and explicit viewport navigation', () => {
     expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
   });
 });
+
+
+describe('map search P2 result scope and competitor continuity', () => {
+  it('explains the current filter scope and distinguishes unlocatable matches from zero matches', async () => {
+    controller.fetchMapData.mockResolvedValueOnce(BUILDINGS);
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目04' } });
+    const choices = screen.getByRole('region', { name: '项目搜索候选' });
+    await waitFor(() => expect(within(choices).getByText('匹配项目 · 0')).toBeInTheDocument());
+    expect(within(choices).getByText(/有 1 个匹配项目，但缺少坐标/)).toBeVisible();
+    expect(within(choices).getByText(/另有 1 个匹配项目缺少坐标/)).toBeVisible();
+    expect(within(choices).getByText('全部已授权项目')).toBeVisible();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '不存在的项目名称' } });
+    await waitFor(() => expect(within(choices).getByText(/当前筛选范围内没有匹配项目/)).toBeInTheDocument());
+  });
+
+  it('typing a search does not silently clear the active competitor session', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent(window, new CustomEvent('competitors-found', { detail: { buildings: [BUILDINGS[1]], targetBuildingId: 'b-2' } }));
+    const before = controller.clearCompetitorElements.mock.calls.length;
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目02' } });
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toBeDefined());
+    await new Promise(resolve => setTimeout(resolve, 80));
+    expect(controller.clearCompetitorElements.mock.calls.length).toBe(before);
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
+  });
+});
