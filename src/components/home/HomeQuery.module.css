@@ -72,3 +72,22 @@
 .heatmap th { text-align: left; font-weight: 500; background: var(--cd-color-surface-alt); }
 .heatmap td { text-align: right; color: var(--cd-color-text-primary); }
 .heatmap td p { margin-top: 4px; }
+
+.intervalScroll { overflow: auto; max-width: 100%; max-height: 600px; margin-top: 12px; }
+.intervalScroll:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.intervalTable { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1040px; table-layout: fixed; font-size: inherit; }
+.intervalTable th, .intervalTable td { box-sizing: border-box; padding: 8px 12px; border-bottom: 1px solid var(--cd-color-border); text-align: left; overflow-wrap: anywhere; }
+.intervalTable th { font-weight: 400; }
+.intervalTable thead th { position: sticky; top: 0; z-index: 2; background: var(--cd-color-surface-alt); font-weight: 500; }
+.intervalTable th:first-child { width: 180px; position: sticky; left: 0; z-index: 1; background: var(--cd-color-surface-alt); }
+.intervalTable thead th:first-child { z-index: 3; }
+.intervalTable th:last-child { width: 260px; }
+.intervalAxis { height: 28px; position: relative; }
+.intervalAxis span { position: absolute; white-space: nowrap; }
+.intervalTrack { position: relative; height: 44px; }
+.intervalGrid { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--cd-color-border); }
+.intervalQuarter, .intervalRange { position: absolute; top: 15px; height: 14px; box-sizing: border-box; border: 1px solid var(--cd-color-brand); }
+.intervalQuarter { background: var(--cd-color-brand); }
+.intervalRange { background: var(--cd-color-brand-soft, #edf4fb); border-style: dashed; }
+
+@media (max-width: 639px) { .intervalTable th:first-child { width: 100px; } .intervalTable th:last-child { width: 150px; } }

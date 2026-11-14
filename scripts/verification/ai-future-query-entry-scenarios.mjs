@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import {grantQuery} from '../../supabase/tests/ai-query-authority/database.mjs';
 export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,ids,call,recover,artifact,acknowledge,capabilities}){
  const caps=['query:future-catalog','query:future-progress','query:future-quality','export:internal'];
  const ask=(question,who=queryAdmin,headers={})=>call(who,{idempotencyKey:randomUUID(),question},headers);
- let source;
+ let source,timeline;
  await grant(caps);
  await check('未来专用admin通过真实HTTP提问、来源、本人恢复、图表和Excel，不需要存量权限',async()=>{
   const available=await capabilities(queryAdmin);assert.equal(available.status,200);assert.equal(available.body.enabled,true);
@@ -56,12 +57,29 @@ export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,id
    assert.equal(limited.body.result.parameters.supply.knownArea.numeric,99999);
   }finally{for(const row of original)await db.query('update public.future_supplies set total_area=$1 where id=$2',[row.total_area,row.id]);await grant(caps);}
  });
+ await check('预计入市时间轴保留季度/半年/全年/未知，SVG和交付回执同源，来源撤回即拒绝',async()=>{
+  timeline=await ask('CBD未来供应预计入市区间');assert.equal(timeline.status,200);const common={requestId:timeline.body.requestId,resultId:timeline.body.result.resultId};
+  const chart=await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'launch_intervals'}});assert.equal(chart.status,200);assert.equal(chart.body.chart.kind,'interval');assert.equal(chart.body.chart.zeroBaseline,false);
+  const points=chart.body.chart.points,half=points.find(p=>p.yCell.entityId===ids[1]),year=points.find(p=>p.yCell.entityId===ids[2]),unknown=points.find(p=>p.yCell.entityId===ids[3]);
+  assert.equal(points.length,5);assert.equal(half.y-half.x+1,2);assert.equal(year.y-year.x+1,4);assert.equal(unknown.x,null);assert.equal(unknown.y,null);
+  assert.equal((await acknowledge(queryAdmin,chart,'client_dom_committed',{surface:'chart',page:0,pageSize:25,layout:'interval_page'})).status,200);
+  assert.equal((await acknowledge(queryAdmin,chart,'client_dom_committed',{surface:'chart',page:1,pageSize:25,layout:'interval_page'})).status,403);
+  const exported=await artifact(queryAdmin,{...common,action:'export',format:'svg_zip',chart:{kind:'launch_intervals'}});assert.equal(exported.status,200);
+  const zip=await JSZip.loadAsync(exported.bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string')),svg=await zip.file('chart.svg').async('string');
+  assert.deepEqual(manifest.chart,chart.body.chart);assert.ok(svg.includes(timeline.body.result.resultId));assert.ok(svg.includes('stroke-dasharray'));
+  assert.equal((await artifact(other,{...common,action:'chart',chart:{kind:'launch_intervals'}})).status,403);
+  await db.query("update public.future_supplies set launch_quarter='Q4' where id=$1",[ids[0]]);
+  try{assert.deepEqual((await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'launch_intervals'}})).body.chart,chart.body.chart);}finally{await db.query("update public.future_supplies set launch_quarter='Q3' where id=$1",[ids[0]]);}
+  await db.query('update public.future_supplies set is_entered_market=true where id=$1',[ids[0]]);
+  try{assert.equal((await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'launch_intervals'}})).status,403);assert.equal((await artifact(queryAdmin,{...common,action:'export',format:'svg_zip',chart:{kind:'launch_intervals'}})).status,403);}finally{await db.query('update public.future_supplies set is_entered_market=false where id=$1',[ids[0]]);}
+ });
  await check('未来路径只准admin本人：viewer/editor持完整资格和旧JWT仍不能问、恢复、作图、下载或回执',async()=>{
   const common={requestId:source.body.requestId,resultId:source.body.result.resultId};
   for(const role of ['viewer','editor']){
    await db.query('update public.user_roles set role=$1 where user_id=$2',[role,queryAdmin.id]);
    try{
     assert.equal((await capabilities(queryAdmin)).body.enabled,false);
+    assert.equal((await artifact(queryAdmin,{requestId:timeline.body.requestId,resultId:timeline.body.result.resultId,action:'chart',chart:{kind:'launch_intervals'}})).status,403);
     for(const question of ['CBD未来供应面积汇总','CBD未来供应预计入市区间'])assert.equal((await ask(question)).status,403);
     const denied=await ask('CBD未来供应有哪些');assert.equal(denied.status,403);assert.equal(denied.body.result,undefined);
     assert.equal((await db.query("select count(*)::int n from private.ai_query_audit_events where request_id=$1 and kind='running'",[denied.body.requestId])).rows[0].n,0);

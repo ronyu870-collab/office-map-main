@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import {FutureTimeline} from './FutureTimeline';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
@@ -18,14 +19,15 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(0);
-  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
+  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'interval'?'interval_page':chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
   const active = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
+  const isTimeline=result.operation==='future_observation'&&result.parameters.view==='launch_schedule';
   const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
   const isCross = result.operation === 'cross_aggregate';
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
-  const request: ChartRequest = isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
+  const request: ChartRequest = isTimeline?{kind:'launch_intervals'}:isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
   async function run(input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') {
     if (active.current) return;
     const controller = new AbortController(); active.current = controller;
@@ -56,8 +58,8 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const position = (value: number) => (value - min) / span * 100;
   return <div className={styles.artifacts}>
     <div className={styles.actions}>
-      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isDistribution?(chart?'更新直方图':'查看直方图'):isRelationship?(chart?'更新散点图':'查看散点图'):isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
+      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && !isTimeline && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isTimeline?(chart?'更新时间轴':'查看时间轴'):isDistribution?(chart?'更新直方图':'查看直方图'):isRelationship?(chart?'更新散点图':'查看散点图'):isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
       {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
       {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
@@ -70,8 +72,8 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
     </div>
     <p role="status" className={styles.notice}>{message}</p>
     {chart && <figure className={styles.chart} aria-label="同源查询图表">
-      <figcaption>{chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit]??chart.distribution.unit}），有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : <>{chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}。有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项；未知不画成零。</>}</figcaption>
-      {chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
+      <figcaption>{chart.kind==='interval'?`预计入市范围：时间已知 ${chart.renderedCount} 条，未知 ${chart.unknownCount} 条。`:chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit]??chart.distribution.unit}），有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : <>{chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}。有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项；未知不画成零。</>}</figcaption>
+      {chart.kind==='interval'?<FutureTimeline chart={chart} page={page} onPage={setPage} onSource={onSource}/>:chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
         <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>
         <div>{shown.map((point, i) => <div className={styles.barRow} key={`${point.yCell.entityId}:${point.yCell.key}:${i}`}>
           <span>{point.label}</span><div className={styles.barTrack} aria-hidden="true"><i className={styles.zero} style={{ left: `${position(0)}%` }} />{point.y !== null && <i className={styles.bar} style={{ left: `${Math.min(position(0), position(point.y))}%`, width: `${Math.abs(position(point.y) - position(0))}%` }} />}</div>

@@ -1,5 +1,6 @@
+import {timelineResult} from '@/src/lib/intelligence/query/__tests__/futureTimelineFixture';
 import * as React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
@@ -22,6 +23,16 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
+  it('shows immutable launch intervals with shared-scale pagination, source focus and exact page receipts',async()=>{
+    const result=resultViewSchema.parse(timelineResult(27));client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_s,_id,r,q)=>buildResultChart(r,q));
+    render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'CBD未来供应预计入市区间'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
+    fireEvent.click(await screen.findByRole('button',{name:'查看时间轴'}));const figure=await screen.findByRole('figure',{name:'同源查询图表'});expect(figure).toHaveTextContent('时间已知 27 条');
+    expect(figure).toHaveTextContent('描边表示仅明确半年或年份');const axis=within(figure).getByLabelText('预计入市时间轴，可横向滚动');const ticks=axis.querySelector('thead')!.textContent;
+    fireEvent.click(within(figure).getByRole('button',{name:'下一页图示'}));expect(figure).toHaveTextContent('图示第 26–27 条');expect(axis.querySelector('thead')!.textContent).toBe(ticks);
+    const source=within(figure).getByRole('button',{name:'2026年下半年（季度未定） · 未来记录'});fireEvent.click(source);expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('launch_quarter');
+    fireEvent.click(screen.getByRole('button',{name:'关闭来源'}));expect(source).toHaveFocus();expect(client.submit).toHaveBeenCalledOnce();
+    await waitFor(()=>expect(client.reportDelivery.mock.calls.some(c=>c[3]?.layout==='interval_page'&&c[3]?.page===1)).toBe(true));
+  });
   it('shows submission coverage with source focus and a same-result chart, then clears it on withdrawal',async()=>{
     const raw=submissionSample();raw.quality=false;raw.submissions.forEach(s=>s.values={});
     const result=resultViewSchema.parse(buildSubmissionResult(raw,{operation:'submission_progress',scope:{inventory:'tracked',submarkets:['CBD']},period:null,view:'summary'},submissionAuthority));

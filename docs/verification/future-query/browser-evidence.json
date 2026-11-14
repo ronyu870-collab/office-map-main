@@ -16,6 +16,11 @@
     },
     {
       "width": 1280,
+      "case": "same-result timeline, pinned names, source focus and complete SVG readback",
+      "passed": true
+    },
+    {
+      "width": 1280,
       "case": "original half/year intervals and incomplete known-area aggregation; same-source chart and Excel",
       "passed": true
     },
@@ -37,6 +42,16 @@
     {
       "width": 390,
       "case": "catalog unknown area and half-year original source; source close restores focus",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "case": "timeline source remains fully visible beside pinned name at right scroll edge",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "same-result timeline, pinned names, source focus and complete SVG readback",
       "passed": true
     },
     {
@@ -63,44 +78,58 @@
   "downloads": [
     {
       "width": 1280,
+      "format": "timeline_svg",
+      "resultId": "290f4ee0-c39e-459b-ab15-a4d7e876516d",
+      "sha256": "715195555757ee7614baaad81db96fa196379e50dd927f81524f5e5739a4711f",
+      "readback": true
+    },
+    {
+      "width": 1280,
       "format": "area_xlsx",
-      "resultId": "9caf3c7c-0e45-412c-b5f0-a295fa1b734c",
-      "sha256": "a59586663ffd22de2a14004363bb3be1f0860be44bdf20d3234c99a2ef0400cd",
+      "resultId": "f13749ca-8a8c-4516-954c-013a800a82fd",
+      "sha256": "e5de49f55d13811166f3302b0717c4d885468906d8f265efb01741dc1ccd94ac",
       "readback": true
     },
     {
       "width": 1280,
       "format": "xlsx",
-      "resultId": "dbc7c524-7dc1-4475-8691-2b9cb78caaaf",
-      "sha256": "6e8342a76c355828bf9d56b85858fc069ae76cfe199d3d8a919f56052b673bc8",
+      "resultId": "a9c0703f-5326-4006-a28d-1caf2055bfc2",
+      "sha256": "7ed85ec6d975c2b8e57dcae30c44a1bd43f2dbe8f86201490041d82f595e8aaa",
       "readback": true
     },
     {
       "width": 1280,
       "format": "csv_zip",
-      "resultId": "dbc7c524-7dc1-4475-8691-2b9cb78caaaf",
-      "sha256": "594af94c9932e4b02fdaa3d1a038031021232dd21a79f665df8f6ea0c239a7ce",
+      "resultId": "a9c0703f-5326-4006-a28d-1caf2055bfc2",
+      "sha256": "967e0100c9f72b17f6684f2118dc404fa329d8c2b7bf2e3e890b4e547a47fd61",
       "readback": true
     },
     {
       "width": 1280,
       "format": "svg_zip",
-      "resultId": "dbc7c524-7dc1-4475-8691-2b9cb78caaaf",
-      "sha256": "7a0d7442ce7730f5d954c652948b50cd29f5dae654d024a1900678fce7f91082",
+      "resultId": "a9c0703f-5326-4006-a28d-1caf2055bfc2",
+      "sha256": "ca58c32950f743bf9e22cf6bcff8d6c2903976f78c658f6f7c7b2959bc0e3eea",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "timeline_svg",
+      "resultId": "2521994d-1178-4794-9e38-ca638a5af226",
+      "sha256": "bdc1af109b022b4a98920d88f6896ca37e7e3b09f22f740b578cd3268966b2e9",
       "readback": true
     },
     {
       "width": 390,
       "format": "area_xlsx",
-      "resultId": "0d02f0eb-4e31-476d-9905-d56e54b1bb77",
-      "sha256": "d4253b719732028e1f55310e3403a8edf9713f95a30a814faa58c1b55b166a62",
+      "resultId": "f528db63-b1e0-40fc-b8ff-1dbec25b02a0",
+      "sha256": "aeb0e6614bc283c87de00652ee509d7872fdea5dd574c113b275e3eb44f084ca",
       "readback": true
     },
     {
       "width": 390,
       "format": "xlsx",
-      "resultId": "8cba92a4-a4be-4356-87eb-c3c1bb66bd82",
-      "sha256": "c9a8e793759206877ac537217c1324787d4af58a162531bc8b8ac011a27836b5",
+      "resultId": "b5e45d21-f1cf-4afa-87bc-9750252e1be2",
+      "sha256": "f45378b79f01eba3369144e33fd9258d21101a14722a7dc2679fe62fc57c625d",
       "readback": true
     }
   ],
@@ -108,6 +137,7 @@
     "1280-catalog.png",
     "1280-source.png",
     "1280-launch-intervals.png",
+    "1280-timeline.png",
     "1280-area-chart.png",
     "1280-progress-chart.png",
     "1280-quality.png",
@@ -115,6 +145,8 @@
     "390-catalog.png",
     "390-source.png",
     "390-launch-intervals.png",
+    "390-timeline.png",
+    "320-timeline-source.png",
     "390-area-chart.png",
     "390-progress-chart.png",
     "390-quality.png",

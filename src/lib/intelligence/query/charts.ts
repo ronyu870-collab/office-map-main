@@ -1,3 +1,4 @@
+import {buildFutureTimeline,intervalGeometry,intervalLegend} from './future/timeline';
 import { z } from 'zod';
 import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysis } from './distribution';
 import { quarterRange } from './plan';
@@ -14,18 +15,19 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('heatmap') }),
   z.strictObject({ kind: z.literal('histogram') }),
   z.strictObject({ kind: z.literal('box_plot') }),
+  z.strictObject({ kind: z.literal('launch_intervals') }),
 ]);
 export type ChartRequest = z.infer<typeof chartRequestSchema>;
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
-  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null };
+  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null; intervalPrecision?: 'quarter'|'half_year'|'year'|'unknown'|'invalid' };
 export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId: string; request: ChartRequest;
-  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
+  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot' | 'interval'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
   points: ChartPoint[]; summary: string[]; limitations: string[]; renderedCount: number; unknownCount: number;
   facets?: { key: string; label: string; points: ChartPoint[] }[];
   distribution?: { stats: DistributionAnalysis['stats']; unit:string; label:string; validCount:number; excludedCount:number; outlierCount:number; assessment:DistributionAnalysis['outlierAssessment']; sourceIds:readonly string[] };
   grid?: { rows: { key: string; label: string }[]; columns: { key: string; label: string }[] };
-  connectNulls: false; zeroBaseline: true };
+  connectNulls: false; zeroBaseline: boolean };
 
 const projected = (cell: DisplayCell, unit: string | null) => {
   if (cell.kind !== 'number') return null;
@@ -36,6 +38,7 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 
 export function buildResultChart(result: QueryResultView, request: ChartRequest): ResultChart {
   request = chartRequestSchema.parse(request);
+  if(request.kind==='launch_intervals')return buildFutureTimeline(result);
   if (request.kind === 'histogram' || request.kind === 'box_plot') return buildDistributionChart(result, request);
   const column = (key: string) => {
     const found = result.table.columns.find(c => c.key === key);
@@ -195,7 +198,7 @@ const wrap = (value: string, size: number): string[] => {
 /** Standalone export retains scope, coverage, limitations and exact cell/source
  * bindings. Large plots fail explicitly rather than silently dropping rows. */
 export function renderChartSvg(chart: ResultChart): string {
-  if (chart.points.length > (chart.kind === 'bar' ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
+  if (chart.points.length > (['bar','interval'].includes(chart.kind) ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
   const width = chart.kind === 'heatmap' ? Math.max(960, 260 + (chart.grid?.columns.length ?? 0) * 160) : 960, left = 300, right = 780, top = 36;
   const elements: string[] = [];
   const text = (x: number, y: number, value: string, extra = '') => elements.push(`<text x="${x}" y="${y}" ${extra}>${xml(value)}</text>`);
@@ -203,7 +206,18 @@ export function renderChartSvg(chart: ResultChart): string {
   let y = paragraph(chart.title, top);
   for (const line of chart.summary) y = paragraph(line, y);
   y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
-  if (chart.kind === 'histogram') {
+  if(chart.kind==='interval'){
+    const g=intervalGeometry(chart),plotLeft=260,plotWidth=420;
+    y=paragraph(intervalLegend,y);
+    if(!g.empty){for(const tick of g.ticks)text(plotLeft+tick.position/100*plotWidth,y+18,tick.label);y+=42;}
+    for(const point of chart.points){
+      const labels=wrap(point.label,14),values=wrap(point.yText,16),height=Math.max(52,Math.max(labels.length,values.length)*22+12);
+      labels.forEach((line,i)=>text(24,y+20+i*22,line));values.forEach((line,i)=>text(710,y+20+i*22,line));
+      if(point.state==='valid'){const x=plotLeft+g.position(point.x as number)/100*plotWidth,w=g.width(point)/100*plotWidth;
+        elements.push(`<rect x="${x}" y="${y+height/2-7}" width="${w}" height="14" fill="${point.intervalPrecision==='quarter'?'#003e7e':'#edf4fb'}" stroke="#003e7e" ${point.intervalPrecision==='quarter'?'':'stroke-dasharray="4 3"'}><title>${xml(point.label+'：'+point.yText)}</title></rect>`);}
+      y+=height;
+    }
+  } else if (chart.kind === 'histogram') {
     const max=Math.max(1,...chart.points.map(p=>p.y??0)),barWidth=660/Math.max(1,chart.points.length),bottom=y+260;
     for(let i=0;i<chart.points.length;i++){const p=chart.points[i],h=(p.y??0)/max*210,x=120+i*barWidth;elements.push(`<rect x="${x}" y="${bottom-h}" width="${Math.max(1,barWidth-2)}" height="${h}" fill="#bacfe5"><title>${xml(p.label+'：'+p.yText+'栋')}</title></rect>`);text(x+barWidth/2,bottom+24,String(i+1),'text-anchor="middle"');text(x+barWidth/2,bottom-h-8,p.yText,'text-anchor="middle"');}
     y=bottom+52;for(const p of chart.points)y=paragraph(`${p.label}：${p.yText} 栋`,y);

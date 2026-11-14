@@ -38,7 +38,7 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { text: '文本', m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
+export const units: Record<string, string> = { quarter: '季度', text: '文本', m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
 export function cellText(cell: DisplayCell, unit: string | null): string {
