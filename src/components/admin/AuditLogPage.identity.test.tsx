@@ -40,6 +40,7 @@ beforeEach(() => { fixture.directoryError = false; fixture.withAdmin = false; fi
 
 test('legacy Codex imports show executor, business action and raw evidence', async () => {
   render(<AuditLogPage/>);
+  fireEvent.click(screen.getByRole('button', {name: '排除 Codex'}));
   const actor = await screen.findByText('Codex（工具执行）');
   expect(screen.getAllByText('资料导入').length).toBeGreaterThan(0);
   expect(screen.getByText('导入了项目资料（2 份资料、8 条参数与说明）')).toBeInTheDocument();
@@ -58,7 +59,7 @@ test('missing directory is explicit and persisted identity remains readable', as
   await waitFor(() => expect(fixture.filters.some(filter => filter.includes('actor_kind.eq.unknown'))).toBe(true));
 });
 
-test('Codex exclusion updates results and counts, can stack with admin exclusion, and resets', async () => {
+test('Codex is excluded by default while admin exclusion is opt-in, and clearing restores both defaults', async () => {
   fixture.withAdmin = true;
   render(<AuditLogPage/>);
   const codex = screen.getByRole('button', {name: '排除 Codex'});
@@ -66,11 +67,10 @@ test('Codex exclusion updates results and counts, can stack with admin exclusion
   const history = screen.getByText('历史总量').parentElement;
   const current = screen.getByText('当前筛选').parentElement;
 
-  expect(await screen.findByText('Codex（工具执行）')).toBeInTheDocument();
-  expect(codex).toHaveAttribute('aria-pressed', 'false');
-  fireEvent.click(codex);
   await screen.findByText('4 条');
   expect(codex).toHaveAttribute('aria-pressed', 'true');
+  expect(admins).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.queryByRole('button', {name: '清除筛选'})).not.toBeInTheDocument();
   expect(screen.queryByText('Codex（工具执行）')).not.toBeInTheDocument();
   expect(screen.getByText('系统任务')).toBeInTheDocument();
   expect(screen.getByText('身份待核验')).toBeInTheDocument();
@@ -79,6 +79,13 @@ test('Codex exclusion updates results and counts, can stack with admin exclusion
   expect(current).toHaveTextContent('4');
   expect(history).toHaveTextContent('5');
 
+  fireEvent.click(codex);
+  await screen.findByText('5 条');
+  expect(codex).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByText('Codex（工具执行）')).toBeInTheDocument();
+
+  fireEvent.click(codex);
+  await screen.findByText('4 条');
   fireEvent.click(admins);
   await screen.findByText('3 条');
   expect(screen.queryByText('测试管理员')).not.toBeInTheDocument();
@@ -91,9 +98,10 @@ test('Codex exclusion updates results and counts, can stack with admin exclusion
   expect(screen.getByText('测试管理员')).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', {name: '清除筛选'}));
-  await screen.findByText('5 条');
+  await screen.findByText('4 条');
   expect(codex).toBeEnabled();
-  expect(codex).toHaveAttribute('aria-pressed', 'false');
+  expect(codex).toHaveAttribute('aria-pressed', 'true');
   expect(admins).toHaveAttribute('aria-pressed', 'false');
-  expect(screen.getByText('Codex（工具执行）')).toBeInTheDocument();
+  expect(screen.queryByText('Codex（工具执行）')).not.toBeInTheDocument();
+  expect(screen.getByText('测试管理员')).toBeInTheDocument();
 });

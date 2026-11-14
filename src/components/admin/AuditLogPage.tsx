@@ -25,6 +25,7 @@ interface UserOption { id: string; name: string; auditIds: string[]; role?: stri
 const APP_AUDIT_TABS = ['user','files','admin','database','trail','security'] as const;
 const EMPTY_TEXT_FILTERS = { object: '', ip: '', device: '', session: '' };
 const SEARCH_SETTLE_MS = 280;
+const DEFAULT_EXCLUDE_CODEX = true;
 
 const PAGE_SIZE = 50;
 const EXCLUSION_BUTTON = 'rounded-md border px-2.5 py-1.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-40';
@@ -151,7 +152,7 @@ export function AuditLogPage() {
   const [logTab,setLogTab] = useState<AuditTab>('user');
   const [logs,setLogs] = useState<AuditLog[]>([]); const [loading,setLoading] = useState(true); const [loadError,setLoadError] = useState('');
   const [filterUser,setFilterUser] = useState('ALL'); const [filterAction,setFilterAction] = useState('ALL'); const [filterModule,setFilterModule] = useState('ALL'); const [timeRange,setTimeRange] = useState('week'); const [highRiskOnly,setHighRiskOnly] = useState(false); const [excludeAdmins,setExcludeAdmins] = useState(false);
-  const [excludeCodex,setExcludeCodex] = useState(false);
+  const [excludeCodex,setExcludeCodex] = useState(DEFAULT_EXCLUDE_CODEX);
   const [textDraft,setTextDraft] = useState(EMPTY_TEXT_FILTERS);
   const [textFilters,setTextFilters] = useState(EMPTY_TEXT_FILTERS);
   const [composing,setComposing] = useState(false);
@@ -259,8 +260,8 @@ export function AuditLogPage() {
   }, [applyFilters]);
   useEffect(()=>{supabase.from('audit_logs').select('*',{count:'exact',head:true}).then(({count})=>setHistoryTotal(count||0));},[]);
 
-  const totalPages=Math.ceil(totalCount/PAGE_SIZE); const hasFilters=filterUser!=='ALL'||filterAction!=='ALL'||filterModule!=='ALL'||timeRange!=='week'||highRiskOnly||excludeAdmins||excludeCodex||Object.values(textDraft).some(Boolean)||deviceType!=='ALL';
-  const resetFilters=()=>{setFilterUser('ALL');setFilterAction('ALL');setFilterModule('ALL');setTimeRange('week');setHighRiskOnly(false);setExcludeAdmins(false);setExcludeCodex(false);setTextDraft(EMPTY_TEXT_FILTERS);setTextFilters(EMPTY_TEXT_FILTERS);setComposing(false);setDeviceType('ALL');};
+  const totalPages=Math.ceil(totalCount/PAGE_SIZE); const hasFilters=filterUser!=='ALL'||filterAction!=='ALL'||filterModule!=='ALL'||timeRange!=='week'||highRiskOnly||excludeAdmins||excludeCodex!==DEFAULT_EXCLUDE_CODEX||Object.values(textDraft).some(Boolean)||deviceType!=='ALL';
+  const resetFilters=()=>{setFilterUser('ALL');setFilterAction('ALL');setFilterModule('ALL');setTimeRange('week');setHighRiskOnly(false);setExcludeAdmins(false);setExcludeCodex(DEFAULT_EXCLUDE_CODEX);setTextDraft(EMPTY_TEXT_FILTERS);setTextFilters(EMPTY_TEXT_FILTERS);setComposing(false);setDeviceType('ALL');};
   const textInput = (field: keyof typeof EMPTY_TEXT_FILTERS) => ({
     value: textDraft[field],
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
