@@ -47,6 +47,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Homepage communication compact composer, PR #191',
         reason: 'User explicitly authorized reusing PR #190 visual and real-device acceptance waiver for PR #191 on 2026-11-14',
       },
+      {
+        number: 192,
+        branch: 'codex/audit-exclude-codex',
+        scope: 'Audit log Codex exclusion, PR #192',
+        reason: 'User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #192',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'
@@ -54,7 +60,7 @@ export function checkVisualAcceptance(pr) {
         && pr?.head?.ref === waiver.branch
         && record.get('scope') === waiver.scope
         && record.get('reason') === waiver.reason);
-    return approved ? null : 'Visual waiver applies only to specifically authorized PRs #190 and #191 and must disclose the exact reason.';
+    return approved ? null : 'Visual waiver applies only to specifically authorized PRs and must disclose the exact reason.';
   }
   if (result === 'not-applicable') {
     return record.get('reason') ? null : 'Explain why no user-visible interface or state is affected.';
