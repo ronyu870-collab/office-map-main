@@ -588,15 +588,15 @@ describe('map search P0 navigation and visibility regressions', () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目02' } });
-    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'b-2' }),
-    ]));
-    const initialFitCount = controller.fitToBuildings.mock.calls.length;
+    await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(1));
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
-    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(initialFitCount + 1));
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(1));
     expect(controller.fitToBuildings).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'b-2' }),
     ]);
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(2));
   });
 
   it('omits future-only search matches when the future layer is disabled', async () => {
@@ -620,5 +620,79 @@ describe('map search P0 navigation and visibility regressions', () => {
     await within(list).findByText('0 栋楼宇');
     expect(within(list).queryByRole('button', { name: hiddenFuture.name })).not.toBeInTheDocument();
     expect(controller.fitToBuildings).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('map search P1 candidates and explicit viewport navigation', () => {
+  it('does not pan during typing, and lets the user select the exact project from multiple suggestions', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    const input = screen.getByRole<HTMLInputElement>('searchbox');
+    input.focus();
+    const user = userEvent.setup();
+    await user.keyboard('项');
+    expect(input).toHaveFocus();
+    expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
+    await user.keyboard('目0');
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 8')).toBeVisible());
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
+    expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
+    const candidates = screen.getByRole('region', { name: '项目搜索候选' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(within(candidates).getAllByRole('button').find(button => button.hasAttribute('data-map-search-choice'))).toHaveFocus();
+    fireEvent.click(within(candidates).getByRole('button', { name: /项目02/ }));
+    await waitFor(() => expect(controller.map.setZoomAndCenter).toHaveBeenCalledWith(16, [BUILDINGS[1].location_lng, 39.91], false, 500));
+    await waitFor(() => expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-2'), { timeout: 1600 });
+    expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();
+  });
+
+  it('fits all stock and future results together only after Search is explicitly submitted', async () => {
+    const future = {
+      id: 'future-stock-match', name: '项目02新增地块', type: '商业', grade: 'A',
+      district: '朝阳区', submarket: 'CBD', launch_year: 2027, launch_quarter: 'Q2',
+      location_lng: 116.56, location_lat: 39.97,
+    };
+    controller.fetchFutureSupplies.mockResolvedValue([future]);
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目0' } });
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 9')).toBeInTheDocument());
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(1));
+    const results = controller.fitToBuildings.mock.lastCall?.[0] as Array<{ id: string }>;
+    expect(results.some(item => item.id === 'future-stock-match')).toBe(true);
+    expect(results.some(item => item.id === 'b-2')).toBe(true);
+  });
+
+  it('prioritizes an exact project name over extra results matched via owner', async () => {
+    controller.fetchMapData.mockResolvedValueOnce([
+      ...BUILDINGS,
+      { ...BUILDINGS[1], id: 'same-owner', name: '另一栋楼', owner: '项目02', location_lng: 117.15 },
+    ]);
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目02' } });
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 2')).toBeVisible());
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '搜索' }));
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'b-2' }),
+    ]));
+  });
+
+  it('can dismiss suggestions with Escape without clearing the draft or stealing the input focus', async () => {
+    render(<MapClient initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    const input = screen.getByRole<HTMLInputElement>('searchbox');
+    fireEvent.change(input, { target: { value: '项目' } });
+    const region = screen.getByRole('region', { name: '项目搜索候选' });
+    expect(region).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();
+    expect(input).toHaveValue('项目');
+    fireEvent.change(input, { target: { value: '项目02' } });
+    expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
   });
 });
