@@ -1,4 +1,5 @@
 import {seedFutureQueryPreview} from './ai-future-query-preview.mjs';
+import { setupCompanyAdmin, verifyCompanyAdmin } from './ai-company-admin-scenarios.mjs';
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
 // No browser automation, mocked authentication, production URL, or model calls.
 import assert from 'node:assert/strict';
@@ -42,7 +43,7 @@ const blocker=new pg.Client({connectionString:settings.DB_URL});await blocker.co
 const withdrawal=new pg.Client({connectionString:settings.DB_URL});await withdrawal.connect();
 const load=file=>readFile(path.join(root,'supabase/migrations',file),'utf8');
 const service=createClient(settings.API_URL,settings.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-const people=[],results=[];let server,log;
+const people=[],results=[];let server,log,companyFixture;
 const encryptionKey=randomBytes(32),digestKey=randomBytes(32),keyId='isolated-http-v1';
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(fn,label,timeout=30000){const start=Date.now();while(!await fn()){if(Date.now()-start>timeout)throw new Error('Timed out: '+label);await pause(100);}}
@@ -105,6 +106,7 @@ try{
   await setupSubmissionObservation(db);
   await db.query(await load('20261113210147_ai_submission_result_sources.sql'));
   await setupFutureObservation(db);
+  companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
   await until(async()=>{const p=await service.rpc('ai_query_authority',{p_actor:randomUUID(),p_effective:randomUUID(),p_session:randomUUID()});if(p.error&&p.error.code!=='PGRST202')throw new Error(p.error.message);return !p.error;},'RPC schema cache');
@@ -117,7 +119,7 @@ try{
   log=await open(path.join(output,'next-local.log'),'w',0o600);
   const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,
     NEXT_PUBLIC_INTELLIGENCE_PREVIEW:'true',AI_QUERY_HTTP_ENABLED:'true',AI_AUDIT_HTTP_ENABLED:'true',AI_QUERY_AUDIT_KEY_ID:keyId,AI_QUERY_AUDIT_ENCRYPTION_KEY:encryptionKey.toString('hex'),AI_QUERY_AUDIT_DIGEST_KEY:digestKey.toString('hex'),
-    DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'',NEXT_PUBLIC_AMAP_SECURITY_CODE:''};
+    DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'',NEXT_PUBLIC_AMAP_SECURITY_CODE:'',...companyFixture.env};
   const types=spawn('npm',['run','typecheck'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
   assert.equal((await once(types,'exit'))[0],0,'Typecheck must pass before the production build');
   const build=spawn('npm',['run','build'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
@@ -127,6 +129,7 @@ try{
     await until(async()=>{try{return (await fetch(app+'/api/intelligence/query')).status===405;}catch{return false;}},'Next route startup');
   };
   await startApp();
+  await verifyCompanyAdmin({db,blocker,withdrawal,service,app,check,person,until,fixture:companyFixture,logPath:path.join(output,'next-local.log')});
   await check('匿名请求不伪造身份，留有界入口事件且不进入业务查询',async()=>{
     const res=await call(null);assert.equal(res.status,401);
     const row=(await db.query('select * from private.ai_query_ingress_events where request_id=$1',[res.body.requestId])).rows[0];
@@ -609,7 +612,9 @@ try{
     }else await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
 }finally{
+  companyFixture?.release();
   if(server&&server.exitCode===null){const stopped=once(server,'exit');server.kill('SIGTERM');await stopped;}
+  await companyFixture?.close();
   await log?.close();
   for(const entry of people)await service.auth.admin.deleteUser(entry.id).catch(()=>{});
   await blocker.end();await withdrawal.end();await db.end();

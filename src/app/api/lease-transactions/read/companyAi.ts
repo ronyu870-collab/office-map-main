@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { LeaseCompanyRelation, LeaseCompanySuggestion } from '@/src/app/lease-submission/leaseCompanyLookup';
 import type { LeaseReadSource } from './access';
+import type { AdminSessionGuard } from '@/src/lib/intelligence/adminSession';
 
 const PROMPT_REVISION = 'lease-company-pair-v1';
 const RELATIONS = ['same_company', 'related_company', 'unrelated', 'uncertain'] as const;
@@ -164,9 +165,11 @@ async function compareNames(config: AssessmentConfig, claims: Claim[]) {
 
 /** Deferred after the HTTP response. The claim is durable and the provider
  * is never retried automatically, including on timeout or interrupted runs. */
-export async function assessLeaseCompany(db: SupabaseClient, source: LeaseReadSource | null, input: Company, config: AssessmentConfig) {
+export async function assessLeaseCompany(db: SupabaseClient, source: LeaseReadSource | null, input: Company, config: AssessmentConfig, guard: AdminSessionGuard) {
+  await guard();
   const candidates = await collectCandidates(db, source, input);
   if (!candidates.length) return;
+  await guard();
   const { data, error } = await db.rpc('lease_company_ai_claim_v1', {
     p_policy: config.policy, p_query_key: input.key, p_query_name: input.name, p_candidates: candidates,
   }).abortSignal(AbortSignal.timeout(2500));
@@ -175,8 +178,12 @@ export async function assessLeaseCompany(db: SupabaseClient, source: LeaseReadSo
   if (!claims.length) return;
 
   let results: Awaited<ReturnType<typeof compareNames>> | undefined;
+  // Outside the provider-error catch: a denied call must never reach the model
+  // or be misreported as a failed provider attempt.
+  await guard();
   try { results = await compareNames(config, claims); }
   catch { console.warn('[lease-company-ai] provider unavailable or invalid; assessment will not be retried'); }
+  await guard();
   const { error: saveError } = await db.rpc('lease_company_ai_complete_v1', {
     p_policy: config.policy,
     p_results: claims.map(({ assessment_id }, i) => {

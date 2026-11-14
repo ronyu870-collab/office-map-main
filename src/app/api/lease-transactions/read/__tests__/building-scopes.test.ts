@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { GET } from '../route';
 
 const identity = vi.hoisted(() => vi.fn());
-vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: identity }));
+vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: identity, IMPERSONATION_REQUEST_HEADER: 'x-colliers-impersonate-user' }));
 
 const A = '06bc31a7-c21f-47a3-929a-280ef38e61cd';
 const B = '769fb962-0709-4384-8a50-6cd9fb378c09';
