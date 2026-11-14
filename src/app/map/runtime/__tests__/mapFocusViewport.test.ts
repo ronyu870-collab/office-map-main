@@ -42,4 +42,24 @@ describe('map focus uses the unobstructed workbench viewport', () => {
     const noSidebar = panMapFocusIntoAvailableArea({ panBy }, map);
     expect(noSidebar.x).toBe(0);
   });
+
+  it('accounts for a left-side filter panel rendered outside <main>', () => {
+    const root = document.createElement('div');
+    root.dataset.mapFocusRoot = '';
+    const workbench = document.createElement('div');
+    const main = document.createElement('main');
+    const map = document.createElement('div');
+    const filter = document.createElement('div');
+    filter.dataset.mapFocusLeft = '';
+    main.append(map);
+    workbench.append(main);
+    root.append(workbench, filter);
+    document.body.append(root);
+    map.getBoundingClientRect = () => new DOMRect(0, 60, 1200, 760);
+    filter.getBoundingClientRect = () => new DOMRect(10, 160, 330, 600);
+    const panBy = vi.fn();
+    const offset = panMapFocusIntoAvailableArea({ panBy }, map);
+    expect(offset.x).toBeGreaterThan(140);
+    expect(panBy).toHaveBeenCalledWith(offset.x, offset.y, 0);
+  });
 });

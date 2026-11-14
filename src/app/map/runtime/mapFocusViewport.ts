@@ -50,9 +50,12 @@ export function panMapFocusIntoAvailableArea(map: PannableMap | null | undefined
   if (!container) return { x: 0, y: 0 };
   const main = container.parentElement;
   if (!main) return { x: 0, y: 0 };
+  // The advanced-filter pane is a sibling of the map workspace, not a
+  // descendant of <main>. Use the actual workbench root for all blockers.
+  const workbench = main.closest('[data-map-focus-root]') ?? main;
   const rect = container.getBoundingClientRect();
   const blocker = (side: keyof Reserved) => {
-    const el = main.querySelector<HTMLElement>(`[data-map-focus-${side}]`);
+    const el = workbench.querySelector<HTMLElement>(`[data-map-focus-${side}]`);
     if (!el || el.closest('[inert]')) return null;
     const style = window.getComputedStyle(el);
     if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return null;

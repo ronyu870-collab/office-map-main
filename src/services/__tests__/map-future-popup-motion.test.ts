@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { expect, it } from 'vitest';
 import { MapController } from '../MapController';
 
 it('opens a future supply card without invoking high-dependency InfoWindow autoMove', () => {

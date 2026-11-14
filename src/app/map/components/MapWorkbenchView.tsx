@@ -467,7 +467,7 @@ export function MapWorkbenchView({
   };
 
   return (
-    <div className="relative h-screen h-[100dvh] overflow-clip">
+    <div data-map-focus-root className="relative h-screen h-[100dvh] overflow-clip">
       {/* Keep SDK visibility measurable during direct list startup; opacity and inert hide the inactive map. */}
       <div ref={mapWorkspaceRef} className={isFullListVisible ? 'opacity-0 pointer-events-none absolute inset-0' : 'absolute inset-0'} inert={isFullListVisible || undefined} aria-hidden={isFullListVisible || undefined}>
     <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
