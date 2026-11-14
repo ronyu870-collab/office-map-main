@@ -449,7 +449,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
             ctrl.renderFutureMarkers(filteredSupplies, renderMode);
             fitSubmittedSearch([
               ...filtered.map(building => ({ ...building, _dataType: 'existing' as const })),
-              ...filteredSupplies.map(supply => ({ ...supply, _dataType: 'future' as const })),
+              ...filteredSupplies
+                .filter(supply => typeof supply.id === 'string' && supply.id.length > 0)
+                .map(supply => ({ ...supply, id: supply.id as string, _dataType: 'future' as const })),
             ]);
           }
         } catch (e) {
@@ -599,8 +601,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
 
   // 🌟 2. 抽离出的地图搜索处理函数及埋点逻辑
   const handleSearch = (val: string) => {
-    cancelPendingBuildingNavigation();
     const trimmed = val.trim();
+    // The input already applied this keyword. A late debounce must not cancel
+    // a project detail selected from the search results in the meantime.
+    if (trimmed !== keyword) cancelPendingBuildingNavigation();
     // Submitting the current query must not rewrite the draft or move its caret.
     setSearchInput(current => current.trim() === trimmed ? current : val);
     const hasGlobalFilters = Boolean(filterState && !isDefaultFilterState(filterState));
@@ -613,6 +617,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   };
 
   const handleSearchSubmit = (val: string) => {
+    cancelPendingBuildingNavigation();
     handleSearch(val);
     if (val.trim()) setSearchSubmitRevision(previous => previous + 1);
   };
