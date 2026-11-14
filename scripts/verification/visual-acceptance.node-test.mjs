@@ -188,3 +188,21 @@ test('PR #196 map search second-batch waiver is exact and cannot be reused', () 
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Another change') }), /specifically authorized/);
 });
+
+
+test('PR #197 third-batch map search waiver is exact and never inherited by other changes', () => {
+  const scope = 'Map third-batch viewport, popup stability and search consistency, PR #197';
+  const reason = 'User explicitly authorized the same independent visual and real-device acceptance waiver as the previous map search batches for PR #197 on 2026-11-14';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = {
+    number: 197, body,
+    head: { sha: head, ref: 'codex/map-search-p2-viewport-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' },
+  };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 196 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Unrelated work') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Another map change') }), /specifically authorized/);
+});

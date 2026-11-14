@@ -165,7 +165,7 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
     placedWindow?.removeAttribute('data-building-popup-shifted');
     placedWindow?.style.removeProperty('--building-popup-shift-x');
     placedWindow?.style.removeProperty('--building-popup-shift-y');
-    placedWindow?.querySelector<HTMLElement>('.building-popup')?.style.removeProperty('--building-popup-available-height');
+    placedWindow?.querySelector<HTMLElement>('.building-popup, .map-future-popup')?.style.removeProperty('--building-popup-available-height');
     placedWindow = null;
     stockOffset = { x: 0, y: 0 };
   };
@@ -192,7 +192,7 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
   const adjust = () => {
     const windows = Array.from(container.querySelectorAll<HTMLElement>('.amap-info'));
     // AMap may retain a closed shell ahead of the active window after a marker opens it.
-    const info = windows.find(node => node.querySelector('.building-popup') && isVisible(node))
+    const info = windows.find(node => node.querySelector('.building-popup, .map-future-popup') && isVisible(node))
       ?? windows.find(isVisible)
       ?? windows[0]
       ?? null;
@@ -200,7 +200,7 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
     if (info !== placedWindow) clearStockPlacement();
     if (!info || !isVisible(info)) return;
 
-    const card = info.querySelector<HTMLElement>('.building-popup');
+    const card = info.querySelector<HTMLElement>('.building-popup, .map-future-popup');
     if (card) {
       const viewport = container.getBoundingClientRect();
       const unshifted = shiftedRect(info.getBoundingClientRect(), -stockOffset.x, -stockOffset.y);
@@ -246,9 +246,8 @@ export function installInfoWindowAvoidance(map: MapViewportLike, container: HTML
 
   const observer = new MutationObserver(mutations => {
     if (!mutationTouchesInfoWindow(mutations)) return;
-    // Stock cards only adjust their CSS placement. Fit them on mount, without
-    // waiting behind the native renderer's queued selection and zoom frames.
-    if (container.querySelector('.amap-info .building-popup')) adjust();
+    // Stock and future cards both shift their wrapper, not the geographic viewport.
+    if (container.querySelector('.amap-info .building-popup, .amap-info .map-future-popup')) adjust();
     else schedule();
   });
   observer.observe(container, { childList: true, subtree: true });

@@ -6,8 +6,15 @@ body:has(#map-container) .amap-info-content:has(.building-popup) {
 body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   display: none !important;
 }
-.amap-info:has(.building-popup) {
+.amap-info:has(.building-popup),
+.amap-info:has(.map-future-popup) {
   translate: var(--building-popup-shift-x, 0px) var(--building-popup-shift-y, 0px);
+}
+/* Future-supply info uses the same no-map-movement placement as stock buildings. */
+.map-future-popup {
+  max-height: min(35rem, calc(100dvh - 9rem), var(--building-popup-available-height, 100dvh));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 /* An adjusted card must not point at a different map location. */
 .amap-info[data-building-popup-shifted] .amap-info-sharp { visibility: hidden; }

@@ -11,7 +11,7 @@ import { MaskedText } from '@/src/components/demo';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { FullBuildingList } from './FullBuildingList';
 import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
-import { rankMapSearchCandidates } from '../model/mapSearchCandidates';
+import { describeMapSearchMatch, rankMapSearchCandidates } from '../model/mapSearchCandidates';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -224,7 +224,7 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
   ];
 
   return (
-    <div className="absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max">
+    <div data-map-focus-bottom className="absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max">
       {metrics.map((metric, index) => (
         <div key={metric.label} className={`min-w-[112px] px-3 py-2 sm:min-w-[128px] sm:px-4 sm:py-2.5 ${index > 0 ? 'border-l border-slate-200/80' : ''}`}>
           <div className="text-[10px] font-medium text-slate-400">{metric.label}</div>
@@ -407,7 +407,11 @@ export function MapWorkbenchView({
   }, [isFullListVisible]);
 
   const searchTerm = keyword.trim();
-  const searchChoices = React.useMemo(() => rankMapSearchCandidates(combinedBuildingList, searchTerm), [combinedBuildingList, searchTerm]);
+  const searchChoices = React.useMemo(() => rankMapSearchCandidates(
+    fullBuildingList.length > 0 ? fullBuildingList : combinedBuildingList,
+    searchTerm,
+  ), [fullBuildingList, combinedBuildingList, searchTerm]);
+  const hasNarrowedSearch = activeFilterChips.length > 0 || compareGroups.length > 0;
   const searchChoicesVisible = searchChoicesOpen && Boolean(searchTerm) && !isFullListVisible
     && !isFilterPanelOpen && !isSupplyOpen && !isListVisible && !competitorContext && mapReady && !mapError;
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(searchTerm) || compareGroups.length > 0;
@@ -499,7 +503,7 @@ export function MapWorkbenchView({
       <main className="relative min-h-0 flex-1 overflow-hidden">
         <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" onPointerDownCapture={closeOpenWorkspaces} />
 
-        <div className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
+        <div data-map-focus-top className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
           <div className="pointer-events-auto flex shrink-0 gap-2">
             <IconButton label="筛选" active={isFilterPanelOpen} onClick={toggleFilterPanel}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
@@ -546,6 +550,7 @@ export function MapWorkbenchView({
                     <span className="font-medium text-[#475569]">
                       {fullListBusy ? '正在匹配项目…' : `匹配项目 · ${searchChoices.total}`}
                     </span>
+                    <span className="text-[#64748b]">{hasNarrowedSearch ? '当前筛选范围' : '全部已授权项目'}</span>
                     <button type="button" className="min-h-9 px-2 text-xs text-[#64748b] hover:text-[#003e7e]"
                       onClick={() => setSearchChoicesOpen(false)}>收起</button>
                   </div>
@@ -559,8 +564,9 @@ export function MapWorkbenchView({
                             className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[#f3f7fb] focus-visible:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#003e7e]"
                             onClick={() => { setSearchChoicesOpen(false); onBuildingClick(building); }}>
                             <span className="min-w-0 truncate text-[13px] font-medium text-[#172033]">{building.name || '未命名项目'}</span>
-                            <span className="shrink-0 text-xs text-[#64748b]">
-                              {building._dataType === 'future' ? '未来供应 · ' : ''}{building.submarket || building.district || '其他'}
+                            <span className="shrink-0 text-right text-xs text-[#64748b]">
+                              <span className="block">{building._dataType === 'future' ? '未来供应 · ' : ''}{building.submarket || building.district || '其他'}</span>
+                              <span className="block text-[#8793a1]">匹配：{describeMapSearchMatch(building, searchTerm)}</span>
                             </span>
                           </button>
                         </li>
@@ -568,14 +574,21 @@ export function MapWorkbenchView({
                     </ul>
                   ) : (
                     <div role="status" className="px-3 py-4 text-[13px] text-[#64748b]">
-                      没有可定位的匹配项目，请检查关键词或当前筛选条件。
+                      {searchChoices.matchedCount > 0
+                        ? `有 ${searchChoices.matchedCount} 个匹配项目，但缺少坐标，暂时无法在地图定位。`
+                        : '当前筛选范围内没有匹配项目，可修改关键词或清空筛选条件。'}
                     </div>
                   )}
-                  {!fullListBusy && searchChoices.total > searchChoices.items.length ? (
+                  {!fullListBusy && searchChoices.missingCoordinates > 0 ? (
+                    <div role="status" className="border-t border-[#e7ebf0] px-3 py-2 text-xs text-[#64748b]">
+                      另有 {searchChoices.missingCoordinates} 个匹配项目缺少坐标，请在完整列表中查看。
+                    </div>
+                  ) : null}
+                  {!fullListBusy && (searchChoices.matchedCount > searchChoices.items.length) ? (
                     <button type="button"
                       className="min-h-11 w-full border-t border-[#e7ebf0] px-3 text-left text-[13px] font-medium text-[#003e7e] hover:bg-[#f3f7fb]"
                       onClick={() => { setSearchChoicesOpen(false); onOpenFullList?.(); }}>
-                      查看全部 {searchChoices.total} 个匹配项目
+                      查看全部 {searchChoices.matchedCount} 个匹配项目
                     </button>
                   ) : null}
                 </div>
@@ -725,7 +738,7 @@ export function MapWorkbenchView({
 
         {isListVisible ? (
           <div className="pointer-events-none absolute inset-0 z-[355]">
-            <div className="pointer-events-auto absolute bottom-0 right-3 top-[52px] w-[340px] max-w-[90vw] sm:right-4">
+            <div data-map-focus-right className="pointer-events-auto absolute bottom-0 right-3 top-[52px] w-[340px] max-w-[90vw] sm:right-4">
               <FloatingBuildingList
                 buildings={combinedBuildingList}
                 displayOverrides={displayOverrides}
@@ -758,6 +771,7 @@ export function MapWorkbenchView({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--cd-header-height)] z-[380]">
         <div
           id={filtersPanelId}
+          data-map-focus-left
           aria-hidden={!filterPanelOpen}
           className={filterPanelOpen
             ? 'pointer-events-auto absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'

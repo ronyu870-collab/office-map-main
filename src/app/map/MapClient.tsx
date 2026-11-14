@@ -33,6 +33,7 @@ import { recordMapStartup } from '@/src/utils/mapStartupProbe';
 import { useMapWorkspaceView } from './runtime/useMapWorkspaceView';
 import { hasBuildingLocation, type FullListBuilding } from './model/fullBuildingList';
 import { searchViewportTargets } from './model/mapSearchCandidates';
+import { panMapFocusIntoAvailableArea } from './runtime/mapFocusViewport';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
 import { MapLoadingShell } from './components/MapLoadingShell';
 import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
@@ -355,7 +356,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       if (!ctrl) return;
       const activeFilterState = filterState ?? createDefaultFilterState();
 
-    if (competitorModeRef.current) ctrl.clearCompetitorElements();
+    // Keyword edits must not implicitly end an active competitor session.
     if (!activeFilterState.showFutureSupply) ctrl.clearFutureMarkers?.();
 
     if (activeFilterState.showBoundaries) {
@@ -542,6 +543,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     pendingNavigationTimerRef.current = setTimeout(() => {
       pendingNavigationTimerRef.current = null;
       if (navigationToken !== listNavigationTokenRef.current || controllerRef.current !== ctrl || workspaceViewRef.current !== 'map') return;
+      // Correct for currently visible workbench overlays before opening the InfoWindow.
+      panMapFocusIntoAvailableArea(ctrl.map);
       if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
       else ctrl.openBuildingInfoWindow(building.id);
     }, 600);
@@ -585,6 +588,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       const located = hasBuildingLocation(item);
       if (located) {
         ctrl.map.setZoomAndCenter(16, [item.location_lng, item.location_lat], true);
+        panMapFocusIntoAvailableArea(ctrl.map);
         if (buildingFocus.future) ctrl.openFutureSupplyInfoWindow(item);
         else ctrl.openBuildingInfoWindow(item.id);
       }

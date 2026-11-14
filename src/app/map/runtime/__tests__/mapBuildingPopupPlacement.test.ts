@@ -55,3 +55,36 @@ it('fits a tall stock popup between the phone controls without panning or accumu
   }
   expect(info.hasAttribute('data-building-popup-shifted')).toBe(false);
 });
+
+
+it('places future-supply InfoWindow with CSS instead of moving the map twice', async () => {
+  const frame = document.createElement('div');
+  const mapNode = document.createElement('div');
+  const toolbar = document.createElement('div');
+  const info = document.createElement('div');
+  const card = document.createElement('div');
+  info.className = 'amap-info';
+  card.className = 'map-future-popup';
+  info.append(card);
+  frame.append(mapNode, toolbar);
+  document.body.append(frame);
+  Object.assign(toolbar.style, { position: 'absolute', zIndex: '330' });
+  const viewport = new DOMRect(0, 50, 1100, 720);
+  frame.getBoundingClientRect = mapNode.getBoundingClientRect = () => viewport;
+  toolbar.getBoundingClientRect = () => new DOMRect(12, 66, 1076, 92);
+  const axis = (name: 'x' | 'y') => Number.parseFloat(info.style.getPropertyValue('--building-popup-shift-' + name)) || 0;
+  info.getBoundingClientRect = () => new DOMRect(440 + axis('x'), -140 + axis('y'), 310, 450);
+  const panBy = vi.fn();
+  const dispose = installInfoWindowAvoidance({ panBy }, mapNode);
+  try {
+    mapNode.append(info);
+    await waitFor(() => expect(info.getBoundingClientRect().top).toBeGreaterThanOrEqual(170));
+    expect(card.style.getPropertyValue('--building-popup-available-height')).not.toBe('');
+    card.dispatchEvent(new Event(BUILDING_POPUP_LAYOUT_EVENT, { bubbles: true }));
+    expect(panBy).not.toHaveBeenCalled();
+    expect(info.hasAttribute('data-building-popup-shifted')).toBe(true);
+  } finally {
+    dispose();
+    frame.remove();
+  }
+});

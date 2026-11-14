@@ -1,5 +1,6 @@
 import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarFilter';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { normalizeMapSearchText } from './mapSearchText';
 import { observedVacantArea } from './vacancyMetrics';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 
@@ -123,8 +124,7 @@ export function filterFutureSupplies(
   calculateDistance?: (buildingPoint: [number, number], stationPoint: [number, number]) => number,
 ): Array<Record<string, any>> {
   const selectedSubmarkets = new Set(filterState.submarkets.map(normalizeMapSubmarket));
-  const normalizeQuery = (value: unknown) => String(value ?? '').replace(/\s+/g, '').toLocaleLowerCase();
-  const query = normalizeQuery(keyword);
+  const query = normalizeMapSearchText(keyword);
   const allSubmarkets = hasSameSelections(filterState.submarkets, [...MAP_SUBMARKETS, ...MAP_SUBMARKETS_SECONDARY]);
 
   return supplies.filter((supply) => {
@@ -134,8 +134,9 @@ export function filterFutureSupplies(
     const commercial = isCommercialFutureSupply(supply);
     if (!filterState.districts.includes(district) || (!selectedSubmarkets.has(submarket) && !(commercial && !submarket && allSubmarkets))) return false;
 
-    if (query && ![supply?.name, ...(Array.isArray(supply?.former_names) ? supply.former_names : []), supply?.submarket, supply?.district, supply?.owner]
-      .some(value => normalizeQuery(value).includes(query))) {
+    if (query && ![supply?.name, ...(Array.isArray(supply?.former_names) ? supply.former_names : []),
+      supply?.submarket, supply?.district, supply?.owner, supply?.property_management]
+      .some(value => normalizeMapSearchText(value).includes(query))) {
       return false;
     }
 
