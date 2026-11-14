@@ -1,3 +1,4 @@
+import {verifyFutureResults} from './ai-future-result-scenarios.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -20,16 +21,23 @@ export async function setupFutureObservation(db){
       revoke all on public.future_supplies,public.future_supply_assignments,public.future_supply_submissions from public,anon,authenticated,service_role;`);
   }
   await db.query(await readFile('supabase/migrations/20261113213152_ai_future_observation.sql','utf8'));
+  await db.query(await readFile('supabase/migrations/20261113215121_ai_future_result_sources.sql','utf8'));
 }
 
 export async function verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey}){
   const entry=path.join(output,'future-entry.mjs'),file=path.join(output,'future-adapter.cjs');
-  await writeFile(entry,`export {readFutureSnapshot,loadFutureAuthority} from '../../src/lib/intelligence/query/future/reader.ts';
+  await writeFile(entry,`export {readFutureSnapshot,loadFutureAuthority,authorizeFutureSources} from '../../src/lib/intelligence/query/future/reader.ts';
     export {analyzeFutureSnapshot} from '../../src/lib/intelligence/query/future/analyze.ts';
     export {verifyQueryIdentity,loadDataAuthority} from '../../src/lib/intelligence/query/serverAuthority.ts';
-    export {createRpcAuditPort} from '../../src/lib/intelligence/query/auditStore.ts';`);
-  const bundle=await rolldown({input:entry,platform:'node'});try{await bundle.write({file,format:'cjs'});}finally{await bundle.close();}
-  const {readFutureSnapshot,loadFutureAuthority,analyzeFutureSnapshot,verifyQueryIdentity,loadDataAuthority,createRpcAuditPort}=createRequire(import.meta.url)(file);
+    export {createRpcAuditPort} from '../../src/lib/intelligence/query/auditStore.ts';
+    export {buildFutureResult} from '../../src/lib/intelligence/query/future/result.ts';
+    export {decodeGeneratedArchive} from '../../src/lib/intelligence/query/resultArchive.ts';
+    export {buildXlsx,buildCsvPackage} from '../../src/lib/intelligence/query/exports.ts';
+    export {buildResultChart,renderChartSvg} from '../../src/lib/intelligence/query/charts.ts';
+    export {resultViewSchema} from '../../src/lib/intelligence/query/presentation.ts';`);
+  const bundle=await rolldown({input:entry,platform:'node'});try{await bundle.write({file,format:'cjs',codeSplitting:false});}finally{await bundle.close();}
+  const api=createRequire(import.meta.url)(file);
+  const {readFutureSnapshot,loadFutureAuthority,analyzeFutureSnapshot,verifyQueryIdentity,loadDataAuthority,createRpcAuditPort}=api;
   const futureCaps=['query:future-catalog','query:future-progress','query:future-quality'];
   const sig=()=>new AbortController().signal;
   const identity=who=>verifyQueryIdentity(new Request('http://127.0.0.1:3289/api/intelligence/query',{headers:{Authorization:'Bearer '+who.token}}),service);
@@ -107,6 +115,7 @@ export async function verifyFutureObservation({db,service,check,queryAdmin,perso
       await db.query("update public.buildings set project_type='stock' where id=$1",[buildings[0]]);assert.equal((await read({mode:'catalog',period:null})).supplies.length,4);
       await db.query("update public.buildings set project_type='future' where id=$1",[buildings[0]]);
     });
+    await verifyFutureResults({db,service,check,queryAdmin,identity,grant,ids,buildings,other,latest,api,keyId,encryptionKey,digestKey});
   }finally{
     await db.query('delete from public.future_supplies where id=any($1::uuid[])',[ids]);await db.query('delete from public.buildings where id=any($1::uuid[])',[buildings]);
     await db.query("delete from public.app_settings where key in ('current_submission_year','current_submission_quarter')");for(const r of settings)await db.query('insert into public.app_settings(key,value,updated_at) values($1,$2,$3)',[r.key,r.value,r.updated_at]);

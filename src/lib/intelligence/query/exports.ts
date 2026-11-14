@@ -1,3 +1,5 @@
+import {futureAnalysisSchema} from './future/view';
+import {futureResultTable} from './future/result';
 import { submissionAnalysisSchema } from './submissions/view';
 import { submissionResultTable } from './submissions/result';
 import { distributionAnalysisSchema, distributionStatLabels } from './distribution';
@@ -65,6 +67,17 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['entity_id', ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
     ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
+  if(result.operation==='future_observation'){
+    const a=futureAnalysisSchema.parse(result.analysis);
+    const views=['catalog','launch_summary',...(a.progress?['summary','buildings','people']:[]),...(a.mode==='quality'?['quality']:[])] as const;
+    const labels:Record<string,string>={catalog:'未来目录',launch_summary:'预计时间精度',summary:'未来填报覆盖',buildings:'未来季度记录',people:'未来人员任务',quality:'未来填报质量'};
+    for(const view of views){
+      const table=futureResultTable(a,result.sources,view as 'catalog'|'launch_summary'|'summary'|'buildings'|'people'|'quality');
+      append(labels[view],[['result_id',result.resultId],['期间',a.period?`${a.period.year}Q${a.period.quarter}`:'目录无填报期间','预计时间','半年与年范围不拆成确定季度'],
+        ['entity_id',...table.columns.map(c=>`${c.label}${c.unit?` (${units[c.unit]??c.unit})`:''}`)],
+        ...table.rows.map(r=>[r.entityId,...table.columns.map(c=>cellValue(r.cells[c.key]))])]);
+    }
+  }
   if (result.operation === 'submission_progress') {
     const a=submissionAnalysisSchema.parse(result.analysis);
     for(const [view,name] of [['summary','填报覆盖'],['buildings','楼宇填报'],['people','人员任务'],...(a.quality?[['quality','填报质量']]:[])] as const){

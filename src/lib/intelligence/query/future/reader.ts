@@ -41,3 +41,12 @@ export async function readFutureSnapshot(client:SupabaseClient,identity:Verified
   const s=normalizeFutureRead(data,read,a,requestId),current=await loadFutureAuthority(client,identity,signal);authorizeFutureRead(read,current);
   if(a.permissionRevision!==current.permissionRevision)throw new Error('QUERY_DENIED');return s;
 }
+
+/** Gate for first delivery and later artifacts; caller separately checks the original selection. */
+export async function authorizeFutureSources(client:SupabaseClient,identity:VerifiedQueryIdentity,requestId:string,authority:FutureAuthority,sources:readonly import('../contracts').SourceRef[],signal:AbortSignal){
+  signal.throwIfAborted();if(identity.expiresAt<=Date.now()||identity.actorId!==authority.actorId||identity.effectiveUserId!==authority.effectiveUserId)throw new Error('QUERY_DENIED');
+  const {data,error}=await client.rpc('ai_query_future_sources_allowed',{p_actor:identity.actorId,p_effective:identity.effectiveUserId,p_session:identity.sessionId,p_request_id:requestId,p_permission_revision:authority.permissionRevision,
+    p_sources:sources.map(s=>({entity_id:s.table==='app_settings'?null:s.entityId,record_id:s.recordId,source_table:s.table,field:s.field,year:s.period?.year??null,quarter:s.period?.quarter??null}))}).abortSignal(signal);
+  signal.throwIfAborted();if(error||data?.source_policy!==FUTURE_POLICY)throw new Error('QUERY_READ_UNAVAILABLE');
+  if(data.allowed!==true||data.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
+}

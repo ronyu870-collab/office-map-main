@@ -9,7 +9,7 @@ const count = z.number().int().nonnegative();
 const ids = z.array(z.string()).max(200000);
 const fields = z.array(z.enum(['total_area','vacant_area','vacancy_rate','asking_rent','management_fee','face_rent','rent_free_period','net_effective_rent']));
 export const submissionIssueSchema = z.object({kind:z.enum(['missing','invalid','inconsistent','unavailable']),code:z.string(),fields,sourceIds:ids});
-const quality = z.object({requiredComplete:z.boolean(),missingRequired:fields,rentEligible:z.boolean(),vacancyEligible:z.boolean(),issues:z.array(submissionIssueSchema)});
+export const submissionQualitySchema = z.object({requiredComplete:z.boolean(),missingRequired:fields,rentEligible:z.boolean(),vacancyEligible:z.boolean(),issues:z.array(submissionIssueSchema)});
 export const submissionAnalysisSchema = z.object({
   version:z.literal(SUBMISSION_POLICY),snapshotId:z.uuid(),readAt:z.string(),requestId:z.uuid(),dataVersion:z.string(),
   period:quarterSchema,configuredPeriod:quarterSchema.nullable(),periodBasis:z.enum(['explicit','configured']),
@@ -20,7 +20,7 @@ export const submissionAnalysisSchema = z.object({
   quality:z.object({evaluatedBuildings:count,requiredCompleteBuildings:count,missingRequiredBuildings:count,flaggedBuildings:count,rentEligibleBuildings:count,vacancyEligibleBuildings:count}).nullable(),
   rows:z.array(z.object({buildingId:z.uuid(),name:z.string(),submarket:z.string().nullable(),grade:z.string().nullable(),assigned:z.boolean(),assigneeIds:ids,
     submitted:z.boolean(),rawSubmissionCount:count,latestUnresolved:z.boolean(),latestSubmissionId:z.string().nullable(),
-    latestSubmittedBy:z.object({userId:z.string(),userName:z.string(),createdAt:z.string().nullable()}).nullable(),quality:quality.nullable(),sourceIds:ids})).max(20000),
+    latestSubmittedBy:z.object({userId:z.string(),userName:z.string(),createdAt:z.string().nullable()}).nullable(),quality:submissionQualitySchema.nullable(),sourceIds:ids})).max(20000),
   people:z.array(z.object({userId:z.string(),names:z.array(z.string()),assignedBuildingIds:ids,submittedBuildingIds:ids,missingBuildingIds:ids,sourceIds:ids})).max(100000),
   settingsSourceIds:ids,limitations:z.array(z.string()),
 });
