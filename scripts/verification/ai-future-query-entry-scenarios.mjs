@@ -35,12 +35,34 @@ export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,id
    assert.equal((await ask('CBD未来供应有哪些')).status,200);assert.equal((await ask('2026Q3CBD未来供应填报进度')).status,200);
   }finally{await db.query("update public.app_settings set value='3' where key='current_submission_quarter'");}
  });
+ await check('未来面积按原区间和核验分类完整分组，精确合计/未知与本人恢复及下载同源',async()=>{
+  const original=(await db.query('select id,total_area::text from public.future_supplies where id=any($1::uuid[])',[ids.slice(0,5)])).rows;
+  await db.query('update public.future_supplies set total_area=case when id=$1 then 0.1 when id=$2 then 0.2 else null end where id=any($3::uuid[])',[ids[0],ids[1],ids.slice(0,5)]);
+  try{
+   const area=await ask('CBD未来供应面积汇总');assert.equal(area.status,200);assert.equal(area.body.result.parameters.supply.records,5);
+   assert.deepEqual(area.body.result.parameters.supply.knownArea.exact,{numerator:'3',denominator:'10'});assert.equal(area.body.result.parameters.supply.missing,3);
+   assert.equal(area.body.result.parameters.supply.groups.flatMap(g=>g.memberIds).length,5);
+   const common={requestId:area.body.requestId,resultId:area.body.result.resultId};
+   const chart=await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'bar',field:'area'}});assert.equal(chart.status,200);assert.equal(chart.body.chart.points.filter(p=>p.y===null).length,3);
+   const workbook=await artifact(queryAdmin,{...common,action:'export',format:'xlsx'});assert.equal(workbook.status,200);const book=XLSX.read(workbook.bytes,{type:'array'});
+   assert.ok(book.SheetNames.includes('未来记录面积'));const rows=XLSX.utils.sheet_to_json(book.Sheets['未来记录面积'],{header:1});assert.deepEqual(rows.slice(3).map(r=>r.at(-1)).filter(v=>typeof v==='number').sort(),[0.1,0.2]);
+   const schedule=await ask('CBD未来供应预计入市区间');assert.equal(schedule.status,200);
+   const half=schedule.body.result.table.rows.find(r=>r.entityId===ids[1]);assert.equal(half.cells.start.value,'2026Q3');assert.equal(half.cells.end.value,'2026Q4');
+   const unknown=schedule.body.result.table.rows.find(r=>r.entityId===ids[3]);assert.equal(unknown.cells.start.kind,'unknown');
+   await db.query('update public.future_supplies set total_area=99999 where id=$1',[ids[0]]);
+   assert.deepEqual((await recover(queryAdmin,area.body.requestId)).body.result,area.body.result);
+   await grant(caps,{all:false,ids:[ids[0]]});assert.equal((await recover(queryAdmin,area.body.requestId)).status,403);
+   const limited=await ask('CBD未来供应面积汇总');assert.equal(limited.status,200);assert.equal(limited.body.result.parameters.supply.records,1);
+   assert.equal(limited.body.result.parameters.supply.knownArea.numeric,99999);
+  }finally{for(const row of original)await db.query('update public.future_supplies set total_area=$1 where id=$2',[row.total_area,row.id]);await grant(caps);}
+ });
  await check('未来路径只准admin本人：viewer/editor持完整资格和旧JWT仍不能问、恢复、作图、下载或回执',async()=>{
   const common={requestId:source.body.requestId,resultId:source.body.result.resultId};
   for(const role of ['viewer','editor']){
    await db.query('update public.user_roles set role=$1 where user_id=$2',[role,queryAdmin.id]);
    try{
     assert.equal((await capabilities(queryAdmin)).body.enabled,false);
+    for(const question of ['CBD未来供应面积汇总','CBD未来供应预计入市区间'])assert.equal((await ask(question)).status,403);
     const denied=await ask('CBD未来供应有哪些');assert.equal(denied.status,403);assert.equal(denied.body.result,undefined);
     assert.equal((await db.query("select count(*)::int n from private.ai_query_audit_events where request_id=$1 and kind='running'",[denied.body.requestId])).rows[0].n,0);
     assert.equal((await recover(queryAdmin,source.body.requestId)).status,403);

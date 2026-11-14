@@ -1,3 +1,4 @@
+import {supplyOverviewSchema} from './future/supply';
 import {formatExact} from './format';
 export {formatExact} from './format';
 import {futureAnswerSchema} from './future/answer';
@@ -27,6 +28,7 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
 }).superRefine((result, ctx) => {
+  if(result.operation==='future_observation' && ['area_summary','launch_schedule'].includes(String(result.parameters.view)) && !supplyOverviewSchema.safeParse(result.parameters.supply).success) ctx.addIssue({code:'custom',message:'Invalid archived future supply summary'});
   if(result.operation==='future_observation' && Object.hasOwn(result.parameters,'answer') && !futureAnswerSchema.safeParse(result.parameters.answer).success) ctx.addIssue({code:'custom',message:'Invalid archived future answer'});
   const sources = new Set(result.sources.map(source => source.id));
   for (const row of result.table.rows) for (const column of result.table.columns) {

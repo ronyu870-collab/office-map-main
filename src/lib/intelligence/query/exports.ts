@@ -70,10 +70,10 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
   if(result.operation==='future_observation'){
     append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
     const a=futureAnalysisSchema.parse(result.analysis);
-    const views=['catalog','launch_summary',...(a.progress?['summary','buildings','people']:[]),...(a.mode==='quality'?['quality']:[])] as const;
-    const labels:Record<string,string>={catalog:'未来目录',launch_summary:'预计时间精度',summary:'未来填报覆盖',buildings:'未来季度记录',people:'未来人员任务',quality:'未来填报质量'};
+    const views=['catalog','launch_summary',...(['area_summary','launch_schedule'].includes(String(result.parameters.view))?[result.parameters.view as 'area_summary'|'launch_schedule']:[]),...(a.progress?['summary','buildings','people']:[]),...(a.mode==='quality'?['quality']:[])] as const;
+    const labels:Record<string,string>={catalog:'未来目录',launch_summary:'预计时间精度',area_summary:'未来记录面积',launch_schedule:'预计入市区间',summary:'未来填报覆盖',buildings:'未来季度记录',people:'未来人员任务',quality:'未来填报质量'};
     for(const view of views){
-      const table=futureResultTable(a,result.sources,view as 'catalog'|'launch_summary'|'summary'|'buildings'|'people'|'quality');
+      const table=view===result.parameters.view?result.table:futureResultTable(a,result.sources,view as 'catalog'|'launch_summary'|'summary'|'buildings'|'people'|'quality'|'area_summary'|'launch_schedule');
       append(labels[view],[['result_id',result.resultId],['期间',a.period?`${a.period.year}Q${a.period.quarter}`:'目录无填报期间','预计时间','半年与年范围不拆成确定季度'],
         ['entity_id',...table.columns.map(c=>`${c.label}${c.unit?` (${units[c.unit]??c.unit})`:''}`)],
         ...table.rows.map(r=>[r.entityId,...table.columns.map(c=>cellValue(r.cells[c.key]))])]);

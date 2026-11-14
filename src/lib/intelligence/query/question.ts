@@ -1,7 +1,7 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/10';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/11';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -41,8 +41,9 @@ function resolveExplicitQuestion(question: string): QuestionResolution {
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
   const submissionViews = {填报进度:'summary',填报明细:'buildings',哪些楼还没填:'missing',未分配楼宇:'unassigned',人员填报进度:'people',谁还没填:'missing_people',填报数据质量:'quality',填报缺项:'missing_fields',填报异常:'anomalies'} as const;
   const submissionAction = `(${Object.keys(submissionViews).join('|')})`;
-  const futureCatalog=new RegExp(`^${futureMarkets}未来供应(有哪些|目录|预计时间精度)$`).exec(text);
-  if(futureCatalog)return {kind:'plan',plan:parseQueryPlan({operation:'future_observation',view:futureCatalog[2]==='预计时间精度'?'launch_summary':'catalog',period:null,scope:futureScope(futureCatalog[1])})};
+  const futureCatalogViews={有哪些:'catalog',目录:'catalog',预计时间精度:'launch_summary',预计入市区间:'launch_schedule',面积汇总:'area_summary'} as const;
+  const futureCatalog=new RegExp(`^${futureMarkets}未来供应(${Object.keys(futureCatalogViews).join('|')})$`).exec(text);
+  if(futureCatalog)return {kind:'plan',plan:parseQueryPlan({operation:'future_observation',view:futureCatalogViews[futureCatalog[2] as keyof typeof futureCatalogViews],period:null,scope:futureScope(futureCatalog[1])})};
   const futureConfigured=new RegExp(`^当前填报季度${futureMarkets}未来供应${submissionAction}$`).exec(text);
   if(futureConfigured)return {kind:'plan',plan:parseQueryPlan({operation:'future_observation',view:submissionViews[futureConfigured[2] as keyof typeof submissionViews],period:null,scope:futureScope(futureConfigured[1])})};
   const futureExplicit=new RegExp(`^${period}${futureMarkets}未来供应${submissionAction}$`).exec(text);

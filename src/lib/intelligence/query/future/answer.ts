@@ -1,15 +1,19 @@
+import type {SupplyOverview} from './supply';
 import {z} from 'zod';
 import {formatExact} from '../format';
 import type {FutureAnalysis,FutureView} from './view';
 
 export const futureAnswerSchema=z.strictObject({version:z.literal('future-answer/2'),paragraphs:z.array(z.string().min(1).max(2000)).min(1).max(8)});
 /** Generate once from the same analysis, then archive the exact user-facing text. */
-export function buildFutureAnswer(a:FutureAnalysis,view:FutureView,selectedCount:number){
+export function buildFutureAnswer(a:FutureAnalysis,view:FutureView,selectedCount:number,supply?:SupplyOverview){
  const c=a.catalog,p=a.progress;
  const scope=`当前获权且明确未入市的未来供应记录 ${c.records} 条；待核实 ${c.pending} 条、分类未知 ${c.statusUnknown} 条，未关联楼宇 ${c.unlinkedIdentities} 条。记录数不等于已确认的不同楼宇数。`;
  const precision=`预计季度明确 ${c.knownLaunchQuarter} 条，仅明确半年 ${c.launchHalfYear} 条、年份 ${c.launchYearOnly} 条；年份未知 ${c.launchUnknown} 条、时间无效 ${c.launchInvalid} 条。`;
  let paragraphs:string[];
- if(!p)paragraphs=view==='launch_summary'?[precision,scope]:[scope,precision,`总面积有效 ${c.knownArea} 条、缺失 ${c.missingArea} 条、无效 ${c.invalidArea} 条；原字段不自动等于办公或可租面积。`];
+ if(view==='area_summary'&&supply)paragraphs=[`已知有效的记录总面积合计 ${supply.knownArea?formatExact(supply.knownArea,'m2')+' ㎡':'未知（没有有效面积记录）'}；面积有效 ${supply.valid} 条、缺失 ${supply.missing} 条、无效 ${supply.invalid} 条。`,
+  `按原预计区间和核验分类分组，不将半年或全年面积拆到季度。${supply.sharedIdentityRecords?`重复关联同一楼宇涉及 ${supply.sharedIdentityRecords} 条记录。`:''}面积按记录累计，未经身份复核，不代表去重楼宇面积或完整市场供应量。`,scope];
+ else if(view==='launch_schedule')paragraphs=[precision,'起止季度是原预计时间范围的边界，不代表实际入市日期；未知时间不以竣工年份补齐。',scope];
+ else if(!p)paragraphs=view==='launch_summary'?[precision,scope]:[scope,precision,`总面积有效 ${c.knownArea} 条、缺失 ${c.missingArea} 条、无效 ${c.invalidArea} 条；原字段不自动等于办公或可租面积。`];
  else if(['quality','missing_fields','anomalies'].includes(view)){
   const evaluated=a.rows.filter(r=>r.quality!==null),complete=evaluated.filter(r=>r.quality!.requiredComplete).length,missing=evaluated.filter(r=>r.quality!.missingRequired.length>0).length;
   paragraphs=[`${view==='quality'?'最新提交可核查':view==='missing_fields'?`缺项或无法检查的记录 ${selectedCount} 条。最新提交可核查`:`本次规则发现需复核记录 ${selectedCount} 条。最新提交可核查`} ${evaluated.length} 条，其中五项输入齐全 ${complete} 条、缺项 ${missing} 条。`,

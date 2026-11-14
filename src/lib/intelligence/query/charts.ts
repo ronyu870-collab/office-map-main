@@ -44,7 +44,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
   };
   const binding = (entityId: string, key: string, cell: DisplayCell): CellBinding => ({ entityId, key, sourceIds: [...cell.sourceIds] });
   let xLabel = result.operation==='submission_progress'?(result.parameters.view==='summary'?'楼宇状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'楼宇'):result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
-  if(result.operation==='future_observation')xLabel=result.parameters.view==='launch_summary'?'预计入市时间精度':result.parameters.view==='summary'?'季度任务状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'未来供应记录';
+  if(result.operation==='future_observation')xLabel=result.parameters.view==='area_summary'?'预计区间与核验分类':result.parameters.view==='launch_summary'?'预计入市时间精度':result.parameters.view==='summary'?'季度任务状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'未来供应记录';
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
   let facets: ResultChart['facets'];

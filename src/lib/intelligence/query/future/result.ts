@@ -1,3 +1,4 @@
+import {summarizeFutureSupply,futureClassificationText,type SupplyOverview} from './supply';
 import {buildFutureAnswer} from './answer';
 import {createHash,randomUUID} from 'node:crypto';
 import type {SourceRef} from '../contracts';
@@ -14,8 +15,20 @@ const count=(value:number,sourceIds:readonly string[]):ResultCell=>({kind:'numbe
 const freeze=<T,>(v:T):T=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}return v;};
 
 /** All views are projections of one previously authorized immutable analysis. */
-export function futureResultTable(a:FutureAnalysis,sources:readonly SourceRef[],view:FutureView):ResultTable {
+export function futureResultTable(a:FutureAnalysis,sources:readonly SourceRef[],view:FutureView,supply?:SupplyOverview):ResultTable {
   if(futureModeForView(view)==='quality'&&a.mode!=='quality'||futureModeForView(view)!=='catalog'&&a.mode==='catalog')throw new Error('FUTURE_VIEW_NOT_READ');
+  if(view==='area_summary'){
+    const summary=supply??summarizeFutureSupply(a.rows);
+    return {id:'future_recorded_area',columns:[{key:'name',label:'预计区间与核验分类',unit:null},{key:'count',label:'记录数',unit:'record_count'},
+      {key:'valid',label:'面积有效记录',unit:'record_count'},{key:'missing',label:'面积缺失记录',unit:'record_count'},{key:'invalid',label:'面积无效记录',unit:'record_count'},{key:'area',label:'已知记录总面积合计',unit:'m2'}],
+      rows:summary.groups.map(g=>({entityId:g.id,cells:{name:text(g.label,g.sourceIds),count:count(g.records,g.sourceIds),valid:count(g.valid,g.sourceIds),missing:count(g.missing,g.sourceIds),invalid:count(g.invalid,g.sourceIds),
+        area:g.knownArea?{kind:'number',value:g.knownArea,sourceIds:g.sourceIds}:{kind:'unknown',state:'missing',reason:'no_valid_sample',sourceIds:g.sourceIds}}}))};
+  }
+  if(view==='launch_schedule')return {id:'future_launch_intervals',columns:[{key:'name',label:'未来供应记录',unit:null},{key:'launch',label:'原预计入市范围',unit:null},
+    {key:'start',label:'区间起始季度',unit:null},{key:'end',label:'区间结束季度',unit:null},{key:'status',label:'核验分类',unit:null},{key:'area',label:'记录总面积',unit:'m2'}],
+    rows:a.rows.map(r=>{const refs=[r.fieldSources.launch_year,r.fieldSources.launch_quarter],bound=(q:typeof r.launch.start):ResultCell=>q?text(`${q.year}Q${q.quarter}`,refs):{kind:'unknown',state:r.launch.state==='invalid'?'invalid':'missing',reason:'launch_interval_unknown',sourceIds:refs};
+      return {entityId:r.futureId,cells:{name:text(r.name,[r.fieldSources.name]),launch:text(futureLaunchText(r),refs),start:bound(r.launch.start),end:bound(r.launch.end),
+        status:text(futureClassificationText(r.classification),[r.fieldSources.status]),area:r.area.value?{kind:'number',value:r.area.value,sourceIds:r.area.sourceIds}:{kind:'unknown',state:r.area.state==='invalid'?'invalid':'missing',reason:'future_area_unavailable',sourceIds:r.area.sourceIds}}};})};
   if(view==='launch_summary'){
     const groups=[['quarter','预计季度明确'],['half_year','仅明确半年'],['year','仅明确年份'],['unknown','预计年份未知'],['invalid','预计时间无效']] as const;
     return {id:'future_launch_precision',columns:[{key:'name',label:'预计入市时间精度',unit:null},{key:'count',label:'记录数',unit:'record_count'}],rows:groups.map(([state,label])=>{
@@ -67,9 +80,10 @@ export function buildFutureResult(raw:unknown,input:FutureSelection,authority:Fu
   const snapshot=normalizeFutureRead(raw,read,authority,requestId),observed=analyzeFutureSnapshot(snapshot),analysis=futureAnalysisSchema.parse(observed);
   const scope={inventory:'future',inventoryTime:'current_not_entered_future_records',assignmentsTime:'selected_quarter_current_records',
     ...(selection.submarkets?{submarkets:selection.submarkets}:{}),...(selection.futureIds?{futureIds:selection.futureIds}:{}),readAt:observed.readAt};
-  const table=futureResultTable(analysis,observed.sources,selection.view);
+  const supply=['area_summary','launch_schedule'].includes(selection.view)?summarizeFutureSupply(analysis.rows):undefined;
+  const table=futureResultTable(analysis,observed.sources,selection.view,supply);
   return freeze({resultId:randomUUID(),createdAt:new Date().toISOString(),snapshotId:observed.snapshotId,dataVersion:observed.dataVersion,
     scopeFingerprint:createHash('sha256').update(JSON.stringify([authority.actorId,authority.effectiveUserId,authority.permissionRevision,scope])).digest('hex'),registryVersion:FIELD_REGISTRY_VERSION,
-    operation:'future_observation',parameters:{answer:buildFutureAnswer(analysis,selection.view,table.rows.length),view:selection.view,mode,period:observed.period,configuredPeriod:observed.configuredPeriod,periodBasis:observed.periodBasis,futurePolicy:observed.version,scope},
-    analysis,table,sources:observed.sources,limitations:observed.limitations});
+    operation:'future_observation',parameters:{...(supply?{supply}:{}),answer:buildFutureAnswer(analysis,selection.view,table.rows.length,supply),view:selection.view,mode,period:observed.period,configuredPeriod:observed.configuredPeriod,periodBasis:observed.periodBasis,futurePolicy:observed.version,scope},
+    analysis,table,sources:observed.sources,limitations:supply?[...observed.limitations.slice(0,-1),'面积按当前获权记录原字段合计，待核实与分类未知分组保留；同名或同一楼宇关联不擅自去重，不能当作已确认的全市场供应面积。','区间边界仅表示原预计时间精度，不代表持续供给、均匀分配或实际入市日期；跨半年/全年不拆到各季度求和。',observed.limitations.at(-1)!]:observed.limitations});
 }

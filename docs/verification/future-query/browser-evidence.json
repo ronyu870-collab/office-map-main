@@ -16,6 +16,11 @@
     },
     {
       "width": 1280,
+      "case": "original half/year intervals and incomplete known-area aggregation; same-source chart and Excel",
+      "passed": true
+    },
+    {
+      "width": 1280,
       "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
       "passed": true
     },
@@ -32,6 +37,11 @@
     {
       "width": 390,
       "case": "catalog unknown area and half-year original source; source close restores focus",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "original half/year intervals and incomplete known-area aggregation; same-source chart and Excel",
       "passed": true
     },
     {
@@ -53,41 +63,59 @@
   "downloads": [
     {
       "width": 1280,
+      "format": "area_xlsx",
+      "resultId": "9caf3c7c-0e45-412c-b5f0-a295fa1b734c",
+      "sha256": "a59586663ffd22de2a14004363bb3be1f0860be44bdf20d3234c99a2ef0400cd",
+      "readback": true
+    },
+    {
+      "width": 1280,
       "format": "xlsx",
-      "resultId": "a0f4f623-5217-4d13-988d-b317e3837215",
-      "sha256": "ce7912a98b13895ba98f2e5d7eda25b5f7abba96c81ab142d033d32ab852ecbb",
+      "resultId": "dbc7c524-7dc1-4475-8691-2b9cb78caaaf",
+      "sha256": "6e8342a76c355828bf9d56b85858fc069ae76cfe199d3d8a919f56052b673bc8",
       "readback": true
     },
     {
       "width": 1280,
       "format": "csv_zip",
-      "resultId": "a0f4f623-5217-4d13-988d-b317e3837215",
-      "sha256": "826f789051f7cd99feca902983c57f5f430a70938c56706337919e8af07e4587",
+      "resultId": "dbc7c524-7dc1-4475-8691-2b9cb78caaaf",
+      "sha256": "594af94c9932e4b02fdaa3d1a038031021232dd21a79f665df8f6ea0c239a7ce",
       "readback": true
     },
     {
       "width": 1280,
       "format": "svg_zip",
-      "resultId": "a0f4f623-5217-4d13-988d-b317e3837215",
-      "sha256": "36e553da495579ca1f4fcb17ed3444a81b78579645c5364bc69a0d75f5a237d5",
+      "resultId": "dbc7c524-7dc1-4475-8691-2b9cb78caaaf",
+      "sha256": "7a0d7442ce7730f5d954c652948b50cd29f5dae654d024a1900678fce7f91082",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "area_xlsx",
+      "resultId": "0d02f0eb-4e31-476d-9905-d56e54b1bb77",
+      "sha256": "d4253b719732028e1f55310e3403a8edf9713f95a30a814faa58c1b55b166a62",
       "readback": true
     },
     {
       "width": 390,
       "format": "xlsx",
-      "resultId": "f745a83d-c194-4f87-97b0-c2b1fba2bd9e",
-      "sha256": "29edcbd6edfdb9a4c4703e5b89085880e32697baa2ba66d93cbfb3c68292a7be",
+      "resultId": "8cba92a4-a4be-4356-87eb-c3c1bb66bd82",
+      "sha256": "c9a8e793759206877ac537217c1324787d4af58a162531bc8b8ac011a27836b5",
       "readback": true
     }
   ],
   "screenshots": [
     "1280-catalog.png",
     "1280-source.png",
+    "1280-launch-intervals.png",
+    "1280-area-chart.png",
     "1280-progress-chart.png",
     "1280-quality.png",
     "1280-quality-scroll.png",
     "390-catalog.png",
     "390-source.png",
+    "390-launch-intervals.png",
+    "390-area-chart.png",
     "390-progress-chart.png",
     "390-quality.png",
     "390-quality-scroll.png",

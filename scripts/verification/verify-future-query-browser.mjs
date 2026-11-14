@@ -31,6 +31,17 @@ try{
    await page.getByRole('region',{name:'查询结果',exact:true}).scrollIntoViewIfNeeded();await save(page,`${width}-catalog`);
    const source=page.getByRole('button',{name:'查看来源：预计入市时间 2026年下半年（季度未定）',exact:true});await source.click();const panel=page.getByRole('region',{name:'来源详情',exact:true});assert.match(await panel.innerText(),/launch_quarter/);assert.match(await panel.innerText(),/H2/);await save(page,`${width}-source`);await page.getByRole('button',{name:'关闭来源'}).click();assert.equal(await source.evaluate(e=>e===document.activeElement),true);
    evidence.checks.push({width,case:'catalog unknown area and half-year original source; source close restores focus',passed:true});
+   const interval=await ask('CBD未来供应预计入市区间');assert.equal(interval.result.table.rows.find(r=>r.cells.launch.value.includes('下半年')).cells.end.value,'2026Q4');
+   await page.getByRole('region',{name:'查询结果',exact:true}).scrollIntoViewIfNeeded();await save(page,`${width}-launch-intervals`);
+   const area=await ask('CBD未来供应面积汇总');assert.equal(area.result.parameters.supply.knownArea.numeric,155000);assert.equal(area.result.parameters.supply.missing,1);
+   await page.getByRole('combobox',{name:/^图表指标/}).selectOption('area');const areaDrawing=page.waitForResponse(r=>r.url().endsWith('/query/artifact'));await page.getByRole('button',{name:'查看柱状图',exact:true}).click();
+   const areaChart=await (await areaDrawing).json();assert.equal(areaChart.chart.points.filter(p=>p.y===null).length,1);assert.equal(areaChart.chart.points.reduce((n,p)=>n+(p.y??0),0),155000);
+   await page.getByRole('figure',{name:'同源查询图表'}).scrollIntoViewIfNeeded();await save(page,`${width}-area-chart`);
+   await page.getByText('下载本次结果',{exact:true}).click();const areaDownloading=page.waitForEvent('download');await page.getByRole('button',{name:'Excel',exact:true}).click();
+   const areaDownload=await areaDownloading,areaFile=path.join(tmpdir(),`colliers-future-area-${width}-${area.result.resultId}`);await areaDownload.saveAs(areaFile);const areaBytes=await readFile(areaFile),areaBook=XLSX.read(areaBytes,{type:'buffer'});
+   const areaRows=XLSX.utils.sheet_to_json(areaBook.Sheets['未来记录面积'],{header:1});assert.equal(areaRows.slice(3).map(r=>r.at(-1)).filter(v=>typeof v==='number').reduce((a,b)=>a+b,0),155000);
+   evidence.downloads.push({width,format:'area_xlsx',resultId:area.result.resultId,sha256:createHash('sha256').update(areaBytes).digest('hex'),readback:true});
+   evidence.checks.push({width,case:'original half/year intervals and incomplete known-area aggregation; same-source chart and Excel',passed:true});
    const progress=await ask('当前填报季度CBD未来供应填报进度');assert.match(progress.result.parameters.answer.paragraphs[0],/提交覆盖率 66.67%/);
    const drawn=page.waitForResponse(r=>r.url().endsWith('/query/artifact'));await page.getByRole('button',{name:'查看柱状图',exact:true}).click();const chart=await (await drawn).json();assert.deepEqual(chart.chart.points.map(p=>p.y),[2,1,0,2]);await page.getByRole('figure',{name:'同源查询图表'}).scrollIntoViewIfNeeded();await save(page,`${width}-progress-chart`);
    const quality=await ask('2026Q3CBD未来供应填报数据质量');assert.match(quality.result.parameters.answer.paragraphs[0],/最新提交可核查 2 条/);assert.match(quality.result.parameters.answer.paragraphs[0],/缺项 1 条/);assert.match(quality.result.parameters.answer.paragraphs[1],/3 条无该季提交/);

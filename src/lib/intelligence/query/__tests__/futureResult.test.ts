@@ -1,3 +1,5 @@
+import {summarizeFutureSupply} from '../future/supply';
+import {resolveBusinessQuestion} from '../question';
 import {describe,it,expect} from 'vitest';
 import * as XLSX from 'xlsx';
 import {futureSample} from './futureFixture';
@@ -17,6 +19,45 @@ function make(view:FutureView='summary'){
   const selection={view,period:null};return {raw,selection,result:buildFutureResult(raw,selection,authority,raw.requestId)};
 }
 describe('immutable future supply results and same-result artifacts',()=>{
+  it('adds exact known-record areas in disjoint original intervals without allocating half-years or turning unknown into zero',async()=>{
+    const {raw,selection}=make('area_summary');
+    raw.supplies[0].total_area='0.1';raw.supplies[1].total_area='0.2';raw.supplies[2].total_area=null;raw.supplies[3].total_area='-5';
+    const result=buildFutureResult(raw,selection,authority,raw.requestId),view=resultViewSchema.parse(result);
+    expect(result.parameters.supply).toMatchObject({records:4,valid:2,missing:1,invalid:1,knownArea:{exact:{numerator:'3',denominator:'10'}}});
+    expect(resultSummary(view)[0]).toContain('0.3 ㎡');expect(resultSummary(view).join(' ')).toContain('不将半年或全年面积拆到季度');
+    const summary=summarizeFutureSupply(futureAnalysisSchema.parse(result.analysis).rows);
+    expect(summary.groups.flatMap(g=>g.memberIds).sort()).toEqual(raw.supplies.map(r=>r.id).sort());
+    expect(summary.groups.find(g=>g.classification==='pending')?.knownArea).toBeNull();
+    const chart=buildResultChart(view,{kind:'bar',field:'area'});expect(chart.points.filter(p=>p.y===null)).toHaveLength(2);
+    expect(chart.xLabel).toBe('预计区间与核验分类');
+    const book=XLSX.read(await buildXlsx(result),{type:'array'});expect(book.SheetNames).toContain('未来记录面积');
+    const data=XLSX.utils.sheet_to_json(book.Sheets['未来记录面积'],{header:1}) as unknown[][];
+    expect(data.slice(3).map(r=>r.at(-1)).filter(v=>typeof v==='number').sort()).toEqual([0.1,0.2]);
+    const csv=buildCsvPackage(result);expect(JSON.parse(csv.manifest).parameters.supply).toEqual(result.parameters.supply);
+    const archived=JSON.parse(JSON.stringify(result));archived.analysis.rows.forEach((r:{area:{value:unknown}})=>r.area.value=null);
+    const originalBook=XLSX.read(await buildXlsx(archived),{type:'array'});expect(XLSX.utils.sheet_to_json(originalBook.Sheets['未来记录面积'],{header:1})).toEqual(data);
+    const reversed=summarizeFutureSupply([...futureAnalysisSchema.parse(result.analysis).rows].reverse());expect(reversed).toEqual(summary);
+  });
+  it('preserves half/year bounds and missing-time uncertainty, with no completion fallback or silently ignored period',()=>{
+    const {raw,selection}=make('launch_schedule');raw.supplies[0].launch_year=null;
+    const result=buildFutureResult(raw,selection,authority,raw.requestId),rows=result.table.rows;
+    expect(rows[0].cells.start.kind).toBe('unknown');expect(rows[0].cells.end.kind).toBe('unknown');
+    expect(rows[1].cells.start).toMatchObject({kind:'text',value:'2026Q3'});expect(rows[1].cells.end).toMatchObject({value:'2026Q4'});
+    expect(rows[2].cells.start).toMatchObject({value:'2026Q1'});expect(rows[2].cells.end).toMatchObject({value:'2026Q4'});
+    expect(()=>buildFutureResult(raw,{...selection,period:{year:2026,quarter:3}},authority,raw.requestId)).toThrow();
+    for(const [question,view] of [['CBD未来供应面积汇总','area_summary'],['CBD未来供应预计入市区间','launch_schedule']])expect(resolveBusinessQuestion(question,new Date())).toMatchObject({kind:'plan',plan:{view,period:null}});
+    for(const question of ['2026Q3CBD未来供应面积汇总','CBD未来供应面积汇总并列出客户','CBD未来供应预计入市区间按季度平分'])expect(resolveBusinessQuestion(question,new Date()).kind).not.toBe('plan');
+    for(const row of rows)for(const c of Object.values(row.cells))for(const ref of c.sourceIds)expect(result.sources.some(s=>s.id===ref)).toBe(true);
+  });
+  it('reports no valid area as unknown and refuses missing archived supply protocol or independent future authority',()=>{
+    const {raw,selection}=make('area_summary');raw.supplies.forEach(r=>r.total_area=null);
+    const result=buildFutureResult(raw,selection,authority,raw.requestId);expect(resultSummary(resultViewSchema.parse(result))[0]).toContain('未知（没有有效面积记录）');
+    expect(result.table.rows.every(r=>r.cells.area.kind==='unknown')).toBe(true);
+    const bad=JSON.parse(JSON.stringify(result));delete bad.parameters.supply;expect(resultViewSchema.safeParse(bad).success).toBe(false);
+    expect(()=>buildFutureResult(raw,selection,{...authority,grants:[]},raw.requestId)).toThrow();
+    raw.supplies=[];raw.expected.supplies=0;const empty=buildFutureResult(raw,selection,authority,raw.requestId);
+    expect(empty.table.rows).toHaveLength(0);expect(resultSummary(resultViewSchema.parse(empty))[0]).toContain('未知');
+  });
   it('keeps future identity, pending, half/year precision and unknown values visible in catalog',()=>{
     const {raw,selection}=make('catalog');raw.supplies[0].launch_year=null;raw.supplies[0].total_area=null;
     const result=buildFutureResult(raw,selection,authority,raw.requestId),view=resultViewSchema.parse(result);
