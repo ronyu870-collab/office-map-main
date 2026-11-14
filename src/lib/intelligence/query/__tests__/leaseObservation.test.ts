@@ -1,3 +1,4 @@
+import {encodeGeneratedArchive} from '../resultArchive';
 import {sanitizeAuditContent} from '../auditStore';
 import {leaseReadFromScope} from '../leases/view';
 import {buildLeaseResult} from '../leases/result';
@@ -128,4 +129,75 @@ describe('source-separated lease observation', () => {
     expect(named.kind).toBe('plan');if(named.kind==='plan')expect(named.plan.scope).toMatchObject({companyExact:'ACME  Capital'});
   });
 
+  it('keeps raw classifications and source-separated record/area denominators, including missing classifications',()=>{
+    const r=[row(10),row(11),row(12),row(13),row(14,'history')];
+    r[1].company='第二企业';r[1].values.industry=null;r[1].values.area_sqm='300';
+    r[2].values.industry='未记录行业';r[2].values.area_sqm=null;
+    r[3].values.industry='科技';r[3].values.area_sqm='0';r[3].company=null;
+    const result=buildLeaseResult(snapshot(r),{view:'industry',period:null,read},a,id(9));
+    const group=(source:string,value:string|null)=>result.table.rows.find(r=>r.entityId===JSON.stringify([source,'industry',value]))!;
+    expect(group('live','金融').cells.areaShare).toMatchObject({value:{exact:{numerator:'1',denominator:'4'}}});
+    expect(group('live',null).cells.areaShare).toMatchObject({value:{numeric:0.75}});
+    expect(group('live','未记录行业').cells.areaShare.kind).toBe('unknown');
+    expect(group('live','科技').cells.areaShare).toMatchObject({value:{numeric:0}});
+    expect(group('history','金融').cells.areaShare).toMatchObject({value:{numeric:1}});
+    expect(group('live','金融').cells.recordShare).toMatchObject({value:{numeric:0.25}});
+    const sourceIds=new Set(group('live','金融').cells.areaShare.sourceIds);
+    expect(result.sources.filter(s=>s.table==='lease_transactions_read_v1'&&s.field==='area_sqm'&&s.entityId.startsWith('live:')).every(s=>sourceIds.has(s.id))).toBe(true);
+    const chart=buildResultChart(resultViewSchema.parse(result),{kind:'bar',field:'areaShare'});
+    expect(chart.points.find(p=>p.yCell.entityId===group('live','金融').entityId)?.y).toBe(25);
+    expect(resultSummary(resultViewSchema.parse(result)).join('')).toContain('各组名称数不能相加');
+    expect(()=>sanitizeAuditContent(result)).not.toThrow();
+  });
+  it('preserves zero denominators, missing and invalid area, and counts names without inventing legal entities',()=>{
+    const r=[row(10),row(11),row(12)];r[0].company=' Acme ';r[1].company='ACME';r[2].company='';
+    r[0].values.area_sqm='0';r[1].values.area_sqm=null;r[2].values.area_sqm='-3';
+    const result=buildLeaseResult(snapshot(r),{view:'demand_type',period:null,read},a,id(9));
+    const c=result.table.rows[0].cells;
+    expect(c.names).toMatchObject({value:{numeric:1}});expect(c.missingNames).toMatchObject({value:{numeric:1}});
+    expect(c.area).toMatchObject({value:{numeric:0}});expect(c.areaShare.kind).toBe('unknown');
+    expect([c.valid,c.missing,c.invalid].map(c=>c.kind==='number'?c.value.numeric:null)).toEqual([1,1,1]);
+  });
+  it('builds complete source-separated quarter axes, excludes year-only dates and keeps area gaps',async()=>{
+    const r=[row(10),row(11),row(12),row(13,'history')];
+    Object.assign(r[0],{quarter:'Q1',periodStart:'2026-01-01',periodEnd:'2026-03-31'});
+    Object.assign(r[2],{quarter:null,precision:'year',periodStart:'2026-01-01',periodEnd:'2026-12-31'});
+    const range={start:{year:2026,quarter:1},end:{year:2026,quarter:4}};
+    const result=buildLeaseResult(snapshot(r),{view:'quarter_trend',period:null,range,read},a,id(9)),v=resultViewSchema.parse(result);
+    expect(result.parameters.coverage).toMatchObject({candidates:4,selected:3,possible:1});
+    expect(result.table.rows.map(r=>r.cells.count.kind==='number'?r.cells.count.value.numeric:null)).toEqual([1,0,1,0,0,0,1,0]);
+    const chart=buildResultChart(v,{kind:'lease_time_series',field:'area'});
+    expect(chart.kind).toBe('faceted_line');expect(chart.connectNulls).toBe(false);
+    expect(chart.facets?.map(f=>f.points.map(p=>p.y))).toEqual([[100,null,100,null],[null,null,100,null]]);
+    const book=XLSX.read(await buildXlsx(result),{type:'array'});
+    expect(XLSX.utils.sheet_to_json<unknown[]>(book.Sheets['数据'],{header:1}).slice(1).map(r=>r.at(-1))).toEqual([100,'未记录',100,'未记录','未记录','未记录',100,'未记录']);
+    expect(()=>buildResultChart({...v,table:{...v.table,rows:v.table.rows.slice(1)}},{kind:'lease_time_series',field:'area'})).toThrow('CHART_GROUP_AXIS_MISMATCH');
+    expect(()=>sanitizeAuditContent(result)).not.toThrow();
+  });
+  it('requires classification field grants and bounded explicit trend conditions without dropping unsupported clauses',()=>{
+    expect(()=>buildLeaseResult(snapshot(),{view:'industry',period:null,read:{...read,fields:['area_sqm']}},a,id(9))).toThrow('LEASE_VIEW_FIELD_REQUIRED');
+    expect(()=>buildLeaseResult(snapshot(),{view:'quarter_trend',period:null,read},a,id(9))).toThrow('LEASE_TREND_RANGE_REQUIRED');
+    const grouped=resolveBusinessQuestion('2026Q3CBD日常成交子行业占比');expect(grouped.kind).toBe('plan');
+    if(grouped.kind==='plan')expect(grouped.plan).toMatchObject({view:'sub_industry',scope:{fields:['area_sqm','sub_industry']}});
+    const trend=resolveBusinessQuestion('CBD全部来源成交2026Q1至2026Q4趋势');expect(trend.kind).toBe('plan');
+    if(trend.kind==='plan')expect(trend.plan).toMatchObject({view:'quarter_trend',range:{start:{year:2026,quarter:1},end:{year:2026,quarter:4}}});
+    expect(resolveBusinessQuestion('CBD日常成交2026Q4至2026Q1趋势').kind).toBe('clarification');
+    expect(resolveBusinessQuestion('CBD日常成交行业占比只看科技').kind).toBe('clarification');
+  });
+  it('refuses oversized grouping instead of dropping categories or denominator sources',()=>{
+    const r=Array.from({length:101},(_,i)=>{const r=row(i+1000);r.values.industry=`行业${i}`;return r;});
+    expect(()=>buildLeaseResult(snapshot(r),{view:'industry',period:null,read},a,id(9))).toThrow('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB');
+  });
+
+});
+
+it('reads and aggregates 1005 lease records fully but rejects an oversized synchronous archive',()=>{
+ const records=Array.from({length:1005},(_,i)=>{const r=row(i+1000);return {...r,buildingScope:'unmapped' as const,relatedBuildingIds:[],values:{area_sqm:'1',industry:'金融'},estimates:{},termRaw:null,evidence:null};});
+ const selected={sources:['live'] as ('live'|'history')[],fields:['area_sqm','industry'] as ('area_sqm'|'industry')[]};
+ const raw={...snapshot(records),sources:selected.sources,fields:selected.fields};
+ const result=buildLeaseResult(raw,{view:'industry',period:null,read:selected},a,id(9));
+ expect(result.table.rows[0].cells.count).toMatchObject({value:{numeric:1005}});
+ expect(result.table.rows[0].cells.area).toMatchObject({value:{numeric:1005}});
+ const content=JSON.stringify(sanitizeAuditContent({result}));
+ expect(()=>encodeGeneratedArchive(content)).toThrow('AUDIT_CONTENT_LIMIT');
 });

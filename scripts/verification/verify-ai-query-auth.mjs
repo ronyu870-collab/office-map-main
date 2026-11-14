@@ -160,7 +160,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(queryAdmin,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/13');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/14');
     }
     const compared=await call(queryAdmin,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -614,6 +614,8 @@ try{
       const [code]=await once(verification,'exit');assert.equal(code,0,'Real homepage browser verification failed');
       const leaseBrowser=spawn(process.execPath,['scripts/verification/verify-lease-query-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
       const [leaseCode]=await once(leaseBrowser,'exit');assert.equal(leaseCode,0,'Real lease homepage browser verification failed');
+      const analyticsBrowser=spawn(process.execPath,['scripts/verification/verify-lease-analytics-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
+      const [analyticsCode]=await once(analyticsBrowser,'exit');assert.equal(analyticsCode,0,'Real lease analytics browser verification failed');
     }else await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
 }finally{

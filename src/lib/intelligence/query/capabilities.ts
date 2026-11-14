@@ -52,6 +52,11 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
           if(r.kind!=='plan'||r.plan.operation!=='lease_observation')continue;
           try{authorizeLeaseRead(leaseReadFromScope(r.plan.scope),lease);leaseExamples.push(question);}catch{/* Advertise only fully permitted projections. */}
         }
+        for(const label of ['日常','历史','全部来源'])for(const suffix of ['行业占比','子行业占比','需求类型占比','子市场占比','2026Q1至2026Q3趋势']){
+          const question=`${market}${label}成交${suffix}`,r=resolveBusinessQuestion(question,new Date());
+          if(r.kind!=='plan'||r.plan.operation!=='lease_observation')continue;
+          try{authorizeLeaseRead(leaseReadFromScope(r.plan.scope),lease);leaseExamples.push(question);}catch{/* Independent dimension fields remain required. */}
+        }
       }catch(error){if(!(error instanceof Error)||error.message!=='QUERY_DENIED')throw error;}
     }
     const current = await loadEntryAuthority(dependencies.client, identity, signal);

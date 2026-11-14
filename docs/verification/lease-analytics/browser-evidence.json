@@ -1,0 +1,82 @@
+{
+  "browser": "157.0.8103.52",
+  "synthetic": true,
+  "production": false,
+  "realMobileDevices": false,
+  "checks": [
+    {
+      "width": 1280,
+      "case": "authorized industry examples, distinct missing classification, source-separated percentage chart and full denominator source focus",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "quarter allocation, year-only exclusion, gaps and same-result area/record/name chart switching",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "XLSX/SVG readback, immutable recovery and local table scroll without page overflow",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "authorized industry examples, distinct missing classification, source-separated percentage chart and full denominator source focus",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "quarter allocation, year-only exclusion, gaps and same-result area/record/name chart switching",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "XLSX/SVG readback, immutable recovery and local table scroll without page overflow",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "case": "narrow viewport retains full trend table locally scrollable",
+      "passed": true
+    }
+  ],
+  "downloads": [
+    {
+      "width": 1280,
+      "format": "xlsx",
+      "resultId": "4b99afa3-51d7-469a-aedc-0ff3a8362768",
+      "sha256": "01eaf3e6fb89cbbff5e2234a13673ebeeedfb981627bf81947754ae6cc0f43fb",
+      "readback": true
+    },
+    {
+      "width": 1280,
+      "format": "svg_zip",
+      "resultId": "4b99afa3-51d7-469a-aedc-0ff3a8362768",
+      "sha256": "2395d907ba4b504b6aa83b44111625fd8cbe7e11e31e8dce396dc319d68b1c61",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "xlsx",
+      "resultId": "499637dd-8ad7-4f98-90ad-ecdf28436827",
+      "sha256": "9aa72f902a65c84eb7eaf47e9de3851aa4f849c1c88f034a60d40915956a52de",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "svg_zip",
+      "resultId": "499637dd-8ad7-4f98-90ad-ecdf28436827",
+      "sha256": "280cf43bb89f08933f535d587cb42c424f707b19280c00b8b3e3855940f5bab8",
+      "readback": true
+    }
+  ],
+  "screenshots": [
+    "1280-industry.png",
+    "1280-share-chart.png",
+    "1280-trend.png",
+    "390-industry.png",
+    "390-share-chart.png",
+    "390-trend.png",
+    "320-trend-table.png"
+  ]
+}

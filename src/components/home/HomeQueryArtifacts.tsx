@@ -15,8 +15,9 @@ import styles from './HomeQuery.module.css';
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
 export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource }: Props) {
-  const numeric = result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text'));
-  const [field, setField] = React.useState(numeric[0]?.key ?? '');
+  const isLeaseTrend=result.operation==='lease_observation'&&result.parameters.view==='quarter_trend';
+  const numeric = result.table.columns.filter(c => (!isLeaseTrend||['count','area','names'].includes(c.key))&&c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text'));
+  const [field, setField] = React.useState(numeric.find(c=>c.key==='areaShare')?.key??(isLeaseTrend?'area':numeric[0]?.key??''));
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -26,11 +27,11 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
   const hasMap=result.operation==='future_observation'&&['catalog','launch_summary','launch_schedule','area_summary'].includes(String(result.parameters.view));
   const isTimeline=result.operation==='future_observation'&&result.parameters.view==='launch_schedule';
-  const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
+  const isTrend = result.operation === 'trend' || result.operation === 'group_trend'||isLeaseTrend;
   const isCross = result.operation === 'cross_aggregate';
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
-  const request: ChartRequest = isTimeline?{kind:'launch_intervals'}:isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
+  const request: ChartRequest = isLeaseTrend?{kind:'lease_time_series',field:field as 'count'|'area'|'names'}:isTimeline?{kind:'launch_intervals'}:isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
   async function run(input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') {
     if (active.current) return;
     const controller = new AbortController(); active.current = controller;
@@ -61,11 +62,11 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const position = (value: number) => (value - min) / span * 100;
   return <div className={styles.artifacts}>
     <div className={styles.actions}>
-      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && !isTimeline && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {numeric.length > 1 && result.operation !== 'compare' && (!isTrend||isLeaseTrend) && !isCross && !isRelationship && !isDistribution && !isTimeline && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
       {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isTimeline?(chart?'更新时间轴':'查看时间轴'):isDistribution?(chart?'更新直方图':'查看直方图'):isRelationship?(chart?'更新散点图':'查看散点图'):isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
       {hasMap && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'future_locations'})}>查看地图</Button>}
       {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
-      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
+      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:isLeaseTrend?field:'value'})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => setChart(null)}>收起图表</Button>}
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>

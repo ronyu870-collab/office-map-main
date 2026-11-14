@@ -2,7 +2,7 @@ import {leaseRequiredFields, type LeaseView} from './leases/view';
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/13';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/14';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -43,7 +43,9 @@ function resolveExplicitQuestion(question: string): QuestionResolution {
   const companyLease=/^企业「([^「」\u0000-\u001f\u007f]{1,200})」(日常|历史|全部来源)成交明细[？?。]?$/.exec(question.trim());
   if(companyLease){try{return {kind:'plan',plan:parseQueryPlan({operation:'lease_observation',view:'catalog',period:null,scope:{inventory:'leases',sources:companyLease[2]==='日常'?['live']:companyLease[2]==='历史'?['history']:['live','history'],fields:[],companyExact:companyLease[1]}})};}catch{return clarification;}}
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
-  const leaseViews={明细:'catalog',有哪些:'catalog',面积汇总:'summary',表面租金:'face_rent',有效租金:'effective_rent'} as const;
+  const leaseViews={明细:'catalog',有哪些:'catalog',面积汇总:'summary',表面租金:'face_rent',有效租金:'effective_rent',行业占比:'industry',子行业占比:'sub_industry',需求类型占比:'demand_type',子市场占比:'submarket'} as const;
+  const leaseTrend=new RegExp(`^${futureMarkets}(日常|历史|全部来源)成交${period}(?:至|到)${period}(?:季度)?趋势$`).exec(text);
+  if(leaseTrend){try{return {kind:'plan',plan:parseQueryPlan({operation:'lease_observation',view:'quarter_trend',period:null,range:{start:quarter(leaseTrend[3],leaseTrend[4],leaseTrend[5]),end:quarter(leaseTrend[6],leaseTrend[7],leaseTrend[8])},scope:{inventory:'leases',sources:leaseTrend[2]==='日常'?['live']:leaseTrend[2]==='历史'?['history']:['live','history'],fields:['area_sqm'],...(['全部获权','全部获权楼宇'].includes(leaseTrend[1])?{}:{submarkets:[leaseTrend[1]]})}})};}catch{return clarification;}}
   const leasePattern=new RegExp(`^(?:${period})?${futureMarkets}(日常|历史|全部来源)成交(${Object.keys(leaseViews).join('|')})$`).exec(text);
   if(leasePattern){
     const view=leaseViews[leasePattern[6] as keyof typeof leaseViews] as LeaseView;

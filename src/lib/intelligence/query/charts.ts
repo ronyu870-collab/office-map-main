@@ -1,3 +1,4 @@
+import {leaseRangeSchema,leaseGroupLabels} from './leases/view';
 import {buildFutureMap,fitMap,mapGeometry,type MapBase} from './future/map';
 import type {mapBaseDescriptor} from './future/mapBaseDescriptor';
 import {buildFutureTimeline,intervalGeometry,intervalLegend} from './future/timeline';
@@ -14,6 +15,7 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('period_comparison') }),
   z.strictObject({ kind: z.literal('time_series') }),
   z.strictObject({ kind: z.literal('grouped_time_series') }),
+  z.strictObject({kind:z.literal('lease_time_series'),field:z.enum(['count','area','names'])}),
   z.strictObject({ kind: z.literal('heatmap') }),
   z.strictObject({ kind: z.literal('histogram') }),
   z.strictObject({ kind: z.literal('box_plot') }),
@@ -52,13 +54,24 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
   };
   const binding = (entityId: string, key: string, cell: DisplayCell): CellBinding => ({ entityId, key, sourceIds: [...cell.sourceIds] });
   let xLabel = result.operation==='submission_progress'?(result.parameters.view==='summary'?'楼宇状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'楼宇'):result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
-  if(result.operation==='lease_observation')xLabel=result.parameters.view==='catalog'?'企业（原记录名称）':'成交来源与性质';
+  if(result.operation==='lease_observation')xLabel=result.parameters.view==='catalog'?'企业（原记录名称）':leaseGroupLabels[result.parameters.view as keyof typeof leaseGroupLabels]??'成交来源与性质';
   if(result.operation==='future_observation')xLabel=result.parameters.view==='area_summary'?'预计区间与核验分类':result.parameters.view==='launch_summary'?'预计入市时间精度':result.parameters.view==='summary'?'季度任务状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'未来供应记录';
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
   let facets: ResultChart['facets'];
   let grid: ResultChart['grid'];
-  if (request.kind === 'heatmap') {
+  if(request.kind==='lease_time_series'){
+    if(result.operation!=='lease_observation'||result.parameters.view!=='quarter_trend')throw new Error('CHART_LEASE_TREND_REQUIRED');
+    const range=leaseRangeSchema.parse(result.parameters.range),periods=quarterRange(range.start,range.end);
+    const groups=z.object({sources:z.array(z.enum(['live','history'])).min(1).max(2)}).parse(result.parameters.scope).sources;
+    if(result.table.rows.length!==groups.length*periods.length||new Set(groups).size!==groups.length)throw new Error('CHART_GROUP_AXIS_MISMATCH');
+    yColumn=column(request.field);xLabel='成交季度';
+    facets=groups.map((source,g)=>({key:source,label:source==='live'?'日常成交':'历史成交',points:periods.map((period,i)=>{
+      const row=result.table.rows[g*periods.length+i],key=quarterKey(period),cell=row.cells[request.field];
+      if(row.entityId!==`${source}/${key}`||row.cells.period?.kind!=='text'||row.cells.period.value!==key)throw new Error('CHART_GROUP_AXIS_MISMATCH');
+      return {label:key,x:key,y:projected(cell,yColumn.unit),xText:key,yText:cellText(cell,yColumn.unit),xCell:null,yCell:binding(row.entityId,request.field,cell),state:cell.kind==='number'?'valid' as const:'unknown' as const};
+    })}));points=facets.flatMap(f=>f.points);
+  } else if (request.kind === 'heatmap') {
     if (result.operation !== 'cross_aggregate' || result.parameters.tableVersion !== 'cross-quarter/1') throw new Error('CHART_CROSS_TAB_REQUIRED');
     const axis = z.array(z.object({ key: z.string().min(1), label: z.string() })).max(50);
     grid = { rows: axis.parse(result.parameters.rowGroups), columns: axis.parse(result.parameters.columnGroups) };
@@ -114,7 +127,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     }
     points = result.table.rows.map(row => {
       const y = row.cells[yColumn.key], x = xColumn ? row.cells[xColumn.key] : null;
-      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation === 'cross_aggregate' && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + (result.operation === 'group_trend' && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
+      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation==='lease_observation'&&row.cells.source?.kind==='text'?` / ${row.cells.source.value}`:'') + (result.operation === 'cross_aggregate' && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + ((result.operation === 'group_trend'||result.operation==='lease_observation') && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
       const numericX = request.kind === 'scatter' && x ? projected(x, xUnit) : label;
       const numericY = projected(y, yColumn.unit);
       return { label, x: numericX, y: numericY, xText: x ? cellText(x, xUnit) : label, yText: cellText(y, yColumn.unit),
@@ -129,12 +142,12 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     if (!Number.isFinite(bounds[1] - bounds[0])) throw new Error('CHART_RANGE_UNSUPPORTED');
   }
   return { version: 'result-chart/1', resultId: result.resultId, tableId: result.table.id, request,
-    kind: request.kind === 'heatmap' ? 'heatmap' : request.kind === 'grouped_time_series' ? 'faceted_line' : request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
+    kind: request.kind === 'heatmap' ? 'heatmap' : (request.kind === 'grouped_time_series'||request.kind==='lease_time_series') ? 'faceted_line' : request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
     yLabel: request.kind === 'period_comparison' ? ({ rent: '面积加权净有效租金', vacancy: '空置率', totalArea: '总面积' }[result.parameters.metric as 'rent' | 'vacancy' | 'totalArea'] ?? '指标') : yColumn.label,
     xUnit, yUnit: yColumn.unit!, points, ...(facets ? { facets } : {}), ...(grid ? { grid } : {}), renderedCount, unknownCount: points.length - renderedCount, connectNulls: false, zeroBaseline: true,
     summary: resultSummary(result), limitations: [...result.limitations,
       ...(request.kind==='time_series'?['按连续季度等间距排列；未知季度断开折线，单个有效季度只显示点。']:[]),
-      ...(request.kind==='grouped_time_series'?['每组单独一行折线，共用相同季度和纵轴范围；未知季度断线，不连接不同组。']:[]),
+      ...((request.kind==='grouped_time_series'||request.kind==='lease_time_series')?['每组单独一行折线，共用相同季度和纵轴范围；未知季度断线，不连接不同组。']:[]),
       ...(request.kind === 'scatter' ? ['散点仅绘制两个字段都有有效数值的联合样本；不据此推断因果关系。'] : []),
       '图形位置使用数值近似值，标签保留原结果的精确值舍入；未知不按零绘制。',
       ...(result.operation === 'rank' ? ['图示范围沿用本次排名及末位并列，不重新截取前 N。'] : []),

@@ -1,3 +1,4 @@
+import {verifyLeaseAnalytics} from './ai-lease-analytics-scenarios.mjs';
 import {verifyLeaseQueryEntry} from './ai-lease-query-entry-scenarios.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -131,7 +132,10 @@ export async function verifyLeaseObservation({ db, service, check, person, outpu
       await db.query('insert into public.lease_transactions_history(id,source_uid,company,new_building,sub_market) values($1,$2,$3,$4,$5)', [bad, uid(0), '重复来源', 'AI成交项目', market]);
       try { await assert.rejects(read(), /QUERY_READ_UNAVAILABLE/); } finally { await db.query('delete from public.lease_transactions_history where id=$1', [bad]); }
     });
-    if(app)await verifyLeaseQueryEntry({db,service,check,person,who,grant,fields,live,hist,market,call,recover,artifact,acknowledge,capabilities,app});
+    if(app){
+      await verifyLeaseQueryEntry({db,service,check,person,who,grant,fields,live,hist,market,call,recover,artifact,acknowledge,capabilities,app});
+      await verifyLeaseAnalytics({db,who,grant,check,call,recover,artifact,acknowledge,capabilities,read});
+    }
   } finally {
     await db.query('delete from public.lease_transactions where id=any($1::uuid[])', [live]);
     await db.query('delete from public.lease_transactions_history where id=any($1::uuid[])', [hist]);

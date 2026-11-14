@@ -1,3 +1,4 @@
+import {leaseRangeSchema} from './leases/view';
 import {leaseAnswerSchema} from './leases/view';
 import {futureRangeOverviewSchema} from './future/range';
 import {supplyOverviewSchema} from './future/supply';
@@ -48,7 +49,7 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { quarter: '季度', text: '文本', m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
+export const units: Record<string, string> = { quarter: '季度', text: '文本', m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', recorded_name_count:'个名称', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
 export function cellText(cell: DisplayCell, unit: string | null): string {
@@ -147,7 +148,8 @@ export function resultScopeText(result: QueryResultView): string {
   const range=isTrend&&start.success&&end.success?`，${start.data.year}Q${start.data.quarter} 至 ${end.data.year}Q${end.data.quarter}`:'';
   if(result.operation==='lease_observation'){
     const selected=z.object({sources:z.array(z.enum(['live','history']))}).parse(result.parameters.scope).sources;
-    return `${s.submarkets?.join('、')||'当前获权范围'}；获权${selected.map(v=>v==='live'?'日常':'历史').join('/')}成交记录${period.success?`，明确落入 ${period.data.year}Q${period.data.quarter}`:'，全部原期间'}，不同来源分开统计。`;
+    const leaseRange=leaseRangeSchema.safeParse(result.parameters.range);
+    return `${s.submarkets?.join('、')||'当前获权范围'}；获权${selected.map(v=>v==='live'?'日常':'历史').join('/')}成交记录${leaseRange.success?`，${leaseRange.data.start.year}Q${leaseRange.data.start.quarter} 至 ${leaseRange.data.end.year}Q${leaseRange.data.end.quarter} 按明确季度统计`:period.success?`，明确落入 ${period.data.year}Q${period.data.quarter}`:'，全部原期间'}，不同来源分开统计。`;
   }
   if(result.operation==='future_observation')return `${s.submarkets?.join('、')||'当前获权范围'}；当前明确未入市的未来供应记录${period.success?`，${period.data.year}Q${period.data.quarter}季度任务（${result.parameters.periodBasis==='configured'?'系统配置':'明确指定'}），当前保存的该季任务`:'，预计入市保留原时间精度'}。`;
   if(result.operation==='submission_progress'&&period.success)return `${s.submarkets?.join('、')||'当前获权范围'}，${period.data.year} 年第 ${period.data.quarter} 季度；${result.parameters.periodBasis==='configured'?'取系统配置的填报季度':'明确指定季度'}，当前存量目录与当前分配。`;
