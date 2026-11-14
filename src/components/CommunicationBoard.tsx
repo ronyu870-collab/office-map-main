@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { supabase } from '@/src/services/supabaseClient';
-import { logAction } from '@/src/utils/audit';
+import { CommunicationComposer } from '@/src/components/CommunicationComposer';
+import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
+import { normalizeMarketSegments, segmentText, type MarketSegment } from '@/src/lib/communication/segments';
 import { MaskedText } from '@/src/components/demo';
 
 type Message = {
@@ -12,6 +14,9 @@ type Message = {
   user_name: string;
   content: string;
   created_at: string;
+  rich_segments?: unknown;
+  reply_to_id?: number | null;
+  mention_everyone?: boolean;
 };
 
 interface CommunicationBoardProps {
@@ -57,9 +62,10 @@ function formatMessageTime(value: string) {
       });
 }
 
-export function CommunicationBoard({ userEmail, userName }: CommunicationBoardProps) {
+export function CommunicationBoard({ userEmail }: CommunicationBoardProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [replyToId, setReplyToId] = useState<number | null>(null);
+  const [unreadMentions, setUnreadMentions] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [sending, setSending] = useState(false);
@@ -70,6 +76,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   const dialogRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const draftSegmentsRef = useRef<MarketSegment[]>([]);
   const fullscreenRef = useRef(false);
   const historyEntryRef = useRef(false);
   const wasFullscreenRef = useRef(false);
@@ -130,8 +137,19 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     scheduleFrame(() => scrollToBottom('auto'));
   }, [scheduleFrame, scrollToBottom]);
 
+  const refreshMentions = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('message_notifications')
+      .select('message_id')
+      .is('read_at', null)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (!error && mountedRef.current) setUnreadMentions((data ?? []).length);
+  }, []);
+
   useEffect(() => {
     void loadMessages();
+    void refreshMentions();
 
     const channel = supabase
       .channel('public:messages')
@@ -145,6 +163,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
           return [...prev, incomingMessage].slice(-MAX_MESSAGES);
         });
 
+        void refreshMentions();
         scheduleFrame(() => {
           if (!fullscreenRef.current || isNearBottomRef.current) {
             scrollToBottom(fullscreenRef.current ? 'smooth' : 'auto');
@@ -158,7 +177,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadMessages, scheduleFrame, scrollToBottom]);
+  }, [loadMessages, refreshMentions, scheduleFrame, scrollToBottom]);
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
@@ -224,7 +243,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
 
       const focusable = Array.from(
         dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+          'button:not([disabled]), [contenteditable="true"], input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
         ),
       ).filter((element) => !element.hasAttribute('aria-hidden'));
 
@@ -258,34 +277,60 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
     if (nearBottom) setHasNewMessages(false);
   };
 
-  const handleSendMessage = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const msgContent = inputText.trim();
-    if (!msgContent || sendingRef.current) return;
-
+  const handleSendMessage = async (segments: MarketSegment[]): Promise<boolean> => {
+    const msgContent = segmentText(segments);
+    if (!msgContent.trim() || sendingRef.current) return false;
     sendingRef.current = true;
     setSending(true);
     setSendError(null);
 
     try {
-      const { error } = await supabase.from('messages').insert({
-        user_email: userEmail,
-        user_name: userName,
-        content: msgContent,
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('登录状态已失效，请重新登录');
+      const result = await fetch('/api/communication', {
+        method: 'POST',
+        headers: withImpersonationHeaders({
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        }),
+        cache: 'no-store',
+        body: JSON.stringify({ segments, replyToId }),
       });
-
-      if (error) throw error;
-
-      if (mountedRef.current) setInputText('');
-      logAction(userEmail, 'POST_MESSAGE', { content: msgContent.slice(0, 50) });
+      if (!result.ok) {
+        const body = await result.json().catch(() => ({}));
+        throw new Error(typeof body.error === 'string' ? body.error : '发送失败');
+      }
+      if (mountedRef.current) {
+        setReplyToId(null);
+        void refreshMentions();
+      }
+      return true;
     } catch (error) {
       console.error('发送留言失败:', error);
-      if (mountedRef.current) setSendError('发送失败，内容已保留，请重试。');
+      if (mountedRef.current) {
+        setSendError(error instanceof Error && error.message !== '发送失败'
+          ? `${error.message}，内容已保留。` : '发送失败，内容已保留，请重试。');
+      }
+      return false;
     } finally {
       sendingRef.current = false;
       if (mountedRef.current) setSending(false);
     }
   };
+
+  const markVisibleMentionsRead = useCallback(async () => {
+    const ids = messages.map(message => message.id);
+    if (!ids.length) return;
+    const { error } = await supabase
+      .from('message_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .in('message_id', ids);
+    if (!error) void refreshMentions();
+  }, [messages, refreshMentions]);
+
+  useEffect(() => {
+    if (fullscreen && unreadMentions > 0) void markVisibleMentionsRead();
+  }, [fullscreen, markVisibleMentionsRead, unreadMentions]);
 
   const visibleMessages = fullscreen ? messages : messages.slice(-4);
 
@@ -296,6 +341,12 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
           <h2 id={fullscreen ? 'communication-dialog-title' : undefined} className="truncate text-[13px] font-medium text-[var(--cd-color-text-primary)]">市场交流</h2>
           {fullscreen ? <div className="mt-0.5 text-[11px] text-[var(--cd-color-text-muted)]">最近 {MAX_MESSAGES} 条</div> : null}
         </div>
+        <div className="flex items-center gap-2">
+          {unreadMentions > 0 ? (
+            <span className="rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-brand-soft)] px-2 py-1 text-xs font-medium text-[var(--cd-color-brand)]" aria-live="polite">
+              {unreadMentions} 条提及
+            </span>
+          ) : null}
         <button
           ref={toggleButtonRef}
           onClick={fullscreen ? closeFullscreen : openFullscreen}
@@ -307,6 +358,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
           {fullscreen ? <Minimize2 size={13} strokeWidth={1.5} /> : <Maximize2 size={13} strokeWidth={1.5} />}
           <span>{fullscreen ? '退出' : '查看交流'}</span>
         </button>
+        </div>
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -332,13 +384,30 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
             <div className="px-4 py-8 text-center text-xs leading-5 text-[var(--cd-color-text-muted)]">暂无市场交流</div>
           ) : visibleMessages.map((msg) => {
             const isMe = msg.user_email === userEmail;
+            const segments = normalizeMarketSegments(msg.rich_segments);
+            const parent = msg.reply_to_id ? messages.find(item => item.id === msg.reply_to_id) : null;
             return (
               <div key={msg.id} className={`border-b border-[var(--cd-color-border)] px-3.5 py-3 last:border-b-0 ${fullscreen && isMe ? 'bg-[var(--cd-color-brand-soft)]/35' : 'bg-[var(--cd-color-surface)]'}`}>
                 <div className="flex min-w-0 items-baseline justify-between gap-3">
                   <span className="min-w-0 truncate text-xs font-medium text-[var(--cd-color-text-secondary)]"><MaskedText>{msg.user_name}</MaskedText></span>
                   <span className="shrink-0 text-xs tabular-nums text-[var(--cd-color-text-muted)]">{formatMessageTime(msg.created_at)}</span>
                 </div>
-                <p className="mt-1 break-words text-[13px] leading-5 text-[var(--cd-color-text-primary)] [overflow-wrap:anywhere]">{msg.content}</p>
+                
+                {parent ? <div className="mt-1 border-l-2 border-[var(--cd-color-border)] pl-2 text-xs text-[var(--cd-color-text-secondary)]">
+                  回复 {parent.user_name || '同事'}：{parent.content.slice(0, 55)}
+                </div> : msg.reply_to_id ? <div className="mt-1 text-xs text-[var(--cd-color-text-muted)]">回复较早消息</div> : null}
+                <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-5 text-[var(--cd-color-text-primary)] [overflow-wrap:anywhere]">
+                  {segments && segmentText(segments) === msg.content ? segments.map((part, index) => (
+                    <span key={index} className={`${part.bold ? 'font-bold' : ''} ${part.mentionUserId || part.everyone ? 'rounded-[3px] bg-[var(--cd-color-brand-soft)] px-0.5' : ''}`}
+                      style={part.color === 'blue' ? { color: '#003e7e' } : part.color === 'red' ? { color: '#c9362b' } : part.color === 'green' ? { color: '#16855b' } : part.mentionUserId || part.everyone ? { color: '#003e7e' } : undefined}>
+                      {part.text}
+                    </span>
+                  )) : msg.content}
+                </p>
+                <button type="button" onClick={() => setReplyToId(msg.id)}
+                  className="mt-1 inline-flex min-h-8 items-center rounded-[var(--cd-radius-sm)] px-1 text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25">
+                  回复
+                </button>
               </div>
             );
           })}
@@ -355,38 +424,21 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
         ) : null}
       </div>
 
-      {fullscreen ? (
-        <form
-          onSubmit={handleSendMessage}
-          className="flex flex-none shrink-0 flex-col gap-1.5 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
-        >
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(event) => {
-                setInputText(event.target.value);
-                if (sendError) setSendError(null);
-              }}
-              placeholder="分享市场动态…"
-              className="min-w-0 flex-1 rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface-alt)] px-3 py-2 text-[13px] text-[var(--cd-color-text-primary)] outline-none transition-[background-color,border-color,box-shadow] placeholder:text-[var(--cd-color-text-muted)] focus:border-[var(--cd-color-brand)] focus:bg-[var(--cd-color-surface)] focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/15 disabled:opacity-60"
-              autoComplete="off"
-              enterKeyHint="send"
-              disabled={sending}
-              aria-invalid={Boolean(sendError)}
-              aria-describedby={sendError ? 'communication-send-error' : undefined}
-            />
-            <button
-              type="submit"
-              disabled={sending || !inputText.trim()}
-              className="min-h-10 shrink-0 touch-manipulation rounded-[var(--cd-radius-md)] bg-[var(--cd-color-brand)] px-3.5 py-2 text-[13px] font-medium text-white transition-[background-color,opacity] hover:bg-[var(--cd-color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/30 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {sending ? '发送中…' : '发送'}
-            </button>
-          </div>
-          {sendError ? <p id="communication-send-error" role="alert" className="text-xs text-[var(--cd-color-danger)]">{sendError}</p> : null}
-        </form>
-      ) : null}
+      <div className={fullscreen
+        ? "shrink-0 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+        : "shrink-0 bg-[var(--cd-color-surface)] px-1"}>
+        <CommunicationComposer
+          onSend={handleSendMessage}
+          draftRef={draftSegmentsRef}
+          sending={sending}
+          sendError={sendError}
+          reply={replyToId === null ? null : (() => {
+            const message = messages.find(item => item.id === replyToId);
+            return message ? { id: message.id, name: message.user_name || '同事', content: message.content } : null;
+          })()}
+          onClearReply={() => setReplyToId(null)}
+        />
+      </div>
     </>
   );
 
@@ -405,7 +457,7 @@ export function CommunicationBoard({ userEmail, userName }: CommunicationBoardPr
   }
 
   return (
-    <section className="flex h-full flex-col overflow-hidden bg-[var(--cd-color-surface)]" aria-label="市场交流摘要">
+    <section className="relative flex h-full flex-col overflow-visible bg-[var(--cd-color-surface)]" aria-label="市场交流摘要">
       {boardContent}
     </section>
   );

@@ -1,0 +1,122 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { normalizeMarketSegments, segmentText } from '@/src/lib/communication/segments';
+import { isMentionableAuthUser, matchEnglishFirstName, normalizeMentionLookupTerm } from '@/src/lib/communication/mentionLookup';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+const response = (body: object, status = 200) => NextResponse.json(body, {
+  status, headers: { 'Cache-Control': 'private, no-store' },
+});
+
+function adminClient(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error('Server misconfiguration');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+}
+
+async function validContext(request: NextRequest) {
+  const client = adminClient();
+  const context = await resolveEffectiveRequestIdentity(request, client);
+  if ('response' in context) return context;
+  if (!['viewer', 'editor', 'admin'].includes(context.identity.effectiveRole)) {
+    return { response: response({ error: '账号没有市场交流权限' }, 403) };
+  }
+  return { client, identity: context.identity };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const context = await validContext(request);
+    if ('response' in context) return context.response;
+
+    // A missing, partial or malformed name must never return the directory.
+    // This endpoint resolves only an explicitly supplied complete first name.
+    const term = normalizeMentionLookupTerm(request.nextUrl.searchParams.get('name'));
+    if (!term) return response({ members: [] });
+    if (term === '所有人') {
+      return response({ members: context.identity.effectiveRole === 'admin'
+        ? [{ id: '__everyone__', name: '所有人' }] : [] });
+    }
+
+    const [{ data, error }, authResult] = await Promise.all([
+      context.client.from('user_roles')
+        .select('user_id,full_name')
+        .in('role', ['viewer', 'editor', 'admin'])
+        .ilike('full_name', `${term}%`)
+        .order('full_name')
+        .limit(100),
+      context.client.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    ]);
+    if (error || authResult.error) {
+      console.error('[communication] mention lookup unavailable', error?.code || authResult.error?.status);
+      return response({ error: '暂时无法匹配提及成员' }, 503);
+    }
+
+    // Keep the @ lookup in sync with the admin account-status control.
+    // Accounts under an active Auth ban (or soft-deleted) are never returned.
+    const now = Date.now();
+    const live = new Set(authResult.data.users
+      .filter(user => isMentionableAuthUser(user, now))
+      .map(user => user.id));
+
+    const members = (data ?? [])
+      .flatMap(row => {
+        const name = matchEnglishFirstName(row.full_name, term);
+        return name && live.has(row.user_id) ? [{ id: row.user_id, name }] : [];
+      })
+      .slice(0, 8);
+
+    // Return only exact matches, not roles, emails, Chinese names or a member count.
+    return response({ members });
+  } catch (error) {
+    console.error('[communication] mention lookup failed', error);
+    return response({ error: '暂时无法匹配提及成员' }, 503);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const context = await validContext(request);
+    if ('response' in context) return context.response;
+    const denied = denyImpersonatedMutation(context.identity);
+    if (denied) return denied;
+    const contentLength = Number(request.headers.get('content-length') || '0');
+    if (contentLength > 16 * 1024) return response({ error: '消息内容过长' }, 413);
+    const text = await request.text();
+    if (text.length > 16 * 1024) return response({ error: '消息内容过长' }, 413);
+    let body: { segments?: unknown; replyToId?: unknown };
+    try { body = JSON.parse(text) as typeof body; } catch { return response({ error: '消息格式无效' }, 400); }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return response({ error: '消息格式无效' }, 400);
+    const segments = normalizeMarketSegments(body.segments);
+    if (!segments?.length || !segmentText(segments).trim()) return response({ error: '请输入有效的消息内容（不超过2000字）' }, 400);
+    const replyToId = body.replyToId === null || body.replyToId === undefined ? null : body.replyToId;
+    if (replyToId !== null && (typeof replyToId !== 'number' || !Number.isSafeInteger(replyToId) || replyToId < 1)) {
+      return response({ error: '回复对象无效' }, 400);
+    }
+    if (segments.some(part => part.everyone) && context.identity.effectiveRole !== 'admin') {
+      return response({ error: '仅管理员可以@所有人' }, 403);
+    }
+    // This awaited RPC commits public.audit_logs together with the message and
+    // recipients; a separate best-effort log would weaken the atomic contract.
+    const { data, error } = await context.client.rpc('post_market_message', {
+      p_actor_user_id: context.identity.caller.id,
+      p_segments: segments,
+      p_reply_to_id: replyToId,
+    });
+    if (error) {
+      const inputError = error.code === '22023';
+      const forbidden = error.code === '42501';
+      console.warn('[communication] send rejected', error.code);
+      return response({ error: forbidden ? '账号无权发送该消息' : inputError ? error.message : '发送失败，请重试' },
+        forbidden ? 403 : inputError ? 400 : 503);
+    }
+    return response({ id: Number(data) }, 201);
+  } catch (error) {
+    console.error('[communication] send failed', error);
+    return response({ error: '发送失败，请重试' }, 503);
+  }
+}

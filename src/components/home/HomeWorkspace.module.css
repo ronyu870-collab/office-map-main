@@ -56,9 +56,11 @@
 .activityHeading { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--cd-color-border); }
 .activityGrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; }
 .activityGrid > :only-child { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
-.communication { min-width: 0; align-self: stretch; overflow: hidden; padding-left: 24px; border-left: 1px solid var(--cd-color-border); }
-.communication > section { height: auto; max-height: 248px; }
+.communication { min-width: 0; align-self: stretch; overflow: visible; padding-left: 24px; border-left: 1px solid var(--cd-color-border); }
+.communication > section { height: auto; max-height: none; }
+.communication > section > div:nth-child(2) { flex: 0 1 auto; min-height: 54px; max-height: 188px; }
 .communication > section > div:nth-child(2) > div { height: auto; max-height: 188px; }
+.communication > section > div:last-child { background: transparent; }
 /* Only the embedded summary is adapted; full-screen conversation stays unchanged. */
 .communication > section, .communication > section > div, .communication > section > div > div { background: transparent; }
 .communication > section > div:first-child { min-height: 36px; padding: 0; border-bottom: 0; }
