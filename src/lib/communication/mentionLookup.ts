@@ -14,3 +14,18 @@ export function matchEnglishFirstName(fullName: unknown, term: string): string |
   const firstName = normalized.split(' ')[0];
   return normalizeMentionLookupTerm(firstName) === term ? normalized : null;
 }
+
+/**
+ * Mirrors the admin user-management "disabled" status: a future Auth
+ * banned_until is disabled. Soft-deleted identities must not be suggested.
+ * Malformed non-null ban dates fail closed rather than exposing an account.
+ */
+export function isMentionableAuthUser(
+  user: { banned_until?: string | null; deleted_at?: string | null } | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!user || user.deleted_at) return false;
+  if (user.banned_until == null) return true;
+  const bannedUntil = Date.parse(user.banned_until);
+  return Number.isFinite(bannedUntil) && bannedUntil <= now;
+}
