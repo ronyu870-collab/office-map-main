@@ -84,6 +84,7 @@ type MapWorkbenchViewProps = {
   onCompareGroupsChange: (groups: CompareGroup[]) => void;
   onKeywordChange: (value: string) => void;
   onSearch: (value: string) => void | Promise<void>;
+  onSearchSubmit?: (value: string) => void;
   onRemoveFilterChip: (patch: Partial<SidebarFilterState>) => void;
   onResetFilters: () => void;
   onRenderModeChange: (mode: RenderMode) => void;
@@ -356,6 +357,7 @@ export function MapWorkbenchView({
   onCompareGroupsChange,
   onKeywordChange,
   onSearch,
+  onSearchSubmit,
   onRemoveFilterChip,
   onResetFilters,
   onRenderModeChange,
@@ -487,7 +489,7 @@ export function MapWorkbenchView({
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
             <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
-              <SearchBar searchContextKey={searchContextKey} inputLabel="搜索楼宇、子市场、业主或物业" placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
+              <SearchBar searchContextKey={searchContextKey} inputLabel="搜索楼宇、子市场、业主或物业" placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} onSubmit={onSearchSubmit} />
             </div>
             {showFilterSummary ? (
               <div className="mt-2 flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" role="group" aria-label="已生效筛选条件">

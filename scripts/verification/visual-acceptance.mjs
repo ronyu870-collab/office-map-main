@@ -65,6 +65,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Map district boundary dotted lines, PR #194',
         reason: 'User explicitly waived independent visual review and mobile testing for PR #194 on 2026-11-14; this record applies only to the district boundary dotted-line change',
       },
+      {
+        number: 195,
+        branch: 'codex/map-search-p0-20261114',
+        scope: 'Map search navigation and future-supply visibility P0, PR #195',
+        reason: 'User explicitly waived independent visual review and real-device acceptance for map search P0 fixes in PR #195 on 2026-11-14',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

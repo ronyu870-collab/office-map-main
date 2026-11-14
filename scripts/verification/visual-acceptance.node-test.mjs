@@ -152,3 +152,21 @@ test('PR #194 single-use waiver requires the matching district boundary scope an
   assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields.filter(line => !line.startsWith('reason:'))) }), /specifically authorized/);
   assert.match(check(record(...fields)), /specifically authorized/);
 });
+
+
+test('PR #195 search P0 waiver requires the exact PR, branch, head, scope and reason', () => {
+  const reason = 'User explicitly waived independent visual review and real-device acceptance for map search P0 fixes in PR #195 on 2026-11-14';
+  const scope = 'Map search navigation and future-supply visibility P0, PR #195';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = {
+    number: 195, body,
+    head: { sha: head, ref: 'codex/map-search-p0-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' },
+  };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 194 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
+});
