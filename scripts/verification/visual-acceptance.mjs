@@ -59,6 +59,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Audit log default Codex exclusion, PR #193',
         reason: 'User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #193',
       },
+      {
+        number: 194,
+        branch: 'codex/dotted-district-boundaries-20261114',
+        scope: 'Map district boundary dotted lines, PR #194',
+        reason: 'User explicitly waived independent visual review and mobile testing for PR #194 on 2026-11-14; this record applies only to the district boundary dotted-line change',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

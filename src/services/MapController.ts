@@ -1664,6 +1664,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             fillColor: "#003e7e",
             strokeColor: "#003e7e",
             strokeStyle: "dashed",
+            strokeDasharray: [1, 5],
           });
           this.districtPolygons.push(polygon);
           this.map.add(polygon);

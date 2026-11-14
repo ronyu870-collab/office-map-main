@@ -129,3 +129,26 @@ test('recognizes the default audit filter waiver only for its own PR and branch'
   assert.match(checkVisualAcceptance({ ...candidate, number: 192 }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/audit-exclude-codex' } }), /specifically authorized/);
 });
+
+test('PR #194 single-use waiver requires the matching district boundary scope and user authorization', () => {
+  const reason = 'User explicitly waived independent visual review and mobile testing for PR #194 on 2026-11-14; this record applies only to the district boundary dotted-line change';
+  const scope = 'Map district boundary dotted lines, PR #194';
+  const fields = ['result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason];
+  const candidate = {
+    number: 194,
+    body: record(...fields),
+    head: { sha: head, ref: 'codex/dotted-district-boundaries-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' },
+  };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 195 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 193 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'another/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(scope, 'Other map changes, PR #194') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(reason, 'Documentation only') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields.filter(line => !line.startsWith('reason:'))) }), /specifically authorized/);
+  assert.match(check(record(...fields)), /specifically authorized/);
+});
