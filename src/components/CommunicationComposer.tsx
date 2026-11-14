@@ -16,12 +16,13 @@ type Props = {
   onClearReply: () => void;
   sendError: string | null;
   draftRef: React.RefObject<MarketSegment[]>;
+  compact: boolean;
 };
 
 const COLOR_HEX: Record<MarketColor, string> = { blue: '#003e7e', red: '#c9362b', green: '#16855b' };
 type MentionPosition = { node: Text; start: number; end: number };
 
-export function CommunicationComposer({ onSend, sending, reply, onClearReply, sendError, draftRef }: Props) {
+export function CommunicationComposer({ onSend, sending, reply, onClearReply, sendError, draftRef, compact }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const mentionPositionRef = useRef<MentionPosition | null>(null);
   const composingRef = useRef(false);
@@ -92,6 +93,12 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
     draftRef.current = nextSegments;
     setLength(segmentText(nextSegments).length);
     if (composingRef.current) return;
+    // The homepage is deliberately plain text: only fullscreen offers @ lookup.
+    if (compact) {
+      mentionPositionRef.current = null;
+      setMentionQuery(null);
+      return;
+    }
     const selection = window.getSelection();
     const node = selection?.anchorNode;
     if (!node || node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) {
@@ -114,7 +121,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
     setLookup(null);
     setMentionQuery(match[1]);
     setActiveMention(0);
-  }, [draftRef]);
+  }, [compact, draftRef]);
 
   const lookupTerm = normalizeMentionLookupTerm(mentionQuery);
   const candidates = lookup && lookupTerm === lookup.term ? lookup.members : [];
@@ -203,7 +210,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
   }, [reply]);
 
   return (
-    <div className={styles.composer}>
+    <div className={`${styles.composer} ${compact ? styles.composerCompact : ''}`}>
       {reply && (
         <div className={styles.reply}>
           <span className="min-w-0 truncate">回复 <strong>{reply.name}</strong>：{reply.content.slice(0, 60)}</span>
@@ -221,7 +228,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
           suppressContentEditableWarning
           spellCheck
           className={styles.editor}
-          data-placeholder="分享市场动态，输入 @Alice 提及同事…"
+          data-placeholder="输入消息…"
           data-empty={length === 0 ? 'true' : 'false'}
           onInput={refreshInput}
           onCompositionStart={() => { composingRef.current = true; setMentionQuery(null); }}
@@ -246,7 +253,8 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
               event.preventDefault(); void submit(); return;
             }
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
-              event.preventDefault(); applyFormat('bold');
+              event.preventDefault();
+              if (!compact) applyFormat('bold');
             }
           }}
         />
@@ -264,7 +272,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
         )}
       </div>
       <div className={styles.toolbar}>
-        <div className={styles.actions}>
+        {!compact && <div className={styles.actions}>
           <button type="button" className={styles.iconButton} title="加粗（选中文本或 Ctrl+B）" aria-label="加粗"
             onMouseDown={event => event.preventDefault()} onClick={() => applyFormat('bold')} disabled={sending}>
             <Bold size={16} />
@@ -281,7 +289,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
             onMouseDown={event => event.preventDefault()} onClick={() => insertText('@')} disabled={sending}>
             <AtSign size={16} />
           </button>
-        </div>
+        </div>}
         <div className={styles.footer}>
           {length > 1800 && <span aria-live="polite" className={styles.counter}>{length}/2000</span>}
           <button type="button" aria-label="发送市场交流消息" onClick={() => void submit()}
@@ -291,7 +299,6 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
         </div>
       </div>
       {sendError && <p role="alert" className={styles.error}>{sendError}</p>}
-      <div className={styles.hint}>Enter 换行 · Ctrl/Cmd+Enter 发送</div>
     </div>
   );
 }

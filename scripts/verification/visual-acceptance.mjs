@@ -30,17 +30,31 @@ export function checkVisualAcceptance(pr) {
     return 'Record the full SHA of the current PR head and confirm the conclusion for that revision.';
   }
 
-  // One-time, explicitly user-authorized release waiver for PR #190 only.
-  // This is NOT a visual pass or a "not applicable" determination, and it
-  // cannot be reused by another PR, branch, or repository.
+  // PR-specific, explicitly user-authorized acceptance waivers. A waiver
+  // never claims that independent visual review or physical-device testing passed.
+  // Allow only this repository, main target, exact head SHA and declared scope.
   if (result === 'waived') {
-    const approved = pr?.number === 190
-      && pr?.head?.ref === 'codex/market-communication-p0-20261113'
-      && pr?.base?.ref === 'main'
+    const authorizedWaivers = [
+      {
+        number: 190,
+        branch: 'codex/market-communication-p0-20261113',
+        scope: 'Homepage market communication P0, PR #190',
+        reason: 'User explicitly waived independent visual review and real-device acceptance for PR #190 on 2026-11-14',
+      },
+      {
+        number: 191,
+        branch: 'codex/communication-compact-home-20261114',
+        scope: 'Homepage communication compact composer, PR #191',
+        reason: 'User explicitly authorized reusing PR #190 visual and real-device acceptance waiver for PR #191 on 2026-11-14',
+      },
+    ];
+    const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'
-      && record.get('scope') === 'Homepage market communication P0, PR #190'
-      && record.get('reason') === 'User explicitly waived independent visual review and real-device acceptance for PR #190 on 2026-11-14';
-    return approved ? null : 'Visual waiver applies only to the specifically authorized PR #190 and must disclose the reason.';
+      && authorizedWaivers.some(waiver => pr?.number === waiver.number
+        && pr?.head?.ref === waiver.branch
+        && record.get('scope') === waiver.scope
+        && record.get('reason') === waiver.reason);
+    return approved ? null : 'Visual waiver applies only to specifically authorized PRs #190 and #191 and must disclose the exact reason.';
   }
   if (result === 'not-applicable') {
     return record.get('reason') ? null : 'Explain why no user-visible interface or state is affected.';
@@ -67,7 +81,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exitCode = 1;
   } else {
     if (event.pull_request?.body?.includes('result: waived')) {
-      console.log('One-time PR #190 release waiver is documented. Visual/real-device acceptance was NOT performed or passed.');
+      console.log('A precisely scoped, user-authorized single-PR acceptance waiver is documented. Visual/real-device acceptance was NOT performed or passed.');
     } else {
       console.log('Visual acceptance record is complete for this revision. A reviewer must verify its scope and evidence.');
     }
