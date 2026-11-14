@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { readBuildingPopupContext } from '@/src/services/map/buildingPopup';
+import { hasMapCompareReturn, MAP_COMPARE_LEAVE_EVENT, MAP_COMPARE_RETURN_PARAM } from './model/mapCompareReturn';
 
 const BUILDING_COMPARE_ID = 'building-compare';
 const REQUEST_EVENT = 'map-building-compare-request';
@@ -39,6 +40,11 @@ export function MapBuildingCompareBridge() {
 
       const params = new URLSearchParams({ buildingId: detail.buildingId });
       if (detail.buildingName) params.set('name', detail.buildingName);
+      const token = globalThis.crypto?.randomUUID?.();
+      if (token) {
+        window.dispatchEvent(new CustomEvent(MAP_COMPARE_LEAVE_EVENT, { detail: { token, buildingId: detail.buildingId } }));
+        if (hasMapCompareReturn(token)) params.set(MAP_COMPARE_RETURN_PARAM, token);
+      }
       navigatingRef.current = true;
       router.push(`/compare?${params.toString()}`);
       window.setTimeout(() => { navigatingRef.current = false; }, 1000);

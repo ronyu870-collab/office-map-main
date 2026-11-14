@@ -2,6 +2,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NoticeManager } from '../NoticeManager';
+import { noticeDraftKey } from '../admin/noticeDraftStorage';
 
 const api = vi.hoisted(() => ({ getActiveNoticeSummaries: vi.fn(), publishNotice: vi.fn(), deactivateNotice: vi.fn() }));
 vi.mock('@/src/services/apiClient', async (original) => ({
@@ -14,13 +15,29 @@ vi.mock('@/src/components/demo', () => ({ MaskedText: ({ children }: { children:
 const published = { id: 'notice-1', content: '已发布公告', updated_by: 'admin@example.test', updated_at: '2026-10-15T00:00:00Z' };
 const summary = { id: published.id, contentPreview: published.content, hasMore: false, updated_by: published.updated_by, updated_at: published.updated_at };
 
-beforeEach(() => { vi.clearAllMocks(); api.getActiveNoticeSummaries.mockResolvedValue([]); api.publishNotice.mockResolvedValue(published); api.deactivateNotice.mockResolvedValue(undefined); vi.spyOn(window, 'confirm').mockReturnValue(true); });
+beforeEach(() => { sessionStorage.clear(); vi.clearAllMocks(); api.getActiveNoticeSummaries.mockResolvedValue([]); api.publishNotice.mockResolvedValue(published); api.deactivateNotice.mockResolvedValue(undefined); vi.spyOn(window, 'confirm').mockReturnValue(true); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-async function open() { await act(async () => { render(<NoticeManager adminEmail="admin@example.test" />); }); }
+async function open(draftStorageKey?: string) { await act(async () => { render(<NoticeManager adminEmail="admin@example.test" draftStorageKey={draftStorageKey} />); }); }
 function drafts() { return screen.getAllByRole('textbox') as HTMLTextAreaElement[]; }
 function fill(values: string[]) { values.forEach((value, index) => fireEvent.change(drafts()[index], { target: { value } })); }
 
 describe('notice draft preservation', () => {
+  it('recovers only the original account and login session, excluding the published draft', async () => {
+    const scope = noticeDraftKey('first-admin', 'first-login');
+    await open(scope);
+    fill(['待发布甲', '留在草稿乙', '']);
+    api.getActiveNoticeSummaries.mockResolvedValue([summary]);
+    await act(async () => { fireEvent.click(screen.getAllByText('发布公告')[0]); });
+    cleanup();
+    for (const otherScope of [noticeDraftKey('first-admin', 'new-login'), noticeDraftKey('second-admin', 'first-login')]) {
+      await open(otherScope);
+      expect(drafts().map(input => input.value)).toEqual(['', '']);
+      cleanup();
+    }
+    await open(scope);
+    expect(drafts().map(input => input.value)).toEqual(['留在草稿乙', '']);
+  });
+
   it.each([0, 1, 2])('publishing slot %i keeps every other draft visible', async (slot) => {
     await open();
     fill(['草稿甲', '草稿乙', '草稿丙']);

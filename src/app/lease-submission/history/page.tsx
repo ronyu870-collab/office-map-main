@@ -50,6 +50,9 @@ type LeaseReadRecord = {
   quality_status: string | null;
 };
 
+const touchHeight = 'max-sm:min-h-11 pointer-coarse:min-h-11';
+const touchTarget = `${touchHeight} max-sm:min-w-11 pointer-coarse:min-w-11`;
+
 type LeaseReadScope = {
   canReadHistory: boolean;
   effectiveRole: string;
@@ -488,7 +491,7 @@ export default function LeaseHistoryPage() {
                       key={label}
                       type="button"
                       onClick={() => updateFilter('source', value)}
-                      className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${
+                      className={`h-7 rounded-[5px] px-3 text-[11px] font-medium transition-colors ${touchTarget} ${
                         filters.source === value
                           ? 'bg-white text-[var(--cd-color-text-primary)] shadow-[var(--cd-shadow-sm)]'
                           : 'text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text-primary)]'
@@ -504,11 +507,11 @@ export default function LeaseHistoryPage() {
                 </div>
               ) : null}
 
-              <Button type="button" variant="ghost" size="sm" onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}>
+              <Button type="button" variant="ghost" size="sm" className={touchTarget} onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}>
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                 筛选
               </Button>
-              <Button type="submit" size="sm" disabled={loading} className="min-w-[68px]">
+              <Button type="submit" size="sm" disabled={loading} className={`min-w-[68px] ${touchHeight}`}>
                 {loading ? '查询中' : '查询'}
               </Button>
             </div>
@@ -616,9 +619,13 @@ export default function LeaseHistoryPage() {
               <Button className="mt-4" size="sm" variant="secondary" onClick={clearFilters}>恢复默认条件</Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[920px] border-collapse text-[12px]">
-                <thead className="bg-[var(--cd-color-surface-alt)] text-[10px] text-[var(--cd-color-text-muted)]">
+            <div className="min-w-0">
+              <table className="block w-full border-collapse text-[12px] md:table md:table-fixed">
+                <colgroup className="hidden md:table-column-group">
+                  <col className="w-[14%]" /><col className="w-[23%]" /><col className="w-[23%]" />
+                  <col className="w-[14%]" /><col className="w-[11%]" /><col className="w-[15%]" />
+                </colgroup>
+                <thead className="hidden bg-[var(--cd-color-surface-alt)] text-[12px] text-[var(--cd-color-text-muted)] md:table-header-group">
                   <tr>
                     {['成交时间', '公司', '楼宇 / 商圈', '行业', '面积', '租金'].map((label, index) => (
                       <th
@@ -630,7 +637,7 @@ export default function LeaseHistoryPage() {
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="block md:table-row-group">
                   {records.map((row) => (
                     <tr
                       key={row.read_id}
@@ -643,30 +650,30 @@ export default function LeaseHistoryPage() {
                           setSelectedRecord(row);
                         }
                       }}
-                      className="cursor-pointer border-b border-[var(--cd-color-border)]/60 outline-none transition-colors last:border-b-0 hover:bg-[#f8fafc] focus-visible:bg-[var(--cd-color-brand-soft)]"
+                      className="grid cursor-pointer grid-cols-2 gap-x-3 gap-y-1 border-b border-[var(--cd-color-border)]/60 px-3.5 py-3 outline-none transition-colors last:border-b-0 hover:bg-[#f8fafc] focus-visible:bg-[var(--cd-color-brand-soft)] md:table-row"
                     >
-                      <td className="w-[116px] whitespace-nowrap px-3.5 py-3 align-top">
+                      <td className="order-2 min-w-0 text-right align-top md:px-3.5 md:py-3 md:text-left">
                         <div className="font-medium tabular-nums text-[var(--cd-color-text-primary)]">{periodLabel(row)}</div>
                         <div className="mt-0.5 text-[10px] text-[var(--cd-color-text-muted)]">{sourceLabel(row.record_source)}</div>
                       </td>
-                      <td className="max-w-[260px] px-3.5 py-3 align-top">
-                        <div className="truncate font-medium text-[var(--cd-color-text-primary)]">{row.company || '—'}</div>
+                      <td className="order-1 min-w-0 align-top md:px-3.5 md:py-3">
+                        <div className="[overflow-wrap:anywhere] font-semibold text-[var(--cd-color-text-primary)]">{row.company || '—'}</div>
                         {row.demand_type ? <div className="mt-0.5 truncate text-[10px] text-[var(--cd-color-text-muted)]">{row.demand_type}</div> : null}
                       </td>
-                      <td className="max-w-[300px] px-3.5 py-3 align-top">
-                        <div className="truncate text-[var(--cd-color-text-primary)]">{row.new_building || '—'}</div>
+                      <td className="order-3 col-span-2 min-w-0 align-top md:px-3.5 md:py-3">
+                        <div className="[overflow-wrap:anywhere] text-[var(--cd-color-text-primary)]">{row.new_building || '—'}</div>
                         <BuildingMeta row={row} />
                       </td>
-                      <td className="max-w-[220px] px-3.5 py-3 align-top">
-                        <div className="truncate text-[var(--cd-color-text-secondary)]">{row.industry || '—'}</div>
+                      <td className="order-6 col-span-2 min-w-0 align-top md:px-3.5 md:py-3">
+                        <div className="[overflow-wrap:anywhere] text-[var(--cd-color-text-secondary)]">{row.industry || '—'}</div>
                         {row.sub_industry ? <div className="mt-0.5 truncate text-[10px] text-[var(--cd-color-text-muted)]">{row.sub_industry}</div> : null}
                       </td>
-                      <td className="w-[120px] whitespace-nowrap px-3.5 py-3 text-right align-top tabular-nums">
+                      <td className="order-4 min-w-0 align-top tabular-nums md:px-3.5 md:py-3 md:text-right">
                         <span className="font-medium text-[var(--cd-color-text-primary)]">{fmtNumber(row.area_sqm, 0)}</span>
                         <span className="ml-1 text-[10px] text-[var(--cd-color-text-muted)]">㎡</span>
                       </td>
-                      <td className="w-[130px] whitespace-nowrap px-3.5 py-3 text-right align-top tabular-nums">
-                        <div className="font-medium text-[var(--cd-color-text-primary)]">{formatLeaseRent(row.face_rent)}</div>
+                      <td className="order-5 min-w-0 [overflow-wrap:anywhere] text-right align-top tabular-nums md:px-3.5 md:py-3">
+                        <div className="font-medium text-[var(--cd-color-text-primary)]"><span className="font-normal text-[var(--cd-color-text-secondary)] md:hidden">租金 </span>{formatLeaseRent(row.face_rent)}</div>
                         {row.effective_rent != null ? <div className="mt-0.5 text-[10px] text-[var(--cd-color-text-muted)]">有效 {formatLeaseRent(row.effective_rent)}</div> : null}
                       </td>
                     </tr>

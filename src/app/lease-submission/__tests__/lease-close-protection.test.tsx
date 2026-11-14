@@ -40,6 +40,41 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('lease close protection', () => {
+  it('prevents all draft fields from accepting input before a delayed cloud restore', async () => {
+    let finish!: (value: null) => void;
+    state.restore.mockReturnValueOnce(new Promise<null>(resolve => { finish = resolve; }));
+    openForm();
+    const input = screen.getByLabelText(/疑似企业全称/);
+    const user = userEvent.setup();
+    await user.click(input);
+    await user.keyboard('will not be lost');
+    expect(input).toBeDisabled();
+    expect(input).toHaveValue('');
+    expect(screen.getByText('正在读取云端草稿…', { selector: 'p' })).toBeVisible();
+    expect(state.restore).toHaveBeenCalledTimes(1);
+    await act(async () => finish(null));
+    expect(screen.getByLabelText(/疑似企业全称/)).toBe(input);
+    await user.click(input);
+    await user.keyboard('kept');
+    expect(input).toHaveValue('kept');
+    expect(input).toHaveFocus();
+  });
+
+  it('shows cloud draft read failure and lets the user continue typing', async () => {
+    state.restore.mockRejectedValueOnce(new Error('offline fixture'));
+    state.restore.mockRejectedValueOnce(new Error('still offline'));
+    openForm();
+    await ready();
+    expect(screen.getByText(/草稿读取失败/)).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: '重新读取草稿' }));
+    await ready();
+    expect(state.restore).toHaveBeenCalledTimes(2);
+    const input = screen.getByLabelText(/疑似企业全称/);
+    await userEvent.type(input, 'keep writing');
+    expect(input).toHaveValue('keep writing');
+    expect(screen.queryByRole('button', { name: '重新读取草稿' })).not.toBeInTheDocument();
+  });
+
   it('keeps the enterprise type search focused through empty and corrected results', async () => {
     openForm(); await ready();
     const input = screen.getByRole('combobox', { name: /企业类型/ }) as HTMLInputElement;

@@ -20,14 +20,21 @@ const notes = Array.from({ length: 120 }, (_, i) => ({
 }));
 const firstTitle = notes[0].title;
 const results = [];
+const requestedWidth = Number(process.argv.find(arg => arg.startsWith('--width='))?.split('=')[1]);
 try {
   const scenarios = [{ width: 1280, missingPreview: false }, { width: 390, missingPreview: false }];
   if (!baseline) scenarios.push({ width: 390, missingPreview: true });
   for (const { width, missingPreview } of scenarios) {
+    if (requestedWidth && (width !== requestedWidth || missingPreview)) continue;
     const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width === 390, hasTouch: width === 390, serviceWorkers: 'block' });
     let releaseTags;
+    let releaseDetail;
     const heldTags = new Promise(resolve => { releaseTags = resolve; });
+    const heldDetail = new Promise(resolve => { releaseDetail = resolve; });
     try {
+      let savedMemo = notes[0];
+      let rejectWrite = true;
+      const retryDetail = !baseline && !missingPreview;
       const calls = { tags: 0, list: 0, detail: 0, missingPreviewReads: 0, listBytes: 0, writes: 0 };
       await context.routeWebSocket(/.*/, ws => ws.close());
       await context.route('**/*', async route => {
@@ -35,7 +42,7 @@ try {
         const url = new URL(request.url());
         if (url.origin === base.origin) return url.pathname.startsWith('/api/') ? route.fulfill({ status: 204 }) : route.continue();
         if (url.origin !== 'https://example.supabase.co') return route.abort();
-        const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, HEAD, OPTIONS', 'access-control-allow-headers': '*' };
+        const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, PATCH, HEAD, OPTIONS', 'access-control-allow-headers': '*' };
         if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
         if (url.pathname === '/auth/v1/user') return route.fulfill({ headers, json: user });
         if (url.pathname === '/rest/v1/user_roles') return route.fulfill({ headers, json: [{ role: 'admin', user_id: user.id, session_id: user.id, full_name: '合成用户' }] });
@@ -45,11 +52,23 @@ try {
           return route.fulfill({ headers, json: [{ tag: '合成标签' }] });
         }
         if (url.pathname === '/rest/v1/memos') {
-          if (request.method() !== 'GET') calls.writes++;
+          if (request.method() === 'PATCH') {
+            calls.writes++;
+            if (rejectWrite) return route.fulfill({ status: 400, headers, json: { message: '隔离保存失败' } });
+            savedMemo = { ...savedMemo, ...request.postDataJSON() };
+            return route.fulfill({ headers, json: savedMemo });
+          }
           const id = url.searchParams.get('id');
           if (id) {
             calls.detail++;
-            return route.fulfill({ headers, json: notes.find(note => id === `eq.${note.id}`) });
+            if (retryDetail && calls.detail === 1) return route.fulfill({ status: 502, headers, json: { message: '隔离正文读取失败' } });
+            if (retryDetail && calls.detail === 2) {
+              assert.equal(id, `eq.${savedMemo.id}`, 'retry must fetch the selected memo');
+              await heldDetail;
+            }
+            const row = id === `eq.${savedMemo.id}` ? savedMemo : notes.find(note => id === `eq.${note.id}`);
+            const expectsObject = request.headers().accept?.includes('vnd.pgrst.object');
+            return route.fulfill({ headers, json: expectsObject ? row : row ? [row] : [] });
           }
           const term = url.searchParams.get('title')?.replace(/^ilike\.%|%$/g, '').toLowerCase();
           const columns = url.searchParams.get('select').split(',');
@@ -102,8 +121,27 @@ try {
       assert.equal(calls.detail, 0);
       if (!baseline) assert.equal(calls.tags, 1, 'title searches do not reread all tags');
       await title.click();
+      if (retryDetail) {
+        const error = page.getByRole('alert').filter({ hasText: '备忘录正文读取失败' });
+        const oldState = page.getByText('无法打开备忘录', { exact: true });
+        assert.equal(await Promise.race([
+          error.waitFor().then(() => 'inline retry'),
+          oldState.waitFor().then(() => 'generic empty state'),
+        ]), 'inline retry', 'a failed detail read must offer a retry in the same memo');
+        const retry = error.getByRole('button', { name: '重试读取正文', exact: true });
+        if (process.env.PERF_MEMO_SCREENSHOT_DIR) {
+          await page.screenshot({ path: `${process.env.PERF_MEMO_SCREENSHOT_DIR}/memo-detail-retry-${width}.png` });
+        }
+        const listReads = calls.list;
+        await (width === 390 ? retry.tap() : retry.click());
+        await page.getByText('正在加载备忘录', { exact: true }).waitFor();
+        assert.equal(await retry.count(), 0, 'the pending request cannot be retried twice');
+        releaseDetail();
+        await page.getByText('正文末尾可见', { exact: true }).waitFor();
+        assert.equal(calls.list, listReads, 'retry does not refetch the list');
+      }
       await page.getByText('正文末尾可见', { exact: true }).waitFor();
-      assert.equal(calls.detail, 1);
+      assert.equal(calls.detail, retryDetail ? 2 : 1);
       if (width === 390) {
         const body = page.getByText('正文末尾可见', { exact: true });
         const heading = page.getByRole('heading', { name: firstTitle, exact: true });
@@ -127,10 +165,33 @@ try {
         assert.equal(await editor.inputValue(), notes[0].content);
       }
       assert.equal(calls.writes, 0);
+      if (!baseline && !missingPreview) {
+        const editor = page.getByPlaceholder('在此输入 Markdown 内容...');
+        const revised = '尚未保存的隔离修改';
+        const openNav = page.getByRole('button', { name: '打开管理导航' });
+        const closeNav = page.getByRole('button', { name: '关闭管理导航', exact: true });
+        const switchSection = async () => {
+          if (width === 390) await openNav.click();
+          await page.getByRole('button', { name: '用户管理', exact: true }).filter({ visible: true }).click();
+        };
+        await editor.fill(revised);
+        await switchSection();
+        const failure = page.getByRole('alert').filter({ hasText: '保存失败，当前输入仍保留' });
+        assert.equal(await Promise.race([
+          failure.waitFor().then(() => 'retained'),
+          page.waitForURL('**/admin?section=users').then(() => 'navigated'),
+        ]), 'retained', 'the memo must stay open after a rejected autosave');
+        if (width === 390) await closeNav.click();
+        assert.equal(await editor.inputValue(), revised);
+        rejectWrite = false;
+        await switchSection();
+        await page.waitForURL('**/admin?section=users');
+        assert.equal(savedMemo.content, revised, 'navigation waits for the updated memo to be written');
+      }
       assert.equal(calls.missingPreviewReads, missingPreview ? calls.list : 0);
       if (!baseline && !missingPreview) assert.ok(calls.listBytes < 100_000, 'memo list should carry previews rather than full bodies');
-      results.push({ width, missingPreview, listBeforeTags: beforeTags, ...calls });
-    } finally { releaseTags(); await context.close(); }
+      results.push({ width, missingPreview, listBeforeTags: beforeTags, detailRetry: retryDetail, ...calls });
+    } finally { releaseTags(); releaseDetail(); await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', baseline, browser: browser.version(), results }, null, 2));
 } finally { await browser.close(); }

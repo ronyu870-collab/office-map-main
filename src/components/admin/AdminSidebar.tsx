@@ -117,6 +117,10 @@ function SidebarContents({ active, onChange, onMobileClose }: AdminSidebarProps)
 
   const { requestNavigation } = useAdminEditProtection();
   const select = (section: AdminSection) => {
+    if (section === active && pathname === (section === 'display-overrides' ? '/admin/display-overrides' : '/admin')) {
+      onMobileClose?.();
+      return;
+    }
     void requestNavigation(() => {
     if (section === 'display-overrides') {
       router.push('/admin/display-overrides');
