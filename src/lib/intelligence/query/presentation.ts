@@ -1,3 +1,6 @@
+import {formatExact} from './format';
+export {formatExact} from './format';
+import {futureAnswerSchema} from './future/answer';
 import { futureAnalysisSchema } from './future/view';
 import { submissionAnalysisSchema } from './submissions/view';
 import { z } from 'zod';
@@ -24,6 +27,7 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
 }).superRefine((result, ctx) => {
+  if(result.operation==='future_observation' && Object.hasOwn(result.parameters,'answer') && !futureAnswerSchema.safeParse(result.parameters.answer).success) ctx.addIssue({code:'custom',message:'Invalid archived future answer'});
   const sources = new Set(result.sources.map(source => source.id));
   for (const row of result.table.rows) for (const column of result.table.columns) {
     const cell = row.cells[column.key];
@@ -32,18 +36,9 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
+export const units: Record<string, string> = { text: '文本', m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
-/** Display rounding only; never calculates using the approximate chart projection. */
-export function formatExact(value: z.infer<typeof number>, unit: string | null): string {
-  const numerator = BigInt(value.exact.numerator) * BigInt(unit === 'ratio' ? 100 : 1);
-  const denominator = BigInt(value.exact.denominator);
-  const negative = numerator < BigInt(0), absolute = negative ? -numerator : numerator;
-  const rounded = (absolute * BigInt(100) * BigInt(2) + denominator) / (denominator * BigInt(2));
-  const whole = rounded / BigInt(100), fraction = (rounded % BigInt(100)).toString().padStart(2, '0').replace(/0+$/, '');
-  return `${negative && rounded !== BigInt(0) ? '-' : ''}${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? '.' + fraction : ''}`;
-}
 export function cellText(cell: DisplayCell, unit: string | null): string {
   if (cell.kind === 'unknown' && cell.reason === 'no_valid_sample') return '未知：无有效样本';
   if (cell.kind === 'unknown' && cell.reason === 'no_common_valid_sample') return '未知：无共同有效样本';
@@ -62,6 +57,7 @@ export function resultSummary(result: QueryResultView): string[] {
   const a = analysis.success ? analysis.data : {};
   const coverage = coverageText(a.coverage), rows = result.table.rows;
   if(result.operation==='future_observation'){
+    if(Object.hasOwn(result.parameters,'answer'))return futureAnswerSchema.parse(result.parameters.answer).paragraphs;
     const a=futureAnalysisSchema.parse(result.analysis),c=a.catalog,p=a.progress;
     return [`当前获权且明确未入市的未来供应记录 ${c.records} 条；其中待核实 ${c.pending} 条、分类未知 ${c.statusUnknown} 条，未关联楼宇 ${c.unlinkedIdentities} 条。记录数不等于已确认的不同楼宇数。`,
       `预计季度明确 ${c.knownLaunchQuarter} 条，仅明确半年 ${c.launchHalfYear} 条、年份 ${c.launchYearOnly} 条；年份未知 ${c.launchUnknown} 条、时间无效 ${c.launchInvalid} 条。`,

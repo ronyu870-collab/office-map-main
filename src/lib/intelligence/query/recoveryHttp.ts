@@ -1,3 +1,4 @@
+import {loadEntryAuthority} from './entryAuthority';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
@@ -6,7 +7,7 @@ import { createRpcAuditPort } from './auditStore';
 import { queryHttpDependencies } from './http';
 import { readQueryBody } from './httpBody';
 import { readOwnResult, recoverOwnResult } from './recovery';
-import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
+import { verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 import { isQuerySameOrigin } from './sameOrigin';
 import { prepareDelivery } from './deliveryToken';
 import { artifactInputSchema, buildResultArtifact, type ArtifactInput } from './artifacts';
@@ -46,7 +47,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     if(!dependencies.enabled || impersonationDenied || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')??'')
       || !isQuerySameOrigin(request))throw new Error('QUERY_DENIED');
     const signal=AbortSignal.any([request.signal,AbortSignal.timeout(30000)]),verified=identity;
-    const authority=await loadDataAuthority(client,verified,signal);
+    const authority=await loadEntryAuthority(client,verified,signal);
     if(input.action==='export'&&!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
     await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action});
     const record=await readOwnResult(client,verified,input.requestId,input.action!=='status'?'archive':'status',signal);

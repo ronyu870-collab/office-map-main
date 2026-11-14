@@ -1,3 +1,4 @@
+import {seedFutureQueryPreview} from './ai-future-query-preview.mjs';
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
 // No browser automation, mocked authentication, production URL, or model calls.
 import assert from 'node:assert/strict';
@@ -34,7 +35,7 @@ assert.equal(apiUrl.hostname,'127.0.0.1');assert.equal(apiUrl.port,'55991');
 assert.equal(dbUrl.hostname,'127.0.0.1');assert.equal(dbUrl.port,'55992');
 const root=process.cwd(),output=path.join(root,'verification/ai-query-auth'),app='http://127.0.0.1:3289';
 const previewFile=process.env.AI_QUERY_AUTH_PREVIEW_FILE;
-if(previewFile)assert.match(previewFile,/^\/private\/tmp\/colliers-query-preview-[a-z0-9-]+\.json$/);
+if(previewFile)assert.match(previewFile,/^\/(?:private\/)?tmp\/colliers-query-preview-[a-z0-9-]+\.json$/);
 await mkdir(output,{recursive:true});
 const db=new pg.Client({connectionString:settings.DB_URL});await db.connect();
 const blocker=new pg.Client({connectionString:settings.DB_URL});await blocker.connect();
@@ -154,7 +155,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(queryAdmin,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/9');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/10');
     }
     const compared=await call(queryAdmin,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -570,7 +571,7 @@ try{
   await verifyDistribution({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
   await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey,call,recover,artifact,acknowledge,events,decrypt,capabilities});
-  await verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey});
+  await verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey,recover,artifact,acknowledge,capabilities});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
@@ -599,9 +600,13 @@ try{
     await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
     await db.query("insert into private.ai_audit_export_grants(user_id,enabled,valid_until,grant_reference) values($1,true,now()+interval '1 day','synthetic browser export')",[preview.id]);
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
+    await seedFutureQueryPreview(db,preview.id);
     await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
     console.log('LOCAL_SYNTHETIC_PREVIEW_READY');
-    await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
+    if(process.env.AI_QUERY_AUTH_BROWSER_VERIFY==='true'){
+      const verification=spawn(process.execPath,['scripts/verification/verify-future-query-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
+      const [code]=await once(verification,'exit');assert.equal(code,0,'Real homepage browser verification failed');
+    }else await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
 }finally{
   if(server&&server.exitCode===null){const stopped=once(server,'exit');server.kill('SIGTERM');await stopped;}

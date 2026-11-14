@@ -380,6 +380,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Install Chromium for real homepage regression
+        run: npx playwright install --with-deps chromium
       - uses: supabase/setup-cli@v1
         with:
           version: 2.95.4
@@ -392,7 +394,7 @@ jobs:
           supabase status --workdir "$RUNNER_TEMP/ai-query-auth-integration" -o json > "$RUNNER_TEMP/ai-query-auth-status.json"
           chmod 600 "$RUNNER_TEMP/ai-query-auth-status.json"
       - name: Verify real login, HTTP audit, query and revocation
-        run: AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+        run: AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_BROWSER_VERIFY=true AI_QUERY_AUTH_PREVIEW_FILE=/tmp/colliers-query-preview-future.json AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
@@ -401,7 +403,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai-query-real-auth
-          path: verification/ai-query-auth/results.json
+          path: |
+            verification/ai-query-auth/results.json
+            docs/verification/future-query/
           if-no-files-found: ignore
           retention-days: 7
 

@@ -1,3 +1,4 @@
+import {buildFutureAnswer} from './answer';
 import {createHash,randomUUID} from 'node:crypto';
 import type {SourceRef} from '../contracts';
 import type {QueryResult,ResultCell,ResultTable} from '../result';
@@ -66,8 +67,9 @@ export function buildFutureResult(raw:unknown,input:FutureSelection,authority:Fu
   const snapshot=normalizeFutureRead(raw,read,authority,requestId),observed=analyzeFutureSnapshot(snapshot),analysis=futureAnalysisSchema.parse(observed);
   const scope={inventory:'future',inventoryTime:'current_not_entered_future_records',assignmentsTime:'selected_quarter_current_records',
     ...(selection.submarkets?{submarkets:selection.submarkets}:{}),...(selection.futureIds?{futureIds:selection.futureIds}:{}),readAt:observed.readAt};
+  const table=futureResultTable(analysis,observed.sources,selection.view);
   return freeze({resultId:randomUUID(),createdAt:new Date().toISOString(),snapshotId:observed.snapshotId,dataVersion:observed.dataVersion,
     scopeFingerprint:createHash('sha256').update(JSON.stringify([authority.actorId,authority.effectiveUserId,authority.permissionRevision,scope])).digest('hex'),registryVersion:FIELD_REGISTRY_VERSION,
-    operation:'future_observation',parameters:{view:selection.view,mode,period:observed.period,configuredPeriod:observed.configuredPeriod,periodBasis:observed.periodBasis,futurePolicy:observed.version,scope},
-    analysis,table:futureResultTable(analysis,observed.sources,selection.view),sources:observed.sources,limitations:observed.limitations});
+    operation:'future_observation',parameters:{answer:buildFutureAnswer(analysis,selection.view,table.rows.length),view:selection.view,mode,period:observed.period,configuredPeriod:observed.configuredPeriod,periodBasis:observed.periodBasis,futurePolicy:observed.version,scope},
+    analysis,table,sources:observed.sources,limitations:observed.limitations});
 }

@@ -1,3 +1,4 @@
+import {futureModeForView} from './future/view';
 import { isSubmissionQualityView } from './submissions/view';
 import { distributionFields } from './distribution';
 import type { QueryPlan } from './plan';
@@ -19,6 +20,11 @@ export type QueryAuthority = Readonly<{
 
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
+  if(plan.operation==='future_observation'){
+    const mode=futureModeForView(plan.view);
+    if(authority.actorId!==authority.effectiveUserId||!authority.grants.includes('query:future-catalog')||mode!=='catalog'&&!authority.grants.includes('query:future-progress')||mode==='quality'&&!authority.grants.includes('query:future-quality'))throw new Error('QUERY_DENIED');
+    return;
+  }
   if (plan.operation === 'submission_progress') {
     if (authority.actorId !== authority.effectiveUserId || !authority.grants.includes('query:catalog') || !authority.grants.includes('query:submission-progress')
       || isSubmissionQualityView(plan.view) && !authority.grants.includes('query:submission-quality')) throw new Error('QUERY_DENIED');
@@ -74,7 +80,7 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
     authority = await execution.freshAuthority();
     if (authority.actorId !== request.authority.actorId || authority.effectiveUserId !== request.authority.effectiveUserId) throw new Error('QUERY_DENIED');
-    if (request.clarification) authorizePlan({ operation: 'list', fields: [], period: null, scope: { inventory: 'all_authorized' } }, authority);
+    if (request.clarification) {if(!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog'))throw new Error('QUERY_DENIED');}
     if (receipt.replayed && !request.clarification) {
       // A retry is not a new execution, but withdrawn tool/field access must
       // still reject before reporting that the request can be resumed.
@@ -128,7 +134,7 @@ async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, exe
     if (message === 'SUBMISSION_PERIOD_UNAVAILABLE' && !executionRecorded) {
       try {
         const plan = parseQueryPlan(request.plan);
-        if (plan.operation !== 'submission_progress' || plan.period !== null) throw new Error('QUERY_DENIED');
+        if (!['submission_progress','future_observation'].includes(plan.operation) || !('period' in plan) || plan.period !== null) throw new Error('QUERY_DENIED');
         const authority = await recheck(plan);
         const clarification: QuestionClarification = { code: 'conditions_required', message: '不知道：当前填报季度未配置或无法确认。请明确年份和季度后再查；不会用日历季度、历史指标或最近一次有数据的季度代替。' };
         await audit.append(request.requestId, 'denied', {reason:'submission_period_unavailable',response:clarification,authority,delivery:'not_yet_sent'});

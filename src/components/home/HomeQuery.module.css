@@ -19,6 +19,9 @@
 .tableScroll table { width: 100%; border-collapse: collapse; font-size: inherit; }
 .tableScroll th, .tableScroll td { min-width: 120px; padding: 8px 12px; border-bottom: 1px solid var(--cd-color-border); text-align: left; vertical-align: top; }
 .tableScroll th { font-weight: 500; background: var(--cd-color-surface-alt); }
+.tableScroll th { position: sticky; top: 0; z-index: 2; }
+.tableScroll th:first-child, .tableScroll td:first-child { position: sticky; left: 0; z-index: 1; max-width: 200px; background: var(--cd-color-surface); box-shadow: 1px 0 var(--cd-color-border); }
+.tableScroll th:first-child { z-index: 3; background: var(--cd-color-surface-alt); }
 .tableScroll .number { text-align: right; font-variant-numeric: tabular-nums; }
 .cell { color: inherit; text-align: inherit; min-height: 28px; text-decoration: underline; text-decoration-color: var(--cd-color-border-strong); text-underline-offset: 4px; overflow-wrap: anywhere; }
 .cell:hover { color: var(--cd-color-brand); }

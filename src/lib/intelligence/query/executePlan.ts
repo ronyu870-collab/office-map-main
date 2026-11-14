@@ -9,7 +9,7 @@ import type { NumericField } from './registry';
  * This layer neither fetches latest data nor accepts model-supplied numbers. */
 export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapshot[]): QueryResult {
   const plan = parseQueryPlan(input);
-  if (plan.operation === 'submission_progress') throw new Error('SUBMISSION_READER_REQUIRED');
+  if (plan.operation === 'submission_progress'||plan.operation==='future_observation') throw new Error('SUBMISSION_READER_REQUIRED');
   const periods = planPeriods(plan);
   const key = (period: FactSnapshot['period']) => period ? quarterKey(period) : 'catalog';
   const required = new Set(periods.map(key));

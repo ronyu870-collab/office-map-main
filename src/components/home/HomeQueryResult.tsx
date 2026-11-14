@@ -54,11 +54,11 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         </div>}
       </div>
     </>}
-    <div className={styles.limitations}>{(result.operation==='submission_progress'?result.limitations.filter((_,i)=>i===1||i===result.limitations.length-1):result.limitations).map(line => <p key={line}>{line}</p>)}</div>
+    <div className={styles.limitations}>{(result.operation==='submission_progress'?result.limitations.filter((_,i)=>i===1||i===result.limitations.length-1):result.operation==='future_observation'?result.limitations.filter((_,i)=>i===1||i===2||i===result.limitations.length-1):result.limitations).map(line => <p key={line}>{line}</p>)}</div>
     <details className={styles.trace}>
       <summary>来源、口径与结果版本</summary>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
-      {result.operation==='submission_progress'&&result.limitations.map(line=><p key={line}>{line}</p>)}
+      {['submission_progress','future_observation'].includes(result.operation)&&result.limitations.map(line=><p key={line}>{line}</p>)}
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
     </details>

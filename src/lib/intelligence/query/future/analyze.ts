@@ -83,7 +83,7 @@ export function analyzeFutureSnapshot(input:unknown){
       coverage:assigned?{numerator:String(submitted),denominator:String(assigned)}:null},
     rows,people:owners,sources:[...sources.values()],settingsSourceIds,
     limitations:['对象是获权未来供应记录，以future_supplies.id区分；同名不合并，未关联楼宇时不猜身份。',
-      '仅包含明确尚未入市的记录；已入市、入市状态未知，以及关联楼宇已转存量、停用或合并的记录不在本次候选。pending与未知状态不冒充已核实未来供应。',
+      '仅包含明确尚未入市的记录；已入市、入市状态未知，以及关联楼宇已转存量、停用或合并的记录不在本次候选。待核实与未知状态不冒充已核实未来供应。',
       '预计入市年/季、竣工年与实际入市是不同事实。半年或年范围不拆成确定季度，过期预计日期不代表已经入市。',
       '总面积是未来供应记录原字段，不自动等于办公或可租面积；同名和未关联记录可能需要身份复核，不将记录数称为已确认不同楼宇数。',
       '坐标有效仅指经纬度数值范围检查通过，不证明坐标系、地址或地图位置已经核实。',

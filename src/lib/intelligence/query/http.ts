@@ -1,3 +1,8 @@
+import {loadOperationAuthority,loadEntryAuthority} from './entryAuthority';
+import {buildFutureResult} from './future/result';
+import {readFutureSnapshot,authorizeFutureSources} from './future/reader';
+import {futureModeForView} from './future/view';
+import type {QueryPlan} from './plan';
 import { authorizeSubmissionSources, readSubmissionSnapshot } from './submissions/reader';
 import { buildSubmissionResult } from './submissions/result';
 import { isSubmissionQualityView } from './submissions/view';
@@ -10,7 +15,7 @@ import { createRpcAuditPort, type AuditKeys } from './auditStore';
 import { executeQueryPlan } from './executePlan';
 import { attachRelativeQuarterContext } from './result';
 import { readQueryBody } from './httpBody';
-import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
+import { verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 import { readQuerySnapshots } from './snapshotReader';
 import { parseQueryPlan } from './plan';
 import { QUESTION_GRAMMAR_VERSION, resolveBusinessQuestion } from './question';
@@ -79,9 +84,9 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       if (!dependencies.enabled || impersonationDenied || !parsed
         || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') ?? '')
         || !isQuerySameOrigin(request)) throw new Error('QUERY_DENIED');
-      return loadDataAuthority(client, verified, signal);
+      return boundedPlan?loadOperationAuthority(client,verified,signal,boundedPlan):loadEntryAuthority(client,verified,signal);
     };
-    let boundedPlan: unknown = null;
+    let boundedPlan: QueryPlan|null = null;
     const resolution = parsed && !Object.hasOwn(parsed, 'plan') ? resolveBusinessQuestion(parsed.question, receivedAt) : null;
     try { if (parsed) boundedPlan = resolution?.kind === 'plan' ? resolution.plan : resolution ? null : parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
     let usedRevision: string | null = null;
@@ -94,7 +99,9 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       freshAuthority: fresh,
       execute: async plan => {
         const authority = await fresh(); usedRevision = authority.permissionRevision;
-        const value = plan.operation === 'submission_progress'
+        const value = plan.operation==='future_observation'
+          ? buildFutureResult(await readFutureSnapshot(client,verified,requestId,{mode:futureModeForView(plan.view),period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},signal),{view:plan.view,period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},authority,requestId)
+          : plan.operation === 'submission_progress'
           ? buildSubmissionResult(await readSubmissionSnapshot(client, verified, requestId, {period:plan.period,quality:isSubmissionQualityView(plan.view),submarkets:plan.scope.submarkets,buildingIds:plan.scope.buildingIds}, signal), plan, authority)
           : executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
         return resolution?.kind === 'plan' && resolution.timeResolution ? attachRelativeQuarterContext(value, resolution.timeResolution) : value;
@@ -110,7 +117,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       // Store the exact bounded explanation; no business result is delivered.
       const response = { requestId, status: 'clarification', ...result.clarification };
       const authority = await fresh();
-      if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
+      if (!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')) throw new Error('QUERY_DENIED');
       if (boundedPlan !== null) authorizePlan(parseQueryPlan(boundedPlan), authority);
       const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'clarification', resultId: null, itemCount: 0,
         bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus: 422 });
@@ -130,6 +137,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     try {
       const current = await fresh();
       if (current.permissionRevision !== usedRevision) throw new Error('QUERY_DENIED');
+      if(result.result.operation==='future_observation')await authorizeFutureSources(client,verified,requestId,current,result.result.sources,signal);
       if (result.result.operation === 'submission_progress') {
         await authorizeSubmissionSources(client, verified, requestId, current, result.result.sources, signal);
       }

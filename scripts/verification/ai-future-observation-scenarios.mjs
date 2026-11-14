@@ -1,3 +1,4 @@
+import {verifyFutureQueryEntry} from './ai-future-query-entry-scenarios.mjs';
 import {verifyFutureResults} from './ai-future-result-scenarios.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -22,9 +23,10 @@ export async function setupFutureObservation(db){
   }
   await db.query(await readFile('supabase/migrations/20261113213152_ai_future_observation.sql','utf8'));
   await db.query(await readFile('supabase/migrations/20261113215121_ai_future_result_sources.sql','utf8'));
+  await db.query(await readFile('supabase/migrations/20261114034257_ai_future_query_entry.sql','utf8'));
 }
 
-export async function verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey}){
+export async function verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey,recover,artifact,acknowledge,capabilities}){
   const entry=path.join(output,'future-entry.mjs'),file=path.join(output,'future-adapter.cjs');
   await writeFile(entry,`export {readFutureSnapshot,loadFutureAuthority,authorizeFutureSources} from '../../src/lib/intelligence/query/future/reader.ts';
     export {analyzeFutureSnapshot} from '../../src/lib/intelligence/query/future/analyze.ts';
@@ -115,6 +117,7 @@ export async function verifyFutureObservation({db,service,check,queryAdmin,perso
       await db.query("update public.buildings set project_type='stock' where id=$1",[buildings[0]]);assert.equal((await read({mode:'catalog',period:null})).supplies.length,4);
       await db.query("update public.buildings set project_type='future' where id=$1",[buildings[0]]);
     });
+    await verifyFutureQueryEntry({db,check,queryAdmin,other,grant,ids,call,recover,artifact,acknowledge,capabilities});
     await verifyFutureResults({db,service,check,queryAdmin,identity,grant,ids,buildings,other,latest,api,keyId,encryptionKey,digestKey});
   }finally{
     await db.query('delete from public.future_supplies where id=any($1::uuid[])',[ids]);await db.query('delete from public.buildings where id=any($1::uuid[])',[buildings]);

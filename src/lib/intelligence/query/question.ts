@@ -1,12 +1,14 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/9';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/10';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
 export type QuestionResolution = { kind: 'plan'; plan: QueryPlan; timeResolution?: RelativeQuarterContext } | { kind: 'clarification'; clarification: QuestionClarification };
 const markets = `(${QUESTION_SUBMARKETS.join('|')}|全部获权楼宇)`;
+const futureMarkets = `(${QUESTION_SUBMARKETS.join('|')}|全部获权|全部获权楼宇)`;
+const futureScope = (market: string) => ({ inventory: 'future' as const, ...(['全部获权', '全部获权楼宇'].includes(market) ? {} : { submarkets: [market] }) });
 const period = '(19\\d{2}|20\\d{2}|21\\d{2}|2200)(?:年?Q([1-4])|年第?([一二三四1-4])季度)';
 const metric = '(净有效租金|空置率|季度总面积)';
 const listFields = { 建筑高度: 'height', 楼层数: 'floors', 总车位数: 'parking', 季度总面积: 'totalArea', 空置面积: 'vacantArea', 净有效租金: 'netEffectiveRent' } as const;
@@ -39,6 +41,12 @@ function resolveExplicitQuestion(question: string): QuestionResolution {
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
   const submissionViews = {填报进度:'summary',填报明细:'buildings',哪些楼还没填:'missing',未分配楼宇:'unassigned',人员填报进度:'people',谁还没填:'missing_people',填报数据质量:'quality',填报缺项:'missing_fields',填报异常:'anomalies'} as const;
   const submissionAction = `(${Object.keys(submissionViews).join('|')})`;
+  const futureCatalog=new RegExp(`^${futureMarkets}未来供应(有哪些|目录|预计时间精度)$`).exec(text);
+  if(futureCatalog)return {kind:'plan',plan:parseQueryPlan({operation:'future_observation',view:futureCatalog[2]==='预计时间精度'?'launch_summary':'catalog',period:null,scope:futureScope(futureCatalog[1])})};
+  const futureConfigured=new RegExp(`^当前填报季度${futureMarkets}未来供应${submissionAction}$`).exec(text);
+  if(futureConfigured)return {kind:'plan',plan:parseQueryPlan({operation:'future_observation',view:submissionViews[futureConfigured[2] as keyof typeof submissionViews],period:null,scope:futureScope(futureConfigured[1])})};
+  const futureExplicit=new RegExp(`^${period}${futureMarkets}未来供应${submissionAction}$`).exec(text);
+  if(futureExplicit)return {kind:'plan',plan:parseQueryPlan({operation:'future_observation',view:submissionViews[futureExplicit[5] as keyof typeof submissionViews],period:quarter(futureExplicit[1],futureExplicit[2],futureExplicit[3]),scope:futureScope(futureExplicit[4])})};
   const configured = new RegExp(`^当前填报季度${markets}${submissionAction}$`).exec(text);
   if (configured) return {kind:'plan',plan:parseQueryPlan({operation:'submission_progress',scope:scope(configured[1],true),period:null,view:submissionViews[configured[2] as keyof typeof submissionViews]})};
   const submitted = new RegExp(`^${period}${markets}${submissionAction}$`).exec(text);

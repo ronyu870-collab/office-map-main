@@ -1,0 +1,96 @@
+{
+  "browser": "157.0.8103.52",
+  "synthetic": true,
+  "production": false,
+  "realMobileDevices": false,
+  "checks": [
+    {
+      "width": 1280,
+      "case": "future-only examples and uninterrupted input with mid-text edit",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "catalog unknown area and half-year original source; source close restores focus",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "real role downgrade hides AI and old browser session cannot retain entry",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "future-only examples and uninterrupted input with mid-text edit",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "catalog unknown area and half-year original source; source close restores focus",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "case": "narrow viewport retains full result in local table scroll",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "real role downgrade hides AI and old browser session cannot retain entry",
+      "passed": true
+    }
+  ],
+  "downloads": [
+    {
+      "width": 1280,
+      "format": "xlsx",
+      "resultId": "a0f4f623-5217-4d13-988d-b317e3837215",
+      "sha256": "ce7912a98b13895ba98f2e5d7eda25b5f7abba96c81ab142d033d32ab852ecbb",
+      "readback": true
+    },
+    {
+      "width": 1280,
+      "format": "csv_zip",
+      "resultId": "a0f4f623-5217-4d13-988d-b317e3837215",
+      "sha256": "826f789051f7cd99feca902983c57f5f430a70938c56706337919e8af07e4587",
+      "readback": true
+    },
+    {
+      "width": 1280,
+      "format": "svg_zip",
+      "resultId": "a0f4f623-5217-4d13-988d-b317e3837215",
+      "sha256": "36e553da495579ca1f4fcb17ed3444a81b78579645c5364bc69a0d75f5a237d5",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "xlsx",
+      "resultId": "f745a83d-c194-4f87-97b0-c2b1fba2bd9e",
+      "sha256": "29edcbd6edfdb9a4c4703e5b89085880e32697baa2ba66d93cbfb3c68292a7be",
+      "readback": true
+    }
+  ],
+  "screenshots": [
+    "1280-catalog.png",
+    "1280-source.png",
+    "1280-progress-chart.png",
+    "1280-quality.png",
+    "1280-quality-scroll.png",
+    "390-catalog.png",
+    "390-source.png",
+    "390-progress-chart.png",
+    "390-quality.png",
+    "390-quality-scroll.png",
+    "320-quality.png"
+  ]
+}

@@ -46,6 +46,19 @@ describe('immutable future supply results and same-result artifacts',()=>{
     expect(buildFutureResult(raw,{...selection,view:'anomalies'},authority,raw.requestId).table.rows.map(r=>r.entityId)).toEqual([id(1),id(2)]);
     for(const row of result.table.rows)for(const c of Object.values(row.cells))for(const ref of c.sourceIds)expect(result.sources.some(s=>s.id===ref)).toBe(true);
   });
+  it('archives the question-specific answer and retains legacy answers without changing unknown quality into missing fields',()=>{
+    const {raw,selection}=make('quality');raw.submissions[0].created_at=null;raw.submissions[2].values.asking_rent=null;
+    const result=buildFutureResult(raw,selection,authority,raw.requestId),view=resultViewSchema.parse(result);
+    const answer=resultSummary(view);expect(answer[0]).toContain('最新提交可核查 2 条');expect(answer[0]).toContain('缺项 1 条');
+    expect(answer[1]).toContain('1 条无该季提交');expect(answer[1]).toContain('1 条无法确认最新记录');
+    expect(answer[1]).toContain('质量未知');expect(Object.isFrozen(result.parameters.answer)).toBe(true);
+    const archive=JSON.parse(JSON.stringify(view));archive.analysis.catalog.records=999;
+    expect(resultSummary(archive)).toEqual(answer);
+    delete archive.parameters.answer;expect(resultSummary(archive)[0]).toContain('当前获权');
+    archive.parameters.answer={version:'unknown',paragraphs:answer};expect(resultViewSchema.safeParse(archive).success).toBe(false);
+    const missing=make('missing_fields').result;expect(resultSummary(resultViewSchema.parse(missing))[0]).toContain('缺项或无法检查的记录 1 条');
+    expect(resultSummary(resultViewSchema.parse(make('people').result))[0]).toContain('人员任务 4 项');
+  });
   it('refuses wrong request/period/mode/scope/grants and prevents catalog or progress projections from acquiring quality',()=>{
     const {raw,selection}=make('quality');expect(()=>buildFutureResult(raw,selection,authority,id(99))).toThrow();
     expect(()=>buildFutureResult(raw,{...selection,period:{year:2026,quarter:2}},authority,raw.requestId)).toThrow();
@@ -57,6 +70,7 @@ describe('immutable future supply results and same-result artifacts',()=>{
   });
   it('readbacks actual XLSX/CSV/SVG with shared IDs, original percentages, future identities and all sources',async()=>{
     const {raw,result}=make('quality');const book=XLSX.read(await buildXlsx(result),{type:'array'});
+    expect(XLSX.utils.sheet_to_json<(string|number)[]>(book.Sheets['查询说明'],{header:1}).filter(r=>r[0]==='回答').map(r=>r[1])).toEqual(resultSummary(resultViewSchema.parse(result)));
     expect(book.SheetNames).toEqual(expect.arrayContaining(['数据','未来目录','预计时间精度','未来填报覆盖','未来季度记录','未来人员任务','未来填报质量','来源','精确值与来源','口径与快照']));
     const rows=XLSX.utils.sheet_to_json<(string|number)[]>(book.Sheets['未来填报质量'],{header:1}),i=rows[2].findIndex(c=>String(c).startsWith('填报空置率'));
     expect(rows[0]).toEqual(['result_id',result.resultId]);expect(rows[3][i]).toBe(0.5);expect(rows[5][i]).toBe('未记录');

@@ -109,9 +109,8 @@ export function HomeQuery({ scope }: { scope: QueryClientScope }) {
     <p id="home-query-notice" className={access.enabled ? styles.notice : 'sr-only'}>{access.enabled ? '正式提交的提问及回答会留存，供获权审计人员查看。请勿输入密码或密钥。' : '对话查询尚未开放。'}</p>
     {access.enabled && <>
       <details className={styles.examples}><summary>查看提问示例与查询范围</summary>
-        <p>楼宇目录按当前获权范围查询；季度指标采用当前跟踪样本。示例年份仅说明格式，不代表该期一定有数据。暂不支持连续追问、省略条件或多问题合并。</p>
+        <p>示例只说明支持的格式，不代表一定有数据；查询范围以当前权限为准。暂不支持连续追问、省略条件或多问题合并。</p>
         <div>{access.examples.map(question => <Button variant="ghost" key={question} onClick={() => { setDraft(question); input.current?.focus(); }}>{question}</Button>)}</div>
-        <p>也可查“CBD建筑高度列表”或明确两期与样本模式，例如“CBD净有效租金2026Q2与2026Q3比较配对样本”；散点示例：“2026Q3CBD建筑高度与净有效租金列表”。能否查询仍以当前数据权限为准。</p>
       </details>
       <div role="status" aria-live="polite" className={styles.status}>{message}</div>
       <div className={styles.actions}>

@@ -68,6 +68,7 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
   if(result.operation==='future_observation'){
+    append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
     const a=futureAnalysisSchema.parse(result.analysis);
     const views=['catalog','launch_summary',...(a.progress?['summary','buildings','people']:[]),...(a.mode==='quality'?['quality']:[])] as const;
     const labels:Record<string,string>={catalog:'未来目录',launch_summary:'预计时间精度',summary:'未来填报覆盖',buildings:'未来季度记录',people:'未来人员任务',quality:'未来填报质量'};
