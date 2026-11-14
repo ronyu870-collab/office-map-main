@@ -210,7 +210,7 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
   }, [reply]);
 
   return (
-    <div className={`${styles.composer} ${compact ? styles.composerCompact : ''} ` .trim()}>
+    <div className={`${styles.composer} ${compact ? styles.composerCompact : ''}`}>
       {reply && (
         <div className={styles.reply}>
           <span className="min-w-0 truncate">回复 <strong>{reply.name}</strong>：{reply.content.slice(0, 60)}</span>
