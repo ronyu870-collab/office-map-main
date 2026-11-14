@@ -109,6 +109,9 @@ export function CommunicationComposer({ onSend, sending, reply, onClearReply, se
       return;
     }
     mentionPositionRef.current = { node: textNode, start: cursor - match[0].length + (match[0].startsWith('@') ? 0 : 1), end: cursor };
+    // Drop a previous lookup immediately, including when the same name is
+    // retyped after a ban. Fresh results must come from the authenticated API.
+    setLookup(null);
     setMentionQuery(match[1]);
     setActiveMention(0);
   }, [draftRef]);
