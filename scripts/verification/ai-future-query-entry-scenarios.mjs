@@ -57,6 +57,23 @@ export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,id
    assert.equal(limited.body.result.parameters.supply.knownArea.numeric,99999);
   }finally{for(const row of original)await db.query('update public.future_supplies set total_area=$1 where id=$2',[row.total_area,row.id]);await grant(caps);}
  });
+ await check('预计入市范围按完整获权候选四类判断；图表Excel与恢复同源且撤权阻断',async()=>{
+  const ranged=await ask('CBD未来供应预计在2026Q3至2026Q3入市面积汇总');assert.equal(ranged.status,200);
+  const r=ranged.body.result,summary=r.parameters.launchRange;assert.deepEqual([summary.candidateCount,summary.within,summary.partial,summary.outside,summary.unknown,summary.selectedCount],[5,1,2,1,1,1]);
+  assert.equal(r.parameters.supply.knownArea.numeric,10000);assert.equal(r.analysis.rows[0].futureId,ids[0]);
+  const overlap=await ask('CBD未来供应预计入市2026Q3至2026Q3可能涉及的预计入市区间');assert.equal(overlap.status,200);assert.equal(overlap.body.result.table.rows.length,3);
+  const unknown=await ask('CBD未来供应预计入市2026Q3至2026Q3时间未知的目录');assert.equal(unknown.status,200);assert.deepEqual(unknown.body.result.table.rows.map(x=>x.entityId),[ids[3]]);
+  const outside=await ask('CBD未来供应预计入市2026Q3至2026Q3范围外的目录');assert.equal(outside.status,200);assert.deepEqual(outside.body.result.table.rows.map(x=>x.entityId),[ids[4]]);
+  const common={requestId:ranged.body.requestId,resultId:r.resultId},chart=await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'bar',field:'area'}});assert.equal(chart.status,200);assert.deepEqual(chart.body.chart.points.map(p=>p.y),[10000]);
+  const download=await artifact(queryAdmin,{...common,action:'export',format:'xlsx'});assert.equal(download.status,200);const book=XLSX.read(download.bytes,{type:'array'}),basis=XLSX.utils.sheet_to_json(book.Sheets['预计范围筛选依据'],{header:1});assert.equal(basis.length-3,5);assert.equal(basis.slice(3).filter(x=>x[4]==='是').length,1);
+  assert.equal((await recover(other,ranged.body.requestId)).status,403);
+  await db.query("update public.future_supplies set launch_quarter='Q4' where id=$1",[ids[0]]);
+  try{assert.deepEqual((await recover(queryAdmin,ranged.body.requestId)).body.result,r);}finally{await db.query("update public.future_supplies set launch_quarter='Q3' where id=$1",[ids[0]]);}
+  await db.query('update public.future_supplies set is_entered_market=true where id=$1',[ids[4]]);
+  try{assert.equal((await recover(queryAdmin,ranged.body.requestId)).status,403);assert.equal((await artifact(queryAdmin,{...common,action:'export',format:'xlsx'})).status,403);}finally{await db.query('update public.future_supplies set is_entered_market=false where id=$1',[ids[4]]);}
+  await grant(caps,{all:false,ids:[ids[0]]});
+  try{const limited=await ask('CBD未来供应预计在2026Q3至2026Q3入市有哪些');assert.equal(limited.status,200);assert.equal(limited.body.result.parameters.launchRange.candidateCount,1);assert.equal(limited.body.result.parameters.launchRange.unknown,0);assert.equal(limited.body.result.sources.some(s=>s.entityId!==ids[0]),false);assert.equal((await recover(queryAdmin,ranged.body.requestId)).status,403);}finally{await grant(caps);}
+ });
  await check('预计入市时间轴保留季度/半年/全年/未知，SVG和交付回执同源，来源撤回即拒绝',async()=>{
   timeline=await ask('CBD未来供应预计入市区间');assert.equal(timeline.status,200);const common={requestId:timeline.body.requestId,resultId:timeline.body.result.resultId};
   const chart=await artifact(queryAdmin,{...common,action:'chart',chart:{kind:'launch_intervals'}});assert.equal(chart.status,200);assert.equal(chart.body.chart.kind,'interval');assert.equal(chart.body.chart.zeroBaseline,false);
@@ -98,7 +115,7 @@ export async function verifyFutureQueryEntry({db,check,queryAdmin,other,grant,id
   const common={requestId:source.body.requestId,resultId:source.body.result.resultId};
   await grant(caps.filter(c=>c!=='export:internal'));assert.equal((await recover(queryAdmin,source.body.requestId)).status,200);assert.equal((await artifact(queryAdmin,{...common,action:'export',format:'xlsx'})).status,403);
   await grant(['query:future-catalog']);assert.equal((await recover(queryAdmin,source.body.requestId)).status,403);assert.equal((await ask('2026Q3CBD未来供应填报数据质量')).status,403);
-  const options=await capabilities(queryAdmin);assert.equal(options.body.examples.length,2);assert.ok(options.body.examples.every(q=>!q.includes('填报')));
+  const options=await capabilities(queryAdmin);assert.deepEqual(options.body.examples,['CBD未来供应有哪些','CBD未来供应预计时间精度','CBD未来供应预计在2026Q4至2027Q1入市有哪些']);assert.ok(options.body.examples.every(q=>!q.includes('填报')));
   await grant(caps,{all:false,ids:[ids[0]]});assert.equal((await recover(queryAdmin,source.body.requestId)).status,403);
   const limited=await ask('CBD未来供应有哪些');assert.equal(limited.status,200);assert.equal(limited.body.result.analysis.catalog.records,1);
   await grant(caps);await db.query('update public.future_supplies set is_entered_market=true where id=$1',[ids[0]]);

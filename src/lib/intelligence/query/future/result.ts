@@ -1,3 +1,4 @@
+import {projectFutureRange,futureRangeSummary} from './range';
 import {summarizeFutureSupply,futureClassificationText,type SupplyOverview} from './supply';
 import {buildFutureAnswer} from './answer';
 import {createHash,randomUUID} from 'node:crypto';
@@ -77,13 +78,16 @@ export function futureResultTable(a:FutureAnalysis,sources:readonly SourceRef[],
 /** Internal result builder; caller must execute durable audit and final source checks. */
 export function buildFutureResult(raw:unknown,input:FutureSelection,authority:FutureAuthority,requestId:string):QueryResult {
   const selection=futureSelectionSchema.parse(input),mode=futureModeForView(selection.view),read={mode,period:selection.period,submarkets:selection.submarkets,futureIds:selection.futureIds};
-  const snapshot=normalizeFutureRead(raw,read,authority,requestId),observed=analyzeFutureSnapshot(snapshot),analysis=futureAnalysisSchema.parse(observed);
-  const scope={inventory:'future',inventoryTime:'current_not_entered_future_records',assignmentsTime:'selected_quarter_current_records',
+  const snapshot=normalizeFutureRead(raw,read,authority,requestId),observed=analyzeFutureSnapshot(snapshot),fullAnalysis=futureAnalysisSchema.parse(observed);
+  const projected=selection.launchRange?projectFutureRange(fullAnalysis,selection.launchRange):null,analysis=projected?.analysis??fullAnalysis;
+  const scope={inventory:'future',inventoryTime:'current_not_entered_future_records',assignmentsTime:'selected_quarter_current_records',...(selection.launchRange?{launchRange:selection.launchRange}:{}),
     ...(selection.submarkets?{submarkets:selection.submarkets}:{}),...(selection.futureIds?{futureIds:selection.futureIds}:{}),readAt:observed.readAt};
   const supply=['area_summary','launch_schedule'].includes(selection.view)?summarizeFutureSupply(analysis.rows):undefined;
   const table=futureResultTable(analysis,observed.sources,selection.view,supply);
+  const answer=buildFutureAnswer(analysis,selection.view,table.rows.length,supply);
+  if(projected)answer.paragraphs=[...futureRangeSummary(projected.overview),...answer.paragraphs.map(s=>s.replace("当前获权且明确未入市的未来供应记录", "筛选后明确未入市的未来供应记录"))];
   return freeze({resultId:randomUUID(),createdAt:new Date().toISOString(),snapshotId:observed.snapshotId,dataVersion:observed.dataVersion,
     scopeFingerprint:createHash('sha256').update(JSON.stringify([authority.actorId,authority.effectiveUserId,authority.permissionRevision,scope])).digest('hex'),registryVersion:FIELD_REGISTRY_VERSION,
-    operation:'future_observation',parameters:{...(supply?{supply}:{}),answer:buildFutureAnswer(analysis,selection.view,table.rows.length,supply),view:selection.view,mode,period:observed.period,configuredPeriod:observed.configuredPeriod,periodBasis:observed.periodBasis,futurePolicy:observed.version,scope},
+    operation:'future_observation',parameters:{...(supply?{supply}:{}),answer,...(projected?{launchRange:projected.overview}:{}),view:selection.view,mode,period:observed.period,configuredPeriod:observed.configuredPeriod,periodBasis:observed.periodBasis,futurePolicy:observed.version,scope},
     analysis,table,sources:observed.sources,limitations:supply?[...observed.limitations.slice(0,-1),'面积按当前获权记录原字段合计，待核实与分类未知分组保留；同名或同一楼宇关联不擅自去重，不能当作已确认的全市场供应面积。','区间边界仅表示原预计时间精度，不代表持续供给、均匀分配或实际入市日期；跨半年/全年不拆到各季度求和。',observed.limitations.at(-1)!]:observed.limitations});
 }

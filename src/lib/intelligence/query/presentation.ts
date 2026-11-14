@@ -1,3 +1,4 @@
+import {futureRangeOverviewSchema} from './future/range';
 import {supplyOverviewSchema} from './future/supply';
 import {formatExact} from './format';
 export {formatExact} from './format';
@@ -28,7 +29,14 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
 }).superRefine((result, ctx) => {
+  const sourceMap=new Map(result.sources.map(s=>[s.id,s]));
   if(result.operation==='future_observation' && ['area_summary','launch_schedule'].includes(String(result.parameters.view)) && !supplyOverviewSchema.safeParse(result.parameters.supply).success) ctx.addIssue({code:'custom',message:'Invalid archived future supply summary'});
+  if(result.operation==='future_observation' && Object.hasOwn(result.parameters,'launchRange')){
+    const r=futureRangeOverviewSchema.safeParse(result.parameters.launchRange),a=futureAnalysisSchema.safeParse(result.analysis);
+    if(r.success)for(const member of r.data.members){const fields=new Set(member.sourceIds.map(id=>{const source=sourceMap.get(id);return source?.entityId===member.futureId&&source.table==='future_supplies'?source.field:null;}));if(!['name','launch_year','launch_quarter'].every(field=>fields.has(field)))ctx.addIssue({code:'custom',message:'Incomplete range classification sources'});}
+    const selected=r.success?new Set(r.data.members.filter(m=>m.selected).map(m=>m.futureId)):new Set<string>();
+    if(!r.success||!a.success||a.data.rows.length!==r.data.selectedCount||new Set(a.data.rows.map(row=>row.futureId)).size!==selected.size||a.data.rows.some(row=>!selected.has(row.futureId)))ctx.addIssue({code:'custom',message:'Invalid archived launch range selection'});
+  }
   if(result.operation==='future_observation' && Object.hasOwn(result.parameters,'answer') && !futureAnswerSchema.safeParse(result.parameters.answer).success) ctx.addIssue({code:'custom',message:'Invalid archived future answer'});
   const sources = new Set(result.sources.map(source => source.id));
   for (const row of result.table.rows) for (const column of result.table.columns) {

@@ -1,3 +1,4 @@
+import {futureRangeOverviewSchema,rangeStateText} from './future/range';
 import {futureAnalysisSchema} from './future/view';
 import {futureResultTable} from './future/result';
 import { submissionAnalysisSchema } from './submissions/view';
@@ -69,6 +70,9 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
   ]);
   if(result.operation==='future_observation'){
     append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
+    if(result.parameters.launchRange){const r=futureRangeOverviewSchema.parse(result.parameters.launchRange);
+      append('预计范围筛选依据',[['result_id',result.resultId],['范围','筛选前全部获权候选；不属于筛选后的统计明细'],['future_id','名称','原预计范围','与查询范围关系','本次选中','来源'],
+        ...r.members.map(m=>[m.futureId,m.name,m.launchText,rangeStateText[m.state],m.selected?'是':'否',m.sourceIds.join('\n')])]);}
     const a=futureAnalysisSchema.parse(result.analysis);
     const views=['catalog','launch_summary',...(['area_summary','launch_schedule'].includes(String(result.parameters.view))?[result.parameters.view as 'area_summary'|'launch_schedule']:[]),...(a.progress?['summary','buildings','people']:[]),...(a.mode==='quality'?['quality']:[])] as const;
     const labels:Record<string,string>={catalog:'未来目录',launch_summary:'预计时间精度',area_summary:'未来记录面积',launch_schedule:'预计入市区间',summary:'未来填报覆盖',buildings:'未来季度记录',people:'未来人员任务',quality:'未来填报质量'};

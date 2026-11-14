@@ -1,13 +1,13 @@
 import {z} from 'zod';
 import {quarterSchema} from '../contracts';
 import {submissionQualitySchema} from '../submissions/view';
-import {FUTURE_POLICY} from './contracts';
+import {FUTURE_POLICY,futureLaunchRangeSchema} from './contracts';
 
 export const futureViewSchema=z.enum(['catalog','launch_summary','launch_schedule','area_summary','summary','buildings','missing','unassigned','people','missing_people','quality','missing_fields','anomalies']);
 export type FutureView=z.infer<typeof futureViewSchema>;
 export const futureModeForView=(view:FutureView)=>['catalog','launch_summary','launch_schedule','area_summary'].includes(view)?'catalog' as const:['quality','missing_fields','anomalies'].includes(view)?'quality' as const:'progress' as const;
-export const futureSelectionSchema=z.strictObject({view:futureViewSchema,period:quarterSchema.nullable(),submarkets:z.array(z.string().trim().min(1).max(80)).min(1).max(30).optional(),futureIds:z.array(z.uuid()).min(1).max(500).optional()})
-  .refine(s=>futureModeForView(s.view)!=='catalog'||s.period===null,{message:'Catalog period must be null'});
+export const futureSelectionSchema=z.strictObject({view:futureViewSchema,period:quarterSchema.nullable(),launchRange:futureLaunchRangeSchema.optional(),submarkets:z.array(z.string().trim().min(1).max(80)).min(1).max(30).optional(),futureIds:z.array(z.uuid()).min(1).max(500).optional()})
+  .refine(s=>futureModeForView(s.view)!=='catalog'||s.period===null,{message:'Catalog period must be null'}).refine(s=>!s.launchRange||futureModeForView(s.view)==='catalog',{message:'Launch range applies to catalog views only'});
 export type FutureSelection=z.infer<typeof futureSelectionSchema>;
 const count=z.number().int().nonnegative(),ids=z.array(z.string()).max(200000),nullableText=z.string().nullable();
 const number=z.object({numeric:z.number().finite(),exact:z.object({numerator:z.string().regex(/^-?\d{1,400}$/),denominator:z.string().regex(/^[1-9]\d{0,399}$/)})});

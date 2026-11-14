@@ -10,7 +10,7 @@ async function run(data:unknown,error:unknown=null){
 }
 describe('capability examples require current resource scope and the admin policy',()=>{
  it('offers only future catalog examples when stock scope is absent even if its capability string exists',async()=>{
-  const response=await run(allowed),body=await response.json();expect(response.status).toBe(200);expect(body.enabled).toBe(true);expect(body.examples).toEqual(['CBD未来供应有哪些','CBD未来供应预计时间精度']);
+  const response=await run(allowed),body=await response.json();expect(response.status).toBe(200);expect(body.enabled).toBe(true);expect(body.examples).toEqual(['CBD未来供应有哪些','CBD未来供应预计时间精度','CBD未来供应预计在2026Q4至2027Q1入市有哪些']);
  });
  it('does not turn declined authority into an enabled entry',async()=>{
   const response=await run({allowed:false});expect(response.status).toBe(403);expect(await response.json()).toEqual({enabled:false,examples:[]});

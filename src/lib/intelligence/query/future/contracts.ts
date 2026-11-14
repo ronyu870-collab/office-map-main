@@ -3,6 +3,10 @@ import {quarterSchema} from '../contracts';
 import {submissionFieldKeys} from '../submissions/contracts';
 
 export const FUTURE_POLICY='future-observation/1';
+export const futureLaunchRangeSchema=z.strictObject({start:quarterSchema,end:quarterSchema,selection:z.enum(['within','overlap','unknown','outside'])})
+  .refine(r=>r.start.year*4+r.start.quarter<=r.end.year*4+r.end.quarter,{message:'Launch range must be ordered'});
+export type FutureLaunchRange=z.infer<typeof futureLaunchRangeSchema>;
+
 export const futureReadSchema=z.strictObject({mode:z.enum(['catalog','progress','quality']),period:quarterSchema.nullable(),
   submarkets:z.array(z.string().trim().min(1).max(80)).min(1).max(30).optional(),futureIds:z.array(z.uuid()).min(1).max(500).optional(),
 }).refine(r=>r.mode!=='catalog'||r.period===null,{message:'Catalog period must be null; launch schedule is not submission period'});

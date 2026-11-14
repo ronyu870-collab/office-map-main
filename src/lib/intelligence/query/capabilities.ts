@@ -28,7 +28,7 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         const future = await loadFutureAuthority(dependencies.client, identity, signal);
         if (future.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_AUTHORITY_CHANGED');
         const market = QUESTION_SUBMARKETS.find(name => future.allSubmarkets || future.submarkets.includes(name)) ?? '全部获权';
-        for (const question of [`${market}未来供应有哪些`, `${market}未来供应预计时间精度`, `当前填报季度${market}未来供应填报进度`, `当前填报季度${market}未来供应填报数据质量`]) {
+        for (const question of [`${market}未来供应有哪些`, `${market}未来供应预计时间精度`, `${market}未来供应预计在2026Q4至2027Q1入市有哪些`, `当前填报季度${market}未来供应填报进度`, `当前填报季度${market}未来供应填报数据质量`]) {
           const resolved = resolveBusinessQuestion(question, new Date());
           if (resolved.kind !== 'plan') continue;
           try { authorizePlan(resolved.plan, future); examples.push(question); } catch { /* No unsupported capability is advertised. */ }

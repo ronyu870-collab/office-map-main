@@ -26,6 +26,11 @@
     },
     {
       "width": 1280,
+      "case": "range distinguishes within, partial and unknown; selected area chart and complete classification Excel match archived answer",
+      "passed": true
+    },
+    {
+      "width": 1280,
       "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
       "passed": true
     },
@@ -61,6 +66,11 @@
     },
     {
       "width": 390,
+      "case": "range distinguishes within, partial and unknown; selected area chart and complete classification Excel match archived answer",
+      "passed": true
+    },
+    {
+      "width": 390,
       "case": "progress chart and quality unknowns, complete source notes, actual downloads and same-result recovery",
       "passed": true
     },
@@ -79,57 +89,71 @@
     {
       "width": 1280,
       "format": "timeline_svg",
-      "resultId": "290f4ee0-c39e-459b-ab15-a4d7e876516d",
-      "sha256": "715195555757ee7614baaad81db96fa196379e50dd927f81524f5e5739a4711f",
+      "resultId": "a4b6d55e-5976-4bf6-9f3a-065ba7e0ee57",
+      "sha256": "14f67b3aa21d0b46613e5602d1af4fcf4a9345d465e74ef56501417d2c790af9",
       "readback": true
     },
     {
       "width": 1280,
       "format": "area_xlsx",
-      "resultId": "f13749ca-8a8c-4516-954c-013a800a82fd",
-      "sha256": "e5de49f55d13811166f3302b0717c4d885468906d8f265efb01741dc1ccd94ac",
+      "resultId": "b013baf4-96c6-43e0-938b-219ccbb7232c",
+      "sha256": "531593e2d79be8911ede021e0c2de69d5f840efde7ea7ca319d1333ad9ed6b26",
+      "readback": true
+    },
+    {
+      "width": 1280,
+      "format": "range_xlsx",
+      "resultId": "338c9a58-069d-4369-801f-190be5f05e74",
+      "sha256": "aa16f68f0978860a429195ab2e178c1e045dbf5363eb922082312cac49e75c7f",
       "readback": true
     },
     {
       "width": 1280,
       "format": "xlsx",
-      "resultId": "a9c0703f-5326-4006-a28d-1caf2055bfc2",
-      "sha256": "7ed85ec6d975c2b8e57dcae30c44a1bd43f2dbe8f86201490041d82f595e8aaa",
+      "resultId": "c7fbae46-4ae2-46f4-b8c2-7c78521e1eaa",
+      "sha256": "73425d476c9c42a1ab33fc99cfcc710d52349c0cc0cfb1cd7371651b2bc0942f",
       "readback": true
     },
     {
       "width": 1280,
       "format": "csv_zip",
-      "resultId": "a9c0703f-5326-4006-a28d-1caf2055bfc2",
-      "sha256": "967e0100c9f72b17f6684f2118dc404fa329d8c2b7bf2e3e890b4e547a47fd61",
+      "resultId": "c7fbae46-4ae2-46f4-b8c2-7c78521e1eaa",
+      "sha256": "378aba7cbc67ed765393f8dc7b350197e2798fc622fddc361322955f1a59b457",
       "readback": true
     },
     {
       "width": 1280,
       "format": "svg_zip",
-      "resultId": "a9c0703f-5326-4006-a28d-1caf2055bfc2",
-      "sha256": "ca58c32950f743bf9e22cf6bcff8d6c2903976f78c658f6f7c7b2959bc0e3eea",
+      "resultId": "c7fbae46-4ae2-46f4-b8c2-7c78521e1eaa",
+      "sha256": "d6fefd443446e459bcf73403b915913bf90ce51aed2044aef3450109742a9f01",
       "readback": true
     },
     {
       "width": 390,
       "format": "timeline_svg",
-      "resultId": "2521994d-1178-4794-9e38-ca638a5af226",
-      "sha256": "bdc1af109b022b4a98920d88f6896ca37e7e3b09f22f740b578cd3268966b2e9",
+      "resultId": "83647928-edcb-414a-82b9-605fe387e695",
+      "sha256": "99e66f8c7a6e262d42c35c0c6f1447c1b8e2336b276bab36f237cb1d01c549bc",
       "readback": true
     },
     {
       "width": 390,
       "format": "area_xlsx",
-      "resultId": "f528db63-b1e0-40fc-b8ff-1dbec25b02a0",
-      "sha256": "aeb0e6614bc283c87de00652ee509d7872fdea5dd574c113b275e3eb44f084ca",
+      "resultId": "8ec9c637-4d6b-430a-aafa-7f8ec72f36a4",
+      "sha256": "d97296ac534131158d04d278579f6f04abcf1b8f1008082c2869d89da9c1ad47",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "range_xlsx",
+      "resultId": "579d19d3-aaa7-4d12-9830-0cbc3cf9a908",
+      "sha256": "ad72bc9098eaf2ed5741267864539eda4c0af6704ff3adbd566551b22ede2009",
       "readback": true
     },
     {
       "width": 390,
       "format": "xlsx",
-      "resultId": "b5e45d21-f1cf-4afa-87bc-9750252e1be2",
-      "sha256": "f45378b79f01eba3369144e33fd9258d21101a14722a7dc2679fe62fc57c625d",
+      "resultId": "3a127e61-4d75-4fe6-84fb-70f6a49f28c2",
+      "sha256": "6a586f32a1e269dc46d78d39686f2f5680c8c9167f9da93092c392574037d130",
       "readback": true
     }
   ],
@@ -139,6 +163,8 @@
     "1280-launch-intervals.png",
     "1280-timeline.png",
     "1280-area-chart.png",
+    "1280-range-area.png",
+    "1280-range-unknown.png",
     "1280-progress-chart.png",
     "1280-quality.png",
     "1280-quality-scroll.png",
@@ -148,6 +174,8 @@
     "390-timeline.png",
     "320-timeline-source.png",
     "390-area-chart.png",
+    "390-range-area.png",
+    "390-range-unknown.png",
     "390-progress-chart.png",
     "390-quality.png",
     "390-quality-scroll.png",

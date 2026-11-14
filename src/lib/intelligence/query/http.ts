@@ -100,7 +100,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       execute: async plan => {
         const authority = await fresh(); usedRevision = authority.permissionRevision;
         const value = plan.operation==='future_observation'
-          ? buildFutureResult(await readFutureSnapshot(client,verified,requestId,{mode:futureModeForView(plan.view),period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},signal),{view:plan.view,period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},authority,requestId)
+          ? buildFutureResult(await readFutureSnapshot(client,verified,requestId,{mode:futureModeForView(plan.view),period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},signal),{view:plan.view,period:plan.period,launchRange:plan.launchRange,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},authority,requestId)
           : plan.operation === 'submission_progress'
           ? buildSubmissionResult(await readSubmissionSnapshot(client, verified, requestId, {period:plan.period,quality:isSubmissionQualityView(plan.view),submarkets:plan.scope.submarkets,buildingIds:plan.scope.buildingIds}, signal), plan, authority)
           : executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
