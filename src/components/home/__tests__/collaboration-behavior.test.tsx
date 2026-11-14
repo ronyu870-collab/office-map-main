@@ -103,6 +103,41 @@ describe('market communication on homepage', () => {
     await waitFor(() => expect(editor().textContent).toBe(''));
   });
 
+  it('keeps the homepage limited to plain input and Send, without names, rich tools or hint', async () => {
+    const user = userEvent.setup();
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+    await screen.findByText('暂无市场交流');
+    expect(editor()).toHaveAttribute('data-placeholder', '输入消息…');
+    for (const label of ['加粗', '设为蓝色', '设为红色', '设为绿色', '提及同事']) {
+      expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText(/Ctrl\/Cmd\+Enter 发送/)).not.toBeInTheDocument();
+    await user.type(editor(), '@Alice');
+    expect(screen.queryByRole('listbox', { name: '匹配的提及成员' })).not.toBeInTheDocument();
+    expect(state.fetch.mock.calls.some(call => String(call[0]).includes('name=alice'))).toBe(false);
+    await user.click(screen.getByRole('button', { name: '发送市场交流消息' }));
+    await waitFor(() => expect(state.fetch.mock.calls.some(call => call[1]?.method === 'POST')).toBe(true));
+    const post = state.fetch.mock.calls.find(call => call[1]?.method === 'POST');
+    expect(JSON.parse(String(post?.[1]?.body)).segments).toEqual([{ text: '@Alice' }]);
+  });
+
+  it('restores the rich tools only in fullscreen and preserves a compact draft across both modes', async () => {
+    const user = userEvent.setup();
+    render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
+    await screen.findByText('暂无市场交流');
+    await user.type(editor(), '已有草稿');
+    await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
+    expect(editor().textContent).toBe('已有草稿');
+    for (const label of ['加粗', '设为蓝色', '设为红色', '设为绿色', '提及同事']) {
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/Ctrl\/Cmd\+Enter 发送/)).not.toBeInTheDocument();
+    expect(editor()).toHaveAttribute('data-placeholder', '输入消息…');
+    await user.click(screen.getByRole('button', { name: '退出市场交流' }));
+    expect(screen.queryByRole('button', { name: '加粗' })).not.toBeInTheDocument();
+    expect(editor().textContent).toBe('已有草稿');
+  });
+
   it('replies to an existing message and can retain draft across full-screen transition', async () => {
     state.loadResult.data = [
       { id: 1, user_name: '同事A', user_email: 'a@example.test', content: '初始消息', created_at: '2026-11-11T06:00:00Z' },
@@ -111,8 +146,12 @@ describe('market communication on homepage', () => {
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('初始消息');
     await user.click(screen.getByRole('button', { name: '回复' }));
+    expect(screen.getByRole('dialog', { name: '市场交流' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '取消回复' })).toBeInTheDocument();
     await user.type(editor(), '确认');
+    await user.click(screen.getByRole('button', { name: '退出市场交流' }));
+    expect(screen.queryByRole('dialog', { name: '市场交流' })).not.toBeInTheDocument();
+    expect(editor().textContent).toContain('确认');
     await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
     expect(screen.getByRole('dialog', { name: '市场交流' })).toBeInTheDocument();
     expect(editor().textContent).toContain('确认');
@@ -126,6 +165,7 @@ describe('market communication on homepage', () => {
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('暂无市场交流');
+    await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
     await user.type(editor(), '@');
     expect(screen.queryByRole('listbox', { name: '匹配的提及成员' })).not.toBeInTheDocument();
     expect(state.fetch.mock.calls.some(call => String(call[0]).includes('name='))).toBe(false);
@@ -153,6 +193,7 @@ describe('market communication on homepage', () => {
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('暂无市场交流');
+    await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
     await user.type(editor(), '@alice');
     await screen.findByRole('option', { name: '@Alice Wang' });
     fireEvent.keyDown(editor(), { key: 'Enter', ctrlKey: true });
@@ -177,6 +218,7 @@ describe('market communication on homepage', () => {
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('暂无市场交流');
+    await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
     await user.type(editor(), '@Alice');
     await waitFor(() => expect(state.fetch.mock.calls.some(call => String(call[0]).includes('name=alice'))).toBe(true));
     await user.type(editor(), '{backspace}{backspace}{backspace}');
@@ -189,6 +231,7 @@ describe('market communication on homepage', () => {
     const user = userEvent.setup();
     render(<CommunicationBoard userEmail="me@colliers.com" userName="Me" />);
     await screen.findByText('暂无市场交流');
+    await user.click(screen.getByRole('button', { name: /打开市场交流/ }));
     await user.type(editor(), '@所');
     expect(screen.queryByRole('option')).not.toBeInTheDocument();
     await user.type(editor(), '有人');
