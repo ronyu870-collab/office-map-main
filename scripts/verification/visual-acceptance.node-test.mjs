@@ -107,8 +107,25 @@ test('allows the audit log exception only for PR #192 with the exact head, scope
     base: { ref: 'main' },
   };
   assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 193 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 194 }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'another-branch' } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+});
+
+test('recognizes the default audit filter waiver only for its own PR and branch', () => {
+  const candidate = {
+    number: 193,
+    body: record(
+      'result: waived',
+      'head: ' + head,
+      'scope: Audit log default Codex exclusion, PR #193',
+      'reason: User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #193',
+    ),
+    head: { sha: head, ref: 'codex/audit-exclude-codex-default', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' },
+  };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 192 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/audit-exclude-codex' } }), /specifically authorized/);
 });

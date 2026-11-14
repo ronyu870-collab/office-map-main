@@ -53,6 +53,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Audit log Codex exclusion, PR #192',
         reason: 'User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #192',
       },
+      {
+        number: 193,
+        branch: 'codex/audit-exclude-codex-default',
+        scope: 'Audit log default Codex exclusion, PR #193',
+        reason: 'User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #193',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'
