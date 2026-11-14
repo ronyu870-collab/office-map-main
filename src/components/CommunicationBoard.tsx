@@ -404,7 +404,11 @@ export function CommunicationBoard({ userEmail }: CommunicationBoardProps) {
                     </span>
                   )) : msg.content}
                 </p>
-                <button type="button" onClick={() => setReplyToId(msg.id)}
+                <button type="button" onClick={() => {
+                  setReplyToId(msg.id);
+                  // Replies need their context and optional rich tools in the full editor.
+                  if (!fullscreenRef.current) openFullscreen();
+                }}
                   className="mt-1 inline-flex min-h-8 items-center rounded-[var(--cd-radius-sm)] px-1 text-xs text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/25">
                   回复
                 </button>
@@ -430,6 +434,7 @@ export function CommunicationBoard({ userEmail }: CommunicationBoardProps) {
         <CommunicationComposer
           onSend={handleSendMessage}
           draftRef={draftSegmentsRef}
+          compact={!fullscreen}
           sending={sending}
           sendError={sendError}
           reply={replyToId === null ? null : (() => {
