@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { normalizeMarketSegments, segmentText } from '@/src/lib/communication/segments';
-import { matchEnglishFirstName, normalizeMentionLookupTerm } from '@/src/lib/communication/mentionLookup';
+import { isMentionableAuthUser, matchEnglishFirstName, normalizeMentionLookupTerm } from '@/src/lib/communication/mentionLookup';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -56,10 +56,12 @@ export async function GET(request: NextRequest) {
       return response({ error: '暂时无法匹配提及成员' }, 503);
     }
 
-    const live = new Set(authResult.data.users.filter(user => {
-      const bannedUntil = user.banned_until ? new Date(user.banned_until).getTime() : 0;
-      return !bannedUntil || bannedUntil <= Date.now();
-    }).map(user => user.id));
+    // Keep the @ lookup in sync with the admin account-status control.
+    // Accounts under an active Auth ban (or soft-deleted) are never returned.
+    const now = Date.now();
+    const live = new Set(authResult.data.users
+      .filter(user => isMentionableAuthUser(user, now))
+      .map(user => user.id));
 
     const members = (data ?? [])
       .flatMap(row => {
