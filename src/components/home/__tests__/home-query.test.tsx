@@ -124,6 +124,34 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     await waitFor(() => expect(screen.queryByRole('figure')).not.toBeInTheDocument());
     expect(screen.queryByRole('region', { name: '来源详情' })).not.toBeInTheDocument();
   });
+  it('keeps lease period and source together so the area is the next visible column',async()=>{
+    const result=resultViewSchema.parse({...buildAggregateResult(fixture(),'rent'),operation:'lease_observation',sources:[],analysis:null,limitations:[],parameters:{view:'quarter_trend',period:null,range:{start:{year:2026,quarter:1},end:{year:2026,quarter:2}},scope:{inventory:'leases',sources:['live'],fields:['area_sqm']},answer:{paragraphs:['合成季度趋势']}},
+      table:{id:'lease_quarter_trend',columns:[{key:'name',label:'记录来源',unit:null},{key:'period',label:'成交季度',unit:null},{key:'area',label:'已知成交面积合计',unit:'m2'}],rows:[1,2].map(q=>({entityId:`live/2026-Q${q}`,cells:{name:{kind:'text',value:'日常成交',sourceIds:[]},period:{kind:'text',value:`2026-Q${q}`,sourceIds:[]},area:q===1?{kind:'unknown',state:'missing',reason:'no_valid_sample',sourceIds:[]}:{kind:'number',value:{numeric:400,exact:{numerator:'400',denominator:'1'}},sourceIds:[]}}}))}});
+    client.submit.mockResolvedValue({requestId,status:'ready',result});render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'季度成交趋势'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
+    const table=await screen.findByRole('table',{name:'本次结果的完整表格，分页不改变统计范围'});
+    expect(table.querySelectorAll('th')[1]).toHaveTextContent('已知成交面积合计');
+    expect(table.querySelector('tbody td')).toHaveTextContent('日常成交2026-Q1');
+    expect(within(table).getByRole('button',{name:'查看来源：已知成交面积合计 400'})).toBeInTheDocument();
+  });
+  it('keeps all four quarters visible on a narrow result surface and preserves points after resizing',async()=>{
+    const callbacks:((entries:{contentRect:{width:number}}[])=>void)[]=[];
+    vi.stubGlobal('ResizeObserver',class {constructor(cb:(entries:{contentRect:{width:number}}[])=>void){callbacks.push(cb);}observe(){}disconnect(){}});
+    try{
+      const result=resultViewSchema.parse(buildTrendResult([1,2,3,4].map(quarter=>fixture({year:2026,quarter})),'rent','per_period'));
+      client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_s,_id,r,q)=>buildResultChart(r,q));
+      render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'季度趋势'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
+      fireEvent.click(await screen.findByRole('button',{name:'查看折线图'}));const figure=await screen.findByRole('figure',{name:'同源查询图表'});
+      for(const width of [324,254,800]){
+        act(()=>callbacks.forEach(cb=>cb([{contentRect:{width}}])));
+        const svg=figure.querySelector('svg')!;
+        expect(Number(svg.getAttribute('width'))).toBeLessThanOrEqual(width);
+        expect(svg.querySelectorAll('circle')).toHaveLength(4);
+        for(const circle of svg.querySelectorAll('circle'))expect(Number(circle.getAttribute('cx'))).toBeLessThan(width);
+        expect(svg.textContent).toContain('2026');expect(svg.textContent).toContain('Q4');
+      }
+      expect(client.submit).toHaveBeenCalledOnce();expect(client.chart).toHaveBeenCalledOnce();
+    }finally{vi.unstubAllGlobals();}
+  });
   it('renders a quarterly gap and switches graph type without rerunning data', async () => {
     const snapshots = [1, 2, 3, 4].map(quarter => fixture({ year: 2026, quarter }));
     snapshots[2] = { ...snapshots[2], rows: snapshots[2].rows.map(row => ({ ...row, facts: { ...row.facts,

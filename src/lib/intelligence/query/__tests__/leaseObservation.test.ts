@@ -146,7 +146,7 @@ describe('source-separated lease observation', () => {
     expect(result.sources.filter(s=>s.table==='lease_transactions_read_v1'&&s.field==='area_sqm'&&s.entityId.startsWith('live:')).every(s=>sourceIds.has(s.id))).toBe(true);
     const chart=buildResultChart(resultViewSchema.parse(result),{kind:'bar',field:'areaShare'});
     expect(chart.points.find(p=>p.yCell.entityId===group('live','金融').entityId)?.y).toBe(25);
-    expect(resultSummary(resultViewSchema.parse(result)).join('')).toContain('各组名称数不能相加');
+    expect(result.limitations.join('')).toContain('各组名称数不能相加');
     expect(()=>sanitizeAuditContent(result)).not.toThrow();
   });
   it('preserves zero denominators, missing and invalid area, and counts names without inventing legal entities',()=>{
@@ -170,7 +170,7 @@ describe('source-separated lease observation', () => {
     expect(chart.kind).toBe('faceted_line');expect(chart.connectNulls).toBe(false);
     expect(chart.facets?.map(f=>f.points.map(p=>p.y))).toEqual([[100,null,100,null],[null,null,100,null]]);
     const book=XLSX.read(await buildXlsx(result),{type:'array'});
-    expect(XLSX.utils.sheet_to_json<unknown[]>(book.Sheets['数据'],{header:1}).slice(1).map(r=>r.at(-1))).toEqual([100,'未记录',100,'未记录','未记录','未记录',100,'未记录']);
+    expect(XLSX.utils.sheet_to_json<unknown[]>(book.Sheets['数据'],{header:1}).slice(1).map(r=>r[1+result.table.columns.findIndex(c=>c.key==='area')])).toEqual([100,'未记录',100,'未记录','未记录','未记录',100,'未记录']);
     expect(()=>buildResultChart({...v,table:{...v.table,rows:v.table.rows.slice(1)}},{kind:'lease_time_series',field:'area'})).toThrow('CHART_GROUP_AXIS_MISMATCH');
     expect(()=>sanitizeAuditContent(result)).not.toThrow();
   });
@@ -200,4 +200,13 @@ it('reads and aggregates 1005 lease records fully but rejects an oversized synch
  expect(result.table.rows[0].cells.area).toMatchObject({value:{numeric:1005}});
  const content=JSON.stringify(sanitizeAuditContent({result}));
  expect(()=>encodeGeneratedArchive(content)).toThrow('AUDIT_CONTENT_LIMIT');
+});
+
+it('puts business measures before quality diagnostics and keeps full formula notes in exports',async()=>{
+ const result=buildLeaseResult(snapshot(),{view:'industry',period:null,read},a,id(9));
+ expect(result.table.columns.slice(0,4).map(c=>c.key)).toEqual(['name','source','areaShare','area']);
+ expect(resultSummary(resultViewSchema.parse(result)).length).toBeLessThanOrEqual(5);
+ expect(result.limitations.join('')).toContain('各组名称数不能相加');
+ const book=XLSX.read(await buildXlsx(result),{type:'array'});
+ expect(XLSX.utils.sheet_to_json<unknown[]>(book.Sheets['查询说明'],{header:1}).flat().join('')).toContain('各组名称数不能相加');
 });

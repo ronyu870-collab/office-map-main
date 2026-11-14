@@ -1,0 +1,93 @@
+{
+  "browser": "157.0.8103.52",
+  "synthetic": true,
+  "production": false,
+  "realMobileDevices": false,
+  "checks": [
+    {
+      "width": 1280,
+      "case": "authorized industry examples, distinct missing classification, source-separated percentage chart and full denominator source focus",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "quarter allocation, year-only exclusion, gaps and same-result area/record/name chart switching, four quarters and valid Q3 point visible without horizontal scrolling",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "XLSX/SVG readback, immutable recovery and local table scroll without page overflow",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "forty-quarter trend retains complete series and keyboard horizontal scrolling with explicit range",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "authorized industry examples, distinct missing classification, source-separated percentage chart and full denominator source focus",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "quarter allocation, year-only exclusion, gaps and same-result area/record/name chart switching, four quarters and valid Q3 point visible without horizontal scrolling",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "XLSX/SVG readback, immutable recovery and local table scroll without page overflow",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "forty-quarter trend retains complete series and keyboard horizontal scrolling with explicit range",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "case": "narrow viewport retains full table and reflows four-quarter chart without clipping the valid point",
+      "passed": true
+    }
+  ],
+  "downloads": [
+    {
+      "width": 1280,
+      "format": "xlsx",
+      "resultId": "917e86dd-b0a7-438d-9906-5d21a237887f",
+      "sha256": "8be95647e5e44f55bc9af7822e000175d50a06b18a69eaa01a6324d8023350b1",
+      "readback": true
+    },
+    {
+      "width": 1280,
+      "format": "svg_zip",
+      "resultId": "917e86dd-b0a7-438d-9906-5d21a237887f",
+      "sha256": "0b3d19ff36a905a93e78fb5a459eac7b0bd118f8da6eeb0d704d60b79c2495cc",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "xlsx",
+      "resultId": "521bf40c-9480-4a11-8360-9d39092bfdaa",
+      "sha256": "85f2a637c5ec9559e578e000ff96fe5dcaac543e22369c1a13d384100f2965c4",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "svg_zip",
+      "resultId": "521bf40c-9480-4a11-8360-9d39092bfdaa",
+      "sha256": "9be1aa831dac982dae5b77de7d7ecb993bc40fefa1aded6c7756fc065367f7ea",
+      "readback": true
+    }
+  ],
+  "screenshots": [
+    "1280-industry.png",
+    "1280-share-chart.png",
+    "1280-trend.png",
+    "390-industry.png",
+    "390-share-chart.png",
+    "390-trend.png",
+    "320-trend-table.png",
+    "320-trend.png"
+  ]
+}

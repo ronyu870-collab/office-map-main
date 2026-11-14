@@ -86,7 +86,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
         </div>)}</div>
         {chart.points.length > 25 && <div className={styles.tableFooter}><p>图示第 {page * 25 + 1}–{Math.min((page + 1) * 25, chart.points.length)} 条，共 {chart.points.length} 条；分页不改变统计范围。</p><div className={styles.actions}><Button variant="ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>上一页图示</Button><Button variant="ghost" disabled={(page + 1) * 25 >= chart.points.length} onClick={() => setPage(p => p + 1)}>下一页图示</Button></div></div>}
       </> : chart.kind==='faceted_line'?<><p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，缺期断线。数值和来源见下方原表。</p>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart}/>:<Scatter chart={chart} />}
-      {(chart.kind==='line'||chart.kind==='faceted_line') && <p className={styles.notice}>季度连续排列，缺数据处断线；数值与来源见下方原表。横向滚动可查看全部季度。</p>}
+
       {chart.kind === 'scatter' && <p className={styles.notice}>仅绘制两个字段都有有效值的联合样本，不代表因果关系。各楼数值和可点选来源见下方原表。</p>}
     </figure>}
   </div>;
@@ -103,16 +103,30 @@ function Scatter({ chart }: { chart: ResultChart }) {
 }
 
 function TrendLine({chart,height=380,bounds}:{chart:ResultChart;height?:number;bounds?:[number,number]}) {
-  const plot=lineGeometry(chart,undefined,height,bounds);
-  return <div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
-    <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
-      <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="#667085"/>
-      {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="#003e7e" strokeWidth="2"/>)}
-      {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="#003e7e"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
-      <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
-      <text x={plot.left} y={plot.height-8}>季度；{chart.yLabel}（{units[chart.yUnit]??chart.yUnit}）</text>
-    </svg>
-  </div>;
+  const container=React.useRef<HTMLDivElement>(null);
+  const [available,setAvailable]=React.useState(640);
+  React.useEffect(()=>{
+    const node=container.current;
+    if(!node||typeof ResizeObserver==='undefined')return;
+    const observer=new ResizeObserver(entries=>{const width=entries[0]?.contentRect.width;if(width>0)setAvailable(width);});
+    observer.observe(node);return ()=>observer.disconnect();
+  },[]);
+  const compact=available<480;
+  // Reflow coordinates, never scale text or change the immutable quarter values.
+  const width=Math.max(Math.min(available,800),100+(chart.points.length-1)*(compact?48:76));
+  const plot=lineGeometry(chart,width,height,bounds);
+  return <>
+    <p className={styles.notice}>{chart.points[0]?.label} 至 {chart.points.at(-1)?.label}，共 {chart.points.length} 个季度。{width>available?'横向滚动查看全部季度。':''}{chart.renderedCount===0?'本组各季度均无有效值，不按零绘制。':''}</p>
+    <div ref={container} className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
+      <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
+        <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="#667085"/>
+        {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="#003e7e" strokeWidth="2"/>)}
+        {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="#003e7e"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+24} textAnchor="middle">{compact?<><tspan x={p.x}>{p.point.label.slice(0,4)}</tspan><tspan x={p.x} dy="18">{p.point.label.slice(5)}</tspan></>:p.point.label}</text></g>)}
+        <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
+        <text x={plot.left} y={plot.height-8}>{chart.xLabel}</text>
+      </svg>
+    </div>
+  </>;
 }
 
 function Heatmap({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}) {

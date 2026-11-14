@@ -1,0 +1,254 @@
+{
+  "date": "2026-11-14",
+  "baseCommit": "6ba22afc627cf3aa37b8bcdf66e82f31b1965fad",
+  "scope": "Lease result reading order, full method retention, responsive quarter geometry and narrow table context grouping",
+  "production": false,
+  "realModelCalls": false,
+  "access": "Current canonical admin self only; all independent source/row/market/field/export/audit grants unchanged",
+  "verification": {
+    "command": "VITEST_MAX_WORKERS=2 npm run verify",
+    "status": "passed",
+    "files": 239,
+    "tests": 1594,
+    "lintErrors": 0,
+    "lintWarnings": 829,
+    "typecheck": "passed",
+    "auditCoverage": "passed",
+    "nextBuild": "passed"
+  },
+  "focus": {
+    "command": "SEARCH_FOCUS_BASE_SHA=6ba22afc627cf3aa37b8bcdf66e82f31b1965fad node scripts/search-focus-gate.mjs",
+    "status": "passed",
+    "files": 2,
+    "tests": 32
+  },
+  "authHttpPostgres": {
+    "command": "AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_BROWSER_VERIFY=true AI_QUERY_AUTH_PREVIEW_FILE=/private/tmp/colliers-query-preview-presentation.json AI_QUERY_BROWSER_CHANNEL=chrome AI_QUERY_AUTH_STATUS=/private/tmp/colliers-ai-query-auth-status.json node scripts/verification/verify-ai-query-auth.mjs",
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": 150,
+    "allPassed": true,
+    "runMetadataSha256": "00c138685559a0e0421afaad571d5a03b143150106f7bc0b421a8a553509320e",
+    "relevantScenarios": [
+      {
+        "scenario": "企业AI：viewer/editor拒绝发起和缓存提示，普通成交检索仍可用",
+        "status": "passed"
+      },
+      {
+        "scenario": "viewer/editor即使持全部AI查询、导出和审计资格仍拒绝，旧公开开关不能放行",
+        "status": "passed"
+      },
+      {
+        "scenario": "admin降级后旧JWT/旧快照/作图/下载/交付回执/审计均拒绝，重新成为admin仍沿用独立资格",
+        "status": "passed"
+      },
+      {
+        "scenario": "未来路径只准admin本人：viewer/editor持完整资格和旧JWT仍不能问、恢复、作图、下载或回执",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交独立资格/来源/记录/字段默认拒绝，不继承存量或未来范围",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实成交读层保留项目/参考/逐行映射，按来源分开计算且来源可追溯",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交楼座/项目筛选不复制面积，企业精确文字筛选不自动合并相似法人",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交字段最小读取：隐藏字段变化不影响可见版本，授权单条无范围外计数",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交必须先持久审计；非admin/模拟/直调与读取后撤权均拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交超过Data API默认1000行仍完整读回，未知与零值保留",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交快照检查所有稳定记录身份，不用去重掩盖损坏映射或重复来源",
+        "status": "passed"
+      },
+      {
+        "scenario": "三类查询资格同时具备时主页示例不超协议上限，存量/未来/成交各有入口",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交专用admin通过真实HTTP查四种结果，独立入口资格不借存量或未来范围",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交本人恢复、表格柱图与CSV/XLSX/SVG下载同源；数据库后改不覆盖旧快照",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交查询/恢复/作图/下载拒绝普通角色、模拟本人、另一admin及独立导出撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交来源包括未入选候选；移出范围/改期/撤字段后旧结果与导出拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交来源复查不接受伪造表/字段/记录，客户端不能直调服务端RPC",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交首次响应前撤回来源，最终交付门禁阻止答案并保留未交付修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交四类分组保留原分类与缺失，记录数/名称数/已知面积占比分开且逐来源计算",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交季度趋势只分配明确季度，保留连续空期与年份候选，折线/Excel/SVG和恢复使用同一快照",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交分组与趋势拒绝越字段/来源及普通身份，记录范围先过滤分母且不泄漏其他候选数量",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交趋势的年份候选撤回也阻断旧图表/导出，独立导出权仍须有效",
+        "status": "passed"
+      },
+      {
+        "scenario": "成交读层完整读取1005条；超出同步归档容量时审计失败且不截断交付",
+        "status": "passed"
+      }
+    ]
+  },
+  "browser": {
+    "evidence": "../verification/lease-presentation/browser-evidence.json",
+    "evidenceSha256": "59a4148d126cf26828dc34a096a580cf1a2f3ef1cdefa5979ae8fc143d1b13f1",
+    "checks": 9,
+    "downloads": 4,
+    "screenshots": 8,
+    "viewports": [
+      1280,
+      390,
+      320
+    ],
+    "realMobileDevices": false
+  },
+  "regressionBrowsers": {
+    "future-query": {
+      "checks": 26,
+      "downloads": 12,
+      "allPassed": true,
+      "browser": "157.0.8103.52",
+      "runMetadataSha256": "4f78fdadfac9625d0d9a46b30241ea431a927602cbf2d82b9de3f633fdaf1317"
+    },
+    "lease-query": {
+      "checks": 11,
+      "downloads": 4,
+      "allPassed": true,
+      "browser": "157.0.8103.52",
+      "runMetadataSha256": "735a0e4a73404ba32ea4b89fa53c3b0def40af4b564a24f02ce406eb3474b005"
+    }
+  },
+  "securityAdvisor": {
+    "command": "supabase db advisors --local --type security --level warn --fail-on warn --workdir /private/tmp/colliers-ai-query-auth-integration",
+    "status": "passed",
+    "issuesAtWarnLevel": 0,
+    "schemaChanges": false
+  },
+  "regressions": [
+    {
+      "case": "Four-quarter point hidden outside narrow viewport",
+      "before": "Same component test failed: SVG640 > container324",
+      "after": "324/254/800 widths preserve four visible points with one query/artifact; actual390/320 browsers confirm valid Q3 point visible"
+    },
+    {
+      "case": "Main group measure after diagnostics",
+      "before": "Same execution test failed: name/source/categoryState/count instead of name/source/areaShare/area",
+      "after": "Business measures first; UI source combined with category; actual390 viewport sees25%; full method remains in Excel"
+    },
+    {
+      "case": "Trend area still outside320 table viewport",
+      "before": "Same component test failed: second header was成交季度, not已知成交面积合计",
+      "after": "Source/period share fixed first cell; actual320 viewport sees400 with full quarter identity"
+    }
+  ],
+  "visualSelfReview": {
+    "status": "passed for this scoped refinement",
+    "screenshotsViewed": [
+      "1280-industry.png",
+      "1280-share-chart.png",
+      "1280-trend.png",
+      "390-industry.png",
+      "390-share-chart.png",
+      "390-trend.png",
+      "320-trend-table.png",
+      "320-trend.png"
+    ],
+    "baseline": "../verification/lease-analytics/ (base6ba22af; equivalent synthetic values and viewports)",
+    "findings": [
+      "Default analytic answer reduced from8 to5 paragraphs for normal two-source sample; full original methods retained in expandable source/method section and exports.",
+      "Source and category/quarter share one aligned fixed column, main share or area follows immediately; no dropped table fields or source links.",
+      "Four-quarter geometry uses actual container width and two-line quarter labels at unchanged font size; valid point visible at390 and320.",
+      "Long40-quarter series remains complete and scrollable with range cue; all-unknown series explicitly says unknown, no fake zero.",
+      "Existing colors, type, controls and continuous result surface retained; no new card or image."
+    ],
+    "independentReview": "pending",
+    "screenshotNote": "Viewport screenshots follow the result/table/chart scroll position; they are not full-page captures or production evidence."
+  },
+  "sourceSha256": {
+    ".github/workflows/verify.yml": "84e7f36d09c3344a9d0f615ef2e2998e68ef4b7d408e3ce3d9432dabdb6cdde0",
+    "package-lock.json": "74da581a6f33aff85e82c8ba68a97df56a2deb537c3206753890417e56a9a5c5",
+    "package.json": "1e88653611e71a6d1176cb1b0b481d67d5e50e4620c78f0dbd5823f7c31b97e1",
+    "scripts/verification/ai-lease-analytics-scenarios.mjs": "7150d735bbc974358826345e9ff83b2f5220cca4dcac606bc3ce252d5abfd59d",
+    "scripts/verification/ai-lease-observation-scenarios.mjs": "3745f281b1e312602accf2caf06aa08470f2e05a0a94c0bda9e3d890753d1c4d",
+    "scripts/verification/ai-lease-query-entry-scenarios.mjs": "5fd6458cf598724fb83dfe96b9aa4a56cfa4951f4a377e011684bc02c5d862a9",
+    "scripts/verification/verify-ai-query-auth.mjs": "17cbbe7c0a69d508d86bf8b698df53e18a47d51fb8b44c2c7f2e1c6bcc3bb5f7",
+    "scripts/verification/verify-future-query-browser.mjs": "2046c876f9054239f2b2c9e97f6545087010a8ff48045d2de0bae089dbe470ad",
+    "scripts/verification/verify-lease-analytics-browser.mjs": "55f481500163bd2bbf5f8f368ca961938bf3b016b918cefb605f2a71024a971c",
+    "scripts/verification/verify-lease-query-browser.mjs": "f8500e9b9bc21b7281f13260b224b3bc57cc7e5c74371614ba9956487bb4d329",
+    "src/components/home/HomeQuery.module.css": "8869088a69a47aec430939cbea0be0357717f7a7494b9df44d0d3336368ef6ea",
+    "src/components/home/HomeQueryArtifacts.tsx": "71bca841d5d3d882cd1ca7a81879a7524ae5f9d37aa72e5fdf14771757665f08",
+    "src/components/home/HomeQueryResult.tsx": "2efc26d38aa74796375efd56121bd25b5155167323515fedb459daecb3433e32",
+    "src/components/home/__tests__/home-query.test.tsx": "df166fa990e63b604556f71821ddcf21c2e49bd5ddc2594cdcc0c6a4c647b8cb",
+    "src/lib/intelligence/query/__tests__/capabilities.test.ts": "c319bb67d1ac75abe54d55868939cf47bd838035e62bb95430a3c50a6849bdf8",
+    "src/lib/intelligence/query/__tests__/leaseObservation.test.ts": "1e4a3a975975b9c609a55fe3e10f416893c27b003ab72e4c50b7d8f11c3ac1e0",
+    "src/lib/intelligence/query/admission.ts": "e453ceb25fdaf7e95098f9b62982d91b0548decc2989bb769699516e503b2545",
+    "src/lib/intelligence/query/capabilities.ts": "01e82d632037075103dd44fd4c4f431b87cc767c888c8be62d365059837edba2",
+    "src/lib/intelligence/query/charts.ts": "bf4cfd8722754d509328015fa892eb4cf195bdc9e732b2bdbf84e7fa7bfb4aa9",
+    "src/lib/intelligence/query/deliveryHttp.ts": "32c44b6f36ad736fdf8555d375f944b2b69fc3a8d4a3969bb91bae18960f39ad",
+    "src/lib/intelligence/query/entryAuthority.ts": "6f895ad568758ffdb5eaf46e7dcc21f3f6cbf843c65fb32742a72b4c5587bd2c",
+    "src/lib/intelligence/query/executePlan.ts": "9764cac4bd1f0727732df18b98a928e2267b9b599d62264cc12936a65330debd",
+    "src/lib/intelligence/query/exports.ts": "8c548a33889b09154104d2c417f8e3431746bf85a121681266a80ecf105c8ef3",
+    "src/lib/intelligence/query/http.ts": "5f3d493f8e91dff303d63f984787ca770e2f70303e6bad73e562fb021a937cc3",
+    "src/lib/intelligence/query/leases/analytics.ts": "555b04717a52500b4dbcb4e0d3cb2eedb814a66d159cb1852783fa42fe7da015",
+    "src/lib/intelligence/query/leases/reader.ts": "df1893712cfa102f0837fc59249c38e8a5d6dc0afa6723d93373888756cf548d",
+    "src/lib/intelligence/query/leases/result.ts": "a5cf5fceaa85e727d6154e010cc84d15ffbd39463513e741c4be4ce2726ca8ab",
+    "src/lib/intelligence/query/leases/view.ts": "fc98980abb6f6dee01b35bc136963bd7f6fc8563262b5a3bf6b1c8c1f1319cf0",
+    "src/lib/intelligence/query/plan.ts": "91c3d82f7384161e194e415bc1ec49d7be07df78c3423a2cf990bd2c42ba77b6",
+    "src/lib/intelligence/query/presentation.ts": "67a10232870a26ea37e851e3d344a5a86fc5f671e290f45e9dfdfdf570bcf528",
+    "src/lib/intelligence/query/question.ts": "582d9b5871b9812362212bb955ca8578a06d7c8f59a526a80cc84888a249b2a3",
+    "src/lib/intelligence/query/recovery.ts": "0ade20c6365c7ce4fadfc14d3b510439d3f92c7d264bc23560cd199f6dadbb7c",
+    "src/lib/intelligence/query/result.ts": "32b66ae8d82279327881880ce05912216991d9831f22623f3c4e795f61733b84",
+    "src/lib/intelligence/query/snapshotReader.ts": "c056cdf1c00c9d49c8c7c9204109250e4fcd7b533c914787b877646ff3a85c2f",
+    "supabase/migrations/20261114075152_ai_lease_query_entry.sql": "d1cfe4337954235433ce39723ea2f99d4881a914b5962374c6e97a2879db2ce7"
+  },
+  "screenshotsSha256": {
+    "docs/verification/lease-presentation/1280-industry.png": "7ff2b57c3eb2e8ac11e28f5a26fd85edd750e813e964535132b01bb24b9f2960",
+    "docs/verification/lease-presentation/1280-share-chart.png": "7455fcc4fadaf7cfd42547d1922d24b3637baa6fd7c7b364dae3711a986fd0a0",
+    "docs/verification/lease-presentation/1280-trend.png": "44a8ff247d81ccb0d21609644433561068a6a199f5621effe8941cd0e036ad37",
+    "docs/verification/lease-presentation/390-industry.png": "caf21a71af37a84fafb6debb071dcc854022af404093501f8d13958e39cc024f",
+    "docs/verification/lease-presentation/390-share-chart.png": "a2fa3f136d5baffbb75fc1f493a02e759b31cad6a91cf1e8d8138f679ae376b0",
+    "docs/verification/lease-presentation/390-trend.png": "36f05e1db4dd01ceaa46ed530b643d8ef4355c99e67ad478c4b2dc2650424c84",
+    "docs/verification/lease-presentation/320-trend-table.png": "484df89c99aeff8a84f8cae0feb732ec066792853fa91937da8b8ade4803feee",
+    "docs/verification/lease-presentation/320-trend.png": "5b2e99e0532c39d5aa621139fb6724d995f6e5c0adf3ff33f34586f8bdf61e9d"
+  },
+  "unchangedLimitations": [
+    "16 MiB synchronous archive still rejects the full1005-record provenance result; background/materialized large-result delivery unfinished",
+    "Remote exact-head CI and independent visual review not performed",
+    "No production migration/enablement, real model or real-data egress",
+    "Full99/T01-T60, remaining Q15/Q16 and other goal work remain active"
+  ]
+}

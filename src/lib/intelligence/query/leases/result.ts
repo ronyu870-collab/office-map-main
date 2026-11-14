@@ -57,6 +57,6 @@ export function buildLeaseResult(raw: unknown, input: LeaseSelection, authority:
     ...(grouped?.paragraphs??[]),
     ...(records.length===0?['当前授权范围没有符合明确期间条件的记录；不能据此断言现实市场没有成交。']:[])];
   const result:QueryResult={resultId:randomUUID(),createdAt:new Date().toISOString(),snapshotId:snapshot.snapshotId,dataVersion:full.dataVersion,registryVersion:FIELD_REGISTRY_VERSION,
-    scopeFingerprint:createHash('sha256').update(JSON.stringify([authority.actorId,authority.permissionRevision,selection])).digest('hex'),operation:'lease_observation',parameters:{view:selection.view,period:selection.period,...(selection.range?{range:selection.range}:{}),...(grouped?{leaseAnalytics:grouped.details}:{}),scope:{inventory:'leases',...selection.read},coverage,decisions,answer:{paragraphs}},analysis,table,sources:full.sources,limitations:full.limitations};
+    scopeFingerprint:createHash('sha256').update(JSON.stringify([authority.actorId,authority.permissionRevision,selection])).digest('hex'),operation:'lease_observation',parameters:{view:selection.view,period:selection.period,...(selection.range?{range:selection.range}:{}),...(grouped?{leaseAnalytics:grouped.details}:{}),scope:{inventory:'leases',...selection.read},coverage,decisions,answer:{paragraphs}},analysis,table,sources:full.sources,limitations:grouped?[...full.limitations.slice(0,-1),...grouped.methodology,full.limitations.at(-1)!]:full.limitations};
   const freeze=(v:unknown)=>{if(v&&typeof v==='object'){Object.values(v).forEach(freeze);Object.freeze(v);}};freeze(result);return result;
 }

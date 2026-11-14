@@ -34,7 +34,7 @@ export async function verifyLeaseAnalytics({db,who,grant,check,call,recover,arti
    assert.deepEqual(chart.body.chart.facets.map(f=>f.points.map(p=>p.y)),[[100,null,300,null],[null,null,100,null]]);assert.equal(chart.body.chart.connectNulls,false);
    for(const field of ['count','names'])assert.equal((await artifact(who,{...common(trend),action:'chart',chart:{kind:'lease_time_series',field}})).status,200);
    const excel=await artifact(who,{...common(trend),action:'export',format:'xlsx'});assert.equal(excel.status,200);
-   const book=XLSX.read(excel.bytes,{type:'array'});assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['数据'],{header:1}).slice(1).map(r=>r.at(-1)),[100,'未记录',300,'未记录','未记录','未记录',100,'未记录']);
+   const book=XLSX.read(excel.bytes,{type:'array'});assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['数据'],{header:1}).slice(1).map(row=>row[1+r.table.columns.findIndex(c=>c.key==='area')]),[100,'未记录',300,'未记录','未记录','未记录',100,'未记录']);
    const svg=await artifact(who,{...common(trend),action:'export',format:'svg_zip',chart:{kind:'lease_time_series',field:'area'}});assert.equal(svg.status,200);
    const zip=await JSZip.loadAsync(svg.bytes),manifest=JSON.parse(await zip.file('manifest.json').async('string'));assert.deepEqual(manifest.chart,chart.body.chart);assert.equal(manifest.resultId,r.resultId);
    await db.query('update public.lease_transactions set area_sqm=9999 where id=$1',[live[0]]);

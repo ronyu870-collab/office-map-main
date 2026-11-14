@@ -15,6 +15,9 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
+  const groupedLease=result.operation==='lease_observation'&&result.table.id==='lease_group_summary';
+  const leaseContextKey=groupedLease?'source':result.operation==='lease_observation'&&result.table.id==='lease_quarter_trend'?'period':null;
+  const columns=leaseContextKey?result.table.columns.filter(c=>c.key!==leaseContextKey):result.table.columns;
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
   useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) });
@@ -36,14 +39,18 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} />}
     {result.table.rows.length > 0 && <>
       <div className={styles.tableScroll} tabIndex={0} aria-label="查询结果表，可横向滚动">
-        <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>
-          <th key={column.key} scope="col" className={column.unit ? styles.number : undefined}>{column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}</th>)}</tr></thead>
-          <tbody>{rows.map(row => <tr key={row.entityId}>{result.table.columns.map(column => {
+        <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{columns.map(column =>
+          <th key={column.key} scope="col" className={column.unit ? styles.number : undefined}>{column.label}{leaseContextKey&&column.key==='name'?(groupedLease?' / 来源':' / 成交季度'):''}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}</th>)}</tr></thead>
+          <tbody>{rows.map(row => <tr key={row.entityId}>{columns.map(column => {
             const cell = row.cells[column.key];
             const value = cellText(cell, column.unit);
+            const context=leaseContextKey&&column.key==='name'?row.cells[leaseContextKey]:null;
+            const contextText=context?.kind==='text'?context.value:null;
+            const sourceIds=context?[...new Set([...cell.sourceIds,...context.sourceIds])]:cell.sourceIds;
+            const label=`${column.label} ${value}${contextText?` / ${contextText}`:''}`;
             return <td key={column.key} className={cell.kind === 'number' ? styles.number : undefined}>
-              <button type="button" className={styles.cell} aria-label={`查看来源：${column.label} ${value}`}
-                onClick={event => showSources(cell.sourceIds, `${column.label}：${value}`, event.currentTarget)}>{value}</button>
+              <button type="button" className={styles.cell} aria-label={`查看来源：${label}`}
+                onClick={event => showSources(sourceIds, `${column.label}：${value}${contextText?` / ${contextText}`:''}`, event.currentTarget)}>{value}{contextText&&<span className={styles.cellContext}>{contextText}</span>}</button>
             </td>;
           })}</tr>)}</tbody></table>
       </div>

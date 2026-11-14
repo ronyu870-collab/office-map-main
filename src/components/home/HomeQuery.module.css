@@ -24,6 +24,7 @@
 .tableScroll th:first-child { z-index: 3; background: var(--cd-color-surface-alt); }
 .tableScroll .number { text-align: right; font-variant-numeric: tabular-nums; }
 .cell { color: inherit; text-align: inherit; min-height: 28px; text-decoration: underline; text-decoration-color: var(--cd-color-border-strong); text-underline-offset: 4px; overflow-wrap: anywhere; }
+.cellContext { display: block; color: var(--cd-color-text-secondary); }
 .cell:hover { color: var(--cd-color-brand); }
 .tableFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .limitations { display: grid; gap: 4px; margin-top: 16px; max-width: 80ch; }
