@@ -21,6 +21,11 @@ export function checkVisualAcceptance(pr) {
   }
 
   const result = record.get('result');
+  // Preserve the existing pending/invalid-result response before checking
+  // the SHA, so the original validation contract remains unchanged.
+  if (result !== 'passed' && result !== 'not-applicable' && result !== 'waived') {
+    return 'Visual acceptance is pending. Record passed or explain why the change is not applicable.';
+  }
   if (!/^[0-9a-f]{40}$/.test(pr?.head?.sha ?? '') || record.get('head') !== pr.head.sha) {
     return 'Record the full SHA of the current PR head and confirm the conclusion for that revision.';
   }
@@ -36,9 +41,6 @@ export function checkVisualAcceptance(pr) {
       && record.get('scope') === 'Homepage market communication P0, PR #190'
       && record.get('reason') === 'User explicitly waived independent visual review and real-device acceptance for PR #190 on 2026-11-14';
     return approved ? null : 'Visual waiver applies only to the specifically authorized PR #190 and must disclose the reason.';
-  }
-  if (result !== 'passed' && result !== 'not-applicable') {
-    return 'Visual acceptance is pending. Record passed or explain why the change is not applicable.';
   }
   if (result === 'not-applicable') {
     return record.get('reason') ? null : 'Explain why no user-visible interface or state is affected.';
