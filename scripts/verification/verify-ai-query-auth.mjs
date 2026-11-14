@@ -2,7 +2,7 @@ import {seedFutureQueryPreview} from './ai-future-query-preview.mjs';
 import { setupCompanyAdmin, verifyCompanyAdmin } from './ai-company-admin-scenarios.mjs';
 import { setupLeaseObservation, verifyLeaseObservation } from './ai-lease-observation-scenarios.mjs';
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
-// No browser automation, mocked authentication, production URL, or model calls.
+// Optional real-browser checks use the same synthetic preview; no mocked Auth, production URL or real-model calls.
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile, open, unlink } from 'node:fs/promises';
@@ -160,7 +160,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(queryAdmin,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/12');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/13');
     }
     const compared=await call(queryAdmin,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -577,7 +577,7 @@ try{
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
   await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey,call,recover,artifact,acknowledge,events,decrypt,capabilities});
   await verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey,recover,artifact,acknowledge,capabilities});
-  await verifyLeaseObservation({db,service,check,person,output,keyId,encryptionKey,digestKey});
+  await verifyLeaseObservation({db,service,check,person,output,keyId,encryptionKey,digestKey,app,call,recover,artifact,acknowledge,capabilities});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
@@ -612,6 +612,8 @@ try{
     if(process.env.AI_QUERY_AUTH_BROWSER_VERIFY==='true'){
       const verification=spawn(process.execPath,['scripts/verification/verify-future-query-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
       const [code]=await once(verification,'exit');assert.equal(code,0,'Real homepage browser verification failed');
+      const leaseBrowser=spawn(process.execPath,['scripts/verification/verify-lease-query-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
+      const [leaseCode]=await once(leaseBrowser,'exit');assert.equal(leaseCode,0,'Real lease homepage browser verification failed');
     }else await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
 }finally{

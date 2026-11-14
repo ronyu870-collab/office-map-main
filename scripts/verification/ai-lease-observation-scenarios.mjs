@@ -1,3 +1,4 @@
+import {verifyLeaseQueryEntry} from './ai-lease-query-entry-scenarios.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -26,9 +27,10 @@ export async function setupLeaseObservation(db, load) {
   assert.ok(start >= 0 && end > start);
   await db.query(source.slice(start, end));
   await db.query(await load('20261114072043_ai_lease_observation.sql'));
+  await db.query(await load('20261114075152_ai_lease_query_entry.sql'));
 }
 
-export async function verifyLeaseObservation({ db, service, check, person, output, keyId, encryptionKey, digestKey }) {
+export async function verifyLeaseObservation({ db, service, check, person, output, keyId, encryptionKey, digestKey, app, call, recover, artifact, acknowledge, capabilities }) {
   const entry = path.join(output, 'lease-entry.mjs'), file = path.join(output, 'lease-adapter.cjs');
   await writeFile(entry, `export {readLeaseSnapshot,loadLeaseAuthority} from '../../src/lib/intelligence/query/leases/reader.ts';
     export {analyzeLeaseSnapshot} from '../../src/lib/intelligence/query/leases/analyze.ts';
@@ -129,6 +131,7 @@ export async function verifyLeaseObservation({ db, service, check, person, outpu
       await db.query('insert into public.lease_transactions_history(id,source_uid,company,new_building,sub_market) values($1,$2,$3,$4,$5)', [bad, uid(0), '重复来源', 'AI成交项目', market]);
       try { await assert.rejects(read(), /QUERY_READ_UNAVAILABLE/); } finally { await db.query('delete from public.lease_transactions_history where id=$1', [bad]); }
     });
+    if(app)await verifyLeaseQueryEntry({db,service,check,person,who,grant,fields,live,hist,market,call,recover,artifact,acknowledge,capabilities,app});
   } finally {
     await db.query('delete from public.lease_transactions where id=any($1::uuid[])', [live]);
     await db.query('delete from public.lease_transactions_history where id=any($1::uuid[])', [hist]);

@@ -68,6 +68,9 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['entity_id', ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
     ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
+  if(result.operation==='lease_observation'){
+    append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
+  }
   if(result.operation==='future_observation'){
     append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
     if(result.parameters.launchRange){const r=futureRangeOverviewSchema.parse(result.parameters.launchRange);

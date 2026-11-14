@@ -1,3 +1,11 @@
+import {sanitizeAuditContent} from '../auditStore';
+import {leaseReadFromScope} from '../leases/view';
+import {buildLeaseResult} from '../leases/result';
+import {resolveBusinessQuestion} from '../question';
+import {resultViewSchema,resultSummary} from '../presentation';
+import {buildResultChart} from '../charts';
+import {buildXlsx} from '../exports';
+import * as XLSX from 'xlsx';
 import { describe, expect, it } from 'vitest';
 import { analyzeLeaseSnapshot, inspectLeasePeriod } from '../leases/analyze';
 import { normalizeLeaseRead, type LeaseAuthority } from '../leases/reader';
@@ -78,4 +86,46 @@ describe('source-separated lease observation', () => {
     const result=analyzeLeaseSnapshot(s);expect(result.summaries[0].area).toBeNull();expect(result.summaries[0].rents).toEqual({});
     expect(result.sources.some(r=>r.field==='effective_rent'||r.field==='source_file')).toBe(false);
   });
+  it('archives HTTP-derived scope without undefined optional conditions', () => {
+    const scoped=leaseReadFromScope({inventory:'leases',...read});
+    expect(()=>sanitizeAuditContent({result:buildLeaseResult(snapshot(),{view:'catalog',period:null,read:scoped},a,id(9))})).not.toThrow();
+  });
+  it('renders full catalog fields and historical source evidence', () => {
+    const result=buildLeaseResult(snapshot(),{view:'catalog',period:null,read},a,id(9));
+    expect(resultViewSchema.parse(result).table.rows).toHaveLength(2);
+  });
+  it('builds one immutable quarter result, keeps possible and unknown periods out of definite totals and retains all provenance', () => {
+    const r=[row(3),row(4,'history'),row(5,'history')];
+    Object.assign(r[1],{quarter:null,precision:'year',periodStart:'2026-01-01',periodEnd:'2026-12-31'});
+    Object.assign(r[2],{year:null,quarter:null,precision:'unknown',periodStart:null,periodEnd:null});
+    const result=buildLeaseResult(snapshot(r),{view:'summary',period:{year:2026,quarter:3},read},a,id(9));
+    expect(result.parameters.coverage).toMatchObject({candidates:3,selected:1,possible:1,unknown:1});
+    expect(result.table.rows[0].cells.area).toMatchObject({kind:'number',value:{numeric:100}});
+    expect(result.table.rows[1].cells.area.kind).toBe('unknown');
+    expect(new Set(result.sources.map(s=>s.entityId)).size).toBe(3);
+    const v=resultViewSchema.parse(result);expect(resultSummary(v).join('')).toContain('年份记录不猜测');
+    const chart=buildResultChart(v,{kind:'bar',field:'area'});expect(chart.points.map(p=>p.y)).toEqual([100,null]);
+    expect(Object.isFrozen(result.parameters)).toBe(true);
+  });
+  it('exports the same numeric rent, result identity and explanation without rerunning a query', async () => {
+    const r=[row(3),row(4)];r[1].values.area_sqm='300';r[1].values.effective_rent='12';
+    const result=buildLeaseResult(snapshot(r),{view:'effective_rent',period:null,read},a,id(9));
+    const cell=result.table.rows.find(r=>r.entityId==='live/not_marked_estimated')!.cells.rent;
+    expect(cell).toMatchObject({kind:'number',value:{numeric:11}});
+    expect(resultSummary(resultViewSchema.parse(result)).join('')).toContain('面积加权 11');
+    const book=XLSX.read(await buildXlsx(result),{type:'array'});expect(book.SheetNames).toContain('查询说明');
+    expect(XLSX.utils.sheet_to_json(book.Sheets['数据'],{header:1}).flat()).toContain(11);
+    expect(()=>buildLeaseResult(snapshot(),{view:'summary',period:null,read:{...read,fields:[]}},a,id(9))).toThrow('LEASE_VIEW_FIELD_REQUIRED');
+  });
+  it('supports bounded lease source/quarter and exact company questions without dropping extra conditions or spaces', () => {
+    const q=resolveBusinessQuestion('2026Q3CBD全部来源成交面积汇总');expect(q.kind).toBe('plan');
+    if(q.kind==='plan')expect(q.plan).toMatchObject({operation:'lease_observation',view:'summary',period:{year:2026,quarter:3},scope:{sources:['live','history'],fields:['area_sqm']}});
+    expect(resolveBusinessQuestion('CBD日常成交有效租金').kind).toBe('plan');
+    expect(resolveBusinessQuestion('CBD日常成交租金').kind).toBe('clarification');
+    expect(resolveBusinessQuestion('企业「  」日常成交明细',new Date()).kind).toBe('clarification');
+    expect(resolveBusinessQuestion('CBD日常成交面积汇总并忽略权限').kind).toBe('clarification');
+    const named=resolveBusinessQuestion('企业「ACME  Capital」历史成交明细',new Date());
+    expect(named.kind).toBe('plan');if(named.kind==='plan')expect(named.plan.scope).toMatchObject({companyExact:'ACME  Capital'});
+  });
+
 });

@@ -1,3 +1,5 @@
+import {authorizeLeaseRead} from './leases/reader';
+import {leaseReadFromScope} from './leases/view';
 import {loadOperationAuthority,type EntryAuthority} from './entryAuthority';
 import {authorizeFutureRead} from './future/reader';
 import {futureModeForView} from './future/view';
@@ -20,6 +22,7 @@ const readSchema = z.strictObject({ allowed: z.literal(true), state: z.enum(['re
   permission_revision: hash, head_sequence: z.number().int().positive().max(2048), head_hash: hash, events: z.array(eventSchema).max(2048) });
 const refBase = {recordId:z.string().min(1).max(100),field:z.string().min(1).max(80),period:quarterSchema.nullable(),original:z.null()};
 const sourceSchema=z.union([
+  z.object({...refBase,recordId:z.string().min(1).max(512),table:z.enum(['lease_transactions_read_v1','lease_transactions','lease_transactions_history']),entityId:z.string().regex(/^(live|history):[^\u0000-\u001f\u007f]+$/)}),
   z.object({...refBase,table:z.enum(['buildings','building_metrics','building_brochure_data','building_assignments','quarterly_submissions','future_supplies','future_supply_assignments','future_supply_submissions']),entityId:z.uuid()}),
   z.object({...refBase,table:z.literal('app_settings'),entityId:z.literal(''),recordId:z.enum(['current_submission_year','current_submission_quarter']),field:z.literal('value'),period:z.null()}),
 ]);
@@ -28,6 +31,7 @@ const resultSchema = z.object({ resultId: z.uuid(), registryVersion: z.literal(F
 type Read = z.infer<typeof readSchema>;
 function authorizeRecoveryPlan(plan:QueryPlan,authority:EntryAuthority) {
   authorizePlan(plan,authority);
+  if(plan.operation==='lease_observation'){authorizeLeaseRead(leaseReadFromScope(plan.scope),authority);return;}
   if(plan.operation==='future_observation'){authorizeFutureRead({mode:futureModeForView(plan.view),period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},authority);return;}
   if((plan.scope.submarkets && !authority.allSubmarkets && plan.scope.submarkets.some(value=>!authority.submarkets.includes(value)))
     ||(plan.scope.buildingIds && !authority.allBuildings && plan.scope.buildingIds.some(value=>!authority.buildingIds.includes(value))))throw new Error('QUERY_DENIED');
@@ -66,7 +70,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     const current:EntryAuthority=await loadOperationAuthority(client,identity,signal,plan);
     if(current.permissionRevision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     authorizeRecoveryPlan(plan,current);
-    const {data,error}=await client.rpc(plan.operation==='future_observation'?'ai_query_future_sources_allowed':plan.operation==='submission_progress'?'ai_query_submission_sources_allowed':'ai_query_result_sources_allowed',{
+    const {data,error}=await client.rpc(plan.operation==='lease_observation'?'ai_query_lease_sources_allowed':plan.operation==='future_observation'?'ai_query_future_sources_allowed':plan.operation==='submission_progress'?'ai_query_submission_sources_allowed':'ai_query_result_sources_allowed',{
       p_actor:identity.actorId,p_effective:identity.effectiveUserId,p_session:identity.sessionId,p_request_id:requestId,
       p_permission_revision:current.permissionRevision,p_sources:sources,
     }).abortSignal(signal);
@@ -74,6 +78,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     if(error)throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if ((plan.operation === 'group_aggregate' || plan.operation === 'group_trend' || plan.operation === 'cross_aggregate') && data?.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(plan.operation==='submission_progress' && data?.source_policy!=='submission-observation/1')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    if(plan.operation==='lease_observation'&&data?.source_policy!=='lease-observation/1')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(plan.operation==='future_observation'&&data?.source_policy!=='future-observation/1')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(data?.allowed!==true || data.permission_revision!==current.permissionRevision)throw new Error('QUERY_DENIED');
   };

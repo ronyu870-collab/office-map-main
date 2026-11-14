@@ -9,6 +9,19 @@ async function run(data:unknown,error:unknown=null){
  return handleQueryCapabilities(new Request('http://localhost/api/intelligence/query/capabilities'),{client:{rpc} as unknown as SupabaseClient,enabled:true,keys});
 }
 describe('capability examples require current resource scope and the admin policy',()=>{
+ it('keeps combined stock, future and lease examples within the homepage protocol limit',async()=>{
+  const {future_policy:_policy,all_future_supplies:_all,future_supply_ids:_ids,...base}=allowed;
+  const common={...base,capabilities:['query:catalog','query:brochure','query:quarter','query:submission-progress','query:submission-quality','query:future-catalog','query:future-progress','query:future-quality','query:leases'],fields:['height','floors','parking','totalArea','vacantArea','netEffectiveRent']};
+  const responses:Record<string,unknown>={
+   ai_query_authority:{...common,all_buildings:true,building_ids:[]},
+   ai_query_future_authority:{...common,future_policy:'future-observation/1',all_future_supplies:true,future_supply_ids:[]},
+   ai_query_lease_authority:{...common,lease_policy:'lease-observation/1',all_lease_records:true,lease_record_ids:[],lease_sources:['live','history'],lease_fields:['area_sqm','face_rent','effective_rent']},
+  };
+  const rpc=vi.fn((name:string)=>({abortSignal:async()=>({data:responses[name],error:null})}));
+  const response=await handleQueryCapabilities(new Request('http://localhost/api/intelligence/query/capabilities'),{client:{rpc} as unknown as SupabaseClient,enabled:true,keys});
+  const body=await response.json();expect(response.status).toBe(200);expect(body.enabled).toBe(true);expect(body.examples.length).toBeLessThanOrEqual(20);
+  expect(body.examples).toContain('CBD有哪些楼');expect(body.examples).toContain('CBD未来供应有哪些');expect(body.examples).toContain('CBD日常成交明细');expect(body.examples).toContain('CBD历史成交有效租金');
+ });
  it('offers only future catalog examples when stock scope is absent even if its capability string exists',async()=>{
   const response=await run(allowed),body=await response.json();expect(response.status).toBe(200);expect(body.enabled).toBe(true);expect(body.examples).toEqual(['CBD未来供应有哪些','CBD未来供应预计时间精度','CBD未来供应预计在2026Q4至2027Q1入市有哪些']);
  });

@@ -54,11 +54,11 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         </div>}
       </div>
     </>}
-    <div className={styles.limitations}>{(result.operation==='submission_progress'?result.limitations.filter((_,i)=>i===1||i===result.limitations.length-1):result.operation==='future_observation'?result.limitations.filter((_,i)=>i===1||i===2||i===result.limitations.length-1):result.limitations).map(line => <p key={line}>{line}</p>)}</div>
+    <div className={styles.limitations}>{(result.operation==='submission_progress'?result.limitations.filter((_,i)=>i===1||i===result.limitations.length-1):result.operation==='lease_observation'?result.limitations.filter((_,i)=>i===1||i===result.limitations.length-1):result.operation==='future_observation'?result.limitations.filter((_,i)=>i===1||i===2||i===result.limitations.length-1):result.limitations).map(line => <p key={line}>{line}</p>)}</div>
     <details className={styles.trace}>
       <summary>来源、口径与结果版本</summary>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
-      {['submission_progress','future_observation'].includes(result.operation)&&result.limitations.map(line=><p key={line}>{line}</p>)}
+      {['submission_progress','future_observation','lease_observation'].includes(result.operation)&&result.limitations.map(line=><p key={line}>{line}</p>)}
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
     </details>
@@ -68,7 +68,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <dl className={styles.source} key={source.id}>
           <dt>数据库位置</dt><dd>{source.table} / {source.recordId} / {source.field}</dd>
           <dt>原始记录值</dt><dd>{source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>
-          <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : '不属于季度指标'}；{units[source.unit] ?? source.unit}</dd>
+          <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : result.operation==='lease_observation'?'未关联明确季度，原期间以记录字段为准':'不属于季度指标'}；{units[source.unit] ?? source.unit}</dd>
           <dt>原始资料</dt><dd>{source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
           <dt>核验状态</dt><dd>{{ database_only: '仅数据库记录', verified_original: '已核验原件', unreviewed: '未核验', historical: '历史来源' }[source.verification]}</dd>
           <dt>业务截至</dt><dd>{source.businessAsOf ?? '未知，不能用入库时间替代。'}</dd>

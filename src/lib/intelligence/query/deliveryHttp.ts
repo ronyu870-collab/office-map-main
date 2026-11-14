@@ -51,7 +51,7 @@ export async function handleDeliveryReport(request: Request, dependencies: Retur
     // This performs the existing live auth.sessions / disabled-user / simulation
     // checks. Revoked credentials do not become an alternate receipt-only login.
     const authority = await loadEntryAuthority(client, identity, AbortSignal.timeout(10000));
-    if (!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')) throw new Error('QUERY_DENIED');
+    if (!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')&&!authority.grants.includes('query:leases')) throw new Error('QUERY_DENIED');
     await audit.append(attemptId, 'running', { sourceRequestId: claims.requestId, authority });
     await audit.append(attemptId, 'delivery_receipt', { phase: input.phase, evidence: 'authenticated_client_report',
       humanRead: 'unproven', viewportVisibility: 'unproven', diskSave: 'unproven', delivery: claims,

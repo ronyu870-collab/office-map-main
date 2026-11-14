@@ -1,3 +1,6 @@
+import {buildLeaseResult} from './leases/result';
+import {readLeaseSnapshot,authorizeLeaseSources} from './leases/reader';
+import {leaseReadFromScope} from './leases/view';
 import {loadOperationAuthority,loadEntryAuthority} from './entryAuthority';
 import {buildFutureResult} from './future/result';
 import {readFutureSnapshot,authorizeFutureSources} from './future/reader';
@@ -99,7 +102,9 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       freshAuthority: fresh,
       execute: async plan => {
         const authority = await fresh(); usedRevision = authority.permissionRevision;
-        const value = plan.operation==='future_observation'
+        const value = plan.operation==='lease_observation'
+          ? buildLeaseResult(await readLeaseSnapshot(client,verified,requestId,leaseReadFromScope(plan.scope),signal),{view:plan.view,period:plan.period,read:leaseReadFromScope(plan.scope)},authority,requestId)
+          : plan.operation==='future_observation'
           ? buildFutureResult(await readFutureSnapshot(client,verified,requestId,{mode:futureModeForView(plan.view),period:plan.period,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},signal),{view:plan.view,period:plan.period,launchRange:plan.launchRange,submarkets:plan.scope.submarkets,futureIds:plan.scope.futureIds},authority,requestId)
           : plan.operation === 'submission_progress'
           ? buildSubmissionResult(await readSubmissionSnapshot(client, verified, requestId, {period:plan.period,quality:isSubmissionQualityView(plan.view),submarkets:plan.scope.submarkets,buildingIds:plan.scope.buildingIds}, signal), plan, authority)
@@ -117,7 +122,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       // Store the exact bounded explanation; no business result is delivered.
       const response = { requestId, status: 'clarification', ...result.clarification };
       const authority = await fresh();
-      if (!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')) throw new Error('QUERY_DENIED');
+      if (!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')&&!authority.grants.includes('query:leases')) throw new Error('QUERY_DENIED');
       if (boundedPlan !== null) authorizePlan(parseQueryPlan(boundedPlan), authority);
       const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'clarification', resultId: null, itemCount: 0,
         bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus: 422 });
@@ -137,6 +142,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     try {
       const current = await fresh();
       if (current.permissionRevision !== usedRevision) throw new Error('QUERY_DENIED');
+      if(result.result.operation==='lease_observation')await authorizeLeaseSources(client,verified,requestId,current,result.result.sources,signal);
       if(result.result.operation==='future_observation')await authorizeFutureSources(client,verified,requestId,current,result.result.sources,signal);
       if (result.result.operation === 'submission_progress') {
         await authorizeSubmissionSources(client, verified, requestId, current, result.result.sources, signal);

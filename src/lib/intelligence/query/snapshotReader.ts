@@ -24,7 +24,7 @@ const rawSchema=z.strictObject({
 type RawSnapshot=z.infer<typeof rawSchema>;
 
 export function describePlanRead(plan:QueryPlan):{fields:NumericField[];periods:Quarter[]} {
-  if (plan.operation === 'submission_progress'||plan.operation==='future_observation') throw new Error('SUBMISSION_READER_REQUIRED');
+  if (plan.operation === 'submission_progress'||plan.operation==='future_observation'||plan.operation==='lease_observation') throw new Error('SUBMISSION_READER_REQUIRED');
   const fields=new Set<NumericField>(plan.operation==='list'?plan.fields:plan.operation==='rank'?[plan.field]
     : plan.operation === 'distribution' ? distributionFields(plan.measure) : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] :plan.metric==='rent'?['totalArea','netEffectiveRent']:plan.metric==='vacancy'?['totalArea','vacantArea']:['totalArea']);
   const visit=(filter:NonNullable<QueryPlan['filter']>)=>{

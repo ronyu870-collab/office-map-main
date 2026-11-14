@@ -1,3 +1,4 @@
+import type {LeaseAnalysis} from './leases/result';
 import type { FutureAnalysis } from './future/view';
 import type { SubmissionAnalysis } from './submissions/view';
 import { createHash, randomUUID } from 'node:crypto';
@@ -31,10 +32,10 @@ export type QueryResult = Readonly<{
   dataVersion: string;
   scopeFingerprint: string;
   registryVersion: string;
-  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate' | 'relationship' | 'distribution' | 'submission_progress' | 'future_observation';
+  operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate' | 'relationship' | 'distribution' | 'submission_progress' | 'future_observation' | 'lease_observation';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | ReturnType<typeof buildingDistribution> | SubmissionAnalysis | FutureAnalysis | null;
+  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | ReturnType<typeof buildingDistribution> | SubmissionAnalysis | FutureAnalysis | LeaseAnalysis | null;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;

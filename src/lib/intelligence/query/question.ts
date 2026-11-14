@@ -1,7 +1,8 @@
+import {leaseRequiredFields, type LeaseView} from './leases/view';
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/12';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/13';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -24,6 +25,7 @@ function scope(market: string, quarterly = false): QueryPlan['scope'] {
 /** Relative dates use a trusted server clock, then the same full-string grammar.
  * A client cannot supply the clock or reinterpret an old result. */
 export function resolveBusinessQuestion(question: string, clock?: Date): QuestionResolution {
+  if (question?.trim().startsWith('企业「')) return resolveExplicitQuestion(question);
   if (!clock || !question || question.length > 6000) return resolveExplicitQuestion(question);
   try {
     const normalized = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
@@ -38,7 +40,17 @@ function resolveExplicitQuestion(question: string): QuestionResolution {
   const clarification: QuestionResolution = { kind: 'clarification', clarification: { code: 'conditions_required',
     message: '还不能可靠理解完整条件。请明确子市场、指标及年份季度，每次查询一个问题；例如“CBD有哪些楼”“CBD最高的楼是什么”或“2026年第三季度CBD净有效租金”。租金需明确口径；最近几个季度需说明“已结束”或“含本季度”，“最新”不能代替明确季度。填报可问“当前填报季度CBD填报进度”，该期间取系统配置；“本季度”取日历季度。暂不支持的条件不会被忽略。' } };
   if (!question || question.length > 6000) return clarification;
+  const companyLease=/^企业「([^「」\u0000-\u001f\u007f]{1,200})」(日常|历史|全部来源)成交明细[？?。]?$/.exec(question.trim());
+  if(companyLease){try{return {kind:'plan',plan:parseQueryPlan({operation:'lease_observation',view:'catalog',period:null,scope:{inventory:'leases',sources:companyLease[2]==='日常'?['live']:companyLease[2]==='历史'?['history']:['live','history'],fields:[],companyExact:companyLease[1]}})};}catch{return clarification;}}
   const text = question.trim().replace(/\s+/g, '').replace(/cbd/gi, 'CBD').replace(/q([1-4])/g, 'Q$1').replace(/[？?。]$/, '');
+  const leaseViews={明细:'catalog',有哪些:'catalog',面积汇总:'summary',表面租金:'face_rent',有效租金:'effective_rent'} as const;
+  const leasePattern=new RegExp(`^(?:${period})?${futureMarkets}(日常|历史|全部来源)成交(${Object.keys(leaseViews).join('|')})$`).exec(text);
+  if(leasePattern){
+    const view=leaseViews[leasePattern[6] as keyof typeof leaseViews] as LeaseView;
+    try{return {kind:'plan',plan:parseQueryPlan({operation:'lease_observation',view,period:leasePattern[1]?quarter(leasePattern[1],leasePattern[2],leasePattern[3]):null,
+      scope:{inventory:'leases',sources:leasePattern[5]==='日常'?['live']:leasePattern[5]==='历史'?['history']:['live','history'],fields:[...leaseRequiredFields(view)],
+        ...(['全部获权','全部获权楼宇'].includes(leasePattern[4])?{}:{submarkets:[leasePattern[4]]})}})};}catch{return clarification;}
+  }
   const submissionViews = {填报进度:'summary',填报明细:'buildings',哪些楼还没填:'missing',未分配楼宇:'unassigned',人员填报进度:'people',谁还没填:'missing_people',填报数据质量:'quality',填报缺项:'missing_fields',填报异常:'anomalies'} as const;
   const submissionAction = `(${Object.keys(submissionViews).join('|')})`;
   const futureCatalogViews={有哪些:'catalog',目录:'catalog',预计时间精度:'launch_summary',预计入市区间:'launch_schedule',面积汇总:'area_summary'} as const;

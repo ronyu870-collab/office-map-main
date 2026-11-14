@@ -1,0 +1,104 @@
+{
+  "browser": "157.0.8103.52",
+  "synthetic": true,
+  "production": false,
+  "realMobileDevices": false,
+  "checks": [
+    {
+      "width": 1280,
+      "case": "combined stock/future/lease admin scope stays usable within the 20-example client limit",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "lease-only examples and uninterrupted input",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "quarter precision, unknown historical area, same-source chart, source focus and XLSX/SVG readback",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "exact rent 11 and mobile local table scroll without page overflow",
+      "passed": true
+    },
+    {
+      "width": 1280,
+      "case": "exact company lookup and live role downgrade removes AI entry",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "combined stock/future/lease admin scope stays usable within the 20-example client limit",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "lease-only examples and uninterrupted input",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "quarter precision, unknown historical area, same-source chart, source focus and XLSX/SVG readback",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "exact rent 11 and mobile local table scroll without page overflow",
+      "passed": true
+    },
+    {
+      "width": 320,
+      "case": "narrow viewport preserves readable answer and locally scrollable full rent table",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "case": "exact company lookup and live role downgrade removes AI entry",
+      "passed": true
+    }
+  ],
+  "downloads": [
+    {
+      "width": 1280,
+      "format": "xlsx",
+      "resultId": "c6441a97-e829-441d-aaa8-370bc313ecdc",
+      "sha256": "a7dbce2282e14611c923399a5fcae699989fd97193a28d32a219c67c27c01380",
+      "readback": true
+    },
+    {
+      "width": 1280,
+      "format": "svg_zip",
+      "resultId": "c6441a97-e829-441d-aaa8-370bc313ecdc",
+      "sha256": "a97230eb73ab865661a1414c9596b0bce9e4062447d86569552378c80d803ae6",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "xlsx",
+      "resultId": "a98ddb27-79e2-4b89-bf5f-97d4d9899f4b",
+      "sha256": "00867ed65e5ab1d8ab967937602457c7321382ad7f4313fa8c7dd06153d5ff7f",
+      "readback": true
+    },
+    {
+      "width": 390,
+      "format": "svg_zip",
+      "resultId": "a98ddb27-79e2-4b89-bf5f-97d4d9899f4b",
+      "sha256": "aba250d946251c6360638bdd161ab70981d4bad58da240b4d0c82cbe7cb5f97d",
+      "readback": true
+    }
+  ],
+  "screenshots": [
+    "1280-area.png",
+    "1280-chart.png",
+    "1280-rent.png",
+    "1280-company.png",
+    "390-area.png",
+    "390-chart.png",
+    "390-rent.png",
+    "320-rent.png",
+    "390-company.png"
+  ]
+}

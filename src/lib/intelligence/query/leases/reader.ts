@@ -53,7 +53,7 @@ export function normalizeLeaseRead(input: unknown, read: LeaseRead, a: LeaseAuth
     throw new Error('LEASE_SCOPE_MISMATCH');
   return s;
 }
-/** Internal only until the public query/result paths add lease dispatch. Audit must already be durable. */
+/** Governed lease query adapter. Request audit must already be durable. */
 export async function readLeaseSnapshot(client: SupabaseClient, identity: VerifiedQueryIdentity, requestId: string, input: unknown, signal: AbortSignal) {
   const read = leaseReadSchema.parse(input); z.uuid().parse(requestId);
   const a = await loadLeaseAuthority(client, identity, signal); authorizeLeaseRead(read, a);
@@ -69,4 +69,13 @@ export async function readLeaseSnapshot(client: SupabaseClient, identity: Verifi
   authorizeLeaseRead(read, current);
   if (a.permissionRevision !== current.permissionRevision) throw new Error('QUERY_DENIED');
   return s;
+}
+
+/** Source delivery recheck; identity, original request scope and export rights are checked separately. */
+export async function authorizeLeaseSources(client:SupabaseClient,identity:VerifiedQueryIdentity,requestId:string,authority:LeaseAuthority,sources:readonly import('../contracts').SourceRef[],signal:AbortSignal){
+  signal.throwIfAborted();if(identity.expiresAt<=Date.now()||identity.actorId!==authority.actorId||identity.effectiveUserId!==authority.effectiveUserId)throw new Error('QUERY_DENIED');
+  const {data,error}=await client.rpc('ai_query_lease_sources_allowed',{p_actor:identity.actorId,p_effective:identity.effectiveUserId,p_session:identity.sessionId,p_request_id:requestId,p_permission_revision:authority.permissionRevision,
+    p_sources:sources.map(s=>({entity_id:s.entityId,record_id:s.recordId,source_table:s.table,field:s.field,year:s.period?.year??null,quarter:s.period?.quarter??null}))}).abortSignal(signal);
+  signal.throwIfAborted();if(error||data?.source_policy!==LEASE_POLICY)throw new Error('QUERY_READ_UNAVAILABLE');
+  if(data.allowed!==true||data.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
 }

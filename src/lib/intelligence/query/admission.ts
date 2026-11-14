@@ -1,3 +1,4 @@
+import {leaseRequiredFields} from './leases/view';
 import {futureModeForView} from './future/view';
 import { isSubmissionQualityView } from './submissions/view';
 import { distributionFields } from './distribution';
@@ -20,6 +21,10 @@ export type QueryAuthority = Readonly<{
 
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
+  if(plan.operation==='lease_observation'){
+    if(authority.actorId!==authority.effectiveUserId||!authority.grants.includes('query:leases')||leaseRequiredFields(plan.view).some(f=>!plan.scope.fields.includes(f)))throw new Error('QUERY_DENIED');
+    return;
+  }
   if(plan.operation==='future_observation'){
     const mode=futureModeForView(plan.view);
     if(authority.actorId!==authority.effectiveUserId||!authority.grants.includes('query:future-catalog')||mode!=='catalog'&&!authority.grants.includes('query:future-progress')||mode==='quality'&&!authority.grants.includes('query:future-quality'))throw new Error('QUERY_DENIED');
@@ -80,7 +85,7 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
     authority = await execution.freshAuthority();
     if (authority.actorId !== request.authority.actorId || authority.effectiveUserId !== request.authority.effectiveUserId) throw new Error('QUERY_DENIED');
-    if (request.clarification) {if(!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog'))throw new Error('QUERY_DENIED');}
+    if (request.clarification) {if(!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')&&!authority.grants.includes('query:leases'))throw new Error('QUERY_DENIED');}
     if (receipt.replayed && !request.clarification) {
       // A retry is not a new execution, but withdrawn tool/field access must
       // still reject before reporting that the request can be resumed.

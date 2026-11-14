@@ -1,3 +1,5 @@
+import {loadLeaseAuthority,authorizeLeaseRead} from './leases/reader';
+import {leaseReadFromScope} from './leases/view';
 import { authorizePlan } from './admission';
 import { queryHttpDependencies } from './http';
 import { QUESTION_GRAMMAR_VERSION, QUESTION_SUBMARKETS, resolveBusinessQuestion } from './question';
@@ -23,6 +25,7 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         if (result.kind !== 'plan' || !authority.allBuildings && !authority.buildingIds.length) return false;
         try { authorizePlan(result.plan, authority); return true; } catch { return false; }
       });
+    const futureExamples:string[]=[],leaseExamples:string[]=[];
     if (authority.grants.includes('query:future-catalog')) {
       try {
         const future = await loadFutureAuthority(dependencies.client, identity, signal);
@@ -31,7 +34,7 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         for (const question of [`${market}未来供应有哪些`, `${market}未来供应预计时间精度`, `${market}未来供应预计在2026Q4至2027Q1入市有哪些`, `当前填报季度${market}未来供应填报进度`, `当前填报季度${market}未来供应填报数据质量`]) {
           const resolved = resolveBusinessQuestion(question, new Date());
           if (resolved.kind !== 'plan') continue;
-          try { authorizePlan(resolved.plan, future); examples.push(question); } catch { /* No unsupported capability is advertised. */ }
+          try { authorizePlan(resolved.plan, future); futureExamples.push(question); } catch { /* No unsupported capability is advertised. */ }
         }
       } catch (error) {
         // A missing future scope may coexist with valid stock access. A failed
@@ -39,9 +42,26 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         if (!(error instanceof Error) || error.message !== 'QUERY_DENIED') throw error;
       }
     }
+    if(authority.grants.includes('query:leases')){
+      try {
+        const lease=await loadLeaseAuthority(dependencies.client,identity,signal);
+        if(lease.permissionRevision!==authority.permissionRevision)throw new Error('QUERY_AUTHORITY_CHANGED');
+        const market=QUESTION_SUBMARKETS.find(n=>lease.allSubmarkets||lease.submarkets.includes(n))??'全部获权';
+        for(const label of ['日常','历史','全部来源'])for(const view of ['明细','面积汇总','有效租金']){
+          const question=`${market}${label}成交${view}`,r=resolveBusinessQuestion(question,new Date());
+          if(r.kind!=='plan'||r.plan.operation!=='lease_observation')continue;
+          try{authorizeLeaseRead(leaseReadFromScope(r.plan.scope),lease);leaseExamples.push(question);}catch{/* Advertise only fully permitted projections. */}
+        }
+      }catch(error){if(!(error instanceof Error)||error.message!=='QUERY_DENIED')throw error;}
+    }
     const current = await loadEntryAuthority(dependencies.client, identity, signal);
     if (current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
-    return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
+    // The shared homepage accepts at most 20 examples. Keep each authorized
+    // resource represented when combined grants exceed that presentation limit.
+    const groups=[examples,futureExamples,leaseExamples],combined=groups.flat();
+    const displayed=combined.length<=20?combined:[];
+    if(combined.length>20)for(let i=0;displayed.length<20;i++)for(const group of groups){if(group[i]&&displayed.length<20)displayed.push(group[i]);}
+    return json({ enabled: true, examples:displayed, internalExport: authority.grants.includes('export:internal'), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
   } catch (error) {
     const denied = error instanceof Error && ['QUERY_DENIED', 'QUERY_UNAUTHENTICATED'].includes(error.message);
     return json({ enabled: false, examples: [] }, denied ? 403 : 503);
