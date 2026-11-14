@@ -58,6 +58,7 @@ const eslintConfig = defineConfig([
     "verification/ai-query-auth/audit-crypto.cjs",
     "verification/ai-query-auth/submission-adapter.cjs",
     "verification/ai-query-auth/future-adapter.cjs",
+    "verification/ai-query-auth/lease-adapter.cjs",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

@@ -7,7 +7,7 @@ import {FUTURE_POLICY,futureReadSchema,validateFutureSnapshot,type FutureRead} f
 export type FutureAuthority=QueryAuthority&{sessionId:string;allSubmarkets:boolean;submarkets:readonly string[];allFutureSupplies:boolean;futureSupplyIds:readonly string[]};
 const authoritySchema=z.strictObject({allowed:z.literal(true),access_policy:z.literal('admin-only/1'),future_policy:z.literal(FUTURE_POLICY),actor_id:z.uuid(),effective_user_id:z.uuid(),session_id:z.uuid(),
   policy_version:z.string().min(1),permission_revision:z.string().regex(/^[a-f0-9]{64}$/),
-  capabilities:z.array(z.enum(['query:catalog','query:brochure','query:quarter','export:internal','query:submission-progress','query:submission-quality','query:future-catalog','query:future-progress','query:future-quality'])),
+  capabilities:z.array(z.enum(['query:catalog','query:brochure','query:quarter','export:internal','query:submission-progress','query:submission-quality','query:future-catalog','query:future-progress','query:future-quality','query:leases'])),
   fields:z.array(z.enum(['height','floors','parking','totalArea','vacantArea','netEffectiveRent'])),all_submarkets:z.boolean(),submarkets:z.array(z.string()),all_future_supplies:z.boolean(),future_supply_ids:z.array(z.uuid())});
 export async function loadFutureAuthority(client:SupabaseClient,identity:VerifiedQueryIdentity,signal:AbortSignal):Promise<FutureAuthority>{
   signal.throwIfAborted();if(identity.expiresAt<=Date.now()||identity.actorId!==identity.effectiveUserId)throw new Error('QUERY_DENIED');

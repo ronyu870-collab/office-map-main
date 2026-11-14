@@ -1,5 +1,6 @@
 import {seedFutureQueryPreview} from './ai-future-query-preview.mjs';
 import { setupCompanyAdmin, verifyCompanyAdmin } from './ai-company-admin-scenarios.mjs';
+import { setupLeaseObservation, verifyLeaseObservation } from './ai-lease-observation-scenarios.mjs';
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
 // No browser automation, mocked authentication, production URL, or model calls.
 import assert from 'node:assert/strict';
@@ -106,6 +107,7 @@ try{
   await setupSubmissionObservation(db);
   await db.query(await load('20261113210147_ai_submission_result_sources.sql'));
   await setupFutureObservation(db);
+  await setupLeaseObservation(db, load);
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -575,6 +577,7 @@ try{
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
   await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey,call,recover,artifact,acknowledge,events,decrypt,capabilities});
   await verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey,recover,artifact,acknowledge,capabilities});
+  await verifyLeaseObservation({db,service,check,person,output,keyId,encryptionKey,digestKey});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);

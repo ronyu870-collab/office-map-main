@@ -4,11 +4,16 @@ import { once } from 'node:events';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-// Synthetic lease view for the legacy name lookup contract, not a Q15 data-source
-// integration claim. All auth/session/RPC/Next execution below is real and local.
+// Seed synthetic names into the governed read layer when available; retain the
+// narrow view fixture for standalone legacy checks. Auth/session/RPC/Next are real and local.
 export async function setupCompanyAdmin(db, load) {
   await db.query(await load('20261114070036_ai_legacy_admin_session.sql'));
-  await db.query(`
+  if ((await db.query("select to_regclass('public.lease_transactions_read_v1') r")).rows[0].r) {
+    await db.query(`insert into public.lease_transactions(id,company,new_building,transaction_year,transaction_quarter)
+      select gen_random_uuid(),name,'合成楼宇',2026,'Q4' from unnest(array['准入证券股份有限公司','出队证券股份有限公司','返回证券股份有限公司','缓存证券股份有限公司']) name;
+      insert into public.lease_transactions_history(id,source_uid,company,new_building,transaction_year,transaction_quarter)
+      values(gen_random_uuid(),'company-history-fixture','归档专属公司','合成楼宇',2026,'Q4');`);
+  } else await db.query(`
     create table private.company_admin_fixture(company text, record_source text);
     insert into private.company_admin_fixture values
       ('准入证券股份有限公司','live'),('出队证券股份有限公司','live'),
