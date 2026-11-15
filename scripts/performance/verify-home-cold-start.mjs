@@ -40,6 +40,7 @@ async function measure([variant, base], spec, round) {
   const routePaths = new Set(['/map', '/intelligence', '/update', '/lease-submission', '/oss', '/occupier-insights', '/settings', '/admin']);
   const routeRequests = [];
   const preNavigationBusinessReads = [];
+  const queryCapabilityChecks = [];
   let navigationStarted = false;
   let profileMs = null;
   let releaseNavigation = () => {};
@@ -55,6 +56,12 @@ async function measure([variant, base], spec, round) {
       if (u.origin === origin) {
         if (spec.prefetch && routePaths.has(u.pathname) && request.headers().rsc === '1') {
           routeRequests.push({ path: u.pathname, speculative: !navigationStarted, verified: row.roleComplete });
+        }
+        // Bootstrap checks only eligibility; all protected business reads retain
+        // the existing pre-navigation prohibition.
+        if (u.pathname === '/api/intelligence/query/capabilities') {
+          queryCapabilityChecks.push({ method, afterProfile: row.roleComplete, bearer: /^Bearer .+/.test(request.headers().authorization ?? '') });
+          return route.fulfill({ json: { enabled: false, examples: [] } });
         }
         if (spec.prefetch && !navigationStarted && /^\/api\/(map|intelligence|lease-submission|submissions|oss|admin)(\/|$)/.test(u.pathname)) {
           preNavigationBusinessReads.push(u.pathname);
@@ -198,6 +205,7 @@ async function measure([variant, base], spec, round) {
           row.beforeClickRoutes = routeRequests.map(request => request.path);
           row.beforeProfileRoutes = routeRequests.filter(request => !request.verified).map(request => request.path);
           row.businessBeforeClick = [...preNavigationBusinessReads];
+          row.queryCapabilityChecks = [...queryCapabilityChecks];
           row.adminEntryPresent = await page.locator('a[href="/admin"]').count();
           navigationStarted = true;
           await Promise.all([page.waitForURL('**/oss', { timeout: 8000 }), spec.intent === 'touch' ? link.tap() : spec.intent === 'keyboard' ? link.press('Enter') : link.click()]);
@@ -286,6 +294,8 @@ try {
       assert.equal(row.path, row.intendedPath);
       assert.deepEqual(row.beforeProfileRoutes, []);
       assert.deepEqual(row.businessBeforeClick, []);
+      assert.deepEqual(row.queryCapabilityChecks, !referencePrefetch && row.scenario === 'admin-hover'
+        ? [{ method: 'GET', afterProfile: true, bearer: true }] : []);
       assert.equal(row.adminEntryPresent, 0);
     }
     if (referencePrefetch) assert.ok(rows[0].idleRoutes.some(path => path !== '/oss'), 'the old build must reproduce unrelated automatic route requests');
