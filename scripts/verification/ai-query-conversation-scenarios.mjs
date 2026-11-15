@@ -87,7 +87,7 @@ export async function verifyConversation({ db, check, person, call, recover, eve
       const modelUser = await person('admin', 'p1-model'); await grant(modelUser);
       const candidate = { version: 'colliers-semantic-intent/1', operation: 'aggregate', submarkets: ['CBD'], metric: 'rent', time: { kind: 'explicit', periods: [periods[3]] }, unresolvedConditions: [] };
       fixture.semanticReply(candidate); const before = fixture.semanticCalls();
-      const body = { idempotencyKey: randomUUID(), question: '2026Q3 CBD净有效租金行情能给个统计吗', conversation: { id: randomUUID() } };
+      const body = { idempotencyKey: randomUUID(), question: '2026Q3CBD净有效租金水平怎么样', conversation: { id: randomUUID() } };
       const good = await call(modelUser, body); assert.equal(good.status, 200); assert.equal(fixture.semanticCalls(), before + 1);
       assert.equal(good.body.result.parameters.interpretation.method, 'validated_model_intent');
       assert.equal((await call(modelUser, body)).status, 202); assert.equal(fixture.semanticCalls(), before + 1);

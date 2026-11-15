@@ -95,6 +95,45 @@ export const QUERY_PERFORMANCE_STEPS = [
   { id: 'four_quarter_trend', operation: 'group_trend', before: 'CBD、金融街净有效租金2025Q4至2026Q3按子市场趋势各期样本', after: '再看看过去四个季度的变化', chart: true },
 ];
 export const QUERY_PERFORMANCE_CACHE_STATES = ['new_context_first_dialogue', 'same_document_second_dialogue'];
+const QUERY_PERFORMANCE_ERRORS = new Set(['timeout', 'operation_failed', 'LOGIN_HTTP_FAILURE', 'QUERY_NOT_READY',
+  'UNEXPECTED_QUERY_PLAN', 'SOURCE_OUTSIDE_GRANTED_FIXTURE', 'MISSING_CONVERSATION', 'RESULT_READINESS_TIMEOUT',
+  'DATABASE_SOURCE_NOT_VISIBLE', 'DUPLICATE_QUERY_SUBMISSION', 'QUERY_NETWORK_FAILURE', 'QUERY_BROWSER_ERROR', 'NEW_CONVERSATION_RELOADED_DOCUMENT']);
+export function queryPerformanceErrorCode(error) {
+  if (error?.name === 'TimeoutError') return 'timeout';
+  // AssertionError messages can append actual/expected data after the first line.
+  // Only our static codes may enter an artifact or CI diagnostic.
+  const code = typeof error?.message === 'string' ? error.message.split('\n')[0] : '';
+  return QUERY_PERFORMANCE_ERRORS.has(code) ? code : 'operation_failed';
+}
+export function queryPerformanceFailureDiagnostics(samples) {
+  return samples.flatMap(sample => {
+    const required = ['feedback_ms', 'result_painted_ms', 'content_usable_ms', 'source_open_ms',
+      ...(sample.step === 'four_quarter_trend' ? ['source_reopen_ms'] : [])];
+    const missing = required.some(metric => !Number.isFinite(sample[metric]));
+    if (sample.status === 'success' && !missing) return [];
+    const profile = QUERY_PERFORMANCE_PROFILES.find(value => value.name === sample.profile);
+    const status = ['failed', 'setup_failed', 'dependency_failed', 'result_mismatch', 'running', 'success'].includes(sample.status)
+      ? sample.status : 'failed';
+    return [{ variant: ['before', 'after'].includes(sample.variant) ? sample.variant : 'unknown',
+      viewport: profile ? { name: profile.name, width: profile.width, height: profile.height } : null,
+      round: Number.isInteger(sample.round) ? sample.round : null,
+      cache_state: QUERY_PERFORMANCE_CACHE_STATES.includes(sample.cache_state) ? sample.cache_state : 'unknown',
+      step: QUERY_PERFORMANCE_STEPS.some(value => value.id === sample.step) ? sample.step : 'unknown', status,
+      phase: ['query', 'source_interaction', 'complete', 'login_or_browser', 'new_conversation', 'equivalence', 'dependency'].includes(sample.phase) ? sample.phase : 'unknown',
+      error: status === 'success' ? 'MISSING_REQUIRED_MEASUREMENT'
+        : sample.error ? queryPerformanceErrorCode({ message: sample.error }) : status.toUpperCase(),
+      httpStatus: Number.isInteger(sample.httpStatus) && sample.httpStatus >= 100 && sample.httpStatus <= 599 ? sample.httpStatus : null }];
+  });
+}
+export async function checkpointQueryPerformancePair(samples, { checkpoint, onFailure }) {
+  const failures = queryPerformanceFailureDiagnostics(samples);
+  // Persist raw samples, failed conditions and every still-missing condition
+  // before stopping. A failed pair must never consume the remaining 20 rounds.
+  await checkpoint(failures);
+  if (!failures.length) return;
+  for (const failure of failures) onFailure(failure);
+  throw new Error('QUERY_PERFORMANCE_PAIR_FAILED');
+}
 export function nearestRank(values, percentile) {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
   return sorted.length ? sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)] : null;

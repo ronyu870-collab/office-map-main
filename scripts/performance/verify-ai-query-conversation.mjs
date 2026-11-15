@@ -4,13 +4,13 @@ import { createRequire } from 'node:module';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
-import { observeQueryConversation, QUERY_PERFORMANCE_PROFILES, QUERY_PERFORMANCE_STEPS, QUERY_PERFORMANCE_CACHE_STATES, summarizeQueryPerformance } from './query-conversation-probe.mjs';
+import { observeQueryConversation, QUERY_PERFORMANCE_PROFILES, QUERY_PERFORMANCE_STEPS, QUERY_PERFORMANCE_CACHE_STATES,
+  summarizeQueryPerformance, queryPerformanceErrorCode, checkpointQueryPerformancePair } from './query-conversation-probe.mjs';
 
 const SAMPLES = 20;
 const BASELINE_COMMIT = '0ae6e4dbcc63c3a557ee05ed70bba016a1ee4a7c';
 const PERIODS = [{ year: 2025, quarter: 4 }, { year: 2026, quarter: 1 }, { year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
 const require = createRequire(import.meta.url);
-const errorCode = error => error?.name === 'TimeoutError' ? 'timeout' : /^[A-Z0-9_]+$/.test(error?.message ?? '') ? error.message : 'operation_failed';
 const numericProjection = result => ({ operation: result.operation, columns: result.table.columns.map(column => ({ key: column.key, unit: column.unit })),
   rows: result.table.rows.map(row => Object.fromEntries(Object.entries(row.cells).map(([key, cell]) => [key,
     cell.kind === 'number' ? { kind: cell.kind, exact: cell.value.exact } : cell.kind === 'text' ? { kind: cell.kind, text: cell.value } : { kind: cell.kind, reason: cell.reason }]))),
@@ -34,7 +34,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     baseline: beforeApp ? 'P0 complete questions with equivalent factual plans; P1 uses inherited follow-ups'
       : 'No baseline build provided; this run cannot establish A/B regression acceptance',
     cacheDefinition: { new_context_first_dialogue: 'A new browser context; real login and homepage are ready before measurement. First query of this page, then inherited continuation. Server and database are warm; not a cold server/DNS/TLS claim.',
-      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. No reload or prefilled response.' },
+      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. P1 starts through the real New Conversation button; P0 has no inherited context. No reload or prefilled response.' },
     endpoints: { start: 'Actual send-button click captured in the browser', feedback: 'Loading/stop control or real result painted on a subsequent animation frame',
       result: 'Fresh numeric result and an enabled source action painted', usable: 'Fresh result + source action + required same-result chart painted; actual source interaction then verified',
       source: 'Actual numeric-source click -> new database-source panel painted; final trend also reopened',
@@ -81,22 +81,29 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     for (const profile of QUERY_PERFORMANCE_PROFILES) for (let round = 0; round < SAMPLES; round++) {
       const paired = new Map();
       for (const variant of round % 2 === 0 ? variants : [...variants].reverse()) {
-        const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height },
-          isMobile: profile.name === 'mobile', hasTouch: profile.name === 'mobile', timezoneId: 'Asia/Shanghai', serviceWorkers: 'block' });
-        const collected = [];
+        const collected = []; let context, loginHttpStatus = null, setupPhase = 'login_or_browser';
         try {
+          context = await browser.newContext({ viewport: { width: profile.width, height: profile.height },
+            isMobile: profile.name === 'mobile', hasTouch: profile.name === 'mobile', timezoneId: 'Asia/Shanghai', serviceWorkers: 'block' });
           const page = await context.newPage(); page.setDefaultTimeout(30000);
           const cdp = await context.newCDPSession(page);
           await cdp.send('Network.enable');
           await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: profile.latencyMs,
             downloadThroughput: profile.downloadMbps * 1000000 / 8, uploadThroughput: profile.uploadMbps * 1000000 / 8 });
           await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
-          await login(page, variant.app, owner);
+          await login(page, variant.app, owner, status => { loginHttpStatus = status; });
+          let dependencyFailed = false;
           for (const cacheState of QUERY_PERFORMANCE_CACHE_STATES) {
-            let dependencyFailed = false;
+            if (!dependencyFailed && variant.name === 'after' && cacheState === 'same_document_second_dialogue') {
+              setupPhase = 'new_conversation';
+              const documentOrigin = await page.evaluate(() => performance.timeOrigin);
+              await page.getByRole('button', { name: '新对话', exact: true }).click();
+              await page.getByRole('region', { name: '查询结果', exact: true }).waitFor({ state: 'detached' });
+              assert.equal(await page.evaluate(() => performance.timeOrigin), documentOrigin, 'NEW_CONVERSATION_RELOADED_DOCUMENT');
+            }
             for (const step of QUERY_PERFORMANCE_STEPS) {
               const sample = { variant: variant.name, profile: profile.name, cache_state: cacheState, round: round + 1, step: step.id,
-                status: dependencyFailed ? 'dependency_failed' : 'running', phase: 'query', feedback_ms: null, result_painted_ms: null,
+                status: dependencyFailed ? 'dependency_failed' : 'running', phase: dependencyFailed ? 'dependency' : 'query', feedback_ms: null, result_painted_ms: null,
                 content_usable_ms: null, source_open_ms: null, source_reopen_ms: null, browser_validation_and_render_ms: null,
                 requests: [], actualQueryRequests: 0, queryFailures: 0, pageErrors: 0, sourceVerified: false, equivalentResult: null };
               samples.push(sample);
@@ -110,22 +117,32 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
           for (const cacheState of QUERY_PERFORMANCE_CACHE_STATES) for (const step of QUERY_PERFORMANCE_STEPS) {
             if (collected.some(item => item.sample.cache_state === cacheState && item.sample.step === step.id)) continue;
             const sample = { variant: variant.name, profile: profile.name, cache_state: cacheState, round: round + 1, step: step.id,
-              status: 'setup_failed', phase: 'login_or_browser', error: errorCode(error), feedback_ms: null, content_usable_ms: null };
+              status: 'setup_failed', phase: setupPhase, error: queryPerformanceErrorCode(error), httpStatus: loginHttpStatus,
+              feedback_ms: null, content_usable_ms: null };
             samples.push(sample); collected.push({ sample, projection: null });
           }
-        } finally { await context.close(); }
+        } finally { await context?.close(); }
         paired.set(variant.name, collected); await checkpoint();
       }
       if (beforeApp) {
         const before = paired.get('before'), after = paired.get('after');
         for (let i = 0; i < before.length; i++) {
           const a = before[i], b = after[i];
-          const equal = a.projection !== null && b.projection !== null && JSON.stringify(a.projection) === JSON.stringify(b.projection);
+          // An unavailable counterpart is missing evidence, not a factual mismatch.
+          if (a.projection === null || b.projection === null) continue;
+          const equal = JSON.stringify(a.projection) === JSON.stringify(b.projection);
           a.sample.equivalentResult = b.sample.equivalentResult = equal;
           if (!equal) for (const value of [a.sample, b.sample]) if (value.status === 'success') { value.status = 'result_mismatch'; value.phase = 'equivalence'; }
         }
       }
-      await checkpoint(); console.log(`QUERY_PERFORMANCE ${profile.name} pair ${round + 1}/${SAMPLES}`);
+      await checkpointQueryPerformancePair([...paired.values()].flatMap(items => items.map(item => item.sample)), {
+        checkpoint: async failures => {
+          if (failures.length) report.stoppedEarly = { reason: 'functional_failure', profile: profile.name, round: round + 1 };
+          await checkpoint();
+        },
+        onFailure: failure => console.error('QUERY_PERFORMANCE_FAILURE ' + JSON.stringify(failure)),
+      });
+      console.log(`QUERY_PERFORMANCE ${profile.name} pair ${round + 1}/${SAMPLES}`);
     }
     report.complete = true; await checkpoint();
     assert.equal(report.functionalPassed, true, 'QUERY_PERFORMANCE_FUNCTIONAL_FAILURE');
@@ -138,13 +155,20 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
   }
 }
 
-async function login(page, app, owner) {
+async function login(page, app, owner, recordHttpStatus) {
   await page.goto(app + '/login', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => { const form = document.querySelector('form');
     return form && Object.keys(form).some(key => key.startsWith('__reactProps$') && typeof form[key]?.onSubmit === 'function'); });
   await page.getByLabel('企业邮箱').fill(owner.email); await page.getByLabel('手机号').fill(owner.phone);
   await page.getByLabel('密码', { exact: true }).fill(owner.password);
-  await page.getByRole('button', { name: '登录', exact: true }).click();
+  const [response] = await Promise.all([page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'password' && response.request().method() === 'POST';
+  }), page.getByRole('button', { name: '登录', exact: true }).click()]);
+  recordHttpStatus(response.status());
+  // A definite rejected login (including 429) cannot navigate to the homepage.
+  // Stop promptly without copying the response body, headers or credentials.
+  if (!response.ok()) throw new Error('LOGIN_HTTP_FAILURE');
   await page.waitForURL(url => url.pathname === '/');
   await page.locator('#home-query:enabled').waitFor();
 }
@@ -186,7 +210,7 @@ async function measure(page, variant, step, sample, allowedIds) {
     assert.equal(sample.pageErrors, 0, 'QUERY_BROWSER_ERROR');
     sample.status = 'success'; sample.phase = 'complete';
     return numericProjection(body.result);
-  } catch (error) { sample.status = 'failed'; sample.error = errorCode(error); return null; }
+  } catch (error) { sample.status = 'failed'; sample.error = queryPerformanceErrorCode(error); return null; }
   finally {
     if (probeInstalled) {
       const measurement = await page.evaluate(() => { const probe = window.__colliersQueryPerformance; const result = probe.read(); probe.stop(); return result; }).catch(() => null);

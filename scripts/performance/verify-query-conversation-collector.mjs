@@ -2,7 +2,8 @@
 // performance evidence. The real benchmark uses the separate Auth/PG/Next harness.
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { observeQueryConversation, nearestRank, summarizeQueryPerformance } from './query-conversation-probe.mjs';
+import { observeQueryConversation, nearestRank, summarizeQueryPerformance, queryPerformanceErrorCode,
+  queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair } from './query-conversation-probe.mjs';
 
 assert.equal(nearestRank([30, 10, 20], 0.9), 30);
 assert.equal(nearestRank([null, undefined], 0.5), null);
@@ -14,9 +15,29 @@ assert.equal(first(all).budgetsMet, true);
 assert.equal(first(all.slice(0, 19)).budgetsMet, false);
 assert.equal(first([...all.slice(0, 19), { ...common, status: 'timeout', content_usable_ms: null }]).failed, 1);
 assert.equal(first([...all.slice(0, 19), { ...common, content_usable_ms: null }]).measurementComplete, false);
+assert.equal(queryPerformanceErrorCode(new Error('QUERY_NOT_READY\n\n429 !== 200')), 'QUERY_NOT_READY');
+assert.equal(queryPerformanceErrorCode(new Error('ACCESS_TOKEN_VALUE')), 'operation_failed');
+const rejected = { ...common, round: 1, phase: 'login_or_browser', status: 'setup_failed', error: 'LOGIN_HTTP_FAILURE', httpStatus: 429,
+  password: 'must-not-log', body: 'must-not-log', headers: { Authorization: 'must-not-log' }, email: 'must-not-log' };
+const diagnostic = queryPerformanceFailureDiagnostics([rejected]);
+assert.equal(diagnostic.length, 1); assert.equal(diagnostic[0].httpStatus, 429);
+assert.deepEqual(diagnostic[0].viewport, { name: 'desktop', width: 1280, height: 900 });
+assert.equal(JSON.stringify(diagnostic).includes('must-not-log'), false);
+const order = [];
+await assert.rejects(checkpointQueryPerformancePair([rejected], {
+  checkpoint: async failures => { order.push('saved'); assert.equal(failures.length, 1);
+    const summary = first([rejected]); assert.equal(summary.failed, 1); assert.equal(summary.missing_samples, 19); assert.equal(summary.measurementComplete, false); },
+  onFailure: failure => { order.push('logged'); assert.equal(failure.error, 'LOGIN_HTTP_FAILURE'); },
+}), /QUERY_PERFORMANCE_PAIR_FAILED/);
+assert.deepEqual(order, ['saved', 'logged']);
+assert.equal(rejected.status, 'setup_failed');
+assert.equal(queryPerformanceFailureDiagnostics([{ ...common, content_usable_ms: 9000 }]).length, 0, 'a timing budget exceedance is not a functional failure');
+assert.equal(queryPerformanceFailureDiagnostics([{ ...common, source_open_ms: null }])[0].error, 'MISSING_REQUIRED_MEASUREMENT');
+assert.equal(queryPerformanceFailureDiagnostics([{ ...common, step: 'four_quarter_trend', source_reopen_ms: null }])[0].error, 'MISSING_REQUIRED_MEASUREMENT');
+await checkpointQueryPerformancePair([common], { checkpoint: async failures => assert.equal(failures.length, 0), onFailure: () => assert.fail('healthy pair stopped') });
 
 if (process.argv.includes('--summary-only')) {
-  console.log('PASS query performance summaries: nearest-rank, retained failure, missing metric and missing sample');
+  console.log('PASS query performance summaries: retained failures/missing, safe HTTP diagnostics, checkpoint-before-stop and timing budgets');
   process.exit(0);
 }
 
