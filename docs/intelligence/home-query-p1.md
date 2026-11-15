@@ -169,7 +169,7 @@
 - HTTP 加密审计夹具 **24 项**、研究分析 **21 项**通过，包含澄清首次交付／回放后权限收窄、已授权分组来源伪造拒绝、真实 ID 长度容量回归。
 - `npm run verify` 首次执行的 247 个测试文件、1,726 项测试通过；TypeScript、审计覆盖通过，ESLint 0 错误／849 警告。生产构建被本执行环境拒绝 `uv_interface_addresses` 系统调用阻断，定位到既有 OSS 依赖；没有修改依赖或伪造构建通过。最终代码检查和 GitHub 原生生产构建另行登记。
 - 搜索／焦点检查 **249 项**通过。新增规划器安全回归修复前 **14 失败／43 通过**、修复后 **57/57**；前端多轮关键缺陷回归在旧组件上 **10 项失败**，修复后通过。
-- [PR #200](https://github.com/ronyu870-collab/office-map-main/pull/200) 首轮 CI 的浏览器采集器校准通过；首轮分析索引类型收窄问题已修复，最终 head 的完整 Verify、真实 Auth／HTTP、性能与生产回验仍需分别取得通过证据。
+- [PR #200](https://github.com/ronyu870-collab/office-map-main/pull/200) 首轮 CI 的浏览器采集器校准通过；首轮分析索引类型收窄问题已修复；第二轮真实 Auth 已通过原有多数审计、趋势、导出路径，发现旧测试把语义 planning 事件当作执行快照。回归改为解密确认 planning，且禁止 tool_finished／response_generated／succeeded，不删除原拒绝要求。最终 head 的完整 Verify、真实 Auth／HTTP、性能与生产回验仍需分别取得通过证据。
 
 ## 7. 授权和本次豁免
 
@@ -185,7 +185,7 @@ TypeScript、ESLint、自动化测试、数据与权限隔离验证、必要真�
 2. `ai_query_context_read`：已验证审计链的有界解释事件及访问留痕。
 3. `ai_query_model_budget`：复用已接收审计流进行跨实例保守预算检查。
 
-本地 SQL 和真实 PostgreSQL 验证通过不等于生产已迁移。新代码依赖上述 RPC；生产迁移状态、函数权限和实际可用期间回读须在发布时单独确认。未完成必要生产依赖时，不能把应用合并或 Vercel Ready 当作 P1 已可用。
+本地 SQL 和真实 PostgreSQL 验证通过不等于生产已迁移。新代码依赖上述 RPC；本次已通过 Supabase 部署，并回读六个函数体和角色执行权限，与仓库 SQL 完全一致。生产登记版本为 `20261115111058`，仓库创建文件为 `20261115103701_ai_query_available_periods.sql`，二者按名称和函数内容关联。真实业务用户的生产对话未用测试账号冒充，正式发布状态仍单独确认。未完成必要生产依赖时，不能把应用合并或 Vercel Ready 当作 P1 已可用。
 
 应用回退可 revert 本批提交。新增 RPC 与原版本兼容，回退应用不会自动删除审计或业务记录；若需撤回 RPC，应作为独立数据库操作审查其依赖，不删除已有问答审计。P0 原问答、结构化查询、图表、来源、恢复与导出接口保留。
 
@@ -201,7 +201,7 @@ TypeScript、ESLint、自动化测试、数据与权限隔离验证、必要真�
 | 真实 Auth／HTTP 与性能回归 | 持续入口已接入；待最终运行证据 |
 | PR／精确 head CI | [PR #200](https://github.com/ronyu870-collab/office-map-main/pull/200)，等待最终 head 的完整检查 |
 | 最终 main commit | 待合并后登记 |
-| Supabase 生产迁移 | 待执行并单独核验；不能以代码合并代替 |
+| Supabase 生产迁移 | `20261115111058 / ai_query_available_periods` 已部署；六个函数体与仓库 SQL 哈希一致，service-only 权限回读通过，无新增安全告警；[生产 RPC 记录](../verification/colliers-ai-p1/production-rpc.json) |
 | Vercel `colliersdata` 生产部署 | 待对应最终 main 的部署状态和域名指向核验 |
 | 新 P1 生产模型调用 | 配置存在已核查，实际调用成功尚未在本记录验证 |
 | 视觉／浏览器视觉／手机人工 | 用户对本 PR 一次性豁免，未执行，不宣称通过 |

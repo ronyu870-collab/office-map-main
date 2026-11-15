@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
 
-export async function verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps}) {
+export async function verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps,events,decrypt}) {
   await grantQuery({setup:db},queryAdmin.id,{capabilities:exportCaps});
   const query = question => call(queryAdmin,{idempotencyKey:randomUUID(),question});
   let source;
@@ -65,7 +65,13 @@ export async function verifyQuarterTrend({db,check,queryAdmin,call,recover,artif
     assert.equal(result.body.result.table.rows.length,40);assert.equal(result.body.result.analysis.periods.filter(p=>p.value!==null).length,2);
     for(const question of ['CBD净有效租金2016Q4至2026Q4趋势各期样本','CBD净有效租金2026Q4至2026Q1趋势各期样本','CBD净有效租金2026Q1至2026Q4趋势各期样本只要A楼']){
       const r=await query(question);assert.equal(r.body.status,'clarification');assert.equal(r.body.result,undefined);
-      assert.equal((await db.query("select count(*)::int n from private.ai_query_audit_events where request_id=$1 and kind='running'",[r.body.requestId])).rows[0].n,0);
+      const ledger=await events(r.body.requestId);
+      const planning=ledger.filter(event=>event.kind==='running');
+      assert.equal(planning.length,1);
+      assert.equal(decrypt(planning[0]).content.phase,'planning');
+      assert.ok(!ledger.some(event=>['tool_finished','response_generated','succeeded'].includes(event.kind)),
+        'Clarification may enter audited planning but must never execute a trusted data snapshot or generate a factual result');
+      assert.equal(ledger.filter(event=>event.kind==='denied').length,1);
     }
   });
 }

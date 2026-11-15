@@ -556,7 +556,7 @@ try{
   await verifyAuditPeople({db,service,app,check,person,other,call,input,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
   await verifyAuditExport({db,app,check,person,successful});
   await verifyAdminOnly({db,app,check,person,call,input,capabilities,recover,artifact,acknowledge,exportCaps});
-  await verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps});
+  await verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps,events,decrypt});
   const dataApiDbUrl=new URL(settings.DB_URL);dataApiDbUrl.username='authenticator';
   await verifyGroupedQuarter({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load,dataApiConnectionString:dataApiDbUrl.href});
   await verifyCrossQuarter({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load});
