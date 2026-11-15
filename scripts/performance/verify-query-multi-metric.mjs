@@ -6,20 +6,22 @@ import { nearestRank, QUERY_PERFORMANCE_PROFILES, queryPerformanceErrorCode, que
 const SAMPLES = 20;
 const scenarios = [
   { id: 'multi_quarter', operation: 'group_aggregate', chart: true, reopenSource: true,
-    after: '2026Q3 CBD、金融街净有效租金和空置率按子市场比较', periods: ['2026Q3'] },
+    after: '2026Q3 CBD、金融街净有效租金和空置率按子市场比较', periods: ['2026-Q3'] },
   { id: 'multi_trend', operation: 'group_trend', chart: true, reopenSource: true,
-    after: 'CBD、金融街净有效租金和空置率2025Q4至2026Q3按子市场趋势各期样本', periods: ['2025Q4', '2026Q1', '2026Q2', '2026Q3'] },
+    after: 'CBD、金融街净有效租金和空置率2025Q4至2026Q3按子市场趋势各期样本', periods: ['2025-Q4', '2026-Q1', '2026-Q2', '2026-Q3'] },
 ].map(step => ({ ...step, sourceLabelPrefix: '查看来源：净有效租金 · 面积加权净有效租金 ' }));
 
 function matchesFraction(cell, numerator, denominator = '1') {
-  return cell?.kind === 'number' && BigInt(cell.value.exact.numerator) * BigInt(denominator)
-    === BigInt(numerator) * BigInt(cell.value.exact.denominator);
+  const exact = cell?.value?.exact;
+  return cell?.kind === 'number' && /^-?\d+$/.test(exact?.numerator) && /^\d+$/.test(exact?.denominator)
+    && BigInt(exact.denominator) > 0n && BigInt(exact.numerator) * BigInt(denominator)
+      === BigInt(numerator) * BigInt(exact.denominator);
 }
 
 /** Independent SQL oracle over the synthetic fixture only. Does not import the
  * application's planner, numerical engine or result builder. */
 export async function multiMetricOracle(db, ids) {
-  const rows = (await db.query(`select b.submarket, m.record_year || 'Q' || m.record_quarter period,
+  const rows = (await db.query(`select b.submarket, m.record_year || '-Q' || m.record_quarter period,
     count(*) filter (where m.total_area > 0 and m.net_effective_rent > 0)::int rent_count,
     sum(m.total_area::numeric * m.net_effective_rent::numeric) filter (where m.total_area > 0 and m.net_effective_rent > 0)::numeric(40,0)::text rent_numerator,
     sum(m.total_area::numeric) filter (where m.total_area > 0 and m.net_effective_rent > 0)::numeric(40,0)::text rent_denominator,
@@ -28,21 +30,24 @@ export async function multiMetricOracle(db, ids) {
     sum(m.total_area::numeric) filter (where m.total_area > 0 and m.vacant_area >= 0 and m.vacant_area <= m.total_area)::numeric(40,0)::text vacancy_denominator
     from public.buildings b join public.building_metrics m on m.building_id=b.id
     where b.id=any($1::uuid[]) and not m.is_draft group by b.submarket,m.record_year,m.record_quarter`, [ids])).rows;
-  assert.equal(rows.length, 8);
-  assert.equal(rows.filter(row => row.period === '2026Q3' && row.rent_count === 11 && row.vacancy_count === 12).length, 2);
+  assert.equal(rows.length, 8, 'MULTI_METRIC_ORACLE_FIXTURE_INVALID');
+  assert.equal(rows.filter(row => row.period === '2026-Q3' && row.rent_count === 11 && row.vacancy_count === 12).length, 2, 'MULTI_METRIC_ORACLE_FIXTURE_INVALID');
   return result => {
-    assert.deepEqual(result.parameters.metrics, ['rent', 'vacancy'], 'MULTI_METRIC_ORACLE_MISMATCH');
-    const periods = result.operation === 'group_aggregate' ? ['2026Q3'] : scenarios[1].periods;
+    assert.deepEqual(result.parameters.metrics, ['rent', 'vacancy'], 'MULTI_METRIC_ORACLE_METRICS_MISMATCH');
+    const periods = result.operation === 'group_aggregate' ? scenarios[0].periods : scenarios[1].periods;
     const expected = rows.filter(row => periods.includes(row.period));
-    assert.equal(result.table.rows.length, expected.length, 'MULTI_METRIC_ORACLE_MISMATCH');
+    assert.equal(result.table.rows.length, expected.length, 'MULTI_METRIC_ORACLE_ROW_COUNT_MISMATCH');
+    const seen = new Set();
     for (const row of result.table.rows) {
-      const independent = expected.find(value => row.cells.name.value === value.submarket && row.cells.period.value === value.period);
-      assert.ok(independent, 'MULTI_METRIC_ORACLE_MISMATCH');
+      const independent = expected.find(value => row.cells.name?.value === value.submarket && row.cells.period?.value === value.period);
+      assert.ok(independent && !seen.has(independent), 'MULTI_METRIC_ORACLE_DIMENSION_MISMATCH');
+      seen.add(independent);
       for (const metric of ['rent', 'vacancy']) {
-        const columns = result.parameters.metricColumns[metric];
-        assert.ok(matchesFraction(row.cells[columns.value], independent[metric + '_numerator'], independent[metric + '_denominator']), 'MULTI_METRIC_ORACLE_MISMATCH');
-        assert.ok(matchesFraction(row.cells[columns.usedCount], String(independent[metric + '_count'])), 'MULTI_METRIC_ORACLE_MISMATCH');
-        assert.ok(matchesFraction(row.cells[columns.denominator], independent[metric + '_denominator']), 'MULTI_METRIC_ORACLE_MISMATCH');
+        const columns = result.parameters.metricColumns?.[metric];
+        assert.ok(columns, 'MULTI_METRIC_ORACLE_METRICS_MISMATCH');
+        assert.ok(matchesFraction(row.cells[columns.value], independent[metric + '_numerator'], independent[metric + '_denominator']), 'MULTI_METRIC_ORACLE_VALUE_MISMATCH');
+        assert.ok(matchesFraction(row.cells[columns.usedCount], String(independent[metric + '_count'])), 'MULTI_METRIC_ORACLE_COUNT_MISMATCH');
+        assert.ok(matchesFraction(row.cells[columns.denominator], independent[metric + '_denominator']), 'MULTI_METRIC_ORACLE_DENOMINATOR_MISMATCH');
       }
     }
   };

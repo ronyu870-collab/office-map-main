@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { observeQueryConversation, nearestRank, summarizeQueryPerformance, queryPerformanceErrorCode,
   queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
 import './verify-query-conversation-network.mjs';
-import { observeMetricSwitch, summarizeMultiMetricPerformance } from './verify-query-multi-metric.mjs';
+import { multiMetricOracle, observeMetricSwitch, summarizeMultiMetricPerformance } from './verify-query-multi-metric.mjs';
 
 assert.equal(nearestRank([30, 10, 20], 0.9), 30);
 assert.equal(nearestRank([null, undefined], 0.5), null);
@@ -53,6 +53,43 @@ assert.equal(multiSummary([...multiRows.slice(0, 19), { ...multiCommon, oracleVe
 assert.equal(multiSummary(multiRows.map(row => ({ ...row, metricSwitchVerified: false }))).measurementComplete, false);
 assert.equal(multiSummary(multiRows.map(row => ({ ...row, metric_switch_ms: 2600 }))).budgetsMet, false);
 assert.equal(multiSummary(multiRows.map(row => ({ ...row, source_reopen_ms: 501 }))).budgetsMet, false);
+
+// The result contract uses YYYY-QN, including the hyphen. These independently
+// preset SQL-shaped rows and exact cells intentionally do not reuse the query
+// engine's formula or period formatter. Calibration is not SQL/HTTP evidence.
+const oraclePeriods = ['2025-Q4', '2026-Q1', '2026-Q2', '2026-Q3'];
+const oracleRows = oraclePeriods.flatMap(period => ['CBD', '金融街'].map(submarket => ({
+  submarket, period, rent_count: period === '2026-Q3' ? 11 : 12, vacancy_count: 12,
+  rent_numerator: submarket === 'CBD' ? (period === '2026-Q3' ? '19800000' : '21600000')
+    : (period === '2026-Q3' ? '22000000' : '24000000'),
+  rent_denominator: period === '2026-Q3' ? '110000' : '120000', vacancy_numerator: '12000', vacancy_denominator: '120000',
+})));
+const validateMultiMetric = await multiMetricOracle({ query: async () => ({ rows: oracleRows }) }, ['synthetic-calibration-only']);
+const exactCell = (numerator, denominator = '1') => ({ kind: 'number', value: { exact: { numerator, denominator } }, sourceIds: [] });
+const calibrationResult = operation => ({ operation, parameters: { metrics: ['rent', 'vacancy'], metricColumns: {
+  rent: { value: 'value', usedCount: 'usedCount', denominator: 'denominator' },
+  vacancy: { value: 'vacancy_value', usedCount: 'vacancy_usedCount', denominator: 'vacancy_denominator' },
+} }, table: { rows: oracleRows.filter(row => operation === 'group_trend' || row.period === '2026-Q3').map(row => ({
+  cells: { name: { kind: 'text', value: row.submarket }, period: { kind: 'text', value: row.period },
+    value: exactCell(row.submarket === 'CBD' ? '180' : '200'), usedCount: exactCell(row.period === '2026-Q3' ? '11' : '12'),
+    denominator: exactCell(row.period === '2026-Q3' ? '110000' : '120000'), vacancy_value: exactCell('1', '10'),
+    vacancy_usedCount: exactCell('12'), vacancy_denominator: exactCell('120000') },
+})) } });
+for (const operation of ['group_aggregate', 'group_trend']) validateMultiMetric(calibrationResult(operation));
+for (const operation of ['group_aggregate', 'group_trend']) for (const [code, corrupt] of [
+  ['MULTI_METRIC_ORACLE_ROW_COUNT_MISMATCH', result => { result.table.rows.pop(); }],
+  ['MULTI_METRIC_ORACLE_DIMENSION_MISMATCH', result => { result.table.rows[0].cells.period.value = '2026Q3'; }],
+  ['MULTI_METRIC_ORACLE_DIMENSION_MISMATCH', result => { result.table.rows[1] = structuredClone(result.table.rows[0]); }],
+  ['MULTI_METRIC_ORACLE_VALUE_MISMATCH', result => { result.table.rows[0].cells.vacancy_value = exactCell('1', '11'); }],
+  ['MULTI_METRIC_ORACLE_VALUE_MISMATCH', result => { delete result.table.rows[0].cells.vacancy_value; }],
+  ['MULTI_METRIC_ORACLE_COUNT_MISMATCH', result => { result.table.rows[0].cells.vacancy_usedCount = exactCell('11'); }],
+  ['MULTI_METRIC_ORACLE_DENOMINATOR_MISMATCH', result => { result.table.rows[0].cells.vacancy_denominator = exactCell('110000'); }],
+  ['MULTI_METRIC_ORACLE_METRICS_MISMATCH', result => { result.parameters.metrics = ['rent']; }],
+]) {
+  const changed = calibrationResult(operation); corrupt(changed);
+  assert.throws(() => validateMultiMetric(changed), error => queryPerformanceErrorCode(error) === code);
+}
+console.log('PASS query multi-metric oracle: canonical quarter identities, exact independent values, complete dimensions, per-metric counts and denominators; corrupted/missing evidence is rejected');
 
 if (process.argv.includes('--summary-only')) {
   console.log('PASS query performance summaries: retained failures/missing, safe HTTP diagnostics, checkpoint-before-stop, multi-metric oracle/switch completeness and timing budgets');

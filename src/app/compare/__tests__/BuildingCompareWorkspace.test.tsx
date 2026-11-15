@@ -157,7 +157,8 @@ describe('building comparison mobile selection', () => {
     let finishOld!: (value: unknown) => void;
     state.fetch.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
     act(() => invalidateCompareSnapshot());
-    expect(screen.getByRole('status')).toHaveTextContent('当前显示上次结果');
+    // The selected-detail read can legitimately expose a second live status.
+    expect(screen.getByText('当前显示上次结果，联网时自动更新')).toHaveAttribute('role', 'status');
     state.fetch.mockResolvedValueOnce({ buildings: [{ id: 'target', name: 'Other account result' }], brochures: [] });
     state.token = 'another-synthetic-viewer-token';
     rerender(<BuildingCompareWorkspace />);
