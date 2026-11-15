@@ -1,0 +1,35 @@
+{
+  "environment": "Codex in-app browser on macOS, synthetic admin, localhost:3289",
+  "desktop": {
+    "width": 1280,
+    "height": 720
+  },
+  "mobileViewport": {
+    "width": 390,
+    "height": 844,
+    "documentWidth": 390,
+    "chartWidth": 324,
+    "chartScrollWidth": 640,
+    "scrollLeftAfter": 316
+  },
+  "checks": [
+    "question submitted through homepage",
+    "actual line/table same result",
+    "source rows expanded",
+    "mobile horizontal scroll",
+    "bar switch without requery",
+    "mobile source expansion",
+    "desktop SVG ZIP download readback",
+    "mobile Excel download readback"
+  ],
+  "resultId": "9a8c985f-6350-4a4b-9c56-4a06e38bbb0a",
+  "values": [
+    null,
+    155.71428571428572,
+    170,
+    null
+  ],
+  "sourceCount": 20,
+  "realDevices": false,
+  "independentVisualReview": false
+}

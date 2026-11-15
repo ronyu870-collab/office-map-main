@@ -168,6 +168,18 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL AI query audit regressions
+        run: |
+          node supabase/tests/ai-query-audit/run.mjs
+          node supabase/tests/ai-query-intake/run.mjs
+          node supabase/tests/ai-audit-console/run.mjs
+          node supabase/tests/ai-admin-only/run.mjs
+          node supabase/tests/ai-audit-people/run.mjs
+          node supabase/tests/ai-audit-export/run.mjs
+          node supabase/tests/ai-query-authority/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 historical industry backfill and rollback
         run: node supabase/tests/history-industry-backfill/run.mjs
         env:
@@ -207,6 +219,12 @@ jobs:
 
       - name: PostgreSQL 17 and PostgREST memo preview regression
         run: node supabase/tests/memo-list-preview/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+          POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
+
+      - name: PostgreSQL 17 and PostgREST AI query audit adapters
+        run: node supabase/tests/ai-query-authority/gateway.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
@@ -335,6 +353,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Retain AI query and audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-audit-verification
+          path: |
+            verification/ai-query-intake/results.json
+            verification/ai-audit-console/results.json
+            verification/ai-admin-only/results.json
+            verification/ai-audit-people/results.json
+            verification/ai-audit-export/results.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Retain isolated lease expiry review evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -343,6 +375,43 @@ jobs:
           path: |
             verification/lease-expiry
             verification/lease-expiry-timeline
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ai-query-auth:
+    name: Real Auth trusted query HTTP integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start dedicated disposable query Auth stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-query-auth-integration/supabase"
+          cp supabase/tests/ai-query-authority/auth-config.toml "$RUNNER_TEMP/ai-query-auth-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/ai-query-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-auth-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/ai-query-auth-integration" -o json > "$RUNNER_TEMP/ai-query-auth-status.json"
+          chmod 600 "$RUNNER_TEMP/ai-query-auth-status.json"
+      - name: Verify real login, HTTP audit, query and revocation
+        run: AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+      - name: Stop only the disposable query Auth stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
+      - name: Retain credential-free query results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-real-auth
+          path: |
+            verification/ai-query-auth/results.json
           if-no-files-found: ignore
           retention-days: 7
 

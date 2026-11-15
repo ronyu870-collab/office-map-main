@@ -1,0 +1,407 @@
+{
+  "baseCommit": "df4b75125e1f570961549c28e013366ca955f72d",
+  "environment": "isolated local synthetic data",
+  "productionChanged": false,
+  "modelCalls": false,
+  "newMigrations": false,
+  "files": {
+    "CHANGELOG.md": "36f31b6affbd717d1c7b593dd089ee191157b758b126078b0bad6585c9600c7a",
+    "docs/intelligence/README.md": "3f986bbc341fc430c79dd021f8ec0088868699bb26943a5497d277b2c4b1413d",
+    "docs/intelligence/quarter-trends.md": "a845b6331922e6972906e723c4de90b333b73bb893166748d021e8ba6eb5d4e0",
+    "docs/verification/quarter-trends/browser-evidence.json": "7d455a59a981483ed3c4f8779e581ffff7d93090f246b5c3e157a9ffe75ad5ff",
+    "docs/verification/quarter-trends/desktop-result.png": "481f671883d1992f58c82b4e8ecb49c6d9b392ea03a34b0f585a3db83ea85a76",
+    "docs/verification/quarter-trends/desktop.png": "cdc2512a5949b3cb2b59e0e93b0938394a4a31cb834d19c742c36dc49f82d79c",
+    "docs/verification/quarter-trends/mobile-result.png": "4d9db3946bc09bd2708f628934eabf7d7034a711b954cb2d34f3e42452b16c99",
+    "docs/verification/quarter-trends/mobile-right.png": "8ba71d3daef97633d878e7d9faf0d64255f0c8b65a430111fe8f68a0448b033c",
+    "scripts/verification/ai-query-trend-scenarios.mjs": "86a13b6383a7eadbe5aed0a2727d6d1219bf3b4cf7a80d33518a8a1edbb8d8ce",
+    "scripts/verification/verify-ai-query-auth.mjs": "c37562d8c642b5773a8c7b56903d599aeed93b9b6498d2e34da31e1e0a689027",
+    "src/components/home/HomeQueryArtifacts.tsx": "b0ee74e054b5e55d02450ee27b083303b81266535aeff775d26714c33a5cc36d",
+    "src/components/home/HomeQueryResult.tsx": "826c7890f8864323a66bb6f7c057050826542430b75a8013b57d0a0950e7ad01",
+    "src/components/home/__tests__/home-query.test.tsx": "ecf85e9050e9ad2beaf0a46c32633532b12de82589331f2dd427dd68733da39f",
+    "src/lib/intelligence/query/__tests__/trend.test.ts": "1f29e0f42073b7304f534fbb75c92433fde7dcb008a7f7243ab04955c1cf3189",
+    "src/lib/intelligence/query/analytics.ts": "c70b32cd7d3975a88ef2932d1910f6b2d4f4e8ff6d0987837df2d3ac33627913",
+    "src/lib/intelligence/query/capabilities.ts": "158a6e8aee39b8cc17a9d591deb08add8b3586f30c2cc2881b9982da8c3efa28",
+    "src/lib/intelligence/query/charts.ts": "a1c083be1249ce7e796e724f86b985a294cfd7a4f0ee0aff2a790c30f041ed3e",
+    "src/lib/intelligence/query/delivery.ts": "02158da280d39572f98bc9504596e8b929da814407bf32e2b9daa10a5b4d190e",
+    "src/lib/intelligence/query/executePlan.ts": "be339cb6e47c39481c9382637bd394d51c20d6213a77978a7554b1a79e84a60f",
+    "src/lib/intelligence/query/plan.ts": "a537dfaa4c9c9ac38b495a629d97ea30668a23de56f2c3517503c76bee5cccc5",
+    "src/lib/intelligence/query/presentation.ts": "4e42ac19eff4f1e67166bccbf69e1474b6a672541fe01803eeaa1f765e06d014",
+    "src/lib/intelligence/query/question.ts": "25f43be06ff467280ac4239eb16c71c8ed6bf2a1c2f760da8488dd79669c1e0b",
+    "src/lib/intelligence/query/result.ts": "87d1577f33ac875f19168daab4030bb8ee08765ad0afe975d12a40fc16d350fd",
+    "src/lib/intelligence/query/snapshotReader.ts": "7e2a55575caf443a78fb2ab30feebe60b12de2803b98b65eee0288e278cdc0f6"
+  },
+  "verification": {
+    "verify": {
+      "command": "VITEST_MAX_WORKERS=2 npm run verify",
+      "status": "passed",
+      "testFiles": 223,
+      "tests": 1430,
+      "lintWarnings": 826,
+      "lintErrors": 0,
+      "types": "passed",
+      "productionBuild": "passed",
+      "log": "/private/tmp/colliers-trend-verify.log"
+    },
+    "http": {
+      "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+      "scenarios": [
+        {
+          "scenario": "真实Auth创建、密码登录和会话落库",
+          "status": "passed"
+        },
+        {
+          "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+          "status": "passed"
+        },
+        {
+          "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+          "status": "passed"
+        },
+        {
+          "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+          "status": "passed"
+        },
+        {
+          "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+          "status": "passed"
+        },
+        {
+          "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实管理员也不能通过模拟身份使用AI或恢复他人结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+          "status": "passed"
+        },
+        {
+          "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+          "status": "passed"
+        },
+        {
+          "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+          "status": "passed"
+        },
+        {
+          "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+          "status": "passed"
+        },
+        {
+          "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+          "status": "passed"
+        },
+        {
+          "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+          "status": "passed"
+        },
+        {
+          "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+          "status": "passed"
+        },
+        {
+          "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+          "status": "passed"
+        },
+        {
+          "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+          "status": "passed"
+        },
+        {
+          "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+          "status": "passed"
+        },
+        {
+          "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+          "status": "passed"
+        },
+        {
+          "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+          "status": "passed"
+        },
+        {
+          "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+          "status": "passed"
+        },
+        {
+          "scenario": "模拟身份不能导出，管理员仍须独立导出权且撤权后不能下载旧快照",
+          "status": "passed"
+        },
+        {
+          "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+          "status": "passed"
+        },
+        {
+          "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+          "status": "passed"
+        },
+        {
+          "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+          "status": "passed"
+        },
+        {
+          "scenario": "交付挑战绑定原响应；收到、DOM页与下载分发分别审计，不冒称用户已读",
+          "status": "passed"
+        },
+        {
+          "scenario": "伪造摘要/签名、跨人/会话、假模拟、跨Origin与非法页不能登记有效呈现",
+          "status": "passed"
+        },
+        {
+          "scenario": "回执审计失败不报成功，撤权与旧JWT不得绕过身份检查",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实请求接收后进程SIGKILL，独立CLI补记未知终态，重启不重跑原查询",
+          "status": "passed"
+        },
+        {
+          "scenario": "并发重试和同键冲突每次均保存独立入口正文，业务只执行一次",
+          "status": "passed"
+        },
+        {
+          "scenario": "恢复/图表/下载/回执入口同时留存，技术回执不会复制可用令牌",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计默认拒绝无资格管理员/匿名，未知与存在的目标没有泄漏差异",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计检索接口的限额内非法控制字符正文也完整加密留痕",
+          "status": "passed"
+        },
+        {
+          "scenario": "明确审计资格独立于AI使用权，真实API可读他人原文、回答快照和交付事件",
+          "status": "passed"
+        },
+        {
+          "scenario": "孤立入口可按原文检索及展开，原文检索条件加密记录，不假装已经查询成功",
+          "status": "passed"
+        },
+        {
+          "scenario": "原文凭证保持脱敏，旧无入口问答也能检索，模拟/跨源/越界条件均拒绝",
+          "status": "passed"
+        },
+        {
+          "scenario": "关键词分页允许首批零命中，继续查找不会漏掉后续原文；游标不能换条件或伪造",
+          "status": "passed"
+        },
+        {
+          "scenario": "读取后撤销审计资格不交付正文，查看凭据写入失败同样拒绝返回",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计链或入口密文受损不冒称可信正文，真实注销和停用账号不能继续查看",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计按当前中英文姓名找人，同名账号分别保留；非admin仍不能提问或取得目录信息",
+          "status": "passed"
+        },
+        {
+          "scenario": "改名和目录删除不覆盖原始操作账号；未知身份保留UUID且不从metadata猜测",
+          "status": "passed"
+        },
+        {
+          "scenario": "姓名过滤与签名游标绑定，超过一页的同名人员记录按稳定ID完整分页",
+          "status": "passed"
+        },
+        {
+          "scenario": "旧数据库没有人员检索协议时新应用拒绝返回，不能静默忽略姓名条件",
+          "status": "passed"
+        },
+        {
+          "scenario": "审计查看资格不能自动导出，匿名/普通角色/模拟与跨源都不返回审计文件",
+          "status": "passed"
+        },
+        {
+          "scenario": "完整批量JSON保留精确原文、原始账号、关联回答快照/来源/事件，导出字节与准备凭据一致",
+          "status": "passed"
+        },
+        {
+          "scenario": "浏览器发起下载回执校验签名、账号/会话、文件摘要并去重；不把软件事件说成磁盘保存",
+          "status": "passed"
+        },
+        {
+          "scenario": "重复/超限/恶意选择拒绝，缺失目标整份失败而不偷偷导出部分记录",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出读取后撤销任一资格或记录准备凭据失败，均不交付文件",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出解码故障留下明确生成失败，恢复原始证据后新导出仍可用",
+          "status": "passed"
+        },
+        {
+          "scenario": "缺少生命周期协议的旧数据库不能交付文件；恢复最新协议后可用",
+          "status": "passed"
+        },
+        {
+          "scenario": "失败补记也暂时不可写时保留待处理，独立恢复只标生成未确认",
+          "status": "passed"
+        },
+        {
+          "scenario": "无客户端下载报告的已准备文件由独立CLI标交付未确认，迟到有效报告追加更正",
+          "status": "passed"
+        },
+        {
+          "scenario": "导出读取已持久化后Next真实SIGKILL，独立补记不重建文件且重启后新导出可用",
+          "status": "passed"
+        },
+        {
+          "scenario": "真实注销后的旧JWT不能下载已有审计或上报旧文件回执",
+          "status": "passed"
+        },
+        {
+          "scenario": "viewer/editor即使持全部AI查询、导出和审计资格仍拒绝，旧公开开关不能放行",
+          "status": "passed"
+        },
+        {
+          "scenario": "admin降级后旧JWT/旧快照/作图/下载/交付回执/审计均拒绝，重新成为admin仍沿用独立资格",
+          "status": "passed"
+        },
+        {
+          "scenario": "多季度真实SQL完整保留缺期，三项指标按各期与全期间共同样本确定性计算",
+          "status": "passed"
+        },
+        {
+          "scenario": "趋势折线、柱图、Excel及CSV/SVG回读绑定同一个结果和原始来源",
+          "status": "passed"
+        },
+        {
+          "scenario": "趋势恢复不悄悄重算；任一历史参与来源撤回后拒绝恢复、作图和下载",
+          "status": "passed"
+        },
+        {
+          "scenario": "连续40期完整读取；过大或反向区间与额外未支持条件不会被忽略",
+          "status": "passed"
+        },
+        {
+          "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+          "status": "passed"
+        },
+        {
+          "scenario": "已认证客户端无法直读审计/入口表或直接调用服务端RPC",
+          "status": "passed"
+        }
+      ],
+      "production": false,
+      "modelCalls": false,
+      "browserValidation": false,
+      "command": "AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS=<isolated status file> AI_QUERY_AUTH_PREVIEW_FILE=<synthetic preview file> node scripts/verification/verify-ai-query-auth.mjs",
+      "log": "/private/tmp/colliers-trend-auth.log"
+    },
+    "focus": {
+      "status": "passed",
+      "tests": 24,
+      "testFiles": 2,
+      "base": "df4b75125e1f570961549c28e013366ca955f72d",
+      "command": "VITEST_MAX_WORKERS=2 SEARCH_FOCUS_BASE_SHA=df4b75125e1f570961549c28e013366ca955f72d node scripts/search-focus-gate.mjs",
+      "log": "/private/tmp/colliers-trend-focus.log"
+    },
+    "securityAdvisors": {
+      "status": "passed",
+      "findings": 0,
+      "command": "supabase db advisors --local --workdir /private/tmp/colliers-ai-query-auth-integration --type security --level warn --fail-on warn",
+      "log": "/private/tmp/colliers-trend-advisors.log"
+    },
+    "browser": {
+      "environment": "Codex in-app browser on macOS, synthetic admin, localhost:3289",
+      "desktop": {
+        "width": 1280,
+        "height": 720
+      },
+      "mobileViewport": {
+        "width": 390,
+        "height": 844,
+        "documentWidth": 390,
+        "chartWidth": 324,
+        "chartScrollWidth": 640,
+        "scrollLeftAfter": 316
+      },
+      "checks": [
+        "question submitted through homepage",
+        "actual line/table same result",
+        "source rows expanded",
+        "mobile horizontal scroll",
+        "bar switch without requery",
+        "mobile source expansion",
+        "desktop SVG ZIP download readback",
+        "mobile Excel download readback"
+      ],
+      "resultId": "9a8c985f-6350-4a4b-9c56-4a06e38bbb0a",
+      "values": [
+        null,
+        155.71428571428572,
+        170,
+        null
+      ],
+      "sourceCount": 20,
+      "realDevices": false,
+      "independentVisualReview": false
+    }
+  },
+  "limitations": [
+    "Local source and synthetic evidence only; no remote exact-head CI, main merge or production enablement",
+    "No real iOS Safari/Android Chrome; no independent visual review",
+    "Q10 multi-region and relative periods, full 99 requirements/T01–T60 remain tracked"
+  ],
+  "cleanup": {
+    "previewApp": "terminated by harness cleanup",
+    "supabase": "stopped with --no-backup, isolated volumes removed",
+    "browser": "created tab closed, viewport reset"
+  }
+}

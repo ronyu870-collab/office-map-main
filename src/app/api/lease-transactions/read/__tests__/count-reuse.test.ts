@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   filters: [] as unknown[][],
   range: vi.fn(),
 }));
-vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: mocks.identity }));
+vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: mocks.identity, IMPERSONATION_REQUEST_HEADER: 'x-colliers-impersonate-user' }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({
   from: () => {
     const chain: Record<string, any> = {};

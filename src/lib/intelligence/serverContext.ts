@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 
 import { isIntelligencePreviewEnabled } from '@/src/config/intelligencePreview';
-import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { IMPERSONATION_REQUEST_HEADER, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import type { RequirementVocabulary } from './requirementResolver';
 
 export type IntelligenceContext = {
@@ -34,7 +34,7 @@ export async function requireIntelligenceAccess(request: NextRequest): Promise<I
   if ('response' in identityResult) return identityResult.response;
   const { identity } = identityResult;
 
-  if (!identity.effectiveRole || !isIntelligencePreviewEnabled(identity.effectiveRole)) {
+  if (request.headers.has(IMPERSONATION_REQUEST_HEADER) || identity.isImpersonating || !identity.effectiveRole || !isIntelligencePreviewEnabled(identity.effectiveRole)) {
     return NextResponse.json({ error: '当前账号未开放 Intelligence Preview' }, { status: 403 });
   }
 

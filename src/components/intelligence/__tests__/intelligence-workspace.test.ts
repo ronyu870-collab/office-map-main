@@ -49,7 +49,7 @@ describe('Intelligence workspace product contract', () => {
     const access = source('src/config/accessControl.ts');
 
     expect(preview).toContain("parseUserRole(role) === 'admin'");
-    expect(preview).toContain("NEXT_PUBLIC_INTELLIGENCE_PREVIEW === 'true'");
+    expect(preview).not.toContain("process.env.NEXT_PUBLIC_INTELLIGENCE_PREVIEW");
     expect(access).not.toContain("module: 'intelligence'");
   });
 });

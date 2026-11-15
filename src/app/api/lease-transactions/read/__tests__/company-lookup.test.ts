@@ -5,7 +5,12 @@ import { GET, POST } from '../route';
 const identity = vi.hoisted(() => vi.fn());
 const defer = vi.hoisted(() => vi.fn());
 vi.mock('next/server', async (importOriginal) => ({ ...(await importOriginal<typeof import('next/server')>()), after: defer }));
-vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: identity }));
+vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: identity, IMPERSONATION_REQUEST_HEADER: 'x-colliers-impersonate-user' }));
+const actorId = '00000000-0000-4000-8000-000000000001';
+const sessionId = '00000000-0000-4000-8000-000000000002';
+const token = 'x.' + Buffer.from(JSON.stringify({ sub: actorId, session_id: sessionId, exp: 4102444800 })).toString('base64url') + '.x';
+const authHeaders = { authorization: 'Bearer ' + token };
+let sessionAllowed = true;
 
 const name = 'A.B_(测试)*%';
 const rows = [
@@ -27,6 +32,7 @@ const rows = [
 
 const postgrest = vi.fn(async (input: RequestInfo | URL) => {
   const url = new URL(String(input));
+  if (url.pathname.endsWith('/ai_admin_session_authority')) return Response.json(sessionAllowed);
   expect(url.pathname).toBe('/rest/v1/lease_transactions_read_v1');
   const params = url.searchParams;
   const fields = params.get('select')!.split(',');
@@ -51,11 +57,11 @@ const postgrest = vi.fn(async (input: RequestInfo | URL) => {
 });
 
 function setRole(effectiveRole: string, isImpersonating = false) {
-  identity.mockResolvedValue({ identity: { effectiveRole, isImpersonating } });
+  identity.mockResolvedValue({ identity: { effectiveRole, callerRole: effectiveRole, caller: { id: actorId }, effectiveUserId: actorId, isImpersonating } });
 }
 function get(mode: string, company: string, extra: Record<string, string> = {}) {
   const params = new URLSearchParams({ company_lookup: mode, company, ...extra });
-  return GET(new NextRequest(`https://synthetic.invalid/api/lease-transactions/read?${params}`));
+  return GET(new NextRequest(`https://synthetic.invalid/api/lease-transactions/read?${params}`, { headers: authHeaders }));
 }
 async function read(mode: string, company: string) {
   const response = await get(mode, company);
@@ -66,7 +72,7 @@ async function read(mode: string, company: string) {
 function assess(company: string, extra: Record<string, string> = {}) {
   const params = new URLSearchParams({ company_lookup: 'assess', ...extra });
   return POST(new NextRequest(`https://synthetic.invalid/api/lease-transactions/read?${params}`, {
-    method: 'POST', body: JSON.stringify({ company }),
+    method: 'POST', headers: authHeaders, body: JSON.stringify({ company }),
   }));
 }
 
@@ -78,6 +84,7 @@ function startAi(mode: 'shadow' | 'hints') {
 
 beforeEach(() => {
   postgrest.mockClear();
+  sessionAllowed = true;
   defer.mockReset();
   vi.stubGlobal('fetch', postgrest);
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://synthetic.invalid');
@@ -87,7 +94,56 @@ beforeEach(() => {
 });
 
 describe('optional background company assessments on the same authorized route', () => {
-  it('does no AI work when off and accepts only valid non-impersonated editor/admin requests', async () => {
+  it('refuses editor AI assessment even when the legacy provider switch is enabled', async () => {
+    startAi('shadow');
+    setRole('editor');
+    expect((await assess('样本')).status).toBe(403);
+    expect(defer).not.toHaveBeenCalled();
+    expect(postgrest).not.toHaveBeenCalled();
+  });
+  it.each(['viewer', 'editor'])('keeps ordinary lookup but withholds AI hints and opt-in for %s', async role => {
+    startAi('hints'); setRole(role);
+    const found = await read('suggestions', '样本');
+    expect(found.canAssessSimilar).toBeUndefined();
+    expect(found.suggestions).toHaveLength(2);
+    expect(found.suggestions.every((row: { relation?: string }) => row.relation === undefined)).toBe(true);
+    expect(postgrest.mock.calls.every(([url]) => !String(url).includes('/rpc/'))).toBe(true);
+  });
+
+  it('checks the captured session again before a deferred task reads candidates', async () => {
+    startAi('shadow');
+    expect((await assess('样本')).status).toBe(202);
+    sessionAllowed = false; postgrest.mockClear();
+    await defer.mock.calls[0][0]();
+    expect(postgrest).toHaveBeenCalledTimes(1);
+    expect(String(postgrest.mock.calls[0][0])).toContain('/ai_admin_session_authority');
+  });
+
+  it('discards AI hints when the session is revoked during their read', async () => {
+    startAi('hints');
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/lease_company_ai_hints_v1')) {
+        sessionAllowed = false;
+        return Response.json([{ company: '仅AI提示公司', relation: 'same_company' }]);
+      }
+      return postgrest(input);
+    }));
+    const found = await read('suggestions', '样本');
+    expect(found.canAssessSimilar).toBeUndefined();
+    expect(found.suggestions).toHaveLength(3);
+    expect(JSON.stringify(found)).not.toContain('仅AI提示公司');
+    expect(found.suggestions.every((row: { relation?: string }) => row.relation === undefined)).toBe(true);
+  });
+
+  it.each(['', actorId])('refuses an explicit simulation header even if it targets self (%s)', async target => {
+    startAi('shadow');
+    const response = await POST(new NextRequest('https://synthetic.invalid/api/lease-transactions/read?company_lookup=assess', {
+      method: 'POST', headers: { ...authHeaders, 'x-colliers-impersonate-user': target }, body: JSON.stringify({ company: '样本' }),
+    }));
+    expect(response.status).toBe(403); expect(defer).not.toHaveBeenCalled();
+  });
+
+  it('does no AI work when off and accepts only valid non-impersonated admin requests', async () => {
     expect((await assess('样本')).status).toBe(204);
     startAi('shadow');
     identity.mockResolvedValueOnce({ response: NextResponse.json({}, { status: 401 }) });
@@ -98,14 +154,15 @@ describe('optional background company assessments on the same authorized route',
     expect((await assess('样本')).status).toBe(403);
     setRole('editor');
     expect((await assess('样本', { record_source: 'history' })).status).toBe(403);
+    setRole('admin');
     expect((await assess('https://private.invalid')).status).toBe(400);
     expect(defer).not.toHaveBeenCalled();
-    expect(postgrest).not.toHaveBeenCalled();
+    expect(postgrest.mock.calls.every(([url]) => String(url).endsWith('/ai_admin_session_authority'))).toBe(true);
   });
 
   it('answers before DeepSeek, sends only claimed visible pairs, and fails closed on malformed model output', async () => {
     startAi('shadow');
-    setRole('editor');
+    setRole('admin');
     const fakeFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith('/lease_company_ai_claim_v1')) {
@@ -133,19 +190,19 @@ describe('optional background company assessments on the same authorized route',
     expect(defer).not.toHaveBeenCalled();
     fakeFetch.mockClear();
     expect((await assess('样夲证券')).status).toBe(202);
-    expect(fakeFetch).not.toHaveBeenCalled();
+    expect(fakeFetch.mock.calls.every(([url]) => String(url).endsWith('/ai_admin_session_authority'))).toBe(true);
     await defer.mock.calls[0][0]();
     expect((await assess('样夲证券')).status).toBe(202);
     await defer.mock.calls[1][0]();
     expect(fakeFetch.mock.calls.filter(([url]) => String(url).startsWith('https://deepseek.synthetic.invalid/'))).toHaveLength(1);
   });
 
-  it('labels vetted candidates only in hints mode and keeps history exact for the selected company', async () => {
-    setRole('editor');
+  it('labels vetted candidates only for admin in hints mode and keeps history exact for the selected company', async () => {
+    setRole('admin');
     const fakeFetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       if (url.pathname.endsWith('/lease_company_ai_hints_v1')) {
-        expect(url.searchParams.get('p_source')).toBe('live');
+        expect(url.searchParams.get('p_source')).toBe('all');
         return Response.json([
           { company: '样本证券股份有限公司', relation: 'same_company' },
           { company: '样本银行股份有限公司', relation: 'related_company' },
@@ -156,7 +213,7 @@ describe('optional background company assessments on the same authorized route',
     vi.stubGlobal('fetch', fakeFetch);
     startAi('shadow');
     const shadow = await read('suggestions', '样本');
-    expect(shadow.suggestions).toHaveLength(2);
+    expect(shadow.suggestions).toHaveLength(3);
     expect(shadow.suggestions.every((option: { relation?: string }) => option.relation === undefined)).toBe(true);
     expect(fakeFetch.mock.calls.every(([url]) => !String(url).includes('lease_company_ai_hints_v1'))).toBe(true);
     startAi('hints');
@@ -164,6 +221,7 @@ describe('optional background company assessments on the same authorized route',
       suggestions: [
         { company: '样本证券股份有限公司', relation: 'same_company' },
         { company: '样本银行股份有限公司', relation: 'related_company' },
+        { company: '样本投资有限公司' },
       ], hasRecentDeals: false, canAssessSimilar: true,
     });
     expect((await read('recent', '样本证券股份有限公司')).records.map((row: { read_id: string }) => row.read_id)).toEqual(['live:securities']);

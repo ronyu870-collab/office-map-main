@@ -1,0 +1,313 @@
+{
+  "date": "2026-11-13",
+  "baseCommit": "697ee748d8f8ec6923d6ec4275b86d29dfb9f4fd",
+  "scope": "Same-result charts, independently granted internal downloads and homepage controls; local synthetic environments only",
+  "sourceSha256": {
+    "scripts/verification/verify-ai-query-auth.mjs": "dbfcbf2aae2da139ab5b45aa522aa52d6cda891ec0a4fb94302efd5bf62fc3e8",
+    "src/app/api/intelligence/query/artifact/route.ts": "08b5f47c52685b565dfa9b0a91c6ab7c58e9de5cdea402367fd37b029f0356ce",
+    "src/components/home/HomeQuery.module.css": "96cd807e5b57c7d6719e1fbdcd365f0505e8553d7885680143eacb2e1b91205b",
+    "src/components/home/HomeQuery.tsx": "d60f61e6b5c405d70735aba11f1af2f43e89d807234bbf770a50eaf0fa8e112e",
+    "src/components/home/HomeQueryArtifacts.tsx": "eedb7d01240df95400a5a07fc8dd5d5d39e89d6415e652e6c875759a73b2f0ba",
+    "src/components/home/HomeQueryResult.tsx": "9283ca7cff4e58c0c7b8a90205fb0e8fd22f4c6dbc5d43cbb1d75cb5e8c10ded",
+    "src/components/home/__tests__/home-query.test.tsx": "6229382f99be8c26562caff0a36ac6722adcb1b4325f1c238c08987a3e182345",
+    "src/lib/intelligence/query/__tests__/artifacts.test.ts": "aabac30b589e33fe77e73c4e2aaf677d3e51c68d247385c7d7430904416de4c7",
+    "src/lib/intelligence/query/__tests__/question.test.ts": "071675a9f6dc0f330ead942859c63a443b606b29c76766af6c65050a0d18adec",
+    "src/lib/intelligence/query/admission.ts": "481d8a555fb4a4843b5bb13744aee0143fd4137e45282c322053f8c149965e3f",
+    "src/lib/intelligence/query/artifacts.ts": "b5ae8985d277809858cb0aa87aff46f69250627430987dc376d9a22ffed535fe",
+    "src/lib/intelligence/query/capabilities.ts": "2d22d9a69a64bb0b4999f21ee72535daccaad91aa15aa3d34ef41d608f29a3a5",
+    "src/lib/intelligence/query/charts.ts": "cf51e3db64a2853198c1c365c4a98b09bfa9eb04404110823c762fd029a9fed7",
+    "src/lib/intelligence/query/exports.ts": "85c391331e409daf9aa8c4d955aa3fc7ae001be06e044b273f4e68955f1883ac",
+    "src/lib/intelligence/query/question.ts": "9268cdf8fcb35a1575aeab14de984e2e08e4da4f830a8b75b301b7683b4e5b32",
+    "src/lib/intelligence/query/recoveryHttp.ts": "31d13cfa38f7df9383f487901546cfc2333590645fa83e7d12c7410e69082a88",
+    "src/lib/intelligence/query/result.ts": "f1a65d0111d5a7f7d3a79a758c38b82724a8d85cd3800a22f6f244cde255b680",
+    "src/lib/intelligence/query/serverAuthority.ts": "8434ededf7d1ae0d0ae864ad8370c26b5fc65d36629fffe065d1c39cc12c5f0a",
+    "src/services/__tests__/trustedQueryClient.test.ts": "395b54615f8e683a756825ec1d9541317baf6417349ae360c4efb25988909be3",
+    "src/services/trustedQueryClient.ts": "a66dda150fb288e041b808b9b8ad6ba74c47e5a885d115141a6ec99a5b14ed3d",
+    "supabase/migrations/20261113063257_ai_query_internal_export_grant.sql": "93a33141274a2eeaac5d256ba24a2d45a46ae91ee15f10b0fa999321ebd5b53e",
+    ".github/workflows/verify.yml": "0dd952db39b2dcaaf35ac18f1746ccd65c2c9101544efbb92421a807d011831f",
+    "scripts/search-focus-coverage.json": "b51bc27e0ee2c8d4f503dd71ed6ceaa63580519df97b3226c6f671455dc7a6f8"
+  },
+  "artifactSha256": {
+    "docs/verification/query-artifacts/browser-evidence.json": "45ed741fcf0557e5c5c3b5f1c8546ab393d6336be512dfaf9da71543d7195ee0",
+    "docs/verification/query-artifacts/browser-vacancy.xlsx": "0eb211b57c43c9f270cac3c1a860769df53717d3536a78e08a29f0f6a5c10de2",
+    "docs/verification/query-artifacts/comparison-before-label-fix.png": "25c3f2eac27250c0e981e0d6919bb7f9896d3ef2a112ae832c8d963e158d7e8c",
+    "docs/verification/query-artifacts/desktop-comparison.png": "89d79fdec25e9aed6dbf9fb8bbe39e642bed531b58f68a97500ae83aee944b36",
+    "docs/verification/query-artifacts/desktop-idle.png": "29a7e74b15316a04f16127df02112bcfba824751d7eca943f422314cc410aed4",
+    "docs/verification/query-artifacts/desktop-scatter.png": "870c56287fca602d1ee17b3c0816548d01f07abec031a2cad651d682df2b885c",
+    "docs/verification/query-artifacts/desktop-vacancy.png": "4d6a9f8a67301a1296ec8157502e611a71ac417f3a6558008db5d6a22864e87d",
+    "docs/verification/query-artifacts/mobile-comparison.png": "0d5a0f36a70f41821374ccf673d5eab739ca635e21ba8273c45eeb2c2b4f7451",
+    "docs/verification/query-artifacts/mobile-scatter.png": "507760a752e1e3947321d236b48f29fb733914d523a36f0d67d2e62579b2045f",
+    "docs/verification/query-artifacts/mobile-unknown.png": "6f58bd9602d9cfd815ad90b8df92fa9d9d5af5cc4f3e5d8eb4a3340cd2648f09",
+    "docs/verification/query-artifacts/mobile-vacancy.png": "a06c489214e70b022f0e8ad1ab8d929e8a671bf8593e4ccc4c218cb60e004b2a",
+    "docs/verification/query-artifacts/query-comparison.xlsx": "0a7b54ac71835c29f4bac3a49de7431e22c4bbe1867c7b8ae51eb0593532596b",
+    "docs/verification/query-artifacts/query-rent-csv_zip.zip": "680dfe056d80de9b6c956e53e36e9d9b17610bf45503aec32f684b18e3b9ff63",
+    "docs/verification/query-artifacts/query-rent-render.png": "8e9662fa4a173fdd2f2742f2ba831d186cc276be548e9256f9888cd4b4568a65",
+    "docs/verification/query-artifacts/query-rent-svg_zip.zip": "ccd4dd406ef8590e66bd4487bc1267d51e16ee555133f7cc5d68eea59a131c19",
+    "docs/verification/query-artifacts/query-rent.svg": "3ff4dc2765f65a5b7d3540272a818ffe55d8d50bb43687059bdac2536a0c23f1",
+    "docs/verification/query-artifacts/query-rent.xlsx": "1d768c0ffcf22fc4ad9f08463cc97bd94559a3bf0ebdf87eda8267e47061f239",
+    "docs/verification/query-artifacts/ratio-before-domain-fix.png": "dc4886b07a6acfb61738276e1ba18b9ea5e36adf05b8c8975e849da49d982936"
+  },
+  "realAuthHttp": {
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": [
+      {
+        "scenario": "真实Auth创建、密码登录和会话落库",
+        "status": "passed"
+      },
+      {
+        "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+        "status": "passed"
+      },
+      {
+        "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实管理员模拟取资格交集，不借目标权限扩权",
+        "status": "passed"
+      },
+      {
+        "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+        "status": "passed"
+      },
+      {
+        "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+        "status": "passed"
+      },
+      {
+        "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+        "status": "passed"
+      },
+      {
+        "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+        "status": "passed"
+      },
+      {
+        "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+        "status": "passed"
+      },
+      {
+        "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "制图不重查最新数值，记录完整图表绑定；导出没有独立资格默认拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实下载XLSX/CSV/SVG回读与同一170快照一致，来源和文件摘要可核对",
+        "status": "passed"
+      },
+      {
+        "scenario": "导出及图表拒绝跨人、未知请求、伪造结果编号/数值/字段与跨源调用",
+        "status": "passed"
+      },
+      {
+        "scenario": "模拟身份的导出权取交集，管理员不自动获权，撤权后不可下载旧快照",
+        "status": "passed"
+      },
+      {
+        "scenario": "文件准备后撤回导出权或候选来源仍不交付，记录未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "明确季度双字段清单可转联合有效散点，不把未知高度当零",
+        "status": "passed"
+      },
+      {
+        "scenario": "两期空置水平图与差值Excel都明确百分点，图不以基期名冒充指标",
+        "status": "passed"
+      },
+      {
+        "scenario": "制图和导出审计故障时不返回图或文件，权限写入保留变更记录",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false,
+    "browserValidation": false
+  },
+  "browser": {
+    "browser": "Codex in-app browser",
+    "engineVersion": "not exposed by available inspection API",
+    "desktop": {
+      "width": 1280,
+      "height": 900
+    },
+    "narrow": {
+      "width": 390,
+      "height": 844,
+      "pageWidth": 375,
+      "sourceButtonHeight": 44
+    },
+    "syntheticData": true,
+    "production": false,
+    "observations": [
+      "Browser Excel download saved to local path and read back separately: numeric 0.175, exact 7/40, original resultId",
+      "Vacancy chart 17.5 with fixed 0–100 domain; original table retained",
+      "Source action focuses visible detail and close restores source button focus",
+      "Two-field homepage question resolves four rows; scatter draws two jointly valid points and reports two unknown",
+      "Scatter scroll is local; page does not overflow horizontally",
+      "Final comparison labels metric as vacancy, quarters 2026Q2/Q3, levels 12.5/17.5, table difference 5 percentage points",
+      "Missing 2025Q3 states unknown; zero valid of four buildings; unknown graph value is not plotted as zero",
+      "No model calls; original navigation retained",
+      "Revoked prior synthetic session loses input/results on capability refresh"
+    ],
+    "realDevicesTested": false,
+    "realIMEBrowserTested": false,
+    "clientReceiptImplemented": false,
+    "downloadEvidenceNote": "Browser XLSX file from the pre-comparison-label-fix run; download code and aggregate export unchanged. Final comparison XLSX verified through real HTTP readback."
+  },
+  "fullVerification": {
+    "command": "VITEST_MAX_WORKERS=2 npm run verify",
+    "exitCode": 0,
+    "testFiles": 216,
+    "tests": 1383,
+    "lintWarnings": 826,
+    "lintErrors": 0,
+    "types": "passed",
+    "productionBuild": "passed",
+    "log": "/private/tmp/colliers-query-artifacts-verify-final-v2.log"
+  },
+  "focusGate": {
+    "base": "697ee748d8f8ec6923d6ec4275b86d29dfb9f4fd",
+    "testFiles": 1,
+    "tests": 7,
+    "exitCode": 0,
+    "log": "/private/tmp/colliers-query-artifacts-focus-final.log"
+  },
+  "securityAdvisors": {
+    "environment": "owned local PostgreSQL 17.6",
+    "level": "warn",
+    "type": "security",
+    "exitCode": 0,
+    "result": "No issues found",
+    "log": "/private/tmp/colliers-query-artifacts-advisors-final.log"
+  },
+  "regressions": [
+    {
+      "case": "XLSX runtime ArrayBuffer passed to byte digest despite Uint8Array signature",
+      "beforeLog": "/private/tmp/colliers-query-artifacts-unit.log",
+      "before": "real generated XLSX failed node createHash update",
+      "afterLog": "/private/tmp/colliers-query-artifacts-unit-final.log",
+      "after": "real XLSX byte/hash/readback passed; full actual HTTP and browser download also verified"
+    },
+    {
+      "case": "vacancy level 17.5% filled current-maximum domain as if full scale",
+      "beforeLog": "/private/tmp/colliers-query-artifacts-ratio-before.log",
+      "before": "fixed full-percent domain assertion failed",
+      "afterLog": "/private/tmp/colliers-query-artifacts-ratio-after.log",
+      "after": "0–100 domain shared by UI and SVG; final browser checked"
+    },
+    {
+      "case": "comparison chart title used period column name; vacancy absolute difference exported in raw ratio instead of percentage-point unit",
+      "beforeLog": "/private/tmp/colliers-query-artifacts-comparison-before-v2.log",
+      "before": "both chart metric title and actual XLSX percentage-point assertions failed",
+      "afterLog": "/private/tmp/colliers-query-artifacts-comparison-after.log",
+      "after": "both tests pass; final actual HTTP comparison XLSX and browser 12.5/17.5 with 5pp checked"
+    }
+  ],
+  "otherVerificationNotes": [
+    "Initial local HTTP connection was sandbox EPERM before database connection; retried with approved local access",
+    "WebCrypto fixture crossed jsdom/Node ArrayBuffer realms; normalized digest input with a Uint8Array view; real browser download digest succeeded",
+    "Earlier full runs passed, then additional visual findings were fixed and complete verification repeated; final log binds final code",
+    "Standalone SVG generated from actual final HTTP ZIP was rasterized and visually inspected; PNG is verification-only, not a product PNG-export feature"
+  ],
+  "cleanup": {
+    "ownedAuthStackStopped": true,
+    "ownedSyntheticVolumesRemoved": true,
+    "ownedNextPreviewStopped": true,
+    "testBrowserClosed": true,
+    "temporaryLoginFileDeleted": true
+  },
+  "limitations": [
+    "No push, merge, production migration or AI enablement",
+    "No remote exact-head CI or independent merge visual review",
+    "No physical iOS/Android devices or system mobile download validation",
+    "No open model planning, full conversations or model calls",
+    "No actual client received/rendered receipt or byte archive of every export",
+    "Only bar/scatter/period comparison and CSV/XLSX/SVG downloads; other required chart types and PNG/PDF remain",
+    "Full audit administration, independent checkpoints, lifecycle, durable tasks and model/cost governance remain",
+    "Original 99-item Goal remains active; partial local checkpoint"
+  ]
+}

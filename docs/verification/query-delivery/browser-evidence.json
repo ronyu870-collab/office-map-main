@@ -1,0 +1,134 @@
+{
+  "browser": "Codex IAB; engine version not exposed",
+  "environment": "local synthetic GoTrue account, production-built Next",
+  "actions": [
+    "quarterly rent 170",
+    "open six source records",
+    "close sources",
+    "show same-result chart",
+    "Excel handed to browser"
+  ],
+  "auditStreams": [
+    {
+      "request_id": "2dfdf7f7-5c2b-837a-8dce-30d2b3e6562a",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "response_generated",
+        "succeeded",
+        "delivery_receipt"
+      ]
+    },
+    {
+      "request_id": "06a6b47e-d2ff-4941-be32-52ce2722c721",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "523314ff-5798-4ae4-b9fc-9182facfd0ce",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "f2b978a7-3daa-44de-8bdf-d8fe79d49067",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "a3b38cf5-c794-4477-b526-45fc325bd7c0",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "d2e0cf80-a63a-4780-9954-6a83c58febbc",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "response_generated",
+        "succeeded",
+        "delivery_receipt"
+      ]
+    },
+    {
+      "request_id": "16d31ad5-80a7-438c-a890-7e1c8b146989",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "09af671f-cd84-40ff-a178-d6a37bd27834",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "ecd081de-c39a-4e14-9f59-1a963cdfe97f",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "response_generated",
+        "succeeded",
+        "delivery_receipt"
+      ]
+    },
+    {
+      "request_id": "d7cc51ae-06f4-4bff-a1c6-460d73f4c5b7",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    },
+    {
+      "request_id": "ce0d03e3-cc9e-447b-8f52-60dbde58c00c",
+      "state": "succeeded",
+      "kinds": [
+        "received",
+        "running",
+        "delivery_receipt",
+        "succeeded"
+      ]
+    }
+  ],
+  "acceptedReceiptStreams": 8,
+  "limitations": [
+    "Receipt payload phases were decrypted in real HTTP tests; browser-specific checks inspect stream states/kinds only",
+    "No proof of human reading, viewport exposure, or disk save",
+    "No real mobile device or mobile file-system validation",
+    "No screenshot of final download status; observed AX status"
+  ],
+  "screenshot": "browser-query-chart.png"
+}

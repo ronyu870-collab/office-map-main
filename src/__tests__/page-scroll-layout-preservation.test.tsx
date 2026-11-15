@@ -592,14 +592,13 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       unmount();
     });
 
-    it('keeps established actions interactive and unavailable AI explicitly disabled', async () => {
+    it('keeps established actions interactive and hides AI from non-admin users', async () => {
       const { container } = render(<LobbyPage />);
       const account = await screen.findByRole('button', { name: '用户菜单' });
       expect(account).toBeEnabled();
-      const send = screen.getByRole('button', { name: '发送问题' });
-      expect(send).toBeDisabled();
-      expect(screen.getByRole('textbox', { name: 'Colliers AI' })).toBeDisabled();
-      const existingButtons = Array.from(container.querySelectorAll('button')).filter(button => button !== send);
+      expect(screen.queryByRole('button', { name: '发送问题' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Colliers AI' })).not.toBeInTheDocument();
+      const existingButtons = Array.from(container.querySelectorAll('button'));
       expect(existingButtons.length).toBeGreaterThan(0);
       existingButtons.forEach(button => expect(button).toBeEnabled());
       fireEvent.click(account);

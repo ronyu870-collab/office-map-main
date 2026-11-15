@@ -3,7 +3,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { resolveLeaseReadAccess, type LeaseReadAccess } from './access';
 import { readLeaseCompany } from './companyLookup';
 import { asCompanyForAssessment, assessLeaseCompany, escapeLeaseCompanyRegex, getCompanyAssessmentConfig } from './companyAi';
-import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { IMPERSONATION_REQUEST_HEADER, resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { createAdminSessionGuard } from '@/src/lib/intelligence/adminSession';
 import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 export const dynamic = 'force-dynamic';
@@ -54,7 +55,9 @@ async function getReadContext(req: NextRequest, timing?: ReturnType<typeof creat
       : '当前角色无权读取租赁成交数据库';
     return { response: NextResponse.json({ error }, { status: 403 }) };
   }
-  const allowAssessment = !identity.isImpersonating && (identity.effectiveRole === 'admin' || identity.effectiveRole === 'editor');
+  const allowAssessment = !req.headers.has(IMPERSONATION_REQUEST_HEADER) && !identity.isImpersonating
+    && identity.callerRole === 'admin' && identity.effectiveRole === 'admin'
+    && identity.caller.id === identity.effectiveUserId;
   return { supabaseAdmin, params, access, identity, allowAssessment };
 }
 
@@ -65,23 +68,30 @@ export async function POST(req: NextRequest) {
   if (req.nextUrl.searchParams.get('company_lookup') !== 'assess') {
     return NextResponse.json({ error: '无效的企业查询' }, { status: 400, headers });
   }
-  const config = getCompanyAssessmentConfig();
-  if (!config) return new NextResponse(null, { status: 204, headers });
   try {
     const context = await getReadContext(req);
     if ('response' in context) return context.response;
     if (!context.allowAssessment) return NextResponse.json({ error: '当前角色无权发起企业匹配' }, { status: 403, headers });
+    const config = getCompanyAssessmentConfig();
+    if (!config) return new NextResponse(null, { status: 204, headers });
+    const guard = await createAdminSessionGuard(req, context.supabaseAdmin);
     const payload: unknown = await req.json().catch(() => null);
     const company = payload && typeof payload === 'object' && 'company' in payload && typeof payload.company === 'string'
       && payload.company.length <= 200 ? asCompanyForAssessment(payload.company) : null;
     if (!company) return NextResponse.json({ error: '无效的企业查询' }, { status: 400, headers });
 
     after(async () => {
-      try { await assessLeaseCompany(context.supabaseAdmin, context.access.enforcedSource, company, config); }
+      try { await assessLeaseCompany(context.supabaseAdmin, context.access.enforcedSource, company, config, guard); }
       catch { console.warn('[lease-company-ai] deferred assessment did not complete'); }
     });
     return new NextResponse(null, { status: 202, headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && ['AI_ADMIN_DENIED', 'QUERY_UNAUTHENTICATED'].includes(error.message)) {
+      return NextResponse.json({ error: '管理员身份或登录状态已失效' }, { status: 403, headers });
+    }
+    if (error instanceof Error && error.message === 'AI_ADMIN_AUTHORITY_UNAVAILABLE') {
+      return NextResponse.json({ error: '暂时无法校验企业匹配权限' }, { status: 503, headers });
+    }
     return NextResponse.json({ error: '暂时无法安排企业匹配' }, { status: 500, headers });
   }
 }
@@ -94,7 +104,12 @@ export async function GET(req: NextRequest) {
     const { supabaseAdmin, params, access, identity, allowAssessment } = context;
 
     if (params.has('company_lookup')) {
-      return await readLeaseCompany(supabaseAdmin, access.enforcedSource, params, allowAssessment);
+      // Failure of the optional AI authority must not block ordinary name/history lookup.
+      let guard;
+      if (allowAssessment && params.get('company_lookup') === 'suggestions' && getCompanyAssessmentConfig()) {
+        try { guard = await createAdminSessionGuard(req, supabaseAdmin); } catch { /* ordinary lookup only */ }
+      }
+      return await readLeaseCompany(supabaseAdmin, access.enforcedSource, params, guard);
     }
 
     const buildingId = params.get('building_id')?.trim();

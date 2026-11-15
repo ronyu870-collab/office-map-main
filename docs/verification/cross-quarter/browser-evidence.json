@@ -1,0 +1,66 @@
+{
+  "checkedAt": "2026-11-13T16:07:42.266Z",
+  "environment": "isolated localhost synthetic data",
+  "rent": {
+    "svg": "/Users/yuhang/Downloads/query-56c9ee84-e1a5-4b6c-8a43-ce78b2146ac1-svg_zip.zip",
+    "xlsx": "/Users/yuhang/Downloads/query-56c9ee84-e1a5-4b6c-8a43-ce78b2146ac1-xlsx.xlsx",
+    "cells": 9,
+    "valid": 3,
+    "unknown": 6,
+    "financialA": 200,
+    "denominator": 30000,
+    "sourceFields": [
+      "buildings.submarket",
+      "buildings.grade",
+      "building_metrics.net_effective_rent",
+      "building_metrics.total_area"
+    ],
+    "sourceFocusReturned": true
+  },
+  "vacancy": {
+    "xlsx": "/Users/yuhang/Downloads/query-e2b62ac3-fbcd-4012-8716-966116b21aa9-xlsx.xlsx",
+    "cells": 9,
+    "valid": 2,
+    "unknown": 7,
+    "valuesPercent": [
+      20,
+      10
+    ],
+    "invalidCandidateLabel": "未知：无有效样本",
+    "invalidCount": 1
+  },
+  "mobile": {
+    "cells": 9,
+    "content": 557,
+    "left": 233,
+    "page": 390,
+    "viewport": 390,
+    "width": 324
+  },
+  "realDevice": false,
+  "independentVisualReview": false,
+  "readback": {
+    "passed": true,
+    "rentResultId": "56c9ee84-e1a5-4b6c-8a43-ce78b2146ac1",
+    "vacancyResultId": "e2b62ac3-fbcd-4012-8716-966116b21aa9",
+    "matrixSheets": [
+      "交叉指标",
+      "交叉样本",
+      "交叉分母"
+    ],
+    "rentValues": [
+      200,
+      100,
+      150
+    ],
+    "vacancyRaw": [
+      0.2,
+      0.1
+    ],
+    "vacancyFormat": "0.00%",
+    "unknownRemainsText": true,
+    "sourceDimensionCount": 8,
+    "svgRectCount": 10,
+    "dataRows": 9
+  }
+}

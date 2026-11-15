@@ -51,6 +51,10 @@ vi.mock('@/src/config/demoMode', () => ({ isDemoMode: () => false }));
 vi.mock('@/src/components/CommunicationBoard', () => ({ CommunicationBoard: () => <div>communication</div> }));
 vi.mock('@/src/components/NoticeBanner', () => ({ NoticeBanner: () => <div>notice</div> }));
 vi.mock('@/src/services/Auth', () => ({ signOut: state.signOut }));
+vi.mock('@/src/services/trustedQueryClient', () => ({
+  queryScopeKey: () => 'synthetic-home-session',
+  trustedQueryClient: { capabilities: async () => ({ enabled: false, examples: [] }) },
+}));
 vi.mock('@/src/utils/audit', () => ({
   logAction: state.logAction,
   logActionImmediate: state.logActionImmediate,
@@ -106,11 +110,12 @@ describe('Home workspace behavior', () => {
   it.each(['admin', 'editor', 'viewer'] as const)('keeps the new query unavailable for %s without replacing existing navigation', (role) => {
     setSession(role);
     render(<HomeWorkspace />);
-    const query = screen.getByRole('textbox', { name: 'Colliers AI' });
-    expect(query).toBeDisabled();
-    expect(query).toHaveValue('');
-    expect(query).toHaveAttribute('placeholder', 'AI 助手尚未开放');
-    expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled();
+    const query = screen.queryByRole('textbox', { name: 'Colliers AI' });
+    if (role === 'admin') {
+      expect(query).toBeDisabled(); expect(query).toHaveValue('');
+      expect(query).toHaveAttribute('placeholder', '对话查询尚未开放');
+      expect(screen.getByRole('button', { name: '发送问题' })).toBeDisabled();
+    } else { expect(query).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: '发送问题' })).not.toBeInTheDocument(); }
     expect(screen.getByRole('link', { name: '北京办公楼市场地图' })).toHaveAttribute('href', '/map');
     expect(screen.getByRole('link', { name: '季度数据填报' })).toHaveAttribute('href', '/update');
     const existingAI = screen.queryByRole('link', { name: '业务智能 Intelligence' });

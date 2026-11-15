@@ -1,0 +1,194 @@
+{
+  "date": "2026-11-13",
+  "baseCommit": "80aeb1c2b13725ddfb7dd9dfe9a0506fd676b689",
+  "scope": "own-query status and immutable result recovery HTTP with fresh source authorization and access audit; local only",
+  "sourceSha256": {
+    "src/app/api/intelligence/query/recover/route.ts": "c7fd70d7c27a2449ffdbb0c2278eb5b08edb636d03fae6f734205a199964107a",
+    "src/lib/intelligence/query/recovery.ts": "1c53d3b6129595a48fade481cd70c71c300420b1ab2c7bbc57bdf9230d41eec8",
+    "src/lib/intelligence/query/recoveryHttp.ts": "c93757d9e40dde58ccc43c396d21f956222c54e6650bd6a5d25b4c2bf4363007",
+    "src/lib/intelligence/query/__tests__/recoveryHttp.test.ts": "7e795a847418c035f56f1019041c457d0d9893290ffe1f9fa5874e7cbeffbc3d",
+    "src/lib/intelligence/query/http.ts": "2de771d1e522ae7350b1a52e58f506a857ba17ea5191b66d44fa6e3e4046507a",
+    "src/lib/intelligence/query/httpBody.ts": "b07ab9d9637d2e4fcaeec6b7479d449c60824fad7c1560b848b33e5280d7f3ed",
+    "src/lib/intelligence/query/admission.ts": "157a834a4e041c2d4239a2e43f42f4b0a25c11b5374d279eeb3de0dd4e6d5947",
+    "src/lib/intelligence/query/auditStore.ts": "6e0ac605a12af3cfca0ed667ddaa51492705dc281c8df6a0c46e76bf864ada35",
+    "src/lib/intelligence/query/auditCrypto.ts": "70bf5562e8bb5cedc91235b61aa0a3192bdb2b44a6c574c6cc93f7f7e5c09929",
+    "src/lib/intelligence/query/resultArchive.ts": "f0bc05cac55c03d76f8094f69f9318913e410f2c56cfb4a9ba6293cb323ccb23",
+    "src/lib/intelligence/query/serverAuthority.ts": "a2f19fd23d7eba4a088275a7c3590f7796a55c1b5b17f0a3ba8abf2e788c54cc",
+    "src/lib/intelligence/query/plan.ts": "67731be318c4167bacacbe7ea04f2c9d66b705f400d9e5923ae76f0065dbfb1c",
+    "src/lib/intelligence/query/registry.ts": "93431e8b67711cad01799c5740f46be425c302accb5d2a85ff166ed012366f8a",
+    "supabase/migrations/20261113042352_ai_query_result_recovery.sql": "315ceb871deeb922e543a48ef505a2ff77519e550dae15c39ac1e523cb31527d",
+    "scripts/verification/verify-ai-query-auth.mjs": "12627b94d8cf1303a11862c9f7c7c7aa88b8bcb1f139d3bb28ca74764049bc01",
+    ".github/workflows/verify.yml": "0dd952db39b2dcaaf35ac18f1746ccd65c2c9101544efbb92421a807d011831f"
+  },
+  "realAuthHttp": {
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": [
+      {
+        "scenario": "真实Auth创建、密码登录和会话落库",
+        "status": "passed"
+      },
+      {
+        "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+        "status": "passed"
+      },
+      {
+        "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实管理员模拟取资格交集，不借目标权限扩权",
+        "status": "passed"
+      },
+      {
+        "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+        "status": "passed"
+      },
+      {
+        "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+        "status": "passed"
+      },
+      {
+        "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+        "status": "passed"
+      },
+      {
+        "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+        "status": "passed"
+      },
+      {
+        "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+        "status": "passed"
+      },
+      {
+        "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false,
+    "browserValidation": false
+  },
+  "realAuthLog": "/private/tmp/colliers-query-recovery-auth-final-v2.log",
+  "raceRegression": {
+    "before": "2 failed / 1 passed",
+    "after": "3 passed",
+    "beforeLog": "/private/tmp/colliers-query-recovery-race-before.log",
+    "afterLog": "/private/tmp/colliers-query-recovery-race-after.log",
+    "actualHttp": "encrypted accounting event appended after response preparation; status 200, recovery 409; permission change remains 403"
+  },
+  "securityAdvisors": {
+    "command": "supabase db advisors --local --workdir /private/tmp/colliers-ai-query-auth-integration --type security --level warn -o json",
+    "exitCode": 0,
+    "result": "No issues found",
+    "log": "/private/tmp/colliers-query-recovery-advisors-final.log",
+    "initialResult": "5 mutable search_path warnings in test fault-injection helpers; all helpers now explicitly set empty search_path"
+  },
+  "fullVerify": {
+    "status": "passed",
+    "exitCode": 0,
+    "command": "VITEST_MAX_WORKERS=2 npm run verify",
+    "testFiles": 210,
+    "tests": 1336,
+    "lintErrors": 0,
+    "lintWarnings": 826,
+    "typecheck": "passed",
+    "build": "passed",
+    "log": "/private/tmp/colliers-query-recovery-verify-final-v3.log"
+  },
+  "priorVerificationAttempts": [
+    {
+      "log": "/private/tmp/colliers-query-recovery-auth.log",
+      "outcome": "test expected a service failure but revoking execute correctly returned permission denied; changed the fixture to raise a service exception"
+    },
+    {
+      "log": "/private/tmp/colliers-query-recovery-verify-final.log",
+      "outcome": "1335 passed / 1 failed; existing SalesMaterialsPanel async availability wait remained loading; same 15-test file passed separately",
+      "targetedLog": "/private/tmp/colliers-query-recovery-map-recheck.log"
+    },
+    {
+      "log": "/private/tmp/colliers-query-recovery-verify-final-v2.log",
+      "outcome": "1335 passed / 1 failed; existing audit-search async debounce assertion did not observe new request in time"
+    }
+  ],
+  "resourceAdjustment": "Observed multiple high-CPU Node process groups and low free memory. Limit only this local Vitest invocation to two workers via the installed framework supported environment variable; no assertion, timeout, test set or repository config change. Exact cause of prior timing failures is not established.",
+  "cleanup": "dedicated Auth stack and synthetic volumes removed; 5 existing F6 pilot containers remained running",
+  "notPerformed": [
+    "remote CI",
+    "production migration or activation",
+    "model calls",
+    "browser/device validation",
+    "client receipt"
+  ],
+  "remaining": [
+    "homepage result UI and delivery acknowledgment",
+    "crash/outbox reconciliation",
+    "independent audit checkpoints",
+    "full audit console",
+    "key rotation and retention lifecycle",
+    "all remaining 99-item scope"
+  ]
+}

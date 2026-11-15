@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
-  ArrowUp,
   ChevronDown,
   ClipboardList,
   Database,
@@ -22,6 +21,8 @@ import {
 
 import { WorkspaceShell } from '@/src/components/layout';
 import { HomeIntentLink } from './HomeIntentLink';
+import { HomeQuery } from './HomeQuery';
+import { queryScopeKey } from '@/src/services/trustedQueryClient';
 import styles from './HomeWorkspace.module.css';
 import type { HomeTeamActivityProps } from './HomeTeamActivity';
 import { useAppSession, useCanStartHomeNavigation } from '@/src/components/SessionProvider';
@@ -359,10 +360,13 @@ function DeferredHomeActivity(props: HomeTeamActivityProps) {
 export function HomeWorkspace() {
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
-  const { isImpersonating } = useImpersonation();
+  const { isImpersonating, targetUserId } = useImpersonation();
   const canStartNavigation = useCanStartHomeNavigation();
 
   const activeSession = status === 'authenticated' && !ctx?.user.app_metadata?.must_change_password ? ctx : null;
+  const queryScope = React.useMemo(() => ({ actorId: activeSession?.session?.user.id ?? '', effectiveId: activeSession?.user.id ?? '',
+    sessionId: activeSession?.sessionId ?? '', targetId: isImpersonating ? targetUserId ?? null : null }),
+  [activeSession?.session?.user.id, activeSession?.user.id, activeSession?.sessionId, isImpersonating, targetUserId]);
   const canStartMap = Boolean(activeSession) ||
     (canStartNavigation && !isImpersonating && !isModuleRestricted(MAP_WORKSPACE.module));
 
@@ -374,7 +378,7 @@ export function HomeWorkspace() {
     isDemo: isDemoMode(activeSession.user.email),
     impersonationActive: isImpersonating,
   }));
-  const canSeeIntelligence = Boolean(activeSession && isIntelligencePreviewEnabled(activeRole));
+  const canSeeIntelligence = Boolean(activeSession && !isImpersonating && !targetUserId && isIntelligencePreviewEnabled(activeRole));
   const canSeeAdminReportCards = canReadQuarterlyResearch(activeRole, isImpersonating);
   // 首页入口的可见范围不改变企业选址洞察报告的公开分享链接。
   const visibleBusinessWorkspaces = activeSession ? BUSINESS_WORKSPACES.filter(workspace =>
@@ -432,7 +436,7 @@ export function HomeWorkspace() {
           <section aria-labelledby="home-title" className={styles.primary}>
             <h1 id="home-title" className="sr-only">主页</h1>
             <div className={styles.workSurface}>
-              <div className={styles.queryArea}>
+              {(canSeeIntelligence || !activeSession) && <div className={styles.queryArea}>
                 {activeSession ? <>
                   <div className={styles.queryHeading}>
                     <label htmlFor="home-query">Colliers AI</label>
@@ -449,15 +453,9 @@ export function HomeWorkspace() {
                       <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
                     </HomeIntentLink> : null}
                   </div>
-                  <div className={styles.composer}>
-                    <textarea id="home-query" aria-describedby="home-query-status" disabled rows={1} placeholder="AI 助手尚未开放" />
-                    <div className={styles.composerFooter}>
-                      <p id="home-query-status" className="sr-only">目前请使用下方业务入口。</p>
-                      <button type="button" disabled aria-label="发送问题"><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></button>
-                    </div>
-                  </div>
+                  <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} />
                 </> : <div className={styles.querySkeleton} aria-hidden="true" />}
-              </div>
+              </div>}
               <nav className={styles.navigation} aria-label="业务入口">
                 {canStartMap ? <HomeIntentLink
                   href={MAP_WORKSPACE.href}

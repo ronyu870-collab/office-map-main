@@ -7,6 +7,7 @@ import {
   type LeaseCompanySuggestion,
 } from '@/src/app/lease-submission/leaseCompanyLookup';
 import type { LeaseReadSource } from './access';
+import type { AdminSessionGuard } from '@/src/lib/intelligence/adminSession';
 import {
   escapeLeaseCompanyRegex,
   getCompanyAssessmentConfig,
@@ -22,7 +23,7 @@ export async function readLeaseCompany(
   db: SupabaseClient,
   source: LeaseReadSource | null,
   params: URLSearchParams,
-  allowAssessment = false,
+  guard?: AdminSessionGuard,
 ) {
   const company = params.get('company')?.trim() ?? '';
   const mode = params.get('company_lookup');
@@ -90,9 +91,16 @@ export async function readLeaseCompany(
       ? { ...option, nameSimilarity: true }
       : option)
     .sort((a, b) => rank(a) - rank(b) || a.company.localeCompare(b.company, 'zh-CN'));
-  const configured = allowAssessment ? getCompanyAssessmentConfig() : null;
-  const config = configured && shouldAssessCompany(company, ordinary) ? configured : null;
-  const hints = config ? await getLeaseCompanyHints(db, source, company, config) : [];
+  let config = guard ? getCompanyAssessmentConfig() : null;
+  if (config && !shouldAssessCompany(company, ordinary)) config = null;
+  let hints: Awaited<ReturnType<typeof getLeaseCompanyHints>> = [];
+  if (guard && config) {
+    try {
+      await guard();
+      hints = await getLeaseCompanyHints(db, source, company, config);
+      await guard();
+    } catch { config = null; hints = []; }
+  }
   const annotations = new Map(hints.map(hint => [hint.company.toLowerCase(), hint.relation]));
   const combined = [
     ...ordinary.map(option => {

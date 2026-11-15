@@ -83,6 +83,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Map third-batch viewport, popup stability and search consistency, PR #197',
         reason: 'User explicitly authorized the same independent visual and real-device acceptance waiver as the previous map search batches for PR #197 on 2026-11-14',
       },
+      {
+        number: 198,
+        branch: 'codex/admin-query-first-release',
+        scope: 'Admin-only trusted data query and audit first release, PR #198',
+        reason: 'User explicitly waived independent visual review and mobile testing for the admin first release on 2026-11-15; applies only to PR #198',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

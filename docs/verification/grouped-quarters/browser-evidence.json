@@ -1,0 +1,71 @@
+{
+  "environment": "local synthetic; Codex in-app browser, engine version not independently confirmed",
+  "question": "全部获权楼宇净有效租金2026Q2至2026Q3按子市场趋势全期间共同样本",
+  "resultId": "2148e98b-bc59-4883-a46c-f816de46115e",
+  "svgFile": "/Users/yuhang/Downloads/query-2148e98b-bc59-4883-a46c-f816de46115e-svg_zip.zip",
+  "excelFile": "/Users/yuhang/Downloads/query-2148e98b-bc59-4883-a46c-f816de46115e-xlsx.xlsx",
+  "mobile": {
+    "page": 390,
+    "plots": [
+      {
+        "content": 640,
+        "labels": [
+          "2026-Q2",
+          "2026-Q3",
+          "200",
+          "0",
+          "季度；面积加权净有效租金（元/㎡/月）"
+        ],
+        "left": 316,
+        "width": 324
+      },
+      {
+        "content": 640,
+        "labels": [
+          "2026-Q2",
+          "2026-Q3",
+          "200",
+          "0",
+          "季度；面积加权净有效租金（元/㎡/月）"
+        ],
+        "left": 0,
+        "width": 324
+      },
+      {
+        "content": 640,
+        "labels": [
+          "2026-Q2",
+          "2026-Q3",
+          "200",
+          "0",
+          "季度；面积加权净有效租金（元/㎡/月）"
+        ],
+        "left": 0,
+        "width": 324
+      }
+    ],
+    "viewport": 390
+  },
+  "sourceInspection": "Cell 180 shows building_metrics rent/area and buildings.submarket membership, database_only; no original document claimed.",
+  "realDevice": false,
+  "independentVisualReview": false,
+  "downloadReadback": {
+    "passed": true,
+    "resultId": "2148e98b-bc59-4883-a46c-f816de46115e",
+    "rows": 6,
+    "facets": 3,
+    "membershipSources": 4,
+    "financialStreet": [
+      180,
+      200
+    ],
+    "svgPolylineCount": 3
+  },
+  "roleRevocation": {
+    "test": "same synthetic admin changed to viewer, reload home",
+    "aiInputVisible": false,
+    "aiLinkVisible": false,
+    "nonAiNavigationVisible": true,
+    "screenshot": "viewer-home.png"
+  }
+}

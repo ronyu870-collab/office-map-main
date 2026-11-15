@@ -1,0 +1,31 @@
+{
+  "browser": "Codex in-app browser",
+  "engineVersion": "not exposed by available inspection API",
+  "desktop": {
+    "width": 1280,
+    "height": 900
+  },
+  "narrow": {
+    "width": 390,
+    "height": 844,
+    "pageWidth": 375,
+    "sourceButtonHeight": 44
+  },
+  "syntheticData": true,
+  "production": false,
+  "observations": [
+    "Browser Excel download saved to local path and read back separately: numeric 0.175, exact 7/40, original resultId",
+    "Vacancy chart 17.5 with fixed 0–100 domain; original table retained",
+    "Source action focuses visible detail and close restores source button focus",
+    "Two-field homepage question resolves four rows; scatter draws two jointly valid points and reports two unknown",
+    "Scatter scroll is local; page does not overflow horizontally",
+    "Final comparison labels metric as vacancy, quarters 2026Q2/Q3, levels 12.5/17.5, table difference 5 percentage points",
+    "Missing 2025Q3 states unknown; zero valid of four buildings; unknown graph value is not plotted as zero",
+    "No model calls; original navigation retained",
+    "Revoked prior synthetic session loses input/results on capability refresh"
+  ],
+  "realDevicesTested": false,
+  "realIMEBrowserTested": false,
+  "clientReceiptImplemented": false,
+  "downloadEvidenceNote": "Browser XLSX file from the pre-comparison-label-fix run; download code and aggregate export unchanged. Final comparison XLSX verified through real HTTP readback."
+}

@@ -37,6 +37,7 @@ try {
     await context.route('**/*', async route => {
       const req = route.request(); const u = new URL(req.url()); calls.push({ path: u.pathname, method: req.method() });
       if (u.origin === new URL(base).origin) {
+        if (u.pathname === '/api/intelligence/query/capabilities') return route.fulfill({ json: { enabled: false, examples: [] } });
         if (u.pathname.startsWith('/api/')) return route.fulfill({ json: { issues: [], data: [] } });
         return route.continue();
       }
@@ -115,9 +116,16 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('button', { name: '用户菜单' }).evaluate(e => e === document.activeElement), true);
     if (variant === 'after') {
-      assert.equal(await page.getByRole('textbox', { name: 'Colliers AI' }).isDisabled(), true);
-      assert.equal(await page.getByRole('button', { name: '发送问题' }).isDisabled(), true);
-      assert.ok(!calls.some(c => /\/api\/(ai|intelligence\/chat)/.test(c.path)), 'no new AI request');
+      const query = page.getByRole('textbox', { name: 'Colliers AI' });
+      const send = page.getByRole('button', { name: '发送问题' });
+      if (role === 'admin') {
+        assert.equal(await query.isDisabled(), true);
+        assert.equal(await send.isDisabled(), true);
+      } else {
+        assert.equal(await query.count() + await send.count(), 0);
+        assert.ok(!calls.some(c => c.path === '/api/intelligence/query/capabilities'), 'ordinary accounts do not probe query capabilities');
+      }
+      assert.ok(!calls.some(c => c.method === 'POST' && /^\/api\/(ai|intelligence)/.test(c.path)), 'homepage visit never submits an AI question');
     }
     if (variant === 'after') {
       await page.getByRole('complementary', { name: '团队动态' }).scrollIntoViewIfNeeded();
@@ -129,11 +137,11 @@ try {
         await page.getByRole('link', { name: '季度数据填报', exact: true }).waitFor();
       } else {
         assert.equal(await page.getByRole('link', { name: '企业选址洞察报告' }).count(), 0);
-        assert.equal(await page.getByRole('link', { name: '业务智能 Intelligence' }).count(), 0);
+        assert.equal(await page.locator('a[href="/intelligence"]').count(), 0);
       }
     }
     assert.equal(errors.length, 0, errors.join('\n'));
-    records.push({ width, role, mode, businessOrder, initialScrollTop, browser: browser.version(), metrics, checks: [...(mode === 'empty' ? ['empty activity state'] : ['notice expand/collapse']), ...(mode === 'error' ? ['notice and communication failure recovery'] : []), ...(mode === 'long' ? ['bounded internal message scrolling'] : []), 'communication open/close', 'account menu escape focus', 'no horizontal overflow', ...(variant === 'after' ? ['query unavailable and disabled', 'no new AI request', 'initial page scroll remains zero', ...(role === 'admin' ? ['report navigation and browser back'] : ['restricted entries absent'])] : [])], errors });
+    records.push({ width, role, mode, businessOrder, initialScrollTop, browser: browser.version(), metrics, checks: [...(mode === 'empty' ? ['empty activity state'] : ['notice expand/collapse']), ...(mode === 'error' ? ['notice and communication failure recovery'] : []), ...(mode === 'long' ? ['bounded internal message scrolling'] : []), 'communication open/close', 'account menu escape focus', 'no horizontal overflow', ...(variant === 'after' ? [role === 'admin' ? 'ungranted query disabled' : 'AI form absent', 'no new AI request', 'initial page scroll remains zero', ...(role === 'admin' ? ['report navigation and browser back'] : ['restricted entries absent'])] : [])], errors });
     await context.close();
   }
   await writeFile(new URL(`${variant}-browser.json`, out), JSON.stringify(records, null, 2));

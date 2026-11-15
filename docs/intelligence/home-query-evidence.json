@@ -1,0 +1,269 @@
+{
+  "date": "2026-11-13",
+  "baseCommit": "a87697f994cbdb6566db780d9012822bf9eb50fc",
+  "scope": "Homepage bounded question input, immutable table and source presentation, authorized original-result recovery; local synthetic data only",
+  "sourceSha256": {
+    "scripts/search-focus-coverage.json": "b51bc27e0ee2c8d4f503dd71ed6ceaa63580519df97b3226c6f671455dc7a6f8",
+    "scripts/verification/verify-ai-query-auth.mjs": "edbf89da4e1d9a3bb6fe87f19bdf808b77a7395d28701ac07bf60b2ff3a97f56",
+    "src/app/api/intelligence/query/capabilities/route.ts": "36e5898e0f431d1960b7e37a82cb6fa46062bba34511060d4c564ad948d662ab",
+    "src/components/home/HomeQuery.module.css": "6e95ddf86d77c0c8e0057e9d10e67e0796f1af964bc205fba7ae116dbdc3de57",
+    "src/components/home/HomeQuery.tsx": "093edf6738436ad12c2f398082ff111ad48799e75ce0dab883dfb011a3e0c2c6",
+    "src/components/home/HomeQueryResult.tsx": "0f91ab323ce125bc3b44fa8e12c740d9f93fe70ec91a381f1e28ae1a318ed9f3",
+    "src/components/home/HomeWorkspace.tsx": "2e45ab4f89966daedc2eff1f0b612994ca5e9a4631f8193773b1efc78ce37291",
+    "src/components/home/__tests__/home-behavior.test.tsx": "bf26ee983d4f7a45a144e061c30a57724446bd85c224303a4a29549e0fcbe6f0",
+    "src/components/home/__tests__/home-query.test.tsx": "9bba77be6d580825bb538cb9c1c42af55442cfa2a714f6d47ac297179d3cfb15",
+    "src/lib/intelligence/query/__tests__/presentation.test.ts": "279fe176b50d0690321bfdaf95816115bb3a23f5e97c569bdd9b0d1ec413012a",
+    "src/lib/intelligence/query/__tests__/question.test.ts": "2f9edfde46c840184b4b4c407457e671213fd3bd11b486970fb8e155fa3facf7",
+    "src/lib/intelligence/query/__tests__/sameOrigin.test.ts": "7749ca90971cd68329d0fc0bb8b862f4211ef89b54e060a07d6b9c7f149906d6",
+    "src/lib/intelligence/query/admission.ts": "507887a8d4cfcd744939d9711ac2a738a7233c52c098cfa42cc8ca56ec75feae",
+    "src/lib/intelligence/query/capabilities.ts": "153e941fde563b76181c65ad0446530b5b50643ef6dd920e6cab78dd5e70b1ae",
+    "src/lib/intelligence/query/http.ts": "23d8b2886ecc5a3ce01c97e0c80b01dbf7af5730e8f1079a0d3a7f61f1e283d3",
+    "src/lib/intelligence/query/presentation.ts": "f0d013a8f7def9a381baac7657c8e0e7cb86e1983ab84e765947a2411dda4371",
+    "src/lib/intelligence/query/question.ts": "ef857dc43cfc8ca43877f6bbc18a93903fedae658f2b8d546d3885eeb6b8f8a0",
+    "src/lib/intelligence/query/recoveryHttp.ts": "081c4f3a0535b9370801311d2b34c2627809f3ec286ae72c9876a4686bb3c64f",
+    "src/lib/intelligence/query/sameOrigin.ts": "2e13907c2a87499726f33cd41eede73ef456bde3df41a33068dd01cc5acc3fc8",
+    "src/services/__tests__/trustedQueryClient.test.ts": "78bdc1c81a0672c898f978c114cbb1ce794527759ffa983390aa185eb9f4bc0b",
+    "src/services/trustedQueryClient.ts": "e21bc28b1ce67eb2446effee55bb76edcf0ae9be723843d6c0fdcc4b5c7f283b",
+    ".github/workflows/verify.yml": "0dd952db39b2dcaaf35ac18f1746ccd65c2c9101544efbb92421a807d011831f",
+    "src/lib/intelligence/query/resultArchive.ts": "f0bc05cac55c03d76f8094f69f9318913e410f2c56cfb4a9ba6293cb323ccb23",
+    "src/lib/intelligence/query/serverAuthority.ts": "a2f19fd23d7eba4a088275a7c3590f7796a55c1b5b17f0a3ba8abf2e788c54cc",
+    "src/lib/intelligence/query/plan.ts": "67731be318c4167bacacbe7ea04f2c9d66b705f400d9e5923ae76f0065dbfb1c",
+    "src/lib/intelligence/query/registry.ts": "93431e8b67711cad01799c5740f46be425c302accb5d2a85ff166ed012366f8a"
+  },
+  "visualArtifactSha256": {
+    "docs/verification/home-query/browser-evidence.json": "f7a4b30d81a3b47503e98a7035311cec22b8ee965f41b0ce0d9747c4515e2e9a",
+    "docs/verification/home-query/desktop-collapsed.png": "2c148af60b5a05239a84fa98e4be13299a6c1497c33ef8e0bff76d281c61d27a",
+    "docs/verification/home-query/desktop-known-height.png": "4b630e452edf67f90a31740051bf955a74b800e2ab9c2206e6ddf92f31b6402f",
+    "docs/verification/home-query/desktop-quarter-answer.png": "42a48d1243e4842069978def276ace4691adb2d33e5fb6e570d5bdc94e2f1cd6",
+    "docs/verification/home-query/desktop-source.png": "af47d8b3d0b881aec89af7aeeafc66920475e3a9e7d6d20e7aeb14dc1405a1e3",
+    "docs/verification/home-query/mobile-clarification.png": "1b6e8f5f7f9051c294536126a3a8f0d11005e4c7dae74c2b944b5f2e75b72edb",
+    "docs/verification/home-query/mobile-field-denied.png": "f238ddb708810e64e4869570b51642e9b12689c5007b60967883a097392ff2e1",
+    "docs/verification/home-query/mobile-quarter-answer.png": "bd7c732d23cd064ca5964d8f0ec7148f9bf7706a330f3efd33707f0de30b41d4",
+    "docs/verification/home-query/mobile-quarter.png": "99c289dd4d12798b15ad88384cb6cae1fb6c32dcd17d89846335662fda76c847",
+    "docs/verification/home-query/mobile-source.png": "1ba5208d39303426d5d5ebb4cfc4cac843f635676015f076078c553edfe6a514",
+    "docs/verification/home-query/mobile-unknown.png": "55e1040632f2c52c20e88ee664f44966062bcb524614b9c82a750c171a0f3b8e",
+    "docs/verification/home-query/source-before-focus-fix.png": "dfdc9d149f2ea876b3c34c848e42044a777caf72f43385499062ad9c2a2a351d"
+  },
+  "realAuthHttp": {
+    "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit",
+    "scenarios": [
+      {
+        "scenario": "真实Auth创建、密码登录和会话落库",
+        "status": "passed"
+      },
+      {
+        "scenario": "匿名请求不伪造身份，留有界入口事件且不进入业务查询",
+        "status": "passed"
+      },
+      {
+        "scenario": "总开关关闭和无资格管理员仍记录正式问题后拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "主页能力清单遵守真实身份、独立资格与当前字段权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "纯问题通过完整语法查目录/最高楼/季度170和17.5%，同一结果可恢复",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实浏览器同源Origin可提交和恢复，跨源及伪造转发主机均拒绝",
+        "status": "passed"
+      },
+      {
+        "scenario": "不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实用户HTTP查询最高楼，生成/准备响应审计不冒称已读",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度170/17.5%及名称目录通过真实HTTP读取",
+        "status": "passed"
+      },
+      {
+        "scenario": "非法字段、伪造身份和畸形JSON均保留实际提交内容",
+        "status": "passed"
+      },
+      {
+        "scenario": "真实管理员模拟取资格交集，不借目标权限扩权",
+        "status": "passed"
+      },
+      {
+        "scenario": "问题和原始JSON中的明确凭证均脱敏，保留业务文字",
+        "status": "passed"
+      },
+      {
+        "scenario": "同请求并发/新登录重试不重复执行，冲突问题也单独留痕",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果状态及恢复保持原结果ID、数值和来源，不重跑最新数据",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复接口拒绝跨人、管理员借模拟读他人、未知ID、匿名与伪造身份",
+        "status": "passed"
+      },
+      {
+        "scenario": "历史结果恢复复查字段、全集记录、市场和当前楼宇来源权限",
+        "status": "passed"
+      },
+      {
+        "scenario": "季度来源转草稿后拒绝历史统计；恢复权限后原快照仍为170",
+        "status": "passed"
+      },
+      {
+        "scenario": "空结果仍检查原始查询范围，不能通过无来源绕过撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "审计链损坏与恢复读取留痕故障均关闭恢复，不返回部分结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "恢复响应准备后来源撤回仍阻止交付，追加未发送修正",
+        "status": "passed"
+      },
+      {
+        "scenario": "失败和拒绝终态可查但没有结果，状态字段篡改不能伪装成功",
+        "status": "passed"
+      },
+      {
+        "scenario": "状态轮询期间事件追加不误报撤权，恢复期间变化则409重试",
+        "status": "passed"
+      },
+      {
+        "scenario": "超大和非法编码输入只记长度/摘要，不保存截断正文冒充完整",
+        "status": "passed"
+      },
+      {
+        "scenario": "跨源请求和不获权范围拒绝，用户metadata不能提权",
+        "status": "passed"
+      },
+      {
+        "scenario": "入口与问答存储故障分别阻止新查询，失败不返回结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "查询在途时撤权等待快照锁，最终HTTP仍拒绝交付",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后缩小权限但仍保留查询资格，也不能交付旧范围结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "响应准备后权限服务故障明确为无法确认，不误报撤权",
+        "status": "passed"
+      },
+      {
+        "scenario": "撤销资格和真实注销后旧JWT/重复请求均不返回历史结果",
+        "status": "passed"
+      },
+      {
+        "scenario": "普通用户无法直读审计/入口表或直接调用服务端RPC",
+        "status": "passed"
+      }
+    ],
+    "production": false,
+    "modelCalls": false,
+    "browserValidation": false
+  },
+  "browser": {
+    "browser": "Codex in-app browser",
+    "engineVersion": "not exposed by read-only browser API",
+    "desktop": {
+      "width": 1280,
+      "height": 900
+    },
+    "narrow": {
+      "width": 390,
+      "height": 844
+    },
+    "finalViewport": {
+      "focused": "home-query",
+      "height": 900,
+      "pageWidth": 1280,
+      "width": 1280
+    },
+    "production": false,
+    "syntheticData": true,
+    "role": "viewer with explicit query grants",
+    "observed": [
+      "known height A=210; authorized=4 valid=2 missing=1 conflict=1",
+      "quarter rent 170; valid area denominator 50000",
+      "vacancy 17.5%; valid area denominator 40000",
+      "missing 2025Q3 says unknown; 0 valid of 4; no cross-period fill",
+      "floor field lacking grant refused without result",
+      "ambiguous year/rent requests clarification without result",
+      "refresh and recover preserves original resultId and 17.5",
+      "explicit source action focuses visible details; close returns focus to cell",
+      "narrow source text wraps; send target 44x44; no page horizontal overflow",
+      "collapse preserves original module links",
+      "keyboard submission preserves composer focus"
+    ],
+    "realDevicesTested": false,
+    "realIMEBrowserTested": false,
+    "clientDeliveryReceipt": false
+  },
+  "fullVerification": {
+    "command": "VITEST_MAX_WORKERS=2 npm run verify",
+    "exitCode": 0,
+    "testFiles": 215,
+    "tests": 1371,
+    "lintWarnings": 826,
+    "lintErrors": 0,
+    "types": "passed",
+    "productionBuild": "passed",
+    "log": "/private/tmp/colliers-home-query-verify-final-v3.log"
+  },
+  "focusGate": {
+    "command": "VITEST_MAX_WORKERS=2 SEARCH_FOCUS_BASE_SHA=a87697f994cbdb6566db780d9012822bf9eb50fc node scripts/search-focus-gate.mjs",
+    "exitCode": 0,
+    "log": "/private/tmp/colliers-home-query-focus-gate.log"
+  },
+  "regressions": [
+    {
+      "case": "Actual browser Origin and internal Next listener differ",
+      "before": "403 instead of expected 200",
+      "after": "200 and original result recovery; 30 HTTP scenarios passed",
+      "beforeLog": "/private/tmp/colliers-home-query-origin-before.log",
+      "afterLog": "/private/tmp/colliers-home-query-origin-after.log",
+      "persistentRegression": "scripts/verification/verify-ai-query-auth.mjs"
+    },
+    {
+      "case": "Explicit source action leaves details outside viewport without focus",
+      "before": "panel focus assertion failed",
+      "after": "all 5 real component cases passed; actual desktop and narrow browser focus/scroll/return verified",
+      "beforeLog": "/private/tmp/colliers-home-query-source-focus-before.log",
+      "afterLog": "/private/tmp/colliers-home-query-source-focus-after.log",
+      "persistentRegression": "src/components/home/__tests__/home-query.test.tsx"
+    }
+  ],
+  "earlierFailure": {
+    "log": "/private/tmp/colliers-home-query-verify.log",
+    "test": "page-navigation-performance session validation timing",
+    "observed": "50.3678ms vs less than 50ms",
+    "fileUnchangedFromBase": true,
+    "rootCause": "not established",
+    "resolution": "Retained failure evidence; subsequent full runs passed with assertions, timeouts and scope unchanged"
+  },
+  "cleanup": {
+    "ownedAuthStackStopped": true,
+    "ownedSyntheticVolumesRemoved": true,
+    "browserPreviewStopped": true,
+    "previewCredentialsDeleted": true
+  },
+  "limitations": [
+    "No production AI enablement, migration, push or merge",
+    "No remote exact-head CI for this work package",
+    "Real iOS Safari and Android Chrome not tested; homepage-only waiver not generalized",
+    "No external model call; bounded grammar is not open natural language",
+    "No client received/rendered receipt",
+    "Charts/export UI, full conversation, audit administration, outbox reconciliation, independent checkpoints, lifecycle, model and budget governance remain incomplete",
+    "Original 99-item Goal remains active; this is a partial local checkpoint"
+  ]
+}
