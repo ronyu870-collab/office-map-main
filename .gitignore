@@ -66,7 +66,6 @@ next-env.d.ts
 /verification/lease-expiry-context-before/
 /verification/lease-expiry-context-performance/
 
-/verification/ai-query-reconciliation/
 
 /verification/ai-query-intake/
 
@@ -77,5 +76,3 @@ next-env.d.ts
 /verification/ai-audit-people/
 
 /verification/ai-audit-export/
-
-/verification/ai-audit-export-reconciliation/

@@ -29,7 +29,7 @@ try{
   const request=(text='CBD最高的楼是什么？')=>({requestId:randomUUID(),identity,entry:'query_submission',impersonationDenied:false,
     body:{text,bytesObserved:Buffer.byteLength(text),complete:true,digest:auditPayloadDigest(text,keys.digestKey),digestScope:'complete',rejection:null}});
   const rows=async id=>(await db.setup.query('select * from private.ai_query_ingress_events where request_id=$1',[id])).rows;
-  for(const f of ['20261113003933_ai_query_audit_foundation.sql','20261113032515_ai_query_http_security.sql','20261113080906_ai_query_execution_reconciliation.sql'])await db.setup.query(await readFile(new URL('../../migrations/'+f,import.meta.url),'utf8'));
+  for(const f of ['20261113003933_ai_query_audit_foundation.sql','20261113032515_ai_query_http_security.sql'])await db.setup.query(await readFile(new URL('../../migrations/'+f,import.meta.url),'utf8'));
   const original=request();
   await check('old two-step ingress loses original content if execution ends before audit receive',async()=>{
     await service.query("select public.ai_query_record_ingress($1,$2,$3,$4,'request_received',$5,true,$6,'complete')",[randomUUID(),original.requestId,OWNER,identity.sessionId,original.body.bytesObserved,original.body.digest]);
@@ -82,13 +82,6 @@ try{
     const bad=request();bad.body={...bad.body,text:null,rejection:'body_too_large',complete:false,digestScope:'prefix'};await recordQueryIntake(rpc,keys,bad);assert.equal((await rows(bad.requestId))[0].cipher,null);
     const report=request('deliveryToken secret');await recordQueryIntake(rpc,keys,{...report,entry:'query_delivery_report'});
     const content=decrypt((await rows(report.requestId))[0]);assert.equal(content.content.payload.inputValid,false);assert.ok(!JSON.stringify(content).includes('deliveryToken secret'));
-  });
-  await check('orphan overview distinguishes retained new content from missing historical originals',async()=>{
-    await db.setup.query("update private.ai_query_ingress_events set occurred_at=clock_timestamp()-interval '4 minutes'");
-    const result=(await service.query("select public.ai_query_reconcile_overview(clock_timestamp()-interval '1 day') r")).rows[0].r;
-    assert.ok(result.orphan_content_retained>0);assert.ok(result.orphan_ingress_attempts>result.orphan_content_retained);
-    assert.equal(result.orphan_sample.find(r=>r.request_id===original.requestId).content_retained,false);
-    assert.ok(result.orphan_sample.some(r=>r.content_retained));assert.ok(!JSON.stringify(result).includes('ciphertext'));
   });
   await check('ordinary roles cannot invoke intake and service cannot read, update or delete raw bodies',async()=>{
     const input=request();await recordQueryIntake(rpc,keys,input);const {args}=captured;

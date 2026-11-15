@@ -61,27 +61,4 @@ revoke all on function private.ai_query_record_intake(uuid,uuid,uuid,uuid,text,b
   public.ai_query_record_intake(uuid,uuid,uuid,uuid,text,bigint,boolean,text,text,uuid,text,text,jsonb) from public,anon,authenticated,service_role;
 grant execute on function private.ai_query_record_intake(uuid,uuid,uuid,uuid,text,bigint,boolean,text,text,uuid,text,text,jsonb),
   public.ai_query_record_intake(uuid,uuid,uuid,uuid,text,bigint,boolean,text,text,uuid,text,text,jsonb) to service_role;
--- Metadata-only reconciliation distinguishes lost legacy text from retained intake.
-create or replace function private.ai_query_reconcile_overview(p_since timestamptz) returns jsonb
-language plpgsql security definer set search_path='' set statement_timeout='10s' as $$
-declare result jsonb;
-begin
-  if p_since is null or p_since>clock_timestamp() or p_since<clock_timestamp()-interval '31 days'
-    then raise exception using errcode='22023',message='invalid reconciliation range'; end if;
-  select jsonb_build_object('as_of',clock_timestamp(),'since',p_since,
-    'ingress_attempts',(select count(*) from private.ai_query_ingress_events where occurred_at>=p_since),
-    'authenticated_attempts',(select count(*) from private.ai_query_ingress_events where occurred_at>=p_since and reason='request_received' and actor_id is not null),
-    'distinct_authenticated_requests',(select count(distinct request_id) from private.ai_query_ingress_events where occurred_at>=p_since and reason='request_received' and actor_id is not null),
-    'terminal_streams',(select count(*) from private.ai_query_audit_streams where received_at>=p_since and state not in ('received','running')),
-    'pending_streams',(select count(*) from private.ai_query_audit_streams where received_at>=p_since and state in ('received','running')),
-    'due_streams',(select count(*) from private.ai_query_execution_watch w join private.ai_query_audit_streams s using(request_id) where s.received_at>=p_since and w.state='pending' and w.due_at<=clock_timestamp()),
-    'missing_watch',(select count(*) from private.ai_query_audit_streams s where received_at>=p_since and state in ('received','running') and not exists(select 1 from private.ai_query_execution_watch w where w.request_id=s.request_id and w.state='pending')),
-    'orphan_ingress_attempts',(select count(*) from private.ai_query_ingress_events i where occurred_at>=p_since and occurred_at<clock_timestamp()-interval '180 seconds' and reason='request_received' and actor_id is not null and not exists(select 1 from private.ai_query_audit_streams s where s.request_id=i.request_id)),
-    'orphan_content_retained',(select count(*) from private.ai_query_ingress_events i where occurred_at>=p_since and occurred_at<clock_timestamp()-interval '180 seconds' and reason='request_received' and actor_id is not null and cipher is not null and not exists(select 1 from private.ai_query_audit_streams s where s.request_id=i.request_id)),
-    'orphan_sample',coalesce((select jsonb_agg(x) from (select i.event_id,i.request_id,i.occurred_at,(i.cipher is not null) as content_retained,i.entry from private.ai_query_ingress_events i
-      where occurred_at>=p_since and occurred_at<clock_timestamp()-interval '180 seconds' and reason='request_received' and actor_id is not null
-      and not exists(select 1 from private.ai_query_audit_streams s where s.request_id=i.request_id) order by occurred_at,event_id limit 100) x),'[]'::jsonb)) into result;
-  return result;
-end $$;
-
 commit;

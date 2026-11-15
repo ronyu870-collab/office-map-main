@@ -171,13 +171,11 @@ jobs:
       - name: Real PostgreSQL AI query audit regressions
         run: |
           node supabase/tests/ai-query-audit/run.mjs
-          node supabase/tests/ai-query-reconciliation/run.mjs
           node supabase/tests/ai-query-intake/run.mjs
           node supabase/tests/ai-audit-console/run.mjs
           node supabase/tests/ai-admin-only/run.mjs
           node supabase/tests/ai-audit-people/run.mjs
           node supabase/tests/ai-audit-export/run.mjs
-          node supabase/tests/ai-audit-export-reconciliation/run.mjs
           node supabase/tests/ai-query-authority/run.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
@@ -355,19 +353,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Retain AI query reconciliation evidence
+      - name: Retain AI query and audit evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai-query-reconciliation-verification
+          name: ai-query-audit-verification
           path: |
-            verification/ai-query-reconciliation/results.json
             verification/ai-query-intake/results.json
             verification/ai-audit-console/results.json
             verification/ai-admin-only/results.json
             verification/ai-audit-people/results.json
             verification/ai-audit-export/results.json
-            verification/ai-audit-export-reconciliation/results.json
           if-no-files-found: ignore
           retention-days: 7
 

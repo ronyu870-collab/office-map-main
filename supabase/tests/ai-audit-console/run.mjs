@@ -14,7 +14,7 @@ const read=async(filter={action:'list',from:new Date(Date.now()-86400000).toISOS
 };
 const prepare=async(parent,returned=[],actor=OWNER,session=SESSION)=>(await service.query('select public.ai_audit_console_prepare($1,$1,$2,$3,$4,$5,$6) r',[actor,session,randomUUID(),parent,returned,'b'.repeat(64)])).rows[0].r;
 try{
-  for(const f of ['20261113032515_ai_query_http_security.sql','20261113080906_ai_query_execution_reconciliation.sql','20261113084732_ai_query_atomic_intake.sql'])await db.setup.query(await readFile(new URL('../../migrations/'+f,import.meta.url),'utf8'));
+  for(const f of ['20261113032515_ai_query_http_security.sql','20261113084732_ai_query_atomic_intake.sql'])await db.setup.query(await readFile(new URL('../../migrations/'+f,import.meta.url),'utf8'));
   await db.setup.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic explicit auditor')",[OWNER]);
   await check('old sessionless audit read bypasses revoked-session boundary; reproduce before upgrade',async()=>{
     await db.setup.query('delete from auth.sessions where id=$1',[SESSION]);

@@ -15,7 +15,7 @@ const inputSchema=z.discriminatedUnion('action',[
   z.strictObject({action:z.literal('export'),targets:auditExportTargetsSchema}),
   z.strictObject({action:z.literal('report'),receiptToken:z.string().min(1).max(3000)}),
 ]);
-const resultSchema=z.object({allowed:z.literal(true),policy:z.literal('audit-export/2'),read_revision:z.uuid(),export_revision:z.uuid(),bundles:z.array(z.unknown()).max(50)});
+const resultSchema=z.object({allowed:z.literal(true),policy:z.literal('audit-export/1'),read_revision:z.uuid(),export_revision:z.uuid(),bundles:z.array(z.unknown()).max(50)});
 const rawSnapshot=z.object({outcome:z.literal('allowed'),records:z.array(z.unknown()).max(2048),stream:z.unknown()});
 const bundleSchema=z.object({target:auditExportTargetSchema,request_id:z.uuid(),captured_at:stamp,intake:rawSnapshot.nullable(),stream:rawSnapshot});
 const receiptSchema=z.strictObject({version:z.literal('audit-export-receipt/1'),actor:z.uuid(),session:z.uuid(),prepareId:z.uuid(),digest:hash,bytes:z.number().int().min(1).max(67108864),expires:z.number().int()});
@@ -32,7 +32,6 @@ function receipt(raw:string,identity:VerifiedQueryIdentity,keys:AuditKeys){
 }
 export async function handleAuditExport(request:Request,dependencies:ReturnType<typeof queryHttpDependencies>&{auditEnabled:boolean}):Promise<Response>{
   const {client,keys}=dependencies,eventId=randomUUID();
-  let failedIdentity:VerifiedQueryIdentity|undefined;
   try{
     const body=await readQueryBody(request,keys.digestKey);
     const authHeaders=new Headers(request.headers);authHeaders.delete(IMPERSONATION_REQUEST_HEADER);
@@ -60,7 +59,6 @@ export async function handleAuditExport(request:Request,dependencies:ReturnType<
     let loggedBody:unknown=body.text;
     try{const parsed=JSON.parse(body.text!);if(typeof parsed?.receiptToken==='string')loggedBody={...parsed,receiptToken:'[REDACTED_DELIVERY_TOKEN]'};}catch{/* Preserve malformed export input under encryption. */}
     const original=encodeIntakeDocument(sanitizeAuditContent({entry:'audit_export',rawRequest:loggedBody,inputDigest:body.digest}));
-    failedIdentity=identity;
     const read=await rpc({p_event:eventId,p_phase:valid&&input?.action==='export'?'read':'invalid',p_parent:null,
       p_targets:input?.action==='export'?input.targets:[],p_digest:auditPayloadDigest(original,keys.digestKey),p_bytes:null,
       p_cipher:encryptAuditContent(original,{requestId:eventId,eventId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId},keys.keyId,keys.encryptionKey)});
@@ -92,11 +90,6 @@ export async function handleAuditExport(request:Request,dependencies:ReturnType<
     return new Response(bytes,{status:200,headers:{...headers,'Content-Type':'application/json; charset=utf-8','Content-Disposition':`attachment; filename="ai-audit-${eventId}.json"`,
       'X-Audit-Export-Id':eventId,'X-Audit-Export-Sha256':digest,'X-Audit-Export-Receipt':receiptToken}});
   }catch{
-    if(failedIdentity){
-      // Best effort closure; durable database observation handles process loss or
-      // another database failure. A committed prepare can never be overwritten.
-      try{await client.rpc('ai_audit_export_fail',{p_export:eventId,p_actor:failedIdentity.actorId,p_session:failedIdentity.sessionId}).abortSignal(AbortSignal.timeout(5000));}catch{/* Reconciler records unknown after deadline. */}
-    }
     return reply(503);
   }
 }

@@ -27,7 +27,7 @@ const receive = (requestId, eventId, actor = OWNER, effective = actor, payloadDi
 const append = (requestId, kind, eventId = randomUUID(), payloadDigest = digest) => asRole('service_role', 'select public.ai_query_audit_append($1,$2,$3,$4,$5) result', [requestId,eventId,kind,payloadDigest,cipher()]);
 const read = (actor, requestId, effective = actor) => asRole('service_role', 'select public.ai_query_audit_read($1,$2,$3) result', [actor,effective,requestId]);
 try {
-  for(const migration of ['20261113003933_ai_query_audit_foundation.sql','20261113032515_ai_query_http_security.sql','20261113080906_ai_query_execution_reconciliation.sql'])
+  for(const migration of ['20261113003933_ai_query_audit_foundation.sql','20261113032515_ai_query_http_security.sql'])
     await db.setup.query(await readFile(new URL('../../migrations/'+migration,import.meta.url),'utf8'));
   const requestId = randomUUID(), firstEvent = randomUUID();
   await check('receive atomically stores ciphertext and protected identity snapshots', async () => {

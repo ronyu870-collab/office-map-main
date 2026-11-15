@@ -17,7 +17,7 @@ const grant=()=>db.setup.query("insert into private.ai_audit_export_grants(user_
 try{
   await loadAuditPrerequisites(db);await applyAdminOnly(db);
   await db.setup.query('alter table public.user_roles add column if not exists full_name text,add column if not exists chinese_name text');
-  for(const file of ['20261113130012_ai_audit_actor_directory.sql','20261113132136_ai_audit_controlled_export.sql','20261113135841_ai_audit_export_reconciliation.sql'])await db.setup.query(await readFile(new URL('../../migrations/'+file,import.meta.url),'utf8'));
+  for(const file of ['20261113130012_ai_audit_actor_directory.sql','20261113132136_ai_audit_controlled_export.sql'])await db.setup.query(await readFile(new URL('../../migrations/'+file,import.meta.url),'utf8'));
   await db.setup.query("update public.user_roles set role='admin' where user_id=$1",[OWNER]);
   await db.setup.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic reader')",[OWNER]);
   const ids=[randomUUID(),randomUUID()];for(const id of ids)await db.setup.query("insert into private.ai_query_ingress_events(event_id,request_id,actor_id,session_id,reason,bytes_observed,body_complete,body_digest,digest_scope,effective_user_id,entry,content_digest,cipher) values($1,$2,$3,$4,'request_received',1,true,$5,'complete',$3,'query_submission',$5,'{}'::jsonb)",[id,randomUUID(),OTHER,randomUUID(),'c'.repeat(64)]);
@@ -28,7 +28,7 @@ try{
   });
   await grant();
   await check('explicit export and read qualifications return every selected original with nullable orphan execution',async()=>{
-    const r=await call('read',targets);assert.equal(r.allowed,true);assert.equal(r.policy,'audit-export/2');assert.equal(r.bundles.length,2);
+    const r=await call('read',targets);assert.equal(r.allowed,true);assert.equal(r.policy,'audit-export/1');assert.equal(r.bundles.length,2);
     assert.deepEqual(r.bundles.map(x=>x.target),targets);assert.ok(r.bundles.every(x=>x.stream.stream===null && x.intake.records[0].actor_id===OTHER));
   });
   await check('zero, duplicate, over-limit, malformed targets and unknown IDs cannot become partial exports',async()=>{

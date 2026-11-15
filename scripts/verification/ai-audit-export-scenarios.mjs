@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
-import {spawn} from 'node:child_process';
-import {once} from 'node:events';
-import {readFile} from 'node:fs/promises';
 
-export async function verifyAuditExport({db,app,check,person,successful,blocker,until,stopApp,startApp,settings}) {
+export async function verifyAuditExport({db,app,check,person,successful}) {
   const request=async(who,body,headers={})=>{const r=await fetch(app+'/api/intelligence/audit/export',{method:'POST',headers:{'Content-Type':'application/json',...(who?{Authorization:'Bearer '+who.token}:{}),...headers},body:JSON.stringify(body)});const bytes=new Uint8Array(await r.arrayBuffer());return {status:r.status,headers:r.headers,bytes,body:JSON.parse(new TextDecoder().decode(bytes))};};
   const id=(await db.query("select event_id from private.ai_query_ingress_events where request_id=$1 and entry='query_submission' order by occurred_at limit 1",[successful.body.requestId])).rows[0].event_id;
   const targets=[{kind:'intake',id},{kind:'stream',id:successful.body.requestId}],body={action:'export',targets};
@@ -51,60 +48,13 @@ export async function verifyAuditExport({db,app,check,person,successful,blocker,
     await db.query("create function private.export_prepare_fault() returns trigger language plpgsql set search_path='' as $$begin if new.phase='prepare' then raise exception 'synthetic prepare failure';end if;return new;end $$;create trigger export_prepare_fault before insert on private.ai_audit_export_events for each row execute function private.export_prepare_fault()");
     try{const r=await request(who,body);assert.equal(r.status,503);assert.equal(r.headers.get('content-disposition'),null);}finally{await db.query('drop trigger export_prepare_fault on private.ai_audit_export_events;drop function private.export_prepare_fault()');}
   });
-  await check('导出解码故障留下明确生成失败，恢复原始证据后新导出仍可用',async()=>{
+  await check('审计证据无法解码时不交付文件；恢复证据后可重新导出',async()=>{
     const original=(await db.query('select content_digest from private.ai_query_ingress_events where event_id=$1',[id])).rows[0].content_digest;
-    const before=new Set((await db.query('select export_id from private.ai_audit_export_operations')).rows.map(x=>x.export_id));
-    try{await db.query("update private.ai_query_ingress_events set content_digest=$2 where event_id=$1",[id,'b'.repeat(64)]);
-      assert.equal((await request(who,body)).status,503);
-      const rows=(await db.query('select export_id,state from private.ai_audit_export_operations')).rows.filter(x=>!before.has(x.export_id));assert.equal(rows.length,1);assert.equal(rows[0].state,'generation_failed');
+    try{
+      await db.query("update private.ai_query_ingress_events set content_digest=$2 where event_id=$1",[id,'b'.repeat(64)]);
+      const corrupt=await request(who,body);assert.equal(corrupt.status,503);assert.equal(corrupt.headers.get('content-disposition'),null);
     }finally{await db.query('update private.ai_query_ingress_events set content_digest=$2 where event_id=$1',[id,original]);}
     assert.equal((await request(who,body)).status,200);
-  });
-  await check('缺少生命周期协议的旧数据库不能交付文件；恢复最新协议后可用',async()=>{
-    const old=await readFile(new URL('../../supabase/migrations/20261113132136_ai_audit_controlled_export.sql',import.meta.url),'utf8');
-    const current=await readFile(new URL('../../supabase/migrations/20261113135841_ai_audit_export_reconciliation.sql',import.meta.url),'utf8');
-    const oldBody=old.slice(old.indexOf('create function private.ai_audit_export_control('),old.indexOf('revoke all on function private.ai_audit_export_control')).replace('create function','create or replace function');
-    try{await db.query(oldBody);const denied=await request(who,body);assert.equal(denied.status,503);assert.equal(denied.headers.get('content-disposition'),null);}
-    finally{await db.query(current.slice(current.indexOf('create or replace function private.ai_audit_export_control('),current.lastIndexOf('commit;')));}
-    assert.equal((await request(who,body)).status,200);
-  });
-  const reconcile=async()=>{
-    const worker=spawn(process.execPath,['scripts/intelligence/reconcile-audit-exports.mjs'],{env:{...process.env,AI_EXPORT_RECONCILE_ALLOW_LOCAL:'disposable',AI_EXPORT_RECONCILE_URL:settings.API_URL,AI_EXPORT_RECONCILE_SECRET:settings.SERVICE_ROLE_KEY,AI_EXPORT_RECONCILE_WORKER:'auth-export-crash'},stdio:['ignore','pipe','pipe']});
-    let out='';worker.stdout.on('data',x=>{out+=x;});assert.equal((await once(worker,'exit'))[0],0);return JSON.parse(out);
-  };
-  await check('失败补记也暂时不可写时保留待处理，独立恢复只标生成未确认',async()=>{
-    const original=(await db.query('select content_digest from private.ai_query_ingress_events where event_id=$1',[id])).rows[0].content_digest;
-    const before=new Set((await db.query('select export_id from private.ai_audit_export_operations')).rows.map(x=>x.export_id));let failedId;
-    await db.query("create function private.fail_failure_note() returns trigger language plpgsql as $$begin if new.reason='generation_failed' then raise exception 'synthetic failure-note fault';end if;return new;end$$;create trigger fail_failure_note before insert on private.ai_audit_export_lifecycle for each row execute function private.fail_failure_note()");
-    try{await db.query('update private.ai_query_ingress_events set content_digest=$2 where event_id=$1',[id,'b'.repeat(64)]);assert.equal((await request(who,body)).status,503);
-      const row=(await db.query('select export_id,state from private.ai_audit_export_operations')).rows.find(x=>!before.has(x.export_id));assert.ok(row);failedId=row.export_id;assert.equal(row.state,'pending_generation');
-    }finally{await db.query('update private.ai_query_ingress_events set content_digest=$2 where event_id=$1',[id,original]);await db.query('drop trigger fail_failure_note on private.ai_audit_export_lifecycle;drop function private.fail_failure_note()');}
-    await db.query("update private.ai_audit_export_operations set due_at=case when export_id=$1 then clock_timestamp()-interval '1 second' else clock_timestamp()+interval '10 minutes' end where state in ('pending_generation','pending_report')",[failedId]);
-    const fixed=await reconcile();assert.equal(fixed.reconciliation.outcomes.find(x=>x.exportId===failedId)?.state,'generation_unconfirmed');
-  });
-  await check('无客户端下载报告的已准备文件由独立CLI标交付未确认，迟到有效报告追加更正',async()=>{
-    const f=await request(who,body);assert.equal(f.status,200);
-    await db.query("update private.ai_audit_export_operations set due_at=case when export_id=$1 then clock_timestamp()-interval '1 second' else clock_timestamp()+interval '10 minutes' end where state in ('pending_generation','pending_report')",[f.body.exportId]);
-    const repaired=await reconcile();assert.equal(repaired.reconciliation.outcomes.find(x=>x.exportId===f.body.exportId)?.state,'delivery_unconfirmed');
-    assert.equal((await request(who,{action:'report',receiptToken:f.headers.get('x-audit-export-receipt')})).status,200);
-    const states=(await db.query('select state from private.ai_audit_export_lifecycle where export_id=$1 order by occurred_at,event_id',[f.body.exportId])).rows.map(x=>x.state);
-    assert.deepEqual(states,['pending_generation','pending_report','delivery_unconfirmed','client_dispatch_reported']);
-  });
-  await check('导出读取已持久化后Next真实SIGKILL，独立补记不重建文件且重启后新导出可用',async()=>{
-    const before=new Set((await db.query('select export_id from private.ai_audit_export_operations')).rows.map(x=>x.export_id));
-    await blocker.query('begin');await blocker.query('select pg_advisory_xact_lock(8172361)');
-    await db.query("create function private.block_export_prepare() returns trigger language plpgsql as $$begin if new.phase='prepare' then perform pg_advisory_xact_lock(8172361);end if;return new;end$$;create trigger block_export_prepare before insert on private.ai_audit_export_events for each row execute function private.block_export_prepare()");
-    let lostId;const pending=request(who,body).catch(()=>null);
-    try{await until(async()=>{const rows=(await db.query("select export_id from private.ai_audit_export_operations where state='pending_generation'")).rows;lostId=rows.find(x=>!before.has(x.export_id))?.export_id;return Boolean(lostId);},'durable export read');
-      await until(async()=>Boolean((await db.query("select 1 from pg_locks where locktype='advisory' and objid=8172361 and not granted")).rowCount),'blocked file preparation');
-      await stopApp();
-    }finally{await blocker.query('rollback');await db.query('drop trigger block_export_prepare on private.ai_audit_export_events;drop function private.block_export_prepare()');}
-    assert.equal(await pending,null);
-    const recorded=(await db.query('select state from private.ai_audit_export_operations where export_id=$1',[lostId])).rows[0].state;assert.ok(['pending_generation','pending_report'].includes(recorded));
-    await db.query("update private.ai_audit_export_operations set due_at=case when export_id=$1 then clock_timestamp()-interval '1 second' else clock_timestamp()+interval '10 minutes' end where state in ('pending_generation','pending_report')",[lostId]);
-    const fixed=await reconcile();assert.equal(fixed.reconciliation.outcomes.find(x=>x.exportId===lostId)?.state,recorded==='pending_report'?'delivery_unconfirmed':'generation_unconfirmed');
-    assert.equal(fixed.reconciliation.replayed,false);assert.equal(fixed.overview.missing_operations,0);assert.equal(fixed.overview.missing_history,0);
-    await startApp();assert.equal((await request(who,body)).status,200);
   });
   await check('真实注销后的旧JWT不能下载已有审计或上报旧文件回执',async()=>{
     await who.client.auth.signOut({scope:'local'});
