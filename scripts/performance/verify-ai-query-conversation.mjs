@@ -1,0 +1,200 @@
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
+import { observeQueryConversation, QUERY_PERFORMANCE_PROFILES, QUERY_PERFORMANCE_STEPS, QUERY_PERFORMANCE_CACHE_STATES, summarizeQueryPerformance } from './query-conversation-probe.mjs';
+
+const SAMPLES = 20;
+const BASELINE_COMMIT = '0ae6e4dbcc63c3a557ee05ed70bba016a1ee4a7c';
+const PERIODS = [{ year: 2025, quarter: 4 }, { year: 2026, quarter: 1 }, { year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
+const require = createRequire(import.meta.url);
+const errorCode = error => error?.name === 'TimeoutError' ? 'timeout' : /^[A-Z0-9_]+$/.test(error?.message ?? '') ? error.message : 'operation_failed';
+const numericProjection = result => ({ operation: result.operation, columns: result.table.columns.map(column => ({ key: column.key, unit: column.unit })),
+  rows: result.table.rows.map(row => Object.fromEntries(Object.entries(row.cells).map(([key, cell]) => [key,
+    cell.kind === 'number' ? { kind: cell.kind, exact: cell.value.exact } : cell.kind === 'text' ? { kind: cell.kind, text: cell.value } : { kind: cell.kind, reason: cell.reason }]))),
+});
+
+/** Invoked only by the dedicated disposable real-Auth harness, after its actual
+ * Next production builds start. Authentication and business HTTP are unmodified.
+ * No credentials, bodies, screenshots, URLs with query values or headers are saved. */
+export async function verifyQueryConversationPerformance({ db, person, app, beforeApp, output, exportCaps, semanticCalls }) {
+  assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
+  const variants = [...(beforeApp ? [{ name: 'before', app: beforeApp }] : []), { name: 'after', app }];
+  for (const variant of variants) assert.ok(['127.0.0.1', 'localhost'].includes(new URL(variant.app).hostname), 'ISOLATED_LOOPBACK_ONLY');
+  assert.equal(db.connectionParameters.host, '127.0.0.1', 'ISOLATED_DATABASE_ONLY');
+  assert.equal(Number(db.connectionParameters.port), 55992, 'ISOLATED_DATABASE_ONLY');
+  const reportPath = path.join(output, 'performance.json'); await mkdir(output, { recursive: true });
+  const samples = [], ids = Array.from({ length: 24 }, () => randomUUID());
+  const report = { version: 'query-conversation-performance/1', beforeCommit: beforeApp ? BASELINE_COMMIT : null,
+    afterCommit: process.env.GITHUB_SHA ?? 'working_tree_not_release_evidence', production: false, realPhone: false,
+    authentication: 'Real login form -> local GoTrue -> canonical user_roles -> unchanged query grants/RPC',
+    modelCalls: null, realExternalModelCalls: false, modelPath: 'Bounded supported semantics; not a provider latency benchmark',
+    baseline: beforeApp ? 'P0 complete questions with equivalent factual plans; P1 uses inherited follow-ups'
+      : 'No baseline build provided; this run cannot establish A/B regression acceptance',
+    cacheDefinition: { new_context_first_dialogue: 'A new browser context; real login and homepage are ready before measurement. First query of this page, then inherited continuation. Server and database are warm; not a cold server/DNS/TLS claim.',
+      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. No reload or prefilled response.' },
+    endpoints: { start: 'Actual send-button click captured in the browser', feedback: 'Loading/stop control or real result painted on a subsequent animation frame',
+      result: 'Fresh numeric result and an enabled source action painted', usable: 'Fresh result + source action + required same-result chart painted; actual source interaction then verified',
+      source: 'Actual numeric-source click -> new database-source panel painted; final trend also reopened',
+      browserValidationAndRender: 'Response end -> result paint, including body decoding, receipt verification, schema validation and React; not a separate JSON decoder benchmark' },
+    fixture: { buildings: 24, submarkets: 2, buildingsPerSubmarket: 12, quarterlyRecords: 96, quarters: PERIODS,
+      missingFinalRents: 2, grants: 'only these synthetic building IDs, CBD and 金融街' },
+    profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: SAMPLES, sharedRunner: Boolean(process.env.CI), node: process.version,
+    networkBoundary: 'CDP throttles the browser network and CPU only; Next-to-Auth/PostgREST traffic stays on loopback',
+    numericGate: 'Fixed-condition 20-sample evidence. Shared runner single wall-clock timings are not CI functional assertions. Production network, real devices and server cold starts remain outside this report.',
+    samples, summary: [], comparisons: [], functionalPassed: false, budgetsMet: false, complete: false };
+  const modelCallsBefore = semanticCalls?.();
+  const checkpoint = async () => {
+    report.summary = summarizeQueryPerformance(samples, variants.map(variant => variant.name), SAMPLES);
+    report.functionalPassed = report.summary.every(group => group.measurementComplete);
+    report.budgetsMet = report.summary.filter(group => group.variant === 'after').every(group => group.budgetsMet);
+    report.modelCalls = semanticCalls ? semanticCalls() - modelCallsBefore : null;
+    report.comparisons = beforeApp ? report.summary.filter(group => group.variant === 'after').map(after => {
+      const before = report.summary.find(group => group.variant === 'before' && group.profile === after.profile && group.cache_state === after.cache_state && group.step === after.step);
+      const baseline = before.metrics.content_usable_ms.p90, candidate = after.metrics.content_usable_ms.p90;
+      return { profile: after.profile, cache_state: after.cache_state, step: after.step, complete: before.measurementComplete && after.measurementComplete,
+        before_p90_ms: baseline, after_p90_ms: candidate, delta_ms: baseline !== null && candidate !== null ? candidate - baseline : null,
+        change_percent: baseline > 0 && candidate !== null ? (candidate - baseline) / baseline * 100 : null,
+        baselineMetBudget: before.budgetsMet, candidateMetBudget: after.budgetsMet };
+    }) : [];
+    await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n');
+  };
+  let browser;
+  try {
+    for (let i = 0; i < ids.length; i++) {
+      await db.query("insert into public.buildings(id,name,submarket,grade) values($1,$2,$3,'A')", [ids[i], `P1性能合成${i + 1}楼`, i < 12 ? 'CBD' : '金融街']);
+      for (let q = 0; q < PERIODS.length; q++) {
+        const period = PERIODS[q], rent = q === 3 && (i === 5 || i === 17) ? null : 180 + i * 2 - q * 3;
+        await db.query('insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft) values($1,$2,$3,$4,$5,1000,false)',
+          [ids[i], period.year, period.quarter, 10000 + i * 100, rent]);
+      }
+    }
+    const owner = await person('admin', 'p1-performance');
+    owner.phone = '10000000000';
+    await db.query('update public.user_roles set phone=$1 where user_id=$2', [owner.phone, owner.id]);
+    await grantQuery({ setup: db }, owner.id, { capabilities: exportCaps, allSubmarkets: false, submarkets: ['CBD', '金融街'], allBuildings: false, buildingIds: ids });
+    const { chromium } = require(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
+    browser = await chromium.launch({ headless: true, ...(process.env.PERF_BROWSER_CHANNEL ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}) });
+    report.browser = await browser.version();
+    for (const profile of QUERY_PERFORMANCE_PROFILES) for (let round = 0; round < SAMPLES; round++) {
+      const paired = new Map();
+      for (const variant of round % 2 === 0 ? variants : [...variants].reverse()) {
+        const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height },
+          isMobile: profile.name === 'mobile', hasTouch: profile.name === 'mobile', timezoneId: 'Asia/Shanghai', serviceWorkers: 'block' });
+        const collected = [];
+        try {
+          const page = await context.newPage(); page.setDefaultTimeout(30000);
+          const cdp = await context.newCDPSession(page);
+          await cdp.send('Network.enable');
+          await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: profile.latencyMs,
+            downloadThroughput: profile.downloadMbps * 1000000 / 8, uploadThroughput: profile.uploadMbps * 1000000 / 8 });
+          await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
+          await login(page, variant.app, owner);
+          for (const cacheState of QUERY_PERFORMANCE_CACHE_STATES) {
+            let dependencyFailed = false;
+            for (const step of QUERY_PERFORMANCE_STEPS) {
+              const sample = { variant: variant.name, profile: profile.name, cache_state: cacheState, round: round + 1, step: step.id,
+                status: dependencyFailed ? 'dependency_failed' : 'running', phase: 'query', feedback_ms: null, result_painted_ms: null,
+                content_usable_ms: null, source_open_ms: null, source_reopen_ms: null, browser_validation_and_render_ms: null,
+                requests: [], actualQueryRequests: 0, queryFailures: 0, pageErrors: 0, sourceVerified: false, equivalentResult: null };
+              samples.push(sample);
+              if (dependencyFailed) { collected.push({ sample, projection: null }); continue; }
+              const measured = await measure(page, variant.name, step, sample, ids);
+              dependencyFailed = sample.status !== 'success'; collected.push({ sample, projection: measured });
+            }
+          }
+        } catch (error) {
+          // Keep every planned sample in the denominator, including login failures.
+          for (const cacheState of QUERY_PERFORMANCE_CACHE_STATES) for (const step of QUERY_PERFORMANCE_STEPS) {
+            if (collected.some(item => item.sample.cache_state === cacheState && item.sample.step === step.id)) continue;
+            const sample = { variant: variant.name, profile: profile.name, cache_state: cacheState, round: round + 1, step: step.id,
+              status: 'setup_failed', phase: 'login_or_browser', error: errorCode(error), feedback_ms: null, content_usable_ms: null };
+            samples.push(sample); collected.push({ sample, projection: null });
+          }
+        } finally { await context.close(); }
+        paired.set(variant.name, collected); await checkpoint();
+      }
+      if (beforeApp) {
+        const before = paired.get('before'), after = paired.get('after');
+        for (let i = 0; i < before.length; i++) {
+          const a = before[i], b = after[i];
+          const equal = a.projection !== null && b.projection !== null && JSON.stringify(a.projection) === JSON.stringify(b.projection);
+          a.sample.equivalentResult = b.sample.equivalentResult = equal;
+          if (!equal) for (const value of [a.sample, b.sample]) if (value.status === 'success') { value.status = 'result_mismatch'; value.phase = 'equivalence'; }
+        }
+      }
+      await checkpoint(); console.log(`QUERY_PERFORMANCE ${profile.name} pair ${round + 1}/${SAMPLES}`);
+    }
+    report.complete = true; await checkpoint();
+    assert.equal(report.functionalPassed, true, 'QUERY_PERFORMANCE_FUNCTIONAL_FAILURE');
+    if (semanticCalls) assert.equal(report.modelCalls, 0, 'UNEXPECTED_MODEL_CALL_IN_BOUNDED_QUERY');
+    return { functionalPassed: report.functionalPassed, budgetsMet: report.budgetsMet, reportPath, summary: report.summary };
+  } finally {
+    await browser?.close(); await checkpoint();
+    await db.query('delete from public.building_metrics where building_id=any($1::uuid[])', [ids]);
+    await db.query('delete from public.buildings where id=any($1::uuid[])', [ids]);
+  }
+}
+
+async function login(page, app, owner) {
+  await page.goto(app + '/login', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => { const form = document.querySelector('form');
+    return form && Object.keys(form).some(key => key.startsWith('__reactProps$') && typeof form[key]?.onSubmit === 'function'); });
+  await page.getByLabel('企业邮箱').fill(owner.email); await page.getByLabel('手机号').fill(owner.phone);
+  await page.getByLabel('密码', { exact: true }).fill(owner.password);
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await page.waitForURL(url => url.pathname === '/');
+  await page.locator('#home-query:enabled').waitFor();
+}
+
+async function measure(page, variant, step, sample, allowedIds) {
+  let probeInstalled = false;
+  const queryRequest = request => { if (new URL(request.url()).pathname === '/api/intelligence/query' && request.method() === 'POST') sample.actualQueryRequests++; };
+  const failed = request => { if (new URL(request.url()).pathname.startsWith('/api/intelligence/query')) sample.queryFailures++; };
+  const pageError = () => { sample.pageErrors++; };
+  page.on('request', queryRequest); page.on('requestfailed', failed); page.on('pageerror', pageError);
+  try {
+    await page.locator('#home-query').fill(step[variant]);
+    await page.getByRole('button', { name: '发送问题', exact: true }).scrollIntoViewIfNeeded();
+    await page.evaluate(observeQueryConversation, { chartRequired: step.chart }); probeInstalled = true;
+    const [response] = await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/intelligence/query' && response.request().method() === 'POST'),
+      page.getByRole('button', { name: '发送问题', exact: true }).click()]); sample.httpStatus = response.status();
+    assert.equal(response.status(), 200, 'QUERY_NOT_READY');
+    const body = await response.json(); assert.equal(body.status, 'ready', 'QUERY_NOT_READY');
+    assert.equal(body.result.operation, step.operation, 'UNEXPECTED_QUERY_PLAN');
+    assert.ok(body.result.sources.every(source => allowedIds.includes(source.entityId)), 'SOURCE_OUTSIDE_GRANTED_FIXTURE');
+    if (variant === 'after') assert.ok(body.conversation?.id, 'MISSING_CONVERSATION');
+    await page.waitForFunction(() => ['ready', 'timeout'].includes(window.__colliersQueryPerformance?.state.status), null, { timeout: 35000 });
+    assert.equal(await page.evaluate(() => window.__colliersQueryPerformance.state.status), 'ready', 'RESULT_READINESS_TIMEOUT');
+    sample.phase = 'source_interaction';
+    const source = page.getByRole('region', { name: '查询结果', exact: true }).getByRole('button', { name: /^查看来源：面积加权净有效租金 / }).first();
+    await source.click();
+    const panel = page.getByRole('region', { name: '来源详情', exact: true }); await panel.waitFor();
+    assert.match(await panel.innerText(), /building_metrics/, 'DATABASE_SOURCE_NOT_VISIBLE');
+    await page.waitForFunction(() => window.__colliersQueryPerformance.state.source_open_ms.length >= 1);
+    sample.sourceVerified = true;
+    await panel.getByRole('button', { name: '关闭来源', exact: true }).click();
+    if (step.id === 'four_quarter_trend') {
+      await source.click(); await panel.waitFor();
+      await page.waitForFunction(() => window.__colliersQueryPerformance.state.source_open_ms.length >= 2);
+      await panel.getByRole('button', { name: '关闭来源', exact: true }).click();
+    }
+    assert.equal(sample.actualQueryRequests, 1, 'DUPLICATE_QUERY_SUBMISSION');
+    assert.equal(sample.queryFailures, 0, 'QUERY_NETWORK_FAILURE');
+    assert.equal(sample.pageErrors, 0, 'QUERY_BROWSER_ERROR');
+    sample.status = 'success'; sample.phase = 'complete';
+    return numericProjection(body.result);
+  } catch (error) { sample.status = 'failed'; sample.error = errorCode(error); return null; }
+  finally {
+    if (probeInstalled) {
+      const measurement = await page.evaluate(() => { const probe = window.__colliersQueryPerformance; const result = probe.read(); probe.stop(); return result; }).catch(() => null);
+      if (measurement) Object.assign(sample, { feedback_ms: measurement.feedback_ms, result_painted_ms: measurement.result_painted_ms,
+        content_usable_ms: measurement.content_usable_ms, source_open_ms: measurement.source_open_ms[0] ?? null,
+        source_reopen_ms: measurement.source_open_ms[1] ?? null, browser_validation_and_render_ms: measurement.browser_validation_and_render_ms,
+        requests: measurement.requests });
+    }
+    page.off('request', queryRequest); page.off('requestfailed', failed); page.off('pageerror', pageError);
+  }
+}

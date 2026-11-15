@@ -37,15 +37,19 @@ export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void 
 
 export type AuditPort = {
   receive: (request: { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; metadata?: unknown }) => Promise<{ replayed: boolean }>;
-  append: (requestId: string, kind: 'running' | 'response_generated' | 'succeeded' | 'denied' | 'failed' | 'cancelled' | 'correction' | 'delivery_receipt', detail: unknown) => Promise<void>;
+  append: (requestId: string, kind: 'running' | 'tool_started' | 'tool_finished' | 'accounting' | 'response_generated' | 'succeeded' | 'denied' | 'failed' | 'cancelled' | 'correction' | 'delivery_receipt', detail: unknown) => Promise<void>;
 };
 export type QueryExecutionPort<T> = {
   freshAuthority: () => Promise<QueryAuthority>;
   execute: (plan: QueryPlan, authority: QueryAuthority, signal: AbortSignal) => Promise<T>;
+  /** Runs only after durable receipt and fresh authorization; at most once per request. */
+  prepare?: (authority: QueryAuthority) => Promise<{ plan: unknown; clarification?: QuestionClarification; metadata?: unknown }>;
+  /** Restores an already audited interpretation, never calls the model or business reader. */
+  replay?: (authority: QueryAuthority) => Promise<{ plan?: unknown; clarification?: QuestionClarification }>;
 };
 
 /** A reusable execution boundary; it is not an enabled HTTP endpoint or a substitute for durable storage. */
-type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown; clarification?: QuestionClarification };
+type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown; clarification?: QuestionClarification; resolutionMetadata?: unknown; preparationStarted?: boolean };
 type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'clarification'; clarification: QuestionClarification } | { status: 'already_received' | 'denied' | 'cancelled' | 'failed' };
 
 export async function runAuditedQuery<T>(
@@ -68,6 +72,21 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
     authority = await execution.freshAuthority();
     if (authority.actorId !== request.authority.actorId || authority.effectiveUserId !== request.authority.effectiveUserId) throw new Error('QUERY_DENIED');
+    if (execution.prepare) {
+      authorizePlan({ operation: 'list', fields: [], period: null, scope: { inventory: 'all_authorized' } }, authority);
+      if (receipt.replayed) {
+        const saved = await execution.replay?.(authority);
+        if (saved?.plan) authorizePlan(parseQueryPlan(saved.plan), authority);
+        if (saved?.clarification) return { status: 'clarification', clarification: saved.clarification };
+        return { status: 'already_received' };
+      }
+      await audit.append(request.requestId, 'running', { phase: 'planning', policyVersion: authority.policyVersion,
+        permissionRevision: authority.permissionRevision, authority });
+      const prepared = await execution.prepare(authority);
+      const current = await execution.freshAuthority();
+      if (current.permissionRevision !== authority.permissionRevision || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+      request = { ...request, plan: prepared.plan, clarification: prepared.clarification, resolutionMetadata: prepared.metadata, preparationStarted: true };
+    }
     if (request.clarification) authorizePlan({ operation: 'list', fields: [], period: null, scope: { inventory: 'all_authorized' } }, authority);
     if (receipt.replayed && !request.clarification) {
       // A retry is not a new execution, but withdrawn tool/field access must
@@ -87,6 +106,7 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     // is not a successful factual result and cannot be recovered as one.
     if (!receipt.replayed) await audit.append(request.requestId, 'denied', {
       reason: 'clarification_required', response: request.clarification, authority, delivery: 'not_yet_sent',
+      ...(request.resolutionMetadata ? { resolution: request.resolutionMetadata } : {}),
     });
     return { status: 'clarification', clarification: request.clarification };
   }
@@ -107,7 +127,8 @@ async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, exe
     let plan: QueryPlan;
     try { plan = parseQueryPlan(request.plan); } catch { throw new Error('QUERY_DENIED'); }
     const authority = await recheck(plan);
-    await audit.append(request.requestId, 'running', { policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision, authority });
+    await audit.append(request.requestId, request.preparationStarted ? 'tool_finished' : 'running', { policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision, authority,
+      ...(request.resolutionMetadata ? { plan, resolution: request.resolutionMetadata } : {}) });
     const beforeRead = await recheck(plan);
     const result = await execution.execute(plan, beforeRead, request.signal);
     await recheck(plan);

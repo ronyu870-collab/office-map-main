@@ -4,6 +4,7 @@ import { assertFieldContext, evaluatePredicate, type Predicate } from './facts';
 import { parseQueryPlan, planPeriods } from './plan';
 import { attachFilterEvidence, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
 import type { NumericField } from './registry';
+import { attachResearchAnalysis } from './researchAnalysis';
 
 /** Execute only against server-read snapshots, never client-provided rows.
  * This layer neither fetches latest data nor accepts model-supplied numbers. */
@@ -54,5 +55,5 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields)
     : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction)
     : buildAggregateResult(find(plan.period), plan.metric);
-  return plan.filter ? attachFilterEvidence(result, evidence) : result;
+  return attachResearchAnalysis(plan.filter ? attachFilterEvidence(result, evidence) : result, selected, snapshots);
 }

@@ -30,9 +30,19 @@ export async function setupCompanyAdmin(db, load) {
     grant select on public.lease_transactions_read_v1 to service_role;
   `);
   await db.query(await load('20261111084119_lease_company_ai_assessment.sql'));
-  let calls = 0, hold = false, release;
+  let calls = 0, hold = false, release, semanticCalls = 0, semanticReply;
+  const semanticInputs = [];
   const provider = createServer(async (req, res) => {
     try {
+      if (req.url === '/chat/completions') {
+        let raw = ''; for await (const part of req) raw += part;
+        const body = JSON.parse(raw); semanticCalls++; semanticInputs.push(body);
+        assert.equal(body.max_tokens, 1200); assert.equal(body.stream, false);
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ model: 'synthetic-semantic-model', choices: [{ finish_reason: 'stop',
+          message: { content: JSON.stringify(semanticReply ?? { invalid: 'no synthetic semantic reply configured' }) } }],
+          usage: { prompt_tokens: 100, completion_tokens: 50 } })); return;
+      }
       assert.equal(req.url, '/responses');
       let raw = ''; for await (const part of req) raw += part;
       const pairs = JSON.parse(JSON.parse(raw).input); calls++;
@@ -50,6 +60,9 @@ export async function setupCompanyAdmin(db, load) {
     env: { LEASE_COMPANY_AI_MODE: 'hints', DEEPSEEK_API_KEY: 'synthetic-local-only', DEEPSEEK_API_BASE_URL: baseUrl, DEEPSEEK_MODEL: model },
     policy: createHash('sha256').update(JSON.stringify(['lease-company-pair-v1', baseUrl, model])).digest('hex'),
     calls: () => calls,
+    semanticCalls: () => semanticCalls,
+    semanticInputs: () => semanticInputs,
+    semanticReply: value => { semanticReply = value; },
     hold: () => { hold = true; },
     release: () => { hold = false; release?.(); release = undefined; },
     close: async () => { hold = false; release?.(); provider.close(); await once(provider, 'close'); },

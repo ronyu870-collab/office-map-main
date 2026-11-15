@@ -92,6 +92,17 @@
 .composerFooter p, .privacy { font-size: 13px; line-height: 1.6; }
 .privacy { color: var(--cd-color-text-secondary); }
 .answerContext { color: var(--cd-color-text-secondary); line-height: 1.7; }
+.sourceOverview { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 4px; font-size: 13px; color: var(--cd-color-text-secondary); }
+.followUps { margin-block: 16px; }
+.followUps > p { margin-bottom: 8px; color: var(--cd-color-text-secondary); }
+.followUps button { white-space: normal; height: auto; min-height: 44px; text-align: left; overflow-wrap: anywhere; }
+.insights { margin-block: 12px; max-width: 100%; }
+.finding { max-width: 80ch; margin-block: 14px; line-height: 1.7; }
+.finding h3, .analysisSeries h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.finding > p { overflow-wrap: anywhere; }
+.analysisSeries { margin-block: 16px; min-width: 0; }
+.analysisSeries caption { text-align: left; padding-block: 8px; }
+.auditJson { max-height: 360px; max-width: 100%; overflow: auto; background: var(--cd-color-surface-alt); padding: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .metric { padding-block: 12px; }
 .metric h3 { font-size: 14px; font-weight: 500; color: var(--cd-color-text-secondary); margin-bottom: 8px; }
 .metricValue { display: inline-block; max-width: 100%; font-size: clamp(28px, 4vw, 40px); font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--cd-color-text-primary); text-align: left; overflow-wrap: anywhere; }
@@ -109,4 +120,5 @@
 }
 @media (max-width: 639px), (pointer: coarse) {
   .metricValue, .metricUnknown, .previousTurn summary { min-height: 44px; }
+  .insights button { min-height: 44px; }
 }

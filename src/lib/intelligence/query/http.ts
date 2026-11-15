@@ -14,8 +14,11 @@ import { QUESTION_GRAMMAR_VERSION, resolveBusinessQuestion } from './question';
 import { isQuerySameOrigin } from './sameOrigin';
 import { prepareDelivery } from './deliveryToken';
 import { recordQueryIntake } from './intake';
+import { queryConversationSchema, SEMANTIC_PROTOCOL_VERSION } from './conversationProtocol';
+import { readConversation } from './conversationStore';
+import { prepareSemanticExecution, attachSemanticExecution } from './semanticExecution';
 
-const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional() });
+const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional(), conversation: queryConversationSchema.optional() });
 function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string {
   const bytes = createHash('sha256').update(`query-http/1:${identity.actorId}:${identity.effectiveUserId}:${nonce}`).digest().subarray(0, 16);
   bytes[6] = (bytes[6] & 15) | 128; bytes[8] = (bytes[8] & 63) | 128;
@@ -38,7 +41,7 @@ export function queryHttpDependencies(): { client: SupabaseClient; keys: AuditKe
   };
 }
 
-/** Complete structured HTTP submission boundary; this never calls a model. */
+/** Durable, authorized submission. Semantic interpretation is after receipt and fresh authority. */
 export async function handleQuerySubmission(request: Request, dependencies: ReturnType<typeof queryHttpDependencies>): Promise<Response> {
   const receivedAt = new Date();
   const { client, keys } = dependencies;
@@ -80,18 +83,41 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     };
     let boundedPlan: unknown = null;
     const resolution = parsed && !Object.hasOwn(parsed, 'plan') ? resolveBusinessQuestion(parsed.question, receivedAt) : null;
-    try { if (parsed) boundedPlan = resolution?.kind === 'plan' ? resolution.plan : resolution ? null : parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
+    // Preserve legacy/structured clients. All new conversation clients use the
+    // semantic boundary, as do natural questions outside the legacy grammar.
+    const semantic = Boolean(parsed && !Object.hasOwn(parsed, 'plan') && (parsed.conversation || resolution?.kind === 'clarification'));
+    const conversation = parsed?.conversation ?? { id: requestId };
+    try { if (parsed) boundedPlan = semantic ? { resolution: 'server_semantic/1' } : resolution?.kind === 'plan' ? resolution.plan : resolution ? null : parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
     let usedRevision: string | null = null;
+    let interpretationRevision: string | null = null;
+    let prepared: Awaited<ReturnType<typeof prepareSemanticExecution>> | undefined;
     const submission = { requestId, submittedText: parsed?.question ?? body.text!, plan: boundedPlan,
-      ...(resolution?.kind === 'clarification' ? { clarification: resolution.clarification } : {}),
+      ...(!semantic && resolution?.kind === 'clarification' ? { clarification: resolution.clarification } : {}),
       authority: pending, signal, metadata: { rawRequest: body.text, conversationId: requestId, turnId: requestId, relation: resolution ? 'initial_question_submission' : 'initial_structured_submission',
         ...(resolution ? { grammarVersion: QUESTION_GRAMMAR_VERSION } : {}),
-        ...(resolution?.kind === 'plan' && resolution.timeResolution ? { questionTimeResolution: resolution.timeResolution } : {}), impersonationDenied, inputBytes: body.bytesObserved } };
+        ...(semantic ? { protocol: SEMANTIC_PROTOCOL_VERSION, conversation } : {}),
+        ...(!semantic && resolution?.kind === 'plan' && resolution.timeResolution ? { questionTimeResolution: resolution.timeResolution } : {}), impersonationDenied, inputBytes: body.bytesObserved } };
     const result = await runAuditedSubmission(submission, audit, {
       freshAuthority: fresh,
+      ...(semantic ? {
+        prepare: async () => {
+          const authority = await fresh();
+          interpretationRevision = authority.permissionRevision;
+          prepared = await prepareSemanticExecution({ client, identity: verified, keys, authority, audit, requestId,
+            conversation, question: parsed!.question, receivedAt, signal });
+          return { plan: prepared.resolution.kind === 'plan' ? prepared.resolution.plan : null,
+            ...(prepared.resolution.kind === 'clarification' ? { clarification: prepared.resolution.clarification } : {}), metadata: prepared.metadata };
+        },
+        replay: async () => {
+          const authority = await fresh();
+          interpretationRevision = authority.permissionRevision;
+          return readConversation(client, verified, keys, authority, conversation, requestId, signal, true);
+        },
+      } : {}),
       execute: async plan => {
         const authority = await fresh(); usedRevision = authority.permissionRevision;
         const value = executeQueryPlan(plan, await readQuerySnapshots(client, verified, authority, plan, signal));
+        if (prepared) return attachSemanticExecution(value, prepared);
         return resolution?.kind === 'plan' && resolution.timeResolution ? attachRelativeQuarterContext(value, resolution.timeResolution) : value;
       },
     }).catch(async error => {
@@ -103,9 +129,13 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     });
     if (result.status === 'clarification') {
       // Store the exact bounded explanation; no business read has taken place.
-      const response = { requestId, status: 'clarification', ...result.clarification };
+      const response = { requestId, status: 'clarification', ...result.clarification, ...(semantic ? { conversation } : {}) };
       const authority = await fresh();
       if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
+      if (semantic && authority.permissionRevision !== interpretationRevision) {
+        await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: 'authorization_changed_before_clarification' });
+        return json({ requestId, status: 'denied', error: '查询权限已变化，澄清选项未交付。' }, 403);
+      }
       const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'clarification', resultId: null, itemCount: 0,
         bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus: 422 });
       if ((await fresh()).permissionRevision !== authority.permissionRevision) {
@@ -118,7 +148,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       const status = result.status === 'already_received' ? 202 : result.status === 'denied' ? 403 : result.status === 'cancelled' || result.status === 'conflict' ? 409 : 503;
       return json({ requestId, status: result.status, error: result.status === 'already_received' ? '此请求已接收，请勿重复执行。' : '本次查询未交付，请检查权限或稍后重试。' }, status);
     }
-    const responseBody = { requestId, status: 'ready', result: result.result };
+    const responseBody = { requestId, status: 'ready', result: result.result, ...(semantic ? { conversation } : {}) };
     const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'result', resultId: result.result.resultId, itemCount: result.result.table.rows.length,
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex') }, { httpStatus: 200 });
     try { if ((await fresh()).permissionRevision !== usedRevision) throw new Error('QUERY_DENIED'); }

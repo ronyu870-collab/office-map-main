@@ -1,11 +1,15 @@
 'use client';
 
 import * as React from 'react';
+import { z } from 'zod';
 import { Button } from '@/src/components/ui/Button';
 import { cellText, resultScopeText, resultSummary, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
+import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
+import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
+import { HomeQueryInsights } from './HomeQueryInsights';
 import styles from './HomeQuery.module.css';
 
 export function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false }: { result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean }) {
@@ -15,6 +19,13 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
   const summary = resultSummary(result);
+  const research = React.useMemo(() => {
+    const parsed = researchAnalysisSchema.safeParse(result.parameters.researchAnalysis);
+    if (!parsed.success) return null;
+    const knownSources = new Set(result.sources.map(source => source.id));
+    return parsed.data.findings.every(finding => finding.sourceIds.every(id => knownSources.has(id))) ? parsed.data : null;
+  }, [result]);
+  const primaryFinding = research?.findings.find(finding => finding.kind === 'trend');
   const scalarColumn = result.operation === 'aggregate' && result.table.rows.length === 1 && result.table.columns.length === 1 ? result.table.columns[0] : null;
   const scalar = scalarColumn ? result.table.rows[0].cells[scalarColumn.key] : null;
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
@@ -34,7 +45,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   return <section className={styles.result} aria-label="查询结果">
     <div className={styles.answer}>
       <p className={styles.scope}>{resultScopeText(result)}</p>
-      <p className={styles.conclusion}>{summary[0]}</p>
+      <p className={styles.conclusion}>{primaryFinding?.text ?? summary[0]}</p>
       {scalar && scalarColumn && <section className={styles.metric} aria-label="核心指标">
         <h3>{scalarColumn.label}</h3>
         <button type="button" className={scalar.kind === 'number' ? styles.metricValue : styles.metricUnknown}
@@ -44,7 +55,9 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         <p className={styles.notice}>点选数值查看来源</p>
       </section>}
       {summary.slice(1, scalar ? 2 : undefined).map(line => <p key={line} className={styles.answerContext}>{line}</p>)}
+      <SourceOverview result={result} research={research} />
     </div>
+    {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
     {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} />}
     {!scalar && result.table.rows.length > 0 && <>
       <div className={styles.tableScroll} tabIndex={0} aria-label="查询结果表，可横向滚动">
@@ -70,6 +83,11 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     <details className={styles.trace}>
       <summary>来源、口径与结果版本</summary>
       {scalar && summary.slice(2).map(line => <p key={line}>{line}</p>)}
+      <details className={styles.trace}><summary>实际执行条件</summary>
+        <pre className={styles.auditJson}>{JSON.stringify(result.parameters.executedPlan ?? Object.fromEntries(Object.entries(result.parameters).filter(([key]) =>
+          ['scope', 'field', 'fields', 'metric', 'mode', 'period', 'start', 'end', 'base', 'current', 'groupBy', 'dimensions', 'filters', 'where', 'direction', 'limit', 'timeResolution'].includes(key))), null, 2)}</pre>
+      </details>
+      <p>使用的数据表与字段：{[...new Set(result.sources.map(source => `${source.table}.${source.field}`))].join('；') || '未取得可用来源记录。'}</p>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
@@ -91,5 +109,28 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         </div>
       </>}
     </section>}
+  </section>;
+}
+
+const analysisCoverageSchema = z.object({ coverage: z.object({ valid: z.number().int().nonnegative() }) });
+function SourceOverview({ result, research }: { result: QueryResultView; research: ResearchAnalysis | null }) {
+  const periods = ['period', 'start', 'end', 'base', 'current'].flatMap(key => {
+    const parsed = quarterSchema.safeParse(result.parameters[key]);
+    return parsed.success ? [`${parsed.data.year} Q${parsed.data.quarter}`] : [];
+  });
+  const period = [...new Set(periods)].join(result.operation === 'compare' ? ' 与 ' : ' 至 ');
+  const hasQuarter = result.sources.some(source => source.period !== null) || periods.length > 0;
+  const scope = z.object({ inventory: z.string().optional() }).safeParse(result.parameters.scope);
+  const tracked = scope.success && scope.data.inventory === 'tracked';
+  const source = hasQuarter ? `${period ? `${period} ` : ''}${tracked ? '季度跟踪样本' : '季度数据'}` : result.sources.some(item => item.table === 'building_brochure_data') ? '楼宇目录及楼书参数' : '当前获权楼宇目录';
+  const coverage = analysisCoverageSchema.safeParse(result.analysis);
+  const single = research?.series.length === 1 ? research.series[0] : null;
+  const latest = single?.periods.at(-1);
+  const sample = latest ? `${latest.period.year} Q${latest.period.quarter} ${latest.usedCount} 栋`
+    : coverage.success ? `${coverage.data.coverage.valid} 栋` : research && research.series.length > 1 ? '各组独立统计，见分析明细' : null;
+  const method = result.parameters.metric === 'rent' ? '按有效总面积加权' : result.parameters.metric === 'vacancy' ? '有效空置面积合计 ÷ 有效总面积合计'
+    : result.parameters.metric === 'totalArea' ? '有效季度总面积求和' : null;
+  return <section className={styles.sourceOverview} aria-label="数据依据摘要">
+    <p>数据来源：{source}</p>{sample && <p>有效样本：{sample}</p>}{method && <p>统计方式：{method}</p>}
   </section>;
 }
