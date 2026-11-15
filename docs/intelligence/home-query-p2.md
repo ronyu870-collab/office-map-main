@@ -101,6 +101,14 @@
 
 本地提交前检查点：审计覆盖、TypeScript、ESLint 0 错误、267 文件／1,969 测试通过，生产编译成功；随后 `/api/oss` 页面收集被容器的 `uv_interface_addresses` 系统调用限制阻断，完整 verify 不记为通过。真实 PostgreSQL 17.6／PostgREST 的本人历史 13 组实际场景通过，包含失败追问继承范围撤销前后回归。原始无敏感数据检查点见 [本地工程结果](../verification/colliers-ai-p2/local-checkpoint.json) 与 [真实数据库结果](../verification/colliers-ai-p2/postgres-history.json)。真实 GoTrue 登录、生产构建浏览器和完整 CI 仍由精确 PR head 的独立 job 证明。
 
+### 首轮 CI 失败与修复记录
+
+PR head `00dd186faee34dd01b0438d5536b6e944d6c4f3e` 的 [Verify #43744905196](https://github.com/ronyu870-collab/office-map-main/actions/runs/43744905196) 在原生环境通过 TypeScript、ESLint、全部单元测试、PostgreSQL／PostgREST 历史 13 组及生产构建；共享真实 Auth／HTTP 145 场景和 80 个跨季度样本通过。此运行整体失败，不能作为合并通过证据。
+
+P2 360 个功能样本全部完成，但历史首次反馈预算失败：探针漏识别在历史面板挂载前已显示的真实动态模块加载提示，将反馈时间算晚。另一个样本将新一组楼宇名称的瞬态 DOM 误算为可操作，此时当前目录还没返回，形成负的响应到渲染耗时。v2 探针同时检查实际响应完成和业务 DOM，校准覆盖真实加载提示、未启用操作及瞬态未知目录，并拒绝负的耗时分段。设备配置、每条件 20 次采样、360 样本总数及全部性能预算没有放宽；首轮数值不用于声称性能改善。
+
+楼宇翻页产品问题同时修复：`HomeQueryBuildings` 只渲染与当前 `requestId`、`resultId` 和页码匹配的目录。Profiler 回归在旧代码观察到新楼宇短暂显示“子市场未知”，明确失败；修复后等待对应授权目录、原季度指标不变，4 项卡片测试通过。原数据字典浏览器夹具的 `route.fulfill` 重复处理来自注销拦截时仍有异步回调在执行；新增有界回调排空和 5 项生命周期回归，保留字典权限、窄屏、分块及性能原断言。完整浏览器复验仍须在修复后的精确 PR head 上执行。
+
 ## 9. 限制
 
 - 当前 grant 不包含建成年份、GFA 等字段；卡片不能补造。真实照片不存在或当前许可不能访问时显示无照片。

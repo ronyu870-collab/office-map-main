@@ -35,7 +35,8 @@ export function summarizeP2WorkspacePerformance(samples) {
     }));
     const complete = rows.length === P2_WORKSPACE_SAMPLES && rows.every(row => row.status === 'success'
       && row.factsVerified && row.boundedRenderingVerified && row.requestsVerified && row.receiptsVerified
-      && row.longTaskObserverSupported && fields.every(field => Number.isFinite(row[field])));
+      && row.longTaskObserverSupported && fields.every(field => Number.isFinite(row[field]))
+      && (row.browser_validation_and_render_ms === null || Number.isFinite(row.browser_validation_and_render_ms) && row.browser_validation_and_render_ms >= 0));
     const usable = scenario === 'summary_reopen' ? 500 : profile.usableP90Ms;
     return { profile: profile.name, scenario, expected: P2_WORKSPACE_SAMPLES, observed: rows.length,
       failed: rows.filter(row => row.status !== 'success').length, missingSamples: Math.max(0, P2_WORKSPACE_SAMPLES - rows.length),
@@ -53,7 +54,7 @@ export function p2WorkspaceErrorCode(error) {
 /** Runs inside the actual document. It observes DOM, paint, resource timing and
  * Long Tasks only; it cannot change Auth, query data, routes or application state.
  * A busy control is feedback, never the content-ready endpoint. */
-export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expectedCount, expectedTitle, expectedNames = [], timeoutMs = 30000 }) {
+export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expectedCount, expectedTitle, expectedNames = [], expectedMetadata, requiredResponse, timeoutMs = 30000 }) {
   window.__colliersP2Workspace?.stop();
   performance.setResourceTimingBufferSize(1000);
   const state = { start: null, status: 'waiting', feedback_ms: null, content_usable_ms: null,
@@ -75,6 +76,14 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
   const buttons = (root, prefix) => [...(root?.querySelectorAll('button[aria-label]') ?? [])].filter(node => node.getAttribute('aria-label').startsWith(prefix));
   const oldResult = result(), oldFirst = panel()?.querySelector('button[aria-label^="打开对话："]')?.getAttribute('aria-label');
   const ready = () => {
+    // The new page may briefly render archived row names before its directory
+    // authorization finishes. DOM plus the completed actual response are both
+    // required; neither an HTTP response nor a transient card is sufficient.
+    if (requiredResponse && !performance.getEntriesByType('resource').some(entry => {
+      if (state.start === null || entry.startTime < state.start || entry.responseEnd <= 0) return false;
+      const url = new URL(entry.name);
+      return url.origin === location.origin && url.pathname === requiredResponse;
+    })) return false;
     if (mode === 'history_list' || mode === 'history_page') {
       const list = buttons(panel(), '打开对话：');
       return visible(panel()) && list.length === expectedCount && list.every(node => !node.disabled)
@@ -97,7 +106,8 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
     if (mode === 'buildings_snapshot' || mode === 'buildings_page') {
       const section = cards(), articles = [...(section?.querySelectorAll('article[aria-label$="楼宇卡片"]') ?? [])];
       return visible(section) && articles.length === expectedCount && articles.every((node, index) => visible(node)
-        && node.getAttribute('aria-label') === `${expectedNames[index]}楼宇卡片` && node.querySelector('a[href^="/map?"]'))
+        && node.getAttribute('aria-label') === `${expectedNames[index]}楼宇卡片` && node.querySelector('a[href^="/map?"]')
+        && (!expectedMetadata || node.querySelector('p')?.textContent.replace(/\s+/g, '') === `${expectedMetadata.submarket}·${expectedMetadata.grade}（当前目录）`))
         && (mode !== 'buildings_snapshot' || result() !== oldResult)
         && ![...(section?.querySelectorAll('[role="status"]') ?? [])].some(visible);
     }
@@ -105,8 +115,9 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
   };
   const feedback = () => {
     if (ready()) return true;
-    if (mode.startsWith('history')) return visible(panel()) && [...panel().querySelectorAll('[role="status"]')]
-      .some(node => visible(node) && node.textContent.includes('正在读取'));
+    if (mode.startsWith('history')) return [...document.querySelectorAll('[role="status"]')]
+      .some(node => visible(node) && (/正在打开历史记录/.test(node.textContent)
+        || panel()?.contains(node) && node.textContent.includes('正在读取')));
     if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')]
       .some(node => visible(node) && node.textContent.includes('正在核对复制权限'));
     if (mode.startsWith('buildings')) return [...document.querySelectorAll('[role="status"]')]
@@ -269,6 +280,7 @@ async function measureAction({ page, profile, round, samples, dataApiOrigin, sce
     await network.idle();
     const measured = await page.evaluate(() => window.__colliersP2Workspace.read());
     Object.assign(sample, measured); delete sample.start;
+    assert.ok(measured.browser_validation_and_render_ms === null || measured.browser_validation_and_render_ms >= 0, 'P2_CONTENT_PRECEDES_AUTHORIZED_RESPONSE');
     assert.ok(measured.mounted.historyEntries <= 15 && measured.mounted.historyTurns <= 10 && measured.mounted.buildingCards <= 5
       && measured.mounted.resultRows <= 25 && measured.mounted.results === (scenario.startsWith('history_') && ['history_list', 'history_next_page'].includes(scenario) ? 0 : 1), 'P2_UNBOUNDED_RENDER');
     sample.boundedRenderingVerified = true;
@@ -337,15 +349,15 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
   const samples = [], ids = Array.from({ length: 12 }, () => randomUUID()).sort(), modelStart = semanticCalls?.();
   const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
   const reportPath = path.join(output, 'p2-workspace-performance.json');
-  const report = { version: 'query-p2-workspace-performance/1', suite: 'p2_workspace', ...queryPerformanceRevision(process.env, githubEvent),
+  const report = { version: 'query-p2-workspace-performance/2', suite: 'p2_workspace', ...queryPerformanceRevision(process.env, githubEvent),
     production: false, productionBuild: true, realPhone: false, manualVisualReview: false,
     baseline: 'New P2 workspace paths have no published before equivalent. No before values or improvement percentages are invented. Existing P1 A/B and cross-trend suites remain separate requirements.',
     fixture: { buildings: 12, quarterlyRecords: 12, quarters: ['2026Q3'], conversations: 16, formallySubmittedQueries: 27, longestConversationTurns: 12,
       visibleHistoryPageLimit: 15, visibleTurnLimit: 10, visibleBuildingLimit: 5, originalAreaWeightedRent: 155, changedSourceAfterSnapshot: true, missingCoordinates: 2, missingHeights: 2, realPhotos: 0 },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: P2_WORKSPACE_SAMPLES, scenarios: P2_WORKSPACE_SCENARIOS,
     cacheDefinition: 'New browser context and real login for each round. First history open and first dynamic building-card module in that document are cold client paths; API/database/Next process are warm. Summary reopen uses the same already loaded result. No server cold-start or physical-device claim.',
-    endpoints: { start: 'Actual trusted keyboard/touch click event', feedback: 'Visible progress or actual content on a following animation frame',
-      content: 'Enabled history controls/original numeric result, complete summary, clipboard success, or five actual identity-bound cards painted on a following frame',
+    endpoints: { start: 'Actual trusted keyboard/touch click event', feedback: 'Visible actual module-loading/query progress or real content on a following animation frame; the dynamic history loader counts before its aside mounts',
+      content: 'Completed actual response plus enabled history controls/original numeric result, complete summary, clipboard success, or five identity-bound cards with their verified current directory metadata painted on a following frame',
       copy: 'Backend authorization and immutable text -> real Clipboard API -> visible success; clipboard read is checked separately',
       receipts: 'Each real response client_received and selected answer_table DOM acknowledgement completes before changing the view',
       longTasks: 'Long Tasks API entries between activation and usable content; P50/P90 count/total/max reported, including zero observations' },
@@ -390,11 +402,11 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           return body;
         };
         await measure({ scenario: 'history_list', locator: page.getByRole('button', { name: '历史记录', exact: true }),
-          probe: { mode: 'history_list', triggerText: '历史记录', expectedCount: 15, expectedTitle: question }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_list', triggerText: '历史记录', expectedCount: 15, expectedTitle: question, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'list'),
           verify: async body => { assert.equal(body.page.entries.length, 15, 'P2_HISTORY_PAGE_MISMATCH'); assert.equal(body.page.hasMore, true, 'P2_HISTORY_PAGE_MISMATCH'); } });
         await measure({ scenario: 'history_next_page', locator: history.getByRole('button', { name: '下一页记录', exact: true }),
-          probe: { mode: 'history_page', triggerText: '下一页记录', expectedCount: 1 }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_page', triggerText: '下一页记录', expectedCount: 1, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'list'),
           verify: async body => { assert.equal(body.page.entries.length, 1, 'P2_HISTORY_PAGE_MISMATCH'); assert.equal(body.page.hasMore, false, 'P2_HISTORY_PAGE_MISMATCH'); } });
         // Restore the first metadata page through its normal UI; it is setup for
@@ -404,12 +416,12 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
         await history.getByRole('button', { name: `打开对话：${question}`, exact: true }).waitFor();
         let selectedResult = fixture.turns.at(-1).result;
         await measure({ scenario: 'history_snapshot', locator: history.getByRole('button', { name: `打开对话：${question}`, exact: true }),
-          probe: { mode: 'history_snapshot', triggerAria: `打开对话：${question}`, expectedCount: 10 }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_snapshot', triggerAria: `打开对话：${question}`, expectedCount: 10, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'open'),
           verify: async body => { assert.equal(body.opened.turns.length, 10, 'P2_HISTORY_TURN_MISMATCH'); assert.equal(body.opened.hasMore, true, 'P2_HISTORY_TURN_MISMATCH');
             validateOriginal(body.opened.selected.reply.result, selectedResult, ids); assert.match(await result.innerText(), /155/, 'P2_ORIGINAL_SNAPSHOT_CHANGED'); } });
         await measure({ scenario: 'history_earlier_turns', locator: history.getByRole('button', { name: '查看更早提问', exact: true }),
-          probe: { mode: 'history_turns', triggerText: '查看更早提问', expectedCount: 2 }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_turns', triggerText: '查看更早提问', expectedCount: 2, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'open'),
           verify: async body => { assert.equal(body.opened.turns.length, 2, 'P2_HISTORY_TURN_MISMATCH'); assert.equal(body.opened.hasMore, false, 'P2_HISTORY_TURN_MISMATCH');
             const saved = fixture.turns.find(turn => turn.requestId === body.opened.selected.requestId); assert.ok(saved, 'P2_HISTORY_TURN_MISMATCH');
@@ -429,7 +441,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           assert.equal(await result.getByRole('button', { name: '生成分析摘要', exact: true }).evaluate(node => document.activeElement === node), true, 'P2_SUMMARY_FOCUS_MISSING');
         }
         await measure({ scenario: 'copy_conclusion', locator: result.getByRole('button', { name: '复制结论', exact: true }),
-          probe: { mode: 'copy', triggerText: '复制结论' }, expectedRequests: { artifact: 1 },
+          probe: { mode: 'copy', triggerText: '复制结论', requiredResponse: '/api/intelligence/query/artifact' }, expectedRequests: { artifact: 1 },
           run: async (activateAction, network) => {
             const [response] = await Promise.all([responseFor(page, '/api/intelligence/query/artifact', 'copy'), activateAction()]);
             const body = await responseBody(response); await network.receipt(response); return body;
@@ -456,7 +468,8 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           }
         };
         await measure({ scenario: 'buildings_snapshot', locator: history.getByRole('button', { name: `打开对话：${buildingsQuestion}`, exact: true }),
-          probe: { mode: 'buildings_snapshot', triggerAria: `打开对话：${buildingsQuestion}`, expectedCount: 5, expectedNames: buildingRows.slice(0, 5).map(row => row.cells.name.value) },
+          probe: { mode: 'buildings_snapshot', triggerAria: `打开对话：${buildingsQuestion}`, expectedCount: 5,
+            expectedNames: buildingRows.slice(0, 5).map(row => row.cells.name.value), expectedMetadata: { submarket: 'CBD', grade: 'A' }, requiredResponse: '/api/intelligence/query/buildings' },
           expectedRequests: { history: 1, buildings: 1 },
           run: async (activateAction, network) => {
             const buildingResponse = responseFor(page, '/api/intelligence/query/buildings', 'buildings');
@@ -470,7 +483,8 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
         assert.equal(await originalRent.locator('dd button').innerText(), '100', 'P2_BUILDING_SNAPSHOT_MISMATCH');
         assert.match(await originalRent.innerText(), /2026Q3/, 'P2_BUILDING_PERIOD_MISSING');
         await measure({ scenario: 'buildings_next_page', locator: buildingSection.getByRole('button', { name: '下一组楼宇', exact: true }),
-          probe: { mode: 'buildings_page', triggerText: '下一组楼宇', expectedCount: 5, expectedNames: buildingRows.slice(5, 10).map(row => row.cells.name.value) }, expectedRequests: { buildings: 1 },
+          probe: { mode: 'buildings_page', triggerText: '下一组楼宇', expectedCount: 5,
+            expectedNames: buildingRows.slice(5, 10).map(row => row.cells.name.value), expectedMetadata: { submarket: 'CBD', grade: 'A' }, requiredResponse: '/api/intelligence/query/buildings' }, expectedRequests: { buildings: 1 },
           run: async (activateAction, network) => {
             const [response] = await Promise.all([responseFor(page, '/api/intelligence/query/buildings', 'buildings'), activateAction()]);
             const body = await responseBody(response); await network.receipt(response); return body;

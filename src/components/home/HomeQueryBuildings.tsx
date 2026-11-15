@@ -20,6 +20,9 @@ function BuildingResults({ result, requestId, scope, buildings, onSource }: { re
   const [page, setPage] = useState(0), [context, setContext] = useState<BuildingContext | null>(null), [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const scopeKey = queryScopeKey(scope);
+  // A page change commits before the effect clears context. Only render directory
+  // metadata belonging to the visible page of this exact authorized snapshot.
+  const pageContext = context?.requestId === requestId && context.resultId === result.resultId && context.offset === page * 5 ? context : null;
   useEffect(() => {
     const controller = new AbortController();
     setContext(null); setError(null);
@@ -35,9 +38,9 @@ function BuildingResults({ result, requestId, scope, buildings, onSource }: { re
       <Link className={styles.link} href={queryMapHref(requestId)} prefetch={false}>在地图中查看{buildings.length > 1 ? '全部项目' : ''}</Link></div>
     <p className={styles.note}>{resultScopeText(result)}。指标保留本次结果期间；子市场、等级和照片按当前目录读取。</p>
     {error ? <div role="alert"><p>{error}</p><Button variant="ghost" onClick={() => setRevision(value => value + 1)}>重试楼宇信息</Button></div>
-      : !context ? <p role="status" className={styles.note}>正在核对楼宇访问权限与当前目录…</p>
+      : !pageContext ? <p role="status" className={styles.note}>正在核对楼宇访问权限与当前目录…</p>
       : <div className={styles.list}>{buildings.slice(page * 5, page * 5 + 5).map(building => {
-        const metadata = context.buildings.find(item => item.id === building.id);
+        const metadata = pageContext.buildings.find(item => item.id === building.id);
         return <BuildingCard key={building.id} building={building} metadata={metadata} result={result} requestId={requestId} scope={scope} single={buildings.length === 1} onSource={onSource} />;
       })}</div>}
     {buildings.length > 5 && <div className={styles.pagination}><span>第 {page * 5 + 1}–{Math.min(page * 5 + 5, buildings.length)} 栋，共 {buildings.length} 栋</span>

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HomeQueryBuildings } from '../HomeQueryBuildings';
 import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
@@ -43,6 +43,25 @@ describe('P2 source-bound building cards', () => {
     fireEvent.click(screen.getByRole('button', { name: '下一组楼宇' })); await screen.findByRole('article', { name: '合成楼6楼宇卡片' });
     expect(screen.getAllByRole('article')).toHaveLength(2); expect(client.buildings).toHaveBeenCalledTimes(2);
     expect(client.buildings.mock.calls[1][1]).toMatchObject({ requestId, resultId: data.resultId, offset: 5, limit: 5 });
+  });
+  it('T15 never paints a new page with the previous page directory before effects run', async () => {
+    const data = result(7), paintedCards: string[] = []; let resolve!: (value: unknown) => void;
+    client.buildings.mockResolvedValueOnce(metadata(data)).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    render(<React.Profiler id="building-page" onRender={() => {
+      const card = document.querySelector('[aria-label="合成楼6楼宇卡片"]');
+      if (card) paintedCards.push(card.textContent ?? '');
+    }}><HomeQueryBuildings result={data} requestId={requestId} scope={scope} /></React.Profiler>);
+    await screen.findByRole('article', { name: '合成楼1楼宇卡片' });
+    fireEvent.click(screen.getByRole('button', { name: '下一组楼宇' }));
+    // Profiler observes each DOM commit, including the one before passive effects clear stale metadata.
+    expect(paintedCards).toEqual([]);
+    expect(screen.queryByRole('article', { name: '合成楼6楼宇卡片' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('正在核对楼宇访问权限与当前目录');
+    await act(async () => resolve(metadata(data, 5)));
+    expect(await screen.findByRole('article', { name: '合成楼6楼宇卡片' })).toHaveTextContent('CBD · A');
+    expect(paintedCards.length).toBeGreaterThan(0);
+    expect(paintedCards.every(text => text.includes('CBD · A') && !text.includes('子市场未知'))).toBe(true);
+    expect(client.buildings).toHaveBeenCalledTimes(2);
   });
   it('T12 late responses after identity change never restore old cards', async () => {
     const data = result(); let resolve!: (value: unknown) => void;

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
+import { trackRouteCallbacks } from './route-callback-drain.mjs';
 
 const base = new URL(process.argv[2]);
 assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'isolated loopback builds only');
@@ -35,9 +36,7 @@ try {
     let delaySearch = !baseline;
     let failSystem = !baseline;
     let releaseSearch = () => {};
-    try {
-      await context.routeWebSocket(/.*/, socket => socket.close());
-      await context.route('**/*', async route => {
+    const routes = trackRouteCallbacks(async route => {
         const url = new URL(route.request().url());
         if (url.origin === base.origin) {
           if (url.pathname.startsWith('/api/')) return route.fulfill({ status: 204 });
@@ -62,7 +61,10 @@ try {
         if (url.pathname === '/auth/v1/user') return route.fulfill({ headers, json: user });
         if (url.pathname === '/rest/v1/user_roles') return route.fulfill({ headers, json: [{ role, user_id: user.id, full_name: '隔离用户' }] });
         return route.fulfill({ headers, json: [] });
-      });
+    });
+    try {
+      await context.routeWebSocket(/.*/, socket => socket.close());
+      await context.route('**/*', routes.handle);
       await context.addInitScript(({ origin, session }) => {
         if (location.origin !== origin) return;
         localStorage.setItem('colliers_trusted_device_until', String(Date.now() + 86_400_000));
@@ -166,7 +168,9 @@ try {
       // Release fixture holds and finish route callbacks before closing their context.
       delaySearch = false;
       releaseSearch();
-      try { await context.unrouteAll({ behavior: 'wait' }); }
+      try {
+        await routes.drain({ unregister: () => context.unrouteAll({ behavior: 'wait' }) });
+      }
       finally { await context.close(); }
     }
   }
