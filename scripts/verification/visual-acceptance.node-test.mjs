@@ -6,6 +6,21 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('P2 waiver requires PR #203, the exact branch, target, repository, head and user authorization', () => {
+  const scope = 'Colliers AI P2 building, map, outputs and own work history, PR #203';
+  const reason = 'User explicitly waived independent visual review, manual browser visual review and physical-phone manual acceptance for Colliers AI P2 on 2026-11-15; applies only to PR #203';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 203, body, head: { sha: head, ref: 'codex/colliers-ai-p2-20261116', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  for (const number of [202, 204]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/colliers-ai-p1-cross-trends' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Tests passed') }), /specifically authorized/);
+});
+
 test('P1 cross-trend continuation waiver is limited to PR #202 and its exact head and scope', () => {
   const scope = 'Colliers AI P1 cross-dimensional quarterly trends, PR #202';
   const reason = 'User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested remaining work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #202';
