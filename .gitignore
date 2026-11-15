@@ -58,6 +58,14 @@ next-env.d.ts
 # Private local pilot: authorized samples, credentials, database config and runtime snapshot.
 /.local/f6-admin-pilot/
 
+# Generated local lease expiry timeline browser evidence (curated records live in docs)
+/verification/lease-expiry-timeline/
+/verification/lease-expiry-timeline-before/
+
+# Generated local timing and before screenshots; curated evidence lives under docs/verification.
+/verification/lease-expiry-context-before/
+/verification/lease-expiry-context-performance/
+
 /verification/ai-query-reconciliation/
 
 /verification/ai-query-intake/

@@ -133,6 +133,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 market communication and recipient authorization
+        run: node supabase/tests/market-communication/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 building identity rename regressions
         run: npm run test:db:building-renames
         env:
@@ -174,6 +179,11 @@ jobs:
           node supabase/tests/ai-audit-export/run.mjs
           node supabase/tests/ai-audit-export-reconciliation/run.mjs
           node supabase/tests/ai-query-authority/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
+      - name: Real PostgreSQL 17 historical industry backfill and rollback
+        run: node supabase/tests/history-industry-backfill/run.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
@@ -314,6 +324,7 @@ jobs:
           node scripts/performance/verify-proposal-read.mjs http://127.0.0.1:3210
           node scripts/verification/verify-occupier-report.mjs http://127.0.0.1:3210
           node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
+          node scripts/verification/lease-expiry-timeline-browser.mjs http://127.0.0.1:3210
 
       - name: Retain homepage browser evidence
         if: always()
@@ -365,7 +376,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lease-expiry-review-verification
-          path: verification/lease-expiry
+          path: |
+            verification/lease-expiry
+            verification/lease-expiry-timeline
           if-no-files-found: ignore
           retention-days: 7
 
@@ -380,8 +393,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Install Chromium for real homepage regression
-        run: npx playwright install --with-deps chromium
       - uses: supabase/setup-cli@v1
         with:
           version: 2.95.4
@@ -394,7 +405,7 @@ jobs:
           supabase status --workdir "$RUNNER_TEMP/ai-query-auth-integration" -o json > "$RUNNER_TEMP/ai-query-auth-status.json"
           chmod 600 "$RUNNER_TEMP/ai-query-auth-status.json"
       - name: Verify real login, HTTP audit, query and revocation
-        run: AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_BROWSER_VERIFY=true AI_QUERY_AUTH_PREVIEW_FILE=/tmp/colliers-query-preview-future.json AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+        run: AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
@@ -405,7 +416,6 @@ jobs:
           name: ai-query-real-auth
           path: |
             verification/ai-query-auth/results.json
-            docs/verification/future-query/
           if-no-files-found: ignore
           retention-days: 7
 

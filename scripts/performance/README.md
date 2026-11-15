@@ -1,6 +1,6 @@
 # 加载性能采集
 
-用同一提交的生产构建、角色、数据与网络比较。工具只准备证据，不改变认证、应用缓存、数据或用户操作；计时不是 CI 的硬阈值。构建清单也不是实际浏览器瀑布图。
+用同一提交的生产构建、角色、数据与网络比较。工具只准备证据，不改变认证、应用缓存、数据或用户操作。共享 CI 的单次墙钟计时不作阈值，受控验收按 [VERIFY-06](../../docs/standards/05_工程验证与交付规范.md#verify-06)。构建清单也不是实际浏览器瀑布图。
 
 ## 校准与回归
 
@@ -31,6 +31,16 @@ node scripts/performance/verify-home-cold-start.mjs --benchmark http://127.0.0.1
 ```
 
 默认基线/候选交替顺序，每次用新的浏览器上下文。分别记录地图链接可用、完整工作台和登录表单时间，另有真实点击进入地图路由的样本。角色接口/令牌刷新延迟为固定实验输入；报告桌面与手机条件模拟，不把这些时间当作办公网络、真机、生产认证或地图瓦片结果。
+
+## 地图看图 A/B
+
+分别构建改前和改后的完整检出（保留各自源码和 `.next`）。为此基准准备独立检出，构建时从环境和 Next.js 加载的 `.env*` 中移除 `NEXT_PUBLIC_SUPABASE_URL`；有值时 Next.js 会在构建时内联，运行时无法切到本机夹具。然后用 Chrome 和 `PERF_PLAYWRIGHT_MODULE` 运行：
+
+```sh
+node scripts/performance/benchmark-building-photos.mjs /path/to/baseline /path/to/candidate /tmp/photo-pairs.json
+```
+
+默认每种网络条件 20 对，顺序交替；阈值和网络条件来自 [budgets.json](budgets.json)，候选未达标或样本失败时返回非零。测量点击、反馈、解码并渲染到帧、照片请求字节与同页再次打开。实际 Next.js 生产构建处理签名 API，画廊用同版本源码运行，Storage／认证／数据是合成夹具；对尺寸缩放使用本机 Sharp，不把结果当作真实 Supabase 或真机速度。功能和失败回退走 Verify 的 `verify-building-photos.mjs`。
 
 ## 单次导航采样
 

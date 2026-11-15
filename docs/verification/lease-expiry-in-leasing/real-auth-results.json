@@ -1,0 +1,89 @@
+{
+  "environment": "loopback-only Supabase Auth + PostgREST + PostgreSQL 17 + actual Next production build",
+  "authMocks": false,
+  "accounts": "disposable test accounts; removed after run",
+  "results": [
+    {
+      "scenario": "真实 Auth 登录与会话落库",
+      "status": "passed",
+      "detail": {
+        "roles": [
+          "admin A",
+          "admin B",
+          "editor",
+          "viewer"
+        ],
+        "database": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit"
+      }
+    },
+    {
+      "scenario": "真实角色、匿名及用户模拟的读取／保存边界",
+      "status": "passed"
+    },
+    {
+      "scenario": "篡改用户 metadata、目录角色和直接 Data API／RPC 均不能提权",
+      "status": "passed"
+    },
+    {
+      "scenario": "HTTP 保存、回读、内容绑定重试及真实审计身份快照",
+      "status": "passed"
+    },
+    {
+      "scenario": "两个真实管理员同时修改／首次创建，以及同请求并发重试",
+      "status": "passed"
+    },
+    {
+      "scenario": "加载后来源变化阻止旧依据保存",
+      "status": "passed"
+    },
+    {
+      "scenario": "撤权后原 JWT 读取、保存、已成功请求重放都拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "撤权事务先开始：已在途保存等待后拒绝，不落草稿或审计",
+      "status": "passed"
+    },
+    {
+      "scenario": "保存先取得权限锁：完整提交后撤权生效，后续请求拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "真实 Auth 封禁立即阻断已有令牌",
+      "status": "passed"
+    },
+    {
+      "scenario": "服务端退出会话后旧 JWT 无法访问",
+      "status": "passed"
+    },
+    {
+      "scenario": "删除测试账号后旧 JWT 无法访问",
+      "status": "passed"
+    },
+    {
+      "scenario": "实际日常填报→只读时间图→兼容备注API→修改重算→删除退出且旧备注保留",
+      "status": "passed"
+    },
+    {
+      "scenario": "完整成交表单、重复确认、空白选填、编辑重算与断网重试",
+      "status": "passed",
+      "detail": {
+        "fullForm": true,
+        "duplicateConfirmation": true,
+        "blankOptionalNumbers": true,
+        "editRecalculation": true,
+        "offlineRetry": true,
+        "fixtureReadinessAttempts": 1,
+        "schemaCacheMisses": 0
+      }
+    },
+    {
+      "scenario": "租赁成交入口→时间图→返回成交，无编辑步骤",
+      "status": "passed"
+    },
+    {
+      "scenario": "实际登录页→Auth→时间图→RPC读取；撤权后清空浏览器数据",
+      "status": "passed"
+    }
+  ]
+}

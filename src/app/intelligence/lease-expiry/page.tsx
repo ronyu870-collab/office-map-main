@@ -1,5 +1,5 @@
-import { LeaseExpiryWorkspace } from '@/src/components/intelligence/LeaseExpiryWorkspace';
+import { redirect } from 'next/navigation';
 
 export default function LeaseExpiryPage() {
-  return <LeaseExpiryWorkspace trialLabel={process.env.LEASE_EXPIRY_REVIEW_TRIAL_LABEL} />;
+  redirect('/lease-submission/expiry');
 }

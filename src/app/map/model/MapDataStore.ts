@@ -2,6 +2,7 @@ import type { CompareGroup, SidebarFilterState } from '@/src/components/SidebarF
 import type { BuildingWithMetrics } from '@/src/types';
 import { getConfiguredCompareGroups, STOCK_PROJECT_TYPES } from './mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { normalizeMapSearchText } from './mapSearchText';
 
 export type MapRole = 'viewer' | 'editor' | 'admin' | string;
 
@@ -72,10 +73,11 @@ function intersectIds(current: Set<string> | null, next: Set<string>): Set<strin
 }
 
 function matchesKeyword(building: BuildingWithMetrics, keyword: string): boolean {
-  const query = keyword.trim().toLocaleLowerCase();
+  const query = normalizeMapSearchText(keyword);
   if (!query) return true;
-  return [building.name, ...(Array.isArray(building.former_names) ? building.former_names : []), building.submarket, building.owner, building.property_management]
-    .some(value => String(value ?? '').toLocaleLowerCase().includes(query));
+  return [building.name, ...(Array.isArray(building.former_names) ? building.former_names : []),
+    building.submarket, building.district, building.owner, building.property_management]
+    .some(value => normalizeMapSearchText(value).includes(query));
 }
 
 function matchesCompareGroup(building: BuildingWithMetrics, group: CompareGroup): boolean {

@@ -1,0 +1,1369 @@
+{
+  "environment": "local production builds; 25 rows/250 total; 100ms API fixture; alternating A/B; fresh browser context per pair; no production claim",
+  "mobile": "390px, 4x CPU slowdown, 80ms latency, 1.6Mbps down/750Kbps up; synthetic HTTP fulfillment is fixed 100ms",
+  "browser": "157.0.8103.52",
+  "summary": [
+    {
+      "version": "before",
+      "width": 1280,
+      "cache": "cold-route",
+      "n": 20,
+      "p50": 181.59999990463257,
+      "p90": 184.70000004768372,
+      "feedbackP90": 20,
+      "missing": 0
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "cache": "repeat",
+      "n": 20,
+      "p50": 182.70000004768372,
+      "p90": 189.29999995231628,
+      "feedbackP90": 13.900000095367432,
+      "missing": 0
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "cache": "cold-route",
+      "n": 20,
+      "p50": 802.7999999523163,
+      "p90": 812.7000000476837,
+      "feedbackP90": 88.60000014305115,
+      "missing": 0
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "cache": "repeat",
+      "n": 20,
+      "p50": 296.7999999523163,
+      "p90": 307,
+      "feedbackP90": 86.89999985694885,
+      "missing": 0
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "cache": "cold-route",
+      "n": 20,
+      "p50": 185.70000004768372,
+      "p90": 190,
+      "feedbackP90": 24,
+      "missing": 0
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "cache": "repeat",
+      "n": 20,
+      "p50": 185,
+      "p90": 190.79999995231628,
+      "feedbackP90": 10.299999952316284,
+      "missing": 0
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "cache": "cold-route",
+      "n": 20,
+      "p50": 810.5999999046326,
+      "p90": 831.6000001430511,
+      "feedbackP90": 93.20000004768372,
+      "missing": 0
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "cache": "repeat",
+      "n": 20,
+      "p50": 305.5,
+      "p90": 310.5,
+      "feedbackP90": 85.90000009536743,
+      "missing": 0
+    }
+  ],
+  "samples": [
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 0,
+      "cache": "cold-route",
+      "content": 186.60000014305115,
+      "feedback": 43.30000019073486
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 0,
+      "cache": "repeat",
+      "content": 190.29999995231628,
+      "feedback": 10.799999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 0,
+      "cache": "cold-route",
+      "content": 220.69999980926514,
+      "feedback": 54.59999990463257
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 0,
+      "cache": "repeat",
+      "content": 250.59999990463257,
+      "feedback": 36.59999990463257
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 1,
+      "cache": "cold-route",
+      "content": 188.90000009536743,
+      "feedback": 34.60000014305115
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 1,
+      "cache": "repeat",
+      "content": 190.79999995231628,
+      "feedback": 7
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 1,
+      "cache": "cold-route",
+      "content": 196.60000014305115,
+      "feedback": 31.40000009536743
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 1,
+      "cache": "repeat",
+      "content": 185.09999990463257,
+      "feedback": 13.900000095367432
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 2,
+      "cache": "cold-route",
+      "content": 180.79999995231628,
+      "feedback": 19.299999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 2,
+      "cache": "repeat",
+      "content": 182,
+      "feedback": 7.3999998569488525
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 2,
+      "cache": "cold-route",
+      "content": 187.29999995231628,
+      "feedback": 20
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 2,
+      "cache": "repeat",
+      "content": 184.29999995231628,
+      "feedback": 7
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 3,
+      "cache": "cold-route",
+      "content": 184.59999990463257,
+      "feedback": 18.59999990463257
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 3,
+      "cache": "repeat",
+      "content": 190,
+      "feedback": 6.5
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 3,
+      "cache": "cold-route",
+      "content": 180.09999990463257,
+      "feedback": 17.200000047683716
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 3,
+      "cache": "repeat",
+      "content": 183.29999995231628,
+      "feedback": 6.099999904632568
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 4,
+      "cache": "cold-route",
+      "content": 182.60000014305115,
+      "feedback": 18.600000143051147
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 4,
+      "cache": "repeat",
+      "content": 183,
+      "feedback": 11.299999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 4,
+      "cache": "cold-route",
+      "content": 192.29999995231628,
+      "feedback": 24
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 4,
+      "cache": "repeat",
+      "content": 184.39999985694885,
+      "feedback": 10.299999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 5,
+      "cache": "cold-route",
+      "content": 183.79999995231628,
+      "feedback": 19
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 5,
+      "cache": "repeat",
+      "content": 184.09999990463257,
+      "feedback": 9.700000047683716
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 5,
+      "cache": "cold-route",
+      "content": 179.79999995231628,
+      "feedback": 17.200000047683716
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 5,
+      "cache": "repeat",
+      "content": 180.89999985694885,
+      "feedback": 9.799999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 6,
+      "cache": "cold-route",
+      "content": 181.10000014305115,
+      "feedback": 17.700000047683716
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 6,
+      "cache": "repeat",
+      "content": 182.90000009536743,
+      "feedback": 8.900000095367432
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 6,
+      "cache": "cold-route",
+      "content": 186,
+      "feedback": 18
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 6,
+      "cache": "repeat",
+      "content": 190.80000019073486,
+      "feedback": 7.1000001430511475
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 7,
+      "cache": "cold-route",
+      "content": 185,
+      "feedback": 21.399999856948853
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 7,
+      "cache": "repeat",
+      "content": 189.20000004768372,
+      "feedback": 13.5
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 7,
+      "cache": "cold-route",
+      "content": 181.59999990463257,
+      "feedback": 17.40000009536743
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 7,
+      "cache": "repeat",
+      "content": 180.10000014305115,
+      "feedback": 7.400000095367432
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 8,
+      "cache": "cold-route",
+      "content": 182.29999995231628,
+      "feedback": 17.799999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 8,
+      "cache": "repeat",
+      "content": 180.90000009536743,
+      "feedback": 7.400000095367432
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 8,
+      "cache": "cold-route",
+      "content": 186.59999990463257,
+      "feedback": 19.399999856948853
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 8,
+      "cache": "repeat",
+      "content": 183,
+      "feedback": 6.700000047683716
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 9,
+      "cache": "cold-route",
+      "content": 187.20000004768372,
+      "feedback": 21.90000009536743
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 9,
+      "cache": "repeat",
+      "content": 188.5,
+      "feedback": 8.5
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 9,
+      "cache": "cold-route",
+      "content": 182.19999980926514,
+      "feedback": 17.199999809265137
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 9,
+      "cache": "repeat",
+      "content": 180.09999990463257,
+      "feedback": 8.399999856948853
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 10,
+      "cache": "cold-route",
+      "content": 184.70000004768372,
+      "feedback": 20
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 10,
+      "cache": "repeat",
+      "content": 189.29999995231628,
+      "feedback": 14.5
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 10,
+      "cache": "cold-route",
+      "content": 184.5,
+      "feedback": 18.799999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 10,
+      "cache": "repeat",
+      "content": 183.30000019073486,
+      "feedback": 6.900000095367432
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 11,
+      "cache": "cold-route",
+      "content": 183.29999995231628,
+      "feedback": 17.700000047683716
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 11,
+      "cache": "repeat",
+      "content": 185.40000009536743,
+      "feedback": 7.900000095367432
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 11,
+      "cache": "cold-route",
+      "content": 181.39999985694885,
+      "feedback": 17.09999990463257
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 11,
+      "cache": "repeat",
+      "content": 180.80000019073486,
+      "feedback": 7.1000001430511475
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 12,
+      "cache": "cold-route",
+      "content": 183.09999990463257,
+      "feedback": 16.299999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 12,
+      "cache": "repeat",
+      "content": 182.70000004768372,
+      "feedback": 7.700000047683716
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 12,
+      "cache": "cold-route",
+      "content": 184.5,
+      "feedback": 20.09999990463257
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 12,
+      "cache": "repeat",
+      "content": 184.90000009536743,
+      "feedback": 6.300000190734863
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 13,
+      "cache": "cold-route",
+      "content": 190,
+      "feedback": 21.799999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 13,
+      "cache": "repeat",
+      "content": 185.5,
+      "feedback": 7.900000095367432
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 13,
+      "cache": "cold-route",
+      "content": 182,
+      "feedback": 16.700000047683716
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 13,
+      "cache": "repeat",
+      "content": 180.5,
+      "feedback": 7.799999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 14,
+      "cache": "cold-route",
+      "content": 181.5,
+      "feedback": 16.40000009536743
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 14,
+      "cache": "repeat",
+      "content": 181.89999985694885,
+      "feedback": 7.099999904632568
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 14,
+      "cache": "cold-route",
+      "content": 184.79999995231628,
+      "feedback": 16.299999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 14,
+      "cache": "repeat",
+      "content": 182.5,
+      "feedback": 6.5
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 15,
+      "cache": "cold-route",
+      "content": 186.79999995231628,
+      "feedback": 17.899999856948853
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 15,
+      "cache": "repeat",
+      "content": 184.09999990463257,
+      "feedback": 8.299999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 15,
+      "cache": "cold-route",
+      "content": 180.10000014305115,
+      "feedback": 17.600000143051147
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 15,
+      "cache": "repeat",
+      "content": 186.79999995231628,
+      "feedback": 7.5
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 16,
+      "cache": "cold-route",
+      "content": 183.40000009536743,
+      "feedback": 18.800000190734863
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 16,
+      "cache": "repeat",
+      "content": 182.79999995231628,
+      "feedback": 7.8999998569488525
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 16,
+      "cache": "cold-route",
+      "content": 183.40000009536743,
+      "feedback": 15.200000047683716
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 16,
+      "cache": "repeat",
+      "content": 186.59999990463257,
+      "feedback": 7.400000095367432
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 17,
+      "cache": "cold-route",
+      "content": 185.70000004768372,
+      "feedback": 17.799999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 17,
+      "cache": "repeat",
+      "content": 186.59999990463257,
+      "feedback": 7.099999904632568
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 17,
+      "cache": "cold-route",
+      "content": 180.19999980926514,
+      "feedback": 18.399999856948853
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 17,
+      "cache": "repeat",
+      "content": 183.29999995231628,
+      "feedback": 7.299999952316284
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 18,
+      "cache": "cold-route",
+      "content": 181.09999990463257,
+      "feedback": 15.900000095367432
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 18,
+      "cache": "repeat",
+      "content": 197.5,
+      "feedback": 38.799999952316284
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 18,
+      "cache": "cold-route",
+      "content": 186.10000014305115,
+      "feedback": 17.200000047683716
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 18,
+      "cache": "repeat",
+      "content": 185,
+      "feedback": 6.8999998569488525
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 19,
+      "cache": "cold-route",
+      "content": 185.5,
+      "feedback": 12.800000190734863
+    },
+    {
+      "version": "after",
+      "width": 1280,
+      "n": 19,
+      "cache": "repeat",
+      "content": 183.90000009536743,
+      "feedback": 7.800000190734863
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 19,
+      "cache": "cold-route",
+      "content": 181.90000009536743,
+      "feedback": 15.099999904632568
+    },
+    {
+      "version": "before",
+      "width": 1280,
+      "n": 19,
+      "cache": "repeat",
+      "content": 179.60000014305115,
+      "feedback": 6.900000095367432
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 0,
+      "cache": "cold-route",
+      "content": 802,
+      "feedback": 87.70000004768372
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 0,
+      "cache": "repeat",
+      "content": 296.10000014305115,
+      "feedback": 85.10000014305115
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 0,
+      "cache": "cold-route",
+      "content": 810.5999999046326,
+      "feedback": 87.69999980926514
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 0,
+      "cache": "repeat",
+      "content": 302.10000014305115,
+      "feedback": 84.5
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 1,
+      "cache": "cold-route",
+      "content": 810.3000001907349,
+      "feedback": 87.60000014305115
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 1,
+      "cache": "repeat",
+      "content": 304.40000009536743,
+      "feedback": 85
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 1,
+      "cache": "cold-route",
+      "content": 804.4000000953674,
+      "feedback": 88.60000014305115
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 1,
+      "cache": "repeat",
+      "content": 296.5,
+      "feedback": 85.39999985694885
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 2,
+      "cache": "cold-route",
+      "content": 805.2000000476837,
+      "feedback": 87
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 2,
+      "cache": "repeat",
+      "content": 298.40000009536743,
+      "feedback": 84.90000009536743
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 2,
+      "cache": "cold-route",
+      "content": 807.9000000953674,
+      "feedback": 87.70000004768372
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 2,
+      "cache": "repeat",
+      "content": 305.5,
+      "feedback": 85.5
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 3,
+      "cache": "cold-route",
+      "content": 814.7000000476837,
+      "feedback": 87.09999990463257
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 3,
+      "cache": "repeat",
+      "content": 306.90000009536743,
+      "feedback": 85.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 3,
+      "cache": "cold-route",
+      "content": 802.7999999523163,
+      "feedback": 87
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 3,
+      "cache": "repeat",
+      "content": 296.5,
+      "feedback": 84.60000014305115
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 4,
+      "cache": "cold-route",
+      "content": 799.3999998569489,
+      "feedback": 87.09999990463257
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 4,
+      "cache": "repeat",
+      "content": 294.7999999523163,
+      "feedback": 84.79999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 4,
+      "cache": "cold-route",
+      "content": 820.5,
+      "feedback": 87.29999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 4,
+      "cache": "repeat",
+      "content": 294.5,
+      "feedback": 84.69999980926514
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 5,
+      "cache": "cold-route",
+      "content": 813.1000001430511,
+      "feedback": 87.40000009536743
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 5,
+      "cache": "repeat",
+      "content": 309.2000000476837,
+      "feedback": 85.60000014305115
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 5,
+      "cache": "cold-route",
+      "content": 807.6000001430511,
+      "feedback": 88.90000009536743
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 5,
+      "cache": "repeat",
+      "content": 300.5,
+      "feedback": 85.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 6,
+      "cache": "cold-route",
+      "content": 812.7000000476837,
+      "feedback": 88.09999990463257
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 6,
+      "cache": "repeat",
+      "content": 342.7999999523163,
+      "feedback": 88
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 6,
+      "cache": "cold-route",
+      "content": 1052.7000000476837,
+      "feedback": 93.29999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 6,
+      "cache": "repeat",
+      "content": 907.1999998092651,
+      "feedback": 87
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 7,
+      "cache": "cold-route",
+      "content": 1070,
+      "feedback": 93.20000004768372
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 7,
+      "cache": "repeat",
+      "content": 304,
+      "feedback": 84.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 7,
+      "cache": "cold-route",
+      "content": 802.3999998569489,
+      "feedback": 87.09999990463257
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 7,
+      "cache": "repeat",
+      "content": 287.2000000476837,
+      "feedback": 85.10000014305115
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 8,
+      "cache": "cold-route",
+      "content": 812.5,
+      "feedback": 87.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 8,
+      "cache": "repeat",
+      "content": 304.5,
+      "feedback": 86.29999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 8,
+      "cache": "cold-route",
+      "content": 808.5,
+      "feedback": 86.5
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 8,
+      "cache": "repeat",
+      "content": 304.69999980926514,
+      "feedback": 84.39999985694885
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 9,
+      "cache": "cold-route",
+      "content": 821.2000000476837,
+      "feedback": 87.20000004768372
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 9,
+      "cache": "repeat",
+      "content": 310.5,
+      "feedback": 84.29999995231628
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 9,
+      "cache": "cold-route",
+      "content": 891.1000001430511,
+      "feedback": 91.90000009536743
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 9,
+      "cache": "repeat",
+      "content": 306.2000000476837,
+      "feedback": 85.79999995231628
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 10,
+      "cache": "cold-route",
+      "content": 838.8000001907349,
+      "feedback": 86.30000019073486
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 10,
+      "cache": "repeat",
+      "content": 330.89999985694885,
+      "feedback": 87.39999985694885
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 10,
+      "cache": "cold-route",
+      "content": 831.6000001430511,
+      "feedback": 87.79999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 10,
+      "cache": "repeat",
+      "content": 316.59999990463257,
+      "feedback": 87.39999985694885
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 11,
+      "cache": "cold-route",
+      "content": 809,
+      "feedback": 87.5
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 11,
+      "cache": "repeat",
+      "content": 304.09999990463257,
+      "feedback": 84.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 11,
+      "cache": "cold-route",
+      "content": 802.7999999523163,
+      "feedback": 86.29999995231628
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 11,
+      "cache": "repeat",
+      "content": 293.5,
+      "feedback": 84.29999995231628
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 12,
+      "cache": "cold-route",
+      "content": 802.1000001430511,
+      "feedback": 87.70000004768372
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 12,
+      "cache": "repeat",
+      "content": 298.19999980926514,
+      "feedback": 84.59999990463257
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 12,
+      "cache": "cold-route",
+      "content": 809.4000000953674,
+      "feedback": 86.5
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 12,
+      "cache": "repeat",
+      "content": 306.7000000476837,
+      "feedback": 85.30000019073486
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 13,
+      "cache": "cold-route",
+      "content": 809.7999999523163,
+      "feedback": 87.69999980926514
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 13,
+      "cache": "repeat",
+      "content": 307.80000019073486,
+      "feedback": 84.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 13,
+      "cache": "cold-route",
+      "content": 802.3000001907349,
+      "feedback": 86.5
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 13,
+      "cache": "repeat",
+      "content": 296.7999999523163,
+      "feedback": 84.89999985694885
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 14,
+      "cache": "cold-route",
+      "content": 800.5999999046326,
+      "feedback": 87.59999990463257
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 14,
+      "cache": "repeat",
+      "content": 295.2999999523163,
+      "feedback": 84.70000004768372
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 14,
+      "cache": "cold-route",
+      "content": 808.3999998569489,
+      "feedback": 86.89999985694885
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 14,
+      "cache": "repeat",
+      "content": 300.5,
+      "feedback": 85
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 15,
+      "cache": "cold-route",
+      "content": 829.3999998569489,
+      "feedback": 88.70000004768372
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 15,
+      "cache": "repeat",
+      "content": 307.2999999523163,
+      "feedback": 85.90000009536743
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 15,
+      "cache": "cold-route",
+      "content": 801.0999999046326,
+      "feedback": 87.89999985694885
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 15,
+      "cache": "repeat",
+      "content": 307,
+      "feedback": 86
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 16,
+      "cache": "cold-route",
+      "content": 808,
+      "feedback": 87.40000009536743
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 16,
+      "cache": "repeat",
+      "content": 304.2999999523163,
+      "feedback": 86.89999985694885
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 16,
+      "cache": "cold-route",
+      "content": 824.0999999046326,
+      "feedback": 93.39999985694885
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 16,
+      "cache": "repeat",
+      "content": 296.2000000476837,
+      "feedback": 84.79999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 17,
+      "cache": "cold-route",
+      "content": 815.5,
+      "feedback": 88.29999995231628
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 17,
+      "cache": "repeat",
+      "content": 308.59999990463257,
+      "feedback": 85.19999980926514
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 17,
+      "cache": "cold-route",
+      "content": 799.4000000953674,
+      "feedback": 86.90000009536743
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 17,
+      "cache": "repeat",
+      "content": 290.39999985694885,
+      "feedback": 86.89999985694885
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 18,
+      "cache": "cold-route",
+      "content": 801.5999999046326,
+      "feedback": 87.29999995231628
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 18,
+      "cache": "repeat",
+      "content": 287.10000014305115,
+      "feedback": 84
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 18,
+      "cache": "cold-route",
+      "content": 809.2999999523163,
+      "feedback": 87.09999990463257
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 18,
+      "cache": "repeat",
+      "content": 294.7999999523163,
+      "feedback": 85.09999990463257
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 19,
+      "cache": "cold-route",
+      "content": 806.2000000476837,
+      "feedback": 87.20000004768372
+    },
+    {
+      "version": "after",
+      "width": 390,
+      "n": 19,
+      "cache": "repeat",
+      "content": 307.2000000476837,
+      "feedback": 84.80000019073486
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 19,
+      "cache": "cold-route",
+      "content": 803.2000000476837,
+      "feedback": 87.20000004768372
+    },
+    {
+      "version": "before",
+      "width": 390,
+      "n": 19,
+      "cache": "repeat",
+      "content": 296.90000009536743,
+      "feedback": 85.10000014305115
+    }
+  ]
+}

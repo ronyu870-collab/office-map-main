@@ -1,0 +1,31 @@
+{
+  "status": "pass",
+  "baseline": false,
+  "scenario": "isolated production Next route, held evidence and synthetic model",
+  "browser": {
+    "browser": "157.0.8103.52",
+    "observations": [
+      {
+        "width": 1280,
+        "role": "admin",
+        "cancelAvailable": true,
+        "priorSelectionKept": true,
+        "proposalSelection": 1
+      },
+      {
+        "width": 390,
+        "role": "admin",
+        "cancelAvailable": true,
+        "priorSelectionKept": true,
+        "proposalSelection": 1
+      },
+      {
+        "width": 390,
+        "role": "viewer",
+        "protectedReads": 0
+      }
+    ]
+  },
+  "rejectionProtected": true,
+  "modelCancelReachedProvider": true
+}

@@ -3,35 +3,15 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-export async function verifyLeaseBackProtection({ page, app, company }) {
-  await page.goto(app + '/intelligence');
-  await page.getByRole('link', { name: '预计到期线索（管理员试点）', exact: true }).click();
-  await page.getByRole('button').filter({ hasText: company }).click();
-  await page.getByText('补充资料或标记问题（可选）', { exact: true }).click();
-  const notes = page.getByLabel('补充备注');
-  await notes.fill('合成未保存返回保护检查');
-  let dialogs = 0;
-  let accept = false;
-  const dialog = async event => { dialogs++; assert.equal(event.type(), 'beforeunload'); await (accept ? event.accept() : event.dismiss()); };
-  page.on('dialog', dialog);
-  try {
-    // A cancelled traversal has no load event; wait for the real warning, not navigation completion.
-    const backWarning = page.waitForEvent('dialog');
-    await page.evaluate(() => history.back());
-    await backWarning;
-    assert.equal(dialogs, 1, 'Browser back must warn before discarding input');
-    assert.equal(new URL(page.url()).pathname, '/intelligence/lease-expiry');
-    assert.equal(await notes.inputValue(), '合成未保存返回保护检查');
-    const linkWarning = page.waitForEvent('dialog');
-    await page.getByRole('link', { name: '返回业务智能', exact: true }).click({ noWaitAfter: true });
-    await linkWarning;
-    assert.equal(dialogs, 2, 'One native leave prompt per link navigation');
-    assert.equal(await notes.inputValue(), '合成未保存返回保护检查');
-    accept = true;
-    await page.goBack();
-    await page.waitForURL(app + '/intelligence');
-    assert.equal(dialogs, 3);
-  } finally { page.off('dialog', dialog); }
+// The expiry screen is read-only: entry and return need no unsaved-input workflow.
+export async function verifyLeaseExpiryNavigation({ page, app, company }) {
+  await page.goto(app + '/lease-submission');
+  await page.getByRole('link', { name: '租约到期', exact: true }).click();
+  await page.waitForURL(app + '/lease-submission/expiry');
+  await page.getByRole('cell').filter({ hasText: company }).waitFor();
+  assert.equal(await page.locator('form').count(), 0);
+  await page.getByRole('link', { name: '返回租赁成交', exact: true }).click();
+  await page.waitForURL(app + '/lease-submission');
 }
 
 export async function verifyLeaseFormWorkflow({ page, db, app, actorId, dataClient }) {
@@ -102,9 +82,9 @@ export async function verifyLeaseFormWorkflow({ page, db, app, actorId, dataClie
     assert.equal(records.length, 1); recordId = records[0].id;
     assert.equal(Number(records[0].lease_term_months), 3);
     assert.equal(records[0].fit_out_months, null); assert.equal(records[0].rent_free_months, null);
-    const candidate = () => page.getByRole('button', { name: new RegExp('^' + company + ' ·') });
-    await page.goto(app + '/intelligence/lease-expiry'); await candidate().click();
-    const interval = await page.getByText(/^预计到期区间：/).innerText();
+    const candidate = () => page.getByRole('row').filter({ has: page.getByText(company, { exact: true }) });
+    await page.goto(app + '/lease-submission/expiry'); await candidate().waitFor();
+    const interval = await candidate().innerText();
     await page.goto(app + '/lease-submission');
     await page.getByRole('region', { name: '我的提交记录', exact: true }).getByRole('row').filter({ has: page.getByRole('cell', { name: company, exact: true }) }).getByRole('button', { name: '编辑', exact: true }).click();
     await page.locator('#lease_term_months').fill('4');
@@ -112,18 +92,16 @@ export async function verifyLeaseFormWorkflow({ page, db, app, actorId, dataClie
     await page.getByRole('button', { name: '确认不是同一笔并提交', exact: true }).click();
     await page.getByRole('button', { name: '确认更新', exact: true }).click();
     await page.getByRole('heading', { name: '提交成功', exact: true }).waitFor();
-    await page.goto(app + '/intelligence/lease-expiry'); await candidate().click();
-    assert.notEqual(await page.getByText(/^预计到期区间：/).innerText(), interval);
-    await page.getByText('补充资料或标记问题（可选）', { exact: true }).click();
-    const notes = page.getByLabel('补充备注'); await notes.fill('合成验收：断网后保留输入');
+    await page.goto(app + '/lease-submission/expiry'); await candidate().waitFor();
+    assert.notEqual(await candidate().innerText(), interval);
     await context.setOffline(true);
-    await page.getByRole('button', { name: '保存补充记录', exact: true }).click(); await page.getByRole('alert').waitFor();
-    assert.equal(await notes.inputValue(), '合成验收：断网后保留输入');
-    assert.equal((await db.query('select count(*)::int n from public.lease_expiry_reviews where source_id=$1', [recordId])).rows[0].n, 0);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.getByRole('alert').filter({ has: page.getByRole('button', { name: '重新读取', exact: true }) }).waitFor();
+    assert.equal(await candidate().count(), 0, 'Failed reads clear stale records');
     await context.setOffline(false);
-    await page.getByRole('button', { name: '保存补充记录', exact: true }).click();
-    await page.getByText('补充记录已保存，预计到期区间仍按成交数据计算。', { exact: true }).waitFor();
-    assert.equal((await db.query('select revision from public.lease_expiry_reviews where source_id=$1', [recordId])).rows[0].revision, 1);
+    await page.getByRole('button', { name: '重新读取', exact: true }).click();
+    await candidate().waitFor();
+    assert.equal((await db.query('select count(*)::int n from public.lease_expiry_reviews where source_id=$1', [recordId])).rows[0].n, 0);
     return { fullForm: true, duplicateConfirmation: true, blankOptionalNumbers: true, editRecalculation: true, offlineRetry: true, fixtureReadinessAttempts, schemaCacheMisses };
   } finally {
     await context.setOffline(false);

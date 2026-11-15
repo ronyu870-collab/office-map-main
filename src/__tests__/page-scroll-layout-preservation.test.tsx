@@ -597,7 +597,7 @@ describe('Preservation Property Tests - 现有功能和交互保持不变', () =
       const account = await screen.findByRole('button', { name: '用户菜单' });
       expect(account).toBeEnabled();
       expect(screen.queryByRole('button', { name: '发送问题' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('textbox', { name: '对话查询' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Colliers AI' })).not.toBeInTheDocument();
       const existingButtons = Array.from(container.querySelectorAll('button'));
       expect(existingButtons.length).toBeGreaterThan(0);
       existingButtons.forEach(button => expect(button).toBeEnabled());

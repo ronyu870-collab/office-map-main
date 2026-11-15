@@ -16,6 +16,10 @@ export interface SearchBarProps {
    * - 组件内部不做任何请求逻辑
    */
   onSearch: (value: string) => void;
+  /** Explicit Enter/button submission, independent of debounced input. */
+  onSubmit?: (value: string) => void;
+  /** Optional map-only keyboard entry into the result choices. */
+  onArrowDown?: () => void;
   /**
    * 防抖时间（毫秒）
    * - 默认 250ms：输入流畅且不会过于频繁触发
@@ -72,6 +76,8 @@ export function SearchBar({
   inputLabel,
   searchContextKey,
   onSearch,
+  onSubmit,
+  onArrowDown,
   debounceMs = 250,
   value,
   onChange,
@@ -96,6 +102,16 @@ export function SearchBar({
   function scheduleSearch(next: string) {
     if (debounceMs > 0) debounced(next, searchContextKey);
     else onSearch(next);
+  }
+
+  function submitSearch() {
+    const submitted = currentValue.trim();
+    if (onSubmit) {
+      cancel();
+      onSubmit(submitted);
+    } else {
+      flush(submitted, searchContextKey);
+    }
   }
 
   return (
@@ -137,9 +153,14 @@ export function SearchBar({
             scheduleSearch(v);
           }}
           onKeyDown={e => {
+            if (e.key === 'ArrowDown' && onArrowDown && !composing.current && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              onArrowDown();
+              return;
+            }
             // Some browsers report keyCode 229 when Enter confirms an IME candidate.
             if (e.key === 'Enter' && !composing.current && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) {
-              flush(currentValue.trim(), searchContextKey);
+              submitSearch();
             }
           }}
           placeholder={placeholder}
@@ -152,7 +173,7 @@ export function SearchBar({
 
       <Button
         type="button"
-        onClick={() => flush(currentValue.trim(), searchContextKey)}
+        onClick={submitSearch}
         variant="secondary"
       >
         搜索

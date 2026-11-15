@@ -1,0 +1,24 @@
+PASS quarter + term is a candidate interval, retaining inferred date evidence
+PASS anonymous, broker/viewer and direct table access denied
+PASS service-only atomic save, content-bound retry, one audit event, unchanged original
+PASS in-place upgrade preserves historical notes, fingerprints and pre-upgrade idempotent retries
+PASS two administrators cannot overwrite the same revision
+PASS simultaneous identical requests save once
+PASS changed source evidence requires reload
+PASS revocation, banned and deleted accounts rejected, including idempotent replay
+PASS either evidence audit or shared audit failure rolls back the entire draft
+PASS cannot confirm expiry; missing-information state needs an explanation
+PASS saved evidence stays reachable outside rolling window
+PASS stable paginated search, literal search and invalid term exclusions
+PASS later live deal is a name-match clue, not an expiry/ownership decision
+PASS half-open observation window and interval overlap boundary
+PASS concurrent first saves are serialized before any draft exists
+PASS save waits for an in-flight role withdrawal and then rejects
+PASS daily deals enter automatically; identical UUIDs and first-save races stay isolated by source
+PASS live-source access remains admin/service-only, public entrypoints are invokers
+PASS edited daily term recalculates immediately; stale evidence rejected, retry once, missing terms stay unknown
+PASS daily deletion remains possible, removes opportunity and preserves read-only notes and both audits
+PASS timeline details join source kind and UUID; original rows, page order, totals and review fingerprints unchanged
+PASS new detail RPC denies anonymous, non-admin, banned/deleted accounts and an in-flight revocation
+PASS missing detail stays null and source deletion does not leak details from a colliding historical UUID
+F6 PostgreSQL 170011: 23 scenarios passed; synthetic database removed on exit.

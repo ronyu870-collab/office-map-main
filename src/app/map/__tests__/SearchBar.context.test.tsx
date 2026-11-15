@@ -25,3 +25,18 @@ describe('retained search workspace boundaries',()=>{
   act(()=>vi.advanceTimersByTime(300));expect(onSearch).not.toHaveBeenCalled();
  });
 });
+
+
+describe('optional keyboard navigation in search candidates', () => {
+ it('enters a result group with ArrowDown without triggering a search or disturbing Enter submit', () => {
+  const onSearch = vi.fn(), onArrowDown = vi.fn(), onSubmit = vi.fn();
+  render(<SearchBar value="CBD" onSearch={onSearch} onArrowDown={onArrowDown} onSubmit={onSubmit}/>);
+  const field = screen.getByRole('searchbox');
+  field.focus();
+  fireEvent.keyDown(field, { key: 'ArrowDown' });
+  expect(onArrowDown).toHaveBeenCalledTimes(1);
+  expect(onSearch).not.toHaveBeenCalled();
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(onSubmit).toHaveBeenCalledWith('CBD');
+ });
+});

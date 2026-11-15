@@ -1,0 +1,68 @@
+{
+  "commit": "55e8d4203f1ecbe09b062147aead279dbfa60d22",
+  "environment": "local Next production build; loopback synthetic auth; IAB; cached application shell; no-store report; no throttling",
+  "endpoint": "reload until visible report enter link; host clock includes automation overhead",
+  "scope": "supplemental repeated-load evidence, not complete VERIFY-06 or real phone acceptance",
+  "desktop": {
+    "viewport": "1280x736",
+    "samples_ms": [
+      406,
+      222,
+      261,
+      198,
+      209,
+      1189,
+      506,
+      331,
+      399,
+      579,
+      324,
+      335,
+      458,
+      415,
+      310,
+      1191,
+      492,
+      371,
+      997,
+      457
+    ],
+    "p50_ms": 399,
+    "p90_ms": 997,
+    "failures": 0
+  },
+  "mobile_viewport": {
+    "viewport": "390x844",
+    "samples_ms": [
+      645,
+      276,
+      691,
+      276,
+      264,
+      861,
+      535,
+      320,
+      522,
+      252,
+      197,
+      622,
+      271,
+      195,
+      338,
+      289,
+      246,
+      350,
+      341,
+      255
+    ],
+    "p50_ms": 289,
+    "p90_ms": 645,
+    "failures": 0
+  },
+  "missing": [
+    "cold application shell samples",
+    "first visible feedback timing",
+    "real mobile device and network",
+    "real hosted authenticated latency"
+  ]
+}

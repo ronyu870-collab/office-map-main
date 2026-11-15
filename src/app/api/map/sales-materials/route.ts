@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { writeAuditBestEffort } from '@/src/lib/serverAudit';
 import { getBuildingMediaPilot, pilotMediaPath } from '@/src/lib/sales-materials/building-media-pilot';
+import { buildingPhotoDownloadUrl } from '@/src/lib/building-photos/model';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
 import { MATERIAL_PAGE_SIZE, SALES_MATERIAL_BUCKET, materialProvenance } from '@/src/lib/sales-materials/model';
 
@@ -86,10 +87,12 @@ export async function GET(request: Request): Promise<NextResponse> {
         if (material.original_location !== 'cloud' || !material.storage_path) {
           return json({ error: '暂无项目图片' }, 404);
         }
-        const asset = await admin.storage.from(SALES_MATERIAL_BUCKET)
-          .createSignedUrl(pilotMediaPath(buildingId, materialId, photo.file), 300);
+        const path = pilotMediaPath(buildingId, materialId, photo.file);
+        const asset = await admin.storage.from(SALES_MATERIAL_BUCKET).createSignedUrl(path, 300);
         if (asset.error) return json({ error: '项目图片暂时无法访问，请重试' }, 502);
-        return json({ url: asset.data.signedUrl });
+        return json({ url: params.get('download') === '1'
+          ? buildingPhotoDownloadUrl(asset.data.signedUrl, scope.building.name, photo.caption, path)
+          : asset.data.signedUrl });
       }
       let previewUrl: string | null = null;
       let downloadUrl: string | null = null;

@@ -1,0 +1,17 @@
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: axis label overlap at 1024: [{"text":"2027/1月","left":606.640625,"right":663.46875},{"text":"2月","left":659.1796875,"right":680.9765625},{"text":"3月","left":716.4921875,"right":738.2890625},{"text":"4月","left":779.9140625,"right":801.7109375},{"text":"5月","left":841.3046875,"right":863.1015625},{"text":"6月","left":893.84375,"right":915.640625}]
+    at file:///private/tmp/office-map-lease-expiry/scripts/verification/lease-expiry-timeline-browser.mjs:94:46
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at process.processImmediate (node:internal/timers:459:9)
+    at process.callbackTrampoline (node:internal/async_hooks:130:17) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '=='
+}
+
+Node.js v22.13.0

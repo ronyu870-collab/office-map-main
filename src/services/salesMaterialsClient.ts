@@ -19,8 +19,10 @@ async function readMaterial<T>(params: URLSearchParams, signal?: AbortSignal): P
   if (!response.ok) throw new Error(result.error || '销控资料读取失败');
   return result as T;
 }
-export async function loadBuildingPhoto(buildingId: string, photoIndex: number, signal: AbortSignal): Promise<string> {
-  return (await readMaterial<{ url: string }>(new URLSearchParams({ building_id: buildingId, cover: '1', photo: String(photoIndex) }), signal)).url;
+export async function loadBuildingPhoto(buildingId: string, photoIndex: number, signal: AbortSignal, download = false): Promise<string> {
+  const params = new URLSearchParams({ building_id: buildingId, cover: '1', photo: String(photoIndex) });
+  if (download) params.set('download', '1');
+  return (await readMaterial<{ url: string }>(params, signal)).url;
 }
 
 export const salesMaterialReader: SalesMaterialReader = {

@@ -1,0 +1,66 @@
+[
+  {
+    "width": 1280,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 1280,
+      "scrollWidth": 1280,
+      "fonts": [
+        "14px",
+        "20px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow"
+    ],
+    "errors": []
+  },
+  {
+    "width": 390,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 390,
+      "scrollWidth": 390,
+      "fonts": [
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow"
+    ],
+    "errors": []
+  },
+  {
+    "width": 320,
+    "role": "admin",
+    "mode": "normal",
+    "initialScrollTop": 0,
+    "browser": "157.0.8103.52",
+    "metrics": {
+      "width": 320,
+      "scrollWidth": 320,
+      "fonts": [
+        "14px"
+      ]
+    },
+    "checks": [
+      "notice expand/collapse",
+      "communication open/close",
+      "account menu escape focus",
+      "no horizontal overflow"
+    ],
+    "errors": []
+  }
+]

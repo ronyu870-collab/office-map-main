@@ -156,7 +156,7 @@ describe('MapClient render mode synchronization', () => {
   });
 
 
-  it('finds a commercial project without showing future markers after the layer is turned off', async () => {
+  it('excludes hidden commercial projects from search when future supply is off', async () => {
     const supply = { id: 'supply-640', name: '玉渊潭640地块商业项目', type: '商业', grade: null, submarket: null,
       district: '海淀区', launch_year: '2027', location_lng: 116.29817, location_lat: 39.927218 };
     controller.fetchFutureSupplies.mockResolvedValue([supply]);
@@ -166,7 +166,10 @@ describe('MapClient render mode synchronization', () => {
     await waitFor(() => expect(controller.clearFutureMarkers).toHaveBeenCalled());
     controller.renderFutureMarkers.mockClear();
     fireEvent.click(screen.getByRole('button', { name: 'search-commercial' }));
-    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenLastCalledWith([supply]));
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenLastCalledWith(
+      [], 'default', expect.anything(), undefined, false,
+    ));
+    expect(controller.fitToBuildings).not.toHaveBeenCalled();
     expect(controller.renderFutureMarkers).not.toHaveBeenCalled();
   });
 

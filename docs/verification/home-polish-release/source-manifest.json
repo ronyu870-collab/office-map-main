@@ -1,0 +1,11 @@
+{
+  "base": "cc5b920e58f321988d25d988e7e2501dd95f97a1",
+  "approved_preview": "v3",
+  "source_sha256": {
+    "src/components/home/HomeWorkspace.tsx": "b43bfcf5158cb76c30de3a751491c08b57b0aa118811d0119467b44c63be2bfd",
+    "src/components/home/HomeWorkspace.module.css": "78f5529309e49780285c2e09cce6fa5d31d4b85b98a122e8552c01935a9018f4",
+    "src/components/NoticeBanner.tsx": "ed5947b00a9f959c5408089bea808c893530af2d9c49c7aba1fe3b2a3ca4e668",
+    "src/components/NoticeBanner.module.css": "590e5cbc5cd40ae81c0c773c698e3f7ff351d843c509fc70a9b3291da768ecba",
+    "src/components/home/__tests__/home-workspace-presentation.test.ts": "a9f60e0e71ed53fe7999afaa9469d3ae53e3f40130e8a5a2bfa74537808879d3"
+  }
+}

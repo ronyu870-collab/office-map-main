@@ -168,6 +168,8 @@ try {
   assert.equal((await client.query("select count(*)::int n from public.lease_expiry_review_events where source_kind='live' and source_id=$1",[source])).rows[0].n,2);
   assert.equal((await client.query("select count(*)::int n from public.audit_logs where target_id=$1",['live:'+source])).rows[0].n,2);
   pass('daily deletion remains possible, removes opportunity and preserves read-only notes and both audits');
+  await client.query(await load('../../migrations/20261113054057_lease_expiry_context.sql'));
+  await (await import('./context.mjs')).verifyContext({ client, concurrent, actor, other, viewer, pass });
   console.log(`F6 PostgreSQL ${version}: ${checks} scenarios passed; synthetic database removed on exit.`);
 } finally {
   await concurrent?.end(); await client?.end();

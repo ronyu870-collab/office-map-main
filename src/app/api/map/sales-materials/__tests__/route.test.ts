@@ -92,7 +92,7 @@ describe('building media pilot', () => {
  const pilotRequest=(extra:string,buildingId=pilotBuilding)=>new Request(`https://synthetic.invalid/api/map/sales-materials?building_id=${buildingId}&${extra}`);
  beforeEach(()=>{
   vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT','1');
-  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:pilotBuilding}:original,error:null}));
+  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:pilotBuilding,name:'试点楼宇'}:original,error:null}));
  });
  it('only signs the associated ready cover; caller-provided paths and material ids are ignored',async()=>{
   const response=await route.GET(pilotRequest('cover=1&material_id='+id+'&path=other.webp'));
@@ -113,6 +113,12 @@ describe('building media pilot', () => {
  });
  it('only signs the requested photo from this building’s gallery',async()=>{
   expect((await route.GET(pilotRequest('cover=1&photo=1&path=other.webp'))).status).toBe(200);
+  expect(mocks.sign.mock.calls).toEqual([[prefix+'interior.webp',300]]);
+ });
+ it('downloads the selected pilot photo with the original image format and name',async()=>{
+  const response=await route.GET(pilotRequest('cover=1&photo=1&download=1&path=other.png'));
+  expect(response.status).toBe(200);
+  expect(new URL((await response.json()).url).searchParams.get('download')).toBe('试点楼宇 - 施工阶段室内照.webp');
   expect(mocks.sign.mock.calls).toEqual([[prefix+'interior.webp',300]]);
  });
  it.each([

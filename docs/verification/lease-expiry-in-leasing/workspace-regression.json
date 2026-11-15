@@ -1,0 +1,30 @@
+{
+  "status": "pass",
+  "baseline": false,
+  "browser": "157.0.8103.52",
+  "environment": "local production build with isolated data",
+  "observations": [
+    {
+      "width": 1280,
+      "delayed": "progress",
+      "role": "editor",
+      "requests": {
+        "progress": 1,
+        "history": 1,
+        "team": 1
+      },
+      "independentDisplay": true
+    },
+    {
+      "width": 390,
+      "delayed": "history",
+      "role": "viewer",
+      "requests": {
+        "progress": 1,
+        "history": 1,
+        "team": 1
+      },
+      "independentDisplay": true
+    }
+  ]
+}

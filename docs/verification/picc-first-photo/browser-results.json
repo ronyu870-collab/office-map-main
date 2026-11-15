@@ -1,0 +1,50 @@
+[
+  {
+    "width": 1280,
+    "height": 800,
+    "touch": false,
+    "idleRequests": 0,
+    "lazyReadRetryAndReuse": true,
+    "captionOnlyWithoutLicense": true,
+    "enlargedViewReusesImage": true,
+    "enlargedViewRestoresPhotoAndFocus": true,
+    "attributionAndLicense": true,
+    "escapeReturnsFocus": true,
+    "centeredAfterGlobalReset": true,
+    "downloadedExactOriginalBytes": true,
+    "externalFallback": true,
+    "horizontalOverflow": false
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "touch": true,
+    "idleRequests": 0,
+    "lazyReadRetryAndReuse": true,
+    "captionOnlyWithoutLicense": true,
+    "enlargedViewReusesImage": true,
+    "enlargedViewRestoresPhotoAndFocus": true,
+    "attributionAndLicense": true,
+    "escapeReturnsFocus": true,
+    "centeredAfterGlobalReset": true,
+    "downloadedExactOriginalBytes": true,
+    "externalFallback": true,
+    "horizontalOverflow": false
+  },
+  {
+    "width": 320,
+    "height": 740,
+    "touch": true,
+    "idleRequests": 0,
+    "lazyReadRetryAndReuse": true,
+    "captionOnlyWithoutLicense": true,
+    "enlargedViewReusesImage": true,
+    "enlargedViewRestoresPhotoAndFocus": true,
+    "attributionAndLicense": true,
+    "escapeReturnsFocus": true,
+    "centeredAfterGlobalReset": true,
+    "downloadedExactOriginalBytes": true,
+    "externalFallback": true,
+    "horizontalOverflow": false
+  }
+]

@@ -11,6 +11,7 @@ import { MaskedText } from '@/src/components/demo';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { FullBuildingList } from './FullBuildingList';
 import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
+import { describeMapSearchMatch, rankMapSearchCandidates } from '../model/mapSearchCandidates';
 import {
   SidebarFilter,
   type CompareGroup,
@@ -84,6 +85,7 @@ type MapWorkbenchViewProps = {
   onCompareGroupsChange: (groups: CompareGroup[]) => void;
   onKeywordChange: (value: string) => void;
   onSearch: (value: string) => void | Promise<void>;
+  onSearchSubmit?: (value: string) => void;
   onRemoveFilterChip: (patch: Partial<SidebarFilterState>) => void;
   onResetFilters: () => void;
   onRenderModeChange: (mode: RenderMode) => void;
@@ -222,7 +224,7 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
   ];
 
   return (
-    <div className="absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max">
+    <div data-map-focus-bottom className="absolute bottom-3 left-3 right-3 z-[260] flex max-w-[calc(100vw-24px)] items-stretch overflow-x-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:max-w-max">
       {metrics.map((metric, index) => (
         <div key={metric.label} className={`min-w-[112px] px-3 py-2 sm:min-w-[128px] sm:px-4 sm:py-2.5 ${index > 0 ? 'border-l border-slate-200/80' : ''}`}>
           <div className="text-[10px] font-medium text-slate-400">{metric.label}</div>
@@ -356,6 +358,7 @@ export function MapWorkbenchView({
   onCompareGroupsChange,
   onKeywordChange,
   onSearch,
+  onSearchSubmit,
   onRemoveFilterChip,
   onResetFilters,
   onRenderModeChange,
@@ -380,6 +383,9 @@ export function MapWorkbenchView({
 }: MapWorkbenchViewProps) {
 
   const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
+  const [searchChoicesOpen, setSearchChoicesOpen] = React.useState(false);
+  const searchInputWrapRef = React.useRef<HTMLDivElement>(null);
+  const searchChoicesRef = React.useRef<HTMLDivElement>(null);
   const moreFiltersTriggerId = React.useId();
   const filtersPanelId = React.useId();
   const filterCloseRef = React.useRef<HTMLButtonElement>(null);
@@ -401,10 +407,18 @@ export function MapWorkbenchView({
   }, [isFullListVisible]);
 
   const searchTerm = keyword.trim();
+  const searchChoices = React.useMemo(() => rankMapSearchCandidates(
+    fullBuildingList.length > 0 ? fullBuildingList : combinedBuildingList,
+    searchTerm,
+  ), [fullBuildingList, combinedBuildingList, searchTerm]);
+  const hasNarrowedSearch = activeFilterChips.length > 0 || compareGroups.length > 0;
+  const searchChoicesVisible = searchChoicesOpen && Boolean(searchTerm) && !isFullListVisible
+    && !isFilterPanelOpen && !isSupplyOpen && !isListVisible && !competitorContext && mapReady && !mapError;
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(searchTerm) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
 
   const closeOpenWorkspaces = React.useCallback(() => {
+    setSearchChoicesOpen(false);
     if (isFilterPanelOpen) onFilterPanelOpenChange(false);
     if (isSupplyOpen) onSupplyOpenChange(false);
     if (isListVisible) onCloseList();
@@ -414,14 +428,23 @@ export function MapWorkbenchView({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]')) return;
+      if (searchChoicesVisible) {
+        event.preventDefault();
+        setSearchChoicesOpen(false);
+        if (event.target instanceof Element && event.target.closest('[aria-label="项目搜索候选"]')) {
+          searchInputWrapRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus({ preventScroll: true });
+        }
+        return;
+      }
       if (listMoreOpen) closeListMore();
       else closeOpenWorkspaces();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeOpenWorkspaces, closeListMore, listMoreOpen]);
+  }, [closeOpenWorkspaces, closeListMore, listMoreOpen, searchChoicesVisible]);
 
   const toggleFilterPanel = () => {
+    setSearchChoicesOpen(false);
     const nextOpen = !isFilterPanelOpen;
     if (nextOpen && isSupplyOpen) onSupplyOpenChange(false);
     if (nextOpen && isListVisible) onCloseList();
@@ -429,6 +452,7 @@ export function MapWorkbenchView({
   };
 
   const toggleSupplyPanel = () => {
+    setSearchChoicesOpen(false);
     const nextOpen = !isSupplyOpen;
     if (nextOpen && isFilterPanelOpen) onFilterPanelOpenChange(false);
     if (nextOpen && isListVisible) onCloseList();
@@ -436,13 +460,14 @@ export function MapWorkbenchView({
   };
 
   const openBuildingList = () => {
+    setSearchChoicesOpen(false);
     if (isFilterPanelOpen) onFilterPanelOpenChange(false);
     if (isSupplyOpen) onSupplyOpenChange(false);
     onOpenList();
   };
 
   return (
-    <div className="relative h-screen h-[100dvh] overflow-clip">
+    <div data-map-focus-root className="relative h-screen h-[100dvh] overflow-clip">
       {/* Keep SDK visibility measurable during direct list startup; opacity and inert hide the inactive map. */}
       <div ref={mapWorkspaceRef} className={isFullListVisible ? 'opacity-0 pointer-events-none absolute inset-0' : 'absolute inset-0'} inert={isFullListVisible || undefined} aria-hidden={isFullListVisible || undefined}>
     <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[var(--cd-color-workspace)] text-[var(--cd-color-text-primary)]">
@@ -478,7 +503,7 @@ export function MapWorkbenchView({
       <main className="relative min-h-0 flex-1 overflow-hidden">
         <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" onPointerDownCapture={closeOpenWorkspaces} />
 
-        <div className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
+        <div data-map-focus-top className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
           <div className="pointer-events-auto flex shrink-0 gap-2">
             <IconButton label="筛选" active={isFilterPanelOpen} onClick={toggleFilterPanel}>
               <svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
@@ -486,8 +511,88 @@ export function MapWorkbenchView({
           </div>
 
           <div className="pointer-events-auto min-w-0 flex-1 sm:max-w-[760px]">
-            <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
-              <SearchBar searchContextKey={searchContextKey} inputLabel="搜索楼宇、子市场、业主或物业" placeholder="搜索楼宇、子市场、业主…" debounceMs={220} value={keyword} onChange={onKeywordChange} onSearch={onSearch} />
+            <div className="relative" ref={searchInputWrapRef}>
+              <div className="rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.10)]">
+                <SearchBar
+                  searchContextKey={searchContextKey}
+                  inputLabel="搜索楼宇、子市场、业主或物业"
+                  placeholder="搜索楼宇、子市场、业主…"
+                  debounceMs={220}
+                  value={keyword}
+                  onChange={value => { setSearchChoicesOpen(Boolean(value.trim())); onKeywordChange(value); }}
+                  onSearch={onSearch}
+                  onSubmit={value => {
+                    setSearchChoicesOpen(Boolean(value.trim()));
+                    if (onSearchSubmit) onSearchSubmit(value);
+                    else void onSearch(value);
+                  }}
+                  onArrowDown={searchChoicesVisible && !fullListBusy && searchChoices.items.length > 0
+                    ? () => searchChoicesRef.current?.querySelector<HTMLButtonElement>('[data-map-search-choice]')?.focus()
+                    : undefined}
+                />
+              </div>
+              {searchChoicesVisible ? (
+                <div ref={searchChoicesRef} role="region" aria-label="项目搜索候选"
+                  className="absolute inset-x-0 top-full z-10 mt-1 max-h-[min(55dvh,400px)] overflow-y-auto rounded-[6px] border border-[#d9e0e8] bg-white shadow-[0_8px_24px_rgba(23,32,51,0.16)]"
+                  onKeyDown={event => {
+                    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                    const choices = Array.from(searchChoicesRef.current?.querySelectorAll<HTMLButtonElement>('[data-map-search-choice]') ?? []);
+                    const index = choices.indexOf(event.target as HTMLButtonElement);
+                    if (index < 0) return;
+                    event.preventDefault();
+                    if (event.key === 'ArrowUp' && index === 0) {
+                      searchInputWrapRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus();
+                    } else {
+                      choices[Math.max(0, Math.min(choices.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus();
+                    }
+                  }}>
+                  <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-[#e7ebf0] bg-[#f8fafc] px-3 py-2 text-xs">
+                    <span className="font-medium text-[#475569]">
+                      {fullListBusy ? '正在匹配项目…' : `匹配项目 · ${searchChoices.total}`}
+                    </span>
+                    <span className="text-[#64748b]">{hasNarrowedSearch ? '当前筛选范围' : '全部已授权项目'}</span>
+                    <button type="button" className="min-h-9 px-2 text-xs text-[#64748b] hover:text-[#003e7e]"
+                      onClick={() => setSearchChoicesOpen(false)}>收起</button>
+                  </div>
+                  {fullListBusy ? (
+                    <div role="status" className="px-3 py-4 text-[13px] text-[#64748b]">正在更新匹配结果…</div>
+                  ) : searchChoices.items.length > 0 ? (
+                    <ul className="divide-y divide-[#edf0f4]">
+                      {searchChoices.items.map(building => (
+                        <li key={`${building._dataType ?? 'existing'}:${building.id}`}>
+                          <button type="button" data-map-search-choice
+                            className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[#f3f7fb] focus-visible:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#003e7e]"
+                            onClick={() => { setSearchChoicesOpen(false); onBuildingClick(building); }}>
+                            <span className="min-w-0 truncate text-[13px] font-medium text-[#172033]">{building.name || '未命名项目'}</span>
+                            <span className="shrink-0 text-right text-xs text-[#64748b]">
+                              <span className="block">{building._dataType === 'future' ? '未来供应 · ' : ''}{building.submarket || building.district || '其他'}</span>
+                              <span className="block text-[#8793a1]">匹配：{describeMapSearchMatch(building, searchTerm)}</span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div role="status" className="px-3 py-4 text-[13px] text-[#64748b]">
+                      {searchChoices.matchedCount > 0
+                        ? `有 ${searchChoices.matchedCount} 个匹配项目，但缺少坐标，暂时无法在地图定位。`
+                        : '当前筛选范围内没有匹配项目，可修改关键词或清空筛选条件。'}
+                    </div>
+                  )}
+                  {!fullListBusy && searchChoices.missingCoordinates > 0 ? (
+                    <div role="status" className="border-t border-[#e7ebf0] px-3 py-2 text-xs text-[#64748b]">
+                      另有 {searchChoices.missingCoordinates} 个匹配项目缺少坐标，请在完整列表中查看。
+                    </div>
+                  ) : null}
+                  {!fullListBusy && (searchChoices.matchedCount > searchChoices.items.length) ? (
+                    <button type="button"
+                      className="min-h-11 w-full border-t border-[#e7ebf0] px-3 text-left text-[13px] font-medium text-[#003e7e] hover:bg-[#f3f7fb]"
+                      onClick={() => { setSearchChoicesOpen(false); onOpenFullList?.(); }}>
+                      查看全部 {searchChoices.matchedCount} 个匹配项目
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             {showFilterSummary ? (
               <div className="mt-2 flex min-h-9 items-center gap-2 overflow-x-auto rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-2.5 py-1 shadow-[var(--cd-shadow-sm)]" role="group" aria-label="已生效筛选条件">
@@ -633,7 +738,7 @@ export function MapWorkbenchView({
 
         {isListVisible ? (
           <div className="pointer-events-none absolute inset-0 z-[355]">
-            <div className="pointer-events-auto absolute bottom-0 right-3 top-[52px] w-[340px] max-w-[90vw] sm:right-4">
+            <div data-map-focus-right className="pointer-events-auto absolute bottom-0 right-3 top-[52px] w-[340px] max-w-[90vw] sm:right-4">
               <FloatingBuildingList
                 buildings={combinedBuildingList}
                 displayOverrides={displayOverrides}
@@ -666,6 +771,7 @@ export function MapWorkbenchView({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[var(--cd-header-height)] z-[380]">
         <div
           id={filtersPanelId}
+          data-map-focus-left
           aria-hidden={!filterPanelOpen}
           className={filterPanelOpen
             ? 'pointer-events-auto absolute bottom-3 left-3 right-3 top-[64px] z-[380] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_4px_14px_rgba(23,32,51,0.10)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] sm:w-[336px]'

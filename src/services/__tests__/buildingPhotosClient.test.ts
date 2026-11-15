@@ -18,7 +18,7 @@ describe('lazy building photo client', () => {
     const controller = new AbortController();
     expect(await loadStoredBuildingPhoto('building-id', 'photo-id', controller.signal)).toEqual(access);
     const [url, init] = fetcher.mock.calls[0];
-    expect(url).toBe('/api/map/building-photos?building_id=building-id&photo_id=photo-id');
+    expect(url).toBe('/api/map/building-photos?building_id=building-id&photo_id=photo-id&preview=1');
     expect(init.headers.get('Authorization')).toBe('Bearer synthetic-token');
     expect(init.headers.get('X-Colliers-Impersonate-User')).toBe('effective-viewer');
     expect(init.signal).toBe(controller.signal);

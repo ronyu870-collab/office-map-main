@@ -1,0 +1,29 @@
+{
+  "method": "Local packaged report reload plus accessibility-ready round trip; warm browser, not cold-network or real-phone measurement",
+  "samples": {
+    "before": [
+      285,
+      231,
+      262,
+      248,
+      256,
+      261,
+      282,
+      231,
+      259,
+      242
+    ],
+    "after": [
+      287,
+      276,
+      242,
+      311,
+      249,
+      247,
+      281,
+      275,
+      258,
+      286
+    ]
+  }
+}

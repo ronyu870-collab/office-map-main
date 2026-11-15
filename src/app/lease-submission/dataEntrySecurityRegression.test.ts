@@ -53,7 +53,7 @@ describe('lease data entry authorization seams', () => {
   it('removes lease write controls from viewer while keeping the workspace readable', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/app/lease-submission/page.tsx'), 'utf8');
     expect(source).toContain('const canWrite = canWriteBusinessData(userRole)');
-    expect(source).toContain('{canWrite ? <Button type="button" size="sm" onClick={openCreate}>');
+    expect(source).toMatch(/\{canWrite \? <Button\b[^>]*onClick=\{openCreate\}/);
     expect(source).toContain('{canWrite && showForm ? <LeaseTransactionForm');
     expect(source).toContain('{canWrite && transferringRecord && (');
   });

@@ -1,0 +1,1403 @@
+{
+  "pack": {
+    "id": "2026Q3",
+    "title": "2026 年第三季度",
+    "status": "管理员研究预览",
+    "scope": "北京甲级写字楼市场",
+    "source_version": "2026Q3",
+    "observation_period": "2026Q3",
+    "map_ref": "2026Q2",
+    "areas": [
+      "CBD",
+      "东城商务区",
+      "金融街",
+      "燕莎",
+      "中关村",
+      "望京-酒仙桥",
+      "亚奥",
+      "丽泽"
+    ],
+    "default_regions": [
+      "中关村",
+      "CBD"
+    ],
+    "headline": "需求持续释放，集中供应推高空置压力",
+    "intro": "本季净吸纳15.1万平方米，新增供应约56.9万平方米。",
+    "editorial_source": "2026Q3:P03/S03",
+    "metrics": [
+      {
+        "area": "全市",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "1372.5",
+        "rent": "199.66",
+        "rent_qoq_reported": "-4.1%",
+        "rent_yoy_reported": "-12.2%",
+        "vacancy": "19.8%",
+        "vacancy_qoq_reported": "+2.3%",
+        "vacancy_yoy_reported": "+0.5%",
+        "vacancy_qoq_original": 2.3,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "CBD",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "388.5",
+        "rent": "219.1",
+        "rent_qoq_reported": "-7.8%",
+        "rent_yoy_reported": "-15.0%",
+        "vacancy": "21.6%",
+        "vacancy_qoq_reported": "+7.8%",
+        "vacancy_yoy_reported": "+5.9%",
+        "vacancy_qoq_original": 7.8,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "东城商务区",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "130.3",
+        "rent": "195.9",
+        "rent_qoq_reported": "-1.8%",
+        "rent_yoy_reported": "-15.6%",
+        "vacancy": "20.2%",
+        "vacancy_qoq_reported": "+0.3%",
+        "vacancy_yoy_reported": "-1.0%",
+        "vacancy_qoq_original": 0.3,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "金融街",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "99.6",
+        "rent": "351.1",
+        "rent_qoq_reported": "-1.4%",
+        "rent_yoy_reported": "-9.0%",
+        "vacancy": "8.4%",
+        "vacancy_qoq_reported": "-1.8%",
+        "vacancy_yoy_reported": "-3.6%",
+        "vacancy_qoq_original": -1.8,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "燕莎",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "106.3",
+        "rent": "179.2",
+        "rent_qoq_reported": "-6.9%",
+        "rent_yoy_reported": "-17.3%",
+        "vacancy": "27.3%",
+        "vacancy_qoq_reported": "+1.0%",
+        "vacancy_yoy_reported": "+2.3%",
+        "vacancy_qoq_original": 1,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "中关村",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "177",
+        "rent": "206.7",
+        "rent_qoq_reported": "-0.5%",
+        "rent_yoy_reported": "-7.7%",
+        "vacancy": "13.5%",
+        "vacancy_qoq_reported": "-1.1%",
+        "vacancy_yoy_reported": "-1.6%",
+        "vacancy_qoq_original": -1.1,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "望京-酒仙桥",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "113.8",
+        "rent": "139",
+        "rent_qoq_reported": "-4.4%",
+        "rent_yoy_reported": "-11.6%",
+        "vacancy": "29.1%",
+        "vacancy_qoq_reported": "0.0%",
+        "vacancy_yoy_reported": "+11.4%",
+        "vacancy_qoq_original": 0,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "亚奥",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "128.5",
+        "rent": "201.2",
+        "rent_qoq_reported": "0.0%",
+        "rent_yoy_reported": "-9.0%",
+        "vacancy": "18.3%",
+        "vacancy_qoq_reported": "-2.4%",
+        "vacancy_yoy_reported": "-5.4%",
+        "vacancy_qoq_original": -2.4,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "丽泽",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "120.2",
+        "rent": "129.7",
+        "rent_qoq_reported": "-6.1%",
+        "rent_yoy_reported": "-8.0%",
+        "vacancy": "17.8%",
+        "vacancy_qoq_reported": "-1.8%",
+        "vacancy_yoy_reported": "-2.8%",
+        "vacancy_qoq_original": -1.8,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      },
+      {
+        "area": "其他",
+        "period": "2026Q3",
+        "source": "2026Q3:P09/S09",
+        "stock_10k_sqm": "108.3",
+        "rent": "143.4",
+        "rent_qoq_reported": "-1.2%",
+        "rent_yoy_reported": "-10.8%",
+        "vacancy": "21.1%",
+        "vacancy_qoq_reported": "-0.7%",
+        "vacancy_yoy_reported": "-9.0%",
+        "vacancy_qoq_original": -0.7,
+        "value_status": {
+          "rent": "reported",
+          "vacancy": "reported"
+        }
+      }
+    ],
+    "prior_disclosed": [
+      {
+        "area": "全市",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "1,316",
+        "rent": "208.2",
+        "rent_qoq_reported": "-2.1%",
+        "rent_yoy_reported": "-11.6%",
+        "vacancy": "17.5%",
+        "vacancy_qoq_reported": "-1.0%",
+        "vacancy_yoy_reported": "-2.7%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "CBD",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "350",
+        "rent": "237.6",
+        "rent_qoq_reported": "-2.5%",
+        "rent_yoy_reported": "-10.3%",
+        "vacancy": "13.8%",
+        "vacancy_qoq_reported": "-1.3%",
+        "vacancy_yoy_reported": "-2.2%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "东城商务区",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "130",
+        "rent": "199.6",
+        "rent_qoq_reported": "-3.2%",
+        "rent_yoy_reported": "-16.9%",
+        "vacancy": "20.8%",
+        "vacancy_qoq_reported": "+0.3%",
+        "vacancy_yoy_reported": "+0.2%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "金融街",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "99.6",
+        "rent": "356.2",
+        "rent_qoq_reported": "-1.0%",
+        "rent_yoy_reported": "-13.0%",
+        "vacancy": "9.1%",
+        "vacancy_qoq_reported": "-1.8%",
+        "vacancy_yoy_reported": "-2.5%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "燕莎",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "106",
+        "rent": "192.5",
+        "rent_qoq_reported": "-3.7%",
+        "rent_yoy_reported": "-14.6%",
+        "vacancy": "27.1%",
+        "vacancy_qoq_reported": "+1.0%",
+        "vacancy_yoy_reported": "+3.4%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "中关村",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "177",
+        "rent": "207.7",
+        "rent_qoq_reported": "-0.9%",
+        "rent_yoy_reported": "-9.5%",
+        "vacancy": "16.3%",
+        "vacancy_qoq_reported": "-1.1%",
+        "vacancy_yoy_reported": "-2.7%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "望京-酒仙桥",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "94.9",
+        "rent": "145.4",
+        "rent_qoq_reported": "-1.9%",
+        "rent_yoy_reported": "-12.1%",
+        "vacancy": "16.8%",
+        "vacancy_qoq_reported": "0.0%",
+        "vacancy_yoy_reported": "-2.7%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "亚奥",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "128",
+        "rent": "201.2",
+        "rent_qoq_reported": "-2.8%",
+        "rent_yoy_reported": "-12.4%",
+        "vacancy": "18.7%",
+        "vacancy_qoq_reported": "-2.4%",
+        "vacancy_yoy_reported": "-5.7%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      },
+      {
+        "area": "丽泽",
+        "period": "2026Q2",
+        "source": "2026Q2:S9",
+        "stock_10k_sqm": "120",
+        "rent": "138.1",
+        "rent_qoq_reported": "-0.3%",
+        "rent_yoy_reported": "-2.9%",
+        "vacancy": "19.4%",
+        "vacancy_qoq_reported": "-1.8%",
+        "vacancy_yoy_reported": "-2.1%",
+        "value_status": {
+          "stock_10k_sqm": "reported",
+          "rent": "reported",
+          "rent_qoq_reported": "reported",
+          "rent_yoy_reported": "reported",
+          "vacancy": "reported",
+          "vacancy_qoq_reported": "reported",
+          "vacancy_yoy_reported": "reported"
+        }
+      }
+    ],
+    "history_rent": {
+      "series": []
+    },
+    "history_original_image": null,
+    "industry": {
+      "period": "2026年前三季度",
+      "basis": "按成交面积计算，不含续租",
+      "source": "2026Q3:P11/S11",
+      "items": [
+        {
+          "name": "互联网科技",
+          "value": 31,
+          "status": "reported"
+        },
+        {
+          "name": "金融",
+          "value": 20,
+          "status": "reported"
+        },
+        {
+          "name": "专业服务",
+          "value": 15,
+          "status": "reported"
+        },
+        {
+          "name": "制造业",
+          "value": 8,
+          "status": "reported"
+        },
+        {
+          "name": "广告媒体/娱乐出版",
+          "value": 5,
+          "status": "reported"
+        },
+        {
+          "name": "医疗健康",
+          "value": 6,
+          "status": "reported"
+        },
+        {
+          "name": "政府及公用事业",
+          "value": 5,
+          "status": "reported"
+        },
+        {
+          "name": "能源化工",
+          "value": 4,
+          "status": "reported"
+        },
+        {
+          "name": "其他",
+          "value": 6,
+          "status": "reported"
+        }
+      ],
+      "scope_note": "前三季度累计，不代表第三季度单季。"
+    },
+    "forecast": {
+      "unit": "万平方米",
+      "years": [
+        "2026F",
+        "2027F",
+        "2028F"
+      ],
+      "a": {
+        "2026Q3": [
+          38,
+          53,
+          17
+        ]
+      },
+      "ab": {
+        "2026Q3": [
+          43,
+          53,
+          17
+        ]
+      },
+      "source": "2026Q3:P12/S12、P13/S14",
+      "shares_a": [
+        [
+          "通州",
+          32
+        ],
+        [
+          "丽泽",
+          27
+        ],
+        [
+          "CBD",
+          14
+        ],
+        [
+          "望京-酒仙桥",
+          10
+        ],
+        [
+          "其他",
+          6
+        ],
+        [
+          "金融街",
+          5
+        ],
+        [
+          "燕莎",
+          4
+        ],
+        [
+          "东城商务区",
+          2
+        ]
+      ],
+      "shares_ab": [
+        [
+          "通州",
+          30
+        ],
+        [
+          "丽泽",
+          26
+        ],
+        [
+          "CBD",
+          14
+        ],
+        [
+          "其他",
+          11
+        ],
+        [
+          "望京-酒仙桥",
+          9
+        ],
+        [
+          "金融街",
+          5
+        ],
+        [
+          "燕莎",
+          3
+        ],
+        [
+          "东城商务区",
+          2
+        ]
+      ]
+    },
+    "projects": {},
+    "leed": {
+      "rows": []
+    },
+    "cycle": [],
+    "topics": [],
+    "unit_notes": {
+      "rent": "元/平方米/月；中区楼层、一般资质企业、1000平方米租赁面积，折免租期的净有效租金，含税不含物业费，按建筑面积计。",
+      "vacancy": "%",
+      "vacancy_change": "百分点；使用报告原列"
+    },
+    "limitations": [
+      "各期披露值与本期原列环比分别保存；历史示意用于交互体验。"
+    ]
+  },
+  "report": {
+    "id": "2026Q3",
+    "title": "2026年第三季度",
+    "source_sha256": "309e51217d363eb813dd6846e00f9a24d31df84d8dea3e9189142a27af116246",
+    "city": {
+      "absorption": 15.1,
+      "absorption_previous": 14.6,
+      "absorption_ytd": 35.4,
+      "supply": 56.9,
+      "new_projects": null,
+      "source": "2026Q3:P03/S03"
+    },
+    "stock": {
+      "total": 2262.2,
+      "grade_a": 1372.5,
+      "premium": 264.1,
+      "regular": 1108.4,
+      "grade_b": 889.7,
+      "unit": "万平方米",
+      "source": "2026Q3:P04/S04",
+      "note": "甲级包含超甲级；乙级数据库本季度有所调整。",
+      "shares": [
+        [
+          "CBD",
+          28.3
+        ],
+        [
+          "中关村",
+          12.9
+        ],
+        [
+          "东城商务区",
+          9.5
+        ],
+        [
+          "亚奥",
+          9.4
+        ],
+        [
+          "丽泽",
+          8.8
+        ],
+        [
+          "望京-酒仙桥",
+          8.3
+        ],
+        [
+          "其他",
+          7.9
+        ],
+        [
+          "燕莎",
+          7.7
+        ],
+        [
+          "金融街",
+          7.3
+        ]
+      ]
+    },
+    "grade_b": {
+      "headers": [
+        "区域",
+        "存量 （万平方米）",
+        "租金 （元 / 月 / 平方米）",
+        "环比",
+        "同比",
+        "空置率",
+        "环比",
+        "同比"
+      ],
+      "rows": [
+        [
+          "全市",
+          "889.7",
+          "138.1",
+          "-3.2%",
+          "-4.7%",
+          "18.4%",
+          "-0.3%",
+          "-0.9%"
+        ],
+        [
+          "CBD",
+          "142",
+          "124.1",
+          "-1.4%",
+          "-14.6%",
+          "23.0%",
+          "+0.4%",
+          "+1.3%"
+        ],
+        [
+          "东城商务区",
+          "92.6",
+          "130.7",
+          "-5.5%",
+          "-11.8%",
+          "21.5%",
+          "-0.5%",
+          "+1.2%"
+        ],
+        [
+          "金融街",
+          "68.8",
+          "223.0",
+          "-4.6%",
+          "-4.9%",
+          "5.7%",
+          "-1.0%",
+          "-4.5%"
+        ],
+        [
+          "燕莎",
+          "139",
+          "139.0",
+          "-5.3%",
+          "-7.0%",
+          "19.2%",
+          "0%",
+          "-0.3%"
+        ],
+        [
+          "中关村",
+          "137",
+          "145.7",
+          "-0.4%",
+          "-8.6%",
+          "9.6%",
+          "-0.7%",
+          "-3.8%"
+        ],
+        [
+          "望京-酒仙桥",
+          "106",
+          "107.0",
+          "-0.7%",
+          "-7.8%",
+          "17.7%",
+          "-0.6%",
+          "-1.6%"
+        ],
+        [
+          "亚奥",
+          "80.6",
+          "134.5",
+          "-1.5%",
+          "-9.9%",
+          "19.8%",
+          "-0.4%",
+          "-0.6%"
+        ]
+      ],
+      "source": "2026Q3:P20/S22",
+      "note": "乙级数据库本季度有所调整；其他子市场未列示。"
+    },
+    "lize": {
+      "headers": [
+        "编号",
+        "项目名称",
+        "入市时间"
+      ],
+      "rows": [
+        [
+          "1",
+          "晋商联合大厦",
+          "2018"
+        ],
+        [
+          "2",
+          "聚杰金融大厦",
+          "2018"
+        ],
+        [
+          "3",
+          "汇亚大厦",
+          "2018"
+        ],
+        [
+          "2",
+          "铭丰大厦",
+          "2019"
+        ],
+        [
+          "4",
+          "丽泽 SOHO",
+          "2019"
+        ],
+        [
+          "5",
+          "青海金融大厦",
+          "2019"
+        ],
+        [
+          "6",
+          "丽泽平安金融中心",
+          "2020"
+        ],
+        [
+          "7",
+          "远洋锐中心",
+          "2020"
+        ],
+        [
+          "8",
+          "平安幸福中心",
+          "2021"
+        ],
+        [
+          "9",
+          "金唐西联大厦",
+          "2021"
+        ],
+        [
+          "10",
+          "鼎兴大厦",
+          "2021"
+        ],
+        [
+          "11",
+          "丽金中心",
+          "2023"
+        ],
+        [
+          "12",
+          "长城金融大厦",
+          "2020"
+        ],
+        [
+          "13",
+          "中华保险大厦",
+          "2020"
+        ],
+        [
+          "14",
+          "国机工程集团大厦",
+          "2020"
+        ],
+        [
+          "15",
+          "通用时代大厦",
+          "2021"
+        ],
+        [
+          "16",
+          "京能天泰大厦",
+          "2024"
+        ],
+        [
+          "17",
+          "国家金融信息大厦",
+          "2024"
+        ],
+        [
+          "18",
+          "瑞众保险中心",
+          "2029"
+        ],
+        [
+          "19",
+          "中国证券大厦",
+          "2026+"
+        ],
+        [
+          "20",
+          "新福建大厦",
+          "2029"
+        ],
+        [
+          "21",
+          "丽泽数字金融科技示范园",
+          "2027"
+        ],
+        [
+          "22",
+          "中阳广场",
+          "2026"
+        ],
+        [
+          "23",
+          "丽泽国际金融城",
+          "2029"
+        ]
+      ],
+      "source": "2026Q3:P15/S17",
+      "note": "年份为原列入市时间，包含预计安排；国家金融信息大厦部分自用。"
+    },
+    "canal": {
+      "stock": 53,
+      "rent_daily": 3.1,
+      "vacancy": 59,
+      "projects": [
+        [
+          "合景国际金融广场 5A",
+          "2026"
+        ],
+        [
+          "远洋乐堤港一座",
+          "2026"
+        ],
+        [
+          "北京中建中心",
+          "2026"
+        ],
+        [
+          "运河天一期",
+          "2027"
+        ]
+      ],
+      "source": "2026Q3:P23/S25",
+      "note": "体量为已交付且可租赁办公面积；租金为平均成交价格，元/平方米/天。",
+      "observation_period": "2026Q2末"
+    },
+    "cbd": {
+      "source": "2026Q3:P14/S16",
+      "projects": [
+        [
+          "Z-1a",
+          "中国期货"
+        ],
+        [
+          "Z-2a",
+          "阳光保险"
+        ],
+        [
+          "Z-3",
+          "中金、普洛斯、香港置地"
+        ],
+        [
+          "Z-4",
+          "民生银行总部大楼"
+        ],
+        [
+          "Z-5",
+          "DFC大家未来中心"
+        ],
+        [
+          "Z-6",
+          "Vision Place维晟中心"
+        ],
+        [
+          "Z-7",
+          "大家保险"
+        ],
+        [
+          "Z-8",
+          "创想大厦"
+        ],
+        [
+          "Z-9",
+          "大家人寿大厦"
+        ],
+        [
+          "Z-10",
+          "中国人寿"
+        ],
+        [
+          "Z-11",
+          "未出售"
+        ],
+        [
+          "Z-12",
+          "泰康集团大厦"
+        ],
+        [
+          "Z-14",
+          "三星大厦"
+        ],
+        [
+          "Z-14-1",
+          "未出售"
+        ]
+      ],
+      "note": "按报告区位图重绘，地块位置为示意。"
+    },
+    "forecast": {
+      "unit": "万平方米",
+      "years": [
+        "2026F",
+        "2027F",
+        "2028F"
+      ],
+      "a": {
+        "2026Q3": [
+          38,
+          53,
+          17
+        ]
+      },
+      "ab": {
+        "2026Q3": [
+          43,
+          53,
+          17
+        ]
+      },
+      "source": "2026Q3:P12/S12、P13/S14",
+      "shares_a": [
+        [
+          "通州",
+          32
+        ],
+        [
+          "丽泽",
+          27
+        ],
+        [
+          "CBD",
+          14
+        ],
+        [
+          "望京-酒仙桥",
+          10
+        ],
+        [
+          "其他",
+          6
+        ],
+        [
+          "金融街",
+          5
+        ],
+        [
+          "燕莎",
+          4
+        ],
+        [
+          "东城商务区",
+          2
+        ]
+      ],
+      "shares_ab": [
+        [
+          "通州",
+          30
+        ],
+        [
+          "丽泽",
+          26
+        ],
+        [
+          "CBD",
+          14
+        ],
+        [
+          "其他",
+          11
+        ],
+        [
+          "望京-酒仙桥",
+          9
+        ],
+        [
+          "金融街",
+          5
+        ],
+        [
+          "燕莎",
+          3
+        ],
+        [
+          "东城商务区",
+          2
+        ]
+      ]
+    },
+    "macro": {
+      "source": "2026Q3:P21/S23",
+      "period": "2026年前三季度",
+      "items": [
+        [
+          "地区生产总值",
+          "40,468.4亿元",
+          "同比 +5.2%",
+          "2026Q1—Q3"
+        ],
+        [
+          "第三产业增加值",
+          "35,202.8亿元",
+          "同比 +5.6%",
+          "2026Q1—Q3"
+        ],
+        [
+          "信息传输、软件和信息技术服务业",
+          "9,981.1亿元",
+          "同比 +8.4%",
+          "2026Q1—Q3"
+        ],
+        [
+          "金融业",
+          "7,287.8亿元",
+          "同比 +9.6%",
+          "2026Q1—Q3"
+        ],
+        [
+          "人均可支配收入",
+          "70,405元",
+          "同比 +4.8%",
+          "2026Q1—Q3"
+        ],
+        [
+          "常住人口",
+          "2,180.0万人",
+          "年末数据",
+          "2025年末"
+        ]
+      ]
+    },
+    "districts": {
+      "period": "2025年度",
+      "source": "2026Q3:P22/S24",
+      "items": [
+        [
+          "海淀区",
+          "13,691.4",
+          "7.2%"
+        ],
+        [
+          "朝阳区",
+          "9,668.5",
+          "5.2%"
+        ],
+        [
+          "西城区",
+          "6,314.0",
+          "5.2%"
+        ],
+        [
+          "东城区",
+          "3,950.7",
+          "4.5%"
+        ],
+        [
+          "丰台区",
+          "2,592.9",
+          "5.4%"
+        ],
+        [
+          "石景山区",
+          "1,379.4",
+          "6.5%"
+        ]
+      ],
+      "industries": {
+        "海淀区": [
+          [
+            "信息服务业",
+            11.3
+          ],
+          [
+            "科学研究和技术服务业",
+            1.2
+          ],
+          [
+            "金融业",
+            8.6
+          ]
+        ],
+        "朝阳区": [
+          [
+            "金融业",
+            14.3
+          ],
+          [
+            "信息服务业",
+            6.6
+          ],
+          [
+            "租赁和商务服务业",
+            6.4
+          ]
+        ],
+        "西城区": [
+          [
+            "金融业",
+            8.7
+          ],
+          [
+            "房地产业",
+            -4.2
+          ],
+          [
+            "信息服务业",
+            0
+          ]
+        ],
+        "东城区": [
+          [
+            "金融业",
+            6.5
+          ],
+          [
+            "信息服务业",
+            1.5
+          ],
+          [
+            "房地产业",
+            8.3
+          ]
+        ],
+        "丰台区": [
+          [
+            "房地产业",
+            3
+          ],
+          [
+            "金融业",
+            18.3
+          ],
+          [
+            "科学研究和技术服务业",
+            6.8
+          ]
+        ],
+        "石景山区": [
+          [
+            "信息服务业",
+            11.3
+          ],
+          [
+            "金融业",
+            9.7
+          ],
+          [
+            "房地产业",
+            3.7
+          ]
+        ]
+      }
+    },
+    "rail": {
+      "source": "2026Q3:P25/S28",
+      "period": "2026Q3",
+      "items": [
+        {
+          "label": "28号线",
+          "title": "东大桥—广渠东路",
+          "description": "规划全长8.7公里，9座车站、6座换乘站；关注CBD核心区连接。"
+        },
+        {
+          "label": "22号线",
+          "title": "CBD—城市副中心—平谷",
+          "description": "全长约79.1公里、20座车站，串联CBD、定福庄、城市副中心、燕郊和平谷；2025年12月已有19座车站主体结构封顶，报告预计2026年底建成通车。"
+        },
+        {
+          "label": "13号线改造",
+          "title": "13号线扩能提升与18号线",
+          "description": "原13号线拆分为东西两条线路，形成“X”形连接；报告预计2027年完成扩能。18号线已于2025年12月27日开通，马连洼—天通苑东，全长19.8公里、11座车站。"
+        }
+      ]
+    },
+    "authors": {
+      "items": []
+    },
+    "disclaimer": "本报告中所包含的信息均具有可靠来源。我们已采取一切合理的努力确保信息的准确性，但我们无法完全保证信息准确。对于任何可能不准确的信息，我们不承担任何责任。建议读者在根据本报告中的任何材料采取行动之前，先咨询专业顾问。",
+    "short_title": "2026 Q3",
+    "previous_id": "2026Q2",
+    "previous_short_title": "2026 Q2",
+    "source_label": "2026Q3研究报告",
+    "report_file": "2026年三季度北京甲级写字楼市场概览_CN.pdf",
+    "demand_highlights": [],
+    "copy": {
+      "overview": {
+        "title": [
+          "需求持续释放，",
+          "集中供应推高空置压力。"
+        ]
+      },
+      "stock": {
+        "title": [
+          "甲级写字楼，约占总存量六成。"
+        ]
+      },
+      "demand": {
+        "title": [
+          "中关村领跑本季去化，",
+          "CBD次之。"
+        ]
+      },
+      "history": {
+        "title": [
+          "租金跌幅扩大，",
+          "价格调整尚未结束。"
+        ]
+      },
+      "forecast": {
+        "title": [
+          "预测供应，",
+          "主要集中在2026—2027年。"
+        ]
+      },
+      "industry": {
+        "title": [
+          "科技与金融仍占半壁，",
+          "专业服务位列第三。"
+        ]
+      },
+      "leed": {
+        "title": [
+          "认证品质"
+        ]
+      },
+      "projects": {
+        "title": [
+          "把供应预期，",
+          "对应到具体项目。"
+        ]
+      },
+      "cbd": {
+        "title": [
+          "把CBD供应预期，",
+          "对应到具体项目。"
+        ]
+      },
+      "lize": {
+        "title": [
+          "丽泽存量项目，",
+          "与后续供给分开理解。"
+        ]
+      },
+      "canal": {
+        "title": [
+          "高空置，",
+          "与后续交付计划并存。"
+        ]
+      },
+      "transit": {
+        "title": [
+          "沿重点线路，",
+          "查看区域连接。"
+        ]
+      },
+      "macro": {
+        "title": [
+          "信息服务业与金融业，",
+          "增长快于第三产业整体。"
+        ]
+      },
+      "gradeb": {
+        "title": [
+          "乙级租金仍下行，",
+          "空置率原列小幅回落。"
+        ]
+      },
+      "library": {
+        "title": [
+          "全量指标，",
+          "每一个数值都可追溯。"
+        ]
+      },
+      "conclusion": {
+        "title": [
+          "需求仍在释放，",
+          "后续供应仍需消化。"
+        ],
+        "analysis": "本季净吸纳15.1万平方米；新增供应集中释放，空置率上升、租金跌幅扩大。后续关注年内剩余供应与2027年的去化。"
+      }
+    },
+    "demand_comparison": {
+      "q2": [
+        [
+          "中关村",
+          50
+        ],
+        [
+          "CBD",
+          25
+        ],
+        [
+          "其他",
+          23
+        ],
+        [
+          "丽泽",
+          19
+        ],
+        [
+          "望京-酒仙桥",
+          17
+        ],
+        [
+          "东城商务区",
+          7
+        ],
+        [
+          "金融街",
+          7
+        ],
+        [
+          "亚奥",
+          6
+        ],
+        [
+          "燕莎",
+          -3
+        ]
+      ],
+      "q1": [
+        [
+          "中关村",
+          40
+        ],
+        [
+          "CBD",
+          44
+        ],
+        [
+          "其他",
+          21
+        ],
+        [
+          "丽泽",
+          22
+        ],
+        [
+          "望京-酒仙桥",
+          0
+        ],
+        [
+          "东城商务区",
+          -6
+        ],
+        [
+          "金融街",
+          17
+        ],
+        [
+          "亚奥",
+          19
+        ],
+        [
+          "燕莎",
+          -11
+        ]
+      ]
+    },
+    "demand_comparison_note": "本期PDF两季对照，千平方米",
+    "availability": {
+      "stock": true,
+      "macro": true,
+      "gradeb": true,
+      "cbd": true,
+      "lize": true,
+      "canal": true,
+      "leed": false
+    },
+    "review_kind": "current"
+  },
+  "kind": "reported",
+  "label": "2026 Q3"
+}

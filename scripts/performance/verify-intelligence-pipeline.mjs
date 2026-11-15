@@ -182,9 +182,13 @@ async function verifyBrowser(origin, path) {
           observations.push({ width, role, protectedReads: 0 });
           continue;
         }
-        if (process.env.PERF_EXPECT_F6_ENTRY === '1' || !baseline) {
+        await input.waitFor();
+        if (baseline && process.env.PERF_EXPECT_F6_ENTRY === '1') {
           await leaseExpiry.waitFor();
           assert.equal(await leaseExpiry.getAttribute('href'), '/intelligence/lease-expiry');
+        } else if (!baseline) {
+          assert.equal(await leaseExpiry.count(), 0, 'expiry has moved out of business intelligence');
+          assert.equal(await page.locator('a[href="/lease-submission/expiry"]').count(), 0, 'the new leasing entry is not duplicated in AI');
         }
         await input.fill(text);
         assert.equal(first.models.length + first.buildings.length + first.catalogs.length, 0, 'editing alone never starts the recommendation');

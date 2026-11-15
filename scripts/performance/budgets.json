@@ -1,0 +1,11 @@
+{
+  "buildingPhotos": {
+    "samplesPerProfile": 20,
+    "feedbackP90Ms": 100,
+    "reopenP90Ms": 250,
+    "profiles": {
+      "desktop": { "width": 1280, "height": 800, "latencyMs": 60, "downloadMbps": 30, "firstPhotoP90Ms": 1500 },
+      "mobile": { "width": 390, "height": 844, "latencyMs": 120, "downloadMbps": 10, "firstPhotoP90Ms": 2000 }
+    }
+  }
+}

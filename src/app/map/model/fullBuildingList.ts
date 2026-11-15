@@ -3,8 +3,11 @@ import { getLatestMetric } from '@/src/utils/filterBuildings';
 export type FullListBuilding = {
   id: string;
   name?: string | null;
+  former_names?: string[] | null;
   district?: string | null;
   submarket?: string | null;
+  owner?: string | null;
+  property_management?: string | null;
   grade?: string | null;
   type?: string | null;
   status?: string | null;

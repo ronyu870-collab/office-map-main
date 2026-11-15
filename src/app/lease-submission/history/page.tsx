@@ -1,5 +1,6 @@
 'use client';
 
+import { LeaseExpiryLink } from '@/src/components/lease/LeaseExpiryLink';
 import { ExportReview } from '@/src/components/ExportReview';
 import { logAction } from '@/src/utils/audit';
 import { brokerReturn, dealHistoryHref, mapBuildingHref } from '@/src/lib/broker/links';
@@ -425,7 +426,8 @@ export default function LeaseHistoryPage() {
       </header>
 
       <main className="mx-auto max-w-[1520px] px-4 py-4 sm:px-6 sm:py-5">
-        {canReadHistory === true && !getImpersonationTargetUserId() && <div className="mb-2 flex flex-wrap items-center gap-x-3">
+        {canReadHistory === true && !getImpersonationTargetUserId() && <div className="mb-2 flex flex-wrap items-center gap-3">
+          <LeaseExpiryLink />
           <Button type="button" variant="secondary" disabled={loading || Boolean(error) || !count || count > EXPORT_LIMIT}
             onClick={() => { setExportError(''); setExportReview(true); }}>导出筛选结果</Button>
           {count !== null && count > EXPORT_LIMIT && <span className="text-sm">请缩小到 {EXPORT_LIMIT} 笔以内。</span>}
