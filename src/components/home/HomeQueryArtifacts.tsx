@@ -6,6 +6,7 @@ import { trustedQueryClient, type QueryClientScope } from '@/src/services/truste
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { distributionStatLabels } from '@/src/lib/intelligence/query/distribution';
 import { formatExact, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
+import { metricLabels, resultMetrics, resultMetricColumns, type ResultMetric } from '@/src/lib/intelligence/query/multiMetricView';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import styles from './HomeQuery.module.css';
 
@@ -14,6 +15,12 @@ type Props = { result: QueryResultView; requestId: string; scope: QueryClientSco
 export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource }: Props) {
   const numeric = React.useMemo(() => result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text')), [result]);
   const [field, setField] = React.useState(numeric[0]?.key ?? '');
+  const metrics = React.useMemo(() => resultMetrics(result), [result]);
+  const multipleMetrics = metrics.length > 1;
+  const [metric, setMetric] = React.useState<ResultMetric>(metrics[0] ?? 'rent');
+  const selectedMetric = metrics.includes(metric) ? metric : metrics[0];
+  const metricColumns = React.useMemo(() => multipleMetrics && selectedMetric ? resultMetricColumns(result, selectedMetric) : null, [result, multipleMetrics, selectedMetric]);
+  const selectedField = metricColumns?.value ?? metricColumns?.base ?? field;
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
@@ -26,7 +33,13 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const isCross = result.operation === 'cross_aggregate';
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
-  const request: ChartRequest = React.useMemo(() => isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field }, [isDistribution, isRelationship, isCross, result.operation, field]);
+  const request: ChartRequest = React.useMemo(() => {
+    const selection = multipleMetrics ? { metric: selectedMetric } : {};
+    return isDistribution ? { kind: 'histogram' } : isRelationship ? { kind: 'scatter', x: 'rent', y: 'vacancy' }
+      : isCross ? { kind: 'heatmap', ...selection } : result.operation === 'group_trend' ? { kind: 'grouped_time_series', ...selection }
+        : result.operation === 'trend' ? { kind: 'time_series', ...selection } : result.operation === 'compare' ? { kind: 'period_comparison', ...selection }
+          : { kind: 'bar', field: multipleMetrics ? 'value' : field, ...selection };
+  }, [isDistribution, isRelationship, isCross, result.operation, field, multipleMetrics, selectedMetric]);
   const run = React.useCallback(async (input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') => {
     if (active.current || (typeof input !== 'string' && completedRequest.current === JSON.stringify(input))) return;
     const controller = new AbortController(); active.current = controller;
@@ -54,9 +67,10 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   }, [scope, requestId, result, chart, request]);
   // Defer one microtask so StrictMode's discarded setup cannot dispatch a chart.
   // Charts use the same authorized result; exports always require a user action.
-  const automaticKey = `${requestId}:${result.resultId}:${field}`;
+  const automaticKey = `${requestId}:${result.resultId}:${multipleMetrics ? selectedMetric : field}`;
   const started = React.useRef<string | null>(null);
-  const canAuto = result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0 && result.table.rows.some(row => row.cells[field]?.kind === 'number');
+  const canAuto = result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0
+    && (multipleMetrics ? result.table.rows.length > 0 : result.table.rows.some(row => row.cells[selectedField]?.kind === 'number'));
   React.useEffect(() => {
     let disposed = false;
     if (canAuto) queueMicrotask(() => {
@@ -72,10 +86,15 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const position = (value: number) => (value - min) / span * 100;
   return <div className={styles.artifacts}>
     <div className={styles.actions}>
-      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
+        const chosen = metrics.find(item => item === event.target.value);
+        if (!chosen || active.current) return;
+        setChart(null); completedRequest.current = null; setMessage(''); setPage(0); setMetric(chosen);
+      }}>{metrics.map(item => <option key={item} value={item}>{metricLabels[item]}</option>)}</select></label>
+        : !multipleMetrics && numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
       {numeric.length > 0 && result.operation !== 'aggregate' && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
       {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
-      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
+      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>

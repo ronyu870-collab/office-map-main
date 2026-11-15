@@ -2,6 +2,8 @@
 
 日期：2026-11-15。开发基线为从远端获取的 `main`：`0ae6e4dbcc63c3a557ee05ed70bba016a1ee4a7c`（P0，PR #199）；工作分支：`codex/colliers-ai-p1`。本记录区分实现、隔离验证、合并和生产部署，不以其中一项代替另一项。
 
+本页保存 PR #200 的初次 P1 实现范围。其后同一任务的多指标能力、继承修复、字段实查及最新交付状态见 [P1 后续记录](home-query-p1-followup.md)，不把下表的初次限制当作后续版本的能力结论。
+
 ## 1. 本批范围与状态
 
 本批沿用已经发布的楼宇／季度查询、独立资格、确定性计算、加密问答审计、结果快照、来源查看及下载链路，增加结构化多轮上下文、可点击澄清、真实可用期间、受控语义模型候选、趋势解释、样本对照和异常提醒。没有新增业务数据写入，也没有扩大可使用 AI 的角色或获权数据域。
@@ -191,18 +193,18 @@ TypeScript、ESLint、自动化测试、数据与权限隔离验证、必要真�
 
 ## 9. 发布状态登记
 
-本节登记合并前可核实状态。精确 CI、main commit 与生产发布的最终证据在 PR #200 的交付记录及任务最终报告中登记，不预填尚未发生的成功。
+本节在后续任务中依据 [PR #200 的最终交付记录](https://github.com/ronyu870-collab/office-map-main/pull/200) 补齐初次发布事实。它记录 PR #200 的历史版本，不表示后续提交已部署；后续版本单独在其发布 PR 核验。
 
 | 项目 | 当前记录 |
 | --- | --- |
 | 远端基线 | `0ae6e4dbcc63c3a557ee05ed70bba016a1ee4a7c`，已获取并核对 |
 | 开发分支 | `codex/colliers-ai-p1` |
-| 最终本地 verify／生产构建 | 已完整运行；审计覆盖、TypeScript、ESLint（0 错误／849 警告）、247 文件／1,746 项测试通过；Next 编译通过，收集 OSS 页面数据时环境系统调用拒绝，原生 CI 构建仍须通过 |
-| 真实 Auth／HTTP 与性能回归 | 持续入口已接入；待最终运行证据 |
-| PR／精确 head CI | [PR #200](https://github.com/ronyu870-collab/office-map-main/pull/200)，等待最终 head 的完整检查 |
-| 最终 main commit | 待合并后登记 |
+| 最终本地 verify／生产构建 | 本地完整运行；审计覆盖、TypeScript、ESLint（0 错误／849 警告）、247 文件／1,746 项测试通过；Next 编译通过，收集 OSS 页面数据时环境系统调用拒绝。最终 GitHub 原生生产构建与 Vercel 生产构建通过，不把本地环境失败说成通过 |
+| 真实 Auth／HTTP 与性能回归 | 110/110 实际 Auth／HTTP 场景通过；640/640 同条件样本、32 条件各20次符合预算，关键请求失败为0。另有442条非关键后台错误保留，不能称全站无错误；后续批次补分类与隔离依赖回归 |
+| PR／精确 head CI | [PR #200](https://github.com/ronyu870-collab/office-map-main/pull/200)，head `131419aed5b6c2c8ed15bc258cbd62391a5a0401`；[Verify 43710293542](https://github.com/ronyu870-collab/office-map-main/actions/runs/43710293542) 四项 job 全部通过，Visual acceptance evidence 单次豁免记录通过 |
+| 最终 main commit | `322a0fec48fbe5137cb2ea39e884cd8a6b0a08c0`；2026-11-15 20:11:33（Asia/Hong_Kong）合并 |
 | Supabase 生产迁移 | `20261115111058 / ai_query_available_periods` 已部署；六个函数体与仓库 SQL 哈希一致，service-only 权限回读通过，无新增安全告警；[生产 RPC 记录](../verification/colliers-ai-p1/production-rpc.json) |
-| Vercel `colliersdata` 生产部署 | 待对应最终 main 的部署状态和域名指向核验 |
+| Vercel `colliersdata` 初次 P1 生产部署 | `dpl_CrVbFKGpewfEHL46uo8NiztErxna` 对应上列 main，READY；当次已分别回读确认 www／根域指向。后续发布不由本历史记录代替 |
 | 新 P1 生产模型调用 | 配置存在已核查，实际调用成功尚未在本记录验证 |
 | 视觉／浏览器视觉／手机人工 | 用户对本 PR 一次性豁免，未执行，不宣称通过 |
 

@@ -86,4 +86,26 @@ describe('fail-closed audited query admission', () => {
     expect(await runAuditedQuery(request(), audit, execution)).toEqual({ status: 'denied' });
     expect(audit.append).toHaveBeenLastCalledWith(expect.anything(), 'correction', expect.objectContaining({ delivery: 'not_sent', status: 'denied' }));
   });
+  it('records a bounded query scope failure without claiming an answer or recoverable execution', async () => {
+    const { audit, execution } = ports();
+    execution.execute.mockRejectedValue(new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB'));
+    expect(await runAuditedQuery(request(), audit, execution)).toEqual({ status: 'failed', reason: 'scope_limit' });
+    expect(audit.append).toHaveBeenLastCalledWith(expect.anything(), 'failed', expect.objectContaining({ reason: 'query_scope_limit', delivery: 'not_sent' }));
+    expect(audit.append.mock.calls.some(([, kind]) => ['response_generated', 'succeeded'].includes(kind))).toBe(false);
+  });
+  it('does not convert arbitrary failures, audit errors or timeouts into a scope explanation', async () => {
+    const unknown = ports(); unknown.execution.execute.mockRejectedValue(new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB:private-detail'));
+    expect(await runAuditedQuery(request(), unknown.audit, unknown.execution)).toEqual({ status: 'failed' });
+    const storage = ports();
+    storage.audit.append.mockImplementation(async (_id, kind) => { if (kind === 'response_generated') throw new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB'); });
+    expect(await runAuditedQuery(request(), storage.audit, storage.execution)).toEqual({ status: 'failed' });
+    const timeout = ports(), controller = new AbortController();
+    timeout.execution.execute.mockImplementation(async () => { controller.abort(new DOMException('deadline', 'TimeoutError')); throw new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB'); });
+    expect(await runAuditedQuery({ ...request(), signal: controller.signal }, timeout.audit, timeout.execution)).toEqual({ status: 'failed' });
+  });
+  it('still refuses delivery if persisting the scope-limit terminal audit fails', async () => {
+    const { audit, execution } = ports(); execution.execute.mockRejectedValue(new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB'));
+    audit.append.mockImplementation(async (_id, kind) => { if (kind === 'failed') throw new Error('audit unavailable'); });
+    await expect(runAuditedQuery(request(), audit, execution)).rejects.toThrow('audit unavailable');
+  });
 });

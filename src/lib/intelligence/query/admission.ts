@@ -1,6 +1,5 @@
-import { distributionFields } from './distribution';
 import type { QueryPlan } from './plan';
-import { parseQueryPlan } from './plan';
+import { parseQueryPlan, planOutputFields } from './plan';
 import { numericFields, type NumericField } from './registry';
 import type { QuestionClarification } from './question';
 
@@ -18,8 +17,7 @@ export type QueryAuthority = Readonly<{
 
 export function authorizePlan(plan: QueryPlan, authority: QueryAuthority): void {
   if (!authority.sessionActive || !authority.actorId || !authority.effectiveUserId || !authority.policyVersion || !authority.permissionRevision) throw new Error('QUERY_DENIED');
-  const fields: readonly NumericField[] = plan.operation === 'list' ? plan.fields : plan.operation === 'rank' ? [plan.field]
-    : plan.operation === 'distribution' ? distributionFields(plan.measure) : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] : plan.metric === 'rent' ? ['totalArea', 'netEffectiveRent'] : plan.metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea'];
+  const fields = planOutputFields(plan);
   const required = new Set<NumericField>(fields);
   const visit = (filter: NonNullable<QueryPlan['filter']>) => {
     if ('terms' in filter) filter.terms.forEach(visit);
@@ -50,7 +48,8 @@ export type QueryExecutionPort<T> = {
 
 /** A reusable execution boundary; it is not an enabled HTTP endpoint or a substitute for durable storage. */
 type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown; clarification?: QuestionClarification; resolutionMetadata?: unknown; preparationStarted?: boolean };
-type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'clarification'; clarification: QuestionClarification } | { status: 'already_received' | 'denied' | 'cancelled' | 'failed' };
+type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'clarification'; clarification: QuestionClarification }
+  | { status: 'already_received' | 'denied' | 'cancelled' } | { status: 'failed'; reason?: 'scope_limit' };
 
 export async function runAuditedQuery<T>(
   request: AuditedRequest,
@@ -116,6 +115,7 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
 
 async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, execution: QueryExecutionPort<T>): Promise<ExecutionResult<T>> {
   let executionRecorded = false;
+  let executionPending = false;
   const recheck = async (plan: QueryPlan) => {
     if (request.signal.aborted) throw new Error('QUERY_CANCELLED');
     const current = await execution.freshAuthority();
@@ -130,7 +130,9 @@ async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, exe
     await audit.append(request.requestId, request.preparationStarted ? 'tool_finished' : 'running', { policyVersion: authority.policyVersion, permissionRevision: authority.permissionRevision, authority,
       ...(request.resolutionMetadata ? { plan, resolution: request.resolutionMetadata } : {}) });
     const beforeRead = await recheck(plan);
+    executionPending = true;
     const result = await execution.execute(plan, beforeRead, request.signal);
+    executionPending = false;
     await recheck(plan);
     await audit.append(request.requestId, 'response_generated', { result });
     await recheck(plan);
@@ -142,8 +144,11 @@ async function executeReceived<T>(request: AuditedRequest, audit: AuditPort, exe
     const message = error instanceof Error ? error.message : '';
     const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';
     const status = timedOut ? 'failed' : request.signal.aborted || message === 'QUERY_CANCELLED' ? 'cancelled' : message === 'QUERY_DENIED' ? 'denied' : 'failed';
+    // Only the trusted executor's exact capacity sentinel is user-actionable.
+    // Audit, permission, cancellation and arbitrary provider errors stay opaque.
+    const scopeLimited = executionPending && status === 'failed' && !request.signal.aborted && message === 'QUERY_SCOPE_REQUIRES_BACKGROUND_JOB';
     // Storage failures propagate if terminal recording is also unavailable; never deliver the result.
-    await audit.append(request.requestId, executionRecorded ? 'correction' : status, { delivery: 'not_sent', status, reason: timedOut ? 'execution_deadline_exceeded' : status === 'denied' ? 'authorization_or_plan_rejected' : status === 'cancelled' ? 'request_cancelled' : 'execution_unavailable' });
-    return { status };
+    await audit.append(request.requestId, executionRecorded ? 'correction' : status, { delivery: 'not_sent', status, reason: timedOut ? 'execution_deadline_exceeded' : status === 'denied' ? 'authorization_or_plan_rejected' : status === 'cancelled' ? 'request_cancelled' : scopeLimited ? 'query_scope_limit' : 'execution_unavailable' });
+    return scopeLimited ? { status: 'failed', reason: 'scope_limit' } : { status };
   }
 }

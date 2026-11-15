@@ -1,10 +1,12 @@
 import { z } from 'zod';
-import { distributionMeasureSchema } from './distribution';
+import { distributionFields, distributionMeasureSchema } from './distribution';
 import { quarterSchema, type Quarter } from './contracts';
 import type { Predicate } from './facts';
+import type { NumericField } from './registry';
 
 const fieldSchema = z.enum(['height', 'floors', 'parking', 'totalArea', 'vacantArea', 'netEffectiveRent']);
 const metricSchema = z.enum(['rent', 'vacancy', 'totalArea']);
+const metricSelection = { metric: metricSchema, metrics: z.array(metricSchema).min(2).max(3).optional() };
 const numericString = z.string().max(100).regex(/^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d{1,3})?$/);
 const predicateSchema: z.ZodType<Predicate> = z.lazy(() => z.union([
   z.strictObject({ field: fieldSchema, operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq']), value: numericString }),
@@ -20,14 +22,14 @@ const common = { scope: scopeSchema, filter: predicateSchema.optional() };
 const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('list'), fields: z.array(fieldSchema).max(6), period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('rank'), field: fieldSchema, period: quarterSchema.nullable(), direction: z.enum(['asc', 'desc']), limit: z.number().int().min(1).max(1000) }),
-  z.strictObject({ ...common, operation: z.literal('aggregate'), metric: metricSchema, period: quarterSchema }),
+  z.strictObject({ ...common, operation: z.literal('aggregate'), ...metricSelection, period: quarterSchema }),
   z.strictObject({ ...common, operation: z.literal('distribution'), measure: distributionMeasureSchema, period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('relationship'), period: quarterSchema }),
-  z.strictObject({ ...common, operation: z.literal('cross_aggregate'), metric: metricSchema, period: quarterSchema }),
-  z.strictObject({ ...common, operation: z.literal('trend'), metric: metricSchema, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
-  z.strictObject({ ...common, operation: z.literal('group_aggregate'), metric: metricSchema, period: quarterSchema, groupBy: z.enum(['submarket', 'grade']) }),
-  z.strictObject({ ...common, operation: z.literal('group_trend'), metric: metricSchema, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']), groupBy: z.enum(['submarket', 'grade']) }),
-  z.strictObject({ ...common, operation: z.literal('compare'), metric: metricSchema, base: quarterSchema, current: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
+  z.strictObject({ ...common, operation: z.literal('cross_aggregate'), ...metricSelection, period: quarterSchema }),
+  z.strictObject({ ...common, operation: z.literal('trend'), ...metricSelection, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
+  z.strictObject({ ...common, operation: z.literal('group_aggregate'), ...metricSelection, period: quarterSchema, groupBy: z.enum(['submarket', 'grade']) }),
+  z.strictObject({ ...common, operation: z.literal('group_trend'), ...metricSelection, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']), groupBy: z.enum(['submarket', 'grade']) }),
+  z.strictObject({ ...common, operation: z.literal('compare'), ...metricSelection, base: quarterSchema, current: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
 ]);
 export type QueryPlan = z.infer<typeof planSchema>;
 
@@ -51,8 +53,22 @@ export function parseQueryPlan(input: unknown): QueryPlan {
   const plan = planSchema.parse(input);
   if (plan.operation === 'distribution' && !['height','floors','parking'].includes(plan.measure) && !plan.period) throw new Error('QUARTER_REQUIRED');
   if (plan.operation === 'list' && new Set(plan.fields).size !== plan.fields.length) throw new Error('DUPLICATE_QUERY_FIELD');
+  if ('metrics' in plan && plan.metrics && (plan.metrics[0] !== plan.metric || new Set(plan.metrics).size !== plan.metrics.length)) throw new Error('INVALID_QUERY_METRICS');
   if (plan.operation === 'trend' || plan.operation === 'group_trend') quarterRange(plan.start, plan.end);
   return plan;
+}
+
+/** A single snapshot request includes every metric input before authorization. */
+export function planMetrics(plan: QueryPlan): ('rent' | 'vacancy' | 'totalArea')[] {
+  return 'metric' in plan ? [...(plan.metrics ?? [plan.metric])] : [];
+}
+export function planOutputFields(plan: QueryPlan): NumericField[] {
+  if (plan.operation === 'list') return [...plan.fields];
+  if (plan.operation === 'rank') return [plan.field];
+  if (plan.operation === 'distribution') return [...distributionFields(plan.measure)];
+  if (plan.operation === 'relationship') return ['totalArea', 'netEffectiveRent', 'vacantArea'];
+  return [...new Set(planMetrics(plan).flatMap((metric): NumericField[] => metric === 'rent'
+    ? ['totalArea', 'netEffectiveRent'] : metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea']))];
 }
 
 /** Consecutive quarters, including those without observations. */

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { distributionAnalysisSchema } from './distribution';
 import { quarterSchema } from './contracts';
+import { metricLabels, resultMetrics, selectResultMetric } from './multiMetricView';
 
 const text = z.string().max(10000);
 const exact = z.object({ numerator: z.string().regex(/^-?\d{1,400}$/), denominator: z.string().regex(/^[1-9]\d{0,399}$/) });
@@ -56,6 +57,12 @@ function coverageText(input: unknown): string | null {
   return `获权样本 ${c.total} 栋，有效 ${c.valid} 栋；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}。`;
 }
 export function resultSummary(result: QueryResultView): string[] {
+  const metrics = resultMetrics(result);
+  if (metrics.length > 1) return [
+    `本次同时分析${metrics.map(metric => metricLabels[metric]).join('、')}；每项分别核算有效样本和分母。`,
+    ...metrics.flatMap(metric => resultSummary(selectResultMetric(result, metric)).map(line => `${metricLabels[metric]}：${line}`)),
+    '各指标来自同一次获权快照；有效样本可以不同，不把各项数值解释为跨指标共同样本结论。',
+  ];
   const analysis = z.record(z.string(), z.unknown()).safeParse(result.analysis);
   const a = analysis.success ? analysis.data : {};
   const coverage = coverageText(a.coverage), rows = result.table.rows;

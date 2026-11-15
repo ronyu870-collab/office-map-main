@@ -21,6 +21,8 @@ import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
 import { verifyResearchAnalysis } from './ai-query-research-scenarios.mjs';
 import { verifyConversation } from './ai-query-conversation-scenarios.mjs';
+import { verifyQueryHomeDependencies } from './ai-query-home-dependencies.mjs';
+import { verifyMultiMetricAnalysis } from './ai-query-multi-metric-scenarios.mjs';
 import { startQueryPerformanceBaseline } from './query-performance-baseline.mjs';
 import { verifyRelativeQuarter } from './ai-query-relative-quarter-scenarios.mjs';
 import { verifyDistribution } from './ai-query-distribution-scenarios.mjs';
@@ -128,6 +130,7 @@ try{
     await until(async()=>{try{return (await fetch(app+'/api/intelligence/query')).status===405;}catch{return false;}},'Next route startup');
   };
   await startApp();
+  await verifyQueryHomeDependencies({db,load,check,person,app,until});
   await verifyCompanyAdmin({db,blocker,withdrawal,service,app,check,person,until,fixture:companyFixture,logPath:path.join(output,'next-local.log')});
   await check('匿名请求不伪造身份，留有界入口事件且不进入业务查询',async()=>{
     const res=await call(null);assert.equal(res.status,401);
@@ -564,12 +567,13 @@ try{
   await verifyDistribution({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
   await verifyResearchAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
+  await verifyMultiMetricAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
     const {verifyQueryConversationPerformance} = await import('../performance/verify-ai-query-conversation.mjs');
-    await check('P1 真实登录和生产构建：同条件P0/P1桌面及手机视口查询性能与可操作结果', async () => {
-      await verifyQueryConversationPerformance({db,person,app,beforeApp:performanceBaseline.app,output,exportCaps,semanticCalls:companyFixture.semanticCalls});
+    await check('P1 后续真实登录和生产构建：同条件已发布P1/本批桌面及手机视口查询性能与可操作结果', async () => {
+      await verifyQueryConversationPerformance({db,person,app,beforeApp:performanceBaseline.app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin});
     });
     await performanceBaseline.close(); performanceBaseline = undefined;
   }

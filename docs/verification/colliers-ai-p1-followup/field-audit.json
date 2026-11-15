@@ -1,0 +1,51 @@
+{
+  "version": "p1-followup-field-audit/1",
+  "observedOn": "2026-11-15",
+  "timeZone": "Asia/Hong_Kong",
+  "baselineCommit": "322a0fec48fbe5137cb2ea39e884cd8a6b0a08c0",
+  "environment": "production-read-only",
+  "projectId": "qhgxougfzzmgqjzzwudf",
+  "scope": "Schema metadata and aggregate completeness counts only. These are project-level diagnostics, not authorized AI market query results or verified market statistics.",
+  "mutations": false,
+  "businessRecordDetailsIncluded": false,
+  "schema": {
+    "building_brochure_data.completion_date": { "type": "date", "existingUiLabel": "竣工日期", "trustedQueryFieldGranted": false },
+    "building_brochure_data.gfa_total": { "type": "numeric", "existingUiLabel": "总建筑面积", "trustedQueryFieldGranted": false },
+    "building_brochure_data.gfa_office": { "type": "numeric", "existingUiLabel": "办公面积", "trustedQueryFieldGranted": false },
+    "buildings.completion_year": { "type": "text", "existingUiLabel": "入市时间", "dictionaryDescription": "楼宇建成/预计入市年份，可含季度", "safeToTreatAsCompletionDate": false },
+    "building_metrics.asking_rent": { "type": "double precision", "trustedQueryFieldGranted": false },
+    "building_metrics.total_area": { "type": "double precision", "trustedQueryField": "totalArea", "meaning": "季度总面积，不能替代总建筑面积" }
+  },
+  "completeness": {
+    "brochure": { "rows": 433, "distinctBuildings": 433, "completionDates": 44, "futureCompletionDates": 0, "positiveFiniteGfaTotal": 227, "positiveFiniteGfaOffice": 229, "nonpositiveGfaTotal": 0, "buildingsWithMultipleBrochureRows": 0 },
+    "catalog": { "rows": 775, "nonemptyCompletionYear": 322, "fourDigitYearOnly": 297, "yearMonthNumericFormat": 0, "otherNonemptyFormat": 25 },
+    "quarterlyQuotes": { "nonDraftRows": 2010, "positiveFiniteAskingRent": 1362, "nonpositiveAskingRent": 0 }
+  },
+  "activeQueryAuthorization": {
+    "activeGrantCount": 1,
+    "distinctFieldSets": [["height", "floors", "parking", "totalArea", "vacantArea", "netEffectiveRent"]],
+    "distinctCapabilitySets": [["query:catalog", "query:brochure", "query:quarter", "export:internal"]],
+    "userIdentifiersIncluded": false,
+    "newFieldAccessGranted": false
+  },
+  "sourceMetadata": {
+    "table": "building_data_field_provenance",
+    "currentCompletionDateRecords": { "cross_verified": 8, "single_authoritative": 3, "legacy_backfill": 37 },
+    "currentGfaTotalRecords": { "cross_verified": 34, "single_authoritative": 9, "legacy_backfill": 202 },
+    "currentGfaOfficeRecords": { "single_authoritative": 4, "legacy_backfill": 225 },
+    "qualification": "Database provenance statuses are stored labels, not a new independent verification. A field can have multiple evidence records; record counts are not building counts. This table is outside the existing trusted query source router."
+  },
+  "decision": {
+    "newFields": "deferred",
+    "reason": "Fields exist, but are absent from current independent AI field grants and reviewed source routing. Existing catalog completion_year mixes market-entry and completion semantics. Do not broaden grants, substitute quarterly total area for GFA, or infer precise dates.",
+    "requiredBeforeEnablement": ["明确新增字段的AI读取授权与业务口径", "扩展字段白名单、服务端快照、来源回读和恢复权限的同一契约", "处理日期精度、缺失及冲突来源，不猜楼龄", "完成真实PostgreSQL、Auth/HTTP及来源恢复的隔离回归", "分别记录应用发布、兼容迁移及显式字段授权状态"]
+  },
+  "queries": {
+    "schema": "information_schema.columns for explicitly named tables and fields",
+    "brochure": "count rows/distinct building_id/completion_date; count future dates; positive finite gfa_total/gfa_office; duplicate building_id groups",
+    "catalog": "count nonempty completion_year; anchored four-digit year and numeric year-month formats; remaining nonempty strings",
+    "grants": "enabled and valid_until > now(); count and distinct field/capability arrays only",
+    "quotes": "building_metrics where not coalesce(is_draft,false); positive finite/nonpositive asking_rent counts",
+    "provenance": "group only by target_table, field_name, verification_status and is_current for the audited fields"
+  }
+}

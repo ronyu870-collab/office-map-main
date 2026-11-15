@@ -22,6 +22,16 @@ describe('trusted query client current identity guard', () => {
     expect((await trustedQueryClient.submit(scope, input, new AbortController().signal)).status).toBe('already_received');
     expect(fetch).toHaveBeenCalledWith('/api/intelligence/query', expect.objectContaining({ cache: 'no-store', body: JSON.stringify(input), method: 'POST' }));
   });
+  it.each(['submit', 'recover'] as const)('preserves the terminal scope-limit reason returned by %s without a second fetch', async method => {
+    const failure = { status: 'failed', reason: 'scope_limit', requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      error: '本次查询范围超过交互容量，请减少子市场、季度或指标后重新提问。' };
+    const fetch = vi.fn(async () => Response.json(failure, { status: 413 })); vi.stubGlobal('fetch', fetch);
+    const signal = new AbortController().signal;
+    const reply = method === 'submit'
+      ? await trustedQueryClient.submit(scope, { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: '全部获权楼宇最近四季度净有效租金和空置率' }, signal)
+      : await trustedQueryClient.recover(scope, failure.requestId, signal);
+    expect(reply).toEqual(failure); expect(fetch).toHaveBeenCalledOnce();
+  });
   it('sends structured conversation references and validates attributable clarification options', async () => {
     const conversation = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', parentRequestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
     const options = [{ id: 'rent', label: '净有效租金', question: '按净有效租金' }];
