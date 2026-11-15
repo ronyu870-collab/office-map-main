@@ -12,7 +12,7 @@ import styles from './HomeQuery.module.css';
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
 export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource }: Props) {
-  const numeric = result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text'));
+  const numeric = React.useMemo(() => result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text')), [result]);
   const [field, setField] = React.useState(numeric[0]?.key ?? '');
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
@@ -20,14 +20,15 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [page, setPage] = React.useState(0);
   useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
   const active = React.useRef<AbortController | null>(null);
+  const completedRequest = React.useRef<string | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
   const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
   const isCross = result.operation === 'cross_aggregate';
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
-  const request: ChartRequest = isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
-  async function run(input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') {
-    if (active.current) return;
+  const request: ChartRequest = React.useMemo(() => isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field }, [isDistribution, isRelationship, isCross, result.operation, field]);
+  const run = React.useCallback(async (input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') => {
+    if (active.current || (typeof input !== 'string' && completedRequest.current === JSON.stringify(input))) return;
     const controller = new AbortController(); active.current = controller;
     setBusy(true); setMessage(typeof input === 'string' ? '正在核对导出权限并生成文件…' : '正在核对权限并生成同源图表…');
     try {
@@ -44,12 +45,27 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       } else {
         const next = await trustedQueryClient.chart(scope, requestId, result, input, controller.signal);
         if (controller.signal.aborted) return;
-        setChart(next); setPage(0); setMessage('图表沿用本次结果，未重新查询数据。');
+        completedRequest.current = JSON.stringify(input);
+        setChart(next); setPage(0); setMessage('');
       }
     } catch (error) {
-      if (!controller.signal.aborted) { setChart(null); setMessage(error instanceof Error ? error.message : '图表或下载未完成，请重试。'); }
+      if (!controller.signal.aborted) { if (typeof input !== 'string') { setChart(null); completedRequest.current = null; } setMessage(error instanceof Error ? error.message : '图表或下载未完成，请重试。'); }
     } finally { if (!controller.signal.aborted) setBusy(false); if (active.current === controller) active.current = null; }
-  }
+  }, [scope, requestId, result, chart, request]);
+  // Defer one microtask so StrictMode's discarded setup cannot dispatch a chart.
+  // Charts use the same authorized result; exports always require a user action.
+  const automaticKey = `${requestId}:${result.resultId}:${field}`;
+  const started = React.useRef<string | null>(null);
+  const canAuto = result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0 && result.table.rows.some(row => row.cells[field]?.kind === 'number');
+  React.useEffect(() => {
+    let disposed = false;
+    if (canAuto) queueMicrotask(() => {
+      if (disposed || started.current === automaticKey) return;
+      started.current = automaticKey;
+      void run(request);
+    });
+    return () => { disposed = true; };
+  }, [automaticKey, canAuto, request, run]);
   const shown = chart?.points.slice(page * 25, (page + 1) * 25) ?? [];
   const [min, max] = chart ? chartBounds(chart, 'y') : [0, 0];
   const span = max - min || 1;
@@ -57,11 +73,11 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   return <div className={styles.artifacts}>
     <div className={styles.actions}>
       {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isDistribution?(chart?'更新直方图':'查看直方图'):isRelationship?(chart?'更新散点图':'查看散点图'):isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
+      {numeric.length > 0 && result.operation !== 'aggregate' && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
       {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
       {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
-      {chart && <Button variant="ghost" onClick={() => setChart(null)}>收起图表</Button>}
+      {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
         <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>

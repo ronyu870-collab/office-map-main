@@ -14,6 +14,9 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   const [sourcePage, setSourcePage] = React.useState(0);
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
+  const summary = resultSummary(result);
+  const scalarColumn = result.operation === 'aggregate' && result.table.rows.length === 1 && result.table.columns.length === 1 ? result.table.columns[0] : null;
+  const scalar = scalarColumn ? result.table.rows[0].cells[scalarColumn.key] : null;
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
@@ -31,10 +34,19 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   return <section className={styles.result} aria-label="查询结果">
     <div className={styles.answer}>
       <p className={styles.scope}>{resultScopeText(result)}</p>
-      {resultSummary(result).map((line, index) => <p key={line} className={index === 0 ? styles.conclusion : undefined}>{line}</p>)}
+      <p className={styles.conclusion}>{summary[0]}</p>
+      {scalar && scalarColumn && <section className={styles.metric} aria-label="核心指标">
+        <h3>{scalarColumn.label}</h3>
+        <button type="button" className={scalar.kind === 'number' ? styles.metricValue : styles.metricUnknown}
+          aria-label={`查看来源：${scalarColumn.label} ${cellText(scalar, scalarColumn.unit)}`}
+          onClick={event => showSources(scalar.sourceIds, scalarColumn.label, event.currentTarget)}>{cellText(scalar, scalarColumn.unit)}</button>
+        {scalar.kind === 'number' && <span className={styles.metricUnit}>{units[scalarColumn.unit ?? ''] ?? scalarColumn.unit}</span>}
+        <p className={styles.notice}>点选数值查看来源</p>
+      </section>}
+      {summary.slice(1, scalar ? 2 : undefined).map(line => <p key={line} className={styles.answerContext}>{line}</p>)}
     </div>
     {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} />}
-    {result.table.rows.length > 0 && <>
+    {!scalar && result.table.rows.length > 0 && <>
       <div className={styles.tableScroll} tabIndex={0} aria-label="查询结果表，可横向滚动">
         <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>
           <th key={column.key} scope="col" className={column.unit ? styles.number : undefined}>{column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}</th>)}</tr></thead>
@@ -57,6 +69,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     <div className={styles.limitations}>{result.limitations.map(line => <p key={line}>{line}</p>)}</div>
     <details className={styles.trace}>
       <summary>来源、口径与结果版本</summary>
+      {scalar && summary.slice(2).map(line => <p key={line}>{line}</p>)}
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
