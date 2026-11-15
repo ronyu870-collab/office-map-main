@@ -121,26 +121,35 @@ export async function verifyMultiMetricAnalysis({ db, check, queryAdmin, call, r
           perform nextval('private.${probe}'::regclass);
           return private.ai_query_snapshot_read(p_actor,p_effective,p_session,p_permission_revision,p_fields,p_periods,p_inventory,p_submarkets,p_building_ids);
         end $$`);
+        // Multi-quarter two-dimensional grouping remains unsupported. Rejection
+        // must precede the fact read instead of pooling the selected markets.
+        const rejected = await query('CBD、金融街净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本');
+        assert.equal(rejected.status, 422, JSON.stringify(rejected.body));
+        assert.equal(rejected.body.reason, 'unsupported');
+        assert.equal((await db.query(`select is_called from private.${probe}`)).rows[0].is_called, false);
+        assert.equal((await db.query("select 1 from private.ai_query_audit_events where request_id=$1 and kind='tool_started'", [rejected.body.requestId])).rowCount, 0);
         const conversation = { id: randomUUID() }, bodies = []; let parentRequestId;
         const steps = [
-          ['CBD、金融街净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本', 'grade', 'per_period', ['rent', 'vacancy']],
-          ['按子市场呢', 'submarket', 'per_period', ['rent', 'vacancy']],
-          ['共同有效样本呢', 'submarket', 'paired', ['rent', 'vacancy']],
-          ['各期样本呢', 'submarket', 'per_period', ['rent', 'vacancy']],
-          ['空置率呢', 'submarket', 'per_period', ['vacancy']],
+          ['CBD净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本', 'grade', 'per_period', ['rent', 'vacancy'], ['CBD']],
+          ['按子市场比较CBD、金融街呢', 'submarket', 'per_period', ['rent', 'vacancy'], ['CBD', '金融街']],
+          ['共同有效样本呢', 'submarket', 'paired', ['rent', 'vacancy'], ['CBD', '金融街']],
+          ['各期样本呢', 'submarket', 'per_period', ['rent', 'vacancy'], ['CBD', '金融街']],
+          ['空置率呢', 'submarket', 'per_period', ['vacancy'], ['CBD', '金融街']],
         ];
-        for (const [index, [question, groupBy, mode, metrics]] of steps.entries()) {
+        for (const [index, [question, groupBy, mode, metrics, submarkets]] of steps.entries()) {
           const body = { idempotencyKey: randomUUID(), question, conversation: { ...conversation, ...(parentRequestId ? { parentRequestId } : {}) } };
           bodies.push(body);
           const result = await call(queryAdmin, body);
           assert.equal(result.status, 200, JSON.stringify(result.body));
           const p = result.body.result.parameters.executedPlan;
           assert.equal(p.operation, 'group_trend'); assert.equal(p.groupBy, groupBy); assert.equal(p.mode, mode);
-          assert.deepEqual(p.scope.submarkets, ['CBD', '金融街']);
+          assert.deepEqual(p.scope.submarkets, submarkets);
           assert.deepEqual(p.start, { year: 2026, quarter: 2 }); assert.deepEqual(p.end, { year: 2026, quarter: 3 });
           assert.equal(p.metric, metrics[0]);
           if (metrics.length > 1) assert.deepEqual(p.metrics, metrics); else assert.equal(Object.hasOwn(p, 'metrics'), false);
           assert.equal(Number((await db.query(`select last_value from private.${probe}`)).rows[0].last_value), index + 1);
+          const actions = (await db.query("select kind,count(*)::int count from private.ai_query_audit_events where request_id=$1 and kind in ('tool_started','tool_finished') group by kind", [result.body.requestId])).rows;
+          assert.deepEqual(Object.fromEntries(actions.map(row => [row.kind, row.count])), { tool_finished: 1 });
           parentRequestId = result.body.requestId;
         }
         const replay = await call(queryAdmin, bodies[1]);

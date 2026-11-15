@@ -589,7 +589,11 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     if (!last) return clarify('period_required', '请明确进行同比或环比的目标季度。');
     try { candidate = { ...common, operation: 'compare', metric, base: shiftQuarter(last, /同比/.test(text) ? -4 : -1), current: last, mode }; } catch { return clarify('period_required', '比较期间超出了支持的年份范围。'); }
   } else if (requestedPeriods.length > 1) {
-    const trend = wantsTrend || Boolean(rolling || pastYear || yearMatch) || (prior?.operation === 'trend' || prior?.operation === 'group_trend') && !comparing;
+    // An explicit regrouping compares the groups while retaining the confirmed
+    // trend window, unless the user also explicitly replaces the periods.
+    const inheritedTrend = (prior?.operation === 'trend' || prior?.operation === 'group_trend')
+      && (!comparing || explicitGrouping && !explicitMultiPeriod);
+    const trend = wantsTrend || Boolean(rolling || pastYear || yearMatch) || inheritedTrend;
     candidate = trend ? { ...common, operation: groupBy ? 'group_trend' : 'trend', metric, start: first, end: last, mode, ...(groupBy ? { groupBy } : {}) }
       : { ...common, operation: 'compare', metric, base: first, current: last, mode };
     if (groupBy && !trend) return clarify('unsupported', '多个子市场的两期对比请使用“变化”或“趋势”，以保留每个子市场的独立结果。');
