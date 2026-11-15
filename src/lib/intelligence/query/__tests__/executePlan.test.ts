@@ -16,6 +16,25 @@ function snapshots(plan: QueryPlan) {
 const scope = { inventory: 'tracked', submarkets: ['CBD'] };
 
 describe('structured plan execution against one database snapshot', () => {
+  it('archives the complete executed plan for structured requests and isolates it from caller mutations', () => {
+    const input = { operation: 'aggregate', metric: 'rent', metrics: ['rent', 'vacancy'], period: { ...currentPeriod },
+      scope: { inventory: 'tracked', submarkets: ['CBD'] }, filter: { operator: 'and', terms: [
+        { field: 'height', operator: 'gt', value: '200' }, { field: 'totalArea', operator: 'gte', value: '10000' },
+      ] } };
+    const checked = parseQueryPlan(input), result = executeQueryPlan(input, snapshots(checked));
+    expect(result.parameters.executedPlan).toEqual(checked);
+    input.filter.terms[0].value = '999'; input.scope.submarkets[0] = '金融街';
+    input.metrics.reverse(); input.period.quarter = 1;
+    expect(result.parameters.executedPlan).toEqual(checked);
+    const executed = result.parameters.executedPlan as Extract<QueryPlan, { operation: 'aggregate' }>;
+    expect(Object.isFrozen(executed)).toBe(true);
+    expect(Object.isFrozen(executed.filter)).toBe(true);
+    expect(Reflect.set(executed.period, 'quarter', 1)).toBe(false);
+    expect(() => executed.scope.submarkets!.push('金融街')).toThrow();
+    expect(() => executed.metrics!.reverse()).toThrow();
+    expect(result.parameters.executedPlan).toEqual(checked);
+  });
+
   it('applies filters, preserves unknown candidates and cites filter-only fields', () => {
     const plan = parseQueryPlan({ operation: 'list', fields: [], period: null, scope, filter: { field: 'height', operator: 'gt', value: '200' } });
     const result = executeQueryPlan(plan, snapshots(plan));

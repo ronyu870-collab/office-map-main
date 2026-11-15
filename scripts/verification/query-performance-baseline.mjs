@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-export const QUERY_PERFORMANCE_BASELINE = '322a0fec48fbe5137cb2ea39e884cd8a6b0a08c0';
+export const QUERY_PERFORMANCE_BASELINE = '69f51a65639ec60a06058f6ce9fab6d9fdfe3830';
 
 /** Build the released P1 source against the same disposable Auth/database.
  * No source edits, fake authorization, production credentials or mutable main ref.

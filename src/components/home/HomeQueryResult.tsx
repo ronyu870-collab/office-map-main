@@ -100,8 +100,13 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
       <summary>来源、口径与结果版本</summary>
       {scalar && summary.slice(2).map(line => <p key={line}>{line}</p>)}
       <details className={styles.trace}><summary>实际执行条件</summary>
-        <pre className={styles.auditJson}>{JSON.stringify(result.parameters.executedPlan ?? Object.fromEntries(Object.entries(result.parameters).filter(([key]) =>
-          ['scope', 'field', 'fields', 'metric', 'metrics', 'mode', 'period', 'start', 'end', 'base', 'current', 'groupBy', 'dimensions', 'filters', 'where', 'direction', 'limit', 'timeResolution'].includes(key))), null, 2)}</pre>
+        <pre className={styles.auditJson}>{JSON.stringify({
+          operation: result.operation,
+          ...Object.fromEntries(Object.entries(result.parameters).filter(([key]) =>
+            ['scope', 'field', 'fields', 'metric', 'metrics', 'mode', 'period', 'start', 'end', 'base', 'current', 'groupBy', 'dimensions', 'rowDimension', 'columnDimension', 'filters', 'where', 'direction', 'limit', 'timeResolution'].includes(key))),
+          ...(result.parameters.executedPlan && typeof result.parameters.executedPlan === 'object' && !Array.isArray(result.parameters.executedPlan)
+            ? result.parameters.executedPlan : {}),
+        }, null, 2)}</pre>
       </details>
       <p>使用的数据表与字段：{[...new Set(result.sources.map(source => `${source.table}.${source.field}`))].join('；') || '未取得可用来源记录。'}</p>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>

@@ -82,7 +82,7 @@ describe('P1 structured semantic conversation', () => {
     expect(ready(ask('空置率呢', grade.context)).plan).toMatchObject({ operation: 'group_aggregate', groupBy: 'grade', metric: 'vacancy' });
     const cross = ready(ask('2026Q3CBD净有效租金按子市场和等级交叉统计'));
     expect(ready(ask('空置率呢', cross.context)).plan).toMatchObject({ operation: 'cross_aggregate', metric: 'vacancy' });
-    expect(ask('最近四个季度变化', cross.context)).toMatchObject({ kind: 'clarification', clarification: { reason: 'unsupported' } });
+    expect(ready(ask('最近四个季度变化', cross.context)).plan).toMatchObject({ operation: 'cross_trend', metric: 'rent', start: { year: 2025, quarter: 4 }, end: { year: 2026, quarter: 3 } });
   });
   it('P1-09 joins authorized catalog/brochure/quarter fields through existing numeric predicates', () => {
     const result = ready(ask('找出2026Q3CBD季度总面积超过5万平方米的楼，并查看净有效租金'));

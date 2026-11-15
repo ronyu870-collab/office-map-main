@@ -4,6 +4,8 @@ import { Decimal } from './decimal';
 import { buildingDistribution } from './distribution';
 import { getFact } from './facts';
 import { groupedQuarterAnalysis } from './grouping';
+import { crossTabMemberships } from './crossTab';
+import { CROSS_TREND_LIMITS } from './plan';
 import { formatExact, units } from './presentation';
 import { FORMULAS } from './registry';
 import type { QueryResult } from './result';
@@ -285,9 +287,9 @@ function skippedResearch(result: QueryResult, observationCount: number,
  * read a database, call a model, change a table value or expand source fields.
  * Selected snapshots must be the executor's post-filter candidates. */
 export function attachResearchAnalysis(result: QueryResult, selected: readonly FactSnapshot[], universe = selected): QueryResult {
-  // Cross-tab cells already expose coverage, denominators and membership. Never
-  // flatten them into a false market mean as an analytical supplement.
-  const supported = ['aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend'];
+  // Single-quarter cross tabs keep their own cell coverage. Cross trends are
+  // analyzed independently per intersection, never flattened to a market mean.
+  const supported = ['aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_trend'];
   if (!supported.includes(result.operation)) return result;
   const metrics = resultMetrics(result);
   if (!metrics.length) throw new Error('RESEARCH_METRIC_REQUIRED');
@@ -303,13 +305,14 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
     : metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea']))];
   const dimension = result.operation === 'group_aggregate' || result.operation === 'group_trend' ? result.parameters.groupBy : null;
   if (dimension !== null && dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
-  const sourceDimension = dimension === 'submarket' ? 'submarket' : dimension === 'grade' ? 'grade' : null;
+  const sourceDimensions: ('submarket' | 'grade')[] = result.operation === 'cross_trend' ? ['submarket', 'grade']
+    : dimension === 'submarket' || dimension === 'grade' ? [dimension] : [];
   function* requiredSources() {
     for (const snapshot of selected) for (const row of snapshot.rows) {
       yield row.nameSource;
       for (const field of fields) yield* getFact(row, field).sources;
     }
-    if (sourceDimension) for (const snapshot of universe) for (const row of snapshot.rows) {
+    for (const sourceDimension of sourceDimensions) for (const snapshot of universe) for (const row of snapshot.rows) {
       const source = row.dimensions?.[sourceDimension]?.source;
       if (!source) throw new Error('GROUP_SOURCE_REQUIRED');
       yield source;
@@ -334,10 +337,19 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
     if (sortedUniverse.some(snapshot => !snapshot)) throw new Error('RESEARCH_SNAPSHOT_MISMATCH');
     const mode = result.parameters.mode === 'paired' ? 'paired' : 'per_period';
     const budget: AnomalyBudget = { returned: 0, sourceReferences: 0 };
+    const cross = result.operation === 'cross_trend' ? crossTabMemberships(sorted, sortedUniverse, CROSS_TREND_LIMITS.groups) : null;
     const series: ResearchSeries[] = metrics.flatMap(metric => {
       const key = (value: string) => metrics.length > 1 ? `${metric}/${value}` : value;
       const label = (value: string) => metrics.length > 1 ? `${value} · ${metricLabel(metric)}` : value;
-      if (result.operation === 'group_aggregate' || result.operation === 'group_trend') {
+      if (cross) {
+        return cross.cells.map(cell => {
+          const ids = new Set(cell.entityIds);
+          const region = cross.rows.find(row => row.key === cell.regionKey)!, grade = cross.columns.find(column => column.key === cell.gradeKey)!;
+          return { ...analyzeSeries(key(cell.key), label(`${region.label} / ${grade.label}`), sorted.map(snapshot => {
+            const rows = snapshot.rows.filter(row => ids.has(row.id)); return { ...snapshot, rows, expectedCount: rows.length };
+          }), metric, mode, budget), classificationSourceIds: cell.membershipSourceIds };
+        });
+      } else if (result.operation === 'group_aggregate' || result.operation === 'group_trend') {
       if (dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
       const grouped = groupedQuarterAnalysis(sorted, sortedUniverse, dimension, metric, mode);
       return grouped.groups.map(group => {

@@ -1,0 +1,18 @@
+{
+  "version": "p1-cross-trends-authorization-audit/1",
+  "observedOn": "2026-11-15",
+  "timeZone": "Asia/Shanghai",
+  "baselineCommit": "69f51a65639ec60a06058f6ce9fab6d9fdfe3830",
+  "projectId": "qhgxougfzzmgqjzzwudf",
+  "environment": "production-read-only",
+  "postgresMajorVersion": 17,
+  "query": "Count active private.ai_query_grants and aggregate distinct fields/capabilities only; enabled and valid_until > now().",
+  "activeGrantCount": 1,
+  "distinctFieldSets": [["height", "floors", "parking", "totalArea", "vacantArea", "netEffectiveRent"]],
+  "distinctCapabilitySets": [["query:catalog", "query:brochure", "query:quarter", "export:internal"]],
+  "userIdentifiersIncluded": false,
+  "businessRecordDetailsIncluded": false,
+  "mutations": false,
+  "newFieldAccessGranted": false,
+  "decision": "Implement cross_trend with existing catalog dimensions and quarterly numeric fields. Defer additional age, GFA, asking-rent and lease domains until their existing independent authorization and trusted source contracts are explicitly extended."
+}

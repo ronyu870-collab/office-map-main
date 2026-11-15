@@ -121,9 +121,10 @@ export async function verifyMultiMetricAnalysis({ db, check, queryAdmin, call, r
           perform nextval('private.${probe}'::regclass);
           return private.ai_query_snapshot_read(p_actor,p_effective,p_session,p_permission_revision,p_fields,p_periods,p_inventory,p_submarkets,p_building_ids);
         end $$`);
-        // Multi-quarter two-dimensional grouping remains unsupported. Rejection
-        // must precede the fact read instead of pooling the selected markets.
-        const rejected = await query('CBD、金融街净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本');
+        // The formerly rejected two-axis trend now has its own positive HTTP
+        // regression. An unauthorized third dimension must still fail before
+        // a fact read or provider call; never silently drop that condition.
+        const rejected = await query('CBD、金融街净有效租金和空置率2026Q2至2026Q3按等级和楼龄趋势各期样本');
         assert.equal(rejected.status, 422, JSON.stringify(rejected.body));
         assert.equal(rejected.body.reason, 'unsupported');
         assert.equal((await db.query(`select is_called from private.${probe}`)).rows[0].is_called, false);

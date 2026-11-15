@@ -1,7 +1,7 @@
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { expandRelativeQuarters, shiftQuarter, type RelativeQuarterContext } from './relativeQuarter';
 
-export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/8';
+export const QUESTION_GRAMMAR_VERSION = 'bounded-business-question/9';
 // Canonical submarket names from the existing map, not inferred geographic aliases.
 export const QUESTION_SUBMARKETS = ['CBD', '中关村', '亚奥', '望京-酒仙桥', '东城商务区', '燕莎', '丽泽', '金融街', '通州', '其他', '上地', '亦庄', '北清路', '通惠河传媒走廊', '丰台科技园', '玉渊潭', '四季青'] as const;
 export type QuestionClarification = { code: 'conditions_required'; message: string };
@@ -48,6 +48,11 @@ function resolveExplicitQuestion(question: string): QuestionResolution {
   if (relation) return { kind: 'plan', plan: parseQueryPlan({ operation: 'relationship', period: quarter(relation[1], relation[2], relation[3]), scope: groupedScope(relation[4]) }) };
   const cross = new RegExp(`^${period}((?:${marketList})|全部获权楼宇)${metric}按子市场(?:和|与|×)等级交叉统计$`).exec(text);
   if (cross) return { kind: 'plan', plan: parseQueryPlan({ operation: 'cross_aggregate', period: quarter(cross[1], cross[2], cross[3]), scope: groupedScope(cross[4]), metric: metrics[cross[6] as keyof typeof metrics] }) };
+  const crossTrend = new RegExp(`^((?:${marketList})|全部获权楼宇)${metric}${period}(?:至|到)${period}按子市场(?:和|与|×)等级(?:交叉)?趋势(各期样本|全期间共同样本|配对样本)$`).exec(text);
+  if (crossTrend) {
+    try { return { kind: 'plan', plan: parseQueryPlan({ operation: 'cross_trend', scope: groupedScope(crossTrend[1]), metric: metrics[crossTrend[3] as keyof typeof metrics], start: quarter(crossTrend[4], crossTrend[5], crossTrend[6]), end: quarter(crossTrend[7], crossTrend[8], crossTrend[9]), mode: crossTrend[10] === '各期样本' ? 'per_period' : 'paired' }) }; }
+    catch { return clarification; }
+  }
   let grouped = new RegExp(`^${period}((?:${marketList})|全部获权楼宇)${metric}按(子市场|等级)比较$`).exec(text);
   if (grouped) return { kind: 'plan', plan: parseQueryPlan({ operation: 'group_aggregate', period: quarter(grouped[1], grouped[2], grouped[3]), scope: groupedScope(grouped[4]), metric: metrics[grouped[6] as keyof typeof metrics], groupBy: grouped[7] === '等级' ? 'grade' : 'submarket' }) };
   grouped = new RegExp(`^((?:${marketList})|全部获权楼宇)${metric}${period}(?:至|到)${period}按(子市场|等级)趋势(各期样本|全期间共同样本)$`).exec(text);

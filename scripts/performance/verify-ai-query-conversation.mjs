@@ -30,7 +30,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
   const reportPath = path.join(output, 'performance.json'); await mkdir(output, { recursive: true });
   const samples = [], ids = Array.from({ length: 24 }, () => randomUUID());
   const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
-  const report = { version: 'query-conversation-performance/2', beforeCommit: beforeApp ? QUERY_PERFORMANCE_BASELINE : null,
+  const report = { version: 'query-conversation-performance/2', suite: 'regression', beforeCommit: beforeApp ? QUERY_PERFORMANCE_BASELINE : null,
     ...queryPerformanceRevision(process.env, githubEvent), production: false, realPhone: false,
     authentication: 'Real login form -> local GoTrue -> canonical user_roles -> unchanged query grants/RPC',
     modelCalls: null, realExternalModelCalls: false, modelPath: 'Bounded supported semantics; not a provider latency benchmark',

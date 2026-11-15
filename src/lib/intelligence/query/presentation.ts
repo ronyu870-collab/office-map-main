@@ -18,7 +18,7 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship', 'distribution']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'cross_trend', 'relationship', 'distribution']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
@@ -102,6 +102,13 @@ export function resultSummary(result: QueryResultView): string[] {
     result.parameters.metric === 'rent' ? '净有效租金按有效总面积加权；不能对格均值再求简单平均。' : result.parameters.metric === 'vacancy' ? '空置面积合计除同一有效记录的总面积合计；各格百分比不能相加。' : '累加各格有效季度总面积，未填或无效值不按零处理。',
     ...(rows.length === 0 || rows.every(row => row.cells.value?.kind !== 'number') ? ['不知道：当前获权范围没有可用的交叉指标值。'] : []),
   ];
+  if (result.operation === 'cross_trend') return [
+    '按当前目录子市场 × 等级分别查看季度趋势，未填写分类单列未知；不代表历史季度的市场分类。',
+    result.parameters.mode === 'paired' ? '每格各自使用全期间共同有效楼宇；不同格和不同指标不共用同一批样本。' : '每格各期使用独立有效样本；样本结构变化可能影响趋势。',
+    result.parameters.metric === 'rent' ? '净有效租金按各期有效总面积加权；不能对格均值再求简单平均。' : result.parameters.metric === 'vacancy' ? '空置面积合计除以同格同季有效样本的总面积合计；各格空置率不能相加，变化使用百分点。' : '累加各格各期有效季度总面积；没有有效样本时保持未知。',
+    '实际参与、当期有效样本、分母与缺失情况分别保留；空组合和缺期不补零，不推断市场原因。',
+    ...(rows.length === 0 || rows.every(row => row.cells.value?.kind !== 'number') ? ['不知道：当前获权范围没有可用的双维趋势数值。'] : []),
+  ];
   if (result.operation === 'group_aggregate' || result.operation === 'group_trend') return [
     `按当前目录${result.parameters.groupBy === 'grade' ? '等级' : '子市场'}分别计算，未填写分类单列未知。`,
     result.operation === 'group_trend' && result.parameters.mode === 'paired' ? '每组各自使用全期间共同有效楼宇；不同组不是同一楼宇样本。' : '每组使用当期有效楼宇；参与数量、分母和缺失情况见表。',
@@ -118,7 +125,7 @@ export function resultScopeText(result: QueryResultView): string {
   const s = scope.success ? scope.data : {};
   const period = quarterSchema.safeParse(result.parameters.period);
   const start=quarterSchema.safeParse(result.parameters.start),end=quarterSchema.safeParse(result.parameters.end);
-  const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
+  const isTrend = result.operation === 'trend' || result.operation === 'group_trend' || result.operation === 'cross_trend';
   const range=isTrend&&start.success&&end.success?`，${start.data.year}Q${start.data.quarter} 至 ${end.data.year}Q${end.data.quarter}`:'';
   return `${s.submarkets?.join('、') || '当前获权范围'}${range}${period.success && !isTrend ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
 }

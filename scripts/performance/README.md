@@ -74,7 +74,7 @@ selector 必须按实际页面校准：目标内容不能在源页已经可见�
 
 `verify-ai-query-conversation.mjs` 由真实 Auth 集成 harness 调用，复用本机一次性 GoTrue、PostgREST、PostgreSQL 和 Next 生产构建。先执行 `verify-query-conversation-collector.mjs` 校准采集器；校准夹具的延迟不计入产品报告。无浏览器时可用该校准器的 `--summary-only` 检查分位数、失败保留与缺测规则，但这不能替代浏览器或真实性能验证。
 
-函数 `verifyQueryConversationPerformance({ db, person, app, beforeApp, output, exportCaps, semanticCalls, dataApiOrigin })` 创建独立合成管理员和 24 栋获权楼宇（CBD、金融街各 12 栋，4 季共 96 条季度记录，末季 2 条缺租金），结束时只清理这些楼宇和季度记录。账号清理由调用方原有 harness 负责。只有固定的 localhost 数据库端口 55992 和 loopback 应用可以使用；通过真实登录表单输入该临时账号，不拦截、伪造鉴权或业务响应。`beforeApp` 是已发布 P1 提交 `322a0fec48fbe5137cb2ea39e884cd8a6b0a08c0` 的完整生产构建，由 [基线构建器](../verification/query-performance-baseline.mjs) 取得未改写的 git archive，并核对锁文件一致。省略基线时报告明确缺少基线，不能声称 A/B 完成。
+函数 `verifyQueryConversationPerformance({ db, person, app, beforeApp, output, exportCaps, semanticCalls, dataApiOrigin })` 创建独立合成管理员和 24 栋获权楼宇（CBD、金融街各 12 栋，4 季共 96 条季度记录，末季 2 条缺租金），结束时只清理这些楼宇和季度记录。账号清理由调用方原有 harness 负责。只有固定的 localhost 数据库端口 55992 和 loopback 应用可以使用；通过真实登录表单输入该临时账号，不拦截、伪造鉴权或业务响应。`beforeApp` 是已发布 P1 提交 `69f51a65639ec60a06058f6ce9fab6d9fdfe3830`（PR #201）的完整生产构建，由 [基线构建器](../verification/query-performance-baseline.mjs) 取得未改写的 git archive，并核对锁文件一致。省略基线时报告明确缺少基线，不能声称 A/B 完成。
 
 每个桌面 1280 × 900、手机模拟 390 × 844 条件分别采集 20 对，前后版本交替执行。每次新浏览器上下文完成真实登录后，执行 CBD 查询、金融街追问、两地区比较和四季趋势，点击真实“新对话”按钮后在同一页面再执行一遍，分别报告首次对话与同页第二遍。两版均使用相同的省略条件追问，并逐样本核对返回的精确数值、维度和样本字段一致。保留 2 版本 × 2 设备条件 × 2 对话轮次 × 4 步 × 20 次，共 640 个样本。这里的冷条件只表示新浏览器上下文的第一次对话：登录和首页已就绪，后续轮次必须有已执行的父请求，服务端、数据库及 DNS/TLS 冷启动不在该定义中。
 
@@ -82,8 +82,22 @@ selector 必须按实际页面校准：目标内容不能在源页已经可见�
 
 单指标 A/B 输出 `output/performance.json`（`query-conversation-performance/2`），每一对采样后写 checkpoint；超时、登录失败、依赖失败及未完成样本均保留。网络采集器将查询、审计、通知和反馈等请求归入有限的端点类别，`dataApiOrigin` 仅用于识别指定隔离 Data API。归因报告不保存任意 URL、业务路径、query、请求头或正文；HTTP 失败均进入样本失败判定，不能把后台 404/500 隐藏为正常结果。首页依赖的旧夹具失败、原始迁移补齐和实际 RLS 回归由 [真实 HTTP 验证](../verification/ai-query-home-dependencies.mjs) 单独执行。
 
-随后调用 [多指标采集器](verify-query-multi-metric.mjs)，复用同一获权合成数据，新增 2 设备条件 × 2 场景 × 20 次，共 80 个真实浏览器样本；这些样本不替代或混入原 640 个 A/B 样本。每次新上下文真实登录后，依次查询 CBD、金融街同季度租金与空置率，以及两地区四季度各期样本趋势。结果使用独立 SQL 核对两项指标的精确分数、有效数及面积分母，末季每地区租金有效 11 栋、空置率有效 12 栋。每个样本通过原生“图表指标”选择器切换到空置率，核对实际 HTTP 图表与原结果的 `vacancy_value` 及来源关联，再实际展开、关闭、重开和关闭来源。切换耗时从浏览器原生 change 事件计到正确图表可见且选择器可操作后的渲染帧；只收到响应不能视为完成。
+随后调用 [多指标采集器](verify-query-multi-metric.mjs)，复用同一获权合成数据，保留 2 设备条件 × 2 场景 × 20 次，共 80 个真实浏览器样本；这些样本不替代或混入原 640 个 A/B 样本。当前已发布基线具备多指标能力，这 80 个样本是候选版本的持续预算回归，不宣称多指标 A/B。每次新上下文真实登录后，依次查询 CBD、金融街同季度租金与空置率，以及两地区四季度各期样本趋势。结果使用独立 SQL 核对两项指标的精确分数、有效数及面积分母，末季每地区租金有效 11 栋、空置率有效 12 栋。每个样本通过原生“图表指标”选择器切换到空置率，核对实际 HTTP 图表与原结果的 `vacancy_value` 及来源关联，再实际展开、关闭、重开和关闭来源。切换耗时从浏览器原生 change 事件计到正确图表可见且选择器可操作后的渲染帧；只收到响应不能视为完成。
 
 多指标结果单独写入 `output/multi-metric-performance.json`（`query-multi-metric-performance/1`），记录每条件期望／实际／失败数量、独立数值核对、指标切换、来源和 DOM 回执确认。两个报告均记录精确版本、运行环境及模型调用计数；这些限定查询必须为零模型调用。P50/P90 使用 nearest-rank，失败保留在分母，缺测或失败不能得到 `budgetsMet=true`。
 
-两组预算均沿用 VERIFY-06：反馈 P90 不超过 100 ms，结果可操作 P90 桌面不超过 2.5 秒、手机模拟不超过 3.5 秒，同页来源重开 P90 不超过 500 ms。新增指标切换沿用相同设备的 2.5/3.5 秒预算。共享 CI 自动断言采集完整性、真实操作、来源、数值一致性、无 HTTP 失败及零模型调用；脚本报告墙钟预算结果，不因单次共享 runner 的墙钟超预算自动退出失败。本批合并前另以两份 artifact 的 `budgetsMet=true`、完整样本和零失败作为硬门槛，并核对 A/B 差异；CI 绿色不能代替这一检查。这些记录不代表生产网络、真实手机或生产业务数据的性能验收。
+两组预算均沿用 VERIFY-06：反馈 P90 不超过 100 ms，结果可操作 P90 桌面不超过 2.5 秒、手机模拟不超过 3.5 秒，同页来源重开 P90 不超过 500 ms。指标切换沿用相同设备的 2.5/3.5 秒预算。共享 CI 自动断言采集完整性、真实操作、来源、数值一致性、无 HTTP 失败及零模型调用；上述原有两份脚本保留报告预算的方式，不因单次共享 runner 的墙钟超预算自动退出失败。合并前仍以两份 artifact 的 `budgetsMet=true`、完整样本和零失败作为硬门槛，并核对 A/B 差异；CI 绿色不能代替这一检查。这些记录不代表生产网络、真实手机或生产业务数据的性能验收。
+
+## 双维三指标季度趋势
+
+[交叉趋势采集器](verify-query-cross-trend.mjs) 单独保留 2 设备条件 × 2 样本口径 × 20 次，共 80 个真实样本。24 栋合成楼宇分布在 CBD、金融街及 A、B 两等级，4 季共 96 条记录；末季 2 条租金缺失、另外 2 条空置面积超过总面积。各指标的有效样本不同，不能以主指标的分母代替其它指标。每个新浏览器上下文真实登录后，先执行三指标、双维、四季度的各期样本趋势，再追问“共同有效样本呢”，核对两维、三指标和完整期间继承。
+
+[独立 SQL oracle](../verification/ai-query-cross-trend-oracle.mjs) 对实际 PostgreSQL 合成记录建立完整楼宇 × 期间网格，分别求租金、空置率、季度总面积的全期间共同样本。它不导入产品公式、分组或结果生成代码；逐格核对规范季度 `YYYY-QN`、精确分数、有效数、可用数、分母、排除与来源绑定。季度总面积是面积求和，其统计分母是有效楼宇数，不能误测成面积平均值。缺季度、空组合及未知分类保留未知；能力与容量拒绝、撤权、草稿、旧来源协议、单次真实快照 RPC、幂等重试及 CSV/XLSX/SVG 由同一 [真实 HTTP 矩阵](../verification/ai-query-cross-trend-scenarios.mjs) 验证。
+
+每个浏览器样本实际执行租金 → 空置率 → 季度总面积两次图表切换。图表按子市场 × 等级分面，切换后的每个点必须绑定原表对应指标与来源，空值不能变成零。面积选择器名称为“季度总面积”，图表说明使用原列名“总面积（㎡）”。两次切换分别从原生 change 事件计时，直到正确图表可见、选择器可操作且完成渲染帧，预算与结果可操作时间一致。随后真实展开、关闭、重开、关闭来源；每个样本确认初始结果、初始图表、两次指标图表和四次来源操作共 8 个实际 DOM 回执，80 个样本应有 640 个成功回执。
+
+输出 `cross-trend-performance.json`（`query-cross-trend-performance/1`）保留原始样本、每条件 P50/P90、失败/缺测、两次切换、来源、模型调用及预算结果。反馈 P90 ≤ 100 ms；结果可操作及两次指标切换 P90 各自满足桌面 ≤ 2.5 秒、手机模拟 ≤ 3.5 秒；来源重开 P90 ≤ 500 ms。新采集器在完整报告落盘后同时断言功能完整、`budgetsMet=true` 与零模型调用，超预算会让该 CI job 失败；失败报告保留，不降阈值、不删样本。
+
+查询、恢复和图表成功 JSON 在客户端接受时对 ≥16 KiB 正文协商 gzip，原 JSON、来源、归档和交付摘要仍按解压后的完整字节校验，最后实时权限检查在压缩完成后执行。浏览器资源时序分别保留 encoded／decoded 字节，不能把传输压缩当作来源删减，或把解压前到达作为可操作终点。当前全量 HTTP 持续回归验证 gzip／identity 恢复相等及原 SHA-256 交付关系；性能配置、采样数和阈值不变。
+
+Verify 的原 `Real Auth trusted query HTTP integration` 使用 `AI_QUERY_PERFORMANCE_SUITE=regression`，完整保留原 640＋80；新增 `Real Auth cross-trend HTTP and browser integration` 使用 `cross_trend`，在另一 GitHub runner 的独立 Auth/Data API/PostgreSQL/Next 栈执行新增 80。两个 job 都执行全部新旧 HTTP 场景，均保留 40 分钟时限，不在同一机器争用浏览器资源。suite 只接受这两个值，默认 regression，未知值立即失败；日志及全部报告记录 suite、精确 head SHA 和实际测试的 merge SHA。两份 artifact 分别为 `ai-query-real-auth`、`ai-query-cross-trend-auth`，均不含凭据，保留 7 天。合并要求两个 Auth job 和三份性能报告的完整性、来源、零失败、零模型及预算全部通过，总样本应为 800。
