@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { observeQueryConversation, nearestRank, summarizeQueryPerformance, queryPerformanceErrorCode,
-  queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair } from './query-conversation-probe.mjs';
+  queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
+import './verify-query-conversation-network.mjs';
 
 assert.equal(nearestRank([30, 10, 20], 0.9), 30);
 assert.equal(nearestRank([null, undefined], 0.5), null);
@@ -17,11 +18,17 @@ assert.equal(first([...all.slice(0, 19), { ...common, status: 'timeout', content
 assert.equal(first([...all.slice(0, 19), { ...common, content_usable_ms: null }]).measurementComplete, false);
 assert.equal(queryPerformanceErrorCode(new Error('QUERY_NOT_READY\n\n429 !== 200')), 'QUERY_NOT_READY');
 assert.equal(queryPerformanceErrorCode(new Error('ACCESS_TOKEN_VALUE')), 'operation_failed');
+const mergeSha = 'a'.repeat(40), headSha = 'b'.repeat(40);
+const revision = queryPerformanceRevision({ GITHUB_SHA: mergeSha, GITHUB_REF: 'refs/pull/200/merge' }, { pull_request: { head: { sha: headSha } } });
+assert.equal(revision.testedCommit, mergeSha); assert.equal(revision.testedMergeSha, mergeSha); assert.equal(revision.headSha, headSha);
+assert.equal(queryPerformanceRevision({ GITHUB_SHA: mergeSha, GITHUB_REF: 'refs/pull/200/merge' }, null).headSha, null, 'unknown PR head must not be replaced by merge SHA');
 const rejected = { ...common, round: 1, phase: 'login_or_browser', status: 'setup_failed', error: 'LOGIN_HTTP_FAILURE', httpStatus: 429,
-  password: 'must-not-log', body: 'must-not-log', headers: { Authorization: 'must-not-log' }, email: 'must-not-log' };
+  password: 'must-not-log', body: 'must-not-log', headers: { Authorization: 'must-not-log' }, email: 'must-not-log',
+  networkFailures: [{ kind: 'receipt', method: 'POST', attribution: 'started_in_sample', critical: true, error: 'net::ERR_ABORTED', httpStatus: null, token: 'must-not-log', url: 'must-not-log' }] };
 const diagnostic = queryPerformanceFailureDiagnostics([rejected]);
 assert.equal(diagnostic.length, 1); assert.equal(diagnostic[0].httpStatus, 429);
 assert.deepEqual(diagnostic[0].viewport, { name: 'desktop', width: 1280, height: 900 });
+assert.equal(diagnostic[0].networkFailures[0].error, 'net::ERR_ABORTED');
 assert.equal(JSON.stringify(diagnostic).includes('must-not-log'), false);
 const order = [];
 await assert.rejects(checkpointQueryPerformancePair([rejected], {

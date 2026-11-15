@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { observeQueryConversation, QUERY_PERFORMANCE_PROFILES, QUERY_PERFORMANCE_STEPS, QUERY_PERFORMANCE_CACHE_STATES,
-  summarizeQueryPerformance, queryPerformanceErrorCode, checkpointQueryPerformancePair } from './query-conversation-probe.mjs';
+  summarizeQueryPerformance, queryPerformanceErrorCode, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
+import { observeQueryNetwork } from './query-conversation-network.mjs';
 
 const SAMPLES = 20;
 const BASELINE_COMMIT = '0ae6e4dbcc63c3a557ee05ed70bba016a1ee4a7c';
@@ -27,8 +28,9 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
   assert.equal(Number(db.connectionParameters.port), 55992, 'ISOLATED_DATABASE_ONLY');
   const reportPath = path.join(output, 'performance.json'); await mkdir(output, { recursive: true });
   const samples = [], ids = Array.from({ length: 24 }, () => randomUUID());
+  const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
   const report = { version: 'query-conversation-performance/1', beforeCommit: beforeApp ? BASELINE_COMMIT : null,
-    afterCommit: process.env.GITHUB_SHA ?? 'working_tree_not_release_evidence', production: false, realPhone: false,
+    ...queryPerformanceRevision(process.env, githubEvent), production: false, realPhone: false,
     authentication: 'Real login form -> local GoTrue -> canonical user_roles -> unchanged query grants/RPC',
     modelCalls: null, realExternalModelCalls: false, modelPath: 'Bounded supported semantics; not a provider latency benchmark',
     baseline: beforeApp ? 'P0 complete questions with equivalent factual plans; P1 uses inherited follow-ups'
@@ -38,11 +40,13 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     endpoints: { start: 'Actual send-button click captured in the browser', feedback: 'Loading/stop control or real result painted on a subsequent animation frame',
       result: 'Fresh numeric result and an enabled source action painted', usable: 'Fresh result + source action + required same-result chart painted; actual source interaction then verified',
       source: 'Actual numeric-source click -> new database-source panel painted; final trend also reopened',
+      receipt: 'Observe each real DOM receipt through HTTP 200 and completed transfer before opening/closing a source view or replacing the result. These waits do not change the recorded paint endpoints.',
       browserValidationAndRender: 'Response end -> result paint, including body decoding, receipt verification, schema validation and React; not a separate JSON decoder benchmark' },
     fixture: { buildings: 24, submarkets: 2, buildingsPerSubmarket: 12, quarterlyRecords: 96, quarters: PERIODS,
       missingFinalRents: 2, grants: 'only these synthetic building IDs, CBD and 金融街' },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: SAMPLES, sharedRunner: Boolean(process.env.CI), node: process.version,
     networkBoundary: 'CDP throttles the browser network and CPU only; Next-to-Auth/PostgREST traffic stays on loopback',
+    networkAttribution: 'Only same-origin POST submit/artifact/receipt requests started in the sample are critical. Other failures, including preexisting requests and capability refresh, remain separately recorded. Receipt cancellations and HTTP failures remain fatal.',
     numericGate: 'Fixed-condition 20-sample evidence. Shared runner single wall-clock timings are not CI functional assertions. Production network, real devices and server cold starts remain outside this report.',
     samples, summary: [], comparisons: [], functionalPassed: false, budgetsMet: false, complete: false };
   const modelCallsBefore = semanticCalls?.();
@@ -105,7 +109,8 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
               const sample = { variant: variant.name, profile: profile.name, cache_state: cacheState, round: round + 1, step: step.id,
                 status: dependencyFailed ? 'dependency_failed' : 'running', phase: dependencyFailed ? 'dependency' : 'query', feedback_ms: null, result_painted_ms: null,
                 content_usable_ms: null, source_open_ms: null, source_reopen_ms: null, browser_validation_and_render_ms: null,
-                requests: [], actualQueryRequests: 0, queryFailures: 0, pageErrors: 0, sourceVerified: false, equivalentResult: null };
+                requests: [], networkRequests: [], networkFailures: [], receiptConfirmations: [],
+                actualQueryRequests: 0, queryFailures: 0, pageErrors: 0, sourceVerified: false, equivalentResult: null };
               samples.push(sample);
               if (dependencyFailed) { collected.push({ sample, projection: null }); continue; }
               const measured = await measure(page, variant.name, step, sample, ids);
@@ -175,10 +180,13 @@ async function login(page, app, owner, recordHttpStatus) {
 
 async function measure(page, variant, step, sample, allowedIds) {
   let probeInstalled = false;
-  const queryRequest = request => { if (new URL(request.url()).pathname === '/api/intelligence/query' && request.method() === 'POST') sample.actualQueryRequests++; };
-  const failed = request => { if (new URL(request.url()).pathname.startsWith('/api/intelligence/query')) sample.queryFailures++; };
+  const network = observeQueryNetwork(page, sample);
   const pageError = () => { sample.pageErrors++; };
-  page.on('request', queryRequest); page.on('requestfailed', failed); page.on('pageerror', pageError);
+  page.on('pageerror', pageError);
+  const confirmReceipt = async (stage, matcher) => {
+    sample.phase = 'receipt_confirmation'; sample.receiptStage = stage;
+    sample.receiptConfirmations.push({ stage, ...await network.waitForReceipt(matcher) });
+  };
   try {
     await page.locator('#home-query').fill(step[variant]);
     await page.getByRole('button', { name: '发送问题', exact: true }).scrollIntoViewIfNeeded();
@@ -192,19 +200,34 @@ async function measure(page, variant, step, sample, allowedIds) {
     if (variant === 'after') assert.ok(body.conversation?.id, 'MISSING_CONVERSATION');
     await page.waitForFunction(() => ['ready', 'timeout'].includes(window.__colliersQueryPerformance?.state.status), null, { timeout: 35000 });
     assert.equal(await page.evaluate(() => window.__colliersQueryPerformance.state.status), 'ready', 'RESULT_READINESS_TIMEOUT');
+    // Opening a source changes answer_table.view.sourceIds and deliberately
+    // aborts the obsolete view's pending DOM receipt. Confirm that real receipt
+    // first; the already captured result paint measurement remains unchanged.
+    await confirmReceipt('initial_result', { surface: 'answer_table', sourceCount: 'empty' });
+    if (step.chart) await confirmReceipt('initial_chart', { surface: 'chart' });
+    await network.waitForIdle();
     sample.phase = 'source_interaction';
     const source = page.getByRole('region', { name: '查询结果', exact: true }).getByRole('button', { name: /^查看来源：面积加权净有效租金 / }).first();
+    let receiptCursor = network.cursor();
     await source.click();
     const panel = page.getByRole('region', { name: '来源详情', exact: true }); await panel.waitFor();
     assert.match(await panel.innerText(), /building_metrics/, 'DATABASE_SOURCE_NOT_VISIBLE');
     await page.waitForFunction(() => window.__colliersQueryPerformance.state.source_open_ms.length >= 1);
     sample.sourceVerified = true;
+    await confirmReceipt('source_open', { after: receiptCursor, surface: 'answer_table', sourceCount: 'present' });
+    receiptCursor = network.cursor();
     await panel.getByRole('button', { name: '关闭来源', exact: true }).click();
+    await confirmReceipt('source_close', { after: receiptCursor, surface: 'answer_table', sourceCount: 'empty' });
     if (step.id === 'four_quarter_trend') {
+      sample.phase = 'source_interaction'; receiptCursor = network.cursor();
       await source.click(); await panel.waitFor();
       await page.waitForFunction(() => window.__colliersQueryPerformance.state.source_open_ms.length >= 2);
+      await confirmReceipt('source_reopen', { after: receiptCursor, surface: 'answer_table', sourceCount: 'present' });
+      receiptCursor = network.cursor();
       await panel.getByRole('button', { name: '关闭来源', exact: true }).click();
+      await confirmReceipt('source_reclose', { after: receiptCursor, surface: 'answer_table', sourceCount: 'empty' });
     }
+    await network.waitForIdle();
     assert.equal(sample.actualQueryRequests, 1, 'DUPLICATE_QUERY_SUBMISSION');
     assert.equal(sample.queryFailures, 0, 'QUERY_NETWORK_FAILURE');
     assert.equal(sample.pageErrors, 0, 'QUERY_BROWSER_ERROR');
@@ -219,6 +242,6 @@ async function measure(page, variant, step, sample, allowedIds) {
         source_reopen_ms: measurement.source_open_ms[1] ?? null, browser_validation_and_render_ms: measurement.browser_validation_and_render_ms,
         requests: measurement.requests });
     }
-    page.off('request', queryRequest); page.off('requestfailed', failed); page.off('pageerror', pageError);
+    network.stop(); page.off('pageerror', pageError);
   }
 }

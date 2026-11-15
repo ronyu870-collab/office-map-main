@@ -97,7 +97,18 @@ export const QUERY_PERFORMANCE_STEPS = [
 export const QUERY_PERFORMANCE_CACHE_STATES = ['new_context_first_dialogue', 'same_document_second_dialogue'];
 const QUERY_PERFORMANCE_ERRORS = new Set(['timeout', 'operation_failed', 'LOGIN_HTTP_FAILURE', 'QUERY_NOT_READY',
   'UNEXPECTED_QUERY_PLAN', 'SOURCE_OUTSIDE_GRANTED_FIXTURE', 'MISSING_CONVERSATION', 'RESULT_READINESS_TIMEOUT',
-  'DATABASE_SOURCE_NOT_VISIBLE', 'DUPLICATE_QUERY_SUBMISSION', 'QUERY_NETWORK_FAILURE', 'QUERY_BROWSER_ERROR', 'NEW_CONVERSATION_RELOADED_DOCUMENT']);
+  'DATABASE_SOURCE_NOT_VISIBLE', 'DUPLICATE_QUERY_SUBMISSION', 'QUERY_NETWORK_FAILURE', 'QUERY_BROWSER_ERROR', 'NEW_CONVERSATION_RELOADED_DOCUMENT',
+  'QUERY_RECEIPT_CONFIRMATION_TIMEOUT', 'QUERY_NETWORK_COMPLETION_TIMEOUT', 'QUERY_OBSERVER_STOPPED']);
+export function queryPerformanceRevision(env, event) {
+  const sha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value) ? value : null;
+  const testedCommit = sha(env.GITHUB_SHA);
+  const mergeRef = /^refs\/pull\/\d+\/merge$/.test(env.GITHUB_REF ?? '');
+  return { testedCommit: testedCommit ?? 'working_tree_not_release_evidence',
+    testedMergeSha: mergeRef ? testedCommit : null,
+    headSha: sha(event?.pull_request?.head?.sha) ?? (!mergeRef ? testedCommit : null),
+    revisionBasis: mergeRef ? 'GitHub pull-request merge checkout; headSha identifies the proposed branch separately'
+      : testedCommit ? 'GitHub workflow checkout' : 'Local working tree; no release-commit claim' };
+}
 export function queryPerformanceErrorCode(error) {
   if (error?.name === 'TimeoutError') return 'timeout';
   // AssertionError messages can append actual/expected data after the first line.
@@ -119,10 +130,18 @@ export function queryPerformanceFailureDiagnostics(samples) {
       round: Number.isInteger(sample.round) ? sample.round : null,
       cache_state: QUERY_PERFORMANCE_CACHE_STATES.includes(sample.cache_state) ? sample.cache_state : 'unknown',
       step: QUERY_PERFORMANCE_STEPS.some(value => value.id === sample.step) ? sample.step : 'unknown', status,
-      phase: ['query', 'source_interaction', 'complete', 'login_or_browser', 'new_conversation', 'equivalence', 'dependency'].includes(sample.phase) ? sample.phase : 'unknown',
+      phase: ['query', 'source_interaction', 'receipt_confirmation', 'complete', 'login_or_browser', 'new_conversation', 'equivalence', 'dependency'].includes(sample.phase) ? sample.phase : 'unknown',
+      receiptStage: ['initial_result', 'initial_chart', 'source_open', 'source_close', 'source_reopen', 'source_reclose'].includes(sample.receiptStage) ? sample.receiptStage : null,
       error: status === 'success' ? 'MISSING_REQUIRED_MEASUREMENT'
         : sample.error ? queryPerformanceErrorCode({ message: sample.error }) : status.toUpperCase(),
-      httpStatus: Number.isInteger(sample.httpStatus) && sample.httpStatus >= 100 && sample.httpStatus <= 599 ? sample.httpStatus : null }];
+      httpStatus: Number.isInteger(sample.httpStatus) && sample.httpStatus >= 100 && sample.httpStatus <= 599 ? sample.httpStatus : null,
+      networkFailures: (sample.networkFailures ?? []).slice(0, 20).map(failure => ({
+        kind: ['submit', 'artifact', 'receipt', 'capabilities', 'recover', 'other'].includes(failure.kind) ? failure.kind : 'other',
+        method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(failure.method) ? failure.method : 'OTHER',
+        attribution: failure.attribution === 'started_in_sample' ? 'started_in_sample' : 'started_before_sample', critical: failure.critical === true,
+        error: /^(?:net::ERR_[A-Z0-9_]+|HTTP_[1-5][0-9]{2})$/.test(failure.error) ? failure.error : 'NETWORK_REQUEST_FAILED',
+        httpStatus: Number.isInteger(failure.httpStatus) && failure.httpStatus >= 100 && failure.httpStatus <= 599 ? failure.httpStatus : null,
+      })), networkFailureCount: sample.networkFailures?.length ?? 0 }];
   });
 }
 export async function checkpointQueryPerformancePair(samples, { checkpoint, onFailure }) {
