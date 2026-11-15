@@ -1,6 +1,6 @@
 {
   "recordVersion": "colliers-p1-cross-trends-local/1",
-  "date": "2026-11-15",
+  "date": "2026-11-16",
   "userTimeZone": "Asia/Shanghai",
   "baseline": "69f51a65639ec60a06058f6ce9fab6d9fdfe3830",
   "branch": "codex/colliers-ai-p1-cross-trends",
@@ -10,7 +10,7 @@
     "auditCoverage": "passed",
     "typeScript": "passed",
     "eslint": { "errors": 0, "warnings": 849 },
-    "tests": { "files": 255, "passed": 1887, "failed": 0 },
+    "tests": { "files": 255, "passed": 1888, "failed": 0 },
     "productionCompilation": "passed",
     "pageDataCollection": "blocked_by_local_runtime",
     "failure": { "route": "/api/oss", "dependency": "ali-oss/address", "syscall": "uv_interface_addresses" },
@@ -23,6 +23,7 @@
     "initialHome": { "beforeFailed": 6, "afterPassed": 6 },
     "finalHomeWithP0P1AndMultiMetric": { "files": 4, "passed": 37 },
     "structuredExecutedPlan": { "beforeFailed": 1, "afterPassed": 1, "externalMutationIsolation": true },
+    "forgedCrossAxesHttpContract": { "old422ExpectationFailed": true, "actualStatus": 403, "strictDeniedContractPassed": true, "snapshotCalls": 0, "providerCalls": 0 },
     "visualWaiverParser": { "passed": 16, "headAndScopeBindingRetained": true }
   },
   "postgres": {

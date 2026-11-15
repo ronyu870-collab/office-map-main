@@ -28,7 +28,7 @@ export async function verifyCrossTrend({ db, check, queryAdmin, person, call, re
     await grantQuery({ setup: db }, queryAdmin.id, { capabilities: exportCaps, fields });
     for (const [i, id] of BUILDINGS.entries()) await db.query('update public.buildings set submarket=$2,grade=$3 where id=$1',
       [id, i < 2 ? 'CBD' : '金融街', i % 2 === 0 ? 'A' : 'B']);
-    await check('交叉趋势：一至三指标、各期与共同样本均逐格逐季对照独立SQL，保留独立分母和完整双轴', async () => {
+    await check('交叉趋势：一至三指标各期/共同样本对照独立SQL，每次只读一次，伪造轴拒绝且零事实读取', async () => {
       const definition = (await db.query("select pg_get_functiondef('public.ai_query_snapshot_read(uuid,uuid,uuid,text,text[],jsonb,text,text[],uuid[])'::regprocedure) definition")).rows[0].definition;
       const probe = `ai_query_cross_probe_${randomUUID().replaceAll('-', '')}`;
       await db.query(`create sequence private.${probe}; revoke all on sequence private.${probe} from public,anon,authenticated; grant usage on sequence private.${probe} to service_role`);
@@ -51,6 +51,12 @@ export async function verifyCrossTrend({ db, check, queryAdmin, person, call, re
         }
         assert.equal((await call(queryAdmin, lastInput)).status, 202);
         assert.equal(Number((await db.query(`select last_value from private.${probe}`)).rows[0].last_value), expectedCalls);
+        const forged = await query(plan(CROSS_TREND_METRICS, 'per_period', { rowGroups: [{ value: 'ungranted' }] }));
+        assert.equal(forged.status, 403, JSON.stringify({ httpStatus: forged.status, status: forged.body.status }));
+        assert.equal(forged.body.status, 'denied'); assert.equal(Object.hasOwn(forged.body, 'result'), false);
+        assert.equal(Number((await db.query(`select last_value from private.${probe}`)).rows[0].last_value), expectedCalls);
+        assert.equal((await db.query('select state from private.ai_query_audit_streams where request_id=$1', [forged.body.requestId])).rows[0].state, 'denied');
+        assert.equal((await db.query("select 1 from private.ai_query_audit_events where request_id=$1 and kind in ('running','tool_started','tool_finished','response_generated','succeeded')", [forged.body.requestId])).rowCount, 0);
       } finally {
         await db.query(definition); await db.query(`drop sequence private.${probe}`);
       }
@@ -124,11 +130,9 @@ export async function verifyCrossTrend({ db, check, queryAdmin, person, call, re
         }
       }
     });
-    await check('交叉趋势：普通角色、伪造分类轴和缺少任一次指标字段都不能扩大数据读取', async () => {
+    await check('交叉趋势：普通角色和缺少任一次指标字段都不能扩大数据读取', async () => {
       const ordinary = await person('viewer', 'cross-trend-viewer'); await grantQuery({ setup: db }, ordinary.id, { capabilities: exportCaps, fields });
       assert.equal((await query(plan(), ordinary)).status, 403);
-      const forged = await query(plan(CROSS_TREND_METRICS, 'per_period', { rowGroups: [{ value: 'ungranted' }] }));
-      assert.ok([400, 422].includes(forged.status)); assert.equal(Object.hasOwn(forged.body, 'result'), false);
       await grantQuery({ setup: db }, queryAdmin.id, { capabilities: exportCaps, fields: ['totalArea', 'netEffectiveRent'] });
       try {
         const denied = await query(); assert.equal(denied.status, 403); assert.equal((await recover(queryAdmin, saved.requestId)).status, 403);

@@ -128,6 +128,23 @@ beforeEach(() => {
 });
 
 describe('P1 actual semantic HTTP and encrypted-context integration', () => {
+  it('rejects client-supplied cross-trend axes before a fact read and records the denied request', async () => {
+    const h = harness();
+    const result = await h.submit({ idempotencyKey: randomUUID(), question: '合成交叉趋势执行回归', plan: {
+      operation: 'cross_trend', metric: 'rent', metrics: ['rent', 'vacancy', 'totalArea'],
+      scope: { inventory: 'tracked', submarkets: ['CBD', '金融街'] },
+      start: quarters[2], end: quarters[3], mode: 'per_period', rowGroups: [{ value: 'ungranted' }],
+    } });
+    expect(result.status).toBe(403);
+    expect(result.body.status).toBe('denied'); expect(result.body).not.toHaveProperty('result');
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
+    expect(understandWithModel).not.toHaveBeenCalled();
+    expect(h.decoded(result.body.requestId, 'received')).toHaveLength(1);
+    expect(h.decoded(result.body.requestId, 'denied')).toMatchObject([{ reason: 'authorization_or_plan_rejected' }]);
+    for (const kind of ['running', 'tool_started', 'tool_finished', 'response_generated', 'succeeded'])
+      expect(h.decoded(result.body.requestId, kind)).toHaveLength(0);
+  });
+
   it('multi-metric latest resolves independent valid-period intersection, executes once and replays its original receipt', async () => {
     const h = harness();
     // No building has every metric at once in this metadata contract fixture;
