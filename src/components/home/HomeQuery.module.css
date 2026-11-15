@@ -19,12 +19,8 @@
 .tableScroll table { width: 100%; border-collapse: collapse; font-size: inherit; }
 .tableScroll th, .tableScroll td { min-width: 120px; padding: 8px 12px; border-bottom: 1px solid var(--cd-color-border); text-align: left; vertical-align: top; }
 .tableScroll th { font-weight: 500; background: var(--cd-color-surface-alt); }
-.tableScroll th { position: sticky; top: 0; z-index: 2; }
-.tableScroll th:first-child, .tableScroll td:first-child { position: sticky; left: 0; z-index: 1; max-width: 200px; background: var(--cd-color-surface); box-shadow: 1px 0 var(--cd-color-border); }
-.tableScroll th:first-child { z-index: 3; background: var(--cd-color-surface-alt); }
 .tableScroll .number { text-align: right; font-variant-numeric: tabular-nums; }
 .cell { color: inherit; text-align: inherit; min-height: 28px; text-decoration: underline; text-decoration-color: var(--cd-color-border-strong); text-underline-offset: 4px; overflow-wrap: anywhere; }
-.cellContext { display: block; color: var(--cd-color-text-secondary); }
 .cell:hover { color: var(--cd-color-brand); }
 .tableFooter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .limitations { display: grid; gap: 4px; margin-top: 16px; max-width: 80ch; }
@@ -73,35 +69,3 @@
 .heatmap th { text-align: left; font-weight: 500; background: var(--cd-color-surface-alt); }
 .heatmap td { text-align: right; color: var(--cd-color-text-primary); }
 .heatmap td p { margin-top: 4px; }
-
-.intervalScroll { overflow: auto; max-width: 100%; max-height: 600px; margin-top: 12px; }
-.intervalScroll:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
-.intervalTable { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1040px; table-layout: fixed; font-size: inherit; }
-.intervalTable th, .intervalTable td { box-sizing: border-box; padding: 8px 12px; border-bottom: 1px solid var(--cd-color-border); text-align: left; overflow-wrap: anywhere; }
-.intervalTable th { font-weight: 400; }
-.intervalTable thead th { position: sticky; top: 0; z-index: 2; background: var(--cd-color-surface-alt); font-weight: 500; }
-.intervalTable th:first-child { width: 180px; position: sticky; left: 0; z-index: 1; background: var(--cd-color-surface-alt); }
-.intervalTable thead th:first-child { z-index: 3; }
-.intervalTable th:last-child { width: 260px; }
-.intervalAxis { height: 28px; position: relative; }
-.intervalAxis span { position: absolute; white-space: nowrap; }
-.intervalTrack { position: relative; height: 44px; }
-.intervalGrid { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--cd-color-border); }
-.intervalQuarter, .intervalRange { position: absolute; top: 15px; height: 14px; box-sizing: border-box; border: 1px solid var(--cd-color-brand); }
-.intervalQuarter { background: var(--cd-color-brand); }
-.intervalRange { background: var(--cd-color-brand-soft, #edf4fb); border-style: dashed; }
-
-@media (max-width: 639px) { .intervalTable th:first-child { width: 100px; } .intervalTable th:last-child { width: 150px; } }
-
-.queryMap { margin-block: 12px; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--cd-color-border); border-radius: 6px; background: #f8fafc; }
-.queryMap svg { display: block; font: inherit; touch-action: none; cursor: grab; }
-.queryMap svg:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: -3px; }
-.queryMap [role="button"] { cursor: pointer; }
-.queryMap [role="button"]:focus-visible circle:last-of-type, .queryMap [aria-pressed="true"] circle:last-of-type { stroke: #172033; stroke-width: 3px; }
-.mapRecords { list-style: none; margin: 0; padding: 0; }
-.mapRecords li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 8px; border-bottom: 1px solid var(--cd-color-border); }
-.mapRecords li > div { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow-wrap: anywhere; }
-.mapRecords li > button { flex-shrink: 0; }
-
-.mapContent { min-width: 0; }
-@media (max-width: 639px), (pointer: coarse) { .mapContent button { min-height: 44px; min-width: 44px; } }

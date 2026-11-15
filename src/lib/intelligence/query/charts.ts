@@ -1,7 +1,3 @@
-import {leaseRangeSchema,leaseGroupLabels} from './leases/view';
-import {buildFutureMap,fitMap,mapGeometry,type MapBase} from './future/map';
-import type {mapBaseDescriptor} from './future/mapBaseDescriptor';
-import {buildFutureTimeline,intervalGeometry,intervalLegend} from './future/timeline';
 import { z } from 'zod';
 import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysis } from './distribution';
 import { quarterRange } from './plan';
@@ -15,25 +11,21 @@ export const chartRequestSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('period_comparison') }),
   z.strictObject({ kind: z.literal('time_series') }),
   z.strictObject({ kind: z.literal('grouped_time_series') }),
-  z.strictObject({kind:z.literal('lease_time_series'),field:z.enum(['count','area','names'])}),
   z.strictObject({ kind: z.literal('heatmap') }),
   z.strictObject({ kind: z.literal('histogram') }),
   z.strictObject({ kind: z.literal('box_plot') }),
-  z.strictObject({ kind: z.literal('launch_intervals') }),
-  z.strictObject({ kind: z.literal('future_locations') }),
 ]);
 export type ChartRequest = z.infer<typeof chartRequestSchema>;
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
-  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null; coordinateState?: 'valid'|'unknown'|'invalid'; intervalPrecision?: 'quarter'|'half_year'|'year'|'unknown'|'invalid' };
+  xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null };
 export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId: string; request: ChartRequest;
-  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot' | 'interval' | 'map'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
+  kind: 'bar' | 'scatter' | 'line' | 'faceted_line' | 'heatmap' | 'histogram' | 'box_plot'; title: string; xLabel: string; yLabel: string; xUnit: string | null; yUnit: string;
   points: ChartPoint[]; summary: string[]; limitations: string[]; renderedCount: number; unknownCount: number;
-  mapBase?: typeof mapBaseDescriptor;
   facets?: { key: string; label: string; points: ChartPoint[] }[];
   distribution?: { stats: DistributionAnalysis['stats']; unit:string; label:string; validCount:number; excludedCount:number; outlierCount:number; assessment:DistributionAnalysis['outlierAssessment']; sourceIds:readonly string[] };
   grid?: { rows: { key: string; label: string }[]; columns: { key: string; label: string }[] };
-  connectNulls: false; zeroBaseline: boolean };
+  connectNulls: false; zeroBaseline: true };
 
 const projected = (cell: DisplayCell, unit: string | null) => {
   if (cell.kind !== 'number') return null;
@@ -44,8 +36,6 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 
 export function buildResultChart(result: QueryResultView, request: ChartRequest): ResultChart {
   request = chartRequestSchema.parse(request);
-  if(request.kind==='future_locations')return buildFutureMap(result);
-  if(request.kind==='launch_intervals')return buildFutureTimeline(result);
   if (request.kind === 'histogram' || request.kind === 'box_plot') return buildDistributionChart(result, request);
   const column = (key: string) => {
     const found = result.table.columns.find(c => c.key === key);
@@ -53,25 +43,12 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     return found;
   };
   const binding = (entityId: string, key: string, cell: DisplayCell): CellBinding => ({ entityId, key, sourceIds: [...cell.sourceIds] });
-  let xLabel = result.operation==='submission_progress'?(result.parameters.view==='summary'?'楼宇状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'楼宇'):result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
-  if(result.operation==='lease_observation')xLabel=result.parameters.view==='catalog'?'企业（原记录名称）':leaseGroupLabels[result.parameters.view as keyof typeof leaseGroupLabels]??'成交来源与性质';
-  if(result.operation==='future_observation')xLabel=result.parameters.view==='area_summary'?'预计区间与核验分类':result.parameters.view==='launch_summary'?'预计入市时间精度':result.parameters.view==='summary'?'季度任务状态':['people','missing_people'].includes(String(result.parameters.view))?'负责人':'未来供应记录';
+  let xLabel = result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
   let facets: ResultChart['facets'];
   let grid: ResultChart['grid'];
-  if(request.kind==='lease_time_series'){
-    if(result.operation!=='lease_observation'||result.parameters.view!=='quarter_trend')throw new Error('CHART_LEASE_TREND_REQUIRED');
-    const range=leaseRangeSchema.parse(result.parameters.range),periods=quarterRange(range.start,range.end);
-    const groups=z.object({sources:z.array(z.enum(['live','history'])).min(1).max(2)}).parse(result.parameters.scope).sources;
-    if(result.table.rows.length!==groups.length*periods.length||new Set(groups).size!==groups.length)throw new Error('CHART_GROUP_AXIS_MISMATCH');
-    yColumn=column(request.field);xLabel='成交季度';
-    facets=groups.map((source,g)=>({key:source,label:source==='live'?'日常成交':'历史成交',points:periods.map((period,i)=>{
-      const row=result.table.rows[g*periods.length+i],key=quarterKey(period),cell=row.cells[request.field];
-      if(row.entityId!==`${source}/${key}`||row.cells.period?.kind!=='text'||row.cells.period.value!==key)throw new Error('CHART_GROUP_AXIS_MISMATCH');
-      return {label:key,x:key,y:projected(cell,yColumn.unit),xText:key,yText:cellText(cell,yColumn.unit),xCell:null,yCell:binding(row.entityId,request.field,cell),state:cell.kind==='number'?'valid' as const:'unknown' as const};
-    })}));points=facets.flatMap(f=>f.points);
-  } else if (request.kind === 'heatmap') {
+  if (request.kind === 'heatmap') {
     if (result.operation !== 'cross_aggregate' || result.parameters.tableVersion !== 'cross-quarter/1') throw new Error('CHART_CROSS_TAB_REQUIRED');
     const axis = z.array(z.object({ key: z.string().min(1), label: z.string() })).max(50);
     grid = { rows: axis.parse(result.parameters.rowGroups), columns: axis.parse(result.parameters.columnGroups) };
@@ -127,7 +104,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     }
     points = result.table.rows.map(row => {
       const y = row.cells[yColumn.key], x = xColumn ? row.cells[xColumn.key] : null;
-      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation==='lease_observation'&&row.cells.source?.kind==='text'?` / ${row.cells.source.value}`:'') + (result.operation === 'cross_aggregate' && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + ((result.operation === 'group_trend'||result.operation==='lease_observation') && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
+      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation === 'cross_aggregate' && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + (result.operation === 'group_trend' && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
       const numericX = request.kind === 'scatter' && x ? projected(x, xUnit) : label;
       const numericY = projected(y, yColumn.unit);
       return { label, x: numericX, y: numericY, xText: x ? cellText(x, xUnit) : label, yText: cellText(y, yColumn.unit),
@@ -142,12 +119,12 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     if (!Number.isFinite(bounds[1] - bounds[0])) throw new Error('CHART_RANGE_UNSUPPORTED');
   }
   return { version: 'result-chart/1', resultId: result.resultId, tableId: result.table.id, request,
-    kind: request.kind === 'heatmap' ? 'heatmap' : (request.kind === 'grouped_time_series'||request.kind==='lease_time_series') ? 'faceted_line' : request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
+    kind: request.kind === 'heatmap' ? 'heatmap' : request.kind === 'grouped_time_series' ? 'faceted_line' : request.kind === 'time_series'?'line':request.kind === 'scatter' ? 'scatter' : 'bar', title: resultScopeText(result), xLabel,
     yLabel: request.kind === 'period_comparison' ? ({ rent: '面积加权净有效租金', vacancy: '空置率', totalArea: '总面积' }[result.parameters.metric as 'rent' | 'vacancy' | 'totalArea'] ?? '指标') : yColumn.label,
     xUnit, yUnit: yColumn.unit!, points, ...(facets ? { facets } : {}), ...(grid ? { grid } : {}), renderedCount, unknownCount: points.length - renderedCount, connectNulls: false, zeroBaseline: true,
     summary: resultSummary(result), limitations: [...result.limitations,
       ...(request.kind==='time_series'?['按连续季度等间距排列；未知季度断开折线，单个有效季度只显示点。']:[]),
-      ...((request.kind==='grouped_time_series'||request.kind==='lease_time_series')?['每组单独一行折线，共用相同季度和纵轴范围；未知季度断线，不连接不同组。']:[]),
+      ...(request.kind==='grouped_time_series'?['每组单独一行折线，共用相同季度和纵轴范围；未知季度断线，不连接不同组。']:[]),
       ...(request.kind === 'scatter' ? ['散点仅绘制两个字段都有有效数值的联合样本；不据此推断因果关系。'] : []),
       '图形位置使用数值近似值，标签保留原结果的精确值舍入；未知不按零绘制。',
       ...(result.operation === 'rank' ? ['图示范围沿用本次排名及末位并列，不重新截取前 N。'] : []),
@@ -216,39 +193,16 @@ const wrap = (value: string, size: number): string[] => {
 
 /** Standalone export retains scope, coverage, limitations and exact cell/source
  * bindings. Large plots fail explicitly rather than silently dropping rows. */
-export function renderChartSvg(chart: ResultChart, base?: MapBase): string {
-  if (chart.points.length > (['bar','interval','map'].includes(chart.kind) ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
+export function renderChartSvg(chart: ResultChart): string {
+  if (chart.points.length > (chart.kind === 'bar' ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
   const width = chart.kind === 'heatmap' ? Math.max(960, 260 + (chart.grid?.columns.length ?? 0) * 160) : 960, left = 300, right = 780, top = 36;
   const elements: string[] = [];
   const text = (x: number, y: number, value: string, extra = '') => elements.push(`<text x="${x}" y="${y}" ${extra}>${xml(value)}</text>`);
-  const paragraph = (content: string, y: number, size = 64) => { const lines = wrap(content, size); if(chart.kind==='map')for(let i=1;i<lines.length;i++){if(/^[，。；：！？、）】]/.test(lines[i])){lines[i-1]+=lines[i][0];lines[i]=lines[i].slice(1);if(!lines[i]){lines.splice(i,1);i--;}}} lines.forEach((line, i) => text(24, y + i * 22, line)); return y + lines.length * 22 + 8; };
+  const paragraph = (content: string, y: number, size = 64) => { const lines = wrap(content, size); lines.forEach((line, i) => text(24, y + i * 22, line)); return y + lines.length * 22 + 8; };
   let y = paragraph(chart.title, top);
   for (const line of chart.summary) y = paragraph(line, y);
-  if(chart.kind!=='map')y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
-  if(chart.kind==='map'){
-    if(!base||base.version!==chart.mapBase?.version)throw Error('CHART_MAP_BASE_REQUIRED');
-    const view=fitMap(chart,912,460);
-    y=paragraph(`原坐标可显示 ${chart.renderedCount} 条；未知或无效 ${chart.unknownCount} 条。点位数字为记录数，完整清单如下。`,y);
-    if(view){const geometry=mapGeometry(chart,base,view,912,460);
-      elements.push(`<svg x="24" y="${y}" width="912" height="460" viewBox="0 0 912 460"><rect width="912" height="460" fill="#f8fafc"/>`);
-      for(const path of geometry.paths)elements.push(`<path d="${path.d}" fill="none" stroke="${path.kind==='district'?'#c5ced8':'#dce4ec'}" stroke-width="${path.kind==='district'?1:2}"/>`);
-      for(const label of geometry.labels)elements.push(`<text x="${label.x}" y="${label.y}" fill="#667085">${xml(label.name)}</text>`);
-      for(const group of geometry.groups){elements.push(`<circle cx="${group.x}" cy="${group.y}" r="18" fill="#003e7e"><title>${xml(group.indices.map(i=>chart.points[i].label).join('、'))}</title></circle><text x="${group.x}" y="${group.y+5}" text-anchor="middle" fill="#fff">${group.indices.length}</text>`);}
-      elements.push('</svg>');y+=484;
-    }else y=paragraph('没有可显示的原坐标，无法确定地图位置；未知记录保留在下方。',y);
-    for(const point of chart.points)y=paragraph(`${point.label}：${point.yText}`,y);
-  }else if(chart.kind==='interval'){
-    const g=intervalGeometry(chart),plotLeft=260,plotWidth=420;
-    y=paragraph(intervalLegend,y);
-    if(!g.empty){for(const tick of g.ticks)text(plotLeft+tick.position/100*plotWidth,y+18,tick.label);y+=42;}
-    for(const point of chart.points){
-      const labels=wrap(point.label,14),values=wrap(point.yText,16),height=Math.max(52,Math.max(labels.length,values.length)*22+12);
-      labels.forEach((line,i)=>text(24,y+20+i*22,line));values.forEach((line,i)=>text(710,y+20+i*22,line));
-      if(point.state==='valid'){const x=plotLeft+g.position(point.x as number)/100*plotWidth,w=g.width(point)/100*plotWidth;
-        elements.push(`<rect x="${x}" y="${y+height/2-7}" width="${w}" height="14" fill="${point.intervalPrecision==='quarter'?'#003e7e':'#edf4fb'}" stroke="#003e7e" ${point.intervalPrecision==='quarter'?'':'stroke-dasharray="4 3"'}><title>${xml(point.label+'：'+point.yText)}</title></rect>`);}
-      y+=height;
-    }
-  } else if (chart.kind === 'histogram') {
+  y = paragraph(`${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）；有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项。`, y);
+  if (chart.kind === 'histogram') {
     const max=Math.max(1,...chart.points.map(p=>p.y??0)),barWidth=660/Math.max(1,chart.points.length),bottom=y+260;
     for(let i=0;i<chart.points.length;i++){const p=chart.points[i],h=(p.y??0)/max*210,x=120+i*barWidth;elements.push(`<rect x="${x}" y="${bottom-h}" width="${Math.max(1,barWidth-2)}" height="${h}" fill="#bacfe5"><title>${xml(p.label+'：'+p.yText+'栋')}</title></rect>`);text(x+barWidth/2,bottom+24,String(i+1),'text-anchor="middle"');text(x+barWidth/2,bottom-h-8,p.yText,'text-anchor="middle"');}
     y=bottom+52;for(const p of chart.points)y=paragraph(`${p.label}：${p.yText} 栋`,y);

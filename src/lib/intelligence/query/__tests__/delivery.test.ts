@@ -44,18 +44,3 @@ describe('delivery challenges bind a client claim, never human reading', () => {
     expect(() => validateDeliveryReport(claims, { ...report, phase: 'client_dom_committed', view: { surface: 'clarification' } })).toThrow();
   });
 });
-
-describe('map presentation receipts describe viewport and selected records',()=>{
- it('binds map-only receipts to a signed map response and checks unique selected indices and pages',async()=>{
-  const h=await prepareDelivery({receive:vi.fn(),append:vi.fn()},keys,identity,{...input,kind:'chart',chartKind:'map'}, {},now);
-  const claims=verifyDeliveryToken(h['X-Query-Delivery-Token'],keys,identity,now);
-  const report=deliveryReportSchema.parse({deliveryToken:h['X-Query-Delivery-Token'],bodySha256:input.bodySha256,phase:'client_dom_committed',view:{surface:'map',page:0,pageSize:25,viewport:{cx:89,cy:-40,span:0.1},width:390,height:360,selectedIndices:[0,3],baseStatus:'ready'}});
-  expect(()=>validateDeliveryReport(claims,report)).not.toThrow();
-  expect(()=>validateDeliveryReport({...claims,chartKind:undefined},report)).toThrow();
-  if(report.view?.surface!=='map')throw Error();const mapView=report.view;
-  for(const selectedIndices of [[1,1],[3,0],[26]])expect(()=>validateDeliveryReport(claims,{...report,view:{...mapView,selectedIndices} as typeof report.view})).toThrow();
-  expect(()=>validateDeliveryReport(claims,{...report,view:{...mapView,page:1}})).toThrow();
-  expect(()=>validateDeliveryReport(claims,{...report,view:{surface:'chart',page:0,pageSize:25,layout:'bar_page'}})).toThrow();
-  expect(deliveryReportSchema.safeParse({...report,view:{...report.view,viewport:{cx:89,cy:-40,span:0}}}).success).toBe(false);
- });
-});

@@ -1,4 +1,3 @@
-import {loadEntryAuthority} from './entryAuthority';
 import { createHash, randomUUID } from 'node:crypto';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
 import type { AuditPort, QueryAuthority } from './admission';
@@ -8,7 +7,7 @@ import { validateDeliveryReport, verifyDeliveryToken } from './deliveryToken';
 import type { queryHttpDependencies } from './http';
 import { readQueryBody } from './httpBody';
 import { isQuerySameOrigin } from './sameOrigin';
-import { verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
+import { loadDataAuthority, verifyQueryIdentity, type VerifiedQueryIdentity } from './serverAuthority';
 import { recordQueryIntake } from './intake';
 
 const json = (body: unknown, status: number) => Response.json(body, { status, headers: {
@@ -50,8 +49,8 @@ export async function handleDeliveryReport(request: Request, dependencies: Retur
     validateDeliveryReport(claims, input);
     // This performs the existing live auth.sessions / disabled-user / simulation
     // checks. Revoked credentials do not become an alternate receipt-only login.
-    const authority = await loadEntryAuthority(client, identity, AbortSignal.timeout(10000));
-    if (!authority.grants.includes('query:catalog')&&!authority.grants.includes('query:future-catalog')&&!authority.grants.includes('query:leases')) throw new Error('QUERY_DENIED');
+    const authority = await loadDataAuthority(client, identity, AbortSignal.timeout(10000));
+    if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
     await audit.append(attemptId, 'running', { sourceRequestId: claims.requestId, authority });
     await audit.append(attemptId, 'delivery_receipt', { phase: input.phase, evidence: 'authenticated_client_report',
       humanRead: 'unproven', viewportVisibility: 'unproven', diskSave: 'unproven', delivery: claims,

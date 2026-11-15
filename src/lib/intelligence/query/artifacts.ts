@@ -34,11 +34,9 @@ export async function buildResultArtifact(rawResult: unknown, input: ArtifactInp
     const pack = buildCsvPackage(result);
     const manifest = { ...JSON.parse(pack.manifest), use: 'internal_analysis_only', rendererVersion: 'result-chart/1',
       ...(input.chart ? { chart: buildResultChart(view, input.chart) } : {}) };
-    const mapBase=manifest.chart?.kind==='map'?await (await import('./future/mapBaseServer')).loadMapBase():undefined;
-    if(mapBase)zip.file('map-base.json',JSON.stringify(mapBase),{date});
     zip.file('manifest.json', JSON.stringify(manifest, null, 2), { date });
     if (input.format === 'csv_zip') zip.file('data.csv', pack.csv, { date });
-    else zip.file('chart.svg', renderChartSvg(manifest.chart,mapBase), { date });
+    else zip.file('chart.svg', renderChartSvg(manifest.chart), { date });
     bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }); extension = 'zip'; contentType = 'application/zip';
   }
   if (bytes.byteLength > 32 * 1024 * 1024) throw new Error('ARTIFACT_SIZE_LIMIT');

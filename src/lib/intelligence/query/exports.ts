@@ -1,8 +1,3 @@
-import {futureRangeOverviewSchema,rangeStateText} from './future/range';
-import {futureAnalysisSchema} from './future/view';
-import {futureResultTable} from './future/result';
-import { submissionAnalysisSchema } from './submissions/view';
-import { submissionResultTable } from './submissions/result';
 import { distributionAnalysisSchema, distributionStatLabels } from './distribution';
 import { buildResultChart } from './charts';
 import { resultViewSchema, resultSummary, units } from './presentation';
@@ -68,34 +63,6 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['entity_id', ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
     ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
-  if(result.operation==='lease_observation'){
-    append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
-  }
-  if(result.operation==='future_observation'){
-    append('查询说明',[['result_id',result.resultId],...resultSummary(resultViewSchema.parse(result)).map(line=>['回答',line]),...result.limitations.map(line=>['口径限制',line])]);
-    if(result.parameters.launchRange){const r=futureRangeOverviewSchema.parse(result.parameters.launchRange);
-      append('预计范围筛选依据',[['result_id',result.resultId],['范围','筛选前全部获权候选；不属于筛选后的统计明细'],['future_id','名称','原预计范围','与查询范围关系','本次选中','来源'],
-        ...r.members.map(m=>[m.futureId,m.name,m.launchText,rangeStateText[m.state],m.selected?'是':'否',m.sourceIds.join('\n')])]);}
-    const a=futureAnalysisSchema.parse(result.analysis);
-    const views=['catalog','launch_summary',...(['area_summary','launch_schedule'].includes(String(result.parameters.view))?[result.parameters.view as 'area_summary'|'launch_schedule']:[]),...(a.progress?['summary','buildings','people']:[]),...(a.mode==='quality'?['quality']:[])] as const;
-    const labels:Record<string,string>={catalog:'未来目录',launch_summary:'预计时间精度',area_summary:'未来记录面积',launch_schedule:'预计入市区间',summary:'未来填报覆盖',buildings:'未来季度记录',people:'未来人员任务',quality:'未来填报质量'};
-    for(const view of views){
-      const table=view===result.parameters.view?result.table:futureResultTable(a,result.sources,view as 'catalog'|'launch_summary'|'summary'|'buildings'|'people'|'quality'|'area_summary'|'launch_schedule');
-      append(labels[view],[['result_id',result.resultId],['期间',a.period?`${a.period.year}Q${a.period.quarter}`:'目录无填报期间','预计时间','半年与年范围不拆成确定季度'],
-        ['entity_id',...table.columns.map(c=>`${c.label}${c.unit?` (${units[c.unit]??c.unit})`:''}`)],
-        ...table.rows.map(r=>[r.entityId,...table.columns.map(c=>cellValue(r.cells[c.key]))])]);
-    }
-  }
-  if (result.operation === 'submission_progress') {
-    const a=submissionAnalysisSchema.parse(result.analysis);
-    for(const [view,name] of [['summary','填报覆盖'],['buildings','楼宇填报'],['people','人员任务'],...(a.quality?[['quality','填报质量']]:[])] as const){
-      const table=submissionResultTable(a,result.sources,view as 'summary'|'buildings'|'people'|'quality');
-      append(name,[['result_id',result.resultId],['期间',`${a.period.year}Q${a.period.quarter}`,'分配时点','当前分配，非历史任务'],
-        ['entity_id',...table.columns.map(c=>`${c.label}${c.unit?` (${units[c.unit]??c.unit})`:''}`)],
-        ...table.rows.map(r=>[r.entityId,...table.columns.map(c=>cellValue(r.cells[c.key]))]),
-      ]);
-    }
-  }
   if (result.operation === 'cross_aggregate') {
     // Reuse the exact axis/cell validator, then copy original typed cells. No
     // regrouping, pivot aggregate, fresh data read or rounded recomputation.
@@ -137,18 +104,10 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ]);
   }
   append('精确值与来源', [
-    ['entity_id', 'field', 'state', 'numerator', 'denominator', 'source_ids', 'source_part', 'source_parts'],
-    ...result.table.rows.flatMap(row => result.table.columns.flatMap(column => {
+    ['entity_id', 'field', 'state', 'numerator', 'denominator', 'source_ids'],
+    ...result.table.rows.flatMap(row => result.table.columns.map(column => {
       const cell = row.cells[column.key];
-      // Aggregate cells can reference thousands of records. Split on complete
-      // IDs and preserve the cell key, order and count; never truncate evidence.
-      const parts = [''];
-      for (const id of cell.sourceIds) {
-        const last = parts.length - 1;
-        if (parts[last].length + id.length + 1 > 30000) parts.push(id);
-        else parts[last] += (parts[last] ? ';' : '') + id;
-      }
-      return parts.map((part, index) => [row.entityId, column.key, cell.kind === 'unknown' ? cell.state : 'valid', cell.kind === 'number' ? cell.value.exact.numerator : '', cell.kind === 'number' ? cell.value.exact.denominator : '', part, index + 1, parts.length]);
+      return [row.entityId, column.key, cell.kind === 'unknown' ? cell.state : 'valid', cell.kind === 'number' ? cell.value.exact.numerator : '', cell.kind === 'number' ? cell.value.exact.denominator : '', cell.sourceIds.join(';')];
     })),
   ]);
   append('来源', [
@@ -160,7 +119,6 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     ['registry_version', result.registryVersion], ['digest', resultDigest(result)], ...metadataRows('parameters', JSON.stringify(result.parameters)),
     ...metadataRows('analysis', JSON.stringify(result.analysis)), ...metadataRows('limitations', result.limitations.join('\n')),
     ['metadata_parts', '超过单元格限制的元数据按 part 序号拼接后解析，不截断。'],
-    ['source_parts', '精确值与来源按 entity_id、field 分组，以 source_part 排序并用分号连接 source_ids；source_parts 为该单元格总段数，重复行不代表重复统计。'],
     ['numeric_precision', '数据页为数值型展示近似值；精确值与来源页保留未舍入分子/分母。'],
     ['intended_use', '仅供内部分析；对客成品须另行核验与授权。'],
   ]);

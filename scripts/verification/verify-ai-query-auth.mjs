@@ -1,8 +1,6 @@
-import {seedFutureQueryPreview} from './ai-future-query-preview.mjs';
 import { setupCompanyAdmin, verifyCompanyAdmin } from './ai-company-admin-scenarios.mjs';
-import { setupLeaseObservation, verifyLeaseObservation } from './ai-lease-observation-scenarios.mjs';
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
-// Optional real-browser checks use the same synthetic preview; no mocked Auth, production URL or real-model calls.
+// No browser automation, mocked authentication, production URL, or real-model calls.
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile, open, unlink } from 'node:fs/promises';
@@ -20,8 +18,6 @@ import { verifyAuditExport } from './ai-audit-export-scenarios.mjs';
 import { verifyAuditPeople } from './ai-audit-people-scenarios.mjs';
 import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
-import { setupSubmissionObservation, verifySubmissionObservation } from './ai-submission-observation-scenarios.mjs';
-import { setupFutureObservation, verifyFutureObservation } from './ai-future-observation-scenarios.mjs';
 import { verifyRelativeQuarter } from './ai-query-relative-quarter-scenarios.mjs';
 import { verifyDistribution } from './ai-query-distribution-scenarios.mjs';
 import { verifyRelationship } from './ai-query-relationship-scenarios.mjs';
@@ -102,10 +98,6 @@ try{
   await db.query(await load('20261113130012_ai_audit_actor_directory.sql'));
   await db.query(await load('20261113132136_ai_audit_controlled_export.sql'));
   await db.query(await load('20261113145743_ai_query_group_dimensions.sql'));
-  await setupSubmissionObservation(db);
-  await db.query(await load('20261113210147_ai_submission_result_sources.sql'));
-  await setupFutureObservation(db);
-  await setupLeaseObservation(db, load);
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -158,7 +150,7 @@ try{
       if(value===null)assert.equal(res.body.result.table.rows.length,4);
       else assert.equal(res.body.result.table.rows[0].cells[value===210?'height':'value'].value.numeric,value);
       assert.deepEqual((await recover(queryAdmin,res.body.requestId)).body.result,res.body.result);
-      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/14');
+      const received=decrypt((await events(res.body.requestId))[0]).content;assert.equal(received.submittedText,question);assert.equal(received.metadata.grammarVersion,'bounded-business-question/8');
     }
     const compared=await call(queryAdmin,{idempotencyKey:randomUUID(),question:'CBD净有效租金2026Q2与2026Q3比较配对样本'});assert.equal(compared.status,200);assert.equal(compared.body.result.parameters.mode,'paired');
   });
@@ -564,9 +556,6 @@ try{
   await verifyRelationship({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyDistribution({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
-  await verifySubmissionObservation({db,service,check,queryAdmin,person,exportCaps,output,keyId,encryptionKey,digestKey,call,recover,artifact,acknowledge,events,decrypt,capabilities});
-  await verifyFutureObservation({db,service,check,queryAdmin,person,call,exportCaps,output,keyId,encryptionKey,digestKey,recover,artifact,acknowledge,capabilities});
-  await verifyLeaseObservation({db,service,check,person,output,keyId,encryptionKey,digestKey,app,call,recover,artifact,acknowledge,capabilities});
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
@@ -587,24 +576,13 @@ try{
   await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,browserValidation:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
   if(previewFile){
-    const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:[...exportCaps,'query:submission-progress','query:submission-quality'],fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
-    await db.query("insert into public.app_settings(key,value) values('current_submission_year','2026'),('current_submission_quarter','3') on conflict(key) do update set value=excluded.value");
-    await db.query("insert into public.building_assignments(building_id,project_name,user_id,user_name) select x,'合成验收', $2,'合成验收账号' from unnest($1::uuid[]) x",[BUILDINGS.slice(0,3),preview.id]);
-    await db.query("insert into public.quarterly_submissions(building_id,user_id,user_name,record_year,record_quarter,total_area,vacant_area,vacancy_rate,asking_rent,management_fee,face_rent,rent_free_period,net_effective_rent) select x,$2,'合成验收账号',2026,3,10000,50,0.5,10,30,120,6,100 from unnest($1::uuid[]) x",[[BUILDINGS[0],BUILDINGS[1],BUILDINGS[3]],preview.id]);
+    const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
     await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
     await db.query("insert into private.ai_audit_export_grants(user_id,enabled,valid_until,grant_reference) values($1,true,now()+interval '1 day','synthetic browser export')",[preview.id]);
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
-    await seedFutureQueryPreview(db,preview.id);
     await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
     console.log('LOCAL_SYNTHETIC_PREVIEW_READY');
-    if(process.env.AI_QUERY_AUTH_BROWSER_VERIFY==='true'){
-      const verification=spawn(process.execPath,['scripts/verification/verify-future-query-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
-      const [code]=await once(verification,'exit');assert.equal(code,0,'Real homepage browser verification failed');
-      const leaseBrowser=spawn(process.execPath,['scripts/verification/verify-lease-query-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
-      const [leaseCode]=await once(leaseBrowser,'exit');assert.equal(leaseCode,0,'Real lease homepage browser verification failed');
-      const analyticsBrowser=spawn(process.execPath,['scripts/verification/verify-lease-analytics-browser.mjs'],{cwd:root,env:process.env,stdio:'inherit'});
-      const [analyticsCode]=await once(analyticsBrowser,'exit');assert.equal(analyticsCode,0,'Real lease analytics browser verification failed');
-    }else await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
+    await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
 }finally{
   companyFixture?.release();

@@ -1,6 +1,5 @@
-import {timelineResult} from '@/src/lib/intelligence/query/__tests__/futureTimelineFixture';
 import * as React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildResultChart } from '@/src/lib/intelligence/query/charts';
@@ -8,8 +7,6 @@ import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { buildAggregateResult, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildRankResult, buildTrendResult } from '@/src/lib/intelligence/query/result';
 import { resolveNumericFact } from '@/src/lib/intelligence/query/facts';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
-import { sample as submissionSample, authority as submissionAuthority } from '@/src/lib/intelligence/query/__tests__/submissionFixture';
-import { buildSubmissionResult } from '@/src/lib/intelligence/query/submissions/result';
 
 const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), chart: vi.fn(), download: vi.fn(), reportDelivery: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client, queryScopeKey: (scope: { actorId: string }) => scope.actorId }));
@@ -23,31 +20,6 @@ const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = n
 describe('homepage trusted query actual input and result lifecycle', () => {
   beforeEach(() => { sessionStorage.clear(); client.reportDelivery.mockClear(); client.capabilities.mockReset().mockResolvedValue(capabilities); client.submit.mockReset(); client.recover.mockReset(); client.chart.mockReset(); client.download.mockReset(); });
   afterEach(cleanup);
-  it('shows immutable launch intervals with shared-scale pagination, source focus and exact page receipts',async()=>{
-    const result=resultViewSchema.parse(timelineResult(27));client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_s,_id,r,q)=>buildResultChart(r,q));
-    render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'CBD未来供应预计入市区间'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
-    fireEvent.click(await screen.findByRole('button',{name:'查看时间轴'}));const figure=await screen.findByRole('figure',{name:'同源查询图表'});expect(figure).toHaveTextContent('时间已知 27 条');
-    expect(figure).toHaveTextContent('描边表示仅明确半年或年份');const axis=within(figure).getByLabelText('预计入市时间轴，可横向滚动');const ticks=axis.querySelector('thead')!.textContent;
-    fireEvent.click(within(figure).getByRole('button',{name:'下一页图示'}));expect(figure).toHaveTextContent('图示第 26–27 条');expect(axis.querySelector('thead')!.textContent).toBe(ticks);
-    const source=within(figure).getByRole('button',{name:'2026年下半年（季度未定） · 未来记录'});fireEvent.click(source);expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('launch_quarter');
-    fireEvent.click(screen.getByRole('button',{name:'关闭来源'}));expect(source).toHaveFocus();expect(client.submit).toHaveBeenCalledOnce();
-    await waitFor(()=>expect(client.reportDelivery.mock.calls.some(c=>c[3]?.layout==='interval_page'&&c[3]?.page===1)).toBe(true));
-  });
-  it('shows submission coverage with source focus and a same-result chart, then clears it on withdrawal',async()=>{
-    const raw=submissionSample();raw.quality=false;raw.submissions.forEach(s=>s.values={});
-    const result=resultViewSchema.parse(buildSubmissionResult(raw,{operation:'submission_progress',scope:{inventory:'tracked',submarkets:['CBD']},period:null,view:'summary'},submissionAuthority));
-    client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_scope,_id,r,q)=>buildResultChart(r,q));
-    render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());
-    fireEvent.change(input,{target:{value:'当前填报季度CBD填报进度'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
-    expect(await screen.findByText(/提交覆盖率 66.67%/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'查看柱状图'}));
-    const figure=await screen.findByRole('figure',{name:'同源查询图表'});expect(figure).toHaveTextContent('有效图示 4 项');
-    const source=screen.getAllByRole('button',{name:'查看来源：楼宇数量 2'})[0];fireEvent.click(source);
-    expect(screen.getByRole('region',{name:'来源详情'})).toHaveTextContent('building_assignments');
-    fireEvent.click(screen.getByRole('button',{name:'关闭来源'}));expect(source).toHaveFocus();expect(client.submit).toHaveBeenCalledOnce();
-    client.capabilities.mockResolvedValue({enabled:false,examples:[]});fireEvent.focus(window);
-    await waitFor(()=>expect(screen.queryByRole('figure')).not.toBeInTheDocument());
-  });
   it('shows distribution bins and boxplot from one result with expandable statistics and source focus',async()=>{
     const result=resultViewSchema.parse(buildDistributionResult(fixture(),'rent'));
     client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_scope,_id,result,request)=>buildResultChart(result,request));
@@ -123,34 +95,6 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     client.capabilities.mockResolvedValue({ enabled: false, examples: [] }); fireEvent.focus(window);
     await waitFor(() => expect(screen.queryByRole('figure')).not.toBeInTheDocument());
     expect(screen.queryByRole('region', { name: '来源详情' })).not.toBeInTheDocument();
-  });
-  it('keeps lease period and source together so the area is the next visible column',async()=>{
-    const result=resultViewSchema.parse({...buildAggregateResult(fixture(),'rent'),operation:'lease_observation',sources:[],analysis:null,limitations:[],parameters:{view:'quarter_trend',period:null,range:{start:{year:2026,quarter:1},end:{year:2026,quarter:2}},scope:{inventory:'leases',sources:['live'],fields:['area_sqm']},answer:{paragraphs:['合成季度趋势']}},
-      table:{id:'lease_quarter_trend',columns:[{key:'name',label:'记录来源',unit:null},{key:'period',label:'成交季度',unit:null},{key:'area',label:'已知成交面积合计',unit:'m2'}],rows:[1,2].map(q=>({entityId:`live/2026-Q${q}`,cells:{name:{kind:'text',value:'日常成交',sourceIds:[]},period:{kind:'text',value:`2026-Q${q}`,sourceIds:[]},area:q===1?{kind:'unknown',state:'missing',reason:'no_valid_sample',sourceIds:[]}:{kind:'number',value:{numeric:400,exact:{numerator:'400',denominator:'1'}},sourceIds:[]}}}))}});
-    client.submit.mockResolvedValue({requestId,status:'ready',result});render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'季度成交趋势'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
-    const table=await screen.findByRole('table',{name:'本次结果的完整表格，分页不改变统计范围'});
-    expect(table.querySelectorAll('th')[1]).toHaveTextContent('已知成交面积合计');
-    expect(table.querySelector('tbody td')).toHaveTextContent('日常成交2026-Q1');
-    expect(within(table).getByRole('button',{name:'查看来源：已知成交面积合计 400'})).toBeInTheDocument();
-  });
-  it('keeps all four quarters visible on a narrow result surface and preserves points after resizing',async()=>{
-    const callbacks:((entries:{contentRect:{width:number}}[])=>void)[]=[];
-    vi.stubGlobal('ResizeObserver',class {constructor(cb:(entries:{contentRect:{width:number}}[])=>void){callbacks.push(cb);}observe(){}disconnect(){}});
-    try{
-      const result=resultViewSchema.parse(buildTrendResult([1,2,3,4].map(quarter=>fixture({year:2026,quarter})),'rent','per_period'));
-      client.submit.mockResolvedValue({requestId,status:'ready',result});client.chart.mockImplementation(async(_s,_id,r,q)=>buildResultChart(r,q));
-      render(view());const input=screen.getByRole('textbox');await waitFor(()=>expect(input).toBeEnabled());fireEvent.change(input,{target:{value:'季度趋势'}});fireEvent.click(screen.getByRole('button',{name:'发送问题'}));
-      fireEvent.click(await screen.findByRole('button',{name:'查看折线图'}));const figure=await screen.findByRole('figure',{name:'同源查询图表'});
-      for(const width of [324,254,800]){
-        act(()=>callbacks.forEach(cb=>cb([{contentRect:{width}}])));
-        const svg=figure.querySelector('svg')!;
-        expect(Number(svg.getAttribute('width'))).toBeLessThanOrEqual(width);
-        expect(svg.querySelectorAll('circle')).toHaveLength(4);
-        for(const circle of svg.querySelectorAll('circle'))expect(Number(circle.getAttribute('cx'))).toBeLessThan(width);
-        expect(svg.textContent).toContain('2026');expect(svg.textContent).toContain('Q4');
-      }
-      expect(client.submit).toHaveBeenCalledOnce();expect(client.chart).toHaveBeenCalledOnce();
-    }finally{vi.unstubAllGlobals();}
   });
   it('renders a quarterly gap and switches graph type without rerunning data', async () => {
     const snapshots = [1, 2, 3, 4].map(quarter => fixture({ year: 2026, quarter }));

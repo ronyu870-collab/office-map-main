@@ -1,11 +1,7 @@
-import {loadLeaseAuthority,authorizeLeaseRead} from './leases/reader';
-import {leaseReadFromScope} from './leases/view';
 import { authorizePlan } from './admission';
 import { queryHttpDependencies } from './http';
 import { QUESTION_GRAMMAR_VERSION, QUESTION_SUBMARKETS, resolveBusinessQuestion } from './question';
-import { verifyQueryIdentity } from './serverAuthority';
-import { loadEntryAuthority } from './entryAuthority';
-import { loadFutureAuthority } from './future/reader';
+import { loadDataAuthority, verifyQueryIdentity } from './serverAuthority';
 
 export type QueryCapabilities = { enabled: boolean; examples: string[]; grammarVersion?: string; permissionRevision?: string; internalExport?: boolean };
 export async function handleQueryCapabilities(request: Request, dependencies: ReturnType<typeof queryHttpDependencies>): Promise<Response> {
@@ -15,58 +11,17 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
   if (!dependencies.enabled) return json({ enabled: false, examples: [] });
   try {
     const identity = await verifyQueryIdentity(request, dependencies.client);
-    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(10000)]);
-    const authority = await loadEntryAuthority(dependencies.client, identity, signal);
+    const authority = await loadDataAuthority(dependencies.client, identity, AbortSignal.any([request.signal, AbortSignal.timeout(10000)]));
+    if (!authority.grants.includes('query:catalog')) return json({ enabled: false, examples: [] });
     const market = QUESTION_SUBMARKETS.find(name => authority.allSubmarkets || authority.submarkets.includes(name)) ?? '全部获权楼宇';
     // Examples describe syntax, not the existence, period coverage or value of data.
-    const examples = [`${market}有哪些楼`, `${market}最高的楼是什么`, `2026年第三季度${market}净有效租金`, `2026年第三季度${market}空置率`, `${market}净有效租金2026Q1至2026Q3趋势各期样本`, '2026Q3全部获权楼宇净有效租金按子市场比较', '2026Q3全部获权楼宇空置率按子市场和等级交叉统计', '2026Q3全部获权楼宇净有效租金与空置率关系', '2026Q3全部获权楼宇净有效租金分布', `上季度${market}净有效租金`, `${market}空置率最近4个已结束季度趋势各期样本`, `当前填报季度${market}填报进度`, `当前填报季度${market}哪些楼还没填`, `当前填报季度${market}人员填报进度`, `当前填报季度${market}填报数据质量`]
+    const examples = [`${market}有哪些楼`, `${market}最高的楼是什么`, `2026年第三季度${market}净有效租金`, `2026年第三季度${market}空置率`, `${market}净有效租金2026Q1至2026Q3趋势各期样本`, '2026Q3全部获权楼宇净有效租金按子市场比较', '2026Q3全部获权楼宇空置率按子市场和等级交叉统计', '2026Q3全部获权楼宇净有效租金与空置率关系', '2026Q3全部获权楼宇净有效租金分布', `上季度${market}净有效租金`, `${market}空置率最近4个已结束季度趋势各期样本`]
       .filter(question => {
         const result = resolveBusinessQuestion(question, new Date());
-        if (result.kind !== 'plan' || !authority.allBuildings && !authority.buildingIds.length) return false;
+        if (result.kind !== 'plan') return false;
         try { authorizePlan(result.plan, authority); return true; } catch { return false; }
       });
-    const futureExamples:string[]=[],leaseExamples:string[]=[];
-    if (authority.grants.includes('query:future-catalog')) {
-      try {
-        const future = await loadFutureAuthority(dependencies.client, identity, signal);
-        if (future.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_AUTHORITY_CHANGED');
-        const market = QUESTION_SUBMARKETS.find(name => future.allSubmarkets || future.submarkets.includes(name)) ?? '全部获权';
-        for (const question of [`${market}未来供应有哪些`, `${market}未来供应预计时间精度`, `${market}未来供应预计在2026Q4至2027Q1入市有哪些`, `当前填报季度${market}未来供应填报进度`, `当前填报季度${market}未来供应填报数据质量`]) {
-          const resolved = resolveBusinessQuestion(question, new Date());
-          if (resolved.kind !== 'plan') continue;
-          try { authorizePlan(resolved.plan, future); futureExamples.push(question); } catch { /* No unsupported capability is advertised. */ }
-        }
-      } catch (error) {
-        // A missing future scope may coexist with valid stock access. A failed
-        // authority lookup must never be mistaken for a denied optional scope.
-        if (!(error instanceof Error) || error.message !== 'QUERY_DENIED') throw error;
-      }
-    }
-    if(authority.grants.includes('query:leases')){
-      try {
-        const lease=await loadLeaseAuthority(dependencies.client,identity,signal);
-        if(lease.permissionRevision!==authority.permissionRevision)throw new Error('QUERY_AUTHORITY_CHANGED');
-        const market=QUESTION_SUBMARKETS.find(n=>lease.allSubmarkets||lease.submarkets.includes(n))??'全部获权';
-        for(const label of ['日常','历史','全部来源'])for(const view of ['明细','面积汇总','有效租金']){
-          const question=`${market}${label}成交${view}`,r=resolveBusinessQuestion(question,new Date());
-          if(r.kind!=='plan'||r.plan.operation!=='lease_observation')continue;
-          try{authorizeLeaseRead(leaseReadFromScope(r.plan.scope),lease);leaseExamples.push(question);}catch{/* Advertise only fully permitted projections. */}
-        }
-        for(const label of ['日常','历史','全部来源'])for(const suffix of ['行业占比','子行业占比','需求类型占比','子市场占比','2026Q1至2026Q3趋势']){
-          const question=`${market}${label}成交${suffix}`,r=resolveBusinessQuestion(question,new Date());
-          if(r.kind!=='plan'||r.plan.operation!=='lease_observation')continue;
-          try{authorizeLeaseRead(leaseReadFromScope(r.plan.scope),lease);leaseExamples.push(question);}catch{/* Independent dimension fields remain required. */}
-        }
-      }catch(error){if(!(error instanceof Error)||error.message!=='QUERY_DENIED')throw error;}
-    }
-    const current = await loadEntryAuthority(dependencies.client, identity, signal);
-    if (current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
-    // The shared homepage accepts at most 20 examples. Keep each authorized
-    // resource represented when combined grants exceed that presentation limit.
-    const groups=[examples,futureExamples,leaseExamples],combined=groups.flat();
-    const displayed=combined.length<=20?combined:[];
-    if(combined.length>20)for(let i=0;displayed.length<20;i++)for(const group of groups){if(group[i]&&displayed.length<20)displayed.push(group[i]);}
-    return json({ enabled: true, examples:displayed, internalExport: authority.grants.includes('export:internal'), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
+    return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
   } catch (error) {
     const denied = error instanceof Error && ['QUERY_DENIED', 'QUERY_UNAUTHENTICATED'].includes(error.message);
     return json({ enabled: false, examples: [] }, denied ? 403 : 503);

@@ -1,9 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import dynamic from 'next/dynamic';
-const FutureMap=dynamic(()=>import('./FutureMap').then(m=>m.FutureMap),{loading:()=> <p>正在准备地图…</p>});
-import {FutureTimeline} from './FutureTimeline';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
@@ -15,23 +12,20 @@ import styles from './HomeQuery.module.css';
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
 export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource }: Props) {
-  const isLeaseTrend=result.operation==='lease_observation'&&result.parameters.view==='quarter_trend';
-  const numeric = result.table.columns.filter(c => (!isLeaseTrend||['count','area','names'].includes(c.key))&&c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text'));
-  const [field, setField] = React.useState(numeric.find(c=>c.key==='areaShare')?.key??(isLeaseTrend?'area':numeric[0]?.key??''));
+  const numeric = result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text'));
+  const [field, setField] = React.useState(numeric[0]?.key ?? '');
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(0);
-  useQueryPresentationReceipt(scope, chart, chart && chart.kind!=='map' ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'interval'?'interval_page':chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
+  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
   const active = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
-  const hasMap=result.operation==='future_observation'&&['catalog','launch_summary','launch_schedule','area_summary'].includes(String(result.parameters.view));
-  const isTimeline=result.operation==='future_observation'&&result.parameters.view==='launch_schedule';
-  const isTrend = result.operation === 'trend' || result.operation === 'group_trend'||isLeaseTrend;
+  const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
   const isCross = result.operation === 'cross_aggregate';
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
-  const request: ChartRequest = isLeaseTrend?{kind:'lease_time_series',field:field as 'count'|'area'|'names'}:isTimeline?{kind:'launch_intervals'}:isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
+  const request: ChartRequest = isDistribution?{kind:'histogram'}:isRelationship?{kind:'scatter',x:'rent',y:'vacancy'}:isCross?{kind:'heatmap'}:result.operation==='group_trend'?{kind:'grouped_time_series'}:result.operation==='trend'?{kind:'time_series'}:result.operation === 'compare' ? { kind: 'period_comparison' } : { kind: 'bar', field };
   async function run(input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') {
     if (active.current) return;
     const controller = new AbortController(); active.current = controller;
@@ -62,23 +56,22 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const position = (value: number) => (value - min) / span * 100;
   return <div className={styles.artifacts}>
     <div className={styles.actions}>
-      {numeric.length > 1 && result.operation !== 'compare' && (!isTrend||isLeaseTrend) && !isCross && !isRelationship && !isDistribution && !isTimeline && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isTimeline?(chart?'更新时间轴':'查看时间轴'):isDistribution?(chart?'更新直方图':'查看直方图'):isRelationship?(chart?'更新散点图':'查看散点图'):isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
-      {hasMap && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'future_locations'})}>查看地图</Button>}
+      {numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
+      {numeric.length > 0 && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isDistribution?(chart?'更新直方图':'查看直方图'):isRelationship?(chart?'更新散点图':'查看散点图'):isCross?(chart?'更新热力表':'查看热力表'):isTrend?(chart?'更新折线图':'查看折线图'):(chart ? '更新柱状图' : '查看柱状图')}</Button>}
       {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
-      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:isLeaseTrend?field:'value'})}>查看柱状图</Button>}
+      {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value'})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => setChart(null)}>收起图表</Button>}
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
         <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
-        {(numeric.length > 0 || hasMap) && <Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button>}
+        {numeric.length > 0 && <Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button>}
       </div></details>}
     </div>
     <p role="status" className={styles.notice}>{message}</p>
     {chart && <figure className={styles.chart} aria-label="同源查询图表">
-      <figcaption>{chart.kind==='map'?`原坐标可显示 ${chart.renderedCount} 条，未知或无效 ${chart.unknownCount} 条。`:chart.kind==='interval'?`预计入市范围：时间已知 ${chart.renderedCount} 条，未知 ${chart.unknownCount} 条。`:chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit]??chart.distribution.unit}），有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : <>{chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}。有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项；未知不画成零。</>}</figcaption>
-      {chart.kind==='map'?<FutureMap key={chart.resultId} chart={chart} scope={scope} onSource={onSource}/>:chart.kind==='interval'?<FutureTimeline chart={chart} page={page} onPage={setPage} onSource={onSource}/>:chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
+      <figcaption>{chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit]??chart.distribution.unit}），有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : <>{chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}。有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项；未知不画成零。</>}</figcaption>
+      {chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
         <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>
         <div>{shown.map((point, i) => <div className={styles.barRow} key={`${point.yCell.entityId}:${point.yCell.key}:${i}`}>
           <span>{point.label}</span><div className={styles.barTrack} aria-hidden="true"><i className={styles.zero} style={{ left: `${position(0)}%` }} />{point.y !== null && <i className={styles.bar} style={{ left: `${Math.min(position(0), position(point.y))}%`, width: `${Math.abs(position(point.y) - position(0))}%` }} />}</div>
@@ -86,7 +79,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
         </div>)}</div>
         {chart.points.length > 25 && <div className={styles.tableFooter}><p>图示第 {page * 25 + 1}–{Math.min((page + 1) * 25, chart.points.length)} 条，共 {chart.points.length} 条；分页不改变统计范围。</p><div className={styles.actions}><Button variant="ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}>上一页图示</Button><Button variant="ghost" disabled={(page + 1) * 25 >= chart.points.length} onClick={() => setPage(p => p + 1)}>下一页图示</Button></div></div>}
       </> : chart.kind==='faceted_line'?<><p className={styles.notice}>各组共用相同纵轴范围 {min}–{max}，缺期断线。数值和来源见下方原表。</p>{chartFacets(chart).map((part,i)=><div key={chart.facets![i].key}><p>{part.title}</p><TrendLine chart={part} height={250} bounds={[min,max]}/></div>)}</>:chart.kind==='line'?<TrendLine chart={chart}/>:<Scatter chart={chart} />}
-
+      {(chart.kind==='line'||chart.kind==='faceted_line') && <p className={styles.notice}>季度连续排列，缺数据处断线；数值与来源见下方原表。横向滚动可查看全部季度。</p>}
       {chart.kind === 'scatter' && <p className={styles.notice}>仅绘制两个字段都有有效值的联合样本，不代表因果关系。各楼数值和可点选来源见下方原表。</p>}
     </figure>}
   </div>;
@@ -103,30 +96,16 @@ function Scatter({ chart }: { chart: ResultChart }) {
 }
 
 function TrendLine({chart,height=380,bounds}:{chart:ResultChart;height?:number;bounds?:[number,number]}) {
-  const container=React.useRef<HTMLDivElement>(null);
-  const [available,setAvailable]=React.useState(640);
-  React.useEffect(()=>{
-    const node=container.current;
-    if(!node||typeof ResizeObserver==='undefined')return;
-    const observer=new ResizeObserver(entries=>{const width=entries[0]?.contentRect.width;if(width>0)setAvailable(width);});
-    observer.observe(node);return ()=>observer.disconnect();
-  },[]);
-  const compact=available<480;
-  // Reflow coordinates, never scale text or change the immutable quarter values.
-  const width=Math.max(Math.min(available,800),100+(chart.points.length-1)*(compact?48:76));
-  const plot=lineGeometry(chart,width,height,bounds);
-  return <>
-    <p className={styles.notice}>{chart.points[0]?.label} 至 {chart.points.at(-1)?.label}，共 {chart.points.length} 个季度。{width>available?'横向滚动查看全部季度。':''}{chart.renderedCount===0?'本组各季度均无有效值，不按零绘制。':''}</p>
-    <div ref={container} className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
-      <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
-        <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="#667085"/>
-        {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="#003e7e" strokeWidth="2"/>)}
-        {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="#003e7e"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+24} textAnchor="middle">{compact?<><tspan x={p.x}>{p.point.label.slice(0,4)}</tspan><tspan x={p.x} dy="18">{p.point.label.slice(5)}</tspan></>:p.point.label}</text></g>)}
-        <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
-        <text x={plot.left} y={plot.height-8}>{chart.xLabel}</text>
-      </svg>
-    </div>
-  </>;
+  const plot=lineGeometry(chart,undefined,height,bounds);
+  return <div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
+    <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
+      <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="#667085"/>
+      {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="#003e7e" strokeWidth="2"/>)}
+      {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="#003e7e"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
+      <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
+      <text x={plot.left} y={plot.height-8}>季度；{chart.yLabel}（{units[chart.yUnit]??chart.yUnit}）</text>
+    </svg>
+  </div>;
 }
 
 function Heatmap({chart,onSource}:{chart:ResultChart;onSource:Props['onSource']}) {

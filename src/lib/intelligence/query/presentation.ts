@@ -1,12 +1,3 @@
-import {leaseRangeSchema} from './leases/view';
-import {leaseAnswerSchema} from './leases/view';
-import {futureRangeOverviewSchema} from './future/range';
-import {supplyOverviewSchema} from './future/supply';
-import {formatExact} from './format';
-export {formatExact} from './format';
-import {futureAnswerSchema} from './future/answer';
-import { futureAnalysisSchema } from './future/view';
-import { submissionAnalysisSchema } from './submissions/view';
 import { z } from 'zod';
 import { distributionAnalysisSchema } from './distribution';
 import { quarterSchema } from './contracts';
@@ -26,21 +17,11 @@ export const sourceSchema = z.object({ id: text, table: text, recordId: text, fi
   original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
-  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship', 'distribution', 'submission_progress', 'future_observation', 'lease_observation']),
+  scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'relationship', 'distribution']),
   parameters: z.record(z.string(), z.unknown()), analysis: z.unknown(), limitations: z.array(text), sources: z.array(sourceSchema).max(200000),
   table: z.object({ id: z.string(), columns: z.array(z.object({ key: z.string(), label: text, unit: z.string().nullable() })).max(30),
     rows: z.array(z.object({ entityId: text, cells: z.record(z.string(), resultCellSchema) })).max(100000) }),
 }).superRefine((result, ctx) => {
-  if(result.operation==='lease_observation'&&!leaseAnswerSchema.safeParse(result.parameters.answer).success)ctx.addIssue({code:'custom',message:'Invalid archived lease answer'});
-  const sourceMap=new Map(result.sources.map(s=>[s.id,s]));
-  if(result.operation==='future_observation' && ['area_summary','launch_schedule'].includes(String(result.parameters.view)) && !supplyOverviewSchema.safeParse(result.parameters.supply).success) ctx.addIssue({code:'custom',message:'Invalid archived future supply summary'});
-  if(result.operation==='future_observation' && Object.hasOwn(result.parameters,'launchRange')){
-    const r=futureRangeOverviewSchema.safeParse(result.parameters.launchRange),a=futureAnalysisSchema.safeParse(result.analysis);
-    if(r.success)for(const member of r.data.members){const fields=new Set(member.sourceIds.map(id=>{const source=sourceMap.get(id);return source?.entityId===member.futureId&&source.table==='future_supplies'?source.field:null;}));if(!['name','launch_year','launch_quarter'].every(field=>fields.has(field)))ctx.addIssue({code:'custom',message:'Incomplete range classification sources'});}
-    const selected=r.success?new Set(r.data.members.filter(m=>m.selected).map(m=>m.futureId)):new Set<string>();
-    if(!r.success||!a.success||a.data.rows.length!==r.data.selectedCount||new Set(a.data.rows.map(row=>row.futureId)).size!==selected.size||a.data.rows.some(row=>!selected.has(row.futureId)))ctx.addIssue({code:'custom',message:'Invalid archived launch range selection'});
-  }
-  if(result.operation==='future_observation' && Object.hasOwn(result.parameters,'answer') && !futureAnswerSchema.safeParse(result.parameters.answer).success) ctx.addIssue({code:'custom',message:'Invalid archived future answer'});
   const sources = new Set(result.sources.map(source => source.id));
   for (const row of result.table.rows) for (const column of result.table.columns) {
     const cell = row.cells[column.key];
@@ -49,9 +30,18 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { quarter: '季度', text: '文本', m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', record_count: '条', recorded_name_count:'个名称', task_count: '项', 'CNY/m2/day': '元/㎡/天', month: '月' };
+export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
+/** Display rounding only; never calculates using the approximate chart projection. */
+export function formatExact(value: z.infer<typeof number>, unit: string | null): string {
+  const numerator = BigInt(value.exact.numerator) * BigInt(unit === 'ratio' ? 100 : 1);
+  const denominator = BigInt(value.exact.denominator);
+  const negative = numerator < BigInt(0), absolute = negative ? -numerator : numerator;
+  const rounded = (absolute * BigInt(100) * BigInt(2) + denominator) / (denominator * BigInt(2));
+  const whole = rounded / BigInt(100), fraction = (rounded % BigInt(100)).toString().padStart(2, '0').replace(/0+$/, '');
+  return `${negative && rounded !== BigInt(0) ? '-' : ''}${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? '.' + fraction : ''}`;
+}
 export function cellText(cell: DisplayCell, unit: string | null): string {
   if (cell.kind === 'unknown' && cell.reason === 'no_valid_sample') return '未知：无有效样本';
   if (cell.kind === 'unknown' && cell.reason === 'no_common_valid_sample') return '未知：无共同有效样本';
@@ -66,32 +56,9 @@ function coverageText(input: unknown): string | null {
   return `获权样本 ${c.total} 栋，有效 ${c.valid} 栋；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}。`;
 }
 export function resultSummary(result: QueryResultView): string[] {
-  if(result.operation==='lease_observation')return leaseAnswerSchema.parse(result.parameters.answer).paragraphs;
   const analysis = z.record(z.string(), z.unknown()).safeParse(result.analysis);
   const a = analysis.success ? analysis.data : {};
   const coverage = coverageText(a.coverage), rows = result.table.rows;
-  if(result.operation==='future_observation'){
-    if(Object.hasOwn(result.parameters,'answer'))return futureAnswerSchema.parse(result.parameters.answer).paragraphs;
-    const a=futureAnalysisSchema.parse(result.analysis),c=a.catalog,p=a.progress;
-    return [`当前获权且明确未入市的未来供应记录 ${c.records} 条；其中待核实 ${c.pending} 条、分类未知 ${c.statusUnknown} 条，未关联楼宇 ${c.unlinkedIdentities} 条。记录数不等于已确认的不同楼宇数。`,
-      `预计季度明确 ${c.knownLaunchQuarter} 条，仅明确半年 ${c.launchHalfYear} 条、年份 ${c.launchYearOnly} 条；年份未知 ${c.launchUnknown} 条、时间无效 ${c.launchInvalid} 条。`,
-      ...(p?[`该季已分配 ${p.assignedSupplies} 条记录，其中有提交 ${p.assignedSubmittedSupplies} 条、未提交 ${p.missingAssignedSupplies} 条；提交覆盖率 ${p.coverage?formatExact({exact:p.coverage,numeric:0},'ratio')+'%':'未知（没有已分配任务）'}。`,
-        `人员任务 ${p.assignmentPairs} 项，本人已提交 ${p.submittedOwnerPairs} 项、未提交 ${p.missingOwnerPairs} 项；未知提交人记录 ${p.unknownSubmitterRows} 条，不猜归属。`,
-        '季度任务不限定预计当季入市；任一人员提交覆盖与本人提交任务采用不同分母，提交不代表完整、有效或审定。']:[`总面积有效 ${c.knownArea} 条、缺失 ${c.missingArea} 条、无效 ${c.invalidArea} 条；原字段不自动等于办公或可租面积。`]),
-      ...(result.table.rows.length===0?['本次授权范围没有符合该明细条件的记录，不代表现实市场没有。']:[])];
-  }
-  if (result.operation === 'submission_progress') {
-    const a=submissionAnalysisSchema.parse(result.analysis),c=a.counts;
-    const coverage=a.submittedCoverage?formatExact({exact:a.submittedCoverage,numeric:0},'ratio')+'%':'未知（没有已分配楼宇）';
-    const view=String(result.parameters.view);
-    return [`当前获权存量 ${c.catalogBuildings} 栋；已分配 ${c.assignedBuildings} 栋，其中有该季提交 ${c.assignedSubmittedBuildings} 栋、未提交 ${c.missingAssignedBuildings} 栋。提交覆盖率 ${coverage}。`,
-      `未分配 ${c.unassignedBuildings} 栋，其中有提交 ${c.unassignedSubmittedBuildings} 栋；人员任务 ${c.assignmentPairs} 项，本人已提交 ${c.submittedOwnerPairs} 项、未提交 ${c.missingOwnerPairs} 项。`,
-      '楼宇覆盖按任一人员提交计，人员任务按本人提交计；提交不代表完整、有效或已审定。',
-      ...(a.quality?[`最新记录可判定 ${a.quality.evaluatedBuildings} 栋；五项输入齐全 ${a.quality.requiredCompleteBuildings} 栋、缺项 ${a.quality.missingRequiredBuildings} 栋；发现核查事项 ${a.quality.flaggedBuildings} 栋。`]:[]),
-      ...(c.latestUnresolvedBuildings?[`${c.latestUnresolvedBuildings} 栋存在缺少提交时间的记录，无法确定最新值。`]:[]),
-      ...(view==='missing'?['下表为该季度没有提交的楼宇，已分配未提交和未分配分别标明。']:view==='missing_fields'?['下表同时保留未提交或最新记录无法确定的楼宇，不能把这些情况说成已检查出缺项。']:[]),
-      ...(rows.length===0?['本次范围没有符合该明细条件的记录；不代表范围以外没有问题。']:[])];
-  }
   if (result.operation === 'list') return [`当前获权目录中符合条件的楼宇共 ${rows.length} 栋。`];
   if (result.operation === 'rank') return [rows.length
     ? result.parameters.field === 'height' && result.parameters.limit === 1 && result.parameters.direction === 'desc'
@@ -146,12 +113,5 @@ export function resultScopeText(result: QueryResultView): string {
   const start=quarterSchema.safeParse(result.parameters.start),end=quarterSchema.safeParse(result.parameters.end);
   const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
   const range=isTrend&&start.success&&end.success?`，${start.data.year}Q${start.data.quarter} 至 ${end.data.year}Q${end.data.quarter}`:'';
-  if(result.operation==='lease_observation'){
-    const selected=z.object({sources:z.array(z.enum(['live','history']))}).parse(result.parameters.scope).sources;
-    const leaseRange=leaseRangeSchema.safeParse(result.parameters.range);
-    return `${s.submarkets?.join('、')||'当前获权范围'}；获权${selected.map(v=>v==='live'?'日常':'历史').join('/')}成交记录${leaseRange.success?`，${leaseRange.data.start.year}Q${leaseRange.data.start.quarter} 至 ${leaseRange.data.end.year}Q${leaseRange.data.end.quarter} 按明确季度统计`:period.success?`，明确落入 ${period.data.year}Q${period.data.quarter}`:'，全部原期间'}，不同来源分开统计。`;
-  }
-  if(result.operation==='future_observation')return `${s.submarkets?.join('、')||'当前获权范围'}；当前明确未入市的未来供应记录${period.success?`，${period.data.year}Q${period.data.quarter}季度任务（${result.parameters.periodBasis==='configured'?'系统配置':'明确指定'}），当前保存的该季任务`:'，预计入市保留原时间精度'}。`;
-  if(result.operation==='submission_progress'&&period.success)return `${s.submarkets?.join('、')||'当前获权范围'}，${period.data.year} 年第 ${period.data.quarter} 季度；${result.parameters.periodBasis==='configured'?'取系统配置的填报季度':'明确指定季度'}，当前存量目录与当前分配。`;
   return `${s.submarkets?.join('、') || '当前获权范围'}${range}${period.success && !isTrend ? `，${period.data.year} 年第 ${period.data.quarter} 季度` : ''}；${s.inventory === 'tracked' ? '当前跟踪楼宇样本' : '当前楼宇目录'}。`;
 }
