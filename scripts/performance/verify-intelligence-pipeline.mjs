@@ -337,15 +337,18 @@ try {
     assert.equal((await newer.json()).meta.latestMetricPeriod, '2026 Q3', 'the catalog hit must never cache evidence or periods');
     assert.notEqual(latest.catalogs[0], previous.catalogs[0]);
     assert.ok(latest.catalogBytes < 120);
-    for (const [token, extra] of [['synthetic-peer', {}], ['synthetic-admin-refresh', {}],
-      ['synthetic-admin', { 'x-colliers-impersonate-user': peer }]]) {
+    for (const token of ['synthetic-peer', 'synthetic-admin-refresh']) {
       const isolated = reset({ modelMs: 10 });
-      const response = await submit(path, token, text, undefined, extra);
+      const response = await submit(path, token, text);
       assert.equal(response.status, 200, logs);
-      assert.deepEqual(isolated.catalogs, [null], 'account, login and effective identity scopes must start cold');
+      assert.deepEqual(isolated.catalogs, [null], 'separate accounts and credentials must start cold');
       assert.equal(isolated.models.length, 1);
       assert.equal(isolated.audits[0].user_id, token === 'synthetic-peer' ? peer : admin);
     }
+    const simulated = reset();
+    const attempted = await submit(path, 'synthetic-admin', text, undefined, { 'x-colliers-impersonate-user': peer });
+    assert.equal(attempted.status, 403, 'even simulation as another admin cannot invoke AI');
+    assert.equal(simulated.catalogs.length + simulated.buildings.length + simulated.models.length + simulated.audits.length, 0);
     const invalid = reset({ invalidCatalog: true });
     assert.equal((await submit()).status, 500);
     assert.equal(invalid.models.length + invalid.audits.length, 0);
