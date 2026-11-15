@@ -145,6 +145,8 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       return json(response, 422, deliveryHeaders);
     }
     if (result.status !== 'ready') {
+      if (result.status === 'failed' && result.reason === 'scope_limit') return json({ requestId, status: 'failed', reason: 'scope_limit',
+        error: '本次查询范围过大，未生成可恢复的结果。请缩小子市场范围、缩短季度范围或减少指标数量后重新提问。' }, 413);
       const status = result.status === 'already_received' ? 202 : result.status === 'denied' ? 403 : result.status === 'cancelled' || result.status === 'conflict' ? 409 : 503;
       return json({ requestId, status: result.status, error: result.status === 'already_received' ? '此请求已接收，请勿重复执行。' : '本次查询未交付，请检查权限或稍后重试。' }, status);
     }

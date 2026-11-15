@@ -1,6 +1,8 @@
+import { safeQueryEndpoint } from './query-conversation-network.mjs';
+
 // Browser-only measurement. No network interception, application state writes,
 // response rewriting or synthetic authentication is performed by this probe.
-export function observeQueryConversation({ chartRequired, timeoutMs = 30000 }) {
+export function observeQueryConversation({ chartRequired, timeoutMs = 30000, sourceLabelPrefix = '查看来源：面积加权净有效租金 ' }) {
   window.__colliersQueryPerformance?.stop();
   performance.setResourceTimingBufferSize(1000);
   const oldResult = document.querySelector('section[aria-label="查询结果"]');
@@ -16,7 +18,8 @@ export function observeQueryConversation({ chartRequired, timeoutMs = 30000 }) {
     const node = document.querySelector('section[aria-label="查询结果"]');
     return node && node !== oldResult && visible(node) ? node : null;
   };
-  const numericAction = node => node?.querySelector('button[aria-label^="查看来源：面积加权净有效租金 "]:not(:disabled)');
+  const numericAction = node => [...(node?.querySelectorAll('button[aria-label]:not(:disabled)') ?? [])]
+    .find(button => button.getAttribute('aria-label')?.startsWith(sourceLabelPrefix));
   const contentReady = () => {
     const result = currentResult();
     return result && visible(numericAction(result))
@@ -36,7 +39,7 @@ export function observeQueryConversation({ chartRequired, timeoutMs = 30000 }) {
     if (state.start === null && button?.getAttribute('aria-label') === '发送问题') {
       state.start = performance.now(); state.status = 'running'; return;
     }
-    if (state.status === 'ready' && button?.getAttribute('aria-label')?.startsWith('查看来源：面积加权净有效租金 ')) {
+    if (state.status === 'ready' && button?.getAttribute('aria-label')?.startsWith(sourceLabelPrefix)) {
       sourceStart = performance.now(); oldSource = document.querySelector('section[aria-label="来源详情"]');
     }
   };
@@ -90,14 +93,18 @@ export const QUERY_PERFORMANCE_PROFILES = [
 ];
 export const QUERY_PERFORMANCE_STEPS = [
   { id: 'single_market', operation: 'aggregate', before: '2026Q3CBD净有效租金', after: '2026Q3CBD净有效租金', chart: false },
-  { id: 'inherited_market', operation: 'aggregate', before: '2026Q3金融街净有效租金', after: '金融街呢？', chart: false },
-  { id: 'comparison', operation: 'group_aggregate', before: '2026Q3CBD、金融街净有效租金按子市场比较', after: '把这两个地区对比一下', chart: true },
-  { id: 'four_quarter_trend', operation: 'group_trend', before: 'CBD、金融街净有效租金2025Q4至2026Q3按子市场趋势各期样本', after: '再看看过去四个季度的变化', chart: true },
+  { id: 'inherited_market', operation: 'aggregate', before: '金融街呢？', after: '金融街呢？', chart: false },
+  { id: 'comparison', operation: 'group_aggregate', before: '把这两个地区对比一下', after: '把这两个地区对比一下', chart: true },
+  { id: 'four_quarter_trend', operation: 'group_trend', before: '再看看过去四个季度的变化', after: '再看看过去四个季度的变化', chart: true },
 ];
 export const QUERY_PERFORMANCE_CACHE_STATES = ['new_context_first_dialogue', 'same_document_second_dialogue'];
 const QUERY_PERFORMANCE_ERRORS = new Set(['timeout', 'operation_failed', 'LOGIN_HTTP_FAILURE', 'QUERY_NOT_READY',
   'UNEXPECTED_QUERY_PLAN', 'SOURCE_OUTSIDE_GRANTED_FIXTURE', 'MISSING_CONVERSATION', 'RESULT_READINESS_TIMEOUT',
   'DATABASE_SOURCE_NOT_VISIBLE', 'DUPLICATE_QUERY_SUBMISSION', 'QUERY_NETWORK_FAILURE', 'QUERY_BROWSER_ERROR', 'NEW_CONVERSATION_RELOADED_DOCUMENT',
+  'QUERY_BACKGROUND_HTTP_FAILURE',
+  'MULTI_METRIC_ORACLE_MISMATCH', 'MULTI_METRIC_CHART_MISMATCH', 'MULTI_METRIC_CHART_NOT_READY',
+  'MULTI_METRIC_ORACLE_FIXTURE_INVALID', 'MULTI_METRIC_ORACLE_METRICS_MISMATCH', 'MULTI_METRIC_ORACLE_ROW_COUNT_MISMATCH',
+  'MULTI_METRIC_ORACLE_DIMENSION_MISMATCH', 'MULTI_METRIC_ORACLE_VALUE_MISMATCH', 'MULTI_METRIC_ORACLE_COUNT_MISMATCH', 'MULTI_METRIC_ORACLE_DENOMINATOR_MISMATCH',
   'QUERY_RECEIPT_CONFIRMATION_TIMEOUT', 'QUERY_NETWORK_COMPLETION_TIMEOUT', 'QUERY_OBSERVER_STOPPED']);
 export function queryPerformanceRevision(env, event) {
   const sha = value => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value) ? value : null;
@@ -130,13 +137,14 @@ export function queryPerformanceFailureDiagnostics(samples) {
       round: Number.isInteger(sample.round) ? sample.round : null,
       cache_state: QUERY_PERFORMANCE_CACHE_STATES.includes(sample.cache_state) ? sample.cache_state : 'unknown',
       step: QUERY_PERFORMANCE_STEPS.some(value => value.id === sample.step) ? sample.step : 'unknown', status,
-      phase: ['query', 'source_interaction', 'receipt_confirmation', 'complete', 'login_or_browser', 'new_conversation', 'equivalence', 'dependency'].includes(sample.phase) ? sample.phase : 'unknown',
-      receiptStage: ['initial_result', 'initial_chart', 'source_open', 'source_close', 'source_reopen', 'source_reclose'].includes(sample.receiptStage) ? sample.receiptStage : null,
+      phase: ['query', 'source_interaction', 'metric_switch', 'receipt_confirmation', 'complete', 'login_or_browser', 'new_conversation', 'equivalence', 'dependency'].includes(sample.phase) ? sample.phase : 'unknown',
+      receiptStage: ['initial_result', 'initial_chart', 'metric_chart', 'source_open', 'source_close', 'source_reopen', 'source_reclose'].includes(sample.receiptStage) ? sample.receiptStage : null,
       error: status === 'success' ? 'MISSING_REQUIRED_MEASUREMENT'
         : sample.error ? queryPerformanceErrorCode({ message: sample.error }) : status.toUpperCase(),
       httpStatus: Number.isInteger(sample.httpStatus) && sample.httpStatus >= 100 && sample.httpStatus <= 599 ? sample.httpStatus : null,
       networkFailures: (sample.networkFailures ?? []).slice(0, 20).map(failure => ({
         kind: ['submit', 'artifact', 'receipt', 'capabilities', 'recover', 'other'].includes(failure.kind) ? failure.kind : 'other',
+        endpoint: safeQueryEndpoint(failure.endpoint),
         method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'].includes(failure.method) ? failure.method : 'OTHER',
         attribution: failure.attribution === 'started_in_sample' ? 'started_in_sample' : 'started_before_sample', critical: failure.critical === true,
         error: /^(?:net::ERR_[A-Z0-9_]+|HTTP_[1-5][0-9]{2})$/.test(failure.error) ? failure.error : 'NETWORK_REQUEST_FAILED',

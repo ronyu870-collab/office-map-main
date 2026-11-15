@@ -7,9 +7,10 @@ import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs
 import { observeQueryConversation, QUERY_PERFORMANCE_PROFILES, QUERY_PERFORMANCE_STEPS, QUERY_PERFORMANCE_CACHE_STATES,
   summarizeQueryPerformance, queryPerformanceErrorCode, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
 import { observeQueryNetwork } from './query-conversation-network.mjs';
+import { QUERY_PERFORMANCE_BASELINE } from '../verification/query-performance-baseline.mjs';
+import { verifyMultiMetricQueryPerformance } from './verify-query-multi-metric.mjs';
 
 const SAMPLES = 20;
-const BASELINE_COMMIT = '0ae6e4dbcc63c3a557ee05ed70bba016a1ee4a7c';
 const PERIODS = [{ year: 2025, quarter: 4 }, { year: 2026, quarter: 1 }, { year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
 const require = createRequire(import.meta.url);
 const numericProjection = result => ({ operation: result.operation, columns: result.table.columns.map(column => ({ key: column.key, unit: column.unit })),
@@ -20,7 +21,7 @@ const numericProjection = result => ({ operation: result.operation, columns: res
 /** Invoked only by the dedicated disposable real-Auth harness, after its actual
  * Next production builds start. Authentication and business HTTP are unmodified.
  * No credentials, bodies, screenshots, URLs with query values or headers are saved. */
-export async function verifyQueryConversationPerformance({ db, person, app, beforeApp, output, exportCaps, semanticCalls }) {
+export async function verifyQueryConversationPerformance({ db, person, app, beforeApp, output, exportCaps, semanticCalls, dataApiOrigin }) {
   assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
   const variants = [...(beforeApp ? [{ name: 'before', app: beforeApp }] : []), { name: 'after', app }];
   for (const variant of variants) assert.ok(['127.0.0.1', 'localhost'].includes(new URL(variant.app).hostname), 'ISOLATED_LOOPBACK_ONLY');
@@ -29,14 +30,14 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
   const reportPath = path.join(output, 'performance.json'); await mkdir(output, { recursive: true });
   const samples = [], ids = Array.from({ length: 24 }, () => randomUUID());
   const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
-  const report = { version: 'query-conversation-performance/1', beforeCommit: beforeApp ? BASELINE_COMMIT : null,
+  const report = { version: 'query-conversation-performance/2', beforeCommit: beforeApp ? QUERY_PERFORMANCE_BASELINE : null,
     ...queryPerformanceRevision(process.env, githubEvent), production: false, realPhone: false,
     authentication: 'Real login form -> local GoTrue -> canonical user_roles -> unchanged query grants/RPC',
     modelCalls: null, realExternalModelCalls: false, modelPath: 'Bounded supported semantics; not a provider latency benchmark',
-    baseline: beforeApp ? 'P0 complete questions with equivalent factual plans; P1 uses inherited follow-ups'
+    baseline: beforeApp ? 'Released P1 and candidate use the same inherited four-turn questions and New Conversation action'
       : 'No baseline build provided; this run cannot establish A/B regression acceptance',
     cacheDefinition: { new_context_first_dialogue: 'A new browser context; real login and homepage are ready before measurement. First query of this page, then inherited continuation. Server and database are warm; not a cold server/DNS/TLS claim.',
-      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. P1 starts through the real New Conversation button; P0 has no inherited context. No reload or prefilled response.' },
+      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. Both variants start through the real New Conversation button. No reload or prefilled response.' },
     endpoints: { start: 'Actual send-button click captured in the browser', feedback: 'Loading/stop control or real result painted on a subsequent animation frame',
       result: 'Fresh numeric result and an enabled source action painted', usable: 'Fresh result + source action + required same-result chart painted; actual source interaction then verified',
       source: 'Actual numeric-source click -> new database-source panel painted; final trend also reopened',
@@ -46,7 +47,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
       missingFinalRents: 2, grants: 'only these synthetic building IDs, CBD and 金融街' },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: SAMPLES, sharedRunner: Boolean(process.env.CI), node: process.version,
     networkBoundary: 'CDP throttles the browser network and CPU only; Next-to-Auth/PostgREST traffic stays on loopback',
-    networkAttribution: 'Only same-origin POST submit/artifact/receipt requests started in the sample are critical. Other failures, including preexisting requests and capability refresh, remain separately recorded. Receipt cancellations and HTTP failures remain fatal.',
+    networkAttribution: 'Same-origin POST submit/artifact/receipt requests started in the sample are critical. All HTTP 4xx/5xx, including known homepage dependencies, also fail the sample; other lifecycle cancellations remain separately recorded. Only finite allowlisted endpoint categories are retained, never URLs or query values.',
     numericGate: 'Fixed-condition 20-sample evidence. Shared runner single wall-clock timings are not CI functional assertions. Production network, real devices and server cold starts remain outside this report.',
     samples, summary: [], comparisons: [], functionalPassed: false, budgetsMet: false, complete: false };
   const modelCallsBefore = semanticCalls?.();
@@ -55,6 +56,12 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     report.functionalPassed = report.summary.every(group => group.measurementComplete);
     report.budgetsMet = report.summary.filter(group => group.variant === 'after').every(group => group.budgetsMet);
     report.modelCalls = semanticCalls ? semanticCalls() - modelCallsBefore : null;
+    const failures = samples.flatMap(sample => (sample.networkFailures ?? []).map(failure => ({ variant: sample.variant,
+      endpoint: failure.endpoint, error: failure.error, httpStatus: failure.httpStatus, attribution: failure.attribution })));
+    report.backgroundHttpFailureCount = failures.filter(failure => failure.httpStatus >= 400).length;
+    report.networkFailureSummary = Object.entries(failures.reduce((counts, failure) => {
+      const key = JSON.stringify(failure); counts[key] = (counts[key] ?? 0) + 1; return counts;
+    }, {})).map(([key, count]) => ({ ...JSON.parse(key), count }));
     report.comparisons = beforeApp ? report.summary.filter(group => group.variant === 'after').map(after => {
       const before = report.summary.find(group => group.variant === 'before' && group.profile === after.profile && group.cache_state === after.cache_state && group.step === after.step);
       const baseline = before.metrics.content_usable_ms.p90, candidate = after.metrics.content_usable_ms.p90;
@@ -98,7 +105,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
           await login(page, variant.app, owner, status => { loginHttpStatus = status; });
           let dependencyFailed = false;
           for (const cacheState of QUERY_PERFORMANCE_CACHE_STATES) {
-            if (!dependencyFailed && variant.name === 'after' && cacheState === 'same_document_second_dialogue') {
+            if (!dependencyFailed && cacheState === 'same_document_second_dialogue') {
               setupPhase = 'new_conversation';
               const documentOrigin = await page.evaluate(() => performance.timeOrigin);
               await page.getByRole('button', { name: '新对话', exact: true }).click();
@@ -113,7 +120,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
                 actualQueryRequests: 0, queryFailures: 0, pageErrors: 0, sourceVerified: false, equivalentResult: null };
               samples.push(sample);
               if (dependencyFailed) { collected.push({ sample, projection: null }); continue; }
-              const measured = await measure(page, variant.name, step, sample, ids);
+              const measured = await measure(page, variant.name, step, sample, ids, dataApiOrigin);
               dependencyFailed = sample.status !== 'success'; collected.push({ sample, projection: measured });
             }
           }
@@ -152,6 +159,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     report.complete = true; await checkpoint();
     assert.equal(report.functionalPassed, true, 'QUERY_PERFORMANCE_FUNCTIONAL_FAILURE');
     if (semanticCalls) assert.equal(report.modelCalls, 0, 'UNEXPECTED_MODEL_CALL_IN_BOUNDED_QUERY');
+    await verifyMultiMetricQueryPerformance({browser,db,owner,ids,app,output,dataApiOrigin,semanticCalls,login,measure,githubEvent});
     return { functionalPassed: report.functionalPassed, budgetsMet: report.budgetsMet, reportPath, summary: report.summary };
   } finally {
     await browser?.close(); await checkpoint();
@@ -160,7 +168,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
   }
 }
 
-async function login(page, app, owner, recordHttpStatus) {
+export async function login(page, app, owner, recordHttpStatus) {
   await page.goto(app + '/login', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => { const form = document.querySelector('form');
     return form && Object.keys(form).some(key => key.startsWith('__reactProps$') && typeof form[key]?.onSubmit === 'function'); });
@@ -178,9 +186,9 @@ async function login(page, app, owner, recordHttpStatus) {
   await page.locator('#home-query:enabled').waitFor();
 }
 
-async function measure(page, variant, step, sample, allowedIds) {
+export async function measure(page, variant, step, sample, allowedIds, dataApiOrigin, { validateResult, afterReady } = {}) {
   let probeInstalled = false;
-  const network = observeQueryNetwork(page, sample);
+  const network = observeQueryNetwork(page, sample, { dataApiOrigin });
   const pageError = () => { sample.pageErrors++; };
   page.on('pageerror', pageError);
   const confirmReceipt = async (stage, matcher) => {
@@ -190,14 +198,15 @@ async function measure(page, variant, step, sample, allowedIds) {
   try {
     await page.locator('#home-query').fill(step[variant]);
     await page.getByRole('button', { name: '发送问题', exact: true }).scrollIntoViewIfNeeded();
-    await page.evaluate(observeQueryConversation, { chartRequired: step.chart }); probeInstalled = true;
+    await page.evaluate(observeQueryConversation, { chartRequired: step.chart, sourceLabelPrefix: step.sourceLabelPrefix }); probeInstalled = true;
     const [response] = await Promise.all([page.waitForResponse(response => new URL(response.url()).pathname === '/api/intelligence/query' && response.request().method() === 'POST'),
       page.getByRole('button', { name: '发送问题', exact: true }).click()]); sample.httpStatus = response.status();
     assert.equal(response.status(), 200, 'QUERY_NOT_READY');
     const body = await response.json(); assert.equal(body.status, 'ready', 'QUERY_NOT_READY');
     assert.equal(body.result.operation, step.operation, 'UNEXPECTED_QUERY_PLAN');
+    if (validateResult) await validateResult(body.result);
     assert.ok(body.result.sources.every(source => allowedIds.includes(source.entityId)), 'SOURCE_OUTSIDE_GRANTED_FIXTURE');
-    if (variant === 'after') assert.ok(body.conversation?.id, 'MISSING_CONVERSATION');
+    assert.ok(body.conversation?.id, 'MISSING_CONVERSATION');
     await page.waitForFunction(() => ['ready', 'timeout'].includes(window.__colliersQueryPerformance?.state.status), null, { timeout: 35000 });
     assert.equal(await page.evaluate(() => window.__colliersQueryPerformance.state.status), 'ready', 'RESULT_READINESS_TIMEOUT');
     // Opening a source changes answer_table.view.sourceIds and deliberately
@@ -206,8 +215,10 @@ async function measure(page, variant, step, sample, allowedIds) {
     await confirmReceipt('initial_result', { surface: 'answer_table', sourceCount: 'empty' });
     if (step.chart) await confirmReceipt('initial_chart', { surface: 'chart' });
     await network.waitForIdle();
+    if (afterReady) await afterReady({ page, sample, network, result: body.result, confirmReceipt });
     sample.phase = 'source_interaction';
-    const source = page.getByRole('region', { name: '查询结果', exact: true }).getByRole('button', { name: /^查看来源：面积加权净有效租金 / }).first();
+    const prefix = step.sourceLabelPrefix ?? '查看来源：面积加权净有效租金 ';
+    const source = page.getByRole('region', { name: '查询结果', exact: true }).getByRole('button', { name: new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) }).first();
     let receiptCursor = network.cursor();
     await source.click();
     const panel = page.getByRole('region', { name: '来源详情', exact: true }); await panel.waitFor();
@@ -218,7 +229,7 @@ async function measure(page, variant, step, sample, allowedIds) {
     receiptCursor = network.cursor();
     await panel.getByRole('button', { name: '关闭来源', exact: true }).click();
     await confirmReceipt('source_close', { after: receiptCursor, surface: 'answer_table', sourceCount: 'empty' });
-    if (step.id === 'four_quarter_trend') {
+    if (step.id === 'four_quarter_trend' || step.reopenSource) {
       sample.phase = 'source_interaction'; receiptCursor = network.cursor();
       await source.click(); await panel.waitFor();
       await page.waitForFunction(() => window.__colliersQueryPerformance.state.source_open_ms.length >= 2);
@@ -230,6 +241,7 @@ async function measure(page, variant, step, sample, allowedIds) {
     await network.waitForIdle();
     assert.equal(sample.actualQueryRequests, 1, 'DUPLICATE_QUERY_SUBMISSION');
     assert.equal(sample.queryFailures, 0, 'QUERY_NETWORK_FAILURE');
+    assert.equal(sample.networkFailures.filter(failure => failure.httpStatus >= 400).length, 0, 'QUERY_BACKGROUND_HTTP_FAILURE');
     assert.equal(sample.pageErrors, 0, 'QUERY_BROWSER_ERROR');
     sample.status = 'success'; sample.phase = 'complete';
     return numericProjection(body.result);

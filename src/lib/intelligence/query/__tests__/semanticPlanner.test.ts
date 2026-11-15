@@ -70,7 +70,7 @@ describe('P1 structured semantic conversation', () => {
     expect(ready(ask('2026Q3CBD净有效租金和空置率关系')).plan).toMatchObject({ operation: 'relationship' });
   });
   it('does not silently select only one metric from a multi-metric request', () => {
-    expect(ask('比较2026Q3CBD、金融街净有效租金和空置率')).toMatchObject({ kind: 'clarification', clarification: { reason: 'unsupported' } });
+    expect(ready(ask('比较2026Q3CBD、金融街净有效租金和空置率')).plan).toMatchObject({ operation: 'group_aggregate', metric: 'rent', metrics: ['rent', 'vacancy'], groupBy: 'submarket' });
   });
   it('changes an inherited trend into the explicitly requested single period', () => {
     const trend = ready(ask('CBD净有效租金最近四个季度变化'));

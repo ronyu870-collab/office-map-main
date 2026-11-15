@@ -3,15 +3,16 @@ import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysi
 import { quarterRange } from './plan';
 import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
+import { metricLabels, metricSchema, resultMetricColumns, resultMetrics, selectResultMetric } from './multiMetricView';
 
 /** The caller chooses bindings, never numbers, labels, units or source records. */
 export const chartRequestSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('bar'), field: z.string().min(1).max(80) }),
+  z.strictObject({ kind: z.literal('bar'), field: z.string().min(1).max(80), metric: metricSchema.optional() }),
   z.strictObject({ kind: z.literal('scatter'), x: z.string().min(1).max(80), y: z.string().min(1).max(80) }),
-  z.strictObject({ kind: z.literal('period_comparison') }),
-  z.strictObject({ kind: z.literal('time_series') }),
-  z.strictObject({ kind: z.literal('grouped_time_series') }),
-  z.strictObject({ kind: z.literal('heatmap') }),
+  z.strictObject({ kind: z.literal('period_comparison'), metric: metricSchema.optional() }),
+  z.strictObject({ kind: z.literal('time_series'), metric: metricSchema.optional() }),
+  z.strictObject({ kind: z.literal('grouped_time_series'), metric: metricSchema.optional() }),
+  z.strictObject({ kind: z.literal('heatmap'), metric: metricSchema.optional() }),
   z.strictObject({ kind: z.literal('histogram') }),
   z.strictObject({ kind: z.literal('box_plot') }),
 ]);
@@ -36,6 +37,25 @@ const projected = (cell: DisplayCell, unit: string | null) => {
 
 export function buildResultChart(result: QueryResultView, request: ChartRequest): ResultChart {
   request = chartRequestSchema.parse(request);
+  const metrics = resultMetrics(result), selectedMetric = 'metric' in request ? request.metric : undefined;
+  if (selectedMetric && !metrics.includes(selectedMetric)) throw new Error('RESULT_METRIC_NOT_AVAILABLE');
+  if (metrics.length > 1) {
+    if (request.kind === 'histogram' || request.kind === 'box_plot' || request.kind === 'scatter') throw new Error('CHART_MULTI_METRIC_OPERATION_REQUIRED');
+    const metric = selectedMetric ?? metrics[0], columns = resultMetricColumns(result, metric);
+    // Render only archived cells, then restore bindings to their actual keys in
+    // the parent wide table. Never return a reference to a synthetic child row.
+    const singleRequest = { ...request }; delete singleRequest.metric;
+    const chart = buildResultChart(selectResultMetric(result, metric), singleRequest);
+    const binding = (value: CellBinding): CellBinding => {
+      const key = columns[value.key];
+      if (!key) throw new Error('MULTI_METRIC_COLUMNS_INVALID');
+      return { ...value, key };
+    };
+    const point = (value: ChartPoint): ChartPoint => ({ ...value, yCell: binding(value.yCell), xCell: value.xCell ? binding(value.xCell) : null });
+    return { ...chart, request, title: `${chart.title} ${metricLabels[metric]}`, points: chart.points.map(point),
+      ...(chart.facets ? { facets: chart.facets.map(facet => ({ ...facet, points: facet.points.map(point) })) } : {}),
+      summary: [`图示指标：${metricLabels[metric]}。其他指标保留在同一结果表与来源快照中。`, ...chart.summary] };
+  }
   if (request.kind === 'histogram' || request.kind === 'box_plot') return buildDistributionChart(result, request);
   const column = (key: string) => {
     const found = result.table.columns.find(c => c.key === key);

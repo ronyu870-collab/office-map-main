@@ -6,6 +6,7 @@ import { Button } from '@/src/components/ui/Button';
 import { cellText, resultScopeText, resultSummary, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
+import { metricLabels, resultMetrics, resultMetricColumns, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
@@ -19,13 +20,15 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
   const summary = resultSummary(result);
+  const metrics = resultMetrics(result);
+  const multipleMetrics = metrics.length > 1;
   const research = React.useMemo(() => {
     const parsed = researchAnalysisSchema.safeParse(result.parameters.researchAnalysis);
     if (!parsed.success) return null;
     const knownSources = new Set(result.sources.map(source => source.id));
     return parsed.data.findings.every(finding => finding.sourceIds.every(id => knownSources.has(id))) ? parsed.data : null;
   }, [result]);
-  const primaryFinding = research?.findings.find(finding => finding.kind === 'trend');
+  const primaryFinding = multipleMetrics ? undefined : research?.findings.find(finding => finding.kind === 'trend');
   const scalarColumn = result.operation === 'aggregate' && result.table.rows.length === 1 && result.table.columns.length === 1 ? result.table.columns[0] : null;
   const scalar = scalarColumn ? result.table.rows[0].cells[scalarColumn.key] : null;
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
@@ -54,6 +57,19 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         {scalar.kind === 'number' && <span className={styles.metricUnit}>{units[scalarColumn.unit ?? ''] ?? scalarColumn.unit}</span>}
         <p className={styles.notice}>点选数值查看来源</p>
       </section>}
+      {multipleMetrics && result.operation === 'aggregate' && result.table.rows.length === 1 && <div className={styles.multiMetrics}>
+        {metrics.map(metric => {
+          const key = resultMetricColumns(result, metric).value;
+          const column = result.table.columns.find(item => item.key === key);
+          const cell = result.table.rows[0].cells[key];
+          return column && cell ? <section className={styles.metricComparison} aria-label={`${metricLabels[metric]}指标`} key={metric}>
+            <h3>{metricLabels[metric]}</h3>
+            <button type="button" className={styles.cell} aria-label={`查看来源：${metricLabels[metric]} ${cellText(cell, column.unit)}`}
+              onClick={event => showSources(cell.sourceIds, metricLabels[metric], event.currentTarget)}>{cellText(cell, column.unit)}</button>
+            {cell.kind === 'number' && <span>{units[column.unit ?? ''] ?? column.unit}</span>}
+          </section> : null;
+        })}
+      </div>}
       {summary.slice(1, scalar ? 2 : undefined).map(line => <p key={line} className={styles.answerContext}>{line}</p>)}
       <SourceOverview result={result} research={research} />
     </div>
@@ -85,7 +101,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
       {scalar && summary.slice(2).map(line => <p key={line}>{line}</p>)}
       <details className={styles.trace}><summary>实际执行条件</summary>
         <pre className={styles.auditJson}>{JSON.stringify(result.parameters.executedPlan ?? Object.fromEntries(Object.entries(result.parameters).filter(([key]) =>
-          ['scope', 'field', 'fields', 'metric', 'mode', 'period', 'start', 'end', 'base', 'current', 'groupBy', 'dimensions', 'filters', 'where', 'direction', 'limit', 'timeResolution'].includes(key))), null, 2)}</pre>
+          ['scope', 'field', 'fields', 'metric', 'metrics', 'mode', 'period', 'start', 'end', 'base', 'current', 'groupBy', 'dimensions', 'filters', 'where', 'direction', 'limit', 'timeResolution'].includes(key))), null, 2)}</pre>
       </details>
       <p>使用的数据表与字段：{[...new Set(result.sources.map(source => `${source.table}.${source.field}`))].join('；') || '未取得可用来源记录。'}</p>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
@@ -123,14 +139,35 @@ function SourceOverview({ result, research }: { result: QueryResultView; researc
   const scope = z.object({ inventory: z.string().optional() }).safeParse(result.parameters.scope);
   const tracked = scope.success && scope.data.inventory === 'tracked';
   const source = hasQuarter ? `${period ? `${period} ` : ''}${tracked ? '季度跟踪样本' : '季度数据'}` : result.sources.some(item => item.table === 'building_brochure_data') ? '楼宇目录及楼书参数' : '当前获权楼宇目录';
+  const metrics = resultMetrics(result);
+  if (metrics.length > 1) return <section className={styles.sourceOverview} aria-label="数据依据摘要">
+    <p>数据来源：{source}</p>
+    <p>各指标分别核验有效样本，样本数量和面积分母可能不同。</p>
+    {metrics.map(metric => {
+      const series = research?.series.filter(item => item.metric === metric) ?? [];
+      const coverage = analysisCoverageSchema.safeParse(resultMetricAnalysis(result, metric));
+      const latest = series.length === 1 ? series[0].periods.at(-1) : null;
+      const sample = latest ? `${latest.usedCount} 栋（${latest.period.year} Q${latest.period.quarter}）`
+        : coverage.success ? `${coverage.data.coverage.valid} 栋`
+          : series.length ? series.slice(0, 4).map(item => `${item.label || '当前范围'} ${item.periods.at(-1)?.usedCount ?? 0} 栋`).join('；') + (series.length > 4 ? `；其余 ${series.length - 4} 组见计算明细` : '')
+            : '各组分别核验，参与数量和分母见结果表';
+      return <section key={metric} aria-label={`${metricLabels[metric]}依据`} className={styles.metricBasis}>
+        <h3>{metricLabels[metric]}</h3><p>有效样本：{sample}</p>
+        <p>统计方式：{metricMethod(metric)}</p>
+      </section>;
+    })}
+  </section>;
   const coverage = analysisCoverageSchema.safeParse(result.analysis);
   const single = research?.series.length === 1 ? research.series[0] : null;
   const latest = single?.periods.at(-1);
   const sample = latest ? `${latest.period.year} Q${latest.period.quarter} ${latest.usedCount} 栋`
     : coverage.success ? `${coverage.data.coverage.valid} 栋` : research && research.series.length > 1 ? '各组独立统计，见分析明细' : null;
-  const method = result.parameters.metric === 'rent' ? '按有效总面积加权' : result.parameters.metric === 'vacancy' ? '有效空置面积合计 ÷ 有效总面积合计'
-    : result.parameters.metric === 'totalArea' ? '有效季度总面积求和' : null;
+  const method = metrics.length === 1 ? metricMethod(metrics[0]) : null;
   return <section className={styles.sourceOverview} aria-label="数据依据摘要">
     <p>数据来源：{source}</p>{sample && <p>有效样本：{sample}</p>}{method && <p>统计方式：{method}</p>}
   </section>;
+}
+
+function metricMethod(metric: 'rent' | 'vacancy' | 'totalArea'): string {
+  return metric === 'rent' ? '按有效总面积加权' : metric === 'vacancy' ? '有效空置面积合计 ÷ 有效总面积合计' : '有效季度总面积求和';
 }

@@ -132,6 +132,29 @@ await check('cursor distinguishes a newly closed empty source view from the init
   } finally { network.stop(); }
 });
 
+await check('home background failures retain finite endpoint categories without URL or record values', async () => {
+  const browser = page(), data = sample(), apiOrigin = 'http://127.0.0.1:55991';
+  const network = observeQueryNetwork(browser, data, { dataApiOrigin: apiOrigin });
+  try {
+    for (const [url, endpoint] of [
+      [origin + '/api/audit-events?private=' + secret, 'audit_events'],
+      [apiOrigin + '/rest/v1/message_notifications?recipient_user_id=eq.' + secret, 'rest_message_notifications'],
+      [apiOrigin + '/rest/v1/admin_issues?created_by=eq.' + secret, 'rest_admin_issues'],
+      [apiOrigin + '/rest/v1/admin_issue_reads?user_id=eq.' + secret, 'rest_admin_issue_reads'],
+      [apiOrigin + '/rest/v1/' + secret, 'unclassified_data_api'],
+      ['https://untrusted.invalid/rest/v1/admin_issues?value=' + secret, 'unclassified_external'],
+    ]) {
+      const req = { ...request('/unused'), url: () => url };
+      complete(browser, req, 404);
+      assert.equal(data.networkFailures.at(-1).endpoint, endpoint);
+      assert.equal(data.networkRequests.at(-1).endpoint, endpoint);
+    }
+    assert.equal(data.queryFailures, 0);
+    const serialized = JSON.stringify(data);
+    for (const sensitive of [secret, origin, apiOrigin, 'untrusted.invalid']) assert.equal(serialized.includes(sensitive), false);
+  } finally { network.stop(); }
+});
+
 await check('only allowlisted diagnostics survive; raw body, token, URL and error text are absent', async () => {
   const browser = page(), data = sample(), network = observeQueryNetwork(browser, data);
   try {
@@ -147,12 +170,12 @@ await check('only allowlisted diagnostics survive; raw body, token, URL and erro
     assert.equal(data.networkRequests[1].phase, 'unknown'); assert.equal(data.networkRequests[1].surface, null);
     const serialized = JSON.stringify({ data, confirmed });
     assert.equal(serialized.includes(secret), false); assert.equal(serialized.includes(origin), false);
-    const safeRequestKeys = new Set(['index', 'kind', 'method', 'critical', 'status', 'httpStatus', 'phase', 'surface', 'sourceCount']);
-    const safeFailureKeys = new Set(['index', 'kind', 'method', 'attribution', 'critical', 'error', 'httpStatus']);
+    const safeRequestKeys = new Set(['index', 'kind', 'endpoint', 'method', 'critical', 'status', 'httpStatus', 'phase', 'surface', 'sourceCount']);
+    const safeFailureKeys = new Set(['index', 'kind', 'endpoint', 'method', 'attribution', 'critical', 'error', 'httpStatus']);
     for (const value of [...data.networkRequests, confirmed]) assert.ok(Object.keys(value).every(key => safeRequestKeys.has(key)));
     for (const value of data.networkFailures) assert.ok(Object.keys(value).every(key => safeFailureKeys.has(key)));
   } finally { network.stop(); }
   for (const event of ['request', 'response', 'requestfinished', 'requestfailed']) assert.equal(browser.listenerCount(event), 0);
 });
 
-assert.equal(checks, 7);
+assert.equal(checks, 8);

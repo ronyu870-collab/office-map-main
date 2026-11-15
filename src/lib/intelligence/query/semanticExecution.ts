@@ -1,21 +1,32 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuditPort } from './admission';
 import type { AuditKeys } from './auditStore';
-import { readAvailablePeriods, type AvailablePeriods } from './availablePeriods';
+import { readAvailablePeriodGroups, type AvailablePeriods } from './availablePeriods';
 import { SEMANTIC_PROTOCOL_VERSION, type QueryConversation } from './conversationProtocol';
 import { authorizeConversationPlan, readConversation } from './conversationStore';
 import { quarterKey, type Quarter } from './contracts';
 import { MODEL_INTENT_LIMITS, semanticModelConfigured, understandWithModel } from './modelIntent';
-import { planPeriods } from './plan';
+import { parseQueryPlan, planPeriods, type QueryPlan } from './plan';
 import { QUESTION_SUBMARKETS } from './question';
 import type { QueryResult } from './result';
 import { numericFields } from './registry';
-import { buildSemanticSuggestions, inferSemanticPeriodFields, inferSemanticScope, parseSemanticIntent, resolveSemanticQuestion } from './semanticPlanner';
+import { buildSemanticSuggestions, inferSemanticPeriodFieldGroups, inferSemanticScope, parseSemanticIntent, resolveSemanticQuestion } from './semanticPlanner';
 import type { DataAuthority, VerifiedQueryIdentity } from './serverAuthority';
 import { describePlanRead } from './snapshotReader';
+import { assertMultiMetricResultSize } from './multiMetric';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
   audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; receivedAt: Date; signal: AbortSignal };
+
+function planPeriodFieldGroups(plan: QueryPlan) {
+  if ('metrics' in plan && plan.metrics) {
+    const { metrics, ...single } = plan;
+    return metrics.map(metric => describePlanRead(parseQueryPlan({ ...single, metric })).fields.filter(field => numericFields[field].temporal === 'quarter'));
+  }
+  const fields = describePlanRead(plan).fields.filter(field => numericFields[field].temporal === 'quarter');
+  return fields.length ? [fields] : [];
+}
+const groupsKey = (groups: string[][]) => JSON.stringify([...new Set(groups.map(group => JSON.stringify([...new Set(group)].sort())))].sort());
 
 export async function prepareSemanticExecution(input: Input) {
   const { client, identity, authority, keys, conversation, question, receivedAt, signal, audit, requestId } = input;
@@ -30,13 +41,13 @@ export async function prepareSemanticExecution(input: Input) {
   const allowedSubmarkets = authority.allSubmarkets ? [...QUESTION_SUBMARKETS] : QUESTION_SUBMARKETS.filter(value => authority.submarkets.includes(value));
   let modelStatus = 'not_needed';
   const scope = action?.plan.scope ?? inferSemanticScope(question, context);
-  const fields = action ? describePlanRead(action.plan).fields.filter(field => numericFields[field].temporal === 'quarter')
-    : resolution.kind === 'plan' ? describePlanRead(resolution.plan).fields.filter(field => numericFields[field].temporal === 'quarter')
-      : inferSemanticPeriodFields(question, context);
+  const fieldGroups = action ? planPeriodFieldGroups(action.plan)
+    : resolution.kind === 'plan' ? planPeriodFieldGroups(resolution.plan)
+      : inferSemanticPeriodFieldGroups(question, context);
   let availability: AvailablePeriods | undefined;
   // Ambiguity/unsupported conditions need no business metadata. A known temporal intent does.
-  if (fields.length && (action || resolution.kind === 'plan' || ['period_required','unavailable_periods','unrecognized'].includes(resolution.clarification.reason))) {
-    availability = await readAvailablePeriods(client, identity, authority, scope, fields, signal);
+  if (fieldGroups.length && (action || resolution.kind === 'plan' || ['period_required','unavailable_periods','unrecognized'].includes(resolution.clarification.reason))) {
+    availability = await readAvailablePeriodGroups(client, identity, authority, scope, fieldGroups, signal);
     resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: availability.periods, ...(modelIntent === undefined ? {} : { modelIntent }) });
   }
   if (!action && resolution.kind === 'clarification' && resolution.clarification.reason === 'unrecognized') {
@@ -68,11 +79,11 @@ export async function prepareSemanticExecution(input: Input) {
         // usage before propagating cancellation; never invent a zero charge.
         signal.throwIfAborted();
         if (modelIntent !== undefined) {
-          const modelFields = [...new Set(inferSemanticPeriodFields(question, context, modelIntent))].sort();
-          if (modelFields.length && (!availability || JSON.stringify(availability.fields) !== JSON.stringify(modelFields))) {
-            // At most one extra metadata read if semantic extraction supplied a
-            // previously unknown allowed field. Scope still comes from trusted slots.
-            availability = await readAvailablePeriods(client, identity, authority, scope, modelFields, signal);
+          const modelGroups = inferSemanticPeriodFieldGroups(question, context, modelIntent);
+          if (modelGroups.length && (!availability || groupsKey(availability.fieldGroups?.map(group => group.fields) ?? [availability.fields]) !== groupsKey(modelGroups))) {
+            // At most one additional batch (each at most three groups) when
+            // extraction supplies a new allowed field. Scope stays trusted.
+            availability = await readAvailablePeriodGroups(client, identity, authority, scope, modelGroups, signal);
           }
           resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: availability?.periods ?? [], modelIntent });
         }
@@ -91,6 +102,18 @@ export async function prepareSemanticExecution(input: Input) {
         inherited: ['已确认的地区、期间、指标、筛选条件及统计口径'], notices: [] }, limitations: [] };
   }
   if (resolution.kind === 'plan') authorizeConversationPlan(resolution.plan, authority);
+  if (availability?.availabilityMethod && resolution.kind === 'plan') {
+    const basis = '多指标可用季度取各指标有效期间的交集；每项指标可使用不同的有效楼宇，不强制跨指标共同样本。';
+    resolution = { ...resolution, limitations: [...resolution.limitations, basis], interpretation: { ...resolution.interpretation,
+      periodBasis: `${resolution.interpretation.periodBasis}；${basis}` } };
+  }
+  if (availability?.availabilityMethod && resolution.kind === 'clarification' && resolution.clarification.reason === 'unavailable_periods') {
+    const message = availability.truncated
+      ? '有界可用期间索引未找到所有所选指标各自有有效样本的共同季度。部分索引只含最近40个有数据季度，请指定明确季度核查；不能据此判定历史数据不存在。'
+      : '当前获权范围未找到所有所选指标各自有有效样本的共同季度。可以指定明确季度查看各项缺失情况，或分别查询指标。';
+    const clarification = { ...resolution.clarification, message };
+    resolution = { ...resolution, clarification, context: { ...resolution.context, pending: { question, clarification } } };
+  }
   if (resolution.kind === 'clarification' && resolution.clarification.reason === 'unrecognized' && modelStatus !== 'not_needed') {
     const explanation = modelStatus === 'not_configured' ? '语义模型尚未配置。' : modelStatus === 'budget_exhausted' ? '本轮语义解析额度已达保护上限。' : '本轮语义解析未形成可安全执行的计划。';
     resolution = { ...resolution, clarification: { ...resolution.clarification, message: `${explanation}${resolution.clarification.message}` } };
@@ -108,7 +131,7 @@ export function attachSemanticExecution(result: QueryResult, prepared: Awaited<R
   if (resolution.kind !== 'plan') throw new Error('SEMANTIC_PLAN_REQUIRED');
   const read = describePlanRead(resolution.plan);
   const tables = [...new Set(['buildings', ...read.fields.map(field => numericFields[field].table)])];
-  return { ...result, parameters: { ...result.parameters, executedPlan: resolution.plan, semanticContext: resolution.context,
+  return assertMultiMetricResultSize({ ...result, parameters: { ...result.parameters, executedPlan: resolution.plan, semanticContext: resolution.context,
     interpretation: resolution.interpretation, ...(availability ? { availablePeriods: availability } : {}),
     dataPlan: { version: 'approved-source-router/1', tables, fields: read.fields.map(field => ({ field, table: numericFields[field].table,
       column: numericFields[field].column, unit: numericFields[field].unit })), joinKey: 'buildings.id = building_id',
@@ -116,5 +139,5 @@ export function attachSemanticExecution(result: QueryResult, prepared: Awaited<R
     suggestions: suggestions.map(({ id, label, question }) => ({ id, label, question })) },
     limitations: [...new Set([...result.limitations, ...resolution.limitations,
       ...(availability?.truncated ? ['可用期间索引仅展示最近40个有有效记录的季度；更早明确季度以实际执行快照为准。'] : []),
-      ...(resolution.plan.filter ? ['可用季度按地区、楼宇及指标范围定位；附加数值筛选后的有效样本以本次结果为准。'] : [])])] };
+      ...(resolution.plan.filter ? ['可用季度按地区、楼宇及指标范围定位；附加数值筛选后的有效样本以本次结果为准。'] : [])])] });
 }

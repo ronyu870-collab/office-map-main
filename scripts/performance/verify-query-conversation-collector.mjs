@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { observeQueryConversation, nearestRank, summarizeQueryPerformance, queryPerformanceErrorCode,
   queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
 import './verify-query-conversation-network.mjs';
+import { multiMetricOracle, observeMetricSwitch, summarizeMultiMetricPerformance } from './verify-query-multi-metric.mjs';
 
 assert.equal(nearestRank([30, 10, 20], 0.9), 30);
 assert.equal(nearestRank([null, undefined], 0.5), null);
@@ -42,9 +43,56 @@ assert.equal(queryPerformanceFailureDiagnostics([{ ...common, content_usable_ms:
 assert.equal(queryPerformanceFailureDiagnostics([{ ...common, source_open_ms: null }])[0].error, 'MISSING_REQUIRED_MEASUREMENT');
 assert.equal(queryPerformanceFailureDiagnostics([{ ...common, step: 'four_quarter_trend', source_reopen_ms: null }])[0].error, 'MISSING_REQUIRED_MEASUREMENT');
 await checkpointQueryPerformancePair([common], { checkpoint: async failures => assert.equal(failures.length, 0), onFailure: () => assert.fail('healthy pair stopped') });
+const multiCommon = { ...common, step: 'multi_quarter', oracleVerified: true, sourceVerified: true,
+  metricSwitchVerified: true, source_reopen_ms: 30, metric_switch_ms: 150 };
+const multiRows = Array.from({ length: 20 }, () => ({ ...multiCommon }));
+const multiSummary = rows => summarizeMultiMetricPerformance(rows).find(group => group.profile === 'desktop' && group.scenario === 'multi_quarter');
+assert.equal(multiSummary(multiRows).budgetsMet, true);
+assert.equal(multiSummary(multiRows.slice(0, 19)).measurementComplete, false);
+assert.equal(multiSummary([...multiRows.slice(0, 19), { ...multiCommon, oracleVerified: false }]).measurementComplete, false);
+assert.equal(multiSummary(multiRows.map(row => ({ ...row, metricSwitchVerified: false }))).measurementComplete, false);
+assert.equal(multiSummary(multiRows.map(row => ({ ...row, metric_switch_ms: 2600 }))).budgetsMet, false);
+assert.equal(multiSummary(multiRows.map(row => ({ ...row, source_reopen_ms: 501 }))).budgetsMet, false);
+
+// The result contract uses YYYY-QN, including the hyphen. These independently
+// preset SQL-shaped rows and exact cells intentionally do not reuse the query
+// engine's formula or period formatter. Calibration is not SQL/HTTP evidence.
+const oraclePeriods = ['2025-Q4', '2026-Q1', '2026-Q2', '2026-Q3'];
+const oracleRows = oraclePeriods.flatMap(period => ['CBD', '金融街'].map(submarket => ({
+  submarket, period, rent_count: period === '2026-Q3' ? 11 : 12, vacancy_count: 12,
+  rent_numerator: submarket === 'CBD' ? (period === '2026-Q3' ? '19800000' : '21600000')
+    : (period === '2026-Q3' ? '22000000' : '24000000'),
+  rent_denominator: period === '2026-Q3' ? '110000' : '120000', vacancy_numerator: '12000', vacancy_denominator: '120000',
+})));
+const validateMultiMetric = await multiMetricOracle({ query: async () => ({ rows: oracleRows }) }, ['synthetic-calibration-only']);
+const exactCell = (numerator, denominator = '1') => ({ kind: 'number', value: { exact: { numerator, denominator } }, sourceIds: [] });
+const calibrationResult = operation => ({ operation, parameters: { metrics: ['rent', 'vacancy'], metricColumns: {
+  rent: { value: 'value', usedCount: 'usedCount', denominator: 'denominator' },
+  vacancy: { value: 'vacancy_value', usedCount: 'vacancy_usedCount', denominator: 'vacancy_denominator' },
+} }, table: { rows: oracleRows.filter(row => operation === 'group_trend' || row.period === '2026-Q3').map(row => ({
+  cells: { name: { kind: 'text', value: row.submarket }, period: { kind: 'text', value: row.period },
+    value: exactCell(row.submarket === 'CBD' ? '180' : '200'), usedCount: exactCell(row.period === '2026-Q3' ? '11' : '12'),
+    denominator: exactCell(row.period === '2026-Q3' ? '110000' : '120000'), vacancy_value: exactCell('1', '10'),
+    vacancy_usedCount: exactCell('12'), vacancy_denominator: exactCell('120000') },
+})) } });
+for (const operation of ['group_aggregate', 'group_trend']) validateMultiMetric(calibrationResult(operation));
+for (const operation of ['group_aggregate', 'group_trend']) for (const [code, corrupt] of [
+  ['MULTI_METRIC_ORACLE_ROW_COUNT_MISMATCH', result => { result.table.rows.pop(); }],
+  ['MULTI_METRIC_ORACLE_DIMENSION_MISMATCH', result => { result.table.rows[0].cells.period.value = '2026Q3'; }],
+  ['MULTI_METRIC_ORACLE_DIMENSION_MISMATCH', result => { result.table.rows[1] = structuredClone(result.table.rows[0]); }],
+  ['MULTI_METRIC_ORACLE_VALUE_MISMATCH', result => { result.table.rows[0].cells.vacancy_value = exactCell('1', '11'); }],
+  ['MULTI_METRIC_ORACLE_VALUE_MISMATCH', result => { delete result.table.rows[0].cells.vacancy_value; }],
+  ['MULTI_METRIC_ORACLE_COUNT_MISMATCH', result => { result.table.rows[0].cells.vacancy_usedCount = exactCell('11'); }],
+  ['MULTI_METRIC_ORACLE_DENOMINATOR_MISMATCH', result => { result.table.rows[0].cells.vacancy_denominator = exactCell('110000'); }],
+  ['MULTI_METRIC_ORACLE_METRICS_MISMATCH', result => { result.parameters.metrics = ['rent']; }],
+]) {
+  const changed = calibrationResult(operation); corrupt(changed);
+  assert.throws(() => validateMultiMetric(changed), error => queryPerformanceErrorCode(error) === code);
+}
+console.log('PASS query multi-metric oracle: canonical quarter identities, exact independent values, complete dimensions, per-metric counts and denominators; corrupted/missing evidence is rejected');
 
 if (process.argv.includes('--summary-only')) {
-  console.log('PASS query performance summaries: retained failures/missing, safe HTTP diagnostics, checkpoint-before-stop and timing budgets');
+  console.log('PASS query performance summaries: retained failures/missing, safe HTTP diagnostics, checkpoint-before-stop, multi-metric oracle/switch completeness and timing budgets');
   process.exit(0);
 }
 
@@ -54,6 +102,22 @@ const browser = await chromium.launch({ headless: true,
   ...(process.env.PERF_BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.PERF_BROWSER_EXECUTABLE_PATH } : {}),
   ...(process.env.PERF_BROWSER_CHANNEL ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}) });
 try {
+  const metricPage = await browser.newPage();
+  await metricPage.setContent('<label>图表指标<select><option value="rent">净有效租金</option><option value="vacancy">空置率</option></select></label><figure aria-label="同源查询图表"><figcaption>净有效租金</figcaption></figure>');
+  await metricPage.evaluate(() => {
+    const select = document.querySelector('select');
+    select.addEventListener('change', () => {
+      select.disabled = true;
+      setTimeout(() => { document.querySelector('figcaption').textContent = '空置率'; }, 150);
+      setTimeout(() => { select.disabled = false; }, 300);
+    });
+  });
+  await metricPage.evaluate(observeMetricSwitch);
+  assert.equal(await metricPage.evaluate(() => window.__colliersMetricSwitch.state.elapsed_ms), null);
+  await metricPage.getByRole('combobox', { name: '图表指标' }).selectOption('vacancy');
+  await metricPage.waitForFunction(() => window.__colliersMetricSwitch.state.elapsed_ms !== null);
+  assert.ok(await metricPage.evaluate(() => window.__colliersMetricSwitch.state.elapsed_ms) >= 285, 'Correct metric paint while the control is busy is not yet usable');
+  await metricPage.evaluate(() => window.__colliersMetricSwitch.stop()); await metricPage.close();
   for (const chartRequired of [false, true]) {
     const page = await browser.newPage();
     await page.setContent('<button aria-label="发送问题">发送</button><section aria-label="查询结果"><button aria-label="查看来源：面积加权净有效租金 1">1</button></section>');

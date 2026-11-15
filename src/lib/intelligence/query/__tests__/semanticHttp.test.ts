@@ -38,6 +38,7 @@ function harness() {
   const config = { revision: 'a'.repeat(64), enabled: true, allSubmarkets: true, submarkets: ['CBD', '金融街'],
     fields: ['height', 'floors', 'parking', 'totalArea', 'vacantArea', 'netEffectiveRent'],
     failRpc: null as string | null, failKind: null as string | null, modelBudget: true, available: [...quarters],
+    availableByFields: {} as Record<string, Quarter[]>,
     afterAppend: null as ((kind: string) => void) | null, afterContextRead: null as (() => void) | null };
   const result = (data: unknown) => ({ data, error: null });
   const failure = (code = 'XX000', message = 'synthetic service failure') => ({ data: null, error: { code, message } });
@@ -79,7 +80,8 @@ function harness() {
       return read;
     }
     if (name === 'ai_query_available_periods') return result({ version: 'authorized-periods/1', permission_revision: config.revision,
-      read_at: '2026-11-15T10:00:00Z', inventory_time: 'current_catalog', fields: args.p_fields, truncated: false, periods: config.available });
+      read_at: '2026-11-15T10:00:00Z', inventory_time: 'current_catalog', fields: args.p_fields, truncated: false,
+      periods: config.availableByFields[(args.p_fields as string[]).join(',')] ?? config.available });
     if (name === 'ai_query_model_budget') return result({ allowed: config.modelBudget });
     if (name === 'ai_query_snapshot_read') {
       const fields = args.p_fields as string[], periods = args.p_periods as Quarter[];
@@ -126,6 +128,49 @@ beforeEach(() => {
 });
 
 describe('P1 actual semantic HTTP and encrypted-context integration', () => {
+  it('multi-metric latest resolves independent valid-period intersection, executes once and replays its original receipt', async () => {
+    const h = harness();
+    // No building has every metric at once in this metadata contract fixture;
+    // each metric does have valid independent observations in Q3.
+    h.config.availableByFields = {
+      'netEffectiveRent,totalArea,vacantArea': [],
+      'netEffectiveRent,totalArea': [quarters[2], quarters[3]],
+      'totalArea,vacantArea': [quarters[3]],
+    };
+    const question = input('比较最新季度CBD、金融街净有效租金和空置率');
+    const first = await h.submit(question);
+    expect(first.status).toBe(200);
+    expect(first.body.result.parameters.executedPlan).toMatchObject({ metrics: ['rent', 'vacancy'], period: quarters[3], operation: 'group_aggregate' });
+    expect(first.body.result.parameters.availablePeriods).toMatchObject({ availabilityMethod: 'intersection_of_independently_valid_metric_periods', periods: [quarters[3]] });
+    expect(first.body.result.parameters.interpretation.periodBasis).toContain('不强制跨指标共同样本');
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
+    expect(h.calls('ai_query_snapshot_read')[0][1].p_fields).toEqual(['netEffectiveRent', 'totalArea', 'vacantArea']);
+    expect(h.calls('ai_query_available_periods')).toHaveLength(2);
+    h.config.availableByFields = {};
+    h.config.available.push({ year: 2026, quarter: 4 });
+    const replay = await h.submit(question);
+    expect(replay.status).toBe(202);
+    expect(replay.body.requestId).toBe(first.body.requestId);
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
+    expect(h.calls('ai_query_available_periods')).toHaveLength(2);
+    expect(understandWithModel).not.toHaveBeenCalled();
+  });
+  it('multi-metric period lookup refuses an ungranted secondary field before any metadata or snapshot read', async () => {
+    const h = harness(); h.config.fields = ['totalArea', 'netEffectiveRent'];
+    const denied = await h.submit(input('最新季度CBD净有效租金和空置率'));
+    expect(denied.status).toBe(403);
+    expect(denied.body).not.toHaveProperty('result');
+    expect(h.calls('ai_query_available_periods')).toHaveLength(0);
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
+  });
+  it('multi-metric latest with no common period clarifies instead of discarding a metric or inventing values', async () => {
+    const h = harness(); h.config.availableByFields = { 'netEffectiveRent,totalArea': [quarters[2]], 'totalArea,vacantArea': [quarters[3]] };
+    const answer = await h.submit(input('最新季度CBD净有效租金和空置率'));
+    expect(answer.status).toBe(422);
+    expect(answer.body).not.toHaveProperty('result');
+    expect(JSON.stringify(answer.body)).toContain('共同季度');
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
+  });
   it('T01-T03 executes the four-turn CBD/financial-street comparison and data-anchored four-quarter trend', async () => {
     const h = harness(), conversation = randomUUID();
     const first = await h.submit(input('2026 年第三季度 CBD 的净有效租金是多少？', conversation));

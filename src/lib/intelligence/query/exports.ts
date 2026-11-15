@@ -3,6 +3,7 @@ import { buildResultChart } from './charts';
 import { resultViewSchema, resultSummary, units } from './presentation';
 import type { QueryResult, ResultCell } from './result';
 import { resultDigest } from './result';
+import { metricLabels, resultMetricColumns, resultMetrics } from './multiMetricView';
 
 const statusLabels = { missing: '未记录', invalid: '无效', conflict: '冲突', unverified: '未核验' };
 
@@ -66,14 +67,17 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
   if (result.operation === 'cross_aggregate') {
     // Reuse the exact axis/cell validator, then copy original typed cells. No
     // regrouping, pivot aggregate, fresh data read or rounded recomputation.
-    const chart = buildResultChart(resultViewSchema.parse(result), { kind: 'heatmap' }), grid = chart.grid!;
+    const view = resultViewSchema.parse(result), metrics = resultMetrics(view);
+    for (const [index, metric] of metrics.entries()) {
+    const chart = buildResultChart(view, { kind: 'heatmap', ...(metrics.length > 1 ? { metric } : {}) }), grid = chart.grid!;
+    const mapped = resultMetricColumns(view, metric);
     for (const [field, name] of [['value', '交叉指标'], ['usedCount', '交叉样本'], ['denominator', '交叉分母']] as const) {
-      const column = result.table.columns.find(c => c.key === field)!;
-      const sheet = append(name, [
+      const column = result.table.columns.find(c => c.key === mapped[field])!;
+      const sheet = append(index === 0 ? name : `${metricLabels[metric]}${name}`, [
         ['result_id', result.resultId], ['指标', `${column.label} (${units[column.unit ?? ''] ?? column.unit ?? ''})`],
         ['子市场 / 等级', ...grid.columns.map(c => c.label)],
         ...grid.rows.map((row, i) => [row.label, ...grid.columns.map((_, j) => {
-          const cell = result.table.rows[i * grid.columns.length + j].cells[field];
+          const cell = result.table.rows[i * grid.columns.length + j].cells[mapped[field]];
           return cell.kind === 'unknown' ? '未知（无有效样本）' : cellValue(cell);
         })]),
       ]);
@@ -81,6 +85,7 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
         const cell = sheet[XLSX.utils.encode_cell({ r: i + 3, c: j + 1 })];
         if (cell?.t === 'n') cell.z = '0.00%';
       }));
+    }
     }
   }
   if (result.operation === 'distribution') {

@@ -22,6 +22,10 @@ export type ResultTable = {
   columns: readonly { key: string; label: string; unit: string | null }[];
   rows: readonly { entityId: string; cells: Readonly<Record<string, ResultCell>> }[];
 };
+export type QueryAnalysis = ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | ReturnType<typeof buildingDistribution> | null;
+export type MultiMetricAnalysis = Readonly<{ version: 'multi-metric/1'; results: readonly {
+  metric: 'rent' | 'vacancy' | 'totalArea'; analysis: QueryAnalysis;
+}[] }>;
 export type QueryResult = Readonly<{
   resultId: string;
   createdAt: string;
@@ -32,7 +36,7 @@ export type QueryResult = Readonly<{
   operation: 'list' | 'rank' | 'aggregate' | 'compare' | 'trend' | 'group_aggregate' | 'group_trend' | 'cross_aggregate' | 'relationship' | 'distribution';
   parameters: Readonly<Record<string, unknown>>;
   table: ResultTable;
-  analysis: ReturnType<typeof rankBuildings> | ReturnType<typeof aggregateQuarter> | ReturnType<typeof compareQuarters> | ReturnType<typeof trendQuarters> | ReturnType<typeof groupedQuarterAnalysis> | ReturnType<typeof crossTabQuarter> | ReturnType<typeof rentVacancyRelationship> | ReturnType<typeof buildingDistribution> | null;
+  analysis: QueryAnalysis | MultiMetricAnalysis;
   sources: readonly SourceRef[];
   limitations: readonly string[];
 }>;

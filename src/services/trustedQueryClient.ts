@@ -33,7 +33,7 @@ import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/q
 import { queryActionSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
 const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional() });
-const replySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(),
+const replySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.literal('scope_limit').optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional() });
 export type QueryReply = z.infer<typeof replySchema>;
 export type QueryAccess = z.infer<typeof capabilitiesSchema>;

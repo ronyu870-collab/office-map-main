@@ -39,6 +39,8 @@ export async function understandWithModel(question: string, context: SemanticCon
     'Every requested condition must be represented. Unsupported or uncertain conditions go in unresolvedConditions; never silently remove them.',
     'Supported numeric predicates on totalArea, vacantArea, netEffectiveRent, height, floors and parking are parsed and retained independently by trusted code. Do not output a filter object or mark those supported numeric conditions unsupported.',
     'Rent basis must be explicit net effective rent or inherited from context; generic most expensive requires clarification.',
+    'Aggregate, compare, trend, group_aggregate, group_trend and cross_aggregate can include 2-3 distinct metrics. Set metrics to the complete requested/inherited list and metric to metrics[0]. Never silently select only one metric. Omit metrics for a single metric.',
+    'An explicit replacement changes the metric selection. Explicitly adding another metric preserves prior metrics. Every metric keeps its own valid sample and formula; never infer a joint-sample requirement.',
     'Only use named authorized submarkets. No new scope, dates, defaults, filters, metrics or comparisons that the user did not request.',
     'Use time.kind=latest/rolling for data-relative dates; never calculate the latest data quarter yourself. Inherit unspecified slots.',
     'Building age/completion year, asking rents, lease deals, GFA, customers, fees and originals are outside this query contract.',

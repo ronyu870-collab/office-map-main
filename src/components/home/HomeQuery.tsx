@@ -24,6 +24,7 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
   const [reply, setReply] = React.useState<QueryReply | null>(null);
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const [terminalFailure, setTerminalFailure] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
   const [attempt, setAttempt] = React.useState<Attempt | null>(null);
   const [examplesOpen, setExamplesOpen] = React.useState(false);
@@ -41,7 +42,7 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
   const resetConversation = React.useCallback((clearDraft = true) => {
     generation.current++; current.current?.abort(); current.current = null;
     setParentRequest(undefined); setConversationId(crypto.randomUUID());
-    setBusy(false); setReply(null); setAttempt(null); setHistory([]); setCollapsed(false); setMessage('');
+    setBusy(false); setTerminalFailure(false); setReply(null); setAttempt(null); setHistory([]); setCollapsed(false); setMessage('');
     if (clearDraft) setDraft('');
     clearSaved();
   }, [clearSaved]);
@@ -90,13 +91,18 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
       // An interrupted new query must not restore the previous question's ID.
       clearSaved();
     }
-    setBusy(true); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在查询授权数据…'); setReply(null); setAttempt(next);
+    setBusy(true); setTerminalFailure(false); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在查询授权数据…'); setReply(null); setAttempt(next);
     try {
       const result = recovering && next.requestId ? await trustedQueryClient.recover(scope, next.requestId, controller.signal)
         : await trustedQueryClient.submit(scope, { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}) }, controller.signal);
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
       const updated = { ...next, requestId: result.requestId ?? next.requestId }; setAttempt(updated);
-      if (updated.requestId) {
+      // Capacity rejection and a confirmed failed recovery are terminal for
+      // this request key. A smaller edited question gets its own new key.
+      const terminal = result.status === 'failed' && (result.reason === 'scope_limit' || recovering);
+      setTerminalFailure(terminal);
+      if (terminal) clearSaved();
+      else if (updated.requestId) {
         setSavedId(updated.requestId); try { sessionStorage.setItem(storageKey, updated.requestId); } catch { /* Recovery also works in this mounted session. */ }
       }
       if (result.status === 'denied') {
@@ -111,6 +117,9 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
       if ((result.status === 'ready' || result.status === 'clarification') && result.requestId
         && responseConversation?.id === conversationId) setParentRequest(result.requestId);
       if (result.status === 'ready' && result.result) setMessage('查询完成。');
+      else if (terminal) setMessage(result.reason === 'scope_limit'
+        ? result.error ?? '本次查询范围超过交互容量，请减少子市场、季度或指标后重新提问。'
+        : '本次请求未生成可恢复的结果，请修改问题后重新提交。');
       else if (result.status === 'clarification') { setMessage(result.message ?? '请补充完整查询条件。'); clearSaved(); }
       else if (['already_received', 'received', 'running', 'succeeded', 'changed'].includes(result.status)) setMessage('请求已接收，可检查状态并恢复原结果；不会重新查数。');
       else { setMessage(result.error ?? '本次请求没有可恢复的结果，请检查权限或修改条件后重新查询。'); if (result.status === 'denied') clearSaved(); }
@@ -138,7 +147,7 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
   const activeTurn: Turn | null = attempt ? { attempt, reply, message } : null;
   const activeContext = !!attempt && !!reply?.requestId && (reply.conversation ?? attempt.conversation)?.id === conversationId;
   const ready = reply?.status === 'ready' && !!reply.result;
-  const retry = attempt && !busy && !reply?.result && reply?.status !== 'clarification';
+  const retry = attempt && !busy && !terminalFailure && !reply?.result && reply?.status !== 'clarification';
   const examples = [...new Set(access.examples)];
   return <div className={styles.conversation}>
     {access.enabled && !attempt && !history.length && <div className={styles.welcome}>

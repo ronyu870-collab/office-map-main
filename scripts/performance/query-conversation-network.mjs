@@ -1,11 +1,35 @@
 // Observes real Playwright request lifecycles. No interception or application
 // state changes. Receipt bodies are read only to extract allowlisted view shape;
 // tokens, source IDs, URLs, query strings, headers and bodies are never retained.
-export function observeQueryNetwork(page, sample) {
+// Finite endpoint categories identify known homepage dependencies without
+// disclosing arbitrary routes, database filters, record IDs or provider hosts.
+const applicationEndpoints = {
+  '/api/intelligence/query': 'query_submit', '/api/intelligence/query/artifact': 'query_artifact',
+  '/api/intelligence/query/receipt': 'query_receipt', '/api/intelligence/query/capabilities': 'query_capabilities',
+  '/api/intelligence/query/recover': 'query_recover', '/api/audit-events': 'audit_events',
+};
+const dataEndpoints = {
+  '/rest/v1/message_notifications': 'rest_message_notifications', '/rest/v1/admin_issues': 'rest_admin_issues',
+  '/rest/v1/admin_issue_reads': 'rest_admin_issue_reads', '/rest/v1/notices': 'rest_notices',
+  '/rest/v1/messages': 'rest_messages', '/rest/v1/user_roles': 'rest_user_roles',
+  '/auth/v1/token': 'auth_token', '/auth/v1/user': 'auth_user',
+};
+const endpointCategories = new Set([...Object.values(applicationEndpoints), ...Object.values(dataEndpoints),
+  'application_asset', 'unclassified_application', 'unclassified_data_api', 'unclassified_external']);
+export const safeQueryEndpoint = value => endpointCategories.has(value) ? value : 'unclassified_external';
+
+export function observeQueryNetwork(page, sample, { dataApiOrigin } = {}) {
   const origin = new URL(page.url()).origin, requests = new Map(), listeners = new Set(), failures = new Set();
   let sequence = 0, stopped = false;
   const knownMethods = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
   const method = request => knownMethods.has(request.method()) ? request.method() : 'OTHER';
+  const endpoint = request => {
+    const url = new URL(request.url());
+    if (url.origin === origin) return applicationEndpoints[url.pathname]
+      ?? (url.pathname.startsWith('/_next/') ? 'application_asset' : 'unclassified_application');
+    if (dataApiOrigin && url.origin === dataApiOrigin) return dataEndpoints[url.pathname] ?? 'unclassified_data_api';
+    return 'unclassified_external';
+  };
   const kind = request => {
     const url = new URL(request.url());
     if (url.origin !== origin) return 'other';
@@ -24,7 +48,7 @@ export function observeQueryNetwork(page, sample) {
   };
   const onRequest = request => {
     const requestKind = kind(request), requestMethod = method(request);
-    const record = { index: sequence++, kind: requestKind, method: requestMethod,
+    const record = { index: sequence++, kind: requestKind, endpoint: endpoint(request), method: requestMethod,
       critical: requestMethod === 'POST' && ['submit', 'artifact', 'receipt'].includes(requestKind),
       status: 'pending', httpStatus: null, ...(requestKind === 'receipt' && requestMethod === 'POST' ? receiptShape(request) : {}) };
     requests.set(request, record); sample.networkRequests.push(record);
@@ -35,7 +59,7 @@ export function observeQueryNetwork(page, sample) {
     if (failures.has(request)) return;
     failures.add(request);
     const record = requests.get(request);
-    const failure = { index: record?.index ?? null, kind: record?.kind ?? kind(request), method: record?.method ?? method(request),
+    const failure = { index: record?.index ?? null, kind: record?.kind ?? kind(request), endpoint: record?.endpoint ?? endpoint(request), method: record?.method ?? method(request),
       attribution: record ? 'started_in_sample' : 'started_before_sample', critical: record?.critical === true, error,
       httpStatus: httpStatus ?? record?.httpStatus ?? null };
     sample.networkFailures.push(failure);

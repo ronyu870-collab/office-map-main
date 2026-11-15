@@ -101,6 +101,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Colliers AI P1 semantic conversation and trusted research, PR #200',
         reason: 'User explicitly waived independent visual review, browser visual review and physical-phone manual acceptance for Colliers AI P1 on 2026-11-15; applies only to PR #200',
       },
+      {
+        number: 201,
+        branch: 'codex/colliers-ai-p1-followup',
+        scope: 'Colliers AI P1 follow-up multi-metric analysis and verification, PR #201',
+        reason: 'User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested unresolved work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #201',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

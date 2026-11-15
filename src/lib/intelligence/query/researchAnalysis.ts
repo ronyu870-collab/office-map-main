@@ -8,6 +8,8 @@ import { formatExact, units } from './presentation';
 import { FORMULAS } from './registry';
 import type { QueryResult } from './result';
 import { researchAnalysisSchema, type ResearchAnalysis, type ResearchAnomaly, type ResearchChange, type ResearchPeriod, type ResearchSeries } from './researchAnalysisView';
+import { resultMetrics } from './multiMetricView';
+import type { NumericField } from './registry';
 
 const from = (value: NumericOutput) => Decimal.fraction(BigInt(value.exact.numerator), BigInt(value.exact.denominator));
 const output = (value: Decimal): NumericOutput => {
@@ -182,7 +184,7 @@ function seriesFindings(series: ResearchSeries): ResearchAnalysis['findings'] {
     const last = overall.currentValue ? `${formatExact(overall.currentValue, series.unit)} ${unit}` : '未知';
     const direction = { increasing: '逐季连续上升', decreasing: '逐季连续下降', stable: '各季持平',
       fluctuating: '各季有波动或持平', incomplete: '期间有缺期或缺值，不判断连续涨跌', single_period: '' }[series.direction];
-    findings.push({ id: `${series.key}/trend`, kind: 'trend', title: `${series.label || '当前范围'}${label}变化`,
+    findings.push({ id: `${series.key}/trend`, kind: 'trend', title: `${series.label || '当前范围'}${series.label.endsWith(` · ${label}`) ? '' : label}变化`,
       text: `${prefix}${quarterKey(overall.base)} 为 ${first}，${quarterKey(overall.current)} 为 ${last}。${overall.difference
         ? series.metric === 'vacancy' ? `变化 ${changeText(overall)}。` : `绝对变化 ${formatExact(overall.difference, overall.differenceUnit)} ${units[overall.differenceUnit]}；相对变化 ${changeText(overall)}。`
         : '起止值不完整，不计算总体变化。'}${direction}。`,
@@ -287,8 +289,8 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
   // flatten them into a false market mean as an analytical supplement.
   const supported = ['aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend'];
   if (!supported.includes(result.operation)) return result;
-  const metric = result.parameters.metric;
-  if (metric !== 'rent' && metric !== 'vacancy' && metric !== 'totalArea') throw new Error('RESEARCH_METRIC_REQUIRED');
+  const metrics = resultMetrics(result);
+  if (!metrics.length) throw new Error('RESEARCH_METRIC_REQUIRED');
   if (!selected.length || selected.length > 40 || selected.length !== universe.length) throw new Error('RESEARCH_SNAPSHOT_REQUIRED');
   for (const snapshot of [...selected, ...universe]) {
     assertComplete(snapshot);
@@ -297,8 +299,8 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
   const observationCount = Math.max(selected.reduce((n, snapshot) => n + snapshot.rows.length, 0),
     universe.reduce((n, snapshot) => n + snapshot.rows.length, 0));
   if (observationCount > RESEARCH_ANALYSIS_LIMITS.observations) return skippedResearch(result, observationCount, 'observation_limit');
-  const fields = metric === 'rent' ? ['totalArea', 'netEffectiveRent'] as const
-    : metric === 'vacancy' ? ['totalArea', 'vacantArea'] as const : ['totalArea'] as const;
+  const fields = [...new Set(metrics.flatMap((metric): NumericField[] => metric === 'rent' ? ['totalArea', 'netEffectiveRent']
+    : metric === 'vacancy' ? ['totalArea', 'vacantArea'] : ['totalArea']))];
   const dimension = result.operation === 'group_aggregate' || result.operation === 'group_trend' ? result.parameters.groupBy : null;
   if (dimension !== null && dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
   const sourceDimension = dimension === 'submarket' ? 'submarket' : dimension === 'grade' ? 'grade' : null;
@@ -332,24 +334,28 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
     if (sortedUniverse.some(snapshot => !snapshot)) throw new Error('RESEARCH_SNAPSHOT_MISMATCH');
     const mode = result.parameters.mode === 'paired' ? 'paired' : 'per_period';
     const budget: AnomalyBudget = { returned: 0, sourceReferences: 0 };
-    let series: ResearchSeries[];
-    if (result.operation === 'group_aggregate' || result.operation === 'group_trend') {
+    const series: ResearchSeries[] = metrics.flatMap(metric => {
+      const key = (value: string) => metrics.length > 1 ? `${metric}/${value}` : value;
+      const label = (value: string) => metrics.length > 1 ? `${value} · ${metricLabel(metric)}` : value;
+      if (result.operation === 'group_aggregate' || result.operation === 'group_trend') {
       if (dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
       const grouped = groupedQuarterAnalysis(sorted, sortedUniverse, dimension, metric, mode);
-      series = grouped.groups.map(group => {
+      return grouped.groups.map(group => {
         const ids = new Set(group.entityIds);
-        return { ...analyzeSeries(group.key, group.label, sorted.map(snapshot => {
+        return { ...analyzeSeries(key(group.key), label(group.label), sorted.map(snapshot => {
           const rows = snapshot.rows.filter(row => ids.has(row.id)); return { ...snapshot, rows, expectedCount: rows.length };
         }), metric, mode, budget), classificationSourceIds: group.sourceIds };
       });
     } else {
       const scope = sorted[0].queryScope?.submarkets;
-      const label = Array.isArray(scope) && scope.every(value => typeof value === 'string') ? scope.join('、') : '当前获权范围';
-      series = [analyzeSeries('scope', label, sorted, metric, mode, budget)];
+      const scopeLabel = Array.isArray(scope) && scope.every(value => typeof value === 'string') ? scope.join('、') : '当前获权范围';
+      return [analyzeSeries(key('scope'), label(scopeLabel), sorted, metric, mode, budget)];
     }
+    });
     const candidate: ResearchAnalysis = { version: 'research-analysis/1', series: series.map(compactSeriesEvidence),
       findings: series.flatMap(item => seriesFindings(item).map(finding => ({ ...finding,
-        sourceIds: unique([...finding.sourceIds, ...(item.classificationSourceIds ?? [])]) }))),
+        sourceIds: unique([...finding.sourceIds, ...(item.classificationSourceIds ?? [])]),
+        ...(metrics.length > 1 ? { evidence: { ...finding.evidence, metric: item.metric } } : {}) }))),
       resourceUsage: { status: series.some(item => item.anomalyCoverage?.complete === false) ? 'limited' : 'complete',
         observationCount, reason: null, limits: RESEARCH_ANALYSIS_LIMITS }, rules: [
       { id: 'exact_change/1', description: '使用未舍入有理数；租金/面积变化率=(期末−期初)÷期初×100%；空置率变化=(期末比例−期初比例)×100，单位为百分点。基期为零不计算相对变化率。' },
@@ -360,7 +366,7 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
       { id: 'research_evidence/1', description: '派生变化及所选模式的期间通过 sourceRefs 指向本组 perPeriod、commonSample 或 comparability 的明确索引，复用完整来源标识；分组分类证据见 classificationSourceIds。分析文字的依据按钮直接包含相应指标及分类记录。' },
       { id: 'research_resources/1', description: `补充分析最多 ${RESEARCH_ANALYSIS_LIMITS.observations} 个楼宇×季度观察、${RESEARCH_ANALYSIS_LIMITS.inputSourceReferences} 个输入来源引用、${RESEARCH_ANALYSIS_LIMITS.inputSourceCharacters} 个不同来源标识字符，补充输出最多 ${RESEARCH_ANALYSIS_LIMITS.outputBytes} 字节，合并结果最多 ${RESEARCH_ANALYSIS_LIMITS.combinedResultBytes} 字节；异常明细全结果最多 ${RESEARCH_ANALYSIS_LIMITS.anomalies} 条及 ${RESEARCH_ANALYSIS_LIMITS.anomalySourceReferences} 个证据引用。达到限额会明确标注检测或列举是否完整，保留原查询结果。` },
     ] };
-    if (new TextEncoder().encode(JSON.stringify(candidate)).byteLength > RESEARCH_ANALYSIS_LIMITS.outputBytes)
+    if (candidate.series.length > 400 || candidate.findings.length > 1000 || new TextEncoder().encode(JSON.stringify(candidate)).byteLength > RESEARCH_ANALYSIS_LIMITS.outputBytes)
       return skippedResearch(result, observationCount, 'output_limit');
     const combined = { ...result, parameters: { ...result.parameters, researchAnalysis: candidate } };
     // The existing encrypted archive limit is 16 MiB. Reserve at least 1 MiB for

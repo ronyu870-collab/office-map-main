@@ -1,11 +1,10 @@
-import { distributionFields } from './distribution';
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { assertComplete, quarterKey, quarterSchema, type FactSnapshot, type Quarter, type SourceRef } from './contracts';
 import { resolveNumericFact } from './facts';
 import { numericFields, type NumericField } from './registry';
-import { planPeriods, type QueryPlan } from './plan';
+import { planOutputFields, planPeriods, type QueryPlan } from './plan';
 import { authorizePlan } from './admission';
 import type { DataAuthority, VerifiedQueryIdentity } from './serverAuthority';
 
@@ -24,8 +23,7 @@ const rawSchema=z.strictObject({
 type RawSnapshot=z.infer<typeof rawSchema>;
 
 export function describePlanRead(plan:QueryPlan):{fields:NumericField[];periods:Quarter[]} {
-  const fields=new Set<NumericField>(plan.operation==='list'?plan.fields:plan.operation==='rank'?[plan.field]
-    : plan.operation === 'distribution' ? distributionFields(plan.measure) : plan.operation === 'relationship' ? ['totalArea', 'netEffectiveRent', 'vacantArea'] :plan.metric==='rent'?['totalArea','netEffectiveRent']:plan.metric==='vacancy'?['totalArea','vacantArea']:['totalArea']);
+  const fields=new Set<NumericField>(planOutputFields(plan));
   const visit=(filter:NonNullable<QueryPlan['filter']>)=>{
     if ('terms' in filter) filter.terms.forEach(visit);
     else fields.add(filter.field);

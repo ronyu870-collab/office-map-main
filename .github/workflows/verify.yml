@@ -386,8 +386,8 @@ jobs:
   ai-query-auth:
     name: Real Auth trusted query HTTP integration
     runs-on: ubuntu-24.04
-    # Real Auth regression plus alternating P0/P1 production-build measurements.
-    timeout-minutes: 30
+    # Real Auth regression, released-P1/current A/B and new multi-metric measurements.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -426,6 +426,7 @@ jobs:
           path: |
             verification/ai-query-auth/results.json
             verification/ai-query-auth/performance.json
+            verification/ai-query-auth/multi-metric-performance.json
           if-no-files-found: ignore
           retention-days: 7
 
