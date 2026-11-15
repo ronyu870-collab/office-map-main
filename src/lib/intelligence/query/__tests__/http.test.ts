@@ -13,15 +13,23 @@ vi.mock('../serverAuthority', () => ({
 }));
 vi.mock('../snapshotReader', () => ({ readQuerySnapshots: async () => [] }));
 vi.mock('../executePlan', () => ({ executeQueryPlan: vi.fn() }));
+vi.mock('../jsonResponse', async importOriginal => {
+  const actual = await importOriginal<typeof import('../jsonResponse')>();
+  return { prepareQueryJsonResponse: async (...args: Parameters<typeof actual.prepareQueryJsonResponse>) => {
+    const response = await actual.prepareQueryJsonResponse(...args);
+    if (state.mode === 'changed_during_compression') state.prepared = true;
+    return response;
+  } };
+});
 import { handleQuerySubmission } from '../http';
 import { executeQueryPlan } from '../executePlan';
 
 describe('final HTTP delivery boundary', () => {
-  it.each([{ mode: 'changed', status: 403 }, { mode: 'unavailable', status: 503 }])('suppresses prepared output with honest status when authority is $mode', async ({ mode, status }) => {
+  it.each([{ mode: 'changed', status: 403 }, { mode: 'unavailable', status: 503 }, { mode: 'changed_during_compression', status: 403 }])('suppresses prepared output with honest status when authority is $mode', async ({ mode, status }) => {
     state.prepared = false; state.mode = mode;
     vi.mocked(executeQueryPlan).mockReturnValue(buildListResult({ ...fixture(), period: null }, []));
     const rpc = vi.fn((_name: string, args: Record<string, unknown>) => {
-      if (args.p_kind === 'delivery_receipt') state.prepared = true;
+      if (args.p_kind === 'delivery_receipt' && mode !== 'changed_during_compression') state.prepared = true;
       return { abortSignal: () => Promise.resolve({ data: { event_id: crypto.randomUUID(), sequence: 1, event_hash: 'a'.repeat(64), replayed: false }, error: null }) };
     });
     const request = new Request('http://localhost/api/intelligence/query', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic' },

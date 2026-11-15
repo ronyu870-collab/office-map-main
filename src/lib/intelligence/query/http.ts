@@ -17,6 +17,7 @@ import { recordQueryIntake } from './intake';
 import { queryConversationSchema, SEMANTIC_PROTOCOL_VERSION } from './conversationProtocol';
 import { readConversation } from './conversationStore';
 import { prepareSemanticExecution, attachSemanticExecution } from './semanticExecution';
+import { prepareQueryJsonResponse } from './jsonResponse';
 
 const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional(), conversation: queryConversationSchema.optional() });
 function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string {
@@ -153,13 +154,14 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     const responseBody = { requestId, status: 'ready', result: result.result, ...(semantic ? { conversation } : {}) };
     const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'result', resultId: result.result.resultId, itemCount: result.result.table.rows.length,
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex') }, { httpStatus: 200 });
+    const response = await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
     try { if ((await fresh()).permissionRevision !== usedRevision) throw new Error('QUERY_DENIED'); }
     catch (error) {
       const denied = error instanceof Error && error.message === 'QUERY_DENIED';
       await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: denied ? 'authorization_changed_before_response' : 'authorization_unavailable_before_response' });
       return json({ requestId, status: denied ? 'denied' : 'unavailable', error: denied ? '查询权限已变化，结果未交付。' : '暂时无法确认查询权限，结果未交付。' }, denied ? 403 : 503);
     }
-    return json(responseBody, 200, deliveryHeaders);
+    return response;
   } catch {
     // Do not expose SDK exceptions, raw questions, role lookups or source counts.
     return json({ requestId, status: 'unavailable', error: '查询或审计服务暂不可用，本次未交付结果。' }, 503);

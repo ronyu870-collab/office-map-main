@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { gunzipSync } from 'node:zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptAuditContent } from '../auditCrypto';
@@ -105,10 +106,12 @@ function harness() {
     throw new Error(`Unexpected fixture RPC ${name}`);
   } }));
   const dependencies = { client: { rpc } as unknown as SupabaseClient, enabled: true, keys };
-  const submit = async (body: Submission | Record<string, unknown>) => {
+  const submit = async (body: Submission | Record<string, unknown>, headers: Record<string, string> = {}) => {
     const response = await handleQuerySubmission(new Request('https://synthetic.invalid/api/intelligence/query', { method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic-session' }, body: JSON.stringify(body) }), dependencies);
-    return { status: response.status, headers: response.headers, body: await response.json() };
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer synthetic-session', ...headers }, body: JSON.stringify(body) }), dependencies);
+    const wire = new Uint8Array(await response.arrayBuffer());
+    const decodedBytes = response.headers.get('content-encoding') === 'gzip' ? gunzipSync(wire) : wire;
+    return { status: response.status, headers: response.headers, body: JSON.parse(new TextDecoder().decode(decodedBytes)), wire, decodedBytes };
   };
   const calls = (name: string) => rpc.mock.calls.filter(([rpcName]) => rpcName === name);
   const decoded = (requestId: string, kind: string) => {
@@ -128,6 +131,20 @@ beforeEach(() => {
 });
 
 describe('P1 actual semantic HTTP and encrypted-context integration', () => {
+  it('compresses a large authorized response without changing the decoded delivery digest or source evidence', async () => {
+    const h = harness();
+    const response = await h.submit(input('CBD、金融街净有效租金、空置率和季度总面积2025Q4至2026Q3按子市场和等级趋势各期样本'), { 'Accept-Encoding': 'gzip' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-encoding')).toBe('gzip');
+    expect(response.wire.byteLength).toBeLessThan(response.decodedBytes.byteLength / 4);
+    expect(response.headers.get('x-query-body-sha256')).toBe(createHash('sha256').update(response.decodedBytes).digest('hex'));
+    expect(response.headers.get('x-query-delivery-token')).toBeTruthy();
+    expect(response.body.result.parameters.executedPlan.operation).toBe('cross_trend');
+    expect(response.body.result.sources.length).toBeGreaterThan(0);
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
+    expect(h.decoded(response.body.requestId, 'succeeded')).toHaveLength(1);
+  });
+
   it('rejects client-supplied cross-trend axes before a fact read and records the denied request', async () => {
     const h = harness();
     const result = await h.submit({ idempotencyKey: randomUUID(), question: '合成交叉趋势执行回归', plan: {

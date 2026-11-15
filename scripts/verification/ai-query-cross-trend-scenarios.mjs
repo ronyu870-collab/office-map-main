@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
@@ -15,9 +15,18 @@ export async function verifyCrossTrend({ db, check, queryAdmin, person, call, re
   const plan = (metrics = CROSS_TREND_METRICS, mode = 'per_period', extra = {}) => ({ operation: 'cross_trend',
     metric: metrics[0], ...(metrics.length > 1 ? { metrics } : {}), start: periods[0], end: periods[1], mode,
     scope: { inventory: 'tracked', submarkets: ['CBD', '金融街'] }, ...extra });
-  const query = (p = plan(), who = queryAdmin) => call(who, { idempotencyKey: randomUUID(), question: '合成交叉趋势执行回归', plan: p });
+  const query = (p = plan(), who = queryAdmin) => call(who, { idempotencyKey: randomUUID(), question: '合成交叉趋势执行回归', plan: p }, { 'Accept-Encoding': 'gzip' });
+  const assertCompressedDelivery = response => {
+    // Fetch decodes the wire representation. The existing receipt still binds
+    // every byte of the full decoded JSON, including all source evidence.
+    const bytes = Buffer.from(JSON.stringify(response.body));
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    assert.equal(response.headers.get('x-query-body-sha256'), createHash('sha256').update(bytes).digest('hex'));
+    if (bytes.length >= 16 * 1024) assert.equal(response.headers.get('content-encoding'), 'gzip');
+  };
   const checked = async (response, p, ids = BUILDINGS, qs = periods) => {
     assert.equal(response.status, 200, JSON.stringify(response.body));
+    assertCompressedDelivery(response);
     const rows = await crossTrendOracleRows(db, { ids, periods: qs, mode: p.mode, submarkets: p.scope.submarkets ?? null });
     validateCrossTrendResult(response.body.result, rows, p.metrics ?? [p.metric]);
     assert.ok(response.body.result.sources.every(source => ids.includes(source.entityId)));
@@ -101,10 +110,14 @@ export async function verifyCrossTrend({ db, check, queryAdmin, person, call, re
     });
     await check('交叉趋势：恢复、三指标同源分面图及真实CSV/XLSX/SVG保存完整长表和来源', async () => {
       assert.ok(saved); const common = { requestId: saved.requestId, resultId: saved.result.resultId };
-      assert.deepEqual((await recover(queryAdmin, saved.requestId)).body.result, saved.result);
+      const restored = await recover(queryAdmin, saved.requestId, 'recover', { 'Accept-Encoding': 'gzip' });
+      assertCompressedDelivery(restored); assert.deepEqual(restored.body.result, saved.result);
+      const identity = await recover(queryAdmin, saved.requestId, 'recover', { 'Accept-Encoding': 'identity' });
+      assert.equal(identity.headers.get('content-encoding'), null); assert.deepEqual(identity.body.result, saved.result);
       for (const [index, metric] of CROSS_TREND_METRICS.entries()) {
         const chart = await artifact(queryAdmin, { ...common, action: 'chart', chart: { kind: 'grouped_time_series', metric } });
         assert.equal(chart.status, 200, JSON.stringify(chart.body)); assert.equal(chart.body.chart.kind, 'faceted_line');
+        assertCompressedDelivery(chart);
         assert.equal(chart.body.chart.points.length, 8); assert.equal(chart.body.chart.facets.length, 4);
         const key = index === 0 ? 'value' : `${metric}_value`;
         for (const point of chart.body.chart.points) {

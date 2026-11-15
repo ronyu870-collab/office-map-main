@@ -11,6 +11,7 @@ import { isQuerySameOrigin } from './sameOrigin';
 import { prepareDelivery } from './deliveryToken';
 import { artifactInputSchema, buildResultArtifact, type ArtifactInput } from './artifacts';
 import { recordQueryIntake } from './intake';
+import { prepareQueryJsonResponse } from './jsonResponse';
 
 const inputSchema=z.strictObject({requestId:z.uuid(),action:z.enum(['status','recover'])});
 const json=(body:unknown,status:number,extraHeaders:Record<string,string>={})=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
@@ -66,6 +67,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':restored?'result':'status',
       resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},
       {httpStatus:200,sourceRequestId:input.requestId});
+    const jsonResponse = artifact?.type === 'download' ? null : await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
     if(restored)await restored.recheck();
     const final=await readOwnResult(client,verified,input.requestId,'status',signal);
     if(final.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
@@ -78,7 +80,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,
       'X-Query-Result-Id':input.action==='export'?input.resultId:'','X-Artifact-Sha256':artifact.sha256,'X-Audit-Attempt-Id':attemptId,...deliveryHeaders,
     }});
-    return json(responseBody,200,deliveryHeaders);
+    return jsonResponse!;
   }catch(error){
     const denied=error instanceof Error&&error.message==='QUERY_DENIED';
     const changed=error instanceof Error&&error.message==='QUERY_RESULT_CHANGED';

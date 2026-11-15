@@ -62,6 +62,8 @@
 
 原真实 Auth/HTTP 和 640＋80 性能 job 保留；新增独立 runner 执行双维趋势实际 HTTP 与 80 浏览器样本，避免串行新增工作导致原 job 超时。suite 必须是明确定义值，报告记录 suite、PR head 与实际测试 merge SHA；两个 job 均是本批合并门槛，不能只检查其中一个绿色。新增双维趋势在完整报告写入后对 `budgetsMet` 作硬断言；原两份报告的所有预算继续作为合并前检查条件。
 
+第三轮实测定位到大型 JSON 传输开销后，对获权成功的查询、恢复和图表响应增加 `Accept-Encoding` 协商 gzip。16 KiB 以下或明确不接受 gzip 时保留普通 JSON；缓存仍为 `private, no-store`，`Vary` 同时保留身份与编码。解压后的原始 JSON、全部来源、归档及 SHA-256 交付摘要不变。压缩在最后一次实时权限／来源复核之前完成，不用跨用户缓存或跳过审计换取速度；CSV／XLSX／SVG 下载协议不变。
+
 ## 5. 授权复核与暂缓项
 
 本轮使用 Supabase 只读查询复核生产项目 `qhgxougfzzmgqjzzwudf`：当前仍为 1 项有效 AI grant，字段为 `height`、`floors`、`parking`、`totalArea`、`vacantArea`、`netEffectiveRent`；能力为原目录、楼书、季度和内部导出。仅记录聚合授权元数据，不读取业务记录详情、不记录账号标识、不改授权。见 [本轮授权核查](../verification/colliers-ai-p1-cross-trends/authorization-audit.json)。
@@ -80,7 +82,7 @@
 
 ### 已执行的回归与修复记录
 
-- 最终 `npm run verify` 已实际执行：审计覆盖、TypeScript、ESLint（0 errors、849 条既有 warnings）及 **255 文件、1888 项测试全部通过**（包含第二轮 CI 后补齐的拒绝契约测试）。Next.js 16.2.12 生产编译成功，页面数据收集仍在原有 `/api/oss` 的 `ali-oss → address → os.networkInterfaces()` 被当前容器 `uv_interface_addresses` 限制阻断；完整本地命令退出 1，不能记为生产构建通过。该路径与上一轮已记录的本地阻断一致，本批未修改它；精确 head 的 GitHub 原生生产构建和真实 Auth／HTTP 仍须通过才可合并。
+- 最终 `npm run verify` 已实际执行：审计覆盖、TypeScript、ESLint（0 errors、849 条既有 warnings）及 **256 文件、1904 项测试全部通过**（包含拒绝契约、压缩协商、解压摘要及压缩期间撤权回归）。Next.js 16.2.12 生产编译成功，页面数据收集仍在原有 `/api/oss` 的 `ali-oss → address → os.networkInterfaces()` 被当前容器 `uv_interface_addresses` 限制阻断；完整本地命令退出 1，不能记为生产构建通过。该路径与上一轮已记录的本地阻断一致，本批未修改它；精确 head 的 GitHub 原生生产构建和真实 Auth／HTTP 仍须通过才可合并。
 - 后端最初 8 条新增回归在旧实现全部失败，新增操作后通过；最终覆盖 50 组合、1000 指标点、完整三季共同交集、空组合／缺期／真实零值、三指标导出和来源篡改。单次快照读取另有持续回归。
 - 新语义首批 26 条在旧实现 24 失败／2 条原安全规则通过。独立复核进一步复现反序双维被降为单维、继承两期比较时默补季度、改单维时默补季度三类缺陷；修复并独立复测后，新语义 **51/51** 通过。未把原来的不支持测试直接删除：楼龄、历史分类、非法模型和真正不支持的组合继续拒绝。
 - 首页首批 6 条新回归在旧组件全部失败；补齐操作识别后通过。随后复现执行条件缺少操作／双维、已有计划遮住固定维度；修复后本批 **8 条**与原 P0／P1／多指标联合 **4 文件、37 项**通过。结构化请求缺完整执行计划另由执行器的先红后绿回归覆盖外部修改隔离。
@@ -98,6 +100,21 @@
 第二轮 head `ef613b5a32e36fa5ea7cb4e1c53b5a60f668319f` 的 [Verify 43732337603](https://github.com/ronyu870-collab/office-map-main/actions/runs/43732337603) 中，两个 Auth job 已通过新增前四组：1／2／3 指标与两种样本模式的独立 SQL／单快照核对、缺期／未知、真实父轮链，以及三项图表与 CSV／XLSX／SVG。但伪造分类轴的测试只接受 400／422，与既有服务端“非法结构化计划先审计后 403 拒绝”的契约不一致，仍在性能采样前停止。
 
 使用实际 HTTP 单元入口以旧 422 期待复现失败（实际 403），新增持续用例核对严格 403、`denied`、原始接收／拒绝审计、零模型调用和零快照调用。真实 HTTP 负例移入现有服务端 RPC 计数区，进一步要求非法输入不增加事实读取次数，且没有 running／tool／结果事件；没有把任意 4xx 或 503 加入成功集合。相关 3 文件、42 项回归、脚本语法／Lint 通过；产品权限与错误映射未改，完整精确 CI 再次执行。
+
+### 第三轮真实性能失败与第一轮定向优化
+
+head `b7a4b838caa9c04a3ee1983d12da794b80bf5186` 的 [Verify 43733331640](https://github.com/ronyu870-collab/office-map-main/actions/runs/43733331640) 中，双维 job 完成前置 **124** 组 HTTP 检查以及完整 **80/80** 浏览器样本；独立 SQL、来源、两次指标切换、640 个实际 DOM 回执、零模型调用及零意外 HTTP／网络失败均通过。但是四组首次内容可操作 P90 全部超预算，脚本按既定规则失败，不能称该 job 或全部 HTTP 矩阵已通过。最后三项性能后检查尚未执行，`results.json` 未生成。
+
+| 首次内容可操作 | 各期样本 P90 | 共同样本 P90 | 原预算 |
+| --- | ---: | ---: | ---: |
+| 桌面 | 2898.2 ms | 2729.0 ms | 2500 ms |
+| 手机模拟 | 4698.6 ms | 4357.6 ms | 3500 ms |
+
+原始 artifact `14169756582`、ZIP SHA-256 `caacef4054a8d838caf1cf8ead798e56ce5bdb5ece186ad240a06a908e4afb34`；精确测试 merge 为 `16779126f6ba3302cc47b4f079af9061e697fda9`。全部样本保留，独立复算与采集器一致。反馈 P90 最大 45.1 ms、切图最大 669.3 ms、来源重开最大 78 ms，均达标。主结果约 1.77 MB，encoded／decoded 相同；手机各期组传输 P90 1431.0 ms，响应结束后验证／渲染 P90 1065.0 ms，初始图额外 P90 693.3 ms，因此不能把全部超限归为某一个环节或偶发抖动。失败指标摘要见 [压缩前实测](../verification/colliers-ai-p1-cross-trends/performance-before-compression.json)。
+
+第一轮定向优化仅压缩 HTTP 传输，保留数据和校验。实际 `handleQuerySubmission` 新增回归先在旧代码失败（未设置 gzip），修复后通过；另测编码协商、拒绝／错误参数回退、解压字节与摘要一致、压缩期间撤权仍拒绝。真实 HTTP 持续回归进一步检查查询／恢复／图表的解压后摘要，并验证 identity 编码恢复与 gzip 恢复的原结果一致。同条件完整 80 样本和原 640＋80 回归仍须在新精确 head 上重新通过，不能以本地压缩率估计替代。
+
+该轮主验证 job 另在 `Install isolated backup regression tools` 下载阶段遇到 `curl (56) Failure when receiving data from the peer`，属于实际记录的下载失败，不当作业务回归通过；必要主验证仍须在最终 head 完整重跑。没有删除备份检查或修改校验值。
 
 本轮沿用同一 P1 任务中用户明确的人工视觉／浏览器视觉／真实手机人工豁免和检查后直接合并授权，按仓库机制另行绑定本轮 PR、分支、完整 head 和范围；不借用 PR #201 的已关闭记录。自动功能、数据权限、真实执行、性能、构建与分支保护均不豁免。
 

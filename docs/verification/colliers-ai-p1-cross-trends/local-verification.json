@@ -10,7 +10,7 @@
     "auditCoverage": "passed",
     "typeScript": "passed",
     "eslint": { "errors": 0, "warnings": 849 },
-    "tests": { "files": 255, "passed": 1888, "failed": 0 },
+    "tests": { "files": 256, "passed": 1904, "failed": 0 },
     "productionCompilation": "passed",
     "pageDataCollection": "blocked_by_local_runtime",
     "failure": { "route": "/api/oss", "dependency": "ali-oss/address", "syscall": "uv_interface_addresses" },
@@ -24,6 +24,7 @@
     "finalHomeWithP0P1AndMultiMetric": { "files": 4, "passed": 37 },
     "structuredExecutedPlan": { "beforeFailed": 1, "afterPassed": 1, "externalMutationIsolation": true },
     "forgedCrossAxesHttpContract": { "old422ExpectationFailed": true, "actualStatus": 403, "strictDeniedContractPassed": true, "snapshotCalls": 0, "providerCalls": 0 },
+    "gzipTransport": { "oldHttpFailed": true, "helperCasesPassed": 14, "semanticDigestAndSourcesPassed": true, "revocationDuringCompressionPassed": true, "optimizationRound": 1, "unchangedPerformanceBudgets": true },
     "visualWaiverParser": { "passed": 16, "headAndScopeBindingRetained": true }
   },
   "postgres": {

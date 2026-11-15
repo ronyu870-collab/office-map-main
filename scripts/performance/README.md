@@ -98,4 +98,6 @@ selector 必须按实际页面校准：目标内容不能在源页已经可见�
 
 输出 `cross-trend-performance.json`（`query-cross-trend-performance/1`）保留原始样本、每条件 P50/P90、失败/缺测、两次切换、来源、模型调用及预算结果。反馈 P90 ≤ 100 ms；结果可操作及两次指标切换 P90 各自满足桌面 ≤ 2.5 秒、手机模拟 ≤ 3.5 秒；来源重开 P90 ≤ 500 ms。新采集器在完整报告落盘后同时断言功能完整、`budgetsMet=true` 与零模型调用，超预算会让该 CI job 失败；失败报告保留，不降阈值、不删样本。
 
+查询、恢复和图表成功 JSON 在客户端接受时对 ≥16 KiB 正文协商 gzip，原 JSON、来源、归档和交付摘要仍按解压后的完整字节校验，最后实时权限检查在压缩完成后执行。浏览器资源时序分别保留 encoded／decoded 字节，不能把传输压缩当作来源删减，或把解压前到达作为可操作终点。当前全量 HTTP 持续回归验证 gzip／identity 恢复相等及原 SHA-256 交付关系；性能配置、采样数和阈值不变。
+
 Verify 的原 `Real Auth trusted query HTTP integration` 使用 `AI_QUERY_PERFORMANCE_SUITE=regression`，完整保留原 640＋80；新增 `Real Auth cross-trend HTTP and browser integration` 使用 `cross_trend`，在另一 GitHub runner 的独立 Auth/Data API/PostgreSQL/Next 栈执行新增 80。两个 job 都执行全部新旧 HTTP 场景，均保留 40 分钟时限，不在同一机器争用浏览器资源。suite 只接受这两个值，默认 regression，未知值立即失败；日志及全部报告记录 suite、精确 head SHA 和实际测试的 merge SHA。两份 artifact 分别为 `ai-query-real-auth`、`ai-query-cross-trend-auth`，均不含凭据，保留 7 天。合并要求两个 Auth job 和三份性能报告的完整性、来源、零失败、零模型及预算全部通过，总样本应为 800。
