@@ -12,13 +12,16 @@ import { prepareDelivery } from './deliveryToken';
 import { artifactInputSchema, buildResultArtifact, type ArtifactInput } from './artifacts';
 import { recordQueryIntake } from './intake';
 import { prepareQueryJsonResponse } from './jsonResponse';
+import { buildingContextInputSchema } from './buildingCards';
+import { readBuildingContext } from './buildingContext';
+import { artifactContentDisposition } from './artifactFilename';
 
 const inputSchema=z.strictObject({requestId:z.uuid(),action:z.enum(['status','recover'])});
 const json=(body:unknown,status:number,extraHeaders:Record<string,string>={})=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
   Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,'X-Content-Type-Options':'nosniff',...extraHeaders}});
 
 /** Control requests have their own durable audit; they never execute a new query. */
-export async function handleResultRecovery(request:Request,dependencies:ReturnType<typeof queryHttpDependencies>,mode:'recover'|'artifact'='recover'):Promise<Response> {
+export async function handleResultRecovery(request:Request,dependencies:ReturnType<typeof queryHttpDependencies>,mode:'recover'|'artifact'|'buildings'='recover'):Promise<Response> {
   const attemptId=randomUUID(),{client,keys}=dependencies;
   let audit:AuditPort|undefined,received=false,terminal=false;
   try {
@@ -42,29 +45,51 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       policyVersion:'http-receipt/1:authorization-pending',permissionRevision:'not_evaluated',grants:[],fields:[]};
     await audit.receive({requestId:attemptId,submittedText:body.text!,plan:null,authority:pending,
       metadata:{rawRequest:body.text,entry:mode==='artifact'?'query_result_artifact':'query_result_recovery',impersonationDenied}});received=true;
-    let input:z.infer<typeof inputSchema>|ArtifactInput;
-    try{input=mode==='artifact'?artifactInputSchema.parse(JSON.parse(body.text!)):inputSchema.parse(JSON.parse(body.text!));}catch{throw new Error('QUERY_DENIED');}
+    let input:z.infer<typeof inputSchema>|ArtifactInput|z.infer<typeof buildingContextInputSchema>;
+    try{input=mode==='artifact'?artifactInputSchema.parse(JSON.parse(body.text!)):mode==='buildings'?buildingContextInputSchema.parse(JSON.parse(body.text!)):inputSchema.parse(JSON.parse(body.text!));}catch{throw new Error('QUERY_DENIED');}
     if(!dependencies.enabled || impersonationDenied || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')??'')
       || !isQuerySameOrigin(request))throw new Error('QUERY_DENIED');
     const signal=AbortSignal.any([request.signal,AbortSignal.timeout(30000)]),verified=identity;
     const authority=await loadDataAuthority(client,verified,signal);
-    if(input.action==='export'&&!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
+    if((input.action==='export'||input.action==='copy')&&!authority.grants.includes('export:internal'))throw new Error('QUERY_DENIED');
     await audit.append(attemptId,'running',{authority,sourceRequestId:input.requestId,action:input.action});
     const record=await readOwnResult(client,verified,input.requestId,input.action!=='status'?'archive':'status',signal);
     if(record.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     const restored=input.action!=='status'&&record.state==='succeeded'
-      ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal):null;
+      ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover'}):null;
     const artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
     if(mode==='artifact'&&!artifact)throw new Error('QUERY_RESULT_NOT_READY');
-    const responseBody=artifact?.type==='chart'?{attemptId,requestId:input.requestId,status:'ready',chart:artifact.chart,resultDigest:artifact.resultDigest}:restored?{attemptId,requestId:input.requestId,status:'ready',result:restored.result,redactionTypes:restored.redactionTypes}
+    const buildingContext=mode==='buildings'&&restored?await readBuildingContext(client,restored.result,input as z.infer<typeof buildingContextInputSchema>,signal):null;
+    if(mode==='buildings'&&!buildingContext)throw new Error('QUERY_RESULT_NOT_READY');
+    if (buildingContext && 'photoId' in input && input.photoId) {
+      if (!input.buildingId || buildingContext.buildings.length !== 1 || buildingContext.buildings[0].id !== input.buildingId
+        || buildingContext.buildings[0].photo?.id !== input.photoId) throw new Error('QUERY_DENIED');
+      const { GET: loadPhoto } = await import('@/src/app/api/map/building-photos/route');
+      const photoUrl = new URL('/api/map/building-photos', request.url);
+      photoUrl.searchParams.set('building_id', input.buildingId); photoUrl.searchParams.set('photo_id', input.photoId); photoUrl.searchParams.set('preview', '1');
+      const headers = new Headers(request.headers); headers.delete('content-type'); headers.delete('accept');
+      const photoResponse = await loadPhoto(new Request(photoUrl, { headers, signal }));
+      if (!photoResponse.ok) throw new Error('QUERY_READ_UNAVAILABLE');
+      buildingContext.photoAccess = await photoResponse.json();
+    }
+    const responseBody=buildingContext?{attemptId,...buildingContext}:artifact?.type==='chart'?{attemptId,requestId:input.requestId,status:'ready',chart:artifact.chart,resultDigest:artifact.resultDigest}
+      :artifact?.type==='copy'?{attemptId,requestId:input.requestId,status:'ready',resultId:artifact.resultId,format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest}
+      :restored?{attemptId,requestId:input.requestId,status:'ready',result:restored.result,redactionTypes:restored.redactionTypes}
       :{attemptId,requestId:input.requestId,status:record.state};
     const bodySha256=artifact?.type==='download'?artifact.sha256:createHash('sha256').update(JSON.stringify(responseBody)).digest('hex');
     await audit.append(attemptId,'response_generated',{result:{kind:'recovery_reference',sourceRequestId:input.requestId,
       sourceHeadSequence:record.head_sequence,sourceHeadHash:record.head_hash,resultId:restored?.resultId??null,bodySha256,state:record.state,
-      ...(artifact?{artifact:artifact.type==='chart'?{kind:'chart',spec:artifact.chart,resultDigest:artifact.resultDigest}:{kind:'download',format:(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
+      ...(buildingContext?{buildingMetadata:{version:'building-context/1',metadataReadAt:buildingContext.metadataReadAt,
+        resultId:buildingContext.resultId,total:buildingContext.total,offset:buildingContext.offset,hasMore:buildingContext.hasMore,
+        buildings:buildingContext.buildings,...(buildingContext.photoAccess?{photoSource:{sourceUrl:buildingContext.photoAccess.source_url,
+          sourceName:buildingContext.photoAccess.source_name,attribution:buildingContext.photoAccess.attribution_text??null,
+          licenseUrl:buildingContext.photoAccess.license_url??null,isPreview:buildingContext.photoAccess.is_preview}}:{})}}:{}),
+      ...(artifact?{artifact:artifact.type==='chart'?{kind:'chart',spec:artifact.chart,resultDigest:artifact.resultDigest}
+        :artifact.type==='copy'?{kind:'copy',format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest,rendererVersion:'result-copy/1'}
+        :{kind:'download',format:(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
     await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent'});terminal=true;
     const deliveryHeaders=await prepareDelivery(audit,keys,verified,{requestId:attemptId,bodySha256,
-      kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':restored?'result':'status',
+      kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':artifact?.type==='copy'?'copy':restored?'result':'status',
       resultId:restored?.resultId??null,itemCount:artifact?.type==='chart'?artifact.chart.points.length:restored?(restored.result as {table:{rows:unknown[]}}).table.rows.length:0},
       {httpStatus:200,sourceRequestId:input.requestId});
     const jsonResponse = artifact?.type === 'download' ? null : await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
@@ -76,7 +101,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     // stable through delivery; changed streams require a fresh recovery attempt.
     if(restored && (final.head_hash!==record.head_hash || final.head_sequence!==record.head_sequence))throw new Error('QUERY_RESULT_CHANGED');
     if(artifact?.type==='download')return new Response(new Uint8Array(artifact.bytes),{status:200,headers:{
-      'Content-Type':artifact.contentType,'Content-Disposition':`attachment; filename="${artifact.filename}"`,
+      'Content-Type':artifact.contentType,'Content-Disposition':artifactContentDisposition(artifact.filename),
       'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,
       'X-Query-Result-Id':input.action==='export'?input.resultId:'','X-Artifact-Sha256':artifact.sha256,'X-Audit-Attempt-Id':attemptId,...deliveryHeaders,
     }});

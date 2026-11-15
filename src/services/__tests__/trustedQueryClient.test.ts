@@ -7,7 +7,30 @@ import { trustedQueryClient } from '../trustedQueryClient';
 const scope = { actorId: 'one', effectiveId: 'one', sessionId: 'session', targetId: null };
 describe('trusted query client current identity guard', () => {
   beforeEach(() => { state.actor = 'one'; state.effective = 'one'; state.session = 'session'; state.target = null; });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+  it('bounds client waiting and removes deadline resources without creating a second request', async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const query = trustedQueryClient.submit(scope, { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: 'CBD有哪些楼' }, new AbortController().signal);
+    const rejection = expect(query).rejects.toMatchObject({ kind: 'timeout' });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    await vi.advanceTimersByTimeAsync(90000);
+    await rejection;
+    expect(fetch).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('distinguishes transport loss, non-JSON service errors and a changed identity', async () => {
+    const fetch = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(new Response('upstream unavailable', { status: 503 }))
+      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }));
+    vi.stubGlobal('fetch', fetch);
+    const input = { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: 'CBD有哪些楼' };
+    await expect(trustedQueryClient.submit(scope, input, new AbortController().signal)).rejects.toMatchObject({ kind: 'network' });
+    await expect(trustedQueryClient.submit(scope, input, new AbortController().signal)).rejects.toMatchObject({ kind: 'service' });
+    await expect(trustedQueryClient.submit(scope, input, new AbortController().signal)).rejects.toMatchObject({ kind: 'identity' });
+  });
   it('does not submit if the effective identity changed before sending', async () => {
     const fetch = vi.fn(); vi.stubGlobal('fetch', fetch); state.target = 'other';
     await expect(trustedQueryClient.capabilities(scope, new AbortController().signal)).rejects.toThrow('身份已变化'); expect(fetch).not.toHaveBeenCalled();

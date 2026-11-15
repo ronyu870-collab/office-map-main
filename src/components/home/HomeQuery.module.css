@@ -11,6 +11,12 @@
 .examples > div, .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .examples button { height: auto; min-height: 36px; text-align: left; white-space: normal; }
 .status:not(:empty) { margin-top: 16px; }
+.workspaceTools { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.saveStatus { font-size: var(--cd-font-size-sm); color: var(--cd-color-text-secondary); margin-block: 8px; }
+.selectionContext { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; color: var(--cd-color-brand); font-size: var(--cd-font-size-sm); }
+.emptyState { padding: 16px; margin-block: 12px; background: var(--cd-color-surface-alt); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-lg); }
+.emptyState h3 { font-size: var(--cd-font-size-md); font-weight: 500; margin-bottom: 8px; }
+.emptyState p { color: var(--cd-color-text-secondary); max-width: 76ch; line-height: 1.7; }
 .status:not(:empty) + .actions { margin-top: 8px; }
 .result { min-width: 0; margin-block: 12px 16px; }
 .answer { display: grid; gap: 8px; max-width: 80ch; }
@@ -34,7 +40,7 @@
 .sourceHeading h3 { font-size: inherit; font-weight: 500; overflow-wrap: anywhere; }
 .source { border-bottom: 1px solid var(--cd-color-border); padding-bottom: 16px; }
 @media (max-width: 639px), (pointer: coarse) {
-  .composerFooter button, .actions button, .examples button, .trace button, .sourceHeading button { min-height: 44px; min-width: 44px; }
+  .composerFooter button, .actions button, .examples button, .trace button, .sourceHeading button, .workspaceTools button, .selectionContext button { min-height: 44px; min-width: 44px; }
   .cell { min-height: 44px; }
   .examples summary, .trace summary { min-height: 44px; display: list-item; padding-block: 12px; }
 }

@@ -15,6 +15,7 @@ const controller = vi.hoisted(() => ({
 }));
 const controllerRef = vi.hoisted(() => ({ current: controller }));
 vi.mock('next/link', () => ({ default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={href} {...props}>{children}</a> }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('next/dynamic', () => ({ default: () => function DeferredUnrelatedComponent() { return null; } }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: 'authenticated', session: { role: runtime.role, user: { id: 'synthetic-user', email: 'test@example.com' } } }) }));
 vi.mock('@/src/services/Auth', () => ({ getSession: vi.fn(), getSessionFast: vi.fn() }));

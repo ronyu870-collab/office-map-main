@@ -7,6 +7,8 @@ import { queryActionSchema, queryConversationSchema, SEMANTIC_PROTOCOL_VERSION, 
 import { parseQueryPlan, type QueryPlan } from './plan';
 import { parseSemanticContext, type SemanticContext, type SemanticClarification } from './semanticPlanner';
 import type { DataAuthority, VerifiedQueryIdentity } from './serverAuthority';
+import { unsealHistoryToken } from './historyToken';
+import { readOwnResult, recoverOwnResult } from './recovery';
 
 const readSchema = z.object({ allowed: z.literal(true), state: z.enum(['received','running','succeeded','denied','failed','cancelled']),
   permission_revision: z.string().regex(/^[a-f0-9]{64}$/), events: z.array(z.object({ request_id: z.uuid(), event_id: z.uuid(),
@@ -40,10 +42,19 @@ export async function readConversation(client: SupabaseClient, identity: Verifie
     new Map([[keys.keyId, keys.encryptionKey]]))).content }));
   const receipt = decoded[0].content;
   const metadata = metadataSchema.parse(receipt?.metadata);
-  if (receipt?.sessionId !== identity.sessionId || receipt?.authority?.actorId !== identity.actorId
+  const resuming = Boolean(conversation.resumeToken && conversation.parentRequestId === requestId);
+  if (resuming) {
+    const resume = unsealHistoryToken(conversation.resumeToken!, identity, authority.permissionRevision, 'history-resume', keys);
+    if (resume.conversationId !== conversation.id || resume.requestId !== requestId) throw new Error('QUERY_DENIED');
+    const archive = await readOwnResult(client, identity, requestId, 'archive', signal);
+    if (archive.state !== 'succeeded') throw new Error('QUERY_CONTEXT_UNAVAILABLE');
+    const restored = await recoverOwnResult(client, identity, keys, requestId, archive, signal, { reauthorizedHistory: true });
+    await restored.recheck();
+  }
+  if ((!resuming && receipt?.sessionId !== identity.sessionId) || receipt?.authority?.actorId !== identity.actorId
     || receipt?.authority?.effectiveUserId !== identity.effectiveUserId || metadata.conversation.id !== conversation.id) throw new Error('QUERY_DENIED');
   const execution = decoded.find(event => event.kind === 'running');
-  if (execution && execution.content?.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
+  if (!resuming && execution && execution.content?.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
   const interpreted = decoded.findLast(event => event.content?.resolution?.protocol === SEMANTIC_PROTOCOL_VERSION);
   if (!interpreted) {
     if (allowPending) return { state: record.state, turn: 0, suggestions: [] };

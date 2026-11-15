@@ -54,7 +54,7 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     ? buildGroupedResult(periods.map(find), periods.map(period => snapshots.find(snapshot => key(snapshot.period) === key(period))!), plan.groupBy, metric, plan.operation === 'group_trend' ? plan.mode : 'per_period')
     : plan.operation === 'trend' ? buildTrendResult(periods.map(find), metric, plan.mode)
     : plan.operation === 'compare' ? buildCompareResult(find(plan.base), find(plan.current), metric, plan.mode)
-    : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields)
+    : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields, Boolean(plan.scope.buildingIds))
     : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction)
     : buildAggregateResult(find(plan.period), metric);
   const result = metrics.length > 1 ? combineMetricResults(metrics.map(metric => ({ metric, result: build(metric) }))) : build(metrics[0]);

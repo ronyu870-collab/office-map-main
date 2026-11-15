@@ -39,7 +39,7 @@ export async function readOwnResult(client: SupabaseClient, identity: VerifiedQu
 /** The database has checked owner, current session, chain continuity and bounds.
  * Still validate the envelope before decryption and obtain current source ACLs. */
 export async function recoverOwnResult(client: SupabaseClient, identity: VerifiedQueryIdentity, keys: AuditKeys,
-  requestId: string, read: Read, signal: AbortSignal) {
+  requestId: string, read: Read, signal: AbortSignal, options: { reauthorizedHistory?: boolean } = {}) {
   if(read.state!=='succeeded' || read.events.length!==read.head_sequence
     || read.events.some((event,index)=>event.request_id!==requestId || event.sequence!==index+1)
     || read.events.filter(event=>event.kind==='received').length!==1
@@ -49,7 +49,9 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   const receipt=JSON.parse(decryptAuditContent(read.events[0].cipher,{...context,eventId:read.events[0].event_id},new Map([[keys.keyId,keys.encryptionKey]])));
   let planInput = receipt?.content?.plan;
   if (planInput?.resolution === 'server_semantic/1') {
-    if (receipt?.content?.sessionId !== identity.sessionId) throw new Error('QUERY_DENIED');
+    // History calls this only after owner-checked archive access in the current
+    // session. The original session remains part of the immutable audit record.
+    if (!options.reauthorizedHistory && receipt?.content?.sessionId !== identity.sessionId) throw new Error('QUERY_DENIED');
     const resolved = read.events.filter(event => event.kind === 'tool_finished').map(event =>
       JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content)
       .find(value => value?.resolution?.protocol === 'research-conversation/1' && value?.plan);

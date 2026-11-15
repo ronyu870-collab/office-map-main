@@ -1,0 +1,22 @@
+.panel { min-width:0; border:1px solid var(--cd-color-border); border-radius:var(--cd-radius-md); background:var(--cd-color-surface); padding:16px; color:var(--cd-color-text-primary); }
+.heading { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+.heading h3,.heading h4 { margin:0; font-size:var(--cd-font-size-md); font-weight:600; overflow-wrap:anywhere; }
+.note,.status { margin:8px 0; color:var(--cd-color-text-secondary); font-size:var(--cd-font-size-sm); line-height:1.65; }
+.status { min-height:1.65em; }
+.search { display:grid; gap:8px; }
+.search label { font-size:var(--cd-font-size-sm); }
+.toggle { display:flex; align-items:center; gap:8px; min-height:44px; }
+.entries,.turns { list-style:none; padding:0; margin:0; }
+.entry { border-top:1px solid var(--cd-color-border); padding:12px 0; }
+.open,.turns button { display:flex; flex-direction:column; gap:6px; width:100%; border:0; background:transparent; padding:8px 0; text-align:left; color:inherit; cursor:pointer; overflow-wrap:anywhere; }
+.open strong { font-size:var(--cd-font-size-md); font-weight:600; }
+.open span,.turns span { font-size:var(--cd-font-size-sm); line-height:1.6; white-space:pre-wrap; }
+.open time,.turns time { font-size:var(--cd-font-size-sm); color:var(--cd-color-text-secondary); }
+.open:focus-visible,.turns button:focus-visible { outline:2px solid var(--cd-color-brand); outline-offset:3px; }
+.open:hover,.turns button:hover { color:var(--cd-color-brand); }
+.actions,.pagination { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:8px; }
+.thread { border:1px solid var(--cd-color-border); background:var(--cd-color-surface-alt); padding:12px; border-radius:var(--cd-radius-md); margin-bottom:16px; }
+.turns li+li { border-top:1px solid var(--cd-color-border); }
+.error { padding:12px; border:1px solid var(--cd-color-border); background:var(--cd-color-surface-alt); }
+.error p { margin:0 0 8px; font-size:var(--cd-font-size-sm); line-height:1.6; }
+@media (max-width:640px) { .panel { padding:12px; } .panel button { min-height:44px; } .actions { justify-content:flex-start; } }

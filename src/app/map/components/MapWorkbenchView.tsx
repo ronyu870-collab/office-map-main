@@ -51,6 +51,7 @@ type DisplayOverride = {
 };
 
 type MapWorkbenchViewProps = {
+  queryPanel?: React.ReactNode;
   stats: MapStatsState;
   futureSupplyCalendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   futureSuppliesCount: number;
@@ -327,6 +328,7 @@ function SupplyPanel({
 }
 
 export function MapWorkbenchView({
+  queryPanel,
   stats,
   futureSupplyCalendar,
   futureSuppliesCount,
@@ -498,6 +500,7 @@ export function MapWorkbenchView({
           {brokerContext.back && <a className="inline-flex min-h-11 items-center text-[var(--cd-color-brand)] underline" href={brokerContext.back}>返回来源</a>}
           {brokerContext.unavailable && <span role="status">未找到可定位的楼宇或项目。</span>}
         </div>}
+        {queryPanel}
       </header>
 
       <main className="relative min-h-0 flex-1 overflow-hidden">

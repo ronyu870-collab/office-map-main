@@ -8,6 +8,7 @@ import { MapCompetitorModeGuard } from './MapCompetitorModeGuard';
 import { MapLeaseTransactionsBridge } from './MapLeaseTransactionsBridge';
 import { MapProposalBridge } from './MapProposalBridge';
 import { MapRouteGate } from './MapRouteGate';
+import { parseQueryMapContext } from '@/src/lib/intelligence/query/buildingNavigation';
 import { parseIntelligenceMapHandoff } from './model/intelligenceMapHandoff';
 
 type MapPageProps = {
@@ -30,6 +31,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
   const resolvedSearchParams = await searchParams;
   const params = toUrlSearchParams(resolvedSearchParams);
   const initialIntelligenceHandoff = parseIntelligenceMapHandoff(params);
+  const queryContext = parseQueryMapContext(params);
   const future = params.get('future');
   const id = future ?? params.get('building');
   const section = params.get('section');
@@ -45,7 +47,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
       <MapSalesMaterialsBridge />
       {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
-      <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} />
+      <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />
     </>
   );
 }

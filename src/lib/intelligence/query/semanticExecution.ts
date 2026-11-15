@@ -14,9 +14,12 @@ import { buildSemanticSuggestions, inferSemanticPeriodFieldGroups, inferSemantic
 import type { DataAuthority, VerifiedQueryIdentity } from './serverAuthority';
 import { describePlanRead } from './snapshotReader';
 import { assertMultiMetricResultSize } from './multiMetric';
+import { prepareBuildingIntent } from './buildingIntent';
+import type { BuildingSelection } from './buildingNavigation';
+import { mapPresentationQuestion } from './mapPresentationQuestion';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
-  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; receivedAt: Date; signal: AbortSignal };
+  audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal };
 
 function planPeriodFieldGroups(plan: QueryPlan) {
   if ('metrics' in plan && plan.metrics) {
@@ -29,12 +32,23 @@ function planPeriodFieldGroups(plan: QueryPlan) {
 const groupsKey = (groups: string[][]) => JSON.stringify([...new Set(groups.map(group => JSON.stringify([...new Set(group)].sort())))].sort());
 
 export async function prepareSemanticExecution(input: Input) {
-  const { client, identity, authority, keys, conversation, question, receivedAt, signal, audit, requestId } = input;
+  const { client, identity, authority, keys, conversation, receivedAt, signal, audit, requestId } = input;
+  const { question } = mapPresentationQuestion(input.question);
   if (conversation.parentRequestId === requestId) throw new Error('QUERY_DENIED');
   const previous = conversation.parentRequestId ? await readConversation(client, identity, keys, authority, conversation, conversation.parentRequestId, signal) : undefined;
   if (previous && previous.turn >= 40) throw new Error('QUERY_CONTEXT_LIMIT');
   const context = previous?.context;
   const turn = (previous?.turn ?? 0) + 1;
+  const building = await prepareBuildingIntent({ client, identity, authority, question, context, buildingSelection: input.buildingSelection, signal });
+  if (building) {
+    const { resolution, availability } = building;
+    if (resolution.kind === 'plan') authorizeConversationPlan(resolution.plan, authority);
+    const suggestions = resolution.kind === 'plan' ? buildSemanticSuggestions({ plan: resolution.plan, availablePeriods: availability?.periods ?? [], authority })
+      .filter(value => { try { authorizeConversationPlan(value.plan, authority); return true; } catch { return false; } }) : [];
+    return { resolution, availability, suggestions, metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: resolution.context,
+      turn, modelStatus: 'not_needed', suggestions, ...(availability ? { availability } : {}),
+      ...(resolution.kind === 'plan' ? { interpretation: resolution.interpretation } : {}) } };
+  }
   let modelIntent: unknown;
   let resolution = resolveSemanticQuestion({ question, now: receivedAt, context, availablePeriods: [] });
   const action = previous?.suggestions.find(value => value.question === question);

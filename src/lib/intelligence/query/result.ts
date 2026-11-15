@@ -82,14 +82,15 @@ function envelope(snapshot: FactSnapshot, content: Pick<QueryResult, 'operation'
   });
 }
 
-export function buildListResult(snapshot: FactSnapshot, fields: readonly NumericField[]): QueryResult {
+export function buildListResult(snapshot: FactSnapshot, fields: readonly NumericField[], includeVacancy = false): QueryResult {
   assertComplete(snapshot);
   if (fields.length > 6 || new Set(fields).size !== fields.length || fields.some(field => !Object.hasOwn(numericFields, field))) throw new Error('INVALID_QUERY_FIELDS');
   assertFieldContext(snapshot, fields);
+  const vacancy = includeVacancy && fields.includes('totalArea') && fields.includes('vacantArea');
   return envelope(snapshot, {
     operation: 'list', parameters: { fields: [...fields], period: snapshot.period }, analysis: null,
     table: {
-      id: 'buildings', columns: [{ key: 'name', label: '楼宇', unit: null }, ...fields.map(field => ({ key: field, label: numericFields[field].label, unit: numericFields[field].unit }))],
+      id: 'buildings', columns: [{ key: 'name', label: '楼宇', unit: null }, ...fields.map(field => ({ key: field, label: numericFields[field].label, unit: numericFields[field].unit })), ...(vacancy ? [{ key: 'vacancy', label: '楼宇空置率', unit: 'ratio' }] : [])],
       rows: snapshot.rows.map(row => {
         const cells: Record<string, ResultCell> = { name: { kind: 'text', value: row.name, sourceIds: [row.nameSource.id] } };
         for (const field of fields) {
@@ -98,6 +99,13 @@ export function buildListResult(snapshot: FactSnapshot, fields: readonly Numeric
           cells[field] = fact.state === 'valid'
             ? { kind: 'number', value: { exact: fact.value.exact(), numeric: fact.value.toNumber() }, sourceIds }
             : { kind: 'unknown', state: fact.state, reason: fact.reason, sourceIds };
+        }
+        if (vacancy) {
+          const analysis = aggregateQuarter({ ...snapshot, rows: [row], expectedCount: 1 }, 'vacancy');
+          const sourceIds = [...new Set([...analysis.contributions.flatMap(item => item.sourceIds), ...analysis.excluded.flatMap(item => item.sourceIds)])];
+          const excluded = analysis.excluded[0];
+          cells.vacancy = analysis.value ? { kind: 'number', value: analysis.value, sourceIds }
+            : { kind: 'unknown', state: excluded?.state ?? 'missing', reason: excluded?.reason ?? 'no_valid_sample', sourceIds };
         }
         return { entityId: row.id, cells };
       }),

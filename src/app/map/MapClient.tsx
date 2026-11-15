@@ -1,5 +1,8 @@
 'use client';
 
+import { MapQuerySelection } from './MapQuerySelection';
+import type { QueryMapContext } from '@/src/lib/intelligence/query/buildingNavigation';
+import type { BuildingContext } from '@/src/lib/intelligence/query/buildingCards';
 import { readMapFilterPreference } from './model/mapFilterPreference';
 import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import type { BuildingFocus } from './MapRouteGate';
@@ -45,8 +48,11 @@ const BuildingMetricsEditModal = dynamic(
   { ssr: false },
 );
 
-export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingFocus }: { initialIntelligenceHandoff: IntelligenceMapRouteState | null; buildingFocus?: BuildingFocus | null }) {
+export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingFocus, queryContext = null }: { initialIntelligenceHandoff: IntelligenceMapRouteState | null; buildingFocus?: BuildingFocus | null; queryContext?: QueryMapContext | null }) {
   const { session: appSession, status: appSessionStatus } = useAppSession();
+  const [querySelection, setQuerySelection] = React.useState<BuildingContext | null>(null);
+  const queryIds = React.useMemo(() => new Set(querySelection?.buildings.filter(row => row.located).map(row => row.id) ?? []), [querySelection]);
+  const queryFit = React.useRef('');
   const allowed = appSessionStatus === 'authenticated' && Boolean(appSession);
   const userRole = appSession?.role || 'viewer';
   const currentUserId = appSession?.user?.id || null;
@@ -54,8 +60,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   userRoleRef.current = userRole;
 
   const preferenceKey = currentUserId ? `broker-map:v1:${JSON.stringify([currentUserId, userRole, getImpersonationTargetUserId()])}` : '';
-  const [savedPreferences] = React.useState(() => !initialIntelligenceHandoff && preferenceKey ? readMapFilterPreference(preferenceKey) : null);
-  const initialFilters = initialIntelligenceHandoff?.filterState ?? savedPreferences?.filters ?? null;
+  const [savedPreferences] = React.useState(() => !initialIntelligenceHandoff && !queryContext && preferenceKey ? readMapFilterPreference(preferenceKey) : null);
+  const initialFilters = queryContext ? { ...createDefaultFilterState(), showFutureSupply: false } : initialIntelligenceHandoff?.filterState ?? savedPreferences?.filters ?? null;
 
   const [allBuildings, setAllBuildings] = React.useState<any[]>([]);
   const [futureSupplies, setFutureSupplies] = React.useState<any[]>([]);
@@ -152,13 +158,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   
   const [searchInput, setSearchInput] = React.useState(savedPreferences?.input ?? '');
   React.useEffect(() => {
-    if (!preferenceKey || initialIntelligenceHandoff || buildingFocus) return;
+    if (!preferenceKey || initialIntelligenceHandoff || buildingFocus || queryContext) return;
     try {
       // Station objects belong to the live SDK; persist user-entered criteria only.
       const filters = filterState ? { ...filterState, subwayLine: filterState.subwayStation ? null : filterState.subwayLine, subwayStation: null } : null;
       window.sessionStorage.setItem(preferenceKey, JSON.stringify({ input: searchInput.slice(0, 200), filters }));
     } catch { /* Map filtering remains available when storage is blocked. */ }
-  }, [preferenceKey, buildingFocus, initialIntelligenceHandoff, filterState, searchInput]);
+  }, [preferenceKey, buildingFocus, initialIntelligenceHandoff, queryContext, filterState, searchInput]);
   const keyword = searchInput.trim();
   const fullListFilterKey = React.useMemo(() => JSON.stringify([keyword, filterState, compareGroups]), [keyword, filterState, compareGroups]);
   const [settledFullListFilterKey, setSettledFullListFilterKey] = React.useState<string | null>(null);
@@ -302,7 +308,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       // Both reads are independent; future supply must not delay stock startup.
       const [_, future] = await Promise.allSettled([
         loadMapData(controller, isCancelled),
-        controller.fetchFutureSupplies(),
+        queryContext ? Promise.resolve([]) : controller.fetchFutureSupplies(),
       ]);
       if (!isCancelled() && future.status === 'fulfilled') {
         setFutureSupplies(future.value);
@@ -324,7 +330,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   // 新增：地图标记渲染模式状态
   const [renderMode, setRenderMode] = React.useState<RenderMode>('default');
   const showAreaPlaceholders = !keyword && activeCompareGroups.length === 0
-    && !initialIntelligenceHandoff && (filterState === null || isDefaultStockFilterState(filterState));
+    && !initialIntelligenceHandoff && !queryContext && (filterState === null || isDefaultStockFilterState(filterState));
 
   // 🌟 CL-011: 退出周边项目对比时，恢复之前的地图标记
   const prevCompetitorRef = React.useRef(competitorBuildings);
@@ -391,19 +397,25 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     }
 
     // ================ 核心过滤引擎 ================
-    const filtered = mapDataStoreRef.current.filter({
+    // An explicit authorized identity remains visible when its grade/district is
+    // unknown; the default category checkboxes must not silently drop it. Any
+    // deliberate narrowing/search continues through the existing filter engine.
+    const exactQueryGroup = queryContext && !keyword && activeCompareGroups.length === 0 && isDefaultStockFilterState(activeFilterState);
+    const filtered = (exactQueryGroup ? mapDataStoreRef.current.getRoleVisible(userRoleRef.current) : mapDataStoreRef.current.filter({
       filterState: activeFilterState,
       compareGroups,
       keyword,
       role: userRoleRef.current,
       calculateDistance: (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
-    });
+    })).filter(building => !queryContext || queryIds.has(building.id)
+      && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)
+      && Math.abs(building.location_lng) <= 180 && Math.abs(building.location_lat) <= 90);
 
     // 🌟 Phase 1: 将过滤结果同步到组件状态，供悬浮列表使用
     setFilteredBuildings(filtered);
     setFullListWarning(null);
     // A hidden future-supply layer must not return invisible search matches.
-    const loadFuture = activeFilterState.showFutureSupply;
+    const loadFuture = activeFilterState.showFutureSupply && !queryContext;
     // Changing the draft filters results only; a deliberate Enter/button search relocates the map.
     const shouldFitSearch = Boolean(keyword) && searchSubmitRevision !== previousSearchSubmitRef.current;
     const fitSubmittedSearch = (matches: FullListBuilding[]) => {
@@ -423,6 +435,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       if (filtered.length > 0) recordMapStartup('stock_render_returned');
     }
     setStats(computeStatsFromBuildings(filtered));
+    if (queryContext && querySelection && !mapDataLoading && queryFit.current !== JSON.stringify(queryContext)) {
+      queryFit.current = JSON.stringify(queryContext);
+      const located = filtered.filter(building => querySelection.buildings.some(row => row.id === building.id && row.located));
+      if (located.length) {
+        ctrl.fitToBuildings(located);
+        if (queryContext.details && located.length === 1) ctrl.openBuildingInfoWindow(located[0].id);
+      }
+    }
 
     if (initialIntelligenceHandoff && !intelligenceAutoFitDoneRef.current && filtered.length > 0) {
       intelligenceAutoFitDoneRef.current = true;
@@ -481,7 +501,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterState, keyword, searchSubmitRevision, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey, showAreaPlaceholders]);
+  }, [filterState, keyword, searchSubmitRevision, allBuildings, mapReady, renderMode, districtLeedStats, compareGroups, getFilterFrameScheduler, fullListFilterKey, showAreaPlaceholders, queryContext, querySelection, queryIds, mapDataLoading]);
 
   const handleFilterChange = React.useCallback((state: SidebarFilterState) => {
     cancelPendingBuildingNavigation();
@@ -663,6 +683,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   return (
     <>
       <MapWorkbenchView
+        queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}
         futureSuppliesCount={futureSupplies.filter(supply => !isPendingFutureSupply(supply)).length}
@@ -675,7 +696,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         isFilterPanelOpen={isFilterPanelOpen}
         isSupplyOpen={isSupplyOpen}
         isListVisible={isListVisible}
-        canOpenList={userHasInteracted || Boolean(keyword) || activeCompareGroups.length > 0}
+        canOpenList={Boolean(queryContext) || userHasInteracted || Boolean(keyword) || activeCompareGroups.length > 0}
         currentSubwayStations={currentSubwayStations}
         filterCommand={filterCommand}
         mapReady={mapReady}

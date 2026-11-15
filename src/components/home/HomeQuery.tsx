@@ -1,15 +1,22 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowUp, Square } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { ArrowUp, Square, History } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientScope, type QueryReply } from '@/src/services/trustedQueryClient';
 import { queryActionSchema, type QueryAction, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 import { HomeQueryResult } from './HomeQueryResult';
+import { QueryClientError, queryFailureMessage } from '@/src/services/queryClientErrors';
+import { readMapQueryContext, type BuildingSelection } from '@/src/lib/intelligence/query/buildingNavigation';
+import type { HistoryOpened } from '@/src/lib/intelligence/query/historyProtocol';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import styles from './HomeQuery.module.css';
 
-type Attempt = { idempotencyKey: string; question: string; requestId?: string; conversation?: QueryConversation };
+const HomeQueryHistory = dynamic(() => import('./HomeQueryHistory').then(module => module.HomeQueryHistory), {
+  loading: () => <p role="status">正在打开历史记录…</p>,
+});
+type Attempt = { idempotencyKey: string; question: string; requestId?: string; conversation?: QueryConversation; buildingSelection?: BuildingSelection; replayRequestId?: string };
 type Turn = { attempt: Attempt; reply: QueryReply | null; message: string };
 const CLOSED: QueryAccess = { enabled: false, examples: [] };
 
@@ -32,6 +39,11 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
   const [savedId, setSavedId] = React.useState<string | null>(null);
   const [conversationId, setConversationId] = React.useState(() => crypto.randomUUID());
   const [parentRequest, setParentRequest] = React.useState<string | undefined>(undefined);
+  const [resumedContext, setResumedContext] = React.useState<QueryConversation | null>(null);
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [historyRefresh, setHistoryRefresh] = React.useState(0);
+  const [buildingSelection, setBuildingSelection] = React.useState<BuildingSelection | null>(null);
+  const navigationConsumed = React.useRef<string | null>(null);
   const input = React.useRef<HTMLTextAreaElement>(null);
   const composing = React.useRef(false), alive = React.useRef(true);
   const current = React.useRef<AbortController | null>(null);
@@ -42,6 +54,7 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
   const resetConversation = React.useCallback((clearDraft = true) => {
     generation.current++; current.current?.abort(); current.current = null;
     setParentRequest(undefined); setConversationId(crypto.randomUUID());
+    setResumedContext(null); setBuildingSelection(null); setHistoryOpen(false);
     setBusy(false); setTerminalFailure(false); setReply(null); setAttempt(null); setHistory([]); setCollapsed(false); setMessage('');
     if (clearDraft) setDraft('');
     clearSaved();
@@ -82,7 +95,7 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
     if (node) { node.style.height = 'auto'; node.style.height = `${Math.max(56, Math.min(node.scrollHeight, 200))}px`; }
   }, [draft, access.enabled]);
 
-  async function run(next: Attempt, recovering = false) {
+  const run = React.useCallback(async (next: Attempt, recovering = false) => {
     if (current.current || !access.enabled || composing.current) return;
     const controller = new AbortController(); current.current = controller;
     const ticket = ++generation.current;
@@ -92,15 +105,18 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
       clearSaved();
     }
     setBusy(true); setTerminalFailure(false); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在查询授权数据…'); setReply(null); setAttempt(next);
+    setBuildingSelection(null);
     try {
       const result = recovering && next.requestId ? await trustedQueryClient.recover(scope, next.requestId, controller.signal)
-        : await trustedQueryClient.submit(scope, { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}) }, controller.signal);
+        : await trustedQueryClient.submit(scope, { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) }, controller.signal);
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
       const updated = { ...next, requestId: result.requestId ?? next.requestId }; setAttempt(updated);
       // Capacity rejection and a confirmed failed recovery are terminal for
       // this request key. A smaller edited question gets its own new key.
-      const terminal = result.status === 'failed' && (result.reason === 'scope_limit' || recovering);
+      const historyExpired = result.status === 'failed' && result.reason === 'history_reopen';
+      const terminal = result.status === 'failed' && (result.reason === 'scope_limit' || historyExpired || recovering);
       setTerminalFailure(terminal);
+      if (historyExpired) { setResumedContext(null); setParentRequest(undefined); setConversationId(crypto.randomUUID()); }
       if (terminal) clearSaved();
       else if (updated.requestId) {
         setSavedId(updated.requestId); try { sessionStorage.setItem(storageKey, updated.requestId); } catch { /* Recovery also works in this mounted session. */ }
@@ -111,45 +127,106 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
         return;
       }
       setReply(result);
+      setHistoryRefresh(value => value + 1);
       // Only completed, attributed turns become parents. A restored old request
       // without this page's conversation cannot silently seed a new dialogue.
       const responseConversation = result.conversation ?? next.conversation;
       if ((result.status === 'ready' || result.status === 'clarification') && result.requestId
-        && responseConversation?.id === conversationId) setParentRequest(result.requestId);
+        && responseConversation && responseConversation.id === next.conversation?.id) { setConversationId(responseConversation.id); setParentRequest(result.requestId); setResumedContext(null); }
       if (result.status === 'ready' && result.result) setMessage('查询完成。');
+      else if (historyExpired) setMessage('此历史上下文已过期，请重新打开历史记录后继续分析。也可以开始一个新问题。');
       else if (terminal) setMessage(result.reason === 'scope_limit'
         ? result.error ?? '本次查询范围超过交互容量，请减少子市场、季度或指标后重新提问。'
         : '本次请求未生成可恢复的结果，请修改问题后重新提交。');
       else if (result.status === 'clarification') { setMessage(result.message ?? '请补充完整查询条件。'); clearSaved(); }
-      else if (['already_received', 'received', 'running', 'succeeded', 'changed'].includes(result.status)) setMessage('请求已接收，可检查状态并恢复原结果；不会重新查数。');
+      else if (result.status === 'running' || result.status === 'received') setMessage('请求已接收，服务端仍在处理。可检查状态并恢复原结果；不会重新查数。');
+      else if (['already_received', 'succeeded', 'changed'].includes(result.status)) setMessage('请求已接收，可检查状态并恢复原结果；不会重新查数。');
+      else if (result.status === 'unavailable') setMessage('查询服务暂时不可用，不能据此判断没有数据。可稍后检查状态或重试本次请求。');
       else { setMessage(result.error ?? '本次请求没有可恢复的结果，请检查权限或修改条件后重新查询。'); if (result.status === 'denied') clearSaved(); }
-    } catch {
+    } catch (error) {
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
-      setMessage('未能取得查询响应。可用“重试本次请求”核对原请求，避免重复执行。');
+      if (error instanceof QueryClientError && error.kind === 'identity') { setAccess(CLOSED); resetConversation(); }
+      setMessage(queryFailureMessage(error));
     } finally {
       if (current.current === controller) current.current = null;
       if (alive.current && ticket === generation.current) setBusy(false);
     }
-  }
+  }, [access.enabled, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
   function stopWaiting() {
     generation.current++; current.current?.abort(); current.current = null; setBusy(false);
     setMessage('已停止等待，服务端可能仍在处理。可重试本次请求或恢复结果，不能据此认定服务端已取消。');
   }
   const edit = React.useCallback((question: string) => { setDraft(question); input.current?.focus(); }, []);
   function newAttempt(question: string, parent = parentRequest): Attempt {
-    return { idempotencyKey: crypto.randomUUID(), question, conversation: { id: conversationId, ...(parent ? { parentRequestId: parent } : {}) } };
+    return { idempotencyKey: crypto.randomUUID(), question,
+      ...(buildingSelection ? { buildingSelection } : {}),
+      conversation: { id: conversationId, ...(parent ? { parentRequestId: parent } : {}),
+        ...(resumedContext?.parentRequestId === parent && resumedContext?.resumeToken ? { resumeToken: resumedContext.resumeToken } : {}) } };
   }
   function followUp(action: QueryAction, turn: Turn) {
     const source = turn.reply?.conversation ?? turn.attempt.conversation;
     if (!turn.reply?.requestId || source?.id !== conversationId) return;
-    void run(newAttempt(action.question, turn.reply.requestId));
+    const next = newAttempt(action.question, turn.reply.requestId);
+    if (turn.attempt.conversation?.parentRequestId === turn.reply.requestId && turn.attempt.conversation.resumeToken) {
+      next.conversation = { id: conversationId, parentRequestId: turn.reply.requestId, resumeToken: turn.attempt.conversation.resumeToken };
+    }
+    void run(next);
   }
+  function reexecute() {
+    if (!attempt?.requestId || busy) return;
+    const id = crypto.randomUUID();
+    setConversationId(id); setParentRequest(undefined); setResumedContext(null);
+    // The server reauthorizes the archived executed plan. In particular, a
+    // relative question such as "去年同期" must not shift its dates a second time.
+    void run({ idempotencyKey: crypto.randomUUID(), question: attempt.question,
+      conversation: { id }, replayRequestId: attempt.requestId });
+  }
+  const openHistory = React.useCallback((opened: HistoryOpened) => {
+    generation.current++; current.current?.abort(); current.current = null;
+    const selected = opened.selected;
+    setBusy(false); setTerminalFailure(false); setHistory([]); setCollapsed(false);
+    setConversationId(opened.conversation.id); setParentRequest(opened.conversation.parentRequestId); setResumedContext(opened.conversation);
+    setAttempt({ idempotencyKey: crypto.randomUUID(), question: selected.question, requestId: selected.requestId, conversation: opened.conversation });
+    setReply(selected.reply); setMessage(selected.reply.status === 'ready' ? '已打开原始历史快照，未重新查询。' : selected.reply.message ?? selected.reply.error ?? '已打开历史工作记录。');
+    setDraft(''); setBuildingSelection(null); setSavedId(selected.requestId);
+    try { sessionStorage.setItem(storageKey, selected.requestId); } catch { /* Only an opaque request reference is stored. */ }
+  }, [storageKey]);
+  React.useEffect(() => {
+    if (!access.enabled) return;
+    const search = window.location.search;
+    if (navigationConsumed.current === search) return;
+    navigationConsumed.current = search;
+    const params = new URLSearchParams(search);
+    const incoming = readMapQueryContext(params);
+    // Consume this external URL once, after the server-confirmed capability check.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (incoming) { setBuildingSelection(incoming.selection); setDraft(incoming.question); input.current?.focus(); return; }
+    const requestId = params.get('aiRequest');
+    if (!requestId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) || current.current) return;
+    const controller = new AbortController(), ticket = ++generation.current;
+    current.current = controller; setBusy(true); setMessage('正在核对权限并恢复地图关联的原始记录…');
+    void import('@/src/services/trustedQueryHistoryClient').then(module => module.trustedQueryHistoryClient.open(scope, { requestId }, controller.signal))
+      .then(opened => {
+        if (alive.current && ticket === generation.current && !controller.signal.aborted) openHistory(opened);
+      }).catch(() => {
+        if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
+        // Older deployments may not have conversation metadata yet. The original
+        // same-session recovery independently checks ownership/ACLs; it never reruns.
+        current.current = null;
+        void run({ idempotencyKey: crypto.randomUUID(), question: '', requestId }, true);
+      }).finally(() => {
+        if (current.current === controller) current.current = null;
+        if (alive.current && ticket === generation.current) setBusy(false);
+      });
+  }, [access.enabled, run, openHistory, scope]);
   const activeTurn: Turn | null = attempt ? { attempt, reply, message } : null;
   const activeContext = !!attempt && !!reply?.requestId && (reply.conversation ?? attempt.conversation)?.id === conversationId;
   const ready = reply?.status === 'ready' && !!reply.result;
   const retry = attempt && !busy && !terminalFailure && !reply?.result && reply?.status !== 'clarification';
   const examples = [...new Set(access.examples)];
-  return <div className={styles.conversation}>
+  return <div className={styles.conversation} id="colliers-ai">
+    {access.enabled && <div className={styles.workspaceTools}><Button variant="ghost" aria-expanded={historyOpen} onClick={() => setHistoryOpen(value => !value)}><History size={16} aria-hidden="true" />历史记录</Button></div>}
+    {access.enabled && historyOpen && <HomeQueryHistory key={`${queryScopeKey(scope)}:${access.permissionRevision ?? ''}`} scope={scope} permissionRevision={access.permissionRevision} refreshKey={historyRefresh} onOpen={openHistory} onClose={() => setHistoryOpen(false)} />}
     {access.enabled && !attempt && !history.length && <div className={styles.welcome}>
       <h3>今天想了解什么？</h3><p>查询楼宇、了解市场指标，或比较季度变化。</p>
       <div className={styles.suggestions}>{examples.slice(0, 4).map(question => <ExampleQuestion key={question} variant="secondary" question={question} onSelect={edit} />)}</div>
@@ -164,17 +241,19 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
       <div role="status" aria-live="polite" className={ready ? 'sr-only' : styles.status}>{message}</div>
       {activeTurn && activeContext && reply?.status === 'clarification' && <QueryActions label="请选择查询口径" actions={reply.options} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       {ready && reply?.result && !collapsed && <HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} />}
+      {ready && reply?.historySaved !== undefined && <p className={styles.saveStatus}>{reply.historySaved ? '本次分析已自动保存至历史记录。' : '本次结果已留存，历史列表暂不可用。'}</p>}
       {activeTurn && activeContext && ready && !collapsed && <QueryActions label="继续分析" actions={suggestions(reply)} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       <div className={styles.actions}>
         {retry && <Button variant="secondary" onClick={() => void run(attempt)}>重试本次请求</Button>}
         {savedId && !busy && !ready && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId, conversation: attempt?.conversation }, true)}>检查状态并恢复结果</Button>}
         {attempt && !busy && <Button variant="ghost" onClick={() => edit(attempt.question)}>编辑问题</Button>}
-        {ready && attempt && <><Button variant="ghost" onClick={() => void run({ idempotencyKey: crypto.randomUUID(), question: attempt.question, conversation: attempt.conversation ?? { id: conversationId } })} disabled={!attempt.question}>重新查询</Button>
+        {ready && attempt && <><Button variant="ghost" onClick={reexecute} disabled={!attempt.question || !attempt.requestId || busy}>重新查询</Button>
           <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? '展开本次结果' : '收起本次结果'}</Button></>}
         {(attempt || history.length > 0) && <Button variant="ghost" disabled={busy} onClick={() => resetConversation(false)}>新对话</Button>}
       </div>
     </div>}
     <div className={`${styles.composer} ${access.enabled ? styles.enabled : ''}`}>
+      {buildingSelection && <div className={styles.selectionContext}><span>来自地图 · 已选择 {buildingSelection.ids.length} 栋楼宇</span><Button variant="ghost" onClick={() => setBuildingSelection(null)}>移除项目范围</Button></div>}
       <textarea ref={input} id="home-query" aria-describedby="home-query-status home-query-notice" disabled={!access.enabled}
         rows={2} maxLength={6000} value={draft} onChange={event => setDraft(event.target.value)}
         onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
@@ -193,7 +272,7 @@ function HomeQuerySession({ scope }: { scope: QueryClientScope }) {
     {access.enabled && <details className={styles.examples} onToggle={event => setExamplesOpen(event.currentTarget.open)}><summary>探索更多与查询范围</summary>
       <div>{examplesOpen && examples.slice(4).map(question => <ExampleQuestion key={question} variant="ghost" question={question} onSelect={edit} />)}</div>
       <p>楼宇目录按当前获权范围查询；季度指标采用当前跟踪样本。示例年份仅说明格式，不代表该期一定有数据。</p>
-      <p>本页保留最近 10 次问答，可沿用上文的地区、指标和期间继续追问。选择“新对话”可清除上文条件；离开页面或身份变化后清除本页对话。</p>
+      <p>当前工作区按需展示最近 10 次问答。历史记录单独核对本人访问资格后打开原始快照；重新查询是另一项操作。选择“新对话”清除上文条件，身份变化时清除当前工作区。</p>
     </details>}
     <p id="home-query-notice" className={access.enabled ? styles.privacy : 'sr-only'}>{access.enabled ? '正式提交的提问及回答会留存，供获权审计人员查看。请勿输入密码或密钥。' : '对话查询尚未开放。'}</p>
   </div>;

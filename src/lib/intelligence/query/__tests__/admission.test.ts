@@ -8,6 +8,15 @@ const request = () => ({ requestId: crypto.randomUUID(), submittedText: 'CBD最�
 const ports = () => ({ audit: { receive: vi.fn().mockResolvedValue({ replayed: false }), append: vi.fn().mockResolvedValue(undefined) } satisfies AuditPort, execution: { freshAuthority: vi.fn().mockResolvedValue(authority), execute: vi.fn().mockResolvedValue({ answer: '仅已知高度记录中的最高楼', resultId: 'synthetic' }) } });
 
 describe('fail-closed audited query admission', () => {
+  it('reports a verified expired history context without executing data or treating it as revoked eligibility', async () => {
+    const { audit, execution } = ports();
+    const prepare = vi.fn().mockRejectedValue(new Error('QUERY_HISTORY_REOPEN'));
+    expect(await runAuditedSubmission(request(), audit, { ...execution, prepare })).toEqual({ status: 'failed', reason: 'history_reopen' });
+    expect(execution.execute).not.toHaveBeenCalled();
+    expect(audit.append).toHaveBeenLastCalledWith(expect.anything(), 'failed', expect.objectContaining({ reason: 'history_context_expired', delivery: 'not_sent' }));
+    prepare.mockRejectedValue(new Error('QUERY_DENIED'));
+    expect(await runAuditedSubmission(request(), audit, { ...execution, prepare })).toEqual({ status: 'denied' });
+  });
   it('records a server deadline as failure rather than falsely claiming the user cancelled', async () => {
     const { audit, execution } = ports();
     const controller = new AbortController(); controller.abort(new DOMException('deadline', 'TimeoutError'));

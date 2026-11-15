@@ -1,8 +1,17 @@
 import * as React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultFilterState } from '@/src/app/map/model/mapDomain';
 import type { SidebarFilterState } from '@/src/components/SidebarFilter';
+import type { BuildingContext } from '@/src/lib/intelligence/query/buildingCards';
+
+const queryBridge = vi.hoisted(() => ({ selection: null as BuildingContext | null, publish: undefined as ((value: BuildingContext | null) => void) | undefined }));
+vi.mock('@/src/app/map/MapQuerySelection', () => ({
+  MapQuerySelection: ({ context, onChange }: { context: unknown; onChange: (value: BuildingContext | null) => void }) => {
+    React.useEffect(() => { queryBridge.publish = onChange; onChange(context ? queryBridge.selection : null); }, [context, onChange]);
+    return null;
+  },
+}));
 
 const controller = vi.hoisted(() => ({
   fetchMapData: vi.fn(),
@@ -71,15 +80,18 @@ vi.mock('@/src/app/map/components/MapLoadingShell', () => ({
 
 vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
   MapWorkbenchView: ({
+    queryPanel,
     onRenderModeChange,
     onSearch,
     onFilterChange,
   }: {
+    queryPanel?: React.ReactNode;
     onRenderModeChange: (mode: 'rent') => void;
     onSearch: (value: string) => void;
     onFilterChange: (state: SidebarFilterState) => void;
   }) => (
     <>
+      {queryPanel}
       <button type="button" onClick={() => onRenderModeChange('rent')}>
         switch-to-rent
       </button>
@@ -127,6 +139,7 @@ describe('MapClient render mode synchronization', () => {
     controller.fetchMapData.mockResolvedValue(BUILDINGS);
     controller.fetchFutureSupplies.mockResolvedValue([]);
     controller.getDisplayOverridesCache.mockReturnValue(new Map());
+    queryBridge.selection = null; queryBridge.publish = undefined;
   });
 
   it('re-renders map markers when the display mode changes before any filter state exists', async () => {
@@ -248,5 +261,33 @@ describe('MapClient render mode synchronization', () => {
         false,
       );
     });
+  });
+
+  it('T04 focuses one verified AI building through the existing controller and opens its existing detail', async () => {
+    const requestId = '10000000-0000-4000-8000-000000000001';
+    queryBridge.selection = { status: 'ready', requestId, resultId: requestId, metadataReadAt: '2026-11-16T00:00:00Z', total: 1, offset: 0, hasMore: false,
+      buildings: [{ id: BUILDINGS[0].id, name: BUILDINGS[0].name, located: true, unavailableReason: null, submarket: 'CBD', grade: 'A', photo: null }] };
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} queryContext={{ requestId, details: true }} />);
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith(BUILDINGS));
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith(BUILDINGS[0].id);
+    expect(controller.renderMarkers).toHaveBeenLastCalledWith(BUILDINGS, 'default', expect.anything(), undefined, false);
+    expect(controller.fetchFutureSupplies).not.toHaveBeenCalled();
+  });
+
+  it('T05/T06/T12 renders and fits only the verified located ID set, never duplicates or unavailable coordinates, and clears on revocation', async () => {
+    const requestId = '10000000-0000-4000-8000-000000000001';
+    const second = { ...BUILDINGS[0], id: 'building-2', name: '同名项目', grade: null, district: null, location_lng: 116.5 };
+    const missing = { ...BUILDINGS[0], id: 'building-3', location_lng: 999 };
+    const unrelated = { ...BUILDINGS[0], id: 'building-4', name: '同名项目' };
+    controller.fetchMapData.mockResolvedValueOnce([...BUILDINGS, second, missing, unrelated]);
+    queryBridge.selection = { status: 'ready', requestId, resultId: requestId, metadataReadAt: '2026-11-16T00:00:00Z', total: 3, offset: 0, hasMore: false,
+      buildings: [...BUILDINGS, second, missing].map(value => ({ id: value.id, name: value.name, located: value !== missing,
+        unavailableReason: value === missing ? 'missing_coordinates' : null, submarket: 'CBD', grade: 'A', photo: null })) };
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} queryContext={{ requestId, details: false }} />);
+    await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith([...BUILDINGS, second]));
+    expect(controller.renderMarkers).toHaveBeenLastCalledWith([...BUILDINGS, second], 'default', expect.anything(), undefined, false);
+    expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+    act(() => { queryBridge.publish?.(null); });
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenLastCalledWith([], 'default', expect.anything(), undefined, false));
   });
 });

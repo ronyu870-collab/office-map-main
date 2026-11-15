@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const sdk = vi.hoisted(() => ({ init: vi.fn(), destroy: vi.fn(), release: null as (() => void) | null, deferred: false }));
 const building = vi.hoisted(() => ({ id: 'startup-building', name: '启动验证楼宇', grade: 'A', district: '朝阳区', submarket: 'CBD', location_lng: 116.46, location_lat: 39.91, metrics: [] }));
 vi.mock('next/link', () => ({ default: ({ children, href, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => <a href={href} {...props}>{children}</a> }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('next/dynamic', () => ({ default: () => function UnrelatedDeferredModule() { return null; } }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ status: 'authenticated', session: { role: 'viewer', user: { id: 'startup-user', email: 'startup@example.test' } } }) }));
 vi.mock('@/src/services/Auth', () => ({ getSessionFast: vi.fn() }));

@@ -18,8 +18,11 @@ import { queryConversationSchema, SEMANTIC_PROTOCOL_VERSION } from './conversati
 import { readConversation } from './conversationStore';
 import { prepareSemanticExecution, attachSemanticExecution } from './semanticExecution';
 import { prepareQueryJsonResponse } from './jsonResponse';
+import { prepareHistoryReplay, recordHistorySubmission } from './historyStore';
+import { buildingSelectionSchema } from './buildingNavigation';
 
-const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional(), conversation: queryConversationSchema.optional() });
+const submissionSchema = z.strictObject({ idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(value => value.trim().length > 0), plan: z.unknown().optional(), conversation: queryConversationSchema.optional(), buildingSelection: buildingSelectionSchema.optional(), replayRequestId: z.uuid().optional() })
+  .refine(value => !value.replayRequestId || (!Object.hasOwn(value, 'plan') && !value.buildingSelection));
 function scopedRequestId(identity: VerifiedQueryIdentity, nonce: string): string {
   const bytes = createHash('sha256').update(`query-http/1:${identity.actorId}:${identity.effectiveUserId}:${nonce}`).digest().subarray(0, 16);
   bytes[6] = (bytes[6] & 15) | 128; bytes[8] = (bytes[8] & 63) | 128;
@@ -86,7 +89,7 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     const resolution = parsed && !Object.hasOwn(parsed, 'plan') ? resolveBusinessQuestion(parsed.question, receivedAt) : null;
     // Preserve legacy/structured clients. All new conversation clients use the
     // semantic boundary, as do natural questions outside the legacy grammar.
-    const semantic = Boolean(parsed && !Object.hasOwn(parsed, 'plan') && (parsed.conversation || resolution?.kind === 'clarification'));
+    const semantic = Boolean(parsed && !Object.hasOwn(parsed, 'plan') && (parsed.conversation || parsed.buildingSelection || parsed.replayRequestId || resolution?.kind === 'clarification'));
     const conversation = parsed?.conversation ?? { id: requestId };
     try { if (parsed) boundedPlan = semantic ? { resolution: 'server_semantic/1' } : resolution?.kind === 'plan' ? resolution.plan : resolution ? null : parseQueryPlan(parsed.plan); } catch { /* Raw bounded submission is still audited; invalid plans cannot execute. */ }
     let usedRevision: string | null = null;
@@ -104,8 +107,10 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
         prepare: async () => {
           const authority = await fresh();
           interpretationRevision = authority.permissionRevision;
-          prepared = await prepareSemanticExecution({ client, identity: verified, keys, authority, audit, requestId,
-            conversation, question: parsed!.question, receivedAt, signal });
+          prepared = parsed!.replayRequestId
+            ? await prepareHistoryReplay({ client, identity: verified, keys, authority, signal }, parsed!.replayRequestId)
+            : await prepareSemanticExecution({ client, identity: verified, keys, authority, audit, requestId,
+              conversation, question: parsed!.question, buildingSelection: parsed!.buildingSelection, receivedAt, signal });
           return { plan: prepared.resolution.kind === 'plan' ? prepared.resolution.plan : null,
             ...(prepared.resolution.kind === 'clarification' ? { clarification: prepared.resolution.clarification } : {}), metadata: prepared.metadata };
         },
@@ -128,9 +133,11 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       await audit.append(requestId, 'denied', { reason: 'idempotency_content_conflict', delivery: 'not_sent' });
       return { status: 'conflict' as const };
     });
+    const historySaved = parsed && result.status !== 'conflict'
+      ? await recordHistorySubmission(client, keys, verified, semantic ? conversation.id : requestId, requestId) : false;
     if (result.status === 'clarification') {
       // Store the exact bounded explanation; no business read has taken place.
-      const response = { requestId, status: 'clarification', ...result.clarification, ...(semantic ? { conversation } : {}) };
+      const response = { requestId, status: 'clarification', historySaved, ...result.clarification, ...(semantic ? { conversation } : {}) };
       const authority = await fresh();
       if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
       if (semantic && authority.permissionRevision !== interpretationRevision) {
@@ -146,12 +153,14 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
       return json(response, 422, deliveryHeaders);
     }
     if (result.status !== 'ready') {
+      if (result.status === 'failed' && result.reason === 'history_reopen') return json({ requestId, status: 'failed', reason: 'history_reopen', historySaved,
+        error: '此历史上下文已过期，请重新打开历史记录后继续分析。' }, 409);
       if (result.status === 'failed' && result.reason === 'scope_limit') return json({ requestId, status: 'failed', reason: 'scope_limit',
         error: '本次查询范围过大，未生成可恢复的结果。请缩小子市场范围、缩短季度范围或减少指标数量后重新提问。' }, 413);
       const status = result.status === 'already_received' ? 202 : result.status === 'denied' ? 403 : result.status === 'cancelled' || result.status === 'conflict' ? 409 : 503;
-      return json({ requestId, status: result.status, error: result.status === 'already_received' ? '此请求已接收，请勿重复执行。' : '本次查询未交付，请检查权限或稍后重试。' }, status);
+      return json({ requestId, status: result.status, historySaved, error: result.status === 'already_received' ? '此请求已接收，请勿重复执行。' : '本次查询未交付，请检查权限或稍后重试。' }, status);
     }
-    const responseBody = { requestId, status: 'ready', result: result.result, ...(semantic ? { conversation } : {}) };
+    const responseBody = { requestId, status: 'ready', result: result.result, historySaved, ...(semantic ? { conversation } : {}) };
     const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'result', resultId: result.result.resultId, itemCount: result.result.table.rows.length,
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex') }, { httpStatus: 200 });
     const response = await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);

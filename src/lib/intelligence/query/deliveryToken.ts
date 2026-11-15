@@ -7,7 +7,7 @@ import type { DeliveryReport } from './delivery';
 
 const claimsSchema = z.strictObject({ version: z.literal('query-delivery/1'), keyId: z.string(), deliveryId: z.uuid(),
   requestId: z.uuid(), actorId: z.uuid(), effectiveUserId: z.uuid(), sessionId: z.uuid(),
-  bodySha256: z.string().regex(/^[a-f0-9]{64}$/), kind: z.enum(['result', 'clarification', 'status', 'chart', 'download']),
+  bodySha256: z.string().regex(/^[a-f0-9]{64}$/), kind: z.enum(['result', 'clarification', 'status', 'chart', 'download', 'copy']),
   resultId: z.uuid().nullable(), itemCount: z.number().int().min(0).max(5000000), issuedAt: z.number().int(), expiresAt: z.number().int(),
 });
 export type DeliveryClaims = z.infer<typeof claimsSchema>;
