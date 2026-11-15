@@ -95,6 +95,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Homepage Colliers AI P0 conversation and result presentation, PR #199',
         reason: 'User explicitly waived visual and browser review for homepage AI P0 on 2026-11-15; applies only to PR #199',
       },
+      {
+        number: 200,
+        branch: 'codex/colliers-ai-p1',
+        scope: 'Colliers AI P1 semantic conversation and trusted research, PR #200',
+        reason: 'User explicitly waived independent visual review, browser visual review and physical-phone manual acceptance for Colliers AI P1 on 2026-11-15; applies only to PR #200',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

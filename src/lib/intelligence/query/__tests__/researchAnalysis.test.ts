@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as XLSX from 'xlsx';
 import { attachResearchAnalysis, RESEARCH_ANALYSIS_LIMITS } from '../researchAnalysis';
-import { researchAnalysisSchema } from '../researchAnalysisView';
+import { researchAnalysisSchema, resolveResearchSources } from '../researchAnalysisView';
 import { buildAggregateResult, buildCompareResult, buildGroupedResult, buildTrendResult, resultDigest } from '../result';
 import { buildCsvPackage, buildXlsx } from '../exports';
 import { buildResultChart } from '../charts';
@@ -9,6 +9,7 @@ import { resultViewSchema } from '../presentation';
 import { resolveNumericFact } from '../facts';
 import type { FactSnapshot, Quarter } from '../contracts';
 import { fixture, nameSource, source } from './fixtures';
+import { researchCapacityFixture } from './researchCapacityFixture';
 
 const q = (quarter: number, year = 2026): Quarter => ({ year, quarter });
 function snapshot(period: Quarter, rents: (number | string | null)[], areas = rents.map(() => 100), vacancies = rents.map(() => 10)): FactSnapshot {
@@ -139,6 +140,37 @@ describe('deterministic research analysis from the original authorized snapshot'
     expect(research.findings.find(item => item.id.endsWith('/anomalies'))?.text).toContain('本次已完成检测');
   });
 
+  it.each([74, 300, 600])('keeps %i real-format buildings × four quarters usable with bounded, resolvable evidence', count => {
+    const { snapshots, original } = researchCapacityFixture(count);
+    const result = attachResearchAnalysis(original, snapshots), research = analysis(result);
+    expect(original.sources.every(source => source.id.length >= 116)).toBe(true);
+    expect(research.resourceUsage?.status).toBe('complete');
+    expect(research.series).toHaveLength(3); expect(result.table).toBe(original.table);
+    expect(new TextEncoder().encode(JSON.stringify(research)).byteLength).toBeLessThan(RESEARCH_ANALYSIS_LIMITS.outputBytes);
+    expect(new TextEncoder().encode(JSON.stringify(result)).byteLength).toBeLessThan(RESEARCH_ANALYSIS_LIMITS.combinedResultBytes);
+    for (const series of research.series) {
+      expect(series.periods).toHaveLength(4); expect(series.overall?.difference?.numeric).toBe(15);
+      const known = new Set(result.sources.map(source => source.id));
+      for (const entry of [...series.periods, series.overall!, ...series.quarterOnQuarter, ...series.comparability.flatMap(item => [item.perPeriod, item.commonSample])]) {
+        expect(entry.sourceRefs?.length).toBeGreaterThan(0);
+        const ids = resolveResearchSources(series, entry);
+        expect(ids.length).toBeGreaterThan(0); expect(ids.every(id => known.has(id))).toBe(true);
+      }
+      const finding = research.findings.find(item => item.id === `${series.key}/trend`)!;
+      expect(series.classificationSourceIds?.length).toBeGreaterThan(0);
+      expect(series.classificationSourceIds?.every(id => finding.sourceIds.includes(id))).toBe(true);
+    }
+  });
+
+  it('preserves a near-limit original archive when the combined research output would exceed the safe archive budget', () => {
+    const s = snapshot(q(3), [100]), base = buildAggregateResult(s, 'rent');
+    const original = { ...base, parameters: { ...base.parameters, syntheticArchivePadding: 'x'.repeat(RESEARCH_ANALYSIS_LIMITS.combinedResultBytes) } };
+    const result = attachResearchAnalysis(original, [s]);
+    expect(result.table).toBe(original.table); expect(result.sources).toBe(original.sources);
+    expect(analysis(result).resourceUsage).toMatchObject({ status: 'skipped', reason: 'output_limit' });
+    expect(new TextEncoder().encode(JSON.stringify(result)).byteLength).toBeLessThan(16 * 1024 * 1024);
+  });
+
   it('applies the documented 30% boundary without using rounded display numbers', () => {
     const below = analysis(trend([snapshot(q(2), [100]), snapshot(q(3), ['129.999999999999999999'])])).series[0];
     expect(below.anomalies).toEqual([]);
@@ -184,6 +216,10 @@ describe('deterministic research analysis from the original authorized snapshot'
     const research = analysis(result);
     expect(research.series.find(series => series.label === 'CBD')?.overall?.change?.numeric).toBe(10);
     expect(research.series.find(series => series.label === '金融街')?.anomalies[0]).toMatchObject({ rule: 'entity_qoq_rent_30_percent', entityId: 'B' });
+    const forged = ss.map(s => ({ ...s, rows: s.rows.map(row => row.id === 'A' ? { ...row, dimensions: {
+      submarket: { value: '金融街', source: { ...row.dimensions.submarket.source, rawValue: '金融街' } },
+    } } : row) }));
+    expect(() => attachResearchAnalysis(result, forged)).toThrow('RESEARCH_SOURCE_BINDING_MISMATCH');
     expect(research.series.find(series => series.label === '丽泽')?.periods.every(period => period.value === null)).toBe(true);
     expect(research.series.some(series => series.label.includes('未知'))).toBe(true);
   });

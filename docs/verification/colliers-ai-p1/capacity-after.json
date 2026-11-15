@@ -1,0 +1,91 @@
+{
+  "synthetic": true,
+  "normalizer": "normalizeSnapshot",
+  "runtime": "v24.22.1",
+  "results": [
+    {
+      "buildings": 74,
+      "periods": 4,
+      "observations": 296,
+      "sourceIdLength": [
+        116,
+        135
+      ],
+      "baseMs": 69,
+      "extraMs": 127,
+      "baseBytes": 1395060,
+      "researchBytes": 441129,
+      "resultBytes": 1836209,
+      "status": {
+        "status": "complete",
+        "observationCount": 296,
+        "reason": null,
+        "limits": {
+          "observations": 5000,
+          "inputSourceReferences": 15000,
+          "inputSourceCharacters": 1048576,
+          "anomalies": 100,
+          "anomalySourceReferences": 5000,
+          "outputBytes": 4194304,
+          "combinedResultBytes": 15728640
+        }
+      }
+    },
+    {
+      "buildings": 300,
+      "periods": 4,
+      "observations": 1200,
+      "sourceIdLength": [
+        116,
+        135
+      ],
+      "baseMs": 102,
+      "extraMs": 276,
+      "baseBytes": 5598486,
+      "researchBytes": 1607982,
+      "resultBytes": 7206488,
+      "status": {
+        "status": "complete",
+        "observationCount": 1200,
+        "reason": null,
+        "limits": {
+          "observations": 5000,
+          "inputSourceReferences": 15000,
+          "inputSourceCharacters": 1048576,
+          "anomalies": 100,
+          "anomalySourceReferences": 5000,
+          "outputBytes": 4194304,
+          "combinedResultBytes": 15728640
+        }
+      }
+    },
+    {
+      "buildings": 600,
+      "periods": 4,
+      "observations": 2400,
+      "sourceIdLength": [
+        116,
+        135
+      ],
+      "baseMs": 168,
+      "extraMs": 697,
+      "baseBytes": 11178086,
+      "researchBytes": 3156582,
+      "resultBytes": 14334688,
+      "status": {
+        "status": "complete",
+        "observationCount": 2400,
+        "reason": null,
+        "limits": {
+          "observations": 5000,
+          "inputSourceReferences": 15000,
+          "inputSourceCharacters": 1048576,
+          "anomalies": 100,
+          "anomalySourceReferences": 5000,
+          "outputBytes": 4194304,
+          "combinedResultBytes": 15728640
+        }
+      }
+    }
+  ]
+}

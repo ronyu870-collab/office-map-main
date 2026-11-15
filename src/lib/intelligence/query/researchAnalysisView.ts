@@ -24,7 +24,7 @@ const comparability = z.object({ base: quarterSchema, current: quarterSchema,
   baseCount: z.number().int().nonnegative(), currentCount: z.number().int().nonnegative(), commonCount: z.number().int().nonnegative(),
   enteredEntityIds: ids, exitedEntityIds: ids, baseDenominator: number, currentDenominator: number,
   denominatorDifference: number, denominatorUnit: z.enum(['m2', 'building_count']),
-  perPeriod: change, commonSample: change, sourceIds: ids });
+  perPeriod: change, commonSample: change, sourceIds: ids, sourceRefs });
 const anomaly = z.object({ rule: z.enum(['entity_qoq_rent_30_percent', 'entity_qoq_vacancy_10_pp', 'iqr_1_5']),
   entityId: z.string(), name: z.string(), period: quarterSchema, basePeriod: quarterSchema.nullable(),
   value: number, baseValue: number.nullable(), change: number.nullable(), changeUnit: z.enum(['percent', 'percentage_point']).nullable(),
@@ -66,11 +66,15 @@ export type ResearchAnomaly = ResearchSeries['anomalies'][number];
 /** Resolve saved provenance without recalculating a business value. The targets
  * retain complete canonical source IDs in this immutable result snapshot. */
 export function resolveResearchSources(series: ResearchSeries, entry: Pick<ResearchPeriod, 'sourceIds' | 'sourceRefs'>): string[] {
-  const ids = [...entry.sourceIds];
-  for (const ref of entry.sourceRefs ?? []) {
-    const target = series[ref.collection][ref.index];
-    if (!target) throw new Error('RESEARCH_SOURCE_REFERENCE_INVALID');
-    ids.push(...target.sourceIds);
-  }
+  const ids: string[] = [];
+  const visit = (node: Pick<ResearchPeriod, 'sourceIds' | 'sourceRefs'>, seen: ReadonlySet<string>) => {
+    ids.push(...node.sourceIds);
+    for (const ref of node.sourceRefs ?? []) {
+      const key = `${ref.collection}/${ref.index}`, target = series[ref.collection][ref.index];
+      if (!target || seen.has(key) || seen.size > 2) throw new Error('RESEARCH_SOURCE_REFERENCE_INVALID');
+      visit(target, new Set([...seen, key]));
+    }
+  };
+  visit(entry, new Set());
   return [...new Set([...ids, ...(series.classificationSourceIds ?? [])])].sort();
 }

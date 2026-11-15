@@ -5,6 +5,22 @@ import { checkVisualAcceptance } from './visual-acceptance.mjs';
 const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
+
+test('P1 visual waiver is bound to PR #200, exact repository, branch, target, head and disclosed authorization', () => {
+  const scope = 'Colliers AI P1 semantic conversation and trusted research, PR #200';
+  const reason = 'User explicitly waived independent visual review, browser visual review and physical-phone manual acceptance for Colliers AI P1 on 2026-11-15; applies only to PR #200';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 200, body,
+    head: { sha: head, ref: 'codex/colliers-ai-p1', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  for (const number of [199, 201]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Tests passed') }), /specifically authorized/);
+});
 const passFields = [
   'result: passed', 'head: ' + head, 'scope: 首页 / 常用工作',
   'reviewer: Hang Yu', 'evidence: https://github.com/example/repo/pull/2#issuecomment-3',

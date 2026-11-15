@@ -236,8 +236,8 @@ function seriesFindings(series: ResearchSeries): ResearchAnalysis['findings'] {
   return findings;
 }
 
-/** Canonical period/comparison evidence remains intact. Derived changes and the
- * mode-selected period alias point back to those arrays instead of repeating
+/** Canonical period evidence remains intact. Derived changes and the
+ * mode-selected period alias point back to canonical periods instead of repeating
  * UUID/version source IDs many times in the durable result archive. */
 function compactSeriesEvidence(series: ResearchSeries): ResearchSeries {
   const collection = series.mode === 'paired' ? 'commonSample' as const : 'perPeriod' as const;
@@ -250,10 +250,16 @@ function compactSeriesEvidence(series: ResearchSeries): ResearchSeries {
     periods: series.periods.map((period, index) => ({ ...period, sourceIds: [], sourceRefs: [{ collection, index }] })),
     overall: series.overall ? compactChange(series.overall) : null,
     quarterOnQuarter: series.quarterOnQuarter.map(compactChange), yearOnYear: series.yearOnYear.map(compactChange),
-    comparability: series.comparability.map((comparison, index) => ({ ...comparison,
-      perPeriod: { ...comparison.perPeriod, sourceIds: [], sourceRefs: [{ collection: 'comparability', index }] },
-      commonSample: { ...comparison.commonSample, sourceIds: [], sourceRefs: [{ collection: 'comparability', index }] },
-    })),
+    comparability: series.comparability.map(comparison => {
+      const refs: NonNullable<ResearchChange['sourceRefs']> = [
+        { collection: 'perPeriod', index: periodIndex.get(quarterKey(comparison.base))! },
+        { collection: 'perPeriod', index: periodIndex.get(quarterKey(comparison.current))! },
+      ];
+      return { ...comparison, sourceIds: [], sourceRefs: refs,
+        perPeriod: { ...comparison.perPeriod, sourceIds: [], sourceRefs: refs },
+        commonSample: { ...comparison.commonSample, sourceIds: [], sourceRefs: refs },
+      };
+    }),
   };
 }
 
@@ -295,13 +301,14 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
     : metric === 'vacancy' ? ['totalArea', 'vacantArea'] as const : ['totalArea'] as const;
   const dimension = result.operation === 'group_aggregate' || result.operation === 'group_trend' ? result.parameters.groupBy : null;
   if (dimension !== null && dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
+  const sourceDimension = dimension === 'submarket' ? 'submarket' : dimension === 'grade' ? 'grade' : null;
   function* requiredSources() {
     for (const snapshot of selected) for (const row of snapshot.rows) {
       yield row.nameSource;
       for (const field of fields) yield* getFact(row, field).sources;
     }
-    if (dimension) for (const snapshot of universe) for (const row of snapshot.rows) {
-      const source = row.dimensions?.[dimension]?.source;
+    if (sourceDimension) for (const snapshot of universe) for (const row of snapshot.rows) {
+      const source = row.dimensions?.[sourceDimension]?.source;
       if (!source) throw new Error('GROUP_SOURCE_REQUIRED');
       yield source;
     }
@@ -315,60 +322,60 @@ export function attachResearchAnalysis(result: QueryResult, selected: readonly F
       || sourceCharacters > RESEARCH_ANALYSIS_LIMITS.inputSourceCharacters) return skippedResearch(result, observationCount, 'evidence_limit');
   }
   try {
-  const archivedSources = new Map(result.sources.filter(source => requiredIds.has(source.id)).map(source => [source.id, JSON.stringify(source)]));
-  for (const source of requiredSources()) {
-    if (archivedSources.get(source.id) !== JSON.stringify(source)) throw new Error('RESEARCH_SOURCE_BINDING_MISMATCH');
-  }
-  if (new Set(selected.map(snapshot => quarterKey(snapshot.period!))).size !== selected.length) throw new Error('RESEARCH_DUPLICATE_PERIOD');
-  const sorted = [...selected].sort((a, b) => order(a.period!) - order(b.period!));
-  const sortedUniverse = sorted.map(snapshot => universe.find(candidate => quarterKey(candidate.period!) === quarterKey(snapshot.period!))!);
-  if (sortedUniverse.some(snapshot => !snapshot)) throw new Error('RESEARCH_SNAPSHOT_MISMATCH');
-  const mode = result.parameters.mode === 'paired' ? 'paired' : 'per_period';
-  const budget: AnomalyBudget = { returned: 0, sourceReferences: 0 };
-  let series: ResearchSeries[];
-  if (result.operation === 'group_aggregate' || result.operation === 'group_trend') {
-    if (dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
-    const grouped = groupedQuarterAnalysis(sorted, sortedUniverse, dimension, metric, mode);
-    series = grouped.groups.map(group => {
-      const ids = new Set(group.entityIds);
-      return { ...analyzeSeries(group.key, group.label, sorted.map(snapshot => {
-        const rows = snapshot.rows.filter(row => ids.has(row.id)); return { ...snapshot, rows, expectedCount: rows.length };
-      }), metric, mode, budget), classificationSourceIds: group.sourceIds };
-    });
-  } else {
-    const scope = sorted[0].queryScope?.submarkets;
-    const label = Array.isArray(scope) && scope.every(value => typeof value === 'string') ? scope.join('、') : '当前获权范围';
-    series = [analyzeSeries('scope', label, sorted, metric, mode, budget)];
-  }
-  const candidate: ResearchAnalysis = { version: 'research-analysis/1', series: series.map(compactSeriesEvidence),
-    findings: series.flatMap(item => seriesFindings(item).map(finding => ({ ...finding,
-      sourceIds: unique([...finding.sourceIds, ...(item.classificationSourceIds ?? [])]) }))),
-    resourceUsage: { status: series.some(item => item.anomalyCoverage?.complete === false) ? 'limited' : 'complete',
-      observationCount, reason: null, limits: RESEARCH_ANALYSIS_LIMITS }, rules: [
-    { id: 'exact_change/1', description: '使用未舍入有理数；租金/面积变化率=(期末−期初)÷期初×100%；空置率变化=(期末比例−期初比例)×100，单位为百分点。基期为零不计算相对变化率。' },
-    { id: 'entity_qoq_rent_30_percent', description: '同楼、同指标、相邻季度有效净有效租金的绝对环比变化≥30%时提醒；是固定筛查阈值，不是错误判定或统计显著性结论。' },
-    { id: 'entity_qoq_vacancy_10_pp', description: '同楼相邻季度有效空置率的绝对变化≥10个百分点时提醒；空置率沿用同楼同季面积口径。' },
-    { id: 'iqr_1_5', description: '同组同季有效样本至少4栋，Type 7分位数；严格超出[Q1−1.5×IQR,Q3+1.5×IQR]才标记，异常仍参与统计。' },
-    { id: 'sample_comparability/1', description: '各期样本与两期共同有效楼宇并列；趋势另保留全期间共同交集。进入/退出表示指标有效样本变化，不表示楼宇开业/退市。分类使用当前目录，无法重建历史市场全集。' },
-    { id: 'research_evidence/1', description: '派生变化及所选模式的期间通过 sourceRefs 指向本组 perPeriod、commonSample 或 comparability 的明确索引，复用完整来源标识；分组分类证据见 classificationSourceIds。分析文字的依据按钮直接包含相应指标及分类记录。' },
-    { id: 'research_resources/1', description: `补充分析最多 ${RESEARCH_ANALYSIS_LIMITS.observations} 个楼宇×季度观察、${RESEARCH_ANALYSIS_LIMITS.inputSourceReferences} 个输入来源引用、${RESEARCH_ANALYSIS_LIMITS.inputSourceCharacters} 个不同来源标识字符，补充输出最多 ${RESEARCH_ANALYSIS_LIMITS.outputBytes} 字节，合并结果最多 ${RESEARCH_ANALYSIS_LIMITS.combinedResultBytes} 字节；异常明细全结果最多 ${RESEARCH_ANALYSIS_LIMITS.anomalies} 条及 ${RESEARCH_ANALYSIS_LIMITS.anomalySourceReferences} 个证据引用。达到限额会明确标注检测或列举是否完整，保留原查询结果。` },
-  ] };
-  if (new TextEncoder().encode(JSON.stringify(candidate)).byteLength > RESEARCH_ANALYSIS_LIMITS.outputBytes)
-    return skippedResearch(result, observationCount, 'output_limit');
-  const combined = { ...result, parameters: { ...result.parameters, researchAnalysis: candidate } };
-  // The existing encrypted archive limit is 16 MiB. Reserve at least 1 MiB for
-  // the remaining execution metadata/envelope instead of failing a usable query.
-  if (new TextEncoder().encode(JSON.stringify(combined)).byteLength > RESEARCH_ANALYSIS_LIMITS.combinedResultBytes)
-    return skippedResearch(result, observationCount, 'output_limit');
-  const research = researchAnalysisSchema.parse(candidate);
-  const allowed = new Set(result.sources.map(source => source.id));
-  const referenced = research.series.flatMap(item => [
-    ...(item.classificationSourceIds ?? []),
-    ...item.perPeriod.flatMap(period => period.sourceIds), ...item.commonSample.flatMap(period => period.sourceIds),
-    ...item.anomalies.flatMap(anomaly => anomaly.sourceIds), ...item.comparability.flatMap(comparison => comparison.sourceIds),
-  ]).concat(research.findings.flatMap(finding => finding.sourceIds));
-  if (referenced.some(id => !allowed.has(id))) throw new Error('RESEARCH_SOURCE_BINDING_MISMATCH');
-  return freeze({ ...result, parameters: { ...result.parameters, researchAnalysis: research } });
+    const archivedSources = new Map(result.sources.filter(source => requiredIds.has(source.id)).map(source => [source.id, JSON.stringify(source)]));
+    for (const source of requiredSources()) {
+      if (archivedSources.get(source.id) !== JSON.stringify(source)) throw new Error('RESEARCH_SOURCE_BINDING_MISMATCH');
+    }
+    if (new Set(selected.map(snapshot => quarterKey(snapshot.period!))).size !== selected.length) throw new Error('RESEARCH_DUPLICATE_PERIOD');
+    const sorted = [...selected].sort((a, b) => order(a.period!) - order(b.period!));
+    const sortedUniverse = sorted.map(snapshot => universe.find(candidate => quarterKey(candidate.period!) === quarterKey(snapshot.period!))!);
+    if (sortedUniverse.some(snapshot => !snapshot)) throw new Error('RESEARCH_SNAPSHOT_MISMATCH');
+    const mode = result.parameters.mode === 'paired' ? 'paired' : 'per_period';
+    const budget: AnomalyBudget = { returned: 0, sourceReferences: 0 };
+    let series: ResearchSeries[];
+    if (result.operation === 'group_aggregate' || result.operation === 'group_trend') {
+      if (dimension !== 'submarket' && dimension !== 'grade') throw new Error('RESEARCH_GROUP_REQUIRED');
+      const grouped = groupedQuarterAnalysis(sorted, sortedUniverse, dimension, metric, mode);
+      series = grouped.groups.map(group => {
+        const ids = new Set(group.entityIds);
+        return { ...analyzeSeries(group.key, group.label, sorted.map(snapshot => {
+          const rows = snapshot.rows.filter(row => ids.has(row.id)); return { ...snapshot, rows, expectedCount: rows.length };
+        }), metric, mode, budget), classificationSourceIds: group.sourceIds };
+      });
+    } else {
+      const scope = sorted[0].queryScope?.submarkets;
+      const label = Array.isArray(scope) && scope.every(value => typeof value === 'string') ? scope.join('、') : '当前获权范围';
+      series = [analyzeSeries('scope', label, sorted, metric, mode, budget)];
+    }
+    const candidate: ResearchAnalysis = { version: 'research-analysis/1', series: series.map(compactSeriesEvidence),
+      findings: series.flatMap(item => seriesFindings(item).map(finding => ({ ...finding,
+        sourceIds: unique([...finding.sourceIds, ...(item.classificationSourceIds ?? [])]) }))),
+      resourceUsage: { status: series.some(item => item.anomalyCoverage?.complete === false) ? 'limited' : 'complete',
+        observationCount, reason: null, limits: RESEARCH_ANALYSIS_LIMITS }, rules: [
+      { id: 'exact_change/1', description: '使用未舍入有理数；租金/面积变化率=(期末−期初)÷期初×100%；空置率变化=(期末比例−期初比例)×100，单位为百分点。基期为零不计算相对变化率。' },
+      { id: 'entity_qoq_rent_30_percent', description: '同楼、同指标、相邻季度有效净有效租金的绝对环比变化≥30%时提醒；是固定筛查阈值，不是错误判定或统计显著性结论。' },
+      { id: 'entity_qoq_vacancy_10_pp', description: '同楼相邻季度有效空置率的绝对变化≥10个百分点时提醒；空置率沿用同楼同季面积口径。' },
+      { id: 'iqr_1_5', description: '同组同季有效样本至少4栋，Type 7分位数；严格超出[Q1−1.5×IQR,Q3+1.5×IQR]才标记，异常仍参与统计。' },
+      { id: 'sample_comparability/1', description: '各期样本与两期共同有效楼宇并列；趋势另保留全期间共同交集。进入/退出表示指标有效样本变化，不表示楼宇开业/退市。分类使用当前目录，无法重建历史市场全集。' },
+      { id: 'research_evidence/1', description: '派生变化及所选模式的期间通过 sourceRefs 指向本组 perPeriod、commonSample 或 comparability 的明确索引，复用完整来源标识；分组分类证据见 classificationSourceIds。分析文字的依据按钮直接包含相应指标及分类记录。' },
+      { id: 'research_resources/1', description: `补充分析最多 ${RESEARCH_ANALYSIS_LIMITS.observations} 个楼宇×季度观察、${RESEARCH_ANALYSIS_LIMITS.inputSourceReferences} 个输入来源引用、${RESEARCH_ANALYSIS_LIMITS.inputSourceCharacters} 个不同来源标识字符，补充输出最多 ${RESEARCH_ANALYSIS_LIMITS.outputBytes} 字节，合并结果最多 ${RESEARCH_ANALYSIS_LIMITS.combinedResultBytes} 字节；异常明细全结果最多 ${RESEARCH_ANALYSIS_LIMITS.anomalies} 条及 ${RESEARCH_ANALYSIS_LIMITS.anomalySourceReferences} 个证据引用。达到限额会明确标注检测或列举是否完整，保留原查询结果。` },
+    ] };
+    if (new TextEncoder().encode(JSON.stringify(candidate)).byteLength > RESEARCH_ANALYSIS_LIMITS.outputBytes)
+      return skippedResearch(result, observationCount, 'output_limit');
+    const combined = { ...result, parameters: { ...result.parameters, researchAnalysis: candidate } };
+    // The existing encrypted archive limit is 16 MiB. Reserve at least 1 MiB for
+    // the remaining execution metadata/envelope instead of failing a usable query.
+    if (new TextEncoder().encode(JSON.stringify(combined)).byteLength > RESEARCH_ANALYSIS_LIMITS.combinedResultBytes)
+      return skippedResearch(result, observationCount, 'output_limit');
+    const research = researchAnalysisSchema.parse(candidate);
+    const allowed = new Set(result.sources.map(source => source.id));
+    const referenced = research.series.flatMap(item => [
+      ...(item.classificationSourceIds ?? []),
+      ...item.perPeriod.flatMap(period => period.sourceIds), ...item.commonSample.flatMap(period => period.sourceIds),
+      ...item.anomalies.flatMap(anomaly => anomaly.sourceIds), ...item.comparability.flatMap(comparison => comparison.sourceIds),
+    ]).concat(research.findings.flatMap(finding => finding.sourceIds));
+    if (referenced.some(id => !allowed.has(id))) throw new Error('RESEARCH_SOURCE_BINDING_MISMATCH');
+    return freeze({ ...result, parameters: { ...result.parameters, researchAnalysis: research } });
   } catch (error) {
     if (error instanceof Error && ['QUERY_SCOPE_REQUIRES_BACKGROUND_JOB', 'NUMERIC_PROJECTION_OVERFLOW'].includes(error.message))
       return skippedResearch(result, observationCount, 'exact_calculation_limit');

@@ -1,0 +1,86 @@
+[
+  {
+    "buildings": 74,
+    "periods": 4,
+    "observations": 296,
+    "sourceIdLength": [
+      116,
+      135
+    ],
+    "inputSourceCharacters": 112184,
+    "baseMs": 69,
+    "extraMs": 88,
+    "baseBytes": 1395060,
+    "researchBytes": 1312538,
+    "resultBytes": 2707618,
+    "status": {
+      "status": "complete",
+      "observationCount": 296,
+      "reason": null,
+      "limits": {
+        "observations": 5000,
+        "inputSourceReferences": 15000,
+        "inputSourceCharacters": 131072,
+        "anomalies": 100,
+        "anomalySourceReferences": 5000,
+        "outputBytes": 4194304
+      }
+    }
+  },
+  {
+    "buildings": 300,
+    "periods": 4,
+    "observations": 1200,
+    "sourceIdLength": [
+      116,
+      135
+    ],
+    "inputSourceCharacters": 454800,
+    "baseMs": 107,
+    "extraMs": 1,
+    "baseBytes": 5598486,
+    "researchBytes": 961,
+    "resultBytes": 5599781,
+    "status": {
+      "status": "skipped",
+      "observationCount": 1200,
+      "reason": "evidence_limit",
+      "limits": {
+        "observations": 5000,
+        "inputSourceReferences": 15000,
+        "inputSourceCharacters": 131072,
+        "anomalies": 100,
+        "anomalySourceReferences": 5000,
+        "outputBytes": 4194304
+      }
+    }
+  },
+  {
+    "buildings": 600,
+    "periods": 4,
+    "observations": 2400,
+    "sourceIdLength": [
+      116,
+      135
+    ],
+    "inputSourceCharacters": 909600,
+    "baseMs": 252,
+    "extraMs": 1,
+    "baseBytes": 11178086,
+    "researchBytes": 961,
+    "resultBytes": 11179381,
+    "status": {
+      "status": "skipped",
+      "observationCount": 2400,
+      "reason": "evidence_limit",
+      "limits": {
+        "observations": 5000,
+        "inputSourceReferences": 15000,
+        "inputSourceCharacters": 131072,
+        "anomalies": 100,
+        "anomalySourceReferences": 5000,
+        "outputBytes": 4194304
+      }
+    }
+  }
+]
