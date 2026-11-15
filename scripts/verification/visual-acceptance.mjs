@@ -89,6 +89,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Admin-only trusted data query and audit first release, PR #198',
         reason: 'User explicitly waived independent visual review and mobile testing for the admin first release on 2026-11-15; applies only to PR #198',
       },
+      {
+        number: 199,
+        branch: 'codex/home-ai-p0-20261115',
+        scope: 'Homepage Colliers AI P0 conversation and result presentation, PR #199',
+        reason: 'User explicitly waived visual and browser review for homepage AI P0 on 2026-11-15; applies only to PR #199',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'

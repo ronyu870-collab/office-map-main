@@ -186,14 +186,16 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     expect(screen.queryByRole('region', { name: '查询结果' })).not.toBeInTheDocument(); expect(sessionStorage.length).toBe(0);
   });
   it('shows a chart from the same result, preserves draft and source focus, and requires an explicit export grant', async () => {
-    const result = buildAggregateResult(fixture(), 'vacancy');
+    const result = buildTrendResult([fixture({ year: 2026, quarter: 2 }), fixture({ year: 2026, quarter: 3 })], 'vacancy', 'per_period');
     client.submit.mockResolvedValue({ requestId, status: 'ready', result });
-    client.chart.mockResolvedValue(buildResultChart(resultViewSchema.parse(result), { kind: 'bar', field: 'value' }));
+    client.chart.mockImplementation(async (_scope, _id, value, request) => buildResultChart(value, request));
     render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: '2026Q3CBD空置率' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
-    fireEvent.click(await screen.findByRole('button', { name: '查看柱状图' }));
+    await screen.findByRole('figure', { name: '同源查询图表' });
+    fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
     const chart = await screen.findByRole('figure', { name: '同源查询图表' }); expect(chart).toHaveTextContent('17.5');
-    expect(client.chart.mock.calls[0].slice(0, 4)).toEqual([scope, requestId, resultViewSchema.parse(result), { kind: 'bar', field: 'value' }]);
+    await waitFor(() => expect(client.chart).toHaveBeenCalledTimes(2));
+    expect(client.chart.mock.calls[1].slice(0, 4)).toEqual([scope, requestId, resultViewSchema.parse(result), { kind: 'bar', field: 'value' }]);
     expect(client.submit).toHaveBeenCalledOnce(); expect(input).toHaveValue('2026Q3CBD空置率');
     expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
     fireEvent.click(chart.querySelector('button')!); expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
@@ -202,15 +204,15 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     expect(screen.getByRole('region', { name: '查询结果' })).toHaveTextContent('17.5');
   });
   it('does not expose a late chart after a permission change and removes the export controls', async () => {
-    const result = buildAggregateResult(fixture(), 'rent'), pending = deferred<unknown>();
+    const result = buildTrendResult([fixture({ year: 2026, quarter: 2 }), fixture({ year: 2026, quarter: 3 })], 'rent', 'per_period'), pending = deferred<unknown>();
     client.capabilities.mockResolvedValue({ ...capabilities, internalExport: true });
     client.submit.mockResolvedValue({ requestId, status: 'ready', result }); client.chart.mockReturnValue(pending.promise);
     render(view()); await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '2026Q3CBD净有效租金' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
-    await screen.findByText('下载本次结果'); fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
+    await screen.findByText('下载本次结果'); await waitFor(() => expect(client.chart).toHaveBeenCalledOnce());
     client.capabilities.mockResolvedValue({ enabled: false, examples: [] }); fireEvent.focus(window);
     await waitFor(() => expect(screen.getByRole('textbox')).toBeDisabled());
-    await act(async () => pending.resolve(buildResultChart(resultViewSchema.parse(result), { kind: 'bar', field: 'value' })));
+    await act(async () => pending.resolve(buildResultChart(resultViewSchema.parse(result), { kind: 'time_series' })));
     expect(screen.queryByRole('figure')).not.toBeInTheDocument(); expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
   });
 
