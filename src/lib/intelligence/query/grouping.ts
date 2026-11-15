@@ -4,8 +4,7 @@ import { catalogDimensions, type CatalogDimension } from './registry';
 
 /** Group membership is a current-catalog fact, independently sourced from metric
  * validity. Establish groups before filters so empty/unknown groups do not vanish. */
-export function groupedQuarterAnalysis(selected: readonly FactSnapshot[], universe: readonly FactSnapshot[],
-  dimension: CatalogDimension, metric: Parameters<typeof quarterSeries>[1], mode: 'per_period' | 'paired') {
+export function catalogGroupMemberships(selected: readonly FactSnapshot[], universe: readonly FactSnapshot[], dimension: CatalogDimension) {
   if (!Object.hasOwn(catalogDimensions, dimension) || !universe.length || selected.length !== universe.length) throw new Error('GROUP_CONTEXT_REQUIRED');
   const memberships = new Map<string, { value: string | null; source: SourceRef }>();
   const groups = new Map<string, { key: string; value: string | null; label: string; entityIds: string[]; sourceIds: string[] }>();
@@ -44,9 +43,20 @@ export function groupedQuarterAnalysis(selected: readonly FactSnapshot[], univer
     }
   }
   if (groups.size > 50) throw new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB');
-  return { dimension, metric, mode, membershipTime: 'current_catalog' as const,
+  return { dimension, membershipTime: 'current_catalog' as const,
     membershipSources: [...memberships.values()].map(item => item.source),
-    groups: [...groups.values()].sort((a, b) => a.value === null ? 1 : b.value === null ? -1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0).map(group => {
+    groups: [...groups.values()].sort((a, b) => a.value === null ? 1 : b.value === null ? -1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  };
+}
+
+/** Reuse validated current-catalog membership without calculating unrelated
+ * aggregate series when a caller needs both dimensions. */
+export function groupedQuarterAnalysis(selected: readonly FactSnapshot[], universe: readonly FactSnapshot[],
+  dimension: CatalogDimension, metric: Parameters<typeof quarterSeries>[1], mode: 'per_period' | 'paired') {
+  const membership = catalogGroupMemberships(selected, universe, dimension);
+  return { dimension, metric, mode, membershipTime: membership.membershipTime,
+    membershipSources: membership.membershipSources,
+    groups: membership.groups.map(group => {
       const ids = new Set(group.entityIds);
       const snapshots = selected.map(snapshot => { const rows = snapshot.rows.filter(row => ids.has(row.id)); return { ...snapshot, rows, expectedCount: rows.length }; });
       return { ...group, analysis: quarterSeries(snapshots, metric, mode) };

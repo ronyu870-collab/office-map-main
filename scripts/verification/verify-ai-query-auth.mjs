@@ -23,6 +23,9 @@ import { verifyResearchAnalysis } from './ai-query-research-scenarios.mjs';
 import { verifyConversation } from './ai-query-conversation-scenarios.mjs';
 import { verifyQueryHomeDependencies } from './ai-query-home-dependencies.mjs';
 import { verifyMultiMetricAnalysis } from './ai-query-multi-metric-scenarios.mjs';
+import { verifyCrossTrend } from './ai-query-cross-trend-scenarios.mjs';
+import { queryPerformanceSuite } from './query-performance-suite.mjs';
+import { queryPerformanceRevision } from '../performance/query-conversation-probe.mjs';
 import { startQueryPerformanceBaseline } from './query-performance-baseline.mjs';
 import { verifyRelativeQuarter } from './ai-query-relative-quarter-scenarios.mjs';
 import { verifyDistribution } from './ai-query-distribution-scenarios.mjs';
@@ -33,6 +36,10 @@ import { verifyAuditConsole } from './ai-audit-console-scenarios.mjs';
 import { addSnapshotFixture, BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
 
 assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL,'disposable');
+const suite = queryPerformanceSuite(process.env.AI_QUERY_PERFORMANCE_SUITE);
+const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
+const revision = queryPerformanceRevision(process.env, githubEvent);
+console.log('AI_QUERY_AUTH_SUITE ' + JSON.stringify({ suite, ...revision }));
 const settings=JSON.parse(await readFile(process.env.AI_QUERY_AUTH_STATUS,'utf8'));
 const apiUrl=new URL(settings.API_URL),dbUrl=new URL(settings.DB_URL);
 assert.equal(apiUrl.hostname,'127.0.0.1');assert.equal(apiUrl.port,'55991');
@@ -568,14 +575,22 @@ try{
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
   await verifyResearchAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
   await verifyMultiMetricAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
+  await verifyCrossTrend({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
-    performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
-    const {verifyQueryConversationPerformance} = await import('../performance/verify-ai-query-conversation.mjs');
-    await check('P1 后续真实登录和生产构建：同条件已发布P1/本批桌面及手机视口查询性能与可操作结果', async () => {
-      await verifyQueryConversationPerformance({db,person,app,beforeApp:performanceBaseline.app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin});
-    });
-    await performanceBaseline.close(); performanceBaseline = undefined;
+    if (suite === 'regression') {
+      performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
+      const {verifyQueryConversationPerformance} = await import('../performance/verify-ai-query-conversation.mjs');
+      await check('P1 后续真实登录和生产构建：同条件已发布P1/本批桌面及手机视口查询性能与可操作结果', async () => {
+        await verifyQueryConversationPerformance({db,person,app,beforeApp:performanceBaseline.app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin});
+      });
+      await performanceBaseline.close(); performanceBaseline = undefined;
+    } else {
+      const {verifyCrossTrendQueryPerformance} = await import('../performance/verify-query-cross-trend.mjs');
+      await check('交叉趋势真实登录与生产构建：三指标、双维、各期/共同样本、两次切图及来源回执80样本', async () => {
+        await verifyCrossTrendQueryPerformance({db,person,app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin});
+      });
+    }
   }
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
@@ -594,7 +609,7 @@ try{
     for(const fn of functions){assert.equal(fn.anon,false);assert.equal(fn.authenticated,false);assert.equal(fn.service,true);assert.equal(fn.prosecdef,fn.nspname==='private');assert.ok(fn.proconfig.includes('search_path=""'));}
     assert.equal((await db.query("select relrowsecurity from pg_class where oid='private.ai_query_result_access'::regclass")).rows[0].relrowsecurity,true);
   });
-  await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,
+  await writeFile(path.join(output,'results.json'),JSON.stringify({suite,...revision,database:version,scenarios:results,production:false,modelCalls:false,
     modelProvider:'isolated_synthetic_fixture',browserValidation:process.env.AI_QUERY_PERFORMANCE==='1',browserVisualReview:false,realDeviceReview:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no external model or production calls`);
   if(previewFile){

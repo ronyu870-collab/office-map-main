@@ -74,7 +74,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     }).abortSignal(signal);
     signal.throwIfAborted();
     if(error)throw new Error('QUERY_RECOVERY_UNAVAILABLE');
-    if ((plan.operation === 'group_aggregate' || plan.operation === 'group_trend' || plan.operation === 'cross_aggregate') && data?.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    if ((plan.operation === 'group_aggregate' || plan.operation === 'group_trend' || plan.operation === 'cross_aggregate' || plan.operation === 'cross_trend') && data?.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(data?.allowed!==true || data.permission_revision!==current.permissionRevision)throw new Error('QUERY_DENIED');
   };
   await recheck();

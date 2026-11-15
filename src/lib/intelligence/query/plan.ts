@@ -7,6 +7,7 @@ import type { NumericField } from './registry';
 const fieldSchema = z.enum(['height', 'floors', 'parking', 'totalArea', 'vacantArea', 'netEffectiveRent']);
 const metricSchema = z.enum(['rent', 'vacancy', 'totalArea']);
 const metricSelection = { metric: metricSchema, metrics: z.array(metricSchema).min(2).max(3).optional() };
+export const CROSS_TREND_LIMITS = Object.freeze({ groups: 50, metricPoints: 1000 });
 const numericString = z.string().max(100).regex(/^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d{1,3})?$/);
 const predicateSchema: z.ZodType<Predicate> = z.lazy(() => z.union([
   z.strictObject({ field: fieldSchema, operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq']), value: numericString }),
@@ -26,6 +27,7 @@ const planSchema = z.discriminatedUnion('operation', [
   z.strictObject({ ...common, operation: z.literal('distribution'), measure: distributionMeasureSchema, period: quarterSchema.nullable() }),
   z.strictObject({ ...common, operation: z.literal('relationship'), period: quarterSchema }),
   z.strictObject({ ...common, operation: z.literal('cross_aggregate'), ...metricSelection, period: quarterSchema }),
+  z.strictObject({ ...common, operation: z.literal('cross_trend'), ...metricSelection, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
   z.strictObject({ ...common, operation: z.literal('trend'), ...metricSelection, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']) }),
   z.strictObject({ ...common, operation: z.literal('group_aggregate'), ...metricSelection, period: quarterSchema, groupBy: z.enum(['submarket', 'grade']) }),
   z.strictObject({ ...common, operation: z.literal('group_trend'), ...metricSelection, start: quarterSchema, end: quarterSchema, mode: z.enum(['per_period', 'paired']), groupBy: z.enum(['submarket', 'grade']) }),
@@ -54,7 +56,7 @@ export function parseQueryPlan(input: unknown): QueryPlan {
   if (plan.operation === 'distribution' && !['height','floors','parking'].includes(plan.measure) && !plan.period) throw new Error('QUARTER_REQUIRED');
   if (plan.operation === 'list' && new Set(plan.fields).size !== plan.fields.length) throw new Error('DUPLICATE_QUERY_FIELD');
   if ('metrics' in plan && plan.metrics && (plan.metrics[0] !== plan.metric || new Set(plan.metrics).size !== plan.metrics.length)) throw new Error('INVALID_QUERY_METRICS');
-  if (plan.operation === 'trend' || plan.operation === 'group_trend') quarterRange(plan.start, plan.end);
+  if (plan.operation === 'trend' || plan.operation === 'group_trend' || plan.operation === 'cross_trend') quarterRange(plan.start, plan.end);
   return plan;
 }
 
@@ -79,5 +81,5 @@ export function quarterRange(start: Quarter, end: Quarter): Quarter[] {
   return Array.from({length:last-first+1},(_,i)=>({year:Math.floor((first+i)/4),quarter:(first+i)%4+1}));
 }
 export function planPeriods(plan: QueryPlan): (Quarter|null)[] {
-  return plan.operation==='trend'||plan.operation==='group_trend'?quarterRange(plan.start,plan.end):plan.operation==='compare'?[plan.base,plan.current]:[plan.period];
+  return plan.operation==='trend'||plan.operation==='group_trend'||plan.operation==='cross_trend'?quarterRange(plan.start,plan.end):plan.operation==='compare'?[plan.base,plan.current]:[plan.period];
 }

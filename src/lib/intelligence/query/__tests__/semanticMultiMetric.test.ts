@@ -27,10 +27,8 @@ describe('P1 follow-up bounded multi-metric semantics', () => {
     expect(trend.plan).toMatchObject({ operation: 'group_trend', metrics: ['rent', 'vacancy'], start: { year: 2025, quarter: 4 }, end: { year: 2026, quarter: 3 } });
     expect(ready(ask('2026Q2呢', trend.context)).plan).toMatchObject({ operation: 'group_aggregate', metrics: ['rent', 'vacancy'], period: { year: 2026, quarter: 2 } });
   });
-  it('keeps the complete deterministic five-turn group and sample-mode chain while rejecting multi-quarter cross dimensions', () => {
-    expect(ask('CBD、金融街净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本')).toMatchObject({
-      kind: 'clarification', clarification: { reason: 'unsupported' },
-    });
+  it('keeps the complete deterministic five-turn group and sample-mode chain and supports multi-quarter cross dimensions', () => {
+    expect(ready(ask('CBD、金融街净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本')).plan).toMatchObject({ operation: 'cross_trend', metrics: ['rent', 'vacancy'], start: { year: 2026, quarter: 2 }, end: { year: 2026, quarter: 3 } });
     let context: SemanticContext | undefined;
     const steps = [
       { question: 'CBD净有效租金和空置率2026Q2至2026Q3按等级趋势各期样本', groupBy: 'grade', mode: 'per_period', submarkets: ['CBD'], metrics: ['rent', 'vacancy'] },
@@ -133,8 +131,8 @@ describe('P1 follow-up bounded multi-metric semantics', () => {
   it('retains both geographic and grade dimensions instead of pooling markets', () => {
     const result = ready(ask('比较2026Q3CBD、金融街不同等级写字楼的净有效租金和空置率'));
     expect(result.plan).toMatchObject({ operation: 'cross_aggregate', metrics: ['rent', 'vacancy'], scope: { submarkets: ['CBD', '金融街'] } });
-    expect(ask('比较CBD、金融街不同等级净有效租金和空置率最近四季度变化')).toMatchObject({ kind: 'clarification', clarification: { reason: 'unsupported' } });
-    expect(ask('CBD净有效租金按子市场和等级交叉统计最近四季度变化')).toMatchObject({ kind: 'clarification', clarification: { reason: 'unsupported' } });
+    expect(ready(ask('比较CBD、金融街不同等级净有效租金和空置率最近四季度变化')).plan).toMatchObject({ operation: 'cross_trend', metrics: ['rent', 'vacancy'] });
+    expect(ready(ask('CBD净有效租金按子市场和等级交叉统计最近四季度变化')).plan).toMatchObject({ operation: 'cross_trend', metric: 'rent' });
   });
   it('clarifies which inherited metric a single-metric distribution should use', () => {
     const result = ready(ask('2026Q3CBD净有效租金和空置率'));

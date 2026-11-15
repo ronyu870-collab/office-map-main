@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysis } from './distribution';
-import { quarterRange } from './plan';
+import { CROSS_TREND_LIMITS, quarterRange } from './plan';
 import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
 import { metricLabels, metricSchema, resultMetricColumns, resultMetrics, selectResultMetric } from './multiMetricView';
@@ -63,7 +63,9 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     return found;
   };
   const binding = (entityId: string, key: string, cell: DisplayCell): CellBinding => ({ entityId, key, sourceIds: [...cell.sourceIds] });
-  let xLabel = result.operation==='trend'?'季度':result.operation.startsWith('group_')?(result.parameters.groupBy==='grade'?'等级':'子市场'):'楼宇', xUnit: string | null = null;
+  let xLabel = result.operation === 'cross_trend' ? '子市场 × 等级 / 季度' : result.operation === 'trend' ? '季度'
+    : result.operation.startsWith('group_') ? (result.parameters.groupBy === 'grade' ? '等级' : '子市场') : '楼宇';
+  let xUnit: string | null = null;
   let yColumn: { key: string; label: string; unit: string | null };
   let points: ChartPoint[];
   let facets: ResultChart['facets'];
@@ -84,6 +86,32 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
         xCell: binding(row.entityId, 'grade', row.cells.grade), yCell: binding(row.entityId, 'value', cell), sampleCount: row.cells.usedCount.value.numeric,
         state: cell.kind === 'number' ? 'valid' as const : 'unknown' as const };
     }));
+  } else if (request.kind === 'grouped_time_series' && result.operation === 'cross_trend') {
+    if (result.parameters.tableVersion !== 'cross-trend/1' || result.parameters.rowDimension !== 'submarket'
+      || result.parameters.columnDimension !== 'grade') throw new Error('CHART_CROSS_AXIS_MISMATCH');
+    const periods = quarterRange(quarterSchema.parse(result.parameters.start), quarterSchema.parse(result.parameters.end));
+    const axis = z.array(z.object({ key: z.string().min(1), label: z.string() })).max(50);
+    const regions = axis.parse(result.parameters.rowGroups), grades = axis.parse(result.parameters.columnGroups);
+    const combinations = regions.length * grades.length;
+    if (combinations > CROSS_TREND_LIMITS.groups || combinations * periods.length > CROSS_TREND_LIMITS.metricPoints
+      || new Set(regions.map(region => region.key)).size !== regions.length || new Set(grades.map(grade => grade.key)).size !== grades.length
+      || result.table.rows.length !== combinations * periods.length) throw new Error('CHART_CROSS_AXIS_MISMATCH');
+    yColumn = column('value'); xLabel = '季度';
+    facets = regions.flatMap((region, regionIndex) => grades.map((grade, gradeIndex) => {
+      const groupKey = `${region.key}/${grade.key}`, label = `${region.label} / ${grade.label}`;
+      return { key: groupKey, label, points: periods.map((period, periodIndex) => {
+        const row = result.table.rows[(regionIndex * grades.length + gradeIndex) * periods.length + periodIndex];
+        const label = quarterKey(period), cell = row.cells.value;
+        if (row.entityId !== `${groupKey}/${label}` || row.cells.period?.kind !== 'text' || row.cells.period.value !== label
+          || row.cells.name?.kind !== 'text' || row.cells.name.value !== region.label || row.cells.grade?.kind !== 'text' || row.cells.grade.value !== grade.label
+          || row.cells.usedCount?.kind !== 'number' || !Number.isSafeInteger(row.cells.usedCount.value.numeric)
+          || row.cells.usedCount.value.numeric < 0) throw new Error('CHART_CROSS_AXIS_MISMATCH');
+        return { label, x: label, y: projected(cell, yColumn.unit), xText: label, yText: cellText(cell, yColumn.unit), xCell: null,
+          yCell: binding(row.entityId, 'value', cell), sampleCount: row.cells.usedCount.value.numeric,
+          state: cell.kind === 'number' ? 'valid' as const : 'unknown' as const };
+      }) };
+    }));
+    points = facets.flatMap(facet => facet.points);
   } else if (request.kind === 'grouped_time_series') {
     if (result.operation !== 'group_trend') throw new Error('CHART_GROUPED_TREND_REQUIRED');
     const periods = quarterRange(quarterSchema.parse(result.parameters.start), quarterSchema.parse(result.parameters.end));
@@ -124,7 +152,7 @@ export function buildResultChart(result: QueryResultView, request: ChartRequest)
     }
     points = result.table.rows.map(row => {
       const y = row.cells[yColumn.key], x = xColumn ? row.cells[xColumn.key] : null;
-      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + (result.operation === 'cross_aggregate' && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + (result.operation === 'group_trend' && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
+      const label = row.cells.name?.kind === 'text' ? row.cells.name.value + ((result.operation === 'cross_aggregate' || result.operation === 'cross_trend') && row.cells.grade?.kind === 'text' ? ` / ${row.cells.grade.value}` : '') + ((result.operation === 'group_trend' || result.operation === 'cross_trend') && row.cells.period?.kind === 'text' ? ` ${row.cells.period.value}` : '') : row.cells.period?.kind==='text'?row.cells.period.value:yColumn.label;
       const numericX = request.kind === 'scatter' && x ? projected(x, xUnit) : label;
       const numericY = projected(y, yColumn.unit);
       return { label, x: numericX, y: numericY, xText: x ? cellText(x, xUnit) : label, yText: cellText(y, yColumn.unit),

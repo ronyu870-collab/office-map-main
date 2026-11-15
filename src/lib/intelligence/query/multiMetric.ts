@@ -90,6 +90,6 @@ export function combineMetricResults(parts: readonly { metric: ResultMetric; res
 
 /** Reserve space for audit and interpretation metadata before archive writes. */
 export function assertMultiMetricResultSize(result: QueryResult): QueryResult {
-  if (Array.isArray(result.parameters.metrics) && bytes(result) > MULTI_METRIC_LIMITS.resultBytes) throw new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB');
+  if ((Array.isArray(result.parameters.metrics) || result.operation === 'cross_trend') && bytes(result) > MULTI_METRIC_LIMITS.resultBytes) throw new Error('QUERY_SCOPE_REQUIRES_BACKGROUND_JOB');
   return result;
 }

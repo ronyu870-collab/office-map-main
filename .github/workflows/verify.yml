@@ -386,7 +386,7 @@ jobs:
   ai-query-auth:
     name: Real Auth trusted query HTTP integration
     runs-on: ubuntu-24.04
-    # Real Auth regression, released-P1/current A/B and new multi-metric measurements.
+    # Real Auth regression, released-P1/current A/B and retained multi-metric measurements.
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -414,7 +414,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/ai-query-browser" --no-save --ignore-scripts playwright-core@1.58.2
           node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
           PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
-          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=regression AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
@@ -427,6 +427,53 @@ jobs:
             verification/ai-query-auth/results.json
             verification/ai-query-auth/performance.json
             verification/ai-query-auth/multi-metric-performance.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ai-query-cross-trend-auth:
+    name: Real Auth cross-trend HTTP and browser integration
+    runs-on: ubuntu-24.04
+    # Separate runner: same guarded local ports, no contention with the original
+    # 640+80 benchmark. Both jobs execute the full Auth/HTTP regression matrix.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start dedicated disposable cross-trend Auth stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-query-cross-trend-integration/supabase"
+          cp supabase/tests/ai-query-authority/auth-config.toml "$RUNNER_TEMP/ai-query-cross-trend-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/ai-query-cross-trend-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-cross-trend-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/ai-query-cross-trend-integration" -o json > "$RUNNER_TEMP/ai-query-cross-trend-status.json"
+          chmod 600 "$RUNNER_TEMP/ai-query-cross-trend-status.json"
+      - name: Verify real cross-trend HTTP, sources and 80 browser samples
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ai-query-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=cross_trend AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-cross-trend-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
+      - name: Stop only the disposable cross-trend Auth stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/ai-query-cross-trend-integration" --no-backup
+      - name: Retain credential-free cross-trend evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-cross-trend-auth
+          path: |
+            verification/ai-query-auth/results.json
+            verification/ai-query-auth/cross-trend-performance.json
           if-no-files-found: ignore
           retention-days: 7
 

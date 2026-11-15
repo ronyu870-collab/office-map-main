@@ -56,7 +56,7 @@ export async function multiMetricOracle(db, ids) {
 // Paint endpoint starts at the actual native select change event. API response
 // arrival alone cannot satisfy it; the correct metric chart must be visible and
 // the selector usable on a subsequent animation frame.
-export function observeMetricSwitch() {
+export function observeMetricSwitch({ metric = 'vacancy', caption = '空置率' } = {}) {
   window.__colliersMetricSwitch?.stop();
   let started = null, frame, stopped = false;
   const state = { elapsed_ms: null };
@@ -64,9 +64,9 @@ export function observeMetricSwitch() {
   const ready = () => {
     const select = [...document.querySelectorAll('label')].find(label => label.textContent?.startsWith('图表指标'))?.querySelector('select');
     const figure = document.querySelector('figure[aria-label="同源查询图表"]');
-    return select?.value === 'vacancy' && !select.disabled && visible(figure) && figure.querySelector('figcaption')?.textContent?.includes('空置率');
+    return select?.value === metric && !select.disabled && visible(figure) && figure.querySelector('figcaption')?.textContent?.includes(caption);
   };
-  const change = event => { if (event.target?.tagName === 'SELECT' && event.target.value === 'vacancy') started = performance.now(); };
+  const change = event => { if (event.target?.tagName === 'SELECT' && event.target.value === metric) started = performance.now(); };
   const tick = () => {
     if (stopped) return;
     if (started !== null && ready()) {
@@ -79,31 +79,36 @@ export function observeMetricSwitch() {
   window.__colliersMetricSwitch = { state, stop };
 }
 
-async function switchMetric({ page, sample, network, result, confirmReceipt }) {
+export async function switchQueryMetric({ page, sample, network, result, confirmReceipt }, {
+  metric = 'vacancy', caption = '空置率', unit = 'ratio', column = 'vacancy_value', factor = 100,
+  measurement = 'metric_switch_ms', stage = 'metric_chart',
+} = {}) {
   const cursor = network.cursor(); sample.phase = 'metric_switch';
-  await page.evaluate(observeMetricSwitch);
+  await page.evaluate(observeMetricSwitch, { metric, caption });
   try {
     const [response] = await Promise.all([page.waitForResponse(response => {
       const request = response.request();
       return new URL(response.url()).pathname === '/api/intelligence/query/artifact' && request.method() === 'POST'
-        && request.postDataJSON()?.chart?.metric === 'vacancy';
-    }), page.getByRole('combobox', { name: '图表指标', exact: true }).selectOption('vacancy')]);
+        && request.postDataJSON()?.chart?.metric === metric;
+    }), page.getByRole('combobox', { name: '图表指标', exact: true }).selectOption(metric)]);
     assert.equal(response.status(), 200, 'MULTI_METRIC_CHART_MISMATCH');
     const body = await response.json();
     assert.equal(body.status, 'ready', 'MULTI_METRIC_CHART_MISMATCH');
-    assert.equal(body.chart.request.metric, 'vacancy', 'MULTI_METRIC_CHART_MISMATCH');
-    assert.equal(body.chart.yUnit, 'ratio', 'MULTI_METRIC_CHART_MISMATCH');
+    assert.equal(body.chart.request.metric, metric, 'MULTI_METRIC_CHART_MISMATCH');
+    assert.equal(body.chart.yUnit, unit, 'MULTI_METRIC_CHART_MISMATCH');
     assert.equal(body.chart.points.length, result.table.rows.length, 'MULTI_METRIC_CHART_MISMATCH');
     for (const point of body.chart.points) {
-      const row = result.table.rows.find(row => row.entityId === point.yCell.entityId), cell = row?.cells.vacancy_value;
-      assert.equal(point.yCell.key, 'vacancy_value', 'MULTI_METRIC_CHART_MISMATCH');
+      const row = result.table.rows.find(row => row.entityId === point.yCell.entityId), cell = row?.cells[column];
+      assert.ok(cell, 'MULTI_METRIC_CHART_MISMATCH');
+      assert.equal(point.yCell.key, column, 'MULTI_METRIC_CHART_MISMATCH');
       assert.deepEqual(point.yCell.sourceIds, cell?.sourceIds, 'MULTI_METRIC_CHART_MISMATCH');
-      assert.ok(Math.abs(point.y - cell.value.numeric * 100) < 1e-10, 'MULTI_METRIC_CHART_MISMATCH');
+      if (cell.kind === 'number') assert.ok(Math.abs(point.y - cell.value.numeric * factor) < 1e-10, 'MULTI_METRIC_CHART_MISMATCH');
+      else assert.equal(point.y, null, 'MULTI_METRIC_CHART_MISMATCH');
     }
     await page.waitForFunction(() => window.__colliersMetricSwitch.state.elapsed_ms !== null);
-    sample.metric_switch_ms = await page.evaluate(() => window.__colliersMetricSwitch.state.elapsed_ms);
-    assert.ok(Number.isFinite(sample.metric_switch_ms), 'MULTI_METRIC_CHART_NOT_READY');
-    await confirmReceipt('metric_chart', { after: cursor, surface: 'chart' });
+    sample[measurement] = await page.evaluate(() => window.__colliersMetricSwitch.state.elapsed_ms);
+    assert.ok(Number.isFinite(sample[measurement]), 'MULTI_METRIC_CHART_NOT_READY');
+    await confirmReceipt(stage, { after: cursor, surface: 'chart' });
     await network.waitForIdle(); sample.metricSwitchVerified = true;
   } finally { await page.evaluate(() => window.__colliersMetricSwitch?.stop()).catch(() => {}); }
 }
@@ -121,13 +126,13 @@ export function summarizeMultiMetricPerformance(samples) {
   }));
 }
 
-/** New functionality has no equivalent old multi-metric UI; it receives its own
- * 80 real samples and independent SQL oracle, alongside the unchanged 640 A/B
- * samples. All fixtures, Auth, HTTP, charts and receipts use the real path. */
+/** Retain all 80 multi-metric budget/oracle samples beside the 640 single-metric
+ * A/B samples. This report is a candidate regression, not an A/B comparison of
+ * multi-metric behavior. All Auth, HTTP, charts and receipts use the real path. */
 export async function verifyMultiMetricQueryPerformance({ browser, db, owner, ids, app, output, dataApiOrigin, semanticCalls, login, measure, githubEvent }) {
   const samples = [], validateResult = await multiMetricOracle(db, ids), beforeModelCalls = semanticCalls?.();
-  const report = { version: 'query-multi-metric-performance/1', ...queryPerformanceRevision(process.env, githubEvent),
-    production: false, realPhone: false, baseline: 'New multi-metric behavior; released P1 explicitly did not support it. Single-metric A/B is separately retained.',
+  const report = { version: 'query-multi-metric-performance/1', suite: 'regression', ...queryPerformanceRevision(process.env, githubEvent),
+    production: false, realPhone: false, baseline: 'Existing 80-sample multi-metric regression with unchanged conditions and budgets; single-metric released-P1/current A/B is separately retained.',
     fixture: { buildings: 24, submarkets: 2, quarterlyRecords: 96, finalQuarterRentValidPerMarket: 11, finalQuarterVacancyValidPerMarket: 12 },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: SAMPLES, cacheDefinition: 'Fresh browser context and real login before a single-quarter query followed by a four-quarter query; both servers and database are warm.',
     boundaries: 'No production data, external model, intercepted HTTP, fake Auth or physical-phone claim. First feedback, correct chart readiness, source reopening and actual metric switching are timed in the browser.',
@@ -157,7 +162,7 @@ export async function verifyMultiMetricQueryPerformance({ browser, db, owner, id
             sourceVerified: false, metricSwitchVerified: false, oracleVerified: false };
           samples.push(sample); pair.push(sample);
           await measure(page, 'after', step, sample, ids, dataApiOrigin, {
-            validateResult: result => { validateResult(result); sample.oracleVerified = true; }, afterReady: switchMetric,
+            validateResult: result => { validateResult(result); sample.oracleVerified = true; }, afterReady: switchQueryMetric,
           });
           if (sample.status !== 'success') throw new Error(sample.error);
         }

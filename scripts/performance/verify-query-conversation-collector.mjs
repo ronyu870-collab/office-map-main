@@ -6,6 +6,7 @@ import { observeQueryConversation, nearestRank, summarizeQueryPerformance, query
   queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
 import './verify-query-conversation-network.mjs';
 import { multiMetricOracle, observeMetricSwitch, summarizeMultiMetricPerformance } from './verify-query-multi-metric.mjs';
+import './verify-query-cross-trend-calibration.mjs';
 
 assert.equal(nearestRank([30, 10, 20], 0.9), 30);
 assert.equal(nearestRank([null, undefined], 0.5), null);
@@ -102,22 +103,24 @@ const browser = await chromium.launch({ headless: true,
   ...(process.env.PERF_BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.PERF_BROWSER_EXECUTABLE_PATH } : {}),
   ...(process.env.PERF_BROWSER_CHANNEL ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}) });
 try {
+  for (const [metric, caption] of [['vacancy', '空置率'], ['totalArea', '总面积']]) {
   const metricPage = await browser.newPage();
-  await metricPage.setContent('<label>图表指标<select><option value="rent">净有效租金</option><option value="vacancy">空置率</option></select></label><figure aria-label="同源查询图表"><figcaption>净有效租金</figcaption></figure>');
-  await metricPage.evaluate(() => {
+  await metricPage.setContent('<label>图表指标<select><option value="rent">净有效租金</option><option value="vacancy">空置率</option><option value="totalArea">季度总面积</option></select></label><figure aria-label="同源查询图表"><figcaption>净有效租金</figcaption></figure>');
+  await metricPage.evaluate(caption => {
     const select = document.querySelector('select');
     select.addEventListener('change', () => {
       select.disabled = true;
-      setTimeout(() => { document.querySelector('figcaption').textContent = '空置率'; }, 150);
+      setTimeout(() => { document.querySelector('figcaption').textContent = caption; }, 150);
       setTimeout(() => { select.disabled = false; }, 300);
     });
-  });
-  await metricPage.evaluate(observeMetricSwitch);
+  }, caption);
+  await metricPage.evaluate(observeMetricSwitch, { metric, caption });
   assert.equal(await metricPage.evaluate(() => window.__colliersMetricSwitch.state.elapsed_ms), null);
-  await metricPage.getByRole('combobox', { name: '图表指标' }).selectOption('vacancy');
+  await metricPage.getByRole('combobox', { name: '图表指标' }).selectOption(metric);
   await metricPage.waitForFunction(() => window.__colliersMetricSwitch.state.elapsed_ms !== null);
   assert.ok(await metricPage.evaluate(() => window.__colliersMetricSwitch.state.elapsed_ms) >= 285, 'Correct metric paint while the control is busy is not yet usable');
   await metricPage.evaluate(() => window.__colliersMetricSwitch.stop()); await metricPage.close();
+  }
   for (const chartRequired of [false, true]) {
     const page = await browser.newPage();
     await page.setContent('<button aria-label="发送问题">发送</button><section aria-label="查询结果"><button aria-label="查看来源：面积加权净有效租金 1">1</button></section>');

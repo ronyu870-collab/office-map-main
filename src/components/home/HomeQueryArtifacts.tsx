@@ -29,14 +29,14 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const active = React.useRef<AbortController | null>(null);
   const completedRequest = React.useRef<string | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
-  const isTrend = result.operation === 'trend' || result.operation === 'group_trend';
+  const isTrend = result.operation === 'trend' || result.operation === 'group_trend' || result.operation === 'cross_trend';
   const isCross = result.operation === 'cross_aggregate';
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
   const request: ChartRequest = React.useMemo(() => {
     const selection = multipleMetrics ? { metric: selectedMetric } : {};
     return isDistribution ? { kind: 'histogram' } : isRelationship ? { kind: 'scatter', x: 'rent', y: 'vacancy' }
-      : isCross ? { kind: 'heatmap', ...selection } : result.operation === 'group_trend' ? { kind: 'grouped_time_series', ...selection }
+      : isCross ? { kind: 'heatmap', ...selection } : result.operation === 'group_trend' || result.operation === 'cross_trend' ? { kind: 'grouped_time_series', ...selection }
         : result.operation === 'trend' ? { kind: 'time_series', ...selection } : result.operation === 'compare' ? { kind: 'period_comparison', ...selection }
           : { kind: 'bar', field: multipleMetrics ? 'value' : field, ...selection };
   }, [isDistribution, isRelationship, isCross, result.operation, field, multipleMetrics, selectedMetric]);

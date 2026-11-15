@@ -5,7 +5,7 @@ export const metricSchema = z.enum(['rent', 'vacancy', 'totalArea']);
 export type ResultMetric = z.infer<typeof metricSchema>;
 export const metricLabels: Readonly<Record<ResultMetric, string>> = { rent: '净有效租金', vacancy: '空置率', totalArea: '季度总面积' };
 const metricsSchema = z.array(metricSchema).min(2).max(3);
-const supported = new Set(['aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate']);
+const supported = new Set(['aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'cross_trend']);
 export const metricDimensionKeys: ReadonlySet<string> = new Set(['name', 'grade', 'period']);
 const valueKeys = new Set(['value', 'usedCount', 'availableCount', 'denominator', 'coverage', 'base', 'current', 'difference', 'change',
   'baseUsedCount', 'currentUsedCount', 'baseDenominator', 'currentDenominator']);
@@ -16,6 +16,7 @@ const operationKeys: Readonly<Record<string, readonly string[]>> = {
   group_aggregate: ['name', 'period', 'value', 'usedCount', 'availableCount', 'denominator', 'coverage'],
   group_trend: ['name', 'period', 'value', 'usedCount', 'availableCount', 'denominator', 'coverage'],
   cross_aggregate: ['name', 'grade', 'value', 'usedCount', 'denominator', 'coverage'],
+  cross_trend: ['name', 'grade', 'period', 'value', 'usedCount', 'availableCount', 'denominator', 'coverage'],
 };
 
 /** Reads saved metadata only. No field, sample or value is inferred by the UI. */

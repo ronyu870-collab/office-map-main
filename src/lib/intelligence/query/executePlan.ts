@@ -1,7 +1,7 @@
 import { assertComplete, quarterKey, type FactSnapshot } from './contracts';
 import { assertFieldContext, evaluatePredicate, type Predicate } from './facts';
 import { parseQueryPlan, planMetrics, planOutputFields, planPeriods } from './plan';
-import { attachFilterEvidence, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
+import { attachExecutedPlan, attachFilterEvidence, buildDistributionResult, buildRelationshipResult, buildCrossTabResult, buildCrossTrendResult, buildGroupedResult, buildTrendResult, buildAggregateResult, buildCompareResult, buildListResult, buildRankResult, type QueryResult } from './result';
 import type { NumericField } from './registry';
 import { attachResearchAnalysis } from './researchAnalysis';
 import { assertMultiMetricResultSize, combineMetricResults } from './multiMetric';
@@ -45,9 +45,11 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     return { ...item.snapshot, rows, expectedCount: rows.length };
   });
   const find = (period: FactSnapshot['period']) => selected.find(snapshot => key(snapshot.period) === key(period))!;
+  const metrics = planMetrics(plan);
   const build = (metric: AggregateMetric = 'rent') => plan.operation === 'distribution' ? buildDistributionResult(find(plan.period), plan.measure)
     : plan.operation === 'relationship' ? buildRelationshipResult(find(plan.period))
     : plan.operation === 'cross_aggregate' ? buildCrossTabResult(find(plan.period), snapshots[0], metric)
+    : plan.operation === 'cross_trend' ? buildCrossTrendResult(periods.map(find), periods.map(period => snapshots.find(snapshot => key(snapshot.period) === key(period))!), metric, plan.mode, metrics.length)
     : plan.operation === 'group_aggregate' || plan.operation === 'group_trend'
     ? buildGroupedResult(periods.map(find), periods.map(period => snapshots.find(snapshot => key(snapshot.period) === key(period))!), plan.groupBy, metric, plan.operation === 'group_trend' ? plan.mode : 'per_period')
     : plan.operation === 'trend' ? buildTrendResult(periods.map(find), metric, plan.mode)
@@ -55,7 +57,7 @@ export function executeQueryPlan(input: unknown, snapshots: readonly FactSnapsho
     : plan.operation === 'list' ? buildListResult(find(plan.period), plan.fields)
     : plan.operation === 'rank' ? buildRankResult(find(plan.period), plan.field, plan.limit, plan.direction)
     : buildAggregateResult(find(plan.period), metric);
-  const metrics = planMetrics(plan);
   const result = metrics.length > 1 ? combineMetricResults(metrics.map(metric => ({ metric, result: build(metric) }))) : build(metrics[0]);
-  return assertMultiMetricResultSize(attachResearchAnalysis(plan.filter ? attachFilterEvidence(result, evidence) : result, selected, snapshots));
+  const planned = attachExecutedPlan(result, plan);
+  return assertMultiMetricResultSize(attachResearchAnalysis(plan.filter ? attachFilterEvidence(planned, evidence) : planned, selected, snapshots));
 }

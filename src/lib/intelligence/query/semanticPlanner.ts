@@ -57,7 +57,7 @@ export function parseSemanticContext(value: unknown): SemanticContext {
 
 const metricSchema = z.enum(['rent', 'vacancy', 'totalArea']);
 type SemanticMetric = z.infer<typeof metricSchema>;
-const aggregateOperations = ['aggregate', 'group_aggregate', 'cross_aggregate', 'trend', 'group_trend', 'compare'] as const;
+const aggregateOperations = ['aggregate', 'group_aggregate', 'cross_aggregate', 'trend', 'group_trend', 'cross_trend', 'compare'] as const;
 const fieldSchema = z.enum(['height', 'floors', 'parking', 'totalArea', 'vacantArea', 'netEffectiveRent']);
 const semanticTimeSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('latest') }),
@@ -72,7 +72,7 @@ const semanticTimeSchema = z.discriminatedUnion('kind', [
 /** A model can propose only these slots, never SQL, results, authority or source records. */
 export const semanticIntentSchema = z.strictObject({
   version: z.literal('colliers-semantic-intent/1'),
-  operation: z.enum(['list', 'rank', 'aggregate', 'trend', 'compare', 'group_aggregate', 'group_trend', 'distribution', 'relationship', 'cross_aggregate']),
+  operation: z.enum(['list', 'rank', 'aggregate', 'trend', 'compare', 'group_aggregate', 'group_trend', 'distribution', 'relationship', 'cross_aggregate', 'cross_trend']),
   submarkets: z.array(z.enum(QUESTION_SUBMARKETS)).min(1).max(8).optional(),
   allAuthorized: z.boolean().optional(),
   metric: metricSchema.optional(), metrics: z.array(metricSchema).min(2).max(3).optional(),
@@ -90,6 +90,7 @@ export function parseSemanticIntent(input: unknown): SemanticIntent {
   if (intent.fields && new Set(intent.fields).size !== intent.fields.length) throw new Error('DUPLICATE_SEMANTIC_FIELD');
   if (intent.metrics && (new Set(intent.metrics).size !== intent.metrics.length || intent.metric !== intent.metrics[0]
     || !aggregateOperations.some(operation => operation === intent.operation))) throw new Error('INVALID_SEMANTIC_METRICS');
+  if ((intent.operation === 'cross_aggregate' || intent.operation === 'cross_trend') && intent.groupBy) throw new Error('CONFLICTING_CROSS_DIMENSION');
   return intent;
 }
 
@@ -137,6 +138,7 @@ const allScopePattern = /全部获权楼宇|全部获权范围|全部有权访�
 const pairReferencePattern = /两者|两地|这两(?:个)?(?:地区|子市场|区域)?|这两个/;
 const manyReferencePattern = /这些(?:地区|子市场|区域)|上述(?:地区|子市场|区域)|它们/;
 const pairedSamplePattern = /共同(?:有效)?样本|配对样本|同样本/;
+const crossGroupingPattern = /按(?:子市场(?:和|与|×|及|、)(?:按)?等级|等级(?:和|与|×|及|、)(?:按)?子市场)(?:交叉)?/;
 function expandedPending(question: string, context: SemanticContext): string {
   if (!context.pending) return question;
   const text = normalize(question).replace(/[？?。！!，,]/g, '').replace(/^(选择|按|用|就按|查询|看看)/, '');
@@ -295,7 +297,7 @@ function formatPlan(plan: QueryPlan): string {
   const markets = plan.scope.submarkets?.join('、') ?? '全部获权楼宇';
   const mode = 'mode' in plan ? plan.mode === 'paired' ? '全期间共同样本' : '各期样本' : '';
   const metricsLabel = planMetrics(plan).map(metric => metricLabels[metric]).join('和');
-  if (plan.operation === 'trend' || plan.operation === 'group_trend') return `${markets}${metricsLabel}${quarterText(plan.start)}至${quarterText(plan.end)}${plan.operation === 'group_trend' ? `按${plan.groupBy === 'grade' ? '等级' : '子市场'}` : ''}趋势${mode}`;
+  if (plan.operation === 'trend' || plan.operation === 'group_trend' || plan.operation === 'cross_trend') return `${markets}${metricsLabel}${quarterText(plan.start)}至${quarterText(plan.end)}${plan.operation === 'cross_trend' ? '按子市场和等级' : plan.operation === 'group_trend' ? `按${plan.groupBy === 'grade' ? '等级' : '子市场'}` : ''}趋势${mode}`;
   if (plan.operation === 'compare') return `${markets}${metricsLabel}${quarterText(plan.base)}与${quarterText(plan.current)}比较${plan.mode === 'paired' ? '配对样本' : '各期样本'}`;
   if (plan.operation === 'rank') return `${plan.period ? quarterText(plan.period) : ''}${markets}${fieldLabels[plan.field]}${plan.direction === 'desc' ? '最高' : '最低'}的前${plan.limit}栋楼`;
   if (plan.operation === 'list') return `${plan.period ? quarterText(plan.period) : ''}${markets}${plan.fields.map(field => fieldLabels[field]).join('和')}楼宇列表`;
@@ -380,16 +382,23 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if ((rank || distribution) && metricMatches.length > 1) return clarify('unsupported', '逐楼排名或分布需要明确一个指标；多指标支持统一聚合、分组、两期比较和趋势，不会只挑其中一个指标执行。');
   if (isList && metricMatches.includes('vacancy')) return clarify('unsupported', '逐楼原始字段列表尚不支持计算后的空置率列，不能用空置面积代替。可以查询净有效租金与空置率的聚合、分组比较或趋势。');
   if ((rank || distribution) && !metricMatches.length && !explicitFields.length && planMetrics(prior).length > 1) return clarify('metric_required', '上一轮包含多个指标，请选择本次排名或分布要使用的指标。', planMetrics(prior).map(value => ({ id: `select_${value}`, label: metricLabels[value], question: `${metricLabels[value]}${question}` })));
-  const explicitCross = /按子市场(?:和|与|×)等级|子市场.*等级.*交叉/.test(text);
+  const explicitCross = crossGroupingPattern.test(text) || /子市场.*等级.*交叉|等级.*子市场.*交叉/.test(text);
   const byGrade = /按等级|不同等级|各等级/.test(text);
-  const explicitGrouping = byGrade || /按子市场|各子市场/.test(text);
+  const bySubmarket = /按子市场|各子市场/.test(text);
+  const explicitGrouping = explicitCross || byGrade || bySubmarket;
+  if (explicitGrouping && (rank || isList || distribution || relation)) return clarify('unsupported', '当前逐楼排名、字段列表、分布和关系分析尚不支持分组执行；不能忽略明确要求的子市场或等级分组。可以查询同一范围的分组聚合或趋势。');
   const wantsTrend = /变化|趋势|最近|过去|逐季/.test(text);
   const comparing = /比较|对比|同比|环比/.test(text) || pairReference || manyReference;
-  const cross = explicitCross || byGrade && (scope.submarkets?.length ?? 0) > 1
-    || prior?.operation === 'cross_aggregate' && !wantsTrend && !rank && !isList && !distribution && !relation && !byGrade && !/按子市场|各子市场/.test(text);
-  if (prior?.operation === 'cross_aggregate' && wantsTrend && !/按等级|按子市场/.test(text)) return clarify('unsupported', '上一轮包含子市场×等级两个分组维度，目前多季度趋势一次支持一个分组维度。请明确按子市场还是按等级查看趋势。');
-  const groupBy: 'submarket' | 'grade' | undefined = byGrade ? 'grade' : cross ? undefined
-    : /按子市场|各子市场/.test(text) || (explicitMarkets.length > 1 && comparing) || pairReference || manyReference ? 'submarket'
+  const priorCross = prior?.operation === 'cross_aggregate' || prior?.operation === 'cross_trend';
+  // An explicit single-axis followup replaces both prior cross dimensions.
+  // Merely naming another market or changing time/metric/sample does not.
+  const replacesCrossGrouping = priorCross && !explicitCross && (bySubmarket || /按等级/.test(text));
+  const inheritedGrade = prior && 'groupBy' in prior && prior.groupBy === 'grade' && !explicitGrouping;
+  const cross = !rank && !isList && !distribution && !relation && (explicitCross
+    || !replacesCrossGrouping && (byGrade || inheritedGrade) && (scope.submarkets?.length ?? 0) > 1
+    || priorCross && !replacesCrossGrouping);
+  const groupBy: 'submarket' | 'grade' | undefined = cross ? undefined : byGrade ? 'grade'
+    : bySubmarket || (explicitMarkets.length > 1 && comparing) || pairReference || manyReference ? 'submarket'
       : prior && 'groupBy' in prior ? prior.groupBy : scope.submarkets && scope.submarkets.length > 1 ? 'submarket' : undefined;
   const mode: 'per_period' | 'paired' = pairedSamplePattern.test(text) ? 'paired' : /各期(?:有效)?样本/.test(text) ? 'per_period' : prior && 'mode' in prior ? prior.mode : 'per_period';
 
@@ -407,7 +416,8 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   const pastYear = /过去一年|最近一年/.test(remaining);
   const explicitLatest = /最新(?:有数据的?|可用的?)?(?:季度)?|最近一期/.test(remaining);
   const current = /本季度|这季度|当前季度/.test(remaining) && !rolling;
-  const previous = /上一季度|上个季度|上季度/.test(remaining);
+  // “加上季度总面积” adds a metric; its “上季度” substring is not a date.
+  const previous = /(?<!加)(?:上一季度|上个季度|上季度)/.test(remaining);
   const lastYearSame = /去年同期/.test(remaining);
   const yearMatch = /(?<!\d)(19\d{2}|20\d{2}|21\d{2}|2200)年|今年|去年(?!同期)/.exec(remaining);
   const relativeCount = Number(Boolean(rolling || pastYear)) + Number(explicitLatest) + Number(current) + Number(previous) + Number(lastYearSame) + Number(Boolean(yearMatch));
@@ -429,7 +439,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     if (!anchor) return clarify('unavailable_periods', '尚无明确比较季度，也没有可用业务期间，无法确定“去年同期”。');
     try { requestedPeriods = [shiftQuarter(anchor, previous ? -1 : lastYearSame ? -4 : 0)]; } catch { return clarify('period_required', '所需期间超出了支持的年份范围。'); }
     periodBasis = lastYearSame ? `以${quarterText(anchor)}为基准向前四个季度` : '接收时北京时间对应的日历季度';
-    consume(/本季度|这季度|当前季度|上一季度|上个季度|上季度|去年同期/g);
+    consume(/本季度|这季度|当前季度|(?<!加)(?:上一季度|上个季度|上季度)|去年同期/g);
   } else if (yearMatch) {
     const year = yearMatch[1] ? Number(yearMatch[1]) : calendar.year - (yearMatch[0] === '去年' ? 1 : 0);
     const yearPeriods = periods.filter(period => period.year === year);
@@ -444,7 +454,31 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     periodBasis = '继承上一轮已执行的明确期间';
     if (requestedPeriods.length) inherited.push('季度及统计口径');
   }
-  if (cross && requestedPeriods.length > 1) return clarify('unsupported', '当前支持单季度子市场×等级交叉比较；多季度趋势一次支持一个分组维度。请明确按子市场还是按等级查看，不能将两个维度合并后冒充原比较。');
+  const continuousRange = absolute.length === 2 && /(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4](?:至|到)(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4]/.test(expandedYears);
+  const explicitEndpoints = absolute.length === 2 && !continuousRange;
+  const crossEndpoints = cross && explicitEndpoints;
+  const continuousOption = (start: Quarter, end: Quarter): SemanticOption[] => relativeCount || quarterIndex(end) - quarterIndex(start) < 1 || quarterIndex(end) - quarterIndex(start) > 39 ? [] : [{
+    id: 'continuous_cross_trend', label: `查看连续季度趋势（${quarterText(start)}至${quarterText(end)}）`,
+    // Keep every original non-time condition, including new numeric filters.
+    // The pending context retains inherited building restrictions and filters.
+    question: `${quarterText(start)}至${quarterText(end)}${originalText.replace(/(?:19\d{2}|20\d{2}|21\d{2}|2200)年?Q[1-4](?!\d)|(?:今年|去年)(?:Q[1-4](?!\d)|第?[一二三四1-4]季度)/g, '').replace(/同比|环比/g, '')}趋势`,
+  }];
+  if (crossEndpoints && quarterIndex(absolute[1]) - quarterIndex(absolute[0]) !== 1) {
+    const ordered = [...absolute].sort((a, b) => quarterIndex(a) - quarterIndex(b));
+    return clarify('unsupported', '当前双维查询支持连续季度趋势；两期单独比较不能自动加入中间季度。请确认是否查看完整连续范围，或分别查询这两个季度。',
+      quarterIndex(ordered[1]) - quarterIndex(ordered[0]) > 0 ? continuousOption(ordered[0], ordered[1]) : []);
+  }
+  let crossComparisonPeriods: [Quarter, Quarter] | undefined;
+  if (cross && /同比|环比/.test(text)) {
+    const anchor = requestedPeriods.at(-1);
+    if (!anchor) return clarify('period_required', '请明确进行同比或环比的目标季度。');
+    if (absolute.length > 1 || rolling || pastYear || yearMatch) return clarify('period_required', '双维同比或环比需要明确一个目标季度；连续期间趋势会分别展示各季度，不能静默改成另一组期间。');
+    let base: Quarter;
+    try { base = shiftQuarter(anchor, /同比/.test(text) ? -4 : -1); } catch { return clarify('period_required', '比较期间超出了支持的年份范围。'); }
+    if (/同比/.test(text)) return clarify('unsupported', '双维同比涉及两个非连续季度。当前双维趋势不能自动加入中间季度后冒充仅两期同比；可确认查看完整连续范围，或分别查询两个季度。', continuousOption(base, anchor));
+    crossComparisonPeriods = [base, anchor];
+    periodBasis = `以${quarterText(anchor)}为目标季度，与上一季度${quarterText(base)}比较`;
+  }
 
   let model: SemanticIntent | undefined;
   if (input.modelIntent !== undefined) {
@@ -464,9 +498,10 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     if (rank && model.operation !== 'rank' || isList && model.operation !== 'list' || relation && model.operation !== 'relationship' || distribution && model.operation !== 'distribution') return clarify('invalid_model_intent', '语义服务的操作与问题中明确要求的操作不一致。');
     if (model.operation === 'list' && model.fields && explicitFields.some(value => !model!.fields!.includes(value))) return clarify('invalid_model_intent', '语义服务遗漏了问题中明确要求的字段。');
     if (explicitFields.some(value => ['height', 'floors', 'parking', 'vacantArea'].includes(value)) && !['list', 'rank', 'distribution'].includes(model.operation)) return clarify('invalid_model_intent', '语义服务不能把多个明确字段缩减成一个季度指标。');
-    if (requestedPeriods.length > 1 && !['trend', 'group_trend', 'compare'].includes(model.operation)) return clarify('invalid_model_intent', '语义服务遗漏了请求中的其他季度，不能仅执行第一个季度。');
-    if (requestedPeriods.length > 1 && wantsTrend && !['trend', 'group_trend'].includes(model.operation)) return clarify('invalid_model_intent', '语义服务没有保留明确要求的季度趋势。');
-    if (cross && model.operation !== 'cross_aggregate') return clarify('invalid_model_intent', '语义服务没有保留子市场与等级的交叉维度。');
+    if (requestedPeriods.length > 1 && !['trend', 'group_trend', 'cross_trend', 'compare'].includes(model.operation)) return clarify('invalid_model_intent', '语义服务遗漏了请求中的其他季度，不能仅执行第一个季度。');
+    if (requestedPeriods.length > 1 && wantsTrend && !['trend', 'group_trend', 'cross_trend'].includes(model.operation)) return clarify('invalid_model_intent', '语义服务没有保留明确要求的季度趋势。');
+    if (cross && model.operation !== (requestedPeriods.length > 1 || crossComparisonPeriods ? 'cross_trend' : 'cross_aggregate')) return clarify('invalid_model_intent', '语义服务没有完整保留子市场与等级的交叉维度及期间。');
+    if (!cross && (model.operation === 'cross_aggregate' || model.operation === 'cross_trend')) return clarify('invalid_model_intent', '语义服务增加了问题和已确认上下文未要求的交叉维度。');
     if (groupBy && !cross && !rank && !isList && !distribution && !relation && (!['group_aggregate', 'group_trend'].includes(model.operation) || model.groupBy && model.groupBy !== groupBy)) return clarify('invalid_model_intent', '语义服务没有保留已确认的分组维度。');
     if (model.mode && model.mode !== mode) return clarify('invalid_model_intent', '语义服务改变了明确或继承的样本统计口径。');
     const explicitLimit = /(?:排名前|前)(\d{1,3}|[二三四五六七八九十])/.exec(text);
@@ -500,6 +535,12 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   }
 
   const temporal = Boolean(metric || relation || [...explicitFields, ...conditions.fields, ...predicateFields(prior?.filter)].some(value => ['totalArea', 'vacantArea', 'netEffectiveRent'].includes(value)));
+  if (requestedPeriods.length > 1 && (rank || isList || distribution || relation)
+    && inferSemanticPeriodFields(question, context, input.modelIntent).length > 0) {
+    const end = requestedPeriods.at(-1)!;
+    return clarify('period_required', '本次逐楼查询、分布或关系分析需要一个明确季度，不能从上一轮多季度范围中自动挑选首季或末季。请指定本次季度。',
+      !absolute.length && !relativeCount ? [{ id: 'context_end_period', label: `查看期末季度（${quarterText(end)}）`, question: `${quarterText(end)}${question}` }] : []);
+  }
   if (!requestedPeriods.length && temporal) {
     return clarify('period_required', '需要查询哪个季度？可以选择当前获权范围的最新有数据季度。', latest ? [
       { id: 'latest_period', label: `最新季度（${quarterText(latest)}）`, question: `${quarterText(latest)}${question}` },
@@ -514,7 +555,8 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   consume(/净有效租金|季度总面积|空置面积|空置率|建筑高度|楼层数|总车位数|租金/g);
   consume(/全期间共同样本|共同有效样本|共同样本|配对样本|各期有效样本|各期样本|同样本|按有效总面积加权|按面积加权/g);
   consume(/再加上|加上|再加|补充|一并看|一起看|也看看|也看|也加上|也加/g);
-  consume(/按子市场(?:和|与|×)等级|按子市场|按等级|不同等级|各等级|各子市场/g);
+  consume(new RegExp(crossGroupingPattern.source, 'g'));
+  consume(/按子市场|按等级|不同等级|各等级|各子市场/g);
   consume(/这两(?:个)?(?:地区|子市场|区域)?|这两个|两者|两地|这些(?:地区|子市场|区域)|上述(?:地区|子市场|区域)|它们/g);
   consume(/排名前\d{1,3}|前\d{1,3}栋|前[二三四五六七八九十]栋/g);
   consume(/净有效|最高|最低|最贵|最便宜|建筑|楼宇|写字楼|楼列表|列表|清单|有哪些|有多少栋|是哪栋|是什么|多少|楼|栋|子市场|地区|区域/g);
@@ -552,7 +594,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
       case 'aggregate': candidate = { ...common, operation: model.operation, metric, period: first }; break;
       case 'group_aggregate': candidate = { ...common, operation: model.operation, metric, period: first, groupBy: modelGroup }; break;
       case 'cross_aggregate': candidate = { ...common, operation: model.operation, metric, period: first }; break;
-      case 'trend': case 'group_trend': candidate = { ...common, operation: model.operation, metric, start: first, end: last, mode: modelMode, ...(model.operation === 'group_trend' ? { groupBy: modelGroup } : {}) }; break;
+      case 'trend': case 'group_trend': case 'cross_trend': candidate = { ...common, operation: model.operation, metric, start: crossComparisonPeriods?.[0] ?? first, end: crossComparisonPeriods?.[1] ?? last, mode: modelMode, ...(model.operation === 'group_trend' ? { groupBy: modelGroup } : {}) }; break;
       case 'compare': {
         let base = first;
         if (last && /同比|环比/.test(text)) base = shiftQuarter(last, /同比/.test(text) ? -4 : -1);
@@ -585,21 +627,28 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     if (!measure) return clarify('metric_required', '需要查看哪个指标的分布？');
     candidate = { ...common, operation: 'distribution', measure, period: ['height', 'floors', 'parking'].includes(measure) ? null : first };
   } else if (!metric) return clarify('metric_required', '尚未确定指标，请明确净有效租金、空置率或季度总面积。');
+  else if (crossComparisonPeriods) candidate = { ...common, operation: 'cross_trend', metric, start: crossComparisonPeriods[0], end: crossComparisonPeriods[1], mode };
   else if (/同比|环比/.test(text)) {
     if (!last) return clarify('period_required', '请明确进行同比或环比的目标季度。');
     try { candidate = { ...common, operation: 'compare', metric, base: shiftQuarter(last, /同比/.test(text) ? -4 : -1), current: last, mode }; } catch { return clarify('period_required', '比较期间超出了支持的年份范围。'); }
   } else if (requestedPeriods.length > 1) {
     // An explicit regrouping compares the groups while retaining the confirmed
     // trend window, unless the user also explicitly replaces the periods.
-    const inheritedTrend = (prior?.operation === 'trend' || prior?.operation === 'group_trend')
-      && (!comparing || explicitGrouping && !explicitMultiPeriod);
-    const trend = wantsTrend || Boolean(rolling || pastYear || yearMatch) || inheritedTrend;
-    candidate = trend ? { ...common, operation: groupBy ? 'group_trend' : 'trend', metric, start: first, end: last, mode, ...(groupBy ? { groupBy } : {}) }
+    const inheritedTrend = (prior?.operation === 'trend' || prior?.operation === 'group_trend' || prior?.operation === 'cross_trend')
+      && (!comparing || (cross || explicitGrouping) && !explicitMultiPeriod);
+    const trend = wantsTrend || Boolean(rolling || pastYear || yearMatch) || inheritedTrend || cross && (continuousRange || crossEndpoints);
+    candidate = trend ? { ...common, operation: cross ? 'cross_trend' : groupBy ? 'group_trend' : 'trend', metric, start: first, end: last, mode, ...(groupBy ? { groupBy } : {}) }
       : { ...common, operation: 'compare', metric, base: first, current: last, mode };
-    if (groupBy && !trend) return clarify('unsupported', '多个子市场的两期对比请使用“变化”或“趋势”，以保留每个子市场的独立结果。');
+    if ((groupBy || cross) && !trend) return clarify('unsupported', '分组两期对比请明确连续起止季度并使用“趋势”，以保留每个分组的独立结果；不会自动加入中间季度。');
   } else if (cross) candidate = { ...common, operation: 'cross_aggregate', metric, period: first };
   else candidate = { ...common, operation: groupBy ? 'group_aggregate' : 'aggregate', metric, period: first, ...(groupBy ? { groupBy } : {}) };
   const candidateOperation = candidate && typeof candidate === 'object' && 'operation' in candidate ? candidate.operation : undefined;
+  const inheritedEndpoints = prior?.operation === 'compare' && !absolute.length && !relativeCount;
+  if (typeof candidateOperation === 'string' && ['trend', 'group_trend', 'cross_trend'].includes(candidateOperation)
+    && !crossComparisonPeriods && (explicitEndpoints || inheritedEndpoints) && first && last && quarterIndex(last) - quarterIndex(first) !== 1) {
+    const ordered = [first, last].sort((a, b) => quarterIndex(a) - quarterIndex(b));
+    return clarify('unsupported', '本轮明确指定或继承的是两个非连续季度，不能自动加入中间季度后作为连续趋势。请确认完整连续范围，或保留两期单独比较。', continuousOption(ordered[0], ordered[1]));
+  }
   if (candidate && aggregateOperations.some(operation => operation === candidateOperation)) {
     // Every aggregate family consumes the complete selected metric set. A
     // normal explicit metric replacement removes an inherited metrics array.
@@ -616,6 +665,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     const limitations = [...notices];
     if (unavailablePeriods.length) limitations.push(`可用期间记录未包含${unavailablePeriods.map(quarterText).join('、')}；该期无有效观测时显示缺失，不推算或改查其他季度。`);
     if (resolvedPeriods.length) limitations.push('使用当前跟踪目录内楼宇的历史季度记录，不代表当时市场全集；统计口径沿用已授权指标公式。');
+    if (plan.operation === 'cross_trend') limitations.push('跨季度子市场与等级分组采用当前目录分类，不代表楼宇在历史季度的分类；两项维度均保留在结果和来源中。');
     const comparisonSubmarkets = unique([...(context.comparisonSubmarkets ?? []), ...(plan.scope.submarkets ?? [])]).slice(-8);
     return { kind: 'plan', plan, context: { version: 'colliers-semantic-context/1', lastPlan: plan, comparisonSubmarkets },
       interpretation: { version: SEMANTIC_PLANNER_VERSION, method, resolvedQuestion: formatPlan(plan), periodBasis, periods: resolvedPeriods, availableThrough: latest ?? null, unavailablePeriods, inherited: unique(inherited), notices }, limitations };
@@ -637,27 +687,30 @@ export function buildSemanticSuggestions(input: {
   const common = { scope: plan.scope, ...(plan.filter ? { filter: plan.filter } : {}) };
   if (metric && period) {
     const preserveGrouping = (nextMetric: 'rent' | 'vacancy'): QueryPlan => {
-      if (plan.operation === 'cross_aggregate') return { ...common, operation: 'cross_aggregate', metric: nextMetric, period };
+      if (plan.operation === 'cross_aggregate' || plan.operation === 'cross_trend') return { ...common, operation: 'cross_aggregate', metric: nextMetric, period };
       const groupBy = 'groupBy' in plan ? plan.groupBy : plan.scope.submarkets && plan.scope.submarkets.length > 1 ? 'submarket' as const : undefined;
       return groupBy ? { ...common, operation: 'group_aggregate', groupBy, metric: nextMetric, period } : { ...common, operation: 'aggregate', metric: nextMetric, period };
     };
     const start = shiftQuarter(period, -3);
     const available = validPeriods(input.availablePeriods);
-    if (!['trend', 'group_trend', 'cross_aggregate'].includes(plan.operation) && available.filter(q => quarterIndex(q) >= quarterIndex(start) && quarterIndex(q) <= quarterIndex(period)).length > 1) {
+    if (!['trend', 'group_trend', 'cross_trend'].includes(plan.operation) && available.filter(q => quarterIndex(q) >= quarterIndex(start) && quarterIndex(q) <= quarterIndex(period)).length > 1) {
       const groupBy = 'groupBy' in plan ? plan.groupBy : plan.scope.submarkets && plan.scope.submarkets.length > 1 ? 'submarket' as const : undefined;
-      suggestions.push({ id: 'recent_four_quarters', label: '查看过去四季度变化', plan: { ...common, operation: groupBy ? 'group_trend' : 'trend', ...slots, start, end: period, mode: 'per_period', ...(groupBy ? { groupBy } : {}) } as QueryPlan });
+      suggestions.push({ id: 'recent_four_quarters', label: '查看过去四季度变化', plan: { ...common, operation: plan.operation === 'cross_aggregate' ? 'cross_trend' : groupBy ? 'group_trend' : 'trend', ...slots, start, end: period, mode: 'per_period', ...(groupBy && plan.operation !== 'cross_aggregate' ? { groupBy } : {}) } as QueryPlan });
     }
     if (metrics.includes('rent') && !metrics.includes('vacancy')) suggestions.push({ id: 'same_period_vacancy', label: '分析同季度空置率', plan: preserveGrouping('vacancy') });
     if (metrics.includes('vacancy') && !metrics.includes('rent')) suggestions.push({ id: 'same_period_rent', label: '查看同季度净有效租金', plan: preserveGrouping('rent') });
     if (metrics.includes('rent') && plan.operation !== 'rank') suggestions.push({ id: 'highest_rent', label: '查看净有效租金最高的楼宇', plan: { ...common, operation: 'rank', field: 'netEffectiveRent', direction: 'desc', limit: 5, period } });
     const comparison = input.allowedSubmarkets?.find(market => QUESTION_SUBMARKETS.includes(market as typeof QUESTION_SUBMARKETS[number]) && !plan.scope.submarkets?.includes(market));
     if (comparison && plan.scope.submarkets?.length === 1 && !plan.scope.buildingIds) {
-      const dimensions = plan.operation === 'cross_aggregate' || 'groupBy' in plan && plan.groupBy === 'grade'
-        ? { operation: 'cross_aggregate' as const } : { operation: 'group_aggregate' as const, groupBy: 'submarket' as const };
-      suggestions.push({ id: 'compare_submarket', label: `与${comparison}比较`, plan: { ...common, scope: { ...plan.scope, submarkets: [...plan.scope.submarkets, comparison] }, ...dimensions, ...slots, period } as QueryPlan });
+      const cross = plan.operation === 'cross_aggregate' || plan.operation === 'cross_trend' || 'groupBy' in plan && plan.groupBy === 'grade';
+      const trend = plan.operation === 'trend' || plan.operation === 'group_trend' || plan.operation === 'cross_trend';
+      const dimensions = cross ? { operation: trend ? 'cross_trend' as const : 'cross_aggregate' as const }
+        : { operation: trend ? 'group_trend' as const : 'group_aggregate' as const, groupBy: 'submarket' as const };
+      const time = trend ? { start: plan.start, end: plan.end, mode: plan.mode } : { period };
+      suggestions.push({ id: 'compare_submarket', label: `与${comparison}比较`, plan: { ...common, scope: { ...plan.scope, submarkets: [...plan.scope.submarkets, comparison] }, ...dimensions, ...slots, ...time } as QueryPlan });
     }
   }
-  if ((plan.operation === 'trend' || plan.operation === 'group_trend' || plan.operation === 'compare') && plan.mode === 'per_period') suggestions.unshift({ id: 'paired_sample', label: '改看共同有效样本', plan: { ...plan, mode: 'paired' } });
+  if ((plan.operation === 'trend' || plan.operation === 'group_trend' || plan.operation === 'cross_trend' || plan.operation === 'compare') && plan.mode === 'per_period') suggestions.unshift({ id: 'paired_sample', label: '改看共同有效样本', plan: { ...plan, mode: 'paired' } });
   if (plan.operation === 'rank') suggestions.push({ id: 'distribution', label: '查看同范围指标分布', plan: { ...common, operation: 'distribution', measure: plan.field === 'netEffectiveRent' ? 'rent' : plan.field, period: plan.period } });
   return suggestions.filter(suggestion => {
     // The text route cannot faithfully encode an inherited arbitrary predicate

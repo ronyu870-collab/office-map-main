@@ -107,6 +107,12 @@ export function checkVisualAcceptance(pr) {
         scope: 'Colliers AI P1 follow-up multi-metric analysis and verification, PR #201',
         reason: 'User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested unresolved work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #201',
       },
+      {
+        number: 202,
+        branch: 'codex/colliers-ai-p1-cross-trends',
+        scope: 'Colliers AI P1 cross-dimensional quarterly trends, PR #202',
+        reason: 'User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested remaining work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #202',
+      },
     ];
     const approved = pr?.base?.ref === 'main'
       && pr?.head?.repo?.full_name === 'ronyu870-collab/office-map-main'
