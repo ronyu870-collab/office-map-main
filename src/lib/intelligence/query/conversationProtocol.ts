@@ -1,0 +1,10 @@
+import { z } from 'zod';
+
+/** References only. Conditions, permissions and prior answers are never client input. */
+export const queryConversationSchema = z.strictObject({ id: z.uuid(), parentRequestId: z.uuid().optional() });
+export type QueryConversation = z.infer<typeof queryConversationSchema>;
+export const queryActionSchema = z.strictObject({
+  id: z.string().min(1).max(80), label: z.string().min(1).max(120), question: z.string().min(1).max(1000),
+});
+export type QueryAction = z.infer<typeof queryActionSchema>;
+export const SEMANTIC_PROTOCOL_VERSION = 'research-conversation/1';

@@ -1,0 +1,41 @@
+{
+  "database": "PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "gateway": "PostgREST 16.5",
+  "scenarios": [
+    {
+      "scenario": "真实 SDK 期别来自已授权数据库有效记录，并在读取后重核权限版本",
+      "status": "passed"
+    },
+    {
+      "scenario": "T01 实际审计→规划→获权快照，金融街追问继承 CBD 租金及真实最新季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "T02/T03 实际上下文继承两地区并形成四季度趋势，缺期保持空值",
+      "status": "passed"
+    },
+    {
+      "scenario": "T09 审计分块恢复保留确定性研究、实际条件及真实 building_metrics 来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "T11 同账号新会话、其他账号及其他 conversation 均不能继承已保存上下文",
+      "status": "passed"
+    },
+    {
+      "scenario": "T13 原请求幂等重试只恢复已审计解释，不重复规划或执行",
+      "status": "passed"
+    },
+    {
+      "scenario": "新增 metadata/context/model-budget RPC 均在真实网关拒绝终端角色，预算只限本人 running 请求",
+      "status": "passed"
+    },
+    {
+      "scenario": "T11 撤权阻断下一次期别和上下文读取，重新授权的版本也不能接回旧上下文",
+      "status": "passed"
+    }
+  ],
+  "production": false,
+  "realAuth": false,
+  "modelCalls": 0
+}

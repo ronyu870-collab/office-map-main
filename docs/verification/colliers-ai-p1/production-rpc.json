@@ -1,0 +1,92 @@
+{
+  "project": "qhgxougfzzmgqjzzwudf",
+  "sourceMigration": "supabase/migrations/20261115103701_ai_query_available_periods.sql",
+  "sourceBlob": "ddda7e37f639d352b5d018bbda610e52df3c5232",
+  "migration": {
+    "name": "ai_query_available_periods",
+    "version": "20261115111058"
+  },
+  "functions": [
+    {
+      "name": "ai_query_available_periods",
+      "config": [
+        "search_path=\"\"",
+        "statement_timeout=10s"
+      ],
+      "schema": "private",
+      "body_md5": "129994716631d39435da5d823ee205fd",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "name": "ai_query_context_read",
+      "config": [
+        "search_path=\"\"",
+        "statement_timeout=10s"
+      ],
+      "schema": "private",
+      "body_md5": "38961fee014b9333c8296fed84b86cb1",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "name": "ai_query_model_budget",
+      "config": [
+        "search_path=\"\"",
+        "statement_timeout=5s"
+      ],
+      "schema": "private",
+      "body_md5": "5b04122a38e2f1adbadef79cb79c2a4e",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": true,
+      "authenticated_execute": false
+    },
+    {
+      "name": "ai_query_available_periods",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "body_md5": "0b67bc445e449f0aae04f03f08fd6dd7",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "ai_query_context_read",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "body_md5": "933ced675af9aa707f829bc8c1ff03df",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "ai_query_model_budget",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "body_md5": "64fb9e990969cf3538aadd7fcee5c7c4",
+      "anon_execute": false,
+      "service_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    }
+  ],
+  "exactBodiesMatch": true,
+  "businessRowsChanged": false,
+  "rlsPoliciesChanged": false,
+  "queryGrantsChanged": false,
+  "newSecurityAdvisorFindings": 0,
+  "applicationDeployment": "separate_pending_main_release"
+}

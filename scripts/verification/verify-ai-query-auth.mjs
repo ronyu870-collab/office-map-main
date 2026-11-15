@@ -1,6 +1,7 @@
 import { setupCompanyAdmin, verifyCompanyAdmin } from './ai-company-admin-scenarios.mjs';
 // Actual local GoTrue + Data API + PostgreSQL 17 + production-built Next HTTP route.
-// No browser automation, mocked authentication, production URL, or real-model calls.
+// Optional automated performance checks use the same real disposable login.
+// No mocked authentication, production URL or external-model calls.
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile, open, unlink } from 'node:fs/promises';
@@ -18,6 +19,9 @@ import { verifyAuditExport } from './ai-audit-export-scenarios.mjs';
 import { verifyAuditPeople } from './ai-audit-people-scenarios.mjs';
 import { verifyAdminOnly } from './ai-admin-only-scenarios.mjs';
 import { verifyQuarterTrend } from './ai-query-trend-scenarios.mjs';
+import { verifyResearchAnalysis } from './ai-query-research-scenarios.mjs';
+import { verifyConversation } from './ai-query-conversation-scenarios.mjs';
+import { startQueryPerformanceBaseline } from './query-performance-baseline.mjs';
 import { verifyRelativeQuarter } from './ai-query-relative-quarter-scenarios.mjs';
 import { verifyDistribution } from './ai-query-distribution-scenarios.mjs';
 import { verifyRelationship } from './ai-query-relationship-scenarios.mjs';
@@ -40,7 +44,7 @@ const blocker=new pg.Client({connectionString:settings.DB_URL});await blocker.co
 const withdrawal=new pg.Client({connectionString:settings.DB_URL});await withdrawal.connect();
 const load=file=>readFile(path.join(root,'supabase/migrations',file),'utf8');
 const service=createClient(settings.API_URL,settings.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-const people=[],results=[];let server,log,companyFixture;
+const people=[],results=[];let server,log,companyFixture,performanceBaseline;
 const encryptionKey=randomBytes(32),digestKey=randomBytes(32),keyId='isolated-http-v1';
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(fn,label,timeout=30000){const start=Date.now();while(!await fn()){if(Date.now()-start>timeout)throw new Error('Timed out: '+label);await pause(100);}}
@@ -98,6 +102,9 @@ try{
   await db.query(await load('20261113130012_ai_audit_actor_directory.sql'));
   await db.query(await load('20261113132136_ai_audit_controlled_export.sql'));
   await db.query(await load('20261113145743_ai_query_group_dimensions.sql'));
+  if (!(await db.query("select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='ai_query_available_periods'")).rowCount) {
+    await db.query(await load('20261115103701_ai_query_available_periods.sql'));
+  }
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -165,9 +172,9 @@ try{
   await check('不明确或额外条件全量审计后澄清，重试不查数且无权者不走澄清能力',async()=>{
     for(const question of ['今年CBD租金','CBD最高的楼是什么，但排除A座','CBD有哪些楼，附上全部客户佣金']){
       const body={idempotencyKey:randomUUID(),question};const res=await call(queryAdmin,body);assert.equal(res.status,422);assert.equal(res.body.status,'clarification');assert.equal(res.body.result,undefined);
-      const stored=await events(res.body.requestId);assert.deepEqual(stored.map(e=>e.kind),['received','denied','delivery_receipt']);
-      assert.equal(decrypt(stored[0]).content.submittedText,question);assert.equal(decrypt(stored[1]).content.reason,'clarification_required');
-      assert.equal(decrypt(stored[2]).content.response.message,res.body.message);
+      const stored=await events(res.body.requestId);assert.deepEqual(stored.map(e=>e.kind),['received','running','denied','delivery_receipt']);
+      assert.equal(decrypt(stored[0]).content.submittedText,question);assert.equal(decrypt(stored[2]).content.reason,'clarification_required');
+      assert.equal(decrypt(stored[3]).content.response.message,res.body.message);
       assert.equal((await call(queryAdmin,body)).status,422);assert.equal((await events(res.body.requestId)).filter(e=>e.kind==='denied').length,1);
       assert.equal((await call(other,body)).status,403);
     }
@@ -549,13 +556,23 @@ try{
   await verifyAuditPeople({db,service,app,check,person,other,call,input,encryptAuditContent,decryptAuditContent,auditPayloadDigest,keyId,encryptionKey,digestKey});
   await verifyAuditExport({db,app,check,person,successful});
   await verifyAdminOnly({db,app,check,person,call,input,capabilities,recover,artifact,acknowledge,exportCaps});
-  await verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps});
+  await verifyQuarterTrend({db,check,queryAdmin,call,recover,artifact,acknowledge,exportCaps,events,decrypt});
   const dataApiDbUrl=new URL(settings.DB_URL);dataApiDbUrl.username='authenticator';
   await verifyGroupedQuarter({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load,dataApiConnectionString:dataApiDbUrl.href});
   await verifyCrossQuarter({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load});
   await verifyRelationship({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyDistribution({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps});
   await verifyRelativeQuarter({db,check,queryAdmin,person,call,recover,artifact,events,decrypt,exportCaps});
+  await verifyResearchAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
+  await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
+  if (process.env.AI_QUERY_PERFORMANCE === '1') {
+    performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
+    const {verifyQueryConversationPerformance} = await import('../performance/verify-ai-query-conversation.mjs');
+    await check('P1 真实登录和生产构建：同条件P0/P1桌面及手机视口查询性能与可操作结果', async () => {
+      await verifyQueryConversationPerformance({db,person,app,beforeApp:performanceBaseline.app,output,exportCaps,semanticCalls:companyFixture.semanticCalls});
+    });
+    await performanceBaseline.close(); performanceBaseline = undefined;
+  }
   await check('撤销资格和真实注销后旧JWT/重复请求均不返回历史结果',async()=>{
     const body=input();assert.equal((await call(queryAdmin,body)).status,200);
     await db.query('update private.ai_query_grants set enabled=false where user_id=$1',[queryAdmin.id]);assert.equal((await call(queryAdmin,body)).status,403);
@@ -573,8 +590,9 @@ try{
     for(const fn of functions){assert.equal(fn.anon,false);assert.equal(fn.authenticated,false);assert.equal(fn.service,true);assert.equal(fn.prosecdef,fn.nspname==='private');assert.ok(fn.proconfig.includes('search_path=""'));}
     assert.equal((await db.query("select relrowsecurity from pg_class where oid='private.ai_query_result_access'::regclass")).rows[0].relrowsecurity,true);
   });
-  await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,browserValidation:false},null,2)+'\n');
-  console.log(`PASS ${results.length} real Auth/HTTP scenarios; no model or production calls`);
+  await writeFile(path.join(output,'results.json'),JSON.stringify({database:version,scenarios:results,production:false,modelCalls:false,
+    modelProvider:'isolated_synthetic_fixture',browserValidation:process.env.AI_QUERY_PERFORMANCE==='1',browserVisualReview:false,realDeviceReview:false},null,2)+'\n');
+  console.log(`PASS ${results.length} real Auth/HTTP scenarios; no external model or production calls`);
   if(previewFile){
     const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
     await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
@@ -585,6 +603,7 @@ try{
     await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
 }finally{
+  await performanceBaseline?.close();
   companyFixture?.release();
   if(server&&server.exitCode===null){const stopped=once(server,'exit');server.kill('SIGTERM');await stopped;}
   await companyFixture?.close();

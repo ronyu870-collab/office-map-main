@@ -22,6 +22,27 @@ describe('trusted query client current identity guard', () => {
     expect((await trustedQueryClient.submit(scope, input, new AbortController().signal)).status).toBe('already_received');
     expect(fetch).toHaveBeenCalledWith('/api/intelligence/query', expect.objectContaining({ cache: 'no-store', body: JSON.stringify(input), method: 'POST' }));
   });
+  it('sends structured conversation references and validates attributable clarification options', async () => {
+    const conversation = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', parentRequestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
+    const options = [{ id: 'rent', label: '净有效租金', question: '按净有效租金' }];
+    const fetch = vi.fn(async () => Response.json({ status: 'clarification', conversation, options })); vi.stubGlobal('fetch', fetch);
+    const input = { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: '最贵呢', conversation };
+    expect(await trustedQueryClient.submit(scope, input, new AbortController().signal)).toMatchObject({ conversation, options });
+    expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual(input);
+  });
+  it('rejects a reply from another conversation or parent before releasing it', async () => {
+    const conversation = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', parentRequestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
+    const fetch = vi.fn().mockResolvedValueOnce(Response.json({ status: 'ready', conversation: { ...conversation, id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' } }))
+      .mockResolvedValueOnce(Response.json({ status: 'clarification', conversation: { id: conversation.id } })); vi.stubGlobal('fetch', fetch);
+    const input = { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: '金融街呢', conversation };
+    await expect(trustedQueryClient.submit(scope, input, new AbortController().signal)).rejects.toThrow('当前对话不一致');
+    await expect(trustedQueryClient.submit(scope, input, new AbortController().signal)).rejects.toThrow('当前对话不一致');
+  });
+  it('does not accept executable or unbounded clarification actions', async () => {
+    const fetch = vi.fn(async () => Response.json({ status: 'clarification', options: [{ id: 'sql', label: '运行', question: '查看租金', sql: 'select * from private' }] })); vi.stubGlobal('fetch', fetch);
+    await expect(trustedQueryClient.submit(scope, { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: 'CBD' }, new AbortController().signal)).rejects.toThrow();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
   it('distinguishes eligibility service failure from an explicitly closed capability', async () => {
     const fetch = vi.fn().mockResolvedValueOnce(Response.json({ enabled: false, examples: [] }, { status: 503 }))
       .mockResolvedValueOnce(Response.json({ enabled: false, examples: [] }, { status: 403 }));

@@ -177,6 +177,7 @@ jobs:
           node supabase/tests/ai-audit-people/run.mjs
           node supabase/tests/ai-audit-export/run.mjs
           node supabase/tests/ai-query-authority/run.mjs
+          node supabase/tests/ai-query-authority/p1-periods.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
@@ -224,7 +225,9 @@ jobs:
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
 
       - name: PostgreSQL 17 and PostgREST AI query audit adapters
-        run: node supabase/tests/ai-query-authority/gateway.mjs
+        run: |
+          node supabase/tests/ai-query-authority/gateway.mjs
+          node supabase/tests/ai-query-authority/p1-gateway.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
           POSTGREST_PATH: ${{ runner.temp }}/permission-gateway/postgrest
@@ -360,6 +363,8 @@ jobs:
           name: ai-query-audit-verification
           path: |
             verification/ai-query-intake/results.json
+            verification/ai-query-p1/results.json
+            verification/ai-query-p1/gateway-results.json
             verification/ai-audit-console/results.json
             verification/ai-admin-only/results.json
             verification/ai-audit-people/results.json
@@ -381,9 +386,12 @@ jobs:
   ai-query-auth:
     name: Real Auth trusted query HTTP integration
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Real Auth regression plus alternating P0/P1 production-build measurements.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -401,7 +409,12 @@ jobs:
           supabase status --workdir "$RUNNER_TEMP/ai-query-auth-integration" -o json > "$RUNNER_TEMP/ai-query-auth-status.json"
           chmod 600 "$RUNNER_TEMP/ai-query-auth-status.json"
       - name: Verify real login, HTTP audit, query and revocation
-        run: AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" node scripts/verification/verify-ai-query-auth.mjs
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ai-query-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
       - name: Stop only the disposable query Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
@@ -412,6 +425,7 @@ jobs:
           name: ai-query-real-auth
           path: |
             verification/ai-query-auth/results.json
+            verification/ai-query-auth/performance.json
           if-no-files-found: ignore
           retention-days: 7
 

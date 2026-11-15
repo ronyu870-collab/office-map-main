@@ -47,7 +47,16 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     || read.events[0].kind!=='received')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
   const context={requestId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId};
   const receipt=JSON.parse(decryptAuditContent(read.events[0].cipher,{...context,eventId:read.events[0].event_id},new Map([[keys.keyId,keys.encryptionKey]])));
-  const plan=parseQueryPlan(receipt?.content?.plan);
+  let planInput = receipt?.content?.plan;
+  if (planInput?.resolution === 'server_semantic/1') {
+    if (receipt?.content?.sessionId !== identity.sessionId) throw new Error('QUERY_DENIED');
+    const resolved = read.events.filter(event => event.kind === 'tool_finished').map(event =>
+      JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content)
+      .find(value => value?.resolution?.protocol === 'research-conversation/1' && value?.plan);
+    if (!resolved) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    planInput = resolved.plan;
+  }
+  const plan=parseQueryPlan(planInput);
   const authority=await loadDataAuthority(client,identity,signal);
   if(authority.permissionRevision!==read.permission_revision)throw new Error('QUERY_DENIED');
   authorizeRecoveryPlan(plan,authority);

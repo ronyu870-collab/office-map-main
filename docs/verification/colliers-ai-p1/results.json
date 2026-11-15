@@ -1,0 +1,71 @@
+{
+  "database": "PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "scenarios": [
+    {
+      "scenario": "最新期只取真实获权有效季度，未使用当前自然季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "草稿、空值、零租金、负值、NaN和Infinity不会成为最新有效租金季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "零空置面积有效，负值/超总面积/缺失/非有限值不构成有效空置率季度",
+      "status": "passed"
+    },
+    {
+      "scenario": "当前跟踪范围与扩展目录分开，合并楼宇不能泄露期别",
+      "status": "passed"
+    },
+    {
+      "scenario": "不存在的地区/楼宇返回空期别，显式空范围不扩为全集",
+      "status": "passed"
+    },
+    {
+      "scenario": "地区与楼宇授权同时生效，范围外更新不能改变最新期且显式越权被拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "字段白名单、季度资格和scope复杂度不会被metadata接口绕过",
+      "status": "passed"
+    },
+    {
+      "scenario": "权限版本、撤权、普通角色和模拟身份在下一次请求立即拒绝",
+      "status": "passed"
+    },
+    {
+      "scenario": "失效/错误/已删除会话不返回任何metadata",
+      "status": "passed"
+    },
+    {
+      "scenario": "读取完毕恢复原JWT上下文，不留下被模拟的数据库身份",
+      "status": "passed"
+    },
+    {
+      "scenario": "40期窗口明确标记截断，不把旧数据伪称不存在",
+      "status": "passed"
+    },
+    {
+      "scenario": "三个新RPC均只允许service_role执行，客户端无法直接调用",
+      "status": "passed"
+    },
+    {
+      "scenario": "上下文仅返回本人的有效链解释事件，跨账号/未知请求/撤权拒绝并留痕",
+      "status": "passed"
+    },
+    {
+      "scenario": "上下文链损坏或超过512KiB解释预算时失败关闭",
+      "status": "passed"
+    },
+    {
+      "scenario": "模型预算只对本人running请求开放，12次/分钟与120次/24h边界精确",
+      "status": "passed"
+    },
+    {
+      "scenario": "metadata事务持有授权锁，撤权完成后下一次调用被拒绝",
+      "status": "passed"
+    }
+  ],
+  "production": false,
+  "realAuth": false
+}
