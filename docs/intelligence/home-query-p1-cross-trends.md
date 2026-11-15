@@ -89,6 +89,12 @@
 
 本地证据摘要见 [验证登记](../verification/colliers-ai-p1-cross-trends/local-verification.json)。精确 PR head CI、原始性能产物、main SHA、Vercel production Ready 和正式域名按实际结果在 [PR #202](https://github.com/ronyu870-collab/office-map-main/pull/202) 登记。未执行或尚未完成的验证不预填成功。
 
+### 首轮精确 CI 发现并修正的验证契约
+
+首个 head `bd7d22e74963b48be134cab37b22dfe44e78fc87` 的 [Verify 43731725977](https://github.com/ronyu870-collab/office-map-main/actions/runs/43731725977) 中，两个真实 Auth job 在自然语言入口回归同时失败：产品语法版本本批正确升级为 `bounded-business-question/9`，脚本仍严格期待旧 `/8`。失败发生在新增双维 HTTP 和性能采样之前，不能计为已完成 800 样本。
+
+仅将 `verify-ai-query-auth.mjs` 的实际版本期待更新为 `/9`，保留严格校验；`relativeQuarter.test.ts` 自行构造的历史 `/8` 归档夹具继续保留。脚本语法／Lint 与相关 3 文件、86 项回归通过。两次指标切换等采集器浏览器校准在首轮已通过；完整 HTTP、原 640＋80 与新增 80 样本仍以修正后精确 head 重新执行的 CI 为准。未改产品公式、测试成功条件或性能预算，未删除失败记录。
+
 本轮沿用同一 P1 任务中用户明确的人工视觉／浏览器视觉／真实手机人工豁免和检查后直接合并授权，按仓库机制另行绑定本轮 PR、分支、完整 head 和范围；不借用 PR #201 的已关闭记录。自动功能、数据权限、真实执行、性能、构建与分支保护均不豁免。
 
 本批不需要生产数据库迁移。回退可 revert 本 PR，保留已有审计；旧应用不能完整呈现新增 `cross_trend` 历史结果，回退前须明确此兼容边界。旧操作与已保存结果继续兼容。
