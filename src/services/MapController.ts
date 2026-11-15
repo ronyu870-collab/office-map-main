@@ -2520,6 +2520,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           <div class="building-popup__actions" role="group" aria-label="楼宇操作">
             <button type="button" class="building-popup__action" data-map-action="nearby-compare" data-popup-action="nearby">周边项目对比</button>
             <button type="button" class="building-popup__action" data-map-action="building-compare">楼宇对比</button>
+            <button type="button" class="building-popup__action" data-map-action="building-ai" hidden>AI 分析</button>
             <button type="button" class="building-popup__action" data-map-action="related-leases">关联成交</button>
             <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">季度趋势</button>
             <button type="button" class="building-popup__action" data-map-action="contact" data-popup-action="contact">联系方式</button>

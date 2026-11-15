@@ -49,7 +49,7 @@ export type QueryExecutionPort<T> = {
 /** A reusable execution boundary; it is not an enabled HTTP endpoint or a substitute for durable storage. */
 type AuditedRequest = { requestId: string; submittedText: string; plan: unknown; authority: QueryAuthority; signal: AbortSignal; metadata?: unknown; clarification?: QuestionClarification; resolutionMetadata?: unknown; preparationStarted?: boolean };
 type ExecutionResult<T> = { status: 'ready'; result: T } | { status: 'clarification'; clarification: QuestionClarification }
-  | { status: 'already_received' | 'denied' | 'cancelled' } | { status: 'failed'; reason?: 'scope_limit' };
+  | { status: 'already_received' | 'denied' | 'cancelled' } | { status: 'failed'; reason?: 'scope_limit' | 'history_reopen' };
 
 export async function runAuditedQuery<T>(
   request: AuditedRequest,
@@ -97,8 +97,10 @@ export async function runAuditedSubmission<T>(request: AuditedRequest, audit: Au
     const reason = error instanceof Error ? error.message : '';
     const timedOut = request.signal.aborted && request.signal.reason?.name === 'TimeoutError';
     const status = timedOut ? 'failed' : request.signal.aborted || reason === 'QUERY_CANCELLED' ? 'cancelled' : reason === 'QUERY_DENIED' ? 'denied' : 'failed';
-    if (!receipt.replayed) await audit.append(request.requestId, status, { status, delivery: 'not_sent', reason: timedOut ? 'execution_deadline_exceeded' : 'admission_not_granted' });
-    return { status };
+    const historyExpired = status === 'failed' && !request.signal.aborted && reason === 'QUERY_HISTORY_REOPEN';
+    if (!receipt.replayed) await audit.append(request.requestId, status, { status, delivery: 'not_sent',
+      reason: timedOut ? 'execution_deadline_exceeded' : historyExpired ? 'history_context_expired' : 'admission_not_granted' });
+    return historyExpired ? { status: 'failed', reason: 'history_reopen' } : { status };
   }
   if (request.clarification) {
     // The attempted query is refused until its conditions are understood. This

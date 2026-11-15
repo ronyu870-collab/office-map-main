@@ -1,17 +1,24 @@
 'use client';
 
 import * as React from 'react';
+import dynamic from 'next/dynamic';
 import { z } from 'zod';
 import { Button } from '@/src/components/ui/Button';
 import { cellText, resultScopeText, resultSummary, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { quarterSchema } from '@/src/lib/intelligence/query/contracts';
 import { researchAnalysisSchema, type ResearchAnalysis } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels, resultMetrics, resultMetricColumns, resultMetricAnalysis } from '@/src/lib/intelligence/query/multiMetricView';
+import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailability';
+import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
 import styles from './HomeQuery.module.css';
+
+const HomeQueryBuildings = dynamic(() => import('./HomeQueryBuildings').then(module => module.HomeQueryBuildings), {
+  loading: () => <p role="status">正在打开楼宇信息…</p>,
+});
 
 export function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false }: { result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean }) {
   const [page, setPage] = React.useState(0);
@@ -20,6 +27,8 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
   const summary = resultSummary(result);
+  const availability = resultAvailability(result);
+  const hasBuildings = React.useMemo(() => resultBuildingRows(result).length > 0, [result]);
   const metrics = resultMetrics(result);
   const multipleMetrics = metrics.length > 1;
   const research = React.useMemo(() => {
@@ -46,6 +55,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     sourcePanel.current?.scrollIntoView?.({ block: 'nearest' });
   }, [selected]);
   return <section className={styles.result} aria-label="查询结果">
+    {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
     <div className={styles.answer}>
       <p className={styles.scope}>{resultScopeText(result)}</p>
       <p className={styles.conclusion}>{primaryFinding?.text ?? summary[0]}</p>
@@ -74,6 +84,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
       <SourceOverview result={result} research={research} />
     </div>
     {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
+    {hasBuildings && requestId && scope && <HomeQueryBuildings result={result} requestId={requestId} scope={scope} onSource={showSources} />}
     {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} />}
     {!scalar && result.table.rows.length > 0 && <>
       <div className={styles.tableScroll} tabIndex={0} aria-label="查询结果表，可横向滚动">

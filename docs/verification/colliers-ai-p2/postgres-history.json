@@ -1,0 +1,59 @@
+{
+  "database": "PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "scenarios": [
+    {
+      "scenario": "T10: 历史索引回填原正式对话，不重查数据且不重复保存回答",
+      "status": "passed"
+    },
+    {
+      "scenario": "T10/T17: 修改当前数值后仍恢复原季度/原来源/原数据版本，不执行模型或业务查询",
+      "status": "passed"
+    },
+    {
+      "scenario": "重新执行只沿用原始绝对计划，原来相对时间和楼宇范围不再次解析",
+      "status": "passed"
+    },
+    {
+      "scenario": "原澄清回复和选项可恢复，查询未执行不能冒充已生成数字",
+      "status": "passed"
+    },
+    {
+      "scenario": "T11: 重命名加密、搜索仅本人、归档保留审计且可以恢复",
+      "status": "passed"
+    },
+    {
+      "scenario": "T12: 新会话必须显式打开获权历史，签名继续上下文仍复核原来源",
+      "status": "passed"
+    },
+    {
+      "scenario": "T11/T12: 其他有资格管理员不能列表、定位、打开或修改本人的记录",
+      "status": "passed"
+    },
+    {
+      "scenario": "T12/T18: 撤销来源、字段、会话或角色后不交付历史结果",
+      "status": "passed"
+    },
+    {
+      "scenario": "T15: 分页为15个对话、10轮摘要，游标绑定搜索/会话/权限且无重复记录",
+      "status": "passed"
+    },
+    {
+      "scenario": "长对话每次只恢复一轮，10轮摘要分页不会截断或重复",
+      "status": "passed"
+    },
+    {
+      "scenario": "T18: 新RPC仅服务端可执行，所有历史表RLS开启且服务角色不能直读",
+      "status": "passed"
+    },
+    {
+      "scenario": "索引批次失败回滚，不将部分保存宣称完整成功",
+      "status": "passed"
+    },
+    {
+      "scenario": "历史结构不可用时不虚报保存，也不阻断原快照恢复或按原计划重查",
+      "status": "passed"
+    }
+  ],
+  "production": false,
+  "realAuth": false
+}

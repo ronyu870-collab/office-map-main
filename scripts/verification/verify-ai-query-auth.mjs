@@ -23,6 +23,9 @@ import { verifyResearchAnalysis } from './ai-query-research-scenarios.mjs';
 import { verifyConversation } from './ai-query-conversation-scenarios.mjs';
 import { verifyQueryHomeDependencies } from './ai-query-home-dependencies.mjs';
 import { verifyMultiMetricAnalysis } from './ai-query-multi-metric-scenarios.mjs';
+import { verifyP2Outputs } from './ai-query-p2-output-scenarios.mjs';
+import { setupP2Buildings, verifyP2Buildings } from './ai-query-p2-building-scenarios.mjs';
+import { verifyP2History } from './ai-query-p2-history-scenarios.mjs';
 import { verifyCrossTrend } from './ai-query-cross-trend-scenarios.mjs';
 import { queryPerformanceSuite } from './query-performance-suite.mjs';
 import { queryPerformanceRevision } from '../performance/query-conversation-probe.mjs';
@@ -113,6 +116,10 @@ try{
   await db.query(await load('20261113145743_ai_query_group_dimensions.sql'));
   if (!(await db.query("select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='ai_query_available_periods'")).rowCount) {
     await db.query(await load('20261115103701_ai_query_available_periods.sql'));
+  }
+  await setupP2Buildings(db, load);
+  if (!(await db.query("select to_regclass('private.ai_query_history_threads') r")).rows[0].r) {
+    await db.query(await load('20261115173338_ai_query_own_history.sql'));
   }
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
@@ -576,7 +583,10 @@ try{
   await verifyResearchAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
   await verifyMultiMetricAnalysis({db,check,queryAdmin,call,recover,artifact,exportCaps});
   await verifyCrossTrend({db,check,queryAdmin,person,call,recover,artifact,acknowledge,exportCaps,load});
+  await verifyP2Outputs({db,app,check,queryAdmin,person,call,artifact,acknowledge,exportCaps,events,decrypt});
+  await verifyP2Buildings({db,app,check,person,call,recover,events,decrypt,exportCaps});
   await verifyConversation({db,check,person,call,recover,events,decrypt,exportCaps,fixture:companyFixture});
+  await verifyP2History({db,app,check,person,call,recover,artifact,events,decrypt,exportCaps});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     if (suite === 'regression') {
       performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
@@ -585,10 +595,15 @@ try{
         await verifyQueryConversationPerformance({db,person,app,beforeApp:performanceBaseline.app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin});
       });
       await performanceBaseline.close(); performanceBaseline = undefined;
-    } else {
+    } else if (suite === 'cross_trend') {
       const {verifyCrossTrendQueryPerformance} = await import('../performance/verify-query-cross-trend.mjs');
       await check('交叉趋势真实登录与生产构建：三指标、双维、各期/共同样本、两次切图及来源回执80样本', async () => {
         await verifyCrossTrendQueryPerformance({db,person,app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin});
+      });
+    } else {
+      const {verifyP2WorkspacePerformance} = await import('../performance/verify-query-p2-workspace.mjs');
+      await check('P2 真实登录与生产构建：原始历史、复制摘要与有界楼宇卡片，桌面/手机各20组交互', async () => {
+        await verifyP2WorkspacePerformance({db,person,app,output,exportCaps,semanticCalls:companyFixture.semanticCalls,dataApiOrigin:apiUrl.origin,call});
       });
     }
   }

@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import { QueryClientError } from './queryClientErrors';
+import type { BuildingSelection } from '@/src/lib/intelligence/query/buildingNavigation';
+import { buildingContextSchema, type BuildingContext } from '@/src/lib/intelligence/query/buildingCards';
+import { parseArtifactFilename } from '@/src/lib/intelligence/query/artifactFilename';
 import type { DeliveryReceipt, DeliveryReport, DeliveryView } from '@/src/lib/intelligence/query/delivery';
 const receipts = new WeakMap<object, DeliveryReceipt>();
 const sha256 = async (bytes: Uint8Array) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes)))).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -33,14 +37,34 @@ import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/q
 import { queryActionSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
 const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional() });
-const replySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.literal('scope_limit').optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(),
+export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.enum(['scope_limit', 'history_reopen']).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional() });
+const replySchema = queryReplySchema;
 export type QueryReply = z.infer<typeof replySchema>;
 export type QueryAccess = z.infer<typeof capabilitiesSchema>;
 export type QueryClientScope = { actorId: string; effectiveId: string; sessionId: string; targetId: string | null };
+// Additional owned work surfaces reuse the same session-race, receipt and
+// transport guards rather than constructing a parallel authenticated client.
+export const receiveTrustedQueryValue = received;
+export const trustedQueryRequest = call;
 export const queryScopeKey = (scope: QueryClientScope) => JSON.stringify([scope.actorId, scope.effectiveId, scope.sessionId, scope.targetId]);
 
 async function call(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown, downloadResultId?: string): Promise<unknown> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const relay = () => controller.abort(signal.reason);
+  if (signal.aborted) relay(); else signal.addEventListener('abort', relay, { once: true });
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, path === '/capabilities' ? 15000 : path === '/receipt' ? 10000 : 90000);
+  try { return await callOnce(path, scope, controller.signal, body, downloadResultId); }
+  catch (error) {
+    if (signal.aborted) throw signal.reason;
+    if (timedOut) throw new QueryClientError('timeout', '等待查询响应超时。');
+    if (error instanceof TypeError) throw new QueryClientError('network', '网络连接中断。');
+    throw error;
+  } finally { clearTimeout(timer); signal.removeEventListener('abort', relay); }
+}
+
+async function callOnce(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown, downloadResultId?: string): Promise<unknown> {
   const [{ getSessionFast }, { withImpersonationHeaders, getImpersonationTargetUserId }] = await Promise.all([
     import('@/src/services/Auth'), import('@/src/services/impersonationHeaders'),
   ]);
@@ -50,7 +74,7 @@ async function call(path: string, scope: QueryClientScope, signal: AbortSignal, 
   // This is a client race guard, not authorization. The server independently
   // verifies the token, simulation, current DB session and grants every time.
     if (!session || session.session.user.id !== scope.actorId || session.user.id !== scope.effectiveId
-      || session.sessionId !== scope.sessionId || getImpersonationTargetUserId() !== scope.targetId) throw new Error('查询身份已变化，请重新进入主页。');
+      || session.sessionId !== scope.sessionId || getImpersonationTargetUserId() !== scope.targetId) throw new QueryClientError('identity', '查询身份已变化，请重新进入主页。');
     return session;
   };
   const session = await currentSession();
@@ -59,7 +83,7 @@ async function call(path: string, scope: QueryClientScope, signal: AbortSignal, 
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (downloadResultId && response.ok && !response.headers.get('content-type')?.includes('application/json')) {
-    const filename = response.headers.get('content-disposition')?.match(/^attachment; filename="([a-zA-Z0-9._-]+)"$/)?.[1];
+    const filename = parseArtifactFilename(response.headers.get('content-disposition'));
     const mime = response.headers.get('content-type') ?? '';
     if (response.headers.get('x-query-result-id') !== downloadResultId || !filename
       || !['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mime)) throw new Error('下载结果与当前查询不一致。');
@@ -72,7 +96,10 @@ async function call(path: string, scope: QueryClientScope, signal: AbortSignal, 
     await bindReceipt(file, response, new Uint8Array(bytes)); await currentSession();
     return file;
   }
-  if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('查询服务未返回可识别的结果。');
+  if (!response.headers.get('content-type')?.includes('application/json')) {
+    if (response.status === 401 || response.status === 403) throw new QueryClientError('identity', '查询身份已变化，请重新进入主页。');
+    throw new QueryClientError('service', '查询服务未返回可识别的结果。');
+  }
   if (path === '/capabilities' && !response.ok && response.status !== 403) throw new Error('暂时无法核对查询资格。');
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > 64 * 1024 * 1024) throw new Error('查询响应过大。');
@@ -84,6 +111,23 @@ async function call(path: string, scope: QueryClientScope, signal: AbortSignal, 
   return value;
 }
 export const trustedQueryClient = {
+  buildings: async (scope: QueryClientScope, input: { requestId: string; resultId?: string; buildingId?: string; photoId?: string; offset?: number; limit?: number }, signal: AbortSignal): Promise<BuildingContext> => {
+    const raw = await call('/buildings', scope, signal, { ...input, action: 'buildings' });
+    const envelope = z.object({ status: z.string() }).safeParse(raw);
+    if (!envelope.success || envelope.data.status !== 'ready') throw new Error(envelope.success && envelope.data.status === 'denied'
+      ? '当前没有访问这些楼宇信息的权限，请重新核对查询资格。'
+      : '楼宇信息暂时不可用，请稍后重试；不能据此判断楼宇或照片不存在。');
+    const value = buildingContextSchema.parse(raw);
+    if (value.requestId !== input.requestId || input.resultId && value.resultId !== input.resultId
+      || input.buildingId && value.buildings.some(building => building.id !== input.buildingId)) throw new Error('楼宇信息与当前结果不一致。');
+    return received(scope, raw, value);
+  },
+  copy: async (scope: QueryClientScope, input: { requestId: string; resultId: string; action: 'copy'; format: 'conclusion' | 'figures' | 'summary' }, signal: AbortSignal): Promise<{ text: string; resultId: string; format: 'conclusion' | 'figures' | 'summary' }> => {
+    const raw = await call('/artifact', scope, signal, input);
+    const value = z.object({ status: z.literal('ready'), requestId: z.uuid(), resultId: z.uuid(), format: z.enum(['conclusion', 'figures', 'summary']), text: z.string().max(120000), resultDigest: z.string().regex(/^[0-9a-f]{64}$/) }).parse(raw);
+    if (value.requestId !== input.requestId || value.resultId !== input.resultId || value.format !== input.format) throw new Error('复制内容与当前结果不一致。');
+    return received(scope, raw, value);
+  },
   chart: async (scope: QueryClientScope, requestId: string, result: QueryResultView, chart: ChartRequest, signal: AbortSignal): Promise<ResultChart> => {
     const raw = await call('/artifact', scope, signal, { requestId, resultId: result.resultId, action: 'chart', chart });
     const value = z.object({ status: z.literal('ready'), chart: z.unknown() }).parse(raw);
@@ -96,7 +140,7 @@ export const trustedQueryClient = {
   download: async (scope: QueryClientScope, input: Extract<ArtifactInput, { action: 'export' }>, signal: AbortSignal): Promise<{ blob: Blob; filename: string }> =>
     received(scope, null, await call('/artifact', scope, signal, input, input.resultId) as { blob: Blob; filename: string }),
   capabilities: async (scope: QueryClientScope, signal: AbortSignal): Promise<QueryAccess> => capabilitiesSchema.parse(await call('/capabilities', scope, signal)),
-  submit: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation }, signal: AbortSignal): Promise<QueryReply> => {
+  submit: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation; buildingSelection?: BuildingSelection; replayRequestId?: string }, signal: AbortSignal): Promise<QueryReply> => {
     const raw = await call('', scope, signal, input), reply = replySchema.parse(raw);
     if (reply.conversation && (!input.conversation || reply.conversation.id !== input.conversation.id
       || reply.conversation.parentRequestId !== input.conversation.parentRequestId)) throw new Error('查询响应与当前对话不一致，请重试原请求。');

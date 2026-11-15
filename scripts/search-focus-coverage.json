@@ -354,6 +354,15 @@
     ]
   },
   {
+    "id": "home-query-history-focus",
+    "roots": ["src/components/home/HomeQueryHistory.tsx"],
+    "file": "src/components/home/__tests__/home-query-history.test.tsx",
+    "cases": [
+      "keeps history search focus and caret through pending results, Chinese composition and empty pages",
+      "keeps rename editable during IME and preserves the title when save fails"
+    ]
+  },
+  {
     "id": "proposal-alias-picker-focus",
     "roots": [
       "src/components/intelligence/ProposalBuildingPicker.tsx"

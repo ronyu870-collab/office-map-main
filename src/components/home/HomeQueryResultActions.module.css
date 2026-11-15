@@ -1,0 +1,21 @@
+.root { min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--cd-space-2); }
+.menu { min-width: 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); }
+.menu > summary { min-height: var(--cd-control-height-sm); display: flex; align-items: center; padding: 0 var(--cd-space-3); cursor: pointer; border-radius: var(--cd-radius-md); }
+.menu > summary:hover { background: var(--cd-color-surface-alt); color: var(--cd-color-text-primary); }
+.menu > summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.menuBody { display: flex; flex-wrap: wrap; gap: var(--cd-space-2); margin-top: var(--cd-space-2); }
+.message { margin: var(--cd-space-2) 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-xs); line-height: var(--cd-line-height-relaxed); overflow-wrap: anywhere; }
+.summary { margin-top: var(--cd-space-4); padding: var(--cd-space-4); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-lg); background: var(--cd-color-surface); }
+.summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.summaryHeading { display: flex; align-items: center; justify-content: space-between; gap: var(--cd-space-2); }
+.summary h3 { font-size: var(--cd-font-size-lg); font-weight: 600; margin: 0; }
+.summary pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: var(--cd-font-size-md); line-height: var(--cd-line-height-relaxed); tab-size: 4; margin: var(--cd-space-3) 0; }
+.fallback { padding: var(--cd-space-3) 0; }
+.fallback label { display: block; font-size: var(--cd-font-size-sm); margin-bottom: var(--cd-space-2); }
+.fallback textarea { display: block; resize: vertical; width: 100%; min-height: 120px; padding: var(--cd-space-3); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-md); font: inherit; font-size: var(--cd-font-size-md); }
+.fallback textarea:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+@media (max-width: 639px), (pointer: coarse) {
+  .root button, .menu > summary, .toolbar > details > summary { min-height: 44px; min-width: 44px; }
+  .summary { padding: var(--cd-space-3); }
+}

@@ -1,0 +1,27 @@
+{
+  "stage": "local_pre_commit_checkpoint",
+  "base": "403cb9b868e9cfa6002d0789427f28726c2dab50",
+  "branch": "codex/colliers-ai-p2-20261116",
+  "command": "npm run verify",
+  "passed": false,
+  "auditCoverage": "passed",
+  "typecheck": "passed",
+  "eslint": { "errors": 0, "warnings": 853 },
+  "vitest": { "filesPassed": 267, "testsPassed": 1969, "failures": 0 },
+  "productionCompilation": "passed",
+  "pageDataCollection": {
+    "status": "environment_blocked",
+    "route": "/api/oss",
+    "code": "ERR_SYSTEM_ERROR",
+    "syscall": "uv_interface_addresses",
+    "dependencyPath": "ali-oss -> address -> os.networkInterfaces",
+    "sameEnvironmentDirectProbe": "os.networkInterfaces fails with the same system restriction"
+  },
+  "postgres": "See postgres-history.json: actual PostgreSQL 17.6 and PostgREST, not real GoTrue sign-in",
+  "performanceCollectorSummaryCalibration": "passed; actual browser calibration and authenticated samples remain mandatory in CI",
+  "manualVisualReview": "waived_by_user_not_executed",
+  "manualBrowserVisualReview": "waived_by_user_not_executed",
+  "physicalPhoneReview": "waived_by_user_not_executed",
+  "productionDatabaseMigrationApplied": false,
+  "releaseGate": "Exact PR head must pass every Verify job, Visual acceptance evidence and native production builds. This local checkpoint is not a merge approval or production release claim."
+}

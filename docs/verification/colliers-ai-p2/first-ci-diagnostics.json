@@ -1,0 +1,117 @@
+{
+  "schema": "colliers-ai-p2-first-ci-diagnostics/1",
+  "pullRequest": "https://github.com/ronyu870-collab/office-map-main/pull/203",
+  "headSha": "00dd186faee34dd01b0438d5536b6e944d6c4f3e",
+  "testedMergeSha": "77678cc812d3e3e5eea4ec737c6965e5d5051a41",
+  "workflowRunId": 43744905196,
+  "workflowRunUrl": "https://github.com/ronyu870-collab/office-map-main/actions/runs/43744905196",
+  "production": false,
+  "productionBuild": true,
+  "realPhone": false,
+  "manualVisualReview": false,
+  "p2Workspace": {
+    "jobId": 132906069162,
+    "jobConclusion": "failure",
+    "failureCode": "P2_WORKSPACE_BUDGET_FAILURE",
+    "reportVersion": "query-p2-workspace-performance/1",
+    "artifactId": 14174297287,
+    "artifactName": "ai-query-p2-workspace-auth",
+    "artifactZipSha256": "bfc78fb8127ab25c43abe88af61eed8fe064ecd1d279834c7925d8df0ccdfceb",
+    "reportName": "p2-workspace-performance.json",
+    "complete": true,
+    "functionalPassed": true,
+    "budgetsMet": false,
+    "sampleCount": 360,
+    "samplesPerCondition": 20,
+    "failedFunctionalSamples": 0,
+    "missingSamples": 0,
+    "modelCalls": 0,
+    "browser": "145.0.7632.6",
+    "failedBudgetConditions": [
+      {
+        "profile": "desktop",
+        "scenario": "history_list",
+        "observed": 20,
+        "feedbackP50Ms": 339.6,
+        "feedbackP90Ms": 341.8,
+        "feedbackBudgetP90Ms": 100,
+        "contentUsableP50Ms": 482.4,
+        "contentUsableP90Ms": 501.2,
+        "contentUsableBudgetP90Ms": 2500
+      },
+      {
+        "profile": "mobile",
+        "scenario": "history_list",
+        "observed": 20,
+        "feedbackP50Ms": 348.0,
+        "feedbackP90Ms": 353.9,
+        "feedbackBudgetP90Ms": 100,
+        "contentUsableP50Ms": 561.6,
+        "contentUsableP90Ms": 570.2,
+        "contentUsableBudgetP90Ms": 3500
+      }
+    ],
+    "feedbackDiagnosis": {
+      "classification": "collector_omitted_actual_dynamic_module_feedback",
+      "evidence": "The application already renders an accessible status while the history module loads. Version 1 only searched inside the history aside, which mounts later, so the existing module-loading feedback was not measured.",
+      "affectedSource": "scripts/performance/verify-query-p2-workspace.mjs",
+      "applicationSource": "src/components/home/HomeQuery.tsx",
+      "acceptance": "First-run feedback measurements remain failed evidence. Corrected measurements require a new complete run; no durations are retrospectively replaced."
+    },
+    "readinessCounterexample": {
+      "profile": "mobile",
+      "scenario": "buildings_next_page",
+      "round": 1,
+      "recordedFeedbackMs": 54.4,
+      "recordedContentUsableMs": 54.5,
+      "actualBuildingsRequestStartMs": 13.4,
+      "actualBuildingsResponseStartMs": 159.9,
+      "actualBuildingsResponseEndMs": 169.8,
+      "recordedBrowserValidationAndRenderMs": -115.3,
+      "classification": "transient_new_rows_with_previous_page_directory_context",
+      "evidence": "The new archived row names could render before the page-specific directory response. Version 1 checked names and links but did not require confirmed directory metadata, so its readiness endpoint could precede the actual response.",
+      "acceptance": "This early latency is not valid product performance evidence. The backend response, original facts and final rendered cards were separately verified; those functional checks do not validate this premature paint timestamp."
+    },
+    "correctionsPendingFreshCi": [
+      "Recognize actual accessible dynamic history loading feedback before the aside mounts.",
+      "Require completed actual business responses together with correct enabled DOM content for remote operations.",
+      "Require the fixture's verified current directory metadata on every visible card before declaring a building page usable.",
+      "Reject negative response-to-render intervals in both the collector execution and summary completeness checks.",
+      "Bind displayed building directory context to the current request ID, result ID and page offset; show loading until those bindings match.",
+      "Add calibration reproductions for the omitted loader and transient new card identities with unconfirmed directory metadata."
+    ],
+    "unchangedAcceptance": {
+      "samples": 360,
+      "samplesPerCondition": 20,
+      "desktopProfile": { "width": 1280, "height": 900, "latencyMs": 60, "downloadMbps": 30, "uploadMbps": 10, "cpuRate": 1 },
+      "mobileProfile": { "width": 390, "height": 844, "latencyMs": 150, "downloadMbps": 10, "uploadMbps": 5, "cpuRate": 4 },
+      "feedbackP90Ms": 100,
+      "desktopContentUsableP90Ms": 2500,
+      "mobileContentUsableP90Ms": 3500,
+      "loadedSummaryReopenP90Ms": 500
+    }
+  },
+  "crossTrend": {
+    "jobId": 132906068790,
+    "jobConclusion": "success",
+    "artifactId": 14174895146,
+    "artifactName": "ai-query-cross-trend-auth",
+    "artifactZipSha256": "353a24e08dc687ffd4b1ff556de4f712fe357225a02ac932918d7ea32153d18d",
+    "reportName": "cross-trend-performance.json",
+    "complete": true,
+    "functionalPassed": true,
+    "budgetsMet": true,
+    "sampleCount": 80,
+    "samplesPerCondition": 20,
+    "failedFunctionalSamples": 0,
+    "httpScenariosPassed": 145,
+    "modelCalls": 0,
+    "contentUsableP90Ms": {
+      "desktopPerPeriod": 1312.0,
+      "desktopPaired": 1296.1,
+      "mobilePerPeriod": 2088.1,
+      "mobilePaired": 1809.3
+    }
+  },
+  "scope": "Credential-free diagnostics from disposable synthetic data and automated browser measurements. The new P2 paths have no published before equivalent. This record preserves the first failed run and is not a final acceptance or production deployment claim."
+}

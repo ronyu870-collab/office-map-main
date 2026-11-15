@@ -8,6 +8,7 @@ import { distributionStatLabels } from '@/src/lib/intelligence/query/distributio
 import { formatExact, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { metricLabels, resultMetrics, resultMetricColumns, type ResultMetric } from '@/src/lib/intelligence/query/multiMetricView';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
+import { HomeQueryResultActions } from './HomeQueryResultActions';
 import styles from './HomeQuery.module.css';
 
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean;
@@ -85,6 +86,13 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const span = max - min || 1;
   const position = (value: number) => (value - min) / span * 100;
   return <div className={styles.artifacts}>
+    <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
+      {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
+        <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
+        {numeric.length > 0 && <Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button>}
+      </div></details>}
+    </HomeQueryResultActions>
     <div className={styles.actions}>
       {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
         const chosen = metrics.find(item => item === event.target.value);
@@ -97,11 +105,6 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
-      {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
-        <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
-        <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
-        {numeric.length > 0 && <Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button>}
-      </div></details>}
     </div>
     <p role="status" className={styles.notice}>{message}</p>
     {chart && <figure className={styles.chart} aria-label="同源查询图表">
