@@ -6,6 +6,22 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Experience P1 waiver is limited to PR #206, exact source/main/head and all three authorized manual checks', () => {
+  const scope = 'Colliers AI conversational experience 2.0 P1 continuous workspace, PR #206';
+  const reason = 'User explicitly waived independent visual review, manual browser visual review and physical-phone manual acceptance for conversational experience P1 on 2026-11-17; applies only to PR #206';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 206, body, head: { sha: head, ref: 'codex/colliers-ai-experience-p1-20261117',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  for (const number of [205, 207]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Please skip engineering CI') }), /specifically authorized/);
+});
+
 test('Experience P0 waiver is limited to PR #205, exact source/main/head and explicit user scope', () => {
   const scope = 'Colliers AI conversational experience 2.0 P0, PR #205';
   const reason = 'User explicitly waived independent visual review and browser review for conversational experience P0 on 2026-11-17; applies only to PR #205';

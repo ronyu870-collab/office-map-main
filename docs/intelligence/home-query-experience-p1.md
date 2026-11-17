@@ -2,7 +2,7 @@
 
 本批从远端 `main` 的 `4e16bbb43a4d28621366c65f8c15992ec1cd7a5c`（P0 [PR #205](https://github.com/ronyu870-collab/office-map-main/pull/205)）开始，开发分支为 `codex/colliers-ai-experience-p1-20261117`。本记录中的 P1 指对话体验第二批，与此前已合并的可信分析 P1、业务整合 P2 分开命名。
 
-当前记录为实现与阶段验证记录。PR 编号、最终 head、完整 CI、合并提交和 Vercel 生产部署须分别以平台证据补齐；本地代码存在、测试脚本存在或创建 PR 均不等于已发布。
+交付入口为 [PR #206](https://github.com/ronyu870-collab/office-map-main/pull/206)。最终 head 以该 PR 当前完整提交 SHA 及其对应检查为动态权威，不在本记录写入需要随自身提交变化的 SHA。完整 CI、合并提交和 Vercel 生产部署须分别核实；本地代码存在、测试脚本存在或创建 PR 均不等于已发布。
 
 ## 1. 范围、授权与保留项
 
@@ -125,7 +125,7 @@ Compact 保留结论、核心指标、样本与口径说明、限制、来源入
 
 ## 8. 人工豁免、平台状态与回退
 
-本次人工视觉、人工浏览器视觉和真实手机验收均为 **用户单次豁免／未执行**。自动浏览器覆盖不冒称人工视觉或真机验收。具体 PR 创建后，须按既有机制在规范决策及 Visual acceptance evidence 中绑定仓库、PR 编号、分支、完整 head、范围和授权原因；不改长期保护规则，不把这次豁免扩散到其他 PR。
+本次人工视觉、人工浏览器视觉和真实手机验收均为 **用户单次豁免／未执行**。自动浏览器覆盖不冒称人工视觉或真机验收。本次已按既有机制为 [PR #206](https://github.com/ronyu870-collab/office-map-main/pull/206) 登记单次豁免，范围与授权见 [06 规范决策记录](../standards/06_规范维护与决策记录.md)。登记只绑定本仓库、此 PR 及 `codex/colliers-ai-experience-p1-20261117` → `main`；PR 的 Visual acceptance 记录必须随当前完整 head 更新，检查仍须实际通过。登记豁免不代表 CI 已通过，不改长期保护规则，也不扩散到其他 PR。
 
 | 证据 | 当前登记 |
 | --- | --- |
@@ -133,7 +133,7 @@ Compact 保留结论、核心指标、样本与口径说明、限制、来源入
 | 开发分支 | `codex/colliers-ai-experience-p1-20261117` |
 | 本地最终 verify | 审计／类型／Lint／271 文件 2,052 测试通过；编译成功，页面收集受宿主限制，整体未通过 |
 | 首页包体积与过渡性能 | 同条件编译清单增加 4,189 gzip 字节；120 样本及真实浏览器结果待 CI |
-| PR／最终 head | 待创建并核实 |
+| PR／最终 head | [PR #206](https://github.com/ronyu870-collab/office-map-main/pull/206) 已创建；最终 head 以该 PR 当前完整 SHA 与对应检查为准 |
 | 精确 head Verify／Visual acceptance evidence | 待平台核实，均须通过 |
 | `main` 合并提交 | 待合并并回读 |
 | Vercel 生产部署 | 待核实对应合并 SHA 的 Ready 与生产环境；不以预览代替 |
