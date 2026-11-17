@@ -11,9 +11,9 @@ import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResultActions } from './HomeQueryResultActions';
 import styles from './HomeQuery.module.css';
 
-type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean;
+type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; visible?: boolean;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
-export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource }: Props) {
+export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true }: Props) {
   const numeric = React.useMemo(() => result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text')), [result]);
   const [field, setField] = React.useState(numeric[0]?.key ?? '');
   const metrics = React.useMemo(() => resultMetrics(result), [result]);
@@ -26,7 +26,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [message, setMessage] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(0);
-  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null);
+  useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null, visible);
   const active = React.useRef<AbortController | null>(null);
   const completedRequest = React.useRef<string | null>(null);
   React.useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
@@ -74,13 +74,13 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
     && (multipleMetrics ? result.table.rows.length > 0 : result.table.rows.some(row => row.cells[selectedField]?.kind === 'number'));
   React.useEffect(() => {
     let disposed = false;
-    if (canAuto) queueMicrotask(() => {
+    if (canAuto && visible) queueMicrotask(() => {
       if (disposed || started.current === automaticKey) return;
       started.current = automaticKey;
       void run(request);
     });
     return () => { disposed = true; };
-  }, [automaticKey, canAuto, request, run]);
+  }, [automaticKey, canAuto, request, run, visible]);
   const shown = chart?.points.slice(page * 25, (page + 1) * 25) ?? [];
   const [min, max] = chart ? chartBounds(chart, 'y') : [0, 0];
   const span = max - min || 1;

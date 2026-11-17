@@ -1,0 +1,239 @@
+'use client';
+
+import * as React from 'react';
+
+type ReadingPosition = { top: number; key?: string; offset?: number };
+type Transition = { from: DOMRect; reading: ReadingPosition; expanded: boolean; ticket: number };
+const DURATION = 340;
+
+function readPosition(node: HTMLDivElement | null): ReadingPosition {
+  if (!node) return { top: 0 };
+  const top = node.getBoundingClientRect().top;
+  const message = Array.from(node.querySelectorAll<HTMLElement>('[data-query-turn]'))
+    .find(item => item.getBoundingClientRect().bottom > top + 1);
+  return { top: node.scrollTop, key: message?.dataset.queryTurn,
+    offset: message ? message.getBoundingClientRect().top - top : undefined };
+}
+
+function restorePosition(node: HTMLDivElement | null, position: ReadingPosition) {
+  if (!node) return;
+  const message = position.key && Array.from(node.querySelectorAll<HTMLElement>('[data-query-turn]'))
+    .find(item => item.dataset.queryTurn === position.key);
+  node.scrollTop = message && position.offset !== undefined
+    ? node.scrollTop + message.getBoundingClientRect().top - node.getBoundingClientRect().top - position.offset
+    : position.top;
+}
+
+function visibleControls(surface: HTMLElement): HTMLElement[] {
+  return Array.from(surface.querySelectorAll<HTMLElement>(
+    'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
+  )).filter(node => !node.closest('[hidden], [inert], details:not([open]) > :not(summary)')
+    && getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility !== 'hidden');
+}
+
+/** A single DOM/React tree changes its bounds. No portal, router, query or session
+ * key participates in a mode switch. The placeholder preserves the homepage. */
+export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
+  const anchor = React.useRef<HTMLDivElement>(null);
+  const surface = React.useRef<HTMLDivElement>(null);
+  const scroller = React.useRef<HTMLDivElement>(null);
+  const toggle = React.useRef<HTMLButtonElement>(null);
+  const [expanded, setExpanded] = React.useState(false);
+  const [floating, setFloating] = React.useState(false);
+  const [transitioning, setTransitioning] = React.useState(false);
+  const animation = React.useRef<Animation | null>(null);
+  const pending = React.useRef<Transition | null>(null);
+  const ticket = React.useRef(0);
+  const expandedRef = React.useRef(false);
+  const floatingRef = React.useRef(false);
+  const reading = React.useRef<ReadingPosition | null>(null);
+  const surfaceComposition = React.useRef<HTMLElement | null>(null);
+  const clearComposition = React.useCallback(() => { surfaceComposition.current = null; }, []);
+
+  React.useEffect(() => {
+    const node = surface.current;
+    const start = (event: CompositionEvent) => { surfaceComposition.current = event.target instanceof HTMLElement ? event.target : null; };
+    const end = () => { surfaceComposition.current = null; };
+    const blur = (event: FocusEvent) => { if (surfaceComposition.current === event.target) surfaceComposition.current = null; };
+    node?.addEventListener('compositionstart', start);
+    node?.addEventListener('compositionend', end);
+    node?.addEventListener('focusout', blur);
+    return () => {
+      node?.removeEventListener('compositionstart', start);
+      node?.removeEventListener('compositionend', end);
+      node?.removeEventListener('focusout', blur);
+    };
+  }, []);
+
+  const syncViewport = React.useCallback(() => {
+    const node = surface.current;
+    if (!node) return;
+    const viewport = window.visualViewport;
+    node.style.setProperty('--query-viewport-top', `${viewport?.offsetTop ?? 0}px`);
+    node.style.setProperty('--query-viewport-left', `${viewport?.offsetLeft ?? 0}px`);
+    node.style.setProperty('--query-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
+    node.style.setProperty('--query-viewport-width', `${viewport?.width ?? (document.documentElement.clientWidth || window.innerWidth)}px`);
+    node.dataset.viewportCompact = String((viewport?.height ?? window.innerHeight) < 500);
+  }, []);
+
+  const change = React.useCallback((next: boolean) => {
+    const node = surface.current, placeholder = anchor.current;
+    if (!node || !placeholder || expandedRef.current === next) return;
+    const from = node.getBoundingClientRect();
+    const position = readPosition(scroller.current);
+    ticket.current++;
+    animation.current?.cancel(); animation.current = null;
+    if (!floatingRef.current) placeholder.style.height = `${from.height}px`;
+    const origin = placeholder.getBoundingClientRect();
+    node.style.setProperty('--query-compact-top', `${origin.top}px`);
+    node.style.setProperty('--query-compact-left', `${origin.left}px`);
+    node.style.setProperty('--query-compact-width', `${origin.width || from.width}px`);
+    syncViewport();
+    pending.current = { from, reading: position, expanded: next, ticket: ticket.current };
+    reading.current = position;
+    expandedRef.current = next; floatingRef.current = true;
+    setFloating(true); setTransitioning(true); setExpanded(next);
+  }, [syncViewport]);
+  const expand = React.useCallback(() => change(true), [change]);
+  const collapse = React.useCallback(() => change(false), [change]);
+
+  React.useLayoutEffect(() => {
+    const transition = pending.current, node = surface.current;
+    if (!transition || !node) return;
+    pending.current = null;
+    const destination = node.getBoundingClientRect();
+    restorePosition(scroller.current, transition.reading);
+    if (!expanded && anchor.current) anchor.current.style.height = `${destination.height}px`;
+    const finish = () => {
+      if (transition.ticket !== ticket.current) return;
+      animation.current = null; restorePosition(scroller.current, transition.reading); reading.current = null;
+      setTransitioning(false);
+      if (!transition.expanded) {
+        floatingRef.current = false;
+        setFloating(false);
+        if (anchor.current) anchor.current.style.height = '';
+        // An IME owns focus until composition has finished.
+        if (!composingRef.current && !surfaceComposition.current?.isConnected) toggle.current?.focus({ preventScroll: true });
+      } else if (!node.contains(document.activeElement)) toggle.current?.focus({ preventScroll: true });
+    };
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!node.animate || reduced || transition.from.width === 0) {
+      // No animation support/reduced motion still uses exactly the same tree.
+      finish();
+      return;
+    }
+    const bounds = (rect: DOMRect, radius: number) => ({ top: `${rect.top}px`, left: `${rect.left}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`, borderRadius: `${radius}px` });
+    const motion = node.animate([
+      bounds(transition.from, transition.expanded ? 12 : 0),
+      bounds(destination, transition.expanded ? 0 : 12),
+    ], { duration: DURATION, easing: 'cubic-bezier(.22, 1, .36, 1)' });
+    animation.current = motion;
+    void motion.finished.then(finish, () => { /* Reversal/unmount owns the next state. */ });
+  }, [expanded, composingRef]);
+
+  React.useEffect(() => {
+    if (!floating) return;
+    const viewport = window.visualViewport;
+    const resize = () => {
+      syncViewport();
+      // A keyboard/rotation resize cancels only the geometry animation.
+      // Its completion callback still releases the placeholder on collapse.
+      animation.current?.finish();
+    };
+    window.addEventListener('resize', resize);
+    viewport?.addEventListener('resize', resize);
+    viewport?.addEventListener('scroll', syncViewport);
+    return () => {
+      window.removeEventListener('resize', resize);
+      viewport?.removeEventListener('resize', resize);
+      viewport?.removeEventListener('scroll', syncViewport);
+    };
+  }, [floating, syncViewport]);
+
+  React.useLayoutEffect(() => {
+    if (!floating || !surface.current) return;
+    const node = surface.current;
+    const outside: Array<{ node: HTMLElement; inert: boolean }> = [];
+    const scrollContainers: Array<{ node: HTMLElement; overflow: string }> = [];
+    // Inert only siblings of our ancestor path, never an ancestor of the editor.
+    let branch: HTMLElement = node;
+    while (branch.parentElement) {
+      const parent = branch.parentElement;
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling !== branch && sibling instanceof HTMLElement) {
+          outside.push({ node: sibling, inert: sibling.inert }); sibling.inert = true;
+        }
+      }
+      if (/(auto|scroll)/.test(getComputedStyle(parent).overflowY) || parent === document.body) {
+        scrollContainers.push({ node: parent, overflow: parent.style.overflow }); parent.style.setProperty('overflow', 'hidden');
+      }
+      branch = parent;
+      if (parent === document.body) break;
+    }
+    const keydown = (event: KeyboardEvent) => {
+      const activeComposition = surfaceComposition.current;
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || composingRef.current
+        || (activeComposition?.isConnected && node.contains(activeComposition))) return;
+      if (event.key === 'Escape') { event.preventDefault(); collapse(); return; }
+      if (event.key !== 'Tab') return;
+      const controls = visibleControls(node), first = controls[0], last = controls.at(-1);
+      if (!first || !last) { event.preventDefault(); node.focus({ preventScroll: true }); return; }
+      if (event.shiftKey && (document.activeElement === first || !node.contains(document.activeElement))) {
+        event.preventDefault(); last.focus({ preventScroll: true });
+      } else if (!event.shiftKey && (document.activeElement === last || !node.contains(document.activeElement))) {
+        event.preventDefault(); first.focus({ preventScroll: true });
+      }
+    };
+    const focusin = (event: FocusEvent) => {
+      if (event.target instanceof Node && !node.contains(event.target)) toggle.current?.focus({ preventScroll: true });
+    };
+    document.addEventListener('keydown', keydown); document.addEventListener('focusin', focusin);
+    return () => {
+      document.removeEventListener('keydown', keydown); document.removeEventListener('focusin', focusin);
+      outside.forEach(item => { item.node.inert = item.inert; });
+      scrollContainers.forEach(item => { item.node.style.overflow = item.overflow; });
+    };
+  }, [floating, collapse, composingRef]);
+
+  React.useEffect(() => () => { ticket.current++; animation.current?.cancel(); }, []);
+  const preserveReading = React.useCallback(() => {
+    if (reading.current) restorePosition(scroller.current, reading.current);
+  }, []);
+  return { anchor, surface, scroller, toggle, expanded, floating, transitioning, expand, collapse, preserveReading, clearComposition };
+}
+
+/** Follow results only while the reader is at the end. Layout-only changes do
+ * not manufacture new messages or move a reader who is reviewing older turns. */
+export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | null>, update: unknown, transitioning: boolean) {
+  const following = React.useRef(true);
+  const [unseen, setUnseen] = React.useState(false);
+  const deferredUpdate = React.useRef(false);
+  const transitionRef = React.useRef(transitioning);
+  React.useLayoutEffect(() => { transitionRef.current = transitioning; }, [transitioning]);
+  const toLatest = React.useCallback(() => {
+    following.current = true; setUnseen(false);
+    const node = scrollerRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [scrollerRef]);
+  const onScroll = React.useCallback(() => {
+    if (transitionRef.current) return;
+    const node = scrollerRef.current;
+    if (!node) return;
+    following.current = node.scrollHeight - node.clientHeight - node.scrollTop < 72;
+    if (following.current) setUnseen(false);
+  }, [scrollerRef]);
+  React.useLayoutEffect(() => {
+    if (transitionRef.current) { deferredUpdate.current = true; return; }
+    if (following.current) toLatest();
+    else setUnseen(true);
+  }, [update, toLatest]);
+  React.useLayoutEffect(() => {
+    if (transitioning || !deferredUpdate.current) return;
+    deferredUpdate.current = false;
+    if (following.current) toLatest();
+    else setUnseen(true);
+  }, [transitioning, toLatest]);
+  const followNext = React.useCallback(() => { following.current = true; setUnseen(false); }, []);
+  return { onScroll, toLatest, followNext, unseen };
+}

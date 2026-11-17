@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "baseline": "4e16bbb43a4d28621366c65f8c15992ec1cd7a5c",
+  "branch": "codex/colliers-ai-experience-p1-20261117",
+  "environment": {
+    "node": "24.22.1",
+    "next": "16.2.12",
+    "vitest": "4.1.6"
+  },
+  "command": "npm run verify",
+  "auditCoverage": "passed",
+  "typecheck": "passed",
+  "eslint": {
+    "errors": 0,
+    "warnings": 854
+  },
+  "tests": {
+    "files": 271,
+    "passed": 2060,
+    "failed": 0
+  },
+  "workspaceTargeted": {
+    "passed": 26,
+    "failed": 0
+  },
+  "build": {
+    "compilation": "passed",
+    "pageCollection": "blocked",
+    "error": "uv_interface_addresses host system call denied during ali-oss initialization",
+    "route": "/api/oss",
+    "sameFailureInUnmodifiedBaseline": true
+  },
+  "overallVerify": "not passed; native exact-head CI build required",
+  "manualReviews": {
+    "independentVisual": "waived; not executed",
+    "browserVisual": "waived; not executed",
+    "physicalPhone": "waived; not executed"
+  },
+  "resultHistoryTargeted": {
+    "files": 2,
+    "passed": 22,
+    "failed": 0
+  }
+}

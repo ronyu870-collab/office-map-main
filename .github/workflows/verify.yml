@@ -510,7 +510,61 @@ jobs:
           node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
           PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
           PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-p2-workspace-calibration.mjs
-          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=p2_workspace AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-p2-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
+          node scripts/performance/verify-query-experience-p1-workspace.mjs --self-test
+          # The existing runner writes this restricted file ONLY after all real
+          # Auth/HTTP/P2 checks finish successfully, and holds its actual Next
+          # production process open. No duplicate server or fabricated session.
+          experience_preview="/tmp/colliers-query-preview-experience-p1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          experience_runner_pid=''
+          signal_experience_runner() {
+            kill -TERM "$experience_runner_pid" 2>/dev/null || true
+            if ! timeout 45s tail --pid="$experience_runner_pid" -f /dev/null; then
+              echo 'The original P2 runner did not finish its cleanup within 45 seconds.' >&2
+              kill -KILL "$experience_runner_pid" 2>/dev/null || true
+            fi
+          }
+          cleanup_experience() {
+            if [ -n "$experience_runner_pid" ]; then
+              signal_experience_runner
+              wait "$experience_runner_pid" 2>/dev/null || true
+            fi
+            rm -f "$experience_preview"
+          }
+          trap cleanup_experience EXIT
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=p2_workspace AI_QUERY_AUTH_PREVIEW_FILE="$experience_preview" AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-p2-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs &
+          experience_runner_pid=$!
+          experience_started=$SECONDS
+          until [ -s "$experience_preview" ]; do
+            if ! kill -0 "$experience_runner_pid" 2>/dev/null; then
+              if wait "$experience_runner_pid"; then
+                echo 'The original P2 runner exited before its verified hold-open point.' >&2
+                exit 1
+              else
+                exit $?
+              fi
+            fi
+            if [ "$((SECONDS - experience_started))" -ge 2100 ]; then
+              echo 'The original P2 runner did not reach its verified hold-open point in time.' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          experience_status=0
+          if AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_PREVIEW_FILE="$experience_preview" AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-p2-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-experience-p1-workspace.mjs; then
+            :
+          else
+            experience_status=$?
+          fi
+          signal_experience_runner
+          experience_runner_status=0
+          if wait "$experience_runner_pid"; then
+            :
+          else
+            experience_runner_status=$?
+          fi
+          experience_runner_pid=''
+          if [ "$experience_runner_status" -ne 0 ]; then exit "$experience_runner_status"; fi
+          exit "$experience_status"
       - name: Stop only the disposable P2 Auth stack
         if: always()
         run: supabase stop --workdir "$RUNNER_TEMP/ai-query-p2-integration" --no-backup
@@ -522,6 +576,7 @@ jobs:
           path: |
             verification/ai-query-auth/results.json
             verification/ai-query-auth/p2-workspace-performance.json
+            verification/ai-query-auth/experience-p1-workspace.json
           if-no-files-found: ignore
           retention-days: 7
 

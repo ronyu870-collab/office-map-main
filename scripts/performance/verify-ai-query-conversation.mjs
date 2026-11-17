@@ -36,6 +36,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     modelCalls: null, realExternalModelCalls: false, modelPath: 'Bounded supported semantics; not a provider latency benchmark',
     baseline: beforeApp ? 'Released P1 and candidate use the same inherited four-turn questions and New Conversation action'
       : 'No baseline build provided; this run cannot establish A/B regression acceptance',
+    workspacePreparation: 'Candidate enters its actual Expanded workspace before query timing so full tables/charts remain the readiness target. The released baseline has no mode control and retains its original full-result UI. This layout precondition differs; no hidden compact summary counts as a usable result. Mode-transition cost is independently measured by Experience P1.',
     cacheDefinition: { new_context_first_dialogue: 'A new browser context; real login and homepage are ready before measurement. First query of this page, then inherited continuation. Server and database are warm; not a cold server/DNS/TLS claim.',
       same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. Both variants start through the real New Conversation button. No reload or prefilled response.' },
     endpoints: { start: 'Actual send-button click captured in the browser', feedback: 'Loading/stop control or real result painted on a subsequent animation frame',
@@ -103,6 +104,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
             downloadThroughput: profile.downloadMbps * 1000000 / 8, uploadThroughput: profile.uploadMbps * 1000000 / 8 });
           await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
           await login(page, variant.app, owner, status => { loginHttpStatus = status; });
+          const workspaceMode = await prepareFullQueryWorkspace(page);
           let dependencyFailed = false;
           for (const cacheState of QUERY_PERFORMANCE_CACHE_STATES) {
             if (!dependencyFailed && cacheState === 'same_document_second_dialogue') {
@@ -114,6 +116,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
             }
             for (const step of QUERY_PERFORMANCE_STEPS) {
               const sample = { variant: variant.name, profile: profile.name, cache_state: cacheState, round: round + 1, step: step.id,
+                workspaceMode,
                 status: dependencyFailed ? 'dependency_failed' : 'running', phase: dependencyFailed ? 'dependency' : 'query', feedback_ms: null, result_painted_ms: null,
                 content_usable_ms: null, source_open_ms: null, source_reopen_ms: null, browser_validation_and_render_ms: null,
                 requests: [], networkRequests: [], networkFailures: [], receiptConfirmations: [],
@@ -159,7 +162,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
     report.complete = true; await checkpoint();
     assert.equal(report.functionalPassed, true, 'QUERY_PERFORMANCE_FUNCTIONAL_FAILURE');
     if (semanticCalls) assert.equal(report.modelCalls, 0, 'UNEXPECTED_MODEL_CALL_IN_BOUNDED_QUERY');
-    await verifyMultiMetricQueryPerformance({browser,db,owner,ids,app,output,dataApiOrigin,semanticCalls,login,measure,githubEvent});
+    await verifyMultiMetricQueryPerformance({browser,db,owner,ids,app,output,dataApiOrigin,semanticCalls,login,measure,githubEvent,prepareWorkspace:prepareFullQueryWorkspace});
     return { functionalPassed: report.functionalPassed, budgetsMet: report.budgetsMet, reportPath, summary: report.summary };
   } finally {
     await browser?.close(); await checkpoint();
@@ -184,6 +187,32 @@ export async function login(page, app, owner, recordHttpStatus) {
   if (!response.ok()) throw new Error('LOGIN_HTTP_FAILURE');
   await page.waitForURL(url => url.pathname === '/');
   await page.locator('#home-query:enabled').waitFor();
+}
+
+/** Prepare the real full-result surface before existing query timings. Old
+ * releases have no control and keep their original UI. This is a user action,
+ * never DOM/state injection, and does not weaken any result/receipt endpoint. */
+export async function prepareFullQueryWorkspace(page, { keepHistory = false } = {}) {
+  const expand = page.getByRole('button', { name: '展开 Colliers AI 工作空间', exact: true });
+  if (!await expand.count()) return 'legacy';
+  await expand.click();
+  await page.waitForFunction(() => {
+    const input = document.querySelector('#home-query'), surface = input?.closest('[data-mode]');
+    return input && !input.disabled && surface?.dataset.mode === 'expanded' && surface.dataset.transitioning === 'false';
+  });
+  if (!keepHistory) {
+    const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
+    if (await history.isVisible()) {
+      // Finish the initial directory read outside query timing; subsequent real
+      // reads/receipts retain their existing network attribution and assertions.
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('aside[aria-label="历史工作记录"]');
+        return panel && !panel.querySelector('[role="status"]')?.textContent.includes('正在读取');
+      });
+      await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+    }
+  }
+  return 'expanded';
 }
 
 export async function measure(page, variant, step, sample, allowedIds, dataApiOrigin, { validateResult, afterReady } = {}) {

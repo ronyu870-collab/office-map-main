@@ -15,15 +15,20 @@ import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
 import styles from './HomeQuery.module.css';
+import experienceStyles from './HomeQueryResultExperience.module.css';
 
 const HomeQueryBuildings = dynamic(() => import('./HomeQueryBuildings').then(module => module.HomeQueryBuildings), {
   loading: () => <p role="status">正在打开楼宇信息…</p>,
 });
 
-export function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false }: { result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean }) {
+export const HomeQueryResult = React.memo(function HomeQueryResult({ result, requestId, scope, delivery, internalExport = false, presentation = 'expanded', onExpand, visible = true }: {
+  result: QueryResultView; requestId?: string; scope?: QueryClientScope; delivery?: object; internalExport?: boolean;
+  presentation?: 'compact' | 'expanded'; onExpand?: () => void; visible?: boolean;
+}) {
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<{ ids: readonly string[]; label: string } | null>(null);
   const [sourcePage, setSourcePage] = React.useState(0);
+  const resultPanel = React.useRef<HTMLElement>(null);
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
   const summary = resultSummary(result);
@@ -38,12 +43,21 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     return parsed.data.findings.every(finding => finding.sourceIds.every(id => knownSources.has(id))) ? parsed.data : null;
   }, [result]);
   const primaryFinding = multipleMetrics ? undefined : research?.findings.find(finding => finding.kind === 'trend');
+  const [inlineExpanded, setInlineExpanded] = React.useState(false);
+  // Shape and information density determine the preview, never question length.
+  // Small tables, short trends and single metrics stay usable on the homepage.
+  const complex = result.table.rows.length > 8 || (research?.series.length ?? 0) > 4 || (research?.findings.length ?? 0) > 6;
+  const condensed = presentation === 'compact' && complex && !inlineExpanded;
+  const [detailsMounted, setDetailsMounted] = React.useState(!condensed);
+  // Once revealed, retain the exact child instances, including their chart
+  // request, pagination and selected metric when the workspace contracts.
+  if (!condensed && !detailsMounted) setDetailsMounted(true);
   const scalarColumn = result.operation === 'aggregate' && result.table.rows.length === 1 && result.table.columns.length === 1 ? result.table.columns[0] : null;
   const scalar = scalarColumn ? result.table.rows[0].cells[scalarColumn.key] : null;
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
-  useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) });
+  useQueryPresentationReceipt(scope, delivery, { surface: 'answer_table', page, pageSize: 25, sourceIds: sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => source.id) }, visible && (!condensed || !!scalar || !!selected));
   function showSources(ids: readonly string[], label: string, trigger: HTMLButtonElement) {
     returnFocus.current = trigger; setSelected({ ids: [...new Set(ids)], label }); setSourcePage(0);
   }
@@ -54,7 +68,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
     sourcePanel.current?.focus({ preventScroll: true });
     sourcePanel.current?.scrollIntoView?.({ block: 'nearest' });
   }, [selected]);
-  return <section className={styles.result} aria-label="查询结果">
+  return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation}>
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
     <div className={styles.answer}>
       <p className={styles.scope}>{resultScopeText(result)}</p>
@@ -83,9 +97,14 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
       {summary.slice(1, scalar ? 2 : undefined).map(line => <p key={line} className={styles.answerContext}>{line}</p>)}
       <SourceOverview result={result} research={research} />
     </div>
+    {condensed && <div className={experienceStyles.preview}>
+      <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
+      <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>
+    </div>}
+    {detailsMounted && <div hidden={condensed} className={experienceStyles.details}>
+    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} />}
     {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
     {hasBuildings && requestId && scope && <HomeQueryBuildings result={result} requestId={requestId} scope={scope} onSource={showSources} />}
-    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} />}
     {!scalar && result.table.rows.length > 0 && <>
       <div className={styles.tableScroll} tabIndex={0} aria-label="查询结果表，可横向滚动">
         <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>
@@ -106,6 +125,7 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
         </div>}
       </div>
     </>}
+    </div>}
     <div className={styles.limitations}>{result.limitations.map(line => <p key={line}>{line}</p>)}</div>
     <details className={styles.trace}>
       <summary>来源、口径与结果版本</summary>
@@ -125,7 +145,13 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
     </details>
     {selected && <section ref={sourcePanel} tabIndex={-1} className={styles.sources} aria-label="来源详情">
-      <div className={styles.sourceHeading}><h3>{selected.label}</h3><Button variant="ghost" onClick={() => { setSelected(null); returnFocus.current?.focus(); }}>关闭来源</Button></div>
+      <div className={styles.sourceHeading}><h3>{selected.label}</h3><Button variant="ghost" onClick={() => {
+        setSelected(null);
+        const previous = returnFocus.current;
+        const destination = previous?.isConnected && !previous.closest('[hidden]') ? previous
+          : resultPanel.current?.querySelector<HTMLButtonElement>('[data-result-expand]') ?? resultPanel.current;
+        destination?.focus({ preventScroll: true });
+      }}>关闭来源</Button></div>
       {!sources.length ? <p>该项没有关联的数据库来源。季度标签来自本次查询条件；指标值和参与样本请查看对应单元格的来源。</p> : <>
         {sources.slice(sourcePage * 10, (sourcePage + 1) * 10).map(source => <dl className={styles.source} key={source.id}>
           <dt>数据库位置</dt><dd>{source.table} / {source.recordId} / {source.field}</dd>
@@ -142,10 +168,10 @@ export function HomeQueryResult({ result, requestId, scope, delivery, internalEx
       </>}
     </section>}
   </section>;
-}
+});
 
 const analysisCoverageSchema = z.object({ coverage: z.object({ valid: z.number().int().nonnegative() }) });
-function SourceOverview({ result, research }: { result: QueryResultView; research: ResearchAnalysis | null }) {
+export function SourceOverview({ result, research }: { result: QueryResultView; research: ResearchAnalysis | null }) {
   const periods = ['period', 'start', 'end', 'base', 'current'].flatMap(key => {
     const parsed = quarterSchema.safeParse(result.parameters[key]);
     return parsed.success ? [`${parsed.data.year} Q${parsed.data.quarter}`] : [];

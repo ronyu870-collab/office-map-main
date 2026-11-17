@@ -79,4 +79,39 @@ describe('own history mounted input and bounded record lifecycle', () => {
     await userEvent.click(screen.getByRole('button', { name: '归档' }));
     await waitFor(() => expect(client.change).toHaveBeenCalledWith(scope, { action: 'archive', conversationId, archived: true }, expect.any(AbortSignal)));
   });
+  it('groups saved work by its recorded date and exposes the currently restored conversation', async () => {
+    const onNew = vi.fn(), onHome = vi.fn();
+    render(<HomeQueryHistory scope={scope} activeConversationId={conversationId} onOpen={() => {}} onNew={onNew} onHome={onHome} />);
+    const selected = await screen.findByRole('button', { name: '打开对话：CBD季度分析' });
+    expect(selected).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('region', { name: '2026年11月15日的对话' })).toContainElement(selected);
+    await userEvent.click(screen.getByRole('button', { name: '新对话' })); expect(onNew).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: '返回主页' })); expect(onHome).toHaveBeenCalledOnce();
+    expect(client.open).not.toHaveBeenCalled(); expect(client.change).not.toHaveBeenCalled();
+  });
+  it('does not interrupt an active query by restoring history, while search and returning home remain usable', async () => {
+    const onHome = vi.fn(), onNew = vi.fn(), onOpen = vi.fn();
+    const view = render(<HomeQueryHistory scope={scope} busy onOpen={onOpen} onNew={onNew} onHome={onHome} />);
+    const open = await screen.findByRole('button', { name: '打开对话：CBD季度分析' });
+    expect(open).toBeDisabled(); expect(screen.getByRole('button', { name: '新对话' })).toBeDisabled();
+    const input = screen.getByRole('searchbox'); const user = userEvent.setup();
+    await user.click(input); await user.type(input, 'C'); expect(input).toHaveFocus(); expect(input).toBeEnabled();
+    view.rerender(<HomeQueryHistory scope={scope} busy={false} onOpen={onOpen} onNew={onNew} onHome={onHome} />);
+    expect(screen.getByRole('searchbox')).toBe(input); expect(input).toHaveValue('C'); expect(input).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: '返回主页' })); expect(onHome).toHaveBeenCalledOnce();
+    expect(client.open).not.toHaveBeenCalled(); expect(onOpen).not.toHaveBeenCalled();
+  });
+  it('ignores a delayed historical open once the user has started another question', async () => {
+    const pending = deferred<HistoryOpened>(); client.open.mockReturnValue(pending.promise);
+    const onOpen = vi.fn();
+    const view = render(<HomeQueryHistory scope={scope} onOpen={onOpen} />);
+    await userEvent.click(await screen.findByRole('button', { name: '打开对话：CBD季度分析' }));
+    expect(client.open).toHaveBeenCalledOnce();
+    view.rerender(<HomeQueryHistory scope={scope} busy onOpen={onOpen} />);
+    view.rerender(<HomeQueryHistory scope={scope} busy={false} onOpen={onOpen} />);
+    pending.resolve(opened);
+    await waitFor(() => expect(screen.getByRole('button', { name: '打开对话：CBD季度分析' })).toBeEnabled());
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.queryByRole('region', { name: '对话中的提问' })).not.toBeInTheDocument();
+  });
 });

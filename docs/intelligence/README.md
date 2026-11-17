@@ -6,6 +6,8 @@
 
 | 责任 | 当前入口 |
 | --- | --- |
+| Conversational Experience 2.0 P1 双模式、全屏过渡、历史与研究工作空间 | [P1 体验交付记录](home-query-experience-p1.md) |
+| Conversational Experience 2.0 P0 个性欢迎、短对话与输入体验 | [P0 体验记录](home-query-experience-p0.md) |
 | P2 楼宇卡片、地图、成果操作、本人历史与恢复体验 | [P2 集成交付记录](home-query-p2.md) |
 | P1 继续实施：子市场×等级跨季度、多指标与共同样本 | [双维趋势交付记录](home-query-p1-cross-trends.md) |
 | P1 后续多指标、完整条件继承、字段实查及隔离验证缺口 | [P1 后续交付记录](home-query-p1-followup.md) |

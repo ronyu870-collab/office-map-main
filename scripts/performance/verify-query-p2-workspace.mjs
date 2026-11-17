@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
-import { login } from './verify-ai-query-conversation.mjs';
+import { login, prepareFullQueryWorkspace } from './verify-ai-query-conversation.mjs';
 import { nearestRank, QUERY_PERFORMANCE_PROFILES, queryPerformanceRevision } from './query-conversation-probe.mjs';
 
 const require = createRequire(import.meta.url);
@@ -355,6 +355,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
     fixture: { buildings: 12, quarterlyRecords: 12, quarters: ['2026Q3'], conversations: 16, formallySubmittedQueries: 27, longestConversationTurns: 12,
       visibleHistoryPageLimit: 15, visibleTurnLimit: 10, visibleBuildingLimit: 5, originalAreaWeightedRent: 155, changedSourceAfterSnapshot: true, missingCoordinates: 2, missingHeights: 2, realPhotos: 0 },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: P2_WORKSPACE_SAMPLES, scenarios: P2_WORKSPACE_SCENARIOS,
+    workspacePreparation: 'First history list and page navigation retain their original compact entry. Before opening snapshots the actual Expanded workspace is activated when available; mobile history is explicitly reopened between selections because the workspace returns focus to the answer. Setup is outside each original action timer, whose full content/receipt/numerical budgets are unchanged.',
     cacheDefinition: 'New browser context and real login for each round. First history open and first dynamic building-card module in that document are cold client paths; API/database/Next process are warm. Summary reopen uses the same already loaded result. No server cold-start or physical-device claim.',
     endpoints: { start: 'Actual trusted keyboard/touch click event', feedback: 'Visible actual module-loading/query progress or real content on a following animation frame; the dynamic history loader counts before its aside mounts',
       content: 'Completed actual response plus enabled history controls/original numeric result, complete summary, clipboard success, or five identity-bound cards with their verified current directory metadata painted on a following frame',
@@ -413,6 +414,13 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
         // the next measured condition, not a sample or a fabricated warm cache.
         await unmeasuredRequest({ page, profile, dataApiOrigin, locator: history.getByRole('button', { name: '上一页记录', exact: true }),
           endpoint: '/api/intelligence/query/history', action: 'list' });
+        await prepareFullQueryWorkspace(page, { keepHistory: true });
+        const showHistory = async () => {
+          if (!await history.isVisible()) {
+            await activate(page.getByRole('button', { name: '历史记录', exact: true }), profile);
+            await history.waitFor();
+          }
+        };
         await history.getByRole('button', { name: `打开对话：${question}`, exact: true }).waitFor();
         let selectedResult = fixture.turns.at(-1).result;
         await measure({ scenario: 'history_snapshot', locator: history.getByRole('button', { name: `打开对话：${question}`, exact: true }),
@@ -420,6 +428,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           run: (activateAction, network) => historyRequest(activateAction, network, 'open'),
           verify: async body => { assert.equal(body.opened.turns.length, 10, 'P2_HISTORY_TURN_MISMATCH'); assert.equal(body.opened.hasMore, true, 'P2_HISTORY_TURN_MISMATCH');
             validateOriginal(body.opened.selected.reply.result, selectedResult, ids); assert.match(await result.innerText(), /155/, 'P2_ORIGINAL_SNAPSHOT_CHANGED'); } });
+        await showHistory();
         await measure({ scenario: 'history_earlier_turns', locator: history.getByRole('button', { name: '查看更早提问', exact: true }),
           probe: { mode: 'history_turns', triggerText: '查看更早提问', expectedCount: 2, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'open'),
@@ -467,6 +476,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
             assert.equal(url.searchParams.get('aiRequest'), fixture.buildings.requestId, 'P2_BUILDING_SNAPSHOT_MISMATCH');
           }
         };
+        await showHistory();
         await measure({ scenario: 'buildings_snapshot', locator: history.getByRole('button', { name: `打开对话：${buildingsQuestion}`, exact: true }),
           probe: { mode: 'buildings_snapshot', triggerAria: `打开对话：${buildingsQuestion}`, expectedCount: 5,
             expectedNames: buildingRows.slice(0, 5).map(row => row.cells.name.value), expectedMetadata: { submarket: 'CBD', grade: 'A' }, requiredResponse: '/api/intelligence/query/buildings' },
