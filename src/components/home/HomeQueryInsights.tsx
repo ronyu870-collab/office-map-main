@@ -6,6 +6,7 @@ import { formatExact, units } from '@/src/lib/intelligence/query/presentation';
 import type { ResearchAnalysis, ResearchPeriod } from '@/src/lib/intelligence/query/researchAnalysisView';
 import { metricLabels } from '@/src/lib/intelligence/query/multiMetricView';
 import styles from './HomeQuery.module.css';
+import experienceStyles from './HomeQueryResultExperience.module.css';
 
 type SourceAction = (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void;
 const periodText = (period: ResearchPeriod['period']) => `${period.year} Q${period.quarter}`;
@@ -18,8 +19,8 @@ export function HomeQueryInsights({ research, primaryFindingId, onSource }: { re
   const findings = research.findings.filter(finding => finding.id !== primaryFindingId);
   const primary = research.findings.find(finding => finding.id === primaryFindingId);
   const metrics = [...new Set(research.series.map(series => series.metric))];
-  return <section className={styles.insights} aria-label="分析与样本核查">
-    {primary && <Button variant="ghost" onClick={event => onSource(primary.sourceIds, primary.title, event.currentTarget)}>查看结论依据</Button>}
+  return <section className={`${styles.insights} ${experienceStyles.insights}`} aria-label="分析与样本核查">
+    {primary && <Button variant="ghost" className={experienceStyles.findingAction} onClick={event => onSource(primary.sourceIds, primary.title, event.currentTarget)}>查看结论依据</Button>}
     {metrics.length > 1 ? <>
       {metrics.map(metric => <section key={metric} aria-label={`${metricLabels[metric]}分析`}>
         <FindingList findings={findings.filter(finding => finding.evidence.metric === metric)} onSource={onSource} />
@@ -65,9 +66,9 @@ function FindingList({ findings, onSource }: { findings: ResearchAnalysis['findi
   const important = [...findings.filter(finding => finding.kind !== 'method'), ...findings.filter(finding => finding.kind === 'method')];
   const visible = expanded ? important : important.slice(0, 5);
   return <>
-    {visible.map(finding => <section key={finding.id} className={styles.finding}>
+    {visible.map(finding => <section key={finding.id} className={`${styles.finding} ${experienceStyles.finding}`}>
       <h3>{finding.title}</h3><p>{finding.text}</p>
-      {finding.sourceIds.length > 0 && <Button variant="ghost" onClick={event => onSource(finding.sourceIds, finding.title, event.currentTarget)}>查看依据：{finding.title}</Button>}
+      {finding.sourceIds.length > 0 && <Button variant="ghost" className={experienceStyles.findingAction} aria-label={`查看依据：${finding.title}`} onClick={event => onSource(finding.sourceIds, finding.title, event.currentTarget)}>查看依据</Button>}
     </section>)}
     {important.length > 5 && <Button variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? '收起其他分析' : `查看其余 ${important.length - 5} 项分析`}</Button>}
   </>;

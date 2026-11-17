@@ -1,10 +1,52 @@
-.result { overflow-wrap:anywhere; }
-.preview { display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; padding-block:16px; }
-.preview p { margin:0; color:var(--cd-color-text-secondary); font-size:var(--cd-font-size-sm); line-height:1.7; max-width:72ch; }
-.preview button { min-height:44px; height:auto; white-space:normal; text-align:left; }
-.details { min-width:0; }
-.details[hidden] { display:none; }
-.result[data-presentation="expanded"] { font-size:var(--cd-font-size-md); line-height:1.75; }
-.result[data-presentation="expanded"] > div:first-of-type { max-width:76ch; }
-@media (prefers-reduced-motion:no-preference) { .details:not([hidden]) { animation:reveal 180ms ease-out; } }
-@keyframes reveal { from { opacity:.65; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+.result { overflow-wrap: anywhere; }
+.answer { display: grid; gap: 8px; min-width: 0; }
+.conclusion { max-width: 68ch; font-size: var(--cd-font-size-xl); font-weight: 500; line-height: 1.6; letter-spacing: -.015em; color: var(--cd-color-text-primary); }
+.scope, .context { color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); line-height: 1.7; }
+.scope { margin-bottom: 4px; }
+.context { max-width: 76ch; }
+
+/* One quiet data band keeps related metrics together, without a card per value. */
+.result .metric, .result .metrics { margin-block: 8px; padding: 16px 20px; background: var(--cd-color-surface-alt); border-radius: var(--cd-radius-lg); }
+.result .metrics { gap: 16px 32px; }
+.metric .metricValue { font-size: 32px; }
+.metric > p { margin-top: 8px; }
+.metrics > section { flex: 1 1 160px; }
+
+/* Source and method stay beside the answer, as metadata on the same reading plane. */
+.basis { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 8px; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-xs); line-height: 1.7; }
+.basis p { margin: 0; overflow-wrap: anywhere; }
+.multipleBasis > p { flex-basis: 100%; }
+.basisMetric { flex: 1 1 220px; min-width: 0; margin-top: 8px; }
+.basisMetric h3 { margin: 0 0 4px; font-size: var(--cd-font-size-xs); font-weight: 500; }
+
+.preview { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 16px; padding-block: 16px; border-top: 1px solid var(--cd-color-border); }
+.preview p { margin: 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); line-height: 1.7; max-width: 72ch; }
+.preview button { min-height: 44px; height: auto; white-space: normal; text-align: left; }
+.details { min-width: 0; margin-top: 16px; }
+.details[hidden] { display: none; }
+.insights .finding { margin-block: 20px; }
+.insights .finding h3 { font-weight: 500; }
+.findingAction { height: auto; min-height: 32px; padding-inline: 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-xs); }
+.findingAction:hover:not(:disabled) { color: var(--cd-color-brand); }
+.result .table { margin-top: 24px; border-color: var(--cd-color-border); }
+.table th { font-size: var(--cd-font-size-sm); }
+.table td { line-height: 1.65; }
+.result .limitations { font-size: var(--cd-font-size-xs); line-height: 1.7; }
+.result .limitations:empty { margin: 0; }
+.result .provenance { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--cd-color-border); color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); }
+.provenance > summary { color: var(--cd-color-text-secondary); }
+.result .sources { padding: 16px; background: var(--cd-color-surface-alt); border: 0; border-radius: var(--cd-radius-lg); font-size: var(--cd-font-size-sm); line-height: 1.7; }
+.sources:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.result[data-presentation="expanded"] { font-size: var(--cd-font-size-md); line-height: 1.75; }
+
+@media (max-width: 639px) {
+  .conclusion { font-size: var(--cd-font-size-lg); line-height: 1.7; }
+  .result .metric, .result .metrics { padding: 16px; }
+  .metric .metricValue { font-size: 28px; }
+  .metrics > section { flex-basis: 100%; }
+  .basis { gap: 4px 12px; }
+  .result .sources { padding: 12px; }
+}
+@media (max-width: 639px), (pointer: coarse) { .findingAction { min-height: 44px; } }
+@media (prefers-reduced-motion: no-preference) { .details:not([hidden]) { animation: reveal 180ms ease-out; } }
+@keyframes reveal { from { opacity: .65; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }

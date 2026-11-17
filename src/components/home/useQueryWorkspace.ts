@@ -26,9 +26,18 @@ function restorePosition(node: HTMLDivElement | null, position: ReadingPosition)
 
 function visibleControls(surface: HTMLElement): HTMLElement[] {
   return Array.from(surface.querySelectorAll<HTMLElement>(
-    'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
-  )).filter(node => !node.closest('[hidden], [inert], details:not([open]) > :not(summary)')
-    && getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility !== 'hidden');
+    ':is(button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"]))',
+  )).filter(node => {
+    if (node.closest('[hidden], [inert], details:not([open]) > :not(summary)')) return false;
+    // Keyboard-sized viewports hide the auxiliary footer with CSS. A child can
+    // still report display:list-item inside a display:none ancestor.
+    for (let current: HTMLElement | null = node; current; current = current.parentElement) {
+      const style = getComputedStyle(current);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      if (current === surface) break;
+    }
+    return true;
+  });
 }
 
 /** A single DOM/React tree changes its bounds. No portal, router, query or session
@@ -69,11 +78,16 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     const node = surface.current;
     if (!node) return;
     const viewport = window.visualViewport;
-    node.style.setProperty('--query-viewport-top', `${viewport?.offsetTop ?? 0}px`);
-    node.style.setProperty('--query-viewport-left', `${viewport?.offsetLeft ?? 0}px`);
-    node.style.setProperty('--query-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
-    node.style.setProperty('--query-viewport-width', `${viewport?.width ?? (document.documentElement.clientWidth || window.innerWidth)}px`);
-    node.dataset.viewportCompact = String((viewport?.height ?? window.innerHeight) < 500);
+    // VisualViewport getters can synchronously flush layout. Read one fresh
+    // snapshot before writing inherited CSS variables, including on resize.
+    const top = viewport?.offsetTop ?? 0, left = viewport?.offsetLeft ?? 0;
+    const height = viewport?.height ?? window.innerHeight;
+    const width = viewport?.width ?? (document.documentElement.clientWidth || window.innerWidth);
+    node.style.setProperty('--query-viewport-top', `${top}px`);
+    node.style.setProperty('--query-viewport-left', `${left}px`);
+    node.style.setProperty('--query-viewport-height', `${height}px`);
+    node.style.setProperty('--query-viewport-width', `${width}px`);
+    node.dataset.viewportCompact = String(height < 500);
   }, []);
 
   const change = React.useCallback((next: boolean) => {
@@ -81,14 +95,16 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     if (!node || !placeholder || expandedRef.current === next) return;
     const from = node.getBoundingClientRect();
     const position = readPosition(scroller.current);
+    // Read the homepage anchor before changing its height. The first expanded
+    // layout should not force an extra synchronous layout between these writes.
+    const origin = placeholder.getBoundingClientRect();
+    syncViewport();
     ticket.current++;
     animation.current?.cancel(); animation.current = null;
     if (!floatingRef.current) placeholder.style.height = `${from.height}px`;
-    const origin = placeholder.getBoundingClientRect();
     node.style.setProperty('--query-compact-top', `${origin.top}px`);
     node.style.setProperty('--query-compact-left', `${origin.left}px`);
     node.style.setProperty('--query-compact-width', `${origin.width || from.width}px`);
-    syncViewport();
     pending.current = { from, reading: position, expanded: next, ticket: ticket.current };
     reading.current = position;
     expandedRef.current = next; floatingRef.current = true;
@@ -124,9 +140,10 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     }
     const bounds = (rect: DOMRect, radius: number) => ({ top: `${rect.top}px`, left: `${rect.left}px`,
       width: `${rect.width}px`, height: `${rect.height}px`, borderRadius: `${radius}px` });
+    const compactRadius = Number.parseFloat(getComputedStyle(node).getPropertyValue('--cd-radius-ai-surface')) || 12;
     const motion = node.animate([
-      bounds(transition.from, transition.expanded ? 12 : 0),
-      bounds(destination, transition.expanded ? 0 : 12),
+      bounds(transition.from, transition.expanded ? compactRadius : 0),
+      bounds(destination, transition.expanded ? 0 : compactRadius),
     ], { duration: DURATION, easing: 'cubic-bezier(.22, 1, .36, 1)' });
     animation.current = motion;
     void motion.finished.then(finish, () => { /* Reversal/unmount owns the next state. */ });
@@ -156,34 +173,52 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     const node = surface.current;
     const outside: Array<{ node: HTMLElement; inert: boolean }> = [];
     const scrollContainers: Array<{ node: HTMLElement; overflow: string }> = [];
+    // Collect style reads before mutating the ancestor path, so first expansion
+    // does not alternate inert/overflow writes with computed-style reads.
+    // Background isolation still finishes in this same layout effect.
     // Inert only siblings of our ancestor path, never an ancestor of the editor.
     let branch: HTMLElement = node;
     while (branch.parentElement) {
       const parent = branch.parentElement;
       for (const sibling of Array.from(parent.children)) {
         if (sibling !== branch && sibling instanceof HTMLElement) {
-          outside.push({ node: sibling, inert: sibling.inert }); sibling.inert = true;
+          outside.push({ node: sibling, inert: sibling.inert });
         }
       }
       if (/(auto|scroll)/.test(getComputedStyle(parent).overflowY) || parent === document.body) {
-        scrollContainers.push({ node: parent, overflow: parent.style.overflow }); parent.style.setProperty('overflow', 'hidden');
+        scrollContainers.push({ node: parent, overflow: parent.style.overflow });
       }
       branch = parent;
       if (parent === document.body) break;
     }
+    outside.forEach(item => { item.node.inert = true; });
+    scrollContainers.forEach(item => { item.node.style.setProperty('overflow', 'hidden'); });
     const keydown = (event: KeyboardEvent) => {
       const activeComposition = surfaceComposition.current;
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || composingRef.current
         || (activeComposition?.isConnected && node.contains(activeComposition))) return;
       if (event.key === 'Escape') { event.preventDefault(); collapse(); return; }
       if (event.key !== 'Tab') return;
-      const controls = visibleControls(node), first = controls[0], last = controls.at(-1);
-      if (!first || !last) { event.preventDefault(); node.focus({ preventScroll: true }); return; }
-      if (event.shiftKey && (document.activeElement === first || !node.contains(document.activeElement))) {
-        event.preventDefault(); last.focus({ preventScroll: true });
-      } else if (!event.shiftKey && (document.activeElement === last || !node.contains(document.activeElement))) {
-        event.preventDefault(); first.focus({ preventScroll: true });
+      const controls = visibleControls(node);
+      event.preventDefault();
+      if (!controls.length) { node.focus({ preventScroll: true }); return; }
+      // Traverse the rendered controls in document order, including when a
+      // responsive panel/keyboard has just hidden the previously focused item.
+      const active = document.activeElement;
+      const index = controls.indexOf(active as HTMLElement);
+      let next: HTMLElement;
+      if (index >= 0) next = controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length];
+      else {
+        // Source and summary panels receive programmatic focus with tabIndex=-1.
+        // Continue beside that reading position, including the panel's children.
+        const ordered = event.shiftKey ? [...controls].reverse() : controls;
+        const direction = event.shiftKey ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
+        next = (active && node.contains(active)
+          ? ordered.find(control => active.compareDocumentPosition(control) & direction) : undefined) ?? ordered[0];
       }
+      // Let the browser reveal a target inside a long answer/history scroller.
+      // Suppressing scrolling here would leave a valid keyboard focus offscreen.
+      next.focus();
     };
     const focusin = (event: FocusEvent) => {
       if (event.target instanceof Node && !node.contains(event.target)) toggle.current?.focus({ preventScroll: true });

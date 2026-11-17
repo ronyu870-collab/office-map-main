@@ -1,0 +1,41 @@
+{
+  "recordedOn": "2026-11-17",
+  "baseline": "b59e4f640ba630b24bfa843a3f5f8cd8a80f6f41",
+  "parentHead": "f852d5b89d58860c697c5462d8091467b5ea7926",
+  "homeUiAndTestsDiffSha256": "bf2856e7f37c54bff693c721af182dd5e475d5ce342657484f77f62bd4eb4656",
+  "affectedFrontendAndTestsDiffSha256": "9677708ef17f268a80acab302e37d9319e7d31f02e9ba9d0823402de05be14d8",
+  "visualHarnessSha256": "acb6ff6b7127c73cb7e6c0346bc6211644cec18dd6920804dda875b03af6b834",
+  "workspacePerformanceHarnessSha256": "d0af7d77021a9d74fce86a1ead07781e89400016fb74931e2e3496cd2aebc90a",
+  "command": "npm run verify",
+  "node": "v24.22.1",
+  "exitCode": 1,
+  "auditCoverage": "passed",
+  "typecheck": "passed",
+  "eslint": {
+    "errors": 0,
+    "warnings": 854
+  },
+  "tests": {
+    "filesPassed": 271,
+    "testsPassed": 2065
+  },
+  "productionCompilation": "passed",
+  "productionBuild": {
+    "status": "blocked",
+    "stage": "collect page data /api/oss",
+    "error": "uv_interface_addresses returned Unknown system error 1"
+  },
+  "completeVerifyPassed": false,
+  "affectedAuditFocusTests": {
+    "testsPassed": 15,
+    "includedInFullSuite": true,
+    "oldFailure": "audit-focus-before.log.gz",
+    "fixed": "audit-focus-after.log.gz"
+  },
+  "rawLog": "local-ci-closure-verify.log.gz",
+  "rawLogSha256": "38b56c3cea4a6ddea4727d39a602e42e928a10bbd2ec1270278c1f816910af00",
+  "limits": [
+    "Exact new-head production build, original complete Auth/workspace performance samples and visual matrix remain required from CI.",
+    "Physical iOS Safari/Android Chrome acceptance absent."
+  ]
+}

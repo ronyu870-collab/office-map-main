@@ -17,9 +17,28 @@ export function QueryWelcome({ displayName }: { displayName?: string }) {
   const name = greetingName(displayName);
   return <div className={styles.welcome}>
     <h3>{name ? <>你好，<bdi>{name}</bdi>。</> : '你好。'}</h3>
-    <p className={styles.welcomeIdentity}>我是 Colliers AI，高力国际北京办公楼市场的智能研究助手。</p>
-    <p>查找楼宇、了解市场指标，或比较季度变化。</p>
+    <p>今天想研究什么？</p>
   </div>;
+}
+
+/** Only shorten server-authorized examples; selecting one edits the original
+ * question so the user can review its exact scope and period before sending. */
+export function queryStarters(examples: readonly string[]): { question: string; label: string }[] {
+  const unique = [...new Set(examples)];
+  const selected: { question: string; label: string }[] = [];
+  for (const [pattern, label] of [
+    [/有哪些楼|查找.*楼|查询.*楼/, '查找办公楼'],
+    [/租金.*趋势|趋势.*租金/, '市场租金趋势'],
+    [/按子市场比较|比较.*区域|区域.*比较/, '比较不同区域'],
+  ] as const) {
+    const question = unique.find(value => pattern.test(value) && !selected.some(item => item.question === value));
+    if (question) selected.push({ question, label });
+  }
+  for (const question of unique) {
+    if (selected.length === 3) break;
+    if (!selected.some(item => item.question === question)) selected.push({ question, label: question });
+  }
+  return selected;
 }
 
 export function AssistantHeading({ label }: { label: string }) {

@@ -11,6 +11,9 @@
   --cd-color-brand: #003e7e;
   --cd-color-brand-hover: #002f61;
   --cd-color-brand-soft: #edf4fb;
+  /* AI work area: a quiet bridge between the workspace and white editor. */
+  --cd-color-ai-surface: #f1f5fa;
+  --cd-color-ai-border: #dce5ef;
   --cd-color-success: #16855b;
   --cd-color-success-soft: #eef8f3;
   --cd-color-warning: #c27803;
@@ -45,6 +48,8 @@
   --cd-radius-md: 6px;
   --cd-radius-lg: 8px;
   --cd-radius-xl: 10px;
+  --cd-radius-ai-surface: 16px;
+  --cd-radius-ai-composer: 12px;
 
   --cd-header-height: 54px;
   --cd-control-height-sm: 32px;

@@ -1,0 +1,39 @@
+{
+  "recordedOn": "2026-11-17",
+  "baseline": "b59e4f640ba630b24bfa843a3f5f8cd8a80f6f41",
+  "parentHead": "4f6719696d019ea00e33a3de4d8d55e9a2a99bdf",
+  "uiAndTestsDiffSha256": "bf2856e7f37c54bff693c721af182dd5e475d5ce342657484f77f62bd4eb4656",
+  "harnessSha256": "acb6ff6b7127c73cb7e6c0346bc6211644cec18dd6920804dda875b03af6b834",
+  "command": "npm run verify",
+  "node": "v24.22.1",
+  "exitCode": 1,
+  "auditCoverage": "passed",
+  "typecheck": "passed",
+  "eslint": {
+    "errors": 0,
+    "warnings": 854
+  },
+  "tests": {
+    "filesPassed": 271,
+    "testsPassed": 2064
+  },
+  "productionCompilation": "passed",
+  "productionBuild": {
+    "status": "blocked",
+    "stage": "collect page data /api/oss",
+    "error": "uv_interface_addresses returned Unknown system error 1"
+  },
+  "completeVerifyPassed": false,
+  "affectedHistoryAndWorkspaceTests": {
+    "files": 2,
+    "testsPassed": 37,
+    "includedInFullSuite": true
+  },
+  "rawLog": "local-visual-iteration-verify.log.gz",
+  "rawLogSha256": "cffc1790004a0b8e1d97f770ebc2035529de57387a56ed190a8efe810de73808",
+  "limits": [
+    "New exact-head CI must execute the unchanged 120-sample workspace performance gate and all six Verify jobs.",
+    "New screenshots require independent review; old 4f chart/history findings are retained.",
+    "No physical iOS Safari or Android Chrome acceptance."
+  ]
+}

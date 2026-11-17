@@ -1,5 +1,5 @@
 .enabled textarea:not(:disabled) { color: var(--cd-color-text-primary); cursor: text; resize: none; max-height: 240px; }
-.enabled:focus-within { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.enabled:focus-within { outline: 2px solid var(--cd-color-brand); outline-offset: -1px; }
 .enabled textarea:focus { outline: none; }
 .composerFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 8px; }
 .composerFooter p, .notice, .scope, .tableFooter, .limitations, .examples p { color: var(--cd-color-text-secondary); }
@@ -78,36 +78,37 @@
 .heatmap td p { margin-top: 4px; }
 
 /* Homepage AI: restrained conversation layout, without changing shared tokens. */
-.conversation { display: flex; flex-direction: column; gap: 16px; min-width: 0; width: 100%; max-width: 800px; margin-inline: auto; padding-bottom: 12px; }
-.welcome { padding-block: 20px 16px; max-width: 64ch; animation: answerEnter 180ms ease-out both; }
-.welcome h3 { font-size: clamp(24px, 2.4vw, 32px); line-height: 1.4; font-weight: 500; letter-spacing: -0.025em; color: var(--cd-color-text-primary); overflow-wrap: anywhere; }
-.welcome > p { margin-top: 8px; color: var(--cd-color-text-secondary); line-height: 1.8; }
-.welcome > .welcomeIdentity { margin-top: 16px; color: var(--cd-color-text-primary); }
-.suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.suggestions button { justify-content: space-between; align-items: center; gap: 12px; white-space: normal; text-align: left; height: auto; min-height: 52px; padding: 12px 16px; overflow-wrap: anywhere; font-weight: 400; background: var(--cd-color-surface); border-color: var(--cd-color-border); border-radius: 8px; transition: border-color 150ms ease, background-color 150ms ease; }
-.suggestions button > span { min-width: 0; }
-.suggestions button > svg { flex-shrink: 0; color: var(--cd-color-text-secondary); }
-.suggestions button:hover { border-color: var(--cd-color-border-strong); background: var(--cd-color-surface-alt); }
+.conversation { display: flex; flex-direction: column; gap: 0; min-width: 0; width: 100%; margin-inline: auto; }
+.welcome { padding-block: 24px; margin-inline: auto; max-width: 64ch; text-align: center; animation: answerEnter 180ms ease-out both; }
+.welcome h3 { font-size: 32px; line-height: 1.4; font-weight: 500; letter-spacing: -0.025em; color: var(--cd-color-text-primary); overflow-wrap: anywhere; }
+.welcome > p { margin-top: 8px; font-size: 16px; color: var(--cd-color-text-secondary); line-height: 1.7; }
+.suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 24px; margin-top: 16px; }
+.suggestions button { flex-shrink: 1; min-width: 0; max-width: 100%; gap: 8px; min-height: 36px; height: auto; padding: 4px 0; border: 0; border-radius: var(--cd-radius-sm); background: transparent; color: var(--cd-color-text-secondary); font-size: 13px; font-weight: 400; text-align: left; white-space: normal; transition: color var(--cd-motion-fast); }
+.suggestions button > span { min-width: 0; overflow-wrap: anywhere; }
+.suggestions button > svg { flex-shrink: 0; }
+.suggestions button:hover { color: var(--cd-color-brand); background: transparent; }
 .transcript { min-width: 0; }
 .transcript:empty { display: none; }
 .turn, .previousTurn { min-width: 0; }
 .turn, .result, .status[data-state="help"], .status[data-state="clarification"] { animation: answerEnter 180ms ease-out both; }
-.question { width: fit-content; max-width: min(86%, 72ch); margin: 8px 0 28px auto; padding: 12px 16px; border-radius: 12px 12px 4px 12px; background: var(--cd-color-surface-alt); border: 1px solid var(--cd-color-border); color: var(--cd-color-text-primary); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
+.question { width: fit-content; max-width: min(86%, 72ch); margin: 8px 0 28px auto; padding: 12px 16px; border-radius: 12px 12px 4px 12px; background: var(--cd-color-ai-surface); color: var(--cd-color-text-primary); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }
 .replyHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 32px; margin-left: -44px; margin-bottom: 12px; color: var(--cd-color-text-primary); }
 .replyHeading strong { font-size: 14px; font-weight: 600; }
 .replyLabel { font-size: 12px; font-weight: 400; color: var(--cd-color-text-secondary); }
 .assistantMark { display: inline-flex; justify-content: center; align-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; background: var(--cd-color-brand-soft); color: var(--cd-color-brand); }
 .assistantResponse { min-width: 0; padding-left: 44px; }
 .answerText, .previousSummary { color: var(--cd-color-text-primary); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 76ch; margin-bottom: 12px; }
-.previousTurn { padding-bottom: 24px; border-bottom: 1px solid var(--cd-color-border); margin-bottom: 28px; }
+.previousTurn { padding-bottom: 8px; margin-bottom: 32px; }
 .previousTurn summary { cursor: pointer; padding-block: 8px; color: var(--cd-color-text-secondary); }
-.composer { display: flex; flex-direction: column; min-width: 0; padding: 16px; margin-top: 8px; background: var(--cd-color-surface); border: 1px solid var(--cd-color-border-strong); border-radius: 12px; transition: border-color 150ms ease, background-color 150ms ease; }
+.composer { display: flex; flex-direction: column; min-width: 0; padding: 16px 20px 12px; background: var(--cd-color-surface); border: 1px solid var(--cd-color-border-strong); border-radius: var(--cd-radius-ai-composer); box-shadow: var(--cd-shadow-sm); transition: border-color var(--cd-motion-fast); }
 .composer:hover { border-color: var(--cd-color-text-secondary); }
 .composer:focus-within { border-color: var(--cd-color-brand); }
 .composer textarea { width: 100%; min-width: 0; min-height: 56px; max-height: 200px; padding: 0; border: 0; background: transparent; font: inherit; font-size: 16px; line-height: 1.75; overflow-y: auto; }
 .composer textarea::placeholder { color: var(--cd-color-text-secondary); }
-.composerFooter { margin-top: 10px; }
-.composerFooter p, .privacy { font-size: 13px; line-height: 1.6; }
+.composerFooter { min-height: 36px; margin-top: 4px; }
+.keyboardHint { opacity: 0; transition: opacity var(--cd-motion-fast); }
+.composer:focus-within .keyboardHint { opacity: 1; }
+.composerFooter p, .privacy { font-size: 12px; line-height: 1.6; }
 .privacy { color: var(--cd-color-text-secondary); }
 .answerContext { color: var(--cd-color-text-secondary); line-height: 1.7; }
 .sourceOverview { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px; padding: 12px 16px; border-left: 2px solid var(--cd-color-border-strong); background: var(--cd-color-surface-alt); font-size: 13px; line-height: 1.7; color: var(--cd-color-text-secondary); }
@@ -138,10 +139,14 @@
 .metricValue:focus-visible, .metricUnknown:focus-visible, .previousTurn summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 4px; }
 @media (max-width: 639px) {
   .welcome h3 { font-size: 24px; }
-  .welcome { padding-block: 12px; }
+  .welcome { padding-block: 16px 24px; }
+  .welcome > p { font-size: 14px; }
   .assistantResponse { padding-left: 0; }
   .replyHeading { margin-left: 0; }
-  .suggestions { grid-template-columns: 1fr; gap: 8px; }
+  .suggestions { gap: 4px 16px; margin-top: 12px; }
+  .suggestions button { min-height: 44px; }
+  .keyboardHint { display: none; }
+  .composerFooter { justify-content: flex-end; }
   .question { max-width: 95%; }
   .composer { padding: 12px; }
   .composerFooter p { font-size: 12px; }
@@ -152,13 +157,20 @@
 }
 
 /* Homepage-specific conversation roles; no global token or chart geometry changes. */
-.starters > p { font-size: 13px; color: var(--cd-color-text-secondary); }
 .sendButton { flex-shrink: 0; border-radius: 8px; transition: background-color 150ms ease, transform 150ms ease; }
 .sendButton:active:not(:disabled) { transform: scale(.96); }
-.turnActions { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--cd-color-border); }
+.turnActions { margin-top: 12px; padding-top: 8px; }
 .turnActions button { font-size: 13px; }
-.capabilities { font-size: 13px; color: var(--cd-color-text-secondary); }
-.capabilities summary { cursor: pointer; width: fit-content; padding-block: 8px; }
+.composerMeta { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0 16px; margin-top: 12px; }
+.composerMeta > p { flex: 1 1 280px; }
+.capabilities { font-size: 12px; color: var(--cd-color-text-secondary); }
+.capabilities[open] { flex-basis: 100%; }
+.capabilities[open] > summary { margin-left: auto; }
+.capabilityContent { max-height: min(32dvh, 240px); overflow: auto; margin-top: 8px; padding: 12px 16px; background: var(--cd-color-surface-alt); border-top: 1px solid var(--cd-color-ai-border); border-radius: var(--cd-radius-md); }
+.moreExamples { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-block: 12px; }
+.moreExamples:empty { display: none; }
+.moreExamples button { flex-shrink: 1; max-width: 100%; min-height: 36px; height: auto; white-space: normal; text-align: left; font-size: 13px; overflow-wrap: anywhere; }
+.capabilities summary { cursor: pointer; width: fit-content; padding-block: 4px; }
 .capabilities p { max-width: 76ch; line-height: 1.8; margin-top: 8px; }
 .capabilities summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
 .workingIndicator { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; vertical-align: middle; }
@@ -168,7 +180,7 @@
 @keyframes answerEnter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes workingPulse { 0%, 80%, 100% { opacity: .35; } 40% { opacity: 1; } }
 @media (max-width: 639px), (pointer: coarse) {
-  .sendButton, .capabilities summary { min-width: 44px; min-height: 44px; }
+  .sendButton, .capabilities summary, .moreExamples button { min-width: 44px; min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .welcome, .turn, .result, .status[data-state], .workingIndicator i { animation: none; }
