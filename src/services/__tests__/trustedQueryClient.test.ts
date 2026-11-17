@@ -63,6 +63,29 @@ describe('trusted query client current identity guard', () => {
     expect(await trustedQueryClient.submit(scope, input, new AbortController().signal)).toMatchObject({ conversation, options });
     expect(JSON.parse((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual(input);
   });
+  it.each([
+    { question: '你好', reason: 'scope_required', message: '需要查询哪个子市场？' },
+    { question: 'CBD净有效租金', reason: 'period_required', message: '请选择季度。' },
+    { question: 'CBD最贵的楼', reason: 'metric_required', message: '请确认租金口径。' },
+    { question: 'CBD租赁成交', reason: 'unsupported', message: '当前未开放租赁成交查询。' },
+  ])('accepts a real HTTP 422 clarification reason for $question, rather than throwing a parsing error', async ({ question, reason, message }) => {
+    const conversation = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' };
+    const reply = { status: 'clarification', code: 'conditions_required', reason, message, options: [], conversation,
+      requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
+    const fetcher = vi.fn(async () => Response.json(reply, { status: 422 })); vi.stubGlobal('fetch', fetcher);
+    const result = await trustedQueryClient.submit(scope,
+      { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question, conversation }, new AbortController().signal);
+    expect(result).toMatchObject({ status: 'clarification', reason, message });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it('distinguishes an incompatible response protocol from a network error or a denied request', async () => {
+    const fetcher = vi.fn(async () => Response.json({ status: 'clarification', reason: 'unrecognized_future_reason' }, { status: 422 }));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(trustedQueryClient.submit(scope,
+      { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', question: '你好' }, new AbortController().signal))
+      .rejects.toMatchObject({ kind: 'protocol' });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
   it('rejects a reply from another conversation or parent before releasing it', async () => {
     const conversation = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', parentRequestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
     const fetch = vi.fn().mockResolvedValueOnce(Response.json({ status: 'ready', conversation: { ...conversation, id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' } }))

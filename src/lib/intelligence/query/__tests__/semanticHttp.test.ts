@@ -3,6 +3,7 @@ import { gunzipSync } from 'node:zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptAuditContent } from '../auditCrypto';
+import { queryReplySchema } from '@/src/services/trustedQueryClient';
 import type { AuditKeys } from '../auditStore';
 import type { Quarter } from '../contracts';
 
@@ -266,6 +267,40 @@ describe('P1 actual semantic HTTP and encrypted-context integration', () => {
     expect(h.calls('ai_query_available_periods')).toHaveLength(1); expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
   });
 
+  it.each([
+    { question: '你好', reason: 'scope_required' },
+    { question: 'CBD净有效租金', reason: 'period_required' },
+    { question: 'CBD最贵的楼是哪栋？', reason: 'metric_required' },
+    { question: 'CBD租赁成交情况', reason: 'unsupported' },
+  ])('delivers $question over the actual 422 HTTP path and satisfies the browser response schema', async ({ question, reason }) => {
+    const h = harness();
+    const response = await h.submit(input(question));
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ status: 'clarification', code: 'conditions_required', reason, message: expect.any(String) });
+    expect(queryReplySchema.parse(response.body)).toMatchObject({ status: 'clarification', reason });
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
+    expect(understandWithModel).not.toHaveBeenCalled();
+  });
+  it('keeps a normal authorized factual query compatible with the same browser schema', async () => {
+    const h = harness();
+    const response = await h.submit(input('2026Q3 CBD净有效租金'));
+    expect(response.status).toBe(200);
+    expect(queryReplySchema.parse(response.body)).toMatchObject({ status: 'ready', requestId: response.body.requestId });
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
+    expect(understandWithModel).not.toHaveBeenCalled();
+  });
+  it('reports a DeepSeek provider failure separately from incomplete conditions, with no business read', async () => {
+    const h = harness(); identityState.modelConfigured = true;
+    vi.mocked(understandWithModel).mockRejectedValueOnce(new Error('MODEL_PROVIDER_UNAVAILABLE'));
+    const response = await h.submit(input('2026Q3CBD净有效租金水平怎么样'));
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ status: 'clarification', reason: 'unrecognized' });
+    expect(response.body.message).toContain('DeepSeek 语义解析暂不可用');
+    expect(queryReplySchema.parse(response.body).status).toBe('clarification');
+    expect(understandWithModel).toHaveBeenCalledOnce();
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
+    expect(h.decoded(response.body.requestId, 'accounting')).toMatchObject([{ status: 'unavailable_or_invalid', attempts: 1 }]);
+  });
   it('replays an audited clarification and carries each short answer through to a factual result', async () => {
     const h = harness(), question = input('CBD 最贵的楼是哪栋？');
     const first = await h.submit(question); expect(first.status).toBe(422);

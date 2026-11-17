@@ -1,4 +1,4 @@
-export type QueryFailureKind = 'network' | 'timeout' | 'identity' | 'service';
+export type QueryFailureKind = 'network' | 'timeout' | 'identity' | 'service' | 'protocol';
 
 export class QueryClientError extends Error {
   constructor(readonly kind: QueryFailureKind, message: string) {
@@ -17,5 +17,6 @@ export function queryFailureMessage(error: unknown): string {
   }
   if (error instanceof QueryClientError && error.kind === 'identity') return '登录身份已变化，旧对话已收起。请重新进入 Colliers AI。';
   if (error instanceof QueryClientError && error.kind === 'service') return '查询服务暂时不可用，不能据此判断没有数据。可稍后检查状态或重试本次请求。';
+  if (error instanceof QueryClientError && error.kind === 'protocol') return '查询响应格式与当前页面不兼容。可重试本次请求核对原请求；若仍失败，请联系系统维护人员。';
   return '未能取得查询响应。可用“重试本次请求”核对原请求，避免重复执行。';
 }
