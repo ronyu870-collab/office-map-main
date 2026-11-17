@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { queryClarificationReasonSchema, type QueryClarificationReason } from './conversationProtocol';
 import { authorizePlan, type QueryAuthority } from './admission';
 import { quarterSchema, type Quarter } from './contracts';
 import { parseQueryPlan, planPeriods, type QueryPlan } from './plan';
@@ -12,7 +13,7 @@ export const SEMANTIC_PLANNER_VERSION = 'colliers-semantic-planner/1';
 export type SemanticOption = { id: string; label: string; question: string };
 export type SemanticClarification = {
   code: 'conditions_required';
-  reason: 'metric_required' | 'period_required' | 'scope_required' | 'ambiguous_reference' | 'unsupported' | 'unrecognized' | 'unavailable_periods' | 'invalid_model_intent';
+  reason: QueryClarificationReason;
   message: string;
   options: SemanticOption[];
 };
@@ -41,7 +42,7 @@ export type SemanticResolution =
 const optionSchema = z.strictObject({ id: z.string().min(1).max(80), label: z.string().min(1).max(100), question: z.string().min(1).max(1000) });
 const clarificationSchema = z.strictObject({
   code: z.literal('conditions_required'),
-  reason: z.enum(['metric_required', 'period_required', 'scope_required', 'ambiguous_reference', 'unsupported', 'unrecognized', 'unavailable_periods', 'invalid_model_intent']),
+  reason: queryClarificationReasonSchema,
   message: z.string().min(1).max(1000), options: z.array(optionSchema).max(5),
 });
 const contextSchema = z.strictObject({

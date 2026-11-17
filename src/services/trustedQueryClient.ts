@@ -34,13 +34,18 @@ function received<T extends object>(scope: QueryClientScope, raw: unknown, value
 import type { ArtifactInput } from '@/src/lib/intelligence/query/artifacts';
 import type { ChartRequest, ResultChart } from '@/src/lib/intelligence/query/charts';
 import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
-import { queryActionSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
+import { queryActionSchema, queryClarificationReasonSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
 const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional() });
-export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.enum(['scope_limit', 'history_reopen']).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(),
+export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional() });
 const replySchema = queryReplySchema;
 export type QueryReply = z.infer<typeof replySchema>;
+function decodeQueryReply(value: unknown): QueryReply {
+  const decoded = replySchema.safeParse(value);
+  if (!decoded.success) throw new QueryClientError('protocol', '查询响应协议不兼容。');
+  return decoded.data;
+}
 export type QueryAccess = z.infer<typeof capabilitiesSchema>;
 export type QueryClientScope = { actorId: string; effectiveId: string; sessionId: string; targetId: string | null };
 // Additional owned work surfaces reuse the same session-race, receipt and
@@ -141,11 +146,11 @@ export const trustedQueryClient = {
     received(scope, null, await call('/artifact', scope, signal, input, input.resultId) as { blob: Blob; filename: string }),
   capabilities: async (scope: QueryClientScope, signal: AbortSignal): Promise<QueryAccess> => capabilitiesSchema.parse(await call('/capabilities', scope, signal)),
   submit: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation; buildingSelection?: BuildingSelection; replayRequestId?: string }, signal: AbortSignal): Promise<QueryReply> => {
-    const raw = await call('', scope, signal, input), reply = replySchema.parse(raw);
+    const raw = await call('', scope, signal, input), reply = decodeQueryReply(raw);
     if (reply.conversation && (!input.conversation || reply.conversation.id !== input.conversation.id
       || reply.conversation.parentRequestId !== input.conversation.parentRequestId)) throw new Error('查询响应与当前对话不一致，请重试原请求。');
     return received(scope, raw, reply);
   },
-  recover: async (scope: QueryClientScope, requestId: string, signal: AbortSignal): Promise<QueryReply> => { const raw = await call('/recover', scope, signal, { requestId, action: 'recover' }); return received(scope, raw, replySchema.parse(raw)); },
+  recover: async (scope: QueryClientScope, requestId: string, signal: AbortSignal): Promise<QueryReply> => { const raw = await call('/recover', scope, signal, { requestId, action: 'recover' }); return received(scope, raw, decodeQueryReply(raw)); },
   reportDelivery,
 };

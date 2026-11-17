@@ -30,6 +30,11 @@ function planPeriodFieldGroups(plan: QueryPlan) {
   return fields.length ? [fields] : [];
 }
 const groupsKey = (groups: string[][]) => JSON.stringify([...new Set(groups.map(group => JSON.stringify([...new Set(group)].sort())))].sort());
+/** Provider/config/transport failures are distinct from rejected semantic candidates. Never expose raw provider errors. */
+const modelProviderUnavailable = (error: unknown): boolean => error instanceof TypeError
+  || error instanceof Error && (error.name === 'TimeoutError'
+    || ['MODEL_NOT_CONFIGURED', 'MODEL_CONFIGURATION_INVALID', 'MODEL_PROVIDER_UNAVAILABLE',
+      'MODEL_EMPTY_RESPONSE', 'MODEL_RESPONSE_TOO_LARGE'].includes(error.message));
 
 export async function prepareSemanticExecution(input: Input) {
   const { client, identity, authority, keys, conversation, receivedAt, signal, audit, requestId } = input;
@@ -80,8 +85,8 @@ export async function prepareSemanticExecution(input: Input) {
           // supply a candidate that bypasses the strict intent contract.
           modelIntent = parseSemanticIntent(inferred.intent);
           modelStatus = 'validated_candidate';
-        } catch {
-          modelStatus = 'rejected_or_unavailable';
+        } catch (error) {
+          modelStatus = modelProviderUnavailable(error) ? 'provider_unavailable' : 'rejected_or_unavailable';
         }
         // One accounting event per provider attempt. Audit, authority and data
         // failures below must propagate, never be mistaken for model rejection.
@@ -129,7 +134,11 @@ export async function prepareSemanticExecution(input: Input) {
     resolution = { ...resolution, clarification, context: { ...resolution.context, pending: { question, clarification } } };
   }
   if (resolution.kind === 'clarification' && resolution.clarification.reason === 'unrecognized' && modelStatus !== 'not_needed') {
-    const explanation = modelStatus === 'not_configured' ? '语义模型尚未配置。' : modelStatus === 'budget_exhausted' ? '本轮语义解析额度已达保护上限。' : '本轮语义解析未形成可安全执行的计划。';
+    const explanation = modelStatus === 'not_configured' ? '语义模型尚未配置，本轮未调用 DeepSeek。'
+      : modelStatus === 'budget_exhausted' ? '本轮语义解析额度已达保护上限，未调用 DeepSeek。'
+      : modelStatus === 'budget_unavailable' ? '本轮语义解析额度校验暂不可用，未调用 DeepSeek。'
+      : modelStatus === 'provider_unavailable' ? 'DeepSeek 语义解析暂不可用，本轮未取得模型结果。'
+      : '本轮语义解析未形成可安全执行的计划。';
     resolution = { ...resolution, clarification: { ...resolution.clarification, message: `${explanation}${resolution.clarification.message}` } };
     resolution.context = { ...resolution.context, pending: { question, clarification: resolution.clarification } };
   }

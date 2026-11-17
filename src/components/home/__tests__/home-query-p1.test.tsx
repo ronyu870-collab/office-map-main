@@ -52,6 +52,18 @@ describe('homepage AI P1 structured conversation and request ownership', () => {
     expect(JSON.stringify(sessionStorage)).not.toContain('净有效租金');
   });
 
+  it.each([
+    { question: '你好', reason: 'scope_required', message: '需要查询哪个子市场？' },
+    { question: 'CBD净有效租金', reason: 'period_required', message: '请选择查询的季度。' },
+    { question: 'CBD最贵的楼', reason: 'metric_required', message: '请先确认租金口径。' },
+  ])('shows clarification guidance for $question instead of a generic failure', async ({ question, reason, message }) => {
+    client.submit.mockImplementationOnce(async (_scope, input: Submission) => ({ status: 'clarification', requestId: requestIds[0],
+      code: 'conditions_required', reason, message, options: [], conversation: input.conversation }));
+    const { input } = await open(); send(input, question);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByText(/未能取得查询响应/)).not.toBeInTheDocument();
+    expect(client.submit).toHaveBeenCalledOnce();
+  });
   it('T04 sends a server clarification option with its parent while preserving a newly typed draft', async () => {
     client.submit.mockImplementationOnce(async (_scope, input: Submission) => ({ status: 'clarification', requestId: requestIds[0], conversation: input.conversation,
       message: '最贵指哪个指标？', options: [{ id: 'rent', label: '净有效租金', question: '按净有效租金比较' }] }))

@@ -7,4 +7,11 @@ export const queryActionSchema = z.strictObject({
   id: z.string().min(1).max(80), label: z.string().min(1).max(120), question: z.string().min(1).max(1000),
 });
 export type QueryAction = z.infer<typeof queryActionSchema>;
+/** HTTP 422 clarification reasons shared by the trusted planner and browser decoder. */
+export const queryClarificationReasonSchema = z.enum([
+  'metric_required', 'period_required', 'scope_required', 'ambiguous_reference',
+  'unsupported', 'unrecognized', 'unavailable_periods', 'invalid_model_intent',
+]);
+export type QueryClarificationReason = z.infer<typeof queryClarificationReasonSchema>;
+
 export const SEMANTIC_PROTOCOL_VERSION = 'research-conversation/1';
