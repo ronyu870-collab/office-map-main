@@ -141,4 +141,73 @@ describe('retained presentation receipt lifecycle', () => {
     await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledTimes(2));
     view.unmount(); expect(client.reportDelivery.mock.calls[1][4].aborted).toBe(true);
   });
+  it('keeps an already dispatched receipt alive across hide and reveal while its confirmation is delayed', async () => {
+    const value = {};
+    let confirm!: (confirmed: boolean) => void;
+    client.reportDelivery.mockReturnValueOnce(new Promise<boolean>(resolve => { confirm = resolve; }));
+    const view = render(<ReceiptProbe value={value} enabled />);
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledOnce());
+    const signal = client.reportDelivery.mock.calls[0][4] as AbortSignal;
+    view.rerender(<ReceiptProbe value={value} enabled={false} />);
+    expect(signal.aborted).toBe(false);
+    view.rerender(<ReceiptProbe value={value} enabled />);
+    await ticks(); expect(client.reportDelivery).toHaveBeenCalledOnce();
+    view.rerender(<ReceiptProbe value={value} enabled={false} />);
+    await act(async () => { confirm(true); });
+    view.rerender(<ReceiptProbe value={value} enabled />);
+    await ticks(); expect(client.reportDelivery).toHaveBeenCalledOnce();
+    expect(signal.aborted).toBe(false);
+    view.unmount(); expect(signal.aborted).toBe(true);
+  });
+  it('cancels a scheduled receipt when the view is hidden before its animation frames commit', async () => {
+    const value = {};
+    const view = render(<ReceiptProbe value={value} enabled />);
+    view.rerender(<ReceiptProbe value={value} enabled={false} />);
+    await ticks(); expect(client.reportDelivery).not.toHaveBeenCalled();
+    view.rerender(<ReceiptProbe value={value} enabled />);
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledOnce());
+  });
+  it.each(['scope', 'result', 'view'] as const)('aborts a dispatched receipt after its %s changes while hidden and ignores its late confirmation', async change => {
+    const value = {}, next = {
+      value: change === 'result' ? {} : value,
+      identity: change === 'scope' ? { ...scope, actorId: 'second', effectiveId: 'second', sessionId: 'second-session' } : scope,
+      page: change === 'view' ? 1 : 0,
+    };
+    let confirmOld!: (confirmed: boolean) => void, confirmCurrent!: (confirmed: boolean) => void;
+    client.reportDelivery
+      .mockReturnValueOnce(new Promise<boolean>(resolve => { confirmOld = resolve; }))
+      .mockReturnValueOnce(new Promise<boolean>(resolve => { confirmCurrent = resolve; }));
+    const view = render(<ReceiptProbe value={value} enabled />);
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledOnce());
+    const signal = client.reportDelivery.mock.calls[0][4] as AbortSignal;
+    view.rerender(<ReceiptProbe value={value} enabled={false} />);
+    view.rerender(<ReceiptProbe {...next} enabled={false} />);
+    expect(signal.aborted).toBe(true);
+    await ticks(); expect(client.reportDelivery).toHaveBeenCalledOnce();
+    view.rerender(<ReceiptProbe {...next} enabled />);
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledTimes(2));
+    expect(client.reportDelivery.mock.calls[1].slice(0, 2)).toEqual([next.identity, next.value]);
+    expect(client.reportDelivery.mock.calls[1][3].page).toBe(next.page);
+    await act(async () => { confirmOld(true); });
+    view.rerender(<ReceiptProbe {...next} enabled={false} />);
+    view.rerender(<ReceiptProbe {...next} enabled />);
+    await ticks(); expect(client.reportDelivery).toHaveBeenCalledTimes(2);
+    await act(async () => { confirmCurrent(false); });
+    view.rerender(<ReceiptProbe {...next} enabled={false} />);
+    view.rerender(<ReceiptProbe {...next} enabled />);
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledTimes(3));
+  });
+  it('aborts an unconfirmed dispatched receipt on actual unmount even while its view is hidden', async () => {
+    const value = {};
+    let confirm!: (confirmed: boolean) => void;
+    client.reportDelivery.mockReturnValueOnce(new Promise<boolean>(resolve => { confirm = resolve; }));
+    const view = render(<ReceiptProbe value={value} enabled />);
+    await waitFor(() => expect(client.reportDelivery).toHaveBeenCalledOnce());
+    const signal = client.reportDelivery.mock.calls[0][4] as AbortSignal;
+    view.rerender(<ReceiptProbe value={value} enabled={false} />);
+    expect(signal.aborted).toBe(false);
+    view.unmount(); expect(signal.aborted).toBe(true);
+    await act(async () => { confirm(true); });
+    expect(client.reportDelivery).toHaveBeenCalledOnce();
+  });
 });

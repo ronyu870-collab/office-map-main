@@ -16,11 +16,11 @@
   },
   "tests": {
     "files": 271,
-    "passed": 2052,
+    "passed": 2060,
     "failed": 0
   },
   "workspaceTargeted": {
-    "passed": 24,
+    "passed": 26,
     "failed": 0
   },
   "build": {
@@ -35,5 +35,10 @@
     "independentVisual": "waived; not executed",
     "browserVisual": "waived; not executed",
     "physicalPhone": "waived; not executed"
+  },
+  "resultHistoryTargeted": {
+    "files": 2,
+    "passed": 22,
+    "failed": 0
   }
 }

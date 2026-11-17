@@ -271,6 +271,66 @@ async function modeWithoutNetworkIdle(page, expanded) {
   }, expanded ? 'expanded' : 'compact');
 }
 
+async function resizeOpenPanels({ page, network, height }) {
+  const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
+  const research = page.getByRole('complementary', { name: '研究资料与口径', exact: true });
+  const resize = async width => {
+    await page.setViewportSize({ width, height });
+    await page.waitForFunction(() => {
+      const bounds = document.querySelector('#home-query')?.closest('[data-mode]')?.getBoundingClientRect();
+      return bounds && Math.abs(bounds.width - (visualViewport?.width ?? innerWidth)) <= 2
+        && Math.abs(bounds.height - (visualViewport?.height ?? innerHeight)) <= 2;
+    });
+  };
+  await history.waitFor(); await research.waitFor(); await network.idle();
+  const before = network.count('/api/intelligence/query');
+  const input = textarea(page), inputNode = await input.elementHandle();
+  await input.focus();
+  const draft = await draftSnapshot(page);
+  await input.dispatchEvent('compositionstart', { data: '中' });
+  await resize(320);
+  await history.waitFor({ state: 'hidden' }); await research.waitFor();
+  assert.deepEqual(await draftSnapshot(page), draft, 'EXPERIENCE_RESIZE_CLEARED_DRAFT');
+  assert.equal(await inputNode.evaluate(node => node === document.activeElement && node === document.querySelector('#home-query')), true,
+    'EXPERIENCE_RESIZE_BLURRED_COMPOSER');
+  await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 229, isComposing: true, bubbles: true });
+  await input.dispatchEvent('keydown', { key: 'Escape', code: 'Escape', isComposing: true, bubbles: true });
+  await assertLayout(page, true);
+  await resize(1280);
+  await history.waitFor({ state: 'hidden' }); await research.waitFor();
+  await input.dispatchEvent('compositionend', { data: '中' });
+  assert.equal(await inputNode.evaluate(node => node === document.activeElement), true, 'EXPERIENCE_RESIZE_BLURRED_COMPOSER');
+
+  await page.getByRole('button', { name: '历史记录', exact: true }).click();
+  await history.waitFor(); await research.waitFor();
+  const search = history.getByRole('searchbox', { name: '搜索标题或最近问题', exact: true });
+  const searched = term => page.waitForResponse(response => new URL(response.url()).pathname === '/api/intelligence/query/history'
+    && response.request().postDataJSON()?.action === 'list' && response.request().postDataJSON()?.search === term);
+  const searchReady = searched('2026');
+  await search.pressSequentially('2026', { delay: 15 }); await searchReady; await network.idle();
+  await search.focus();
+  const searchNode = await search.elementHandle();
+  const searchDraft = await search.evaluate(node => ({ value: node.value, start: node.selectionStart, end: node.selectionEnd }));
+  await search.dispatchEvent('compositionstart', { data: '研究' });
+  await resize(320);
+  await history.waitFor(); await research.waitFor({ state: 'hidden' });
+  assert.equal(await searchNode.evaluate(node => node === document.activeElement), true, 'EXPERIENCE_RESIZE_BLURRED_HISTORY_SEARCH');
+  assert.deepEqual(await search.evaluate(node => ({ value: node.value, start: node.selectionStart, end: node.selectionEnd })), searchDraft,
+    'EXPERIENCE_RESIZE_CLEARED_HISTORY_SEARCH');
+  assert.deepEqual(await draftSnapshot(page), draft, 'EXPERIENCE_RESIZE_CLEARED_DRAFT');
+  await search.dispatchEvent('keydown', { key: 'Escape', code: 'Escape', isComposing: true, bubbles: true });
+  await assertLayout(page, true);
+  await resize(1280);
+  await history.waitFor(); await research.waitFor({ state: 'hidden' });
+  assert.equal(await searchNode.evaluate(node => node === document.activeElement), true, 'EXPERIENCE_RESIZE_BLURRED_HISTORY_SEARCH');
+  await search.dispatchEvent('compositionend', { data: '研究' });
+  const cleared = searched(''); await search.fill(''); await cleared; await network.idle();
+  await page.getByRole('button', { name: '研究资料', exact: true }).click();
+  await research.waitFor(); await history.waitFor(); await assertLayout(page, true);
+  assert.equal(network.count('/api/intelligence/query'), before, 'EXPERIENCE_RESIZE_REEXECUTED_QUERY');
+  await inputNode.dispose(); await searchNode.dispose();
+}
+
 async function pendingAndStop({ page, db, blocker, userId, ids, network }) {
   const start = network.count('/api/intelligence/query');
   await blocker.query('begin'); await blocker.query('lock table private.ai_query_control in access exclusive mode');
@@ -452,6 +512,7 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         await research.waitFor();
         assert.match(await research.getByRole('region', { name: '当前分析范围', exact: true }).textContent(), /CBD/, 'EXPERIENCE_RESEARCH_SCOPE_MISSING');
         await assertLayout(page, true);
+        if (width === 1280) await resizeOpenPanels({ page, network, height: profile.height });
         await page.getByRole('button', { name: '关闭研究资料', exact: true }).click();
         assert.equal(network.count('/api/intelligence/query'), beforeSources, 'EXPERIENCE_RESEARCH_REEXECUTED');
 
@@ -513,7 +574,8 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         layout.checks = ['personal_welcome', 'short_greeting', 'same_input_draft_selection', 'composition_enter_escape', 'shift_enter',
           'full_viewport_composer', 'source_access', 'research_panel', 'history_continuous_search', 'saved_history_no_requery',
           'long_table', 'chart_survives_mode_change', 'escape_focus_restore', 'no_horizontal_overflow',
-          ...(width === 1280 ? ['pending_mode_switch', 'next_draft_survives_response', 'stop_waiting_semantics', 'idempotent_retry'] : [])];
+          ...(width === 1280 ? ['open_panels_resize_composer_composition', 'open_panels_resize_history_composition', 'wide_resize_preserves_panel_choice',
+            'pending_mode_switch', 'next_draft_survives_response', 'stop_waiting_semantics', 'idempotent_retry'] : [])];
       } catch (error) { layout.status = 'failed'; layout.error = safeError(error); throw error; }
       finally { network.stop(); await context.close(); await checkpoint(); }
     }

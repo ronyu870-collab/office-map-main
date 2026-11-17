@@ -76,6 +76,32 @@ function controlNativeMotion(surface: HTMLElement, reduced = false) {
   Object.defineProperty(surface, 'animate', { configurable: true, value: animate });
   return { motions, animate };
 }
+function controlResponsiveWidth(initialWidth: number) {
+  let width = initialWidth;
+  const media = new Map<string, MediaQueryList>();
+  const matches = (query: string) => query.includes('prefers-reduced-motion')
+    || (query.match(/min-width:\s*(\d+)px/) ? width >= Number(query.match(/min-width:\s*(\d+)px/)![1]) : false);
+  vi.stubGlobal('innerWidth', width);
+  vi.mocked(window.matchMedia).mockImplementation(query => {
+    let item = media.get(query);
+    if (!item) {
+      item = Object.assign(new EventTarget(), { media: query, onchange: null,
+        addListener: vi.fn(), removeListener: vi.fn() }) as unknown as MediaQueryList;
+      Object.defineProperty(item, 'matches', { get: () => matches(query) });
+      media.set(query, item);
+    }
+    return item;
+  });
+  return { resize: (nextWidth: number) => {
+    const previous = [...media.values()].map(item => ({ item, matches: item.matches }));
+    width = nextWidth; vi.stubGlobal('innerWidth', width);
+    for (const prior of previous) if (prior.matches !== prior.item.matches) {
+      const event = Object.assign(new Event('change'), { matches: prior.item.matches, media: prior.item.media });
+      prior.item.dispatchEvent(event);
+    }
+    window.dispatchEvent(new Event('resize'));
+  } };
+}
 beforeEach(() => {
   vi.resetAllMocks(); sessionStorage.clear(); window.history.replaceState(null, '', '/');
   client.capabilities.mockResolvedValue(access); client.reportDelivery.mockResolvedValue(true);
@@ -454,6 +480,59 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(motions[1].finish).toHaveBeenCalledOnce();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.body.style.overflow).not.toBe('hidden');
+  });
+
+  it('reduces desktop dual panels to one on a narrow viewport without losing the composing draft or reopening panels on widening', async () => {
+    const viewport = controlResponsiveWidth(1280);
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
+    await screen.findByRole('region', { name: '查询结果' }); await expand();
+    const historyPanel = await screen.findByRole('complementary', { name: '历史工作记录' });
+    const search = within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' });
+    fireEvent.click(screen.getByRole('button', { name: '研究资料' }));
+    const researchPanel = await screen.findByRole('complementary', { name: '研究资料与口径' });
+    expect(historyPanel).toBeVisible(); expect(researchPanel).toBeVisible();
+    fireEvent.change(input, { target: { value: '缩窄窗口时仍在编辑的草稿' } });
+    input.focus(); input.setSelectionRange(2, 6); fireEvent.compositionStart(input);
+    act(() => viewport.resize(320));
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: '历史工作记录' })).not.toBeInTheDocument());
+    expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toBe(researchPanel);
+    expect(historyPanel).toBeInTheDocument(); expect(historyPanel).not.toBeVisible();
+    expect(search).toBeInTheDocument(); expect(input).toHaveFocus(); expect(input).toHaveValue('缩窄窗口时仍在编辑的草稿');
+    expect([input.selectionStart, input.selectionEnd]).toEqual([2, 6]);
+    fireEvent.keyDown(input, { key: 'Escape' }); expect(screen.getByRole('dialog')).toBeInTheDocument();
+    act(() => viewport.resize(1280));
+    expect(screen.queryByRole('complementary', { name: '历史工作记录' })).not.toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toBe(researchPanel);
+    fireEvent.compositionEnd(input); fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+    expect(screen.getByRole('complementary', { name: '历史工作记录' })).toBe(historyPanel);
+    expect(within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' })).toBe(search);
+    expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
+  });
+
+  it('keeps the history search and its IME focus when a dual-panel desktop workspace becomes narrow', async () => {
+    const viewport = controlResponsiveWidth(1280);
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
+    await screen.findByRole('region', { name: '查询结果' }); await expand();
+    const historyPanel = await screen.findByRole('complementary', { name: '历史工作记录' });
+    fireEvent.click(screen.getByRole('button', { name: '研究资料' }));
+    const researchPanel = await screen.findByRole('complementary', { name: '研究资料与口径' });
+    const search = within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' });
+    search.focus(); fireEvent.compositionStart(search); fireEvent.change(search, { target: { value: '中文历史研究' } });
+    act(() => viewport.resize(320));
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: '研究资料与口径' })).not.toBeInTheDocument());
+    expect(screen.getByRole('complementary', { name: '历史工作记录' })).toBe(historyPanel);
+    expect(researchPanel).toBeInTheDocument(); expect(researchPanel).not.toBeVisible();
+    expect(search).toHaveFocus(); expect(search).toHaveValue('中文历史研究');
+    fireEvent.keyDown(search, { key: 'Escape' }); expect(screen.getByRole('dialog')).toBeInTheDocument();
+    act(() => viewport.resize(1280));
+    expect(screen.queryByRole('complementary', { name: '研究资料与口径' })).not.toBeInTheDocument();
+    expect(search).toHaveFocus(); expect(search).toHaveValue('中文历史研究');
+    fireEvent.compositionEnd(search); fireEvent.keyDown(search, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: expandName })).toHaveFocus();
+    expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
   });
 
   it('honors reduced motion even when native animation is available', async () => {

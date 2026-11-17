@@ -65,6 +65,21 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     transitioning);
   const historyToggle = React.useRef<HTMLButtonElement>(null);
   const researchToggle = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (!expanded || !historyOpen || !researchOpen || !window.matchMedia) return;
+    const wide = window.matchMedia('(min-width: 1280px)');
+    const fitPanels = () => {
+      if (wide.matches) return;
+      // Preserve the focused editor (including an active IME). Otherwise keep
+      // the explicitly opened research panel and its current reading context.
+      const historyHasFocus = workspaceSurfaceRef.current?.querySelector('#query-workspace-history')?.contains(document.activeElement);
+      if (historyHasFocus) setResearchOpen(false);
+      else { setHistoryOpen(false); setCompactHistoryOpen(false); }
+    };
+    fitPanels();
+    wide.addEventListener('change', fitPanels);
+    return () => wide.removeEventListener('change', fitPanels);
+  }, [expanded, historyOpen, researchOpen, workspaceSurfaceRef]);
   const current = React.useRef<AbortController | null>(null);
   const generation = React.useRef(0), revision = React.useRef<string | undefined>(undefined);
   useQueryPresentationReceipt(scope, reply, access.enabled && reply?.status === 'clarification' ? { surface: 'clarification' } : null);

@@ -4,13 +4,21 @@ import { trustedQueryClient, type QueryClientScope } from '@/src/services/truste
 import type { DeliveryView } from '@/src/lib/intelligence/query/delivery';
 
 /** Reports a committed DOM view in a visible document, not viewport exposure or reading.
- * Unmount, collapse, identity changes and a hidden tab suppress pending reports. */
+ * Collapse and a hidden tab suppress unsent reports; identity changes and unmount
+ * also cancel dispatched requests. */
 export function useQueryPresentationReceipt(scope: QueryClientScope | undefined, value: object | null | undefined, view: DeliveryView | null, enabled = true) {
   const descriptor = JSON.stringify(view);
   // A retained result may be hidden and revealed by the workspace. Reopening
   // the same committed view is not another delivery; a changed source/page,
   // result object or identity still has its own receipt, exactly as before.
   const committed = React.useRef<{ scope: QueryClientScope; value: object; descriptor: string; confirmed: boolean; controller: AbortController } | null>(null);
+  React.useEffect(() => () => {
+    // A visibility change must not cancel a request already dispatched for this
+    // view. Keep its confirmation, but invalidate it at the identity/view boundary.
+    const receipt = committed.current;
+    committed.current = null;
+    receipt?.controller.abort();
+  }, [scope, value, descriptor]);
   React.useEffect(() => {
     if (!scope || !value || !view || !enabled) return;
     if (committed.current?.scope === scope && committed.current.value === value && committed.current.descriptor === descriptor
@@ -33,7 +41,7 @@ export function useQueryPresentationReceipt(scope: QueryClientScope | undefined,
       }); });
     };
     schedule(); document.addEventListener('visibilitychange', schedule);
-    return () => { controller.abort(); cancelAnimationFrame(first); cancelAnimationFrame(second); document.removeEventListener('visibilitychange', schedule); };
+    return () => { if (!sent) controller.abort(); cancelAnimationFrame(first); cancelAnimationFrame(second); document.removeEventListener('visibilitychange', schedule); };
     // descriptor is the stable bounded view; no draft or keystrokes are observed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, value, descriptor, enabled]);

@@ -169,8 +169,8 @@
     "Full production build still requires native CI success"
   ],
   "current": {
-    "rawBytes": 577554,
-    "gzipBytes": 176710,
+    "rawBytes": 577981,
+    "gzipBytes": 176828,
     "chunks": [
       {
         "file": "static/chunks/0ea84cac-89f1363e5bc749f0.js",
@@ -238,18 +238,19 @@
         "gzipBytes": 5576
       },
       {
-        "file": "static/chunks/1941-fb5011f0c299d199.js",
-        "bytes": 48149,
-        "gzipBytes": 15647
+        "file": "static/chunks/1941-0e1e93254507e70c.js",
+        "bytes": 48236,
+        "gzipBytes": 15672
       },
       {
-        "file": "static/chunks/app/page-1fbd5a74a024660e.js",
-        "bytes": 53949,
-        "gzipBytes": 18074
+        "file": "static/chunks/app/page-3ff6266d79fd9478.js",
+        "bytes": 54289,
+        "gzipBytes": 18167
       }
     ]
   },
   "identicalLock": true,
-  "deltaGzipBytes": 4189,
-  "incrementalBudgetPassed": true
+  "deltaGzipBytes": 4307,
+  "incrementalBudgetPassed": true,
+  "compression": "Node.js zlib.gzipSync default compression, identical for baseline/current"
 }
