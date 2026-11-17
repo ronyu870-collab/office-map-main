@@ -93,3 +93,15 @@
 4. **合并与部署。** 本记录不是合并批准；main 合并提交与 Vercel 生产部署须在实际发生后另行核实。
 
 阶段独立结论：已覆盖画面的设计改善清楚，未见须重新设计的重大缺陷；继续完成剩余证据。**整体状态保持 `pending`，不提前登记 Visual passed。**
+
+## 首次 PR head 补充评审（仍待验）
+
+独立评审 `/root/review_gates` 实际打开 `4f6719696d019ea00e33a3de4d8d55e9a2a99bdf` 的 CI 产物共44张；主代理依据该次原始评审结论补记。来源为 Verify run `44080622029`、artifact `14327462214`，Chromium 145.0.7632.6／Next production／合成会话。测试 merge `7527858` 与 head 同 tree，不代表已合并。
+
+已查看：五宽度 welcome／expanded-complex；1280与390 business-team；320／768／1280 expanded-welcome、history-open、research-open、expanded-multiturn；320与1280 short-answer、clarification、data-result、expanded-complex-bottom、failure、waiting、stopped、permission-unavailable；320与390短视口；390 editor和viewer。
+
+**仍待验的两项：** 1280复杂结果图表说明下方没有折线与坐标，图表完成态证据不足；320／768历史头部占满面板，首次打开看不到记录，属于中等可用性问题。原图保留在[迭代目录](iterations/README.md)，不能用76条自动布局通过覆盖这两项发现。已安排更严格绘制取证与窄屏历史压缩；其新 head 须重新看图。
+
+其余已查看画面的主页分区、输入主次、建议、角色业务入口、实际团队内容、空全屏、异常状态和来源面板没有发现新的严重问题。data-result 的320图仅支持回复底部滚动状态，不支持前部结论可见；390 editor/viewer可补充相同团队组件的下半区布局。新截图将单独覆盖数据摘要和管理员团队下半区，不为截图修改受保护的跟随策略。
+
+工程方面，原 P1 手机首次展开反馈 P90 124.3ms 未达100ms，独立核对计时对应真实可见几何变化，非mode标志或动画调用。该失败不能忽略；下一轮保持原预算并复测。当前 `result` 仍为 `pending`；真机 MOB-05 独立未完成。

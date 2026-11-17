@@ -21,6 +21,7 @@ const widths = (process.env.HOME_QUERY_P2_WIDTHS || '1280,1536,768,390,320').spl
 assert.ok(widths.every(width => [1280,1536,768,390,320].includes(width)));
 await mkdir(out, { recursive: true });
 const sourceRequire = createRequire(`${sourceRoot}/package.json`);
+const screenshotPixels = sourceRequire('sharp');
 sourceRequire('ts-node').register({ transpileOnly: true, compilerOptions: { module: 'CommonJS', moduleResolution: 'Node' } });
 const { fixture } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/__tests__/fixtures.ts`);
 const { buildAggregateResult, buildTrendResult } = sourceRequire(`${sourceRoot}/src/lib/intelligence/query/result.ts`);
@@ -143,9 +144,15 @@ async function makePage(width, capability = 'enabled', role = 'admin') {
 async function capture(session, state) {
   const { page, width, height, errors, calls, role, capability } = session;
   await page.evaluate(() => document.fonts.ready);
+  await settledPaint(page);
+  const chart = ['expanded-complex', 'expanded-chart'].includes(state) ? await chartEvidence(page) : null;
+  const history = state === 'history-open' ? await page.getByRole('button', { name: '打开对话：CBD 季度租金跟踪', exact: true }).evaluate(viewportGeometry) : null;
+  const dataSummary = state === 'data-summary' ? await page.getByRole('region', { name: '核心指标', exact: true }).evaluate(viewportGeometry) : null;
   // Playwright fast-forwards finite animations and restores them afterwards;
   // do not capture the welcome text halfway through answerEnter's opacity.
-  await page.screenshot({ path: `${out}/${variant}-${width}-${state}.png`, fullPage: true, animations: 'disabled' });
+  const screenshotPath = `${out}/${variant}-${width}-${state}.png`;
+  await page.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled' });
+  if (chart?.lineVisible && chart.svgGeometry?.visible) chart.paint = await chartPaintEvidence(screenshotPath, chart.svgGeometry.intersection, width);
   const metrics = await page.evaluate(() => {
     const input = document.querySelector('#home-query'), composer = input?.parentElement;
     const rect = node => { if (!node) return null; const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, bottom: box.bottom }; };
@@ -153,9 +160,85 @@ async function capture(session, state) {
     return { viewport: { width: innerWidth, height: innerHeight }, scrollWidth: document.documentElement.scrollWidth, input: rect(input), composer: rect(composer), dialog: rect(dialog), inputCount: document.querySelectorAll('#home-query').length, nav: rect(document.querySelector('[aria-label="业务入口"]')), activeElement: document.activeElement?.id, colors: { page: getComputedStyle(document.querySelector('main')).backgroundColor, workspace: getComputedStyle(document.querySelector('#colliers-ai') || document.body).backgroundColor, composer: composer ? getComputedStyle(composer).backgroundColor : null } };
   });
   const checks = { pageOverflow: metrics.scrollWidth <= width, singleInput: role !== 'admin' ? metrics.inputCount === 0 : metrics.inputCount === 1, expandedInputWithinViewport: !metrics.dialog || !metrics.input || (metrics.input.y >= -1 && metrics.input.bottom <= height + 1) };
-  records.push({ state, width, height, role, capability, metrics, checks, interactionChecks: session.interactionChecks || {}, errors: [...errors], queryPosts: calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length });
-  console.log(`${variant}: ${width}px ${state} ${Object.values(checks).every(Boolean) ? 'layout checks pass' : 'LAYOUT ISSUE (retained)'}`);
-  await writeFile(`${out}/${variant}-browser.json`, JSON.stringify({ variant, baseline, sourceRoot, sourceDiffSha256, fixtureDigest, browser: browser.version(), screenshots: 'Full page; fonts ready; Playwright animations disabled for stable finite animation endpoints; no CSS injection', environment: `Next ${buildMode} server; real React DOM; synthetic session and intercepted HTTP; no production writes`, limitations: ['Not a real authentication/DB test', 'Not physical iOS/Android; no real soft keyboard or file handling', 'No quantitative production performance claim'], records }, null, 2));
+  if (chart) {
+    checks.chartGeometryReady = chart.validGeometry;
+    // Complex-answer screenshots may legitimately show the conclusion with the
+    // plot below the viewport. The dedicated chart state must show the SVG.
+    if (state === 'expanded-chart') checks.chartFullyInScrollport = !!chart.svgGeometry?.visible && chart.svgGeometry.intersection.height >= chart.svgGeometry.rect.height - 2;
+    if (state === 'expanded-chart' || chart.lineVisible) checks.chartInkPainted = !!chart.paint && chart.paint.darkBluePixels >= 12;
+  }
+  if (history) {
+    metrics.historyFirstEntry = history;
+    const firstEntryUsable = history.visible && history.intersection.height >= Math.min(44, history.rect.height) && history.intersection.width >= Math.min(44, history.rect.width);
+    metrics.historyFirstEntryUsable = firstEntryUsable;
+    if (variant === 'after') checks.historyFirstEntryVisible = firstEntryUsable;
+  }
+  if (dataSummary) {
+    metrics.dataSummaryCore = dataSummary;
+    checks.dataSummaryCoreVisible = dataSummary.visible && dataSummary.intersection.height >= Math.min(44, dataSummary.rect.height);
+  }
+  records.push({ state, width, height, role, capability, metrics, checks, ...(chart ? { chart } : {}), interactionChecks: session.interactionChecks || {}, errors: [...errors], queryPosts: calls.filter(call => call.path === '/api/intelligence/query' && call.method === 'POST').length });
+  console.log(`${variant}: ${width}px ${state} ${Object.values(checks).every(Boolean) ? 'visual/layout checks pass' : 'VISUAL OR LAYOUT ISSUE (retained)'}`);
+  await writeFile(`${out}/${variant}-browser.json`, JSON.stringify({ variant, baseline, sourceRoot, sourceDiffSha256, fixtureDigest, browser: browser.version(), recordCount: records.length, screenshots: 'Full page; fonts ready and at least two animation frames after scrolling; Playwright animations disabled for stable finite animation endpoints; no CSS injection', environment: `Next ${buildMode} server; real React DOM; synthetic session and intercepted HTTP; no production writes`, limitations: ['Not a real authentication/DB test', 'Not physical iOS/Android; no real soft keyboard or file handling', 'No quantitative production performance claim', 'Chart geometry and raster ink checks supplement, rather than replace, independent visual review'], records }, null, 2));
+}
+async function settledPaint(page) {
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))));
+}
+// Executed in the browser by locator.evaluate. Include every actual clipping
+// scrollport, while stopping at the fixed workspace before its background page.
+function viewportGeometry(node) {
+  const box = node.getBoundingClientRect(), rect = { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+  const clipping = [], dialog = node.closest('[aria-label="Colliers AI 工作空间"]');
+  let left = 0, top = 0, right = innerWidth, bottom = innerHeight, displayed = true;
+  for (let parent = node; parent; parent = parent.parentElement) {
+    const style = getComputedStyle(parent), bounds = parent.getBoundingClientRect();
+    const clipWidth = parent instanceof SVGElement ? bounds.width : parent.clientWidth;
+    const clipHeight = parent instanceof SVGElement ? bounds.height : parent.clientHeight;
+    if (style.display === 'none' || style.visibility === 'hidden' || parent.hidden || parent.inert) displayed = false;
+    if (parent !== node && /(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) {
+      if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) { left = Math.max(left, bounds.left + parent.clientLeft); right = Math.min(right, bounds.left + parent.clientLeft + clipWidth); }
+      if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) { top = Math.max(top, bounds.top + parent.clientTop); bottom = Math.min(bottom, bounds.top + parent.clientTop + clipHeight); }
+      clipping.push({ label: parent.getAttribute('aria-label'), tag: parent.tagName, scrollTop: parent.scrollTop, scrollLeft: parent.scrollLeft, clientWidth: parent.clientWidth, clientHeight: parent.clientHeight, scrollWidth: parent.scrollWidth, scrollHeight: parent.scrollHeight });
+    }
+    if (parent === dialog && style.position === 'fixed') break;
+  }
+  const intersection = { left: Math.max(left, rect.left), top: Math.max(top, rect.top), right: Math.min(right, rect.right), bottom: Math.min(bottom, rect.bottom) };
+  intersection.width = Math.max(0, intersection.right - intersection.left); intersection.height = Math.max(0, intersection.bottom - intersection.top);
+  return { rect, intersection, clipping, visible: displayed && intersection.width > 0 && intersection.height > 0 };
+}
+async function chartEvidence(page) {
+  const chart = page.getByRole('figure', { name: '同源查询图表', exact: true }).last();
+  let readinessError = null;
+  try {
+    await page.waitForFunction(expectedPoints => {
+      const figures = document.querySelectorAll('[aria-label="同源查询图表"]'), svg = figures[figures.length - 1]?.querySelector('svg');
+      const lines = [...(svg?.querySelectorAll('polyline') || [])], axis = svg?.querySelector('path');
+      return !!svg && svg.getBoundingClientRect().width > 0 && svg.getBoundingClientRect().height > 0 && !!axis?.getAttribute('d') && axis.getTotalLength() > 0
+        && svg.querySelectorAll('circle').length === expectedPoints && lines.length > 0 && lines.every(line => {
+          const coordinates = (line.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number);
+          return coordinates.length >= 4 && coordinates.every(Number.isFinite) && line.getTotalLength() > 0;
+        });
+    }, trend.table.rows.length, { timeout: 10000 });
+  } catch (error) { readinessError = error.message.split('\n')[0]; }
+  if (!await chart.count() || !await chart.locator('svg').count()) return { validGeometry: false, readinessError: readinessError || 'Chart SVG is absent' };
+  const svg = chart.locator('svg').first();
+  const facts = await svg.evaluate(node => ({ width: node.getAttribute('width'), height: node.getAttribute('height'), circleCount: node.querySelectorAll('circle').length, axisPaths: [...node.querySelectorAll('path')].map(path => path.getAttribute('d')), polylines: [...node.querySelectorAll('polyline')].map(line => ({ points: line.getAttribute('points'), length: line.getTotalLength() })) }));
+  const svgGeometry = await svg.evaluate(viewportGeometry), lines = [];
+  for (const line of await svg.locator('polyline').all()) lines.push(await line.evaluate(viewportGeometry));
+  return { validGeometry: readinessError === null, readinessError, facts, svgGeometry, lines, lineVisible: lines.some(line => line.visible) };
+}
+async function chartPaintEvidence(screenshotPath, bounds, viewportWidth) {
+  // Read the original PNG without editing it. The fixture's existing chart
+  // series uses #003e7e; axes/text alone must not make a blank plot pass.
+  const { data, info } = await screenshotPixels(screenshotPath).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const scale = info.width / viewportWidth;
+  const region = { left: Math.max(0, Math.floor(bounds.left * scale)), top: Math.max(0, Math.floor(bounds.top * scale)), right: Math.min(info.width, Math.ceil(bounds.right * scale)), bottom: Math.min(info.height, Math.ceil(bounds.bottom * scale)) };
+  let darkBluePixels = 0;
+  for (let y = region.top; y < region.bottom; y++) for (let x = region.left; x < region.right; x++) {
+    const index = (y * info.width + x) * info.channels, red = data[index], green = data[index + 1], blue = data[index + 2];
+    if (red <= 64 && green >= 35 && green <= 120 && blue >= 90 && blue <= 180 && blue - red >= 60 && blue - green >= 30) darkBluePixels++;
+  }
+  return { region, darkBluePixels, minimumRequired: 12, method: 'Read-only original PNG count of existing navy series ink within the visible SVG bounds' };
 }
 async function send(session, question, kind) {
   session.control.answer = kind;
@@ -238,6 +321,8 @@ try {
       await page.getByText(notices[0].content, { exact: true }).waitFor();
       await page.getByText('本周市场观察已更新，欢迎交流近期客户需求。', { exact: true }).waitFor();
       await capture(session, 'business-team');
+      await page.getByRole('complementary', { name: '团队动态', exact: true }).evaluate(node => node.scrollIntoView({ block: 'start', inline: 'nearest' }));
+      await capture(session, 'team-details');
       await page.evaluate(() => { const scroller = document.querySelector('main > div'); if (scroller) scroller.scrollTop = 0; });
     }
     await page.locator('#home-query').evaluate(node => { window.__p2ComposerNode = node; });
@@ -287,6 +372,8 @@ try {
     await send(session, '2026Q3 CBD 净有效租金', 'aggregate');
     await page.getByRole('region', { name: '核心指标', exact: true }).waitFor();
     await capture(session, 'data-result');
+    await page.getByRole('region', { name: '查询结果', exact: true }).last().evaluate(node => node.scrollIntoView({ block: 'start', inline: 'nearest' }));
+    await capture(session, 'data-summary');
     await expanded(page, true);
     if (await page.getByRole('button', { name: '关闭历史', exact: true }).isVisible()) await page.getByRole('button', { name: '关闭历史', exact: true }).click();
     const sourceTrigger = page.getByRole('region', { name: '核心指标', exact: true }).getByRole('button', { name: /^查看来源：/ }).first();
@@ -313,6 +400,9 @@ try {
     await capture(session, 'expanded-complex-bottom');
     await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { const current = node.querySelector('[aria-label="本次问答"]'); node.scrollTop = current ? current.offsetTop : 0; });
     await capture(session, 'expanded-complex');
+    await page.getByRole('figure', { name: '同源查询图表', exact: true }).evaluate(node => node.scrollIntoView({ block: 'start', inline: 'nearest' }));
+    await capture(session, 'expanded-chart');
+    await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { const current = node.querySelector('[aria-label="本次问答"]'); node.scrollTop = current ? current.offsetTop : 0; });
     await page.getByRole('button', { name: '历史记录', exact: true }).click();
     await page.getByRole('button', { name: '打开对话：CBD 季度租金跟踪', exact: true }).waitFor();
     await capture(session, 'history-open');
@@ -355,7 +445,7 @@ try {
     await restricted.context.close();
   }
 } finally { await browser.close(); }
-assert.ok(records.every(record => Object.values(record.checks).every(Boolean)), 'One or more observed layout checks failed; screenshots and report retain the evidence.');
+assert.ok(records.every(record => Object.values(record.checks).every(Boolean)), 'One or more observed visual/layout checks failed; screenshots and report retain the evidence.');
 if (variant === 'after') {
   assert.ok(records.every(record => record.interactionChecks.shortViewportTabCycle?.passed !== false), 'Short viewport keyboard focus reached an invisible control; retained in evidence.');
   assert.ok(records.every(record => record.interactionChecks.longResultTabCycle?.passed !== false), 'Long result keyboard focus did not reveal a control inside its scrollport, escaped the dialog, or scrolled the background; retained in evidence.');

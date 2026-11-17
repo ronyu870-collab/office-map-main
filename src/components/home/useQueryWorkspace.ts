@@ -90,10 +90,12 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     if (!node || !placeholder || expandedRef.current === next) return;
     const from = node.getBoundingClientRect();
     const position = readPosition(scroller.current);
+    // Read the homepage anchor before changing its height. The first expanded
+    // layout should not force an extra synchronous layout between these writes.
+    const origin = placeholder.getBoundingClientRect();
     ticket.current++;
     animation.current?.cancel(); animation.current = null;
     if (!floatingRef.current) placeholder.style.height = `${from.height}px`;
-    const origin = placeholder.getBoundingClientRect();
     node.style.setProperty('--query-compact-top', `${origin.top}px`);
     node.style.setProperty('--query-compact-left', `${origin.left}px`);
     node.style.setProperty('--query-compact-width', `${origin.width || from.width}px`);
@@ -166,21 +168,26 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     const node = surface.current;
     const outside: Array<{ node: HTMLElement; inert: boolean }> = [];
     const scrollContainers: Array<{ node: HTMLElement; overflow: string }> = [];
+    // Collect style reads before mutating the ancestor path, so first expansion
+    // does not alternate inert/overflow writes with computed-style reads.
+    // Background isolation still finishes in this same layout effect.
     // Inert only siblings of our ancestor path, never an ancestor of the editor.
     let branch: HTMLElement = node;
     while (branch.parentElement) {
       const parent = branch.parentElement;
       for (const sibling of Array.from(parent.children)) {
         if (sibling !== branch && sibling instanceof HTMLElement) {
-          outside.push({ node: sibling, inert: sibling.inert }); sibling.inert = true;
+          outside.push({ node: sibling, inert: sibling.inert });
         }
       }
       if (/(auto|scroll)/.test(getComputedStyle(parent).overflowY) || parent === document.body) {
-        scrollContainers.push({ node: parent, overflow: parent.style.overflow }); parent.style.setProperty('overflow', 'hidden');
+        scrollContainers.push({ node: parent, overflow: parent.style.overflow });
       }
       branch = parent;
       if (parent === document.body) break;
     }
+    outside.forEach(item => { item.node.inert = true; });
+    scrollContainers.forEach(item => { item.node.style.setProperty('overflow', 'hidden'); });
     const keydown = (event: KeyboardEvent) => {
       const activeComposition = surfaceComposition.current;
       if (event.defaultPrevented || event.isComposing || event.keyCode === 229 || composingRef.current

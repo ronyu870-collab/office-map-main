@@ -11,7 +11,9 @@
 | 本地完整验证 | 设计版审计、类型、Lint（0 错误／854 warning）、271 文件 2,062 测试通过；页面收集受宿主限制，整体退出 1。最终键盘修正版 271 文件／2,064 项、审计／类型／Lint 通过；同宿主构建限制仍存在，见 [最终本地记录](local-final-verification.json)及[原始日志](local-final-verify.log.gz) |
 | 隔离生产构建 | 设计版完整 `npm run build` 退出 0；[构建记录](isolated-build.json)，不代替最终 head CI |
 | 独立视觉 | 已实际看图状态见[独立评审](visual-review.md)；精确 head 的完整代表状态仍待 CI 截图与补充看图，整个 Visual acceptance 尚未写为通过 |
-| 精确 head CI | 本记录提交时未执行；全部六个 Verify jobs 与 Visual acceptance evidence 须按 PR 当前完整 head 核对 |
+| 视觉迭代后的本地验证 | UI 差异 `bf2856e7f37c54bff693c721af182dd5e475d5ce342657484f77f62bd4eb4656`；再次运行 npm run verify，审计／类型／Lint及271文件／2064项通过，完整构建仍受同一宿主限制，退出1。见[本轮记录](local-visual-iteration-verification.json)及[日志](local-visual-iteration-verify.log.gz) |
+| 精确 head CI | 视觉迭代后须重新执行全部六个 Verify jobs 与 Visual acceptance evidence；当前完整 head 及最终状态由 PR 另行核实 |
+| 首次 PR head 复核 | `4f67196` 的主工程 job 和 76 状态生产矩阵完成；独立看图及原 P1 性能仍有实际失败，见本页第 7 节。旧 head 的成功项不能代替迭代后精确 head |
 | iOS Safari／Android Chrome | 无真实设备，未执行；模拟视口不能代替 MOB-05 |
 | main／生产 | 本批未合并、未发布；不将 PR 创建或 Preview Ready 视为生产完成 |
 
@@ -79,3 +81,20 @@
 本轮没有豁免。MOB-05 要求真实 iOS Safari 与 Android Chrome 的受影响闭环；缺证据时不得合并。本文件不能替代 GitHub CI 或独立视觉结论。
 
 已只读核实 active main ruleset：托管层必需 `Search and filter focus coverage`、`Typecheck, lint, test and build`、`Visual acceptance evidence`；没有 bypass actor，当前身份不可绕过。见[规则读回](github-ruleset.json)。项目规则仍要求精确 head 的全部六个 Verify jobs 与适用手工门槛。旧 branch-protection 端点返回集成权限 403，不据此推断保护缺失，亦未修改任何保护。
+
+## 7. 首次 PR 生产实页的独立复核与迭代
+
+首次 head `4f6719696d019ea00e33a3de4d8d55e9a2a99bdf` 对应 [Verify run 44080622029](https://github.com/ronyu870-collab/office-map-main/actions/runs/44080622029)。实际测试 merge `7527858284681c08fc05a598a359df25fbe97ec4` 的父提交是基线 b59 与该 head，tree 均为 `9082978ef2999753c39e4aa74f5ab29ea1056e42`；它不是已合并 main 的提交。
+
+正式 artifact `14327462214` 已通过官方通道完整取回：76 PNG 与报告，ZIP 5,671,835 bytes，SHA-256 `aed7e4825081369e2b31c0467c7bae70de7658aa5728d05b4fc655abd6790976`。这是 Chromium 145.0.7632.6、Next production 的合成会话实页，与此前 sandbox 开发构建严格区分。自动布局和五宽度来源面板键盘链均通过；独立评审实际查看 44 张图后，仍给出待验结论。
+
+| 实际发现 | 处理及仍待验证的部分 |
+| --- | --- |
+| 1280px 复杂结果只有图表说明，下面 SVG 区域空白 | [原图](iterations/ci-4f67196-1280-expanded-complex.png)保留。其他宽度及后续1280状态可见折线，尚不能确定空白的单一原因。脚本补滚动后双帧、实际 SVG／折线几何、原 PNG 的可见曲线像素检查，并另拍完整图表；不注入 CSS 或改写原图。旧空图 0 曲线像素，1536／768／390 对应图分别 1502／1286／616，可拒绝已观察到的空白负例，见[原图校准](chart-paint-calibration.json)。 |
+| 320／768px 历史面板首次打开看不到记录 | [320 原图](iterations/ci-4f67196-320-history-open.png)、[768 原图](iterations/ci-4f67196-768-history-open.png)保留。限定窄屏导航并排、说明按需展开和间距压缩；新回归要求首条记录与真实滚动窗有至少44px有效交集，不主动滚到记录后冒充初始状态。 |
+| 原 data-result 截图停在回复底部；管理员手机团队图未覆盖下半区 | 原图保留为实际滚动状态，另加 data-summary 和 team-details。只通过真实滚动补充取证，不修改 P1 自动跟随。 |
+| 手机首次展开反馈超预算 | 原120样本保留在[性能报告](ci-4f-workspace-performance.json)。mobile first_expand 20/20 有效样本、P50 123.7ms／P90 124.3ms，超过100ms；content usable P90 456.2ms在500ms内，其余5条件通过。没有将稳定超预算当作CI噪声，亦未直接重跑放行。 |
+
+性能优化仅先读取锚点和祖先样式，再批量写入占位／inert／overflow，仍在同一 layout effect 完成隔离；340ms 动画、原采样与预算均保持。这是基于实际路径的第一轮局部优化，旧汇总数据没有分段 trace，不能提前断言哪一行独占额外耗时。新 head 必须重新通过原性能检查。旧性能脚本 baseline 字段仍提到 P0 无全屏，只是继承描述；本轮实际基线 b59 已有 P1，不据此豁免对照。
+
+上述发现的文件摘要、artifact 与版本见 [ci-first-head.json](ci-first-head.json)。迭代后的全部新状态按报告实际 `recordCount` 统计，仍需精确新 head CI 和独立重新看图。MOB-05 真机门槛保持未完成。

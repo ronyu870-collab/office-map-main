@@ -1,0 +1,27 @@
+{
+  "method": "Read-only original screenshot pixels using the new harness chartPaintEvidence function; region covers visible SVG area, no screenshot modified",
+  "minimumNavyPixels": 12,
+  "cases": [
+    {
+      "file": "after-1280-expanded-complex.png",
+      "navyPixels": 0,
+      "expectedPainted": false
+    },
+    {
+      "file": "after-1536-expanded-complex.png",
+      "navyPixels": 1502,
+      "expectedPainted": true
+    },
+    {
+      "file": "after-768-expanded-complex.png",
+      "navyPixels": 1286,
+      "expectedPainted": true
+    },
+    {
+      "file": "after-390-expanded-complex.png",
+      "navyPixels": 616,
+      "expectedPainted": true
+    }
+  ],
+  "result": "All four calibration expectations passed; the prior blank plot is rejected."
+}

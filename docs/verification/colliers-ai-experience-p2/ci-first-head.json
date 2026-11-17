@@ -1,0 +1,50 @@
+{
+  "head": "4f6719696d019ea00e33a3de4d8d55e9a2a99bdf",
+  "testedMerge": "7527858284681c08fc05a598a359df25fbe97ec4",
+  "tree": "9082978ef2999753c39e4aa74f5ab29ea1056e42",
+  "run": "https://github.com/ronyu870-collab/office-map-main/actions/runs/44080622029",
+  "artifactId": 14327462214,
+  "artifactSha256": "aed7e4825081369e2b31c0467c7bae70de7658aa5728d05b4fc655abd6790976",
+  "browser": "145.0.7632.6",
+  "environment": "Next production; synthetic session and HTTP fixtures",
+  "observations": 76,
+  "automatedLayoutFailures": 0,
+  "pageErrors": 0,
+  "independentVisualResult": "pending: desktop chart image blank; narrow history header consumes initial panel",
+  "scope": "Evidence of actual findings; not passed or a physical-phone result",
+  "retainedFindingImages": [
+    {
+      "file": "iterations/ci-4f67196-1280-expanded-complex.png",
+      "sha256": "e08b5f1a632c28570aed4f675d7e052119705d85e61e57922ce41e482c146939",
+      "bytes": 89806
+    },
+    {
+      "file": "iterations/ci-4f67196-320-history-open.png",
+      "sha256": "1c4baad08a1a692b449a5290391246471ff2fd5ed882f7310b4a4aa33334fab5",
+      "bytes": 60631
+    },
+    {
+      "file": "iterations/ci-4f67196-768-history-open.png",
+      "sha256": "6ac9df3d8f57ff648b7b3767fb3e51549598a0f646bea889b53fb502b5fb90f0",
+      "bytes": 107139
+    }
+  ],
+  "performance": {
+    "report": "ci-4f-workspace-performance.json",
+    "sha256": "7eddf6b80f2a8ca2ba31f5a3fa3b1675f0f79b1ceaf2f54367c97faf844d5a9a",
+    "artifactId": 14328620396,
+    "artifactSha256": "3a2f970aaaa3da2b0b5e6ed91534c73e12d6e784f6433ad668ed5b92493fce0e",
+    "result": "failed: mobile first_expand feedback p90 124.3ms exceeds unchanged 100ms budget",
+    "functionalPassed": true,
+    "sampleCount": 120,
+    "allSamplesRetained": true
+  },
+  "verify": {
+    "completedJobs": 6,
+    "passedJobs": 5,
+    "failedJobs": 1,
+    "conclusion": "failure",
+    "failure": "Real Auth P2 workspace HTTP and browser integration / EXPERIENCE_BUDGET_FAILURE",
+    "rerun": false
+  }
+}

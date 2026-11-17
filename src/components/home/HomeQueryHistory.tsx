@@ -113,7 +113,7 @@ function HistoryPanel({ scope, refreshKey = 0, activeConversationId, busy: query
       {onHome && <Button variant="ghost" onClick={onHome}><ArrowLeft size={16} aria-hidden="true" />返回主页</Button>}
     </nav>}
     <div className={styles.heading}><h3>历史工作记录</h3>{onClose && <Button variant="ghost" onClick={onClose}>关闭历史</Button>}</div>
-    <p className={styles.note}>打开原始回答，继续研究。历史快照保留当时的数据与口径。</p>
+    <p className={`${styles.note} ${styles.introduction}`}>打开原始回答，继续研究。历史快照保留当时的数据与口径。</p>
     <div className={styles.search}>
       <label htmlFor={searchId}>搜索标题或最近问题</label>
       <Input id={searchId} type="search" value={search} placeholder="项目、区域或分析主题"
@@ -156,6 +156,6 @@ function HistoryPanel({ scope, refreshKey = 0, activeConversationId, busy: query
       {page?.indexing && <Button variant="ghost" disabled={busy} onClick={() => { setCursors([undefined]); setReload(value => value + 1); }}>继续载入早期记录</Button>}
     </div>
     {!!page?.unavailable && <p className={styles.note}>部分历史记录目前无法完整读取，未展示其内容。可以稍后重试。</p>}
-    <details className={styles.help}><summary>历史与归档说明</summary><p>重新查询会另行读取数据。归档仅整理本人的列表，不删除原始回答或正式审计记录。</p></details>
+    <details className={styles.help}><summary>历史与归档说明</summary><p><span className={styles.compactExplanation}>历史快照保留当时的数据与口径。</span>重新查询会另行读取数据。归档仅整理本人的列表，不删除原始回答或正式审计记录。</p></details>
   </aside>;
 }
