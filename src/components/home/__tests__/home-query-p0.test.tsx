@@ -16,11 +16,12 @@ function send(input: HTMLElement, question: string) { fireEvent.change(input, { 
 describe('homepage AI P0 behavior', () => {
   beforeEach(() => { sessionStorage.clear(); vi.resetAllMocks(); client.capabilities.mockResolvedValue(access); client.reportDelivery.mockResolvedValue(true); client.chart.mockImplementation(async (_s, _id, result, request) => buildResultChart(result, request)); });
   afterEach(cleanup);
-  it('keeps only four initial examples and hides the rest until requested', async () => {
-    await open(); expect(screen.getByText('今天想了解什么？')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '问题4' })).toBeVisible();
+  it('keeps only three initial examples and hides the rest until requested', async () => {
+    await open(); expect(screen.getByText('今天想研究什么？')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '问题3' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '问题4' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '问题5' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('探索更多与查询范围'));
+    fireEvent.click(screen.getByText('能力与范围'));
     expect(await screen.findByRole('button', { name: '问题5' })).toBeVisible();
   });
   it('submits Enter but not Shift+Enter, IME Enter or legacy composition keyCode 229', async () => {

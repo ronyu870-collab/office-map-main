@@ -22,8 +22,11 @@ vi.mock('@/src/services/Auth', () => ({ getSessionFast: async () => ({
 vi.mock('@/src/services/impersonationHeaders', () => ({
   getImpersonationTargetUserId: () => null, withImpersonationHeaders: (headers: object) => headers,
 }));
-// Result/table/source state is real. File/chart HTTP is outside this workspace lifecycle suite.
-vi.mock('../HomeQueryArtifacts', () => ({ HomeQueryArtifacts: () => null }));
+// Result/table/source/action state is real. File/chart HTTP is outside this workspace lifecycle suite.
+vi.mock('../HomeQueryArtifacts', async () => {
+  const { HomeQueryResultActions } = await import('../HomeQueryResultActions');
+  return { HomeQueryArtifacts: (props: React.ComponentProps<typeof HomeQueryResultActions>) => <HomeQueryResultActions {...props} /> };
+});
 import { HomeQuery } from '../HomeQuery';
 
 const scope = { actorId: 'workspace-owner', effectiveId: 'workspace-owner', sessionId: 'session-one', targetId: null };
@@ -113,6 +116,27 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
 
 describe('Conversational Experience P1 shared workspace lifecycle', () => {
+  it('skips controls inside CSS-hidden metadata when cycling focus in a short workspace', async () => {
+    client.submit.mockImplementation(async (_scope, body: Submission) => help(body));
+    const { input } = await open();
+    send(input, '你好');
+    await screen.findByText('助手回应：你好');
+    await expand();
+    // jsdom does not apply viewport CSS. Apply the same ancestor visibility
+    // change as the short visualViewport layout, without replacing the input.
+    screen.getByText('能力与范围').closest('details')!.parentElement!.style.display = 'none';
+    fireEvent.change(input, { target: { value: '正在继续编辑的草稿' } });
+    const first = screen.getByRole('button', { name: '返回主页' });
+    first.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(screen.getByRole('button', { name: '发送问题' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(first).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: '向 Colliers AI 提问' })).toBe(input);
+    expect(input).toHaveValue('正在继续编辑的草稿');
+    expect(client.submit).toHaveBeenCalledOnce();
+  });
+
   it('keeps the personal greeting and simple answers in compact mode without using question length to force expansion', async () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => help(body));
     const { input } = await open();
@@ -338,6 +362,53 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     await expand(); await collapse(); await expand();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
     expect(screen.getByRole('region', { name: '来源详情' })).toBe(sourcePanel);
+    expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
+  });
+
+  it('continues Tab navigation beside a programmatically focused source panel and restores its trigger on close', async () => {
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const user = userEvent.setup();
+    const { input } = await open(); await expand(); send(input, 'CBD净有效租金');
+    const rendered = await screen.findByRole('region', { name: '查询结果' });
+    const trigger = within(rendered).getByRole('button', { name: /^查看来源：/ });
+    await user.click(trigger);
+    const sourcePanel = await screen.findByRole('region', { name: '来源详情' });
+    await waitFor(() => expect(sourcePanel).toHaveFocus());
+    await user.tab();
+    expect(within(sourcePanel).getByRole('button', { name: '关闭来源' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('region', { name: '来源详情' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    await waitFor(() => expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus());
+    await user.tab({ shift: true });
+    expect(within(rendered).getByText('来源、口径与结果版本')).toHaveFocus();
+    expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
+    expect(screen.getByLabelText('Colliers AI')).toBe(input);
+    expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
+  });
+
+  it('continues Tab navigation beside a programmatically focused analysis summary and restores its trigger on close', async () => {
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const user = userEvent.setup();
+    const { input } = await open(); await expand(); send(input, 'CBD净有效租金');
+    const rendered = await screen.findByRole('region', { name: '查询结果' });
+    await user.click(within(rendered).getByText('更多操作'));
+    const trigger = within(rendered).getByRole('button', { name: '生成分析摘要' });
+    await user.click(trigger);
+    const summaryPanel = await screen.findByRole('region', { name: '市场分析摘要' });
+    await waitFor(() => expect(summaryPanel).toHaveFocus());
+    await user.tab();
+    expect(within(summaryPanel).getByRole('button', { name: '收起摘要' })).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(screen.queryByRole('region', { name: '市场分析摘要' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    await user.click(trigger);
+    await waitFor(() => expect(screen.getByRole('region', { name: '市场分析摘要' })).toHaveFocus());
+    await user.tab({ shift: true });
+    expect(trigger).toHaveFocus();
+    expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
+    expect(screen.getByLabelText('Colliers AI')).toBe(input);
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
   });
 

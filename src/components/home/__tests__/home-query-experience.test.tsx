@@ -23,13 +23,34 @@ function send(input: HTMLElement, text: string) {
 beforeEach(() => { sessionStorage.clear(); vi.resetAllMocks(); client.capabilities.mockResolvedValue(access); client.reportDelivery.mockResolvedValue(true); });
 afterEach(cleanup);
 describe('experience 2.0 P0', () => {
-  it('greets the verified display name and explains identity without submitting a query', async () => {
-    await open('Ron');
+  it('greets the verified name, keeps three authorized starters and explains identity on demand without submitting', async () => {
+    const { input } = await open('Ron');
     expect(screen.getByRole('heading', { name: '你好，Ron。' })).toBeVisible();
-    expect(screen.getByText(/我是 Colliers AI，高力国际北京办公楼市场的智能研究助手/)).toBeVisible();
+    expect(screen.getByText('今天想研究什么？')).toBeVisible();
+    expect(screen.getByText(/我是 Colliers AI，高力国际北京办公楼市场的智能研究助手/)).not.toBeVisible();
+    expect(within(screen.getByRole('region', { name: '示例问题' })).getAllByRole('button')).toHaveLength(3);
     expect(client.submit).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'CBD最近四季度租金趋势' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '市场租金趋势：CBD最近四季度租金趋势' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '第五个获权示例' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '市场租金趋势：CBD最近四季度租金趋势' }));
+    expect(input).toHaveValue('CBD最近四季度租金趋势');
+    expect(input).toHaveFocus();
+    fireEvent.click(screen.getByText('能力与范围'));
+    expect(screen.getByText(/我是 Colliers AI，高力国际北京办公楼市场的智能研究助手/)).toBeVisible();
+    expect(await screen.findByRole('button', { name: '第五个获权示例' })).toBeVisible();
+    expect(screen.getByRole('textbox')).toBe(input);
+    expect(input).toHaveValue('CBD最近四季度租金趋势');
+    expect(client.submit).not.toHaveBeenCalled();
+  });
+  it('does not advertise or invent an example outside the server-authorized list', async () => {
+    client.capabilities.mockResolvedValue({ ...access, examples: ['金融街空置率', '金融街空置率'] });
+    const { input } = await open('Ron');
+    const starters = within(screen.getByRole('region', { name: '示例问题' }));
+    expect(starters.getAllByRole('button')).toHaveLength(1);
+    expect(starters.queryByText('市场租金趋势')).not.toBeInTheDocument();
+    fireEvent.click(starters.getByRole('button', { name: '金融街空置率' }));
+    expect(input).toHaveValue('金融街空置率');
+    expect(client.submit).not.toHaveBeenCalled();
   });
   it.each(['person@example.com', '00000000-0000-4000-8000-000000000000', '   ', 'Ron\u202Eevil'])('does not turn an unsafe account identifier into a greeting: %s', async value => {
     await open(value);

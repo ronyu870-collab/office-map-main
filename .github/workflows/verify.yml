@@ -298,6 +298,7 @@ jobs:
           node scripts/performance/verify-anonymous.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs http://127.0.0.1:3210
           node scripts/verification/home-entry-browser.mjs after http://127.0.0.1:3210
+          HOME_QUERY_P2_BUILD_MODE=production HOME_QUERY_P2_EVIDENCE_DIR="$RUNNER_TEMP/colliers-ai-experience-p2" node scripts/verification/home-query-experience-p2-browser.mjs after http://127.0.0.1:3210
           node scripts/performance/verify-admin-ledger-first-open.mjs http://127.0.0.1:3210
           node scripts/performance/verify-home-cold-start.mjs --prefetch-policy http://127.0.0.1:3210
           node scripts/performance/verify-compare-read.mjs http://127.0.0.1:3210
@@ -337,6 +338,15 @@ jobs:
           path: |
             docs/verification/home-ai-entry/after-*.png
             docs/verification/home-ai-entry/after-browser.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retain Colliers AI P2 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: colliers-ai-experience-p2-verification
+          path: ${{ runner.temp }}/colliers-ai-experience-p2
           if-no-files-found: ignore
           retention-days: 7
 

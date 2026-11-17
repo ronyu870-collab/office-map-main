@@ -78,7 +78,7 @@ try {
     const businessOrder = await nav.getByRole('link').evaluateAll(links => links.map(link => link.getAttribute('href')));
     if (variant === 'after') {
       assert.deepEqual(businessOrder, ['/map', '/lease-submission', '/update', '/oss',
-        ...(role === 'admin' ? ['/quarterly-research', '/occupier-insights'] : [])]);
+        ...(role === 'admin' ? ['/quarterly-research', '/occupier-insights', '/intelligence'] : [])]);
       assert.equal(await nav.getByText('仅管理员可见', { exact: true }).count(), role === 'admin' ? 2 : 0);
       if (role === 'admin') {
         for (const name of ['北京写字楼季度研究', '企业选址洞察报告']) {
@@ -116,7 +116,7 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await page.getByRole('button', { name: '用户菜单' }).evaluate(e => e === document.activeElement), true);
     if (variant === 'after') {
-      const query = page.getByRole('textbox', { name: 'Colliers AI' });
+      const query = page.getByRole('textbox', { name: '向 Colliers AI 提问' });
       const send = page.getByRole('button', { name: '发送问题' });
       if (role === 'admin') {
         assert.equal(await query.isDisabled(), true);

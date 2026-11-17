@@ -1,0 +1,39 @@
+{
+  "recordedOn": "2026-11-17",
+  "baseline": "b59e4f640ba630b24bfa843a3f5f8cd8a80f6f41",
+  "branch": "codex/colliers-ai-experience-p2-20261117",
+  "uiAndTestsDiffSha256": "916667ab96e544007ed0df10f0437ebe71abea3385104ba8b5d64d33679813f9",
+  "harnessSha256": "ee0cbb9bad7348b99aae3feac43a332f926cfc7c01bb3570d1922deeab3e1030",
+  "command": "NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=syntheticfixture NEXT_PUBLIC_AMAP_KEY=syntheticfixture npm run verify",
+  "exitCode": 1,
+  "auditCoverage": "passed",
+  "typecheck": "passed",
+  "eslint": {
+    "errors": 0,
+    "warnings": 854
+  },
+  "tests": {
+    "filesPassed": 271,
+    "testsPassed": 2064
+  },
+  "productionCompilation": "passed",
+  "productionBuild": {
+    "status": "blocked",
+    "stage": "collect page data /api/oss",
+    "error": "uv_interface_addresses returned Unknown system error 1"
+  },
+  "completeVerifyPassed": false,
+  "rawLog": "local-final-verify.log.gz",
+  "rawLogSha256": "6cb7a7d42d327699e45ab3a9d04162efce0fee2eef26eaa26e522796f836874d",
+  "panelFocusRegression": {
+    "oldImplementation": "two actual source/summary operations fail by focusing the home toolbar",
+    "fixedImplementation": "49 affected tests pass, included in the full 2064",
+    "before": "panel-tab-before.log.gz",
+    "after": "panel-tab-after.log.gz"
+  },
+  "limits": [
+    "Final-head production build and browser evidence remain required from CI.",
+    "Prior design screenshots retain their a687e source fingerprint.",
+    "Physical iOS Safari and Android Chrome acceptance has not been performed."
+  ]
+}

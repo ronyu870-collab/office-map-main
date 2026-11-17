@@ -1,0 +1,49 @@
+{
+  "designMatrixDiffSha256": "a687e0383eefd9e8fce56ea128049b0af68ae8ba374e26966333bbb268781220",
+  "verifiedSavedDesignImages": [
+    {
+      "file": "after-320-research-open.webp",
+      "bytes": 28278,
+      "sha256": "1d0342eb3040646a655ee0b7ef15a11c60b65d913f5e5aecbdd566f205b8fbf6"
+    },
+    {
+      "file": "after-390-research-open.webp",
+      "bytes": 32240,
+      "sha256": "bed145fbe75773cfb067b49095ed768329e12bb6b169160e3640d06bbcd229ff"
+    },
+    {
+      "file": "before-390-welcome.webp",
+      "bytes": 28778,
+      "sha256": "fed21112a487a17a84a1292d2d86d5273093b18347bebb85a16719f2f3fbc5c4"
+    },
+    {
+      "file": "after-1280-welcome.webp",
+      "bytes": 34190,
+      "sha256": "6fa867e7d008bc5e2bf88caa04144cfb0f87b689b0a97d38889d954baa3a0bf7"
+    },
+    {
+      "file": "after-768-welcome.webp",
+      "bytes": 34476,
+      "sha256": "04a1c31eee18418d9f902efdc4d5295dd706ada7e5de1959d02d396ef2844dc6"
+    },
+    {
+      "file": "after-1536-welcome.webp",
+      "bytes": 34072,
+      "sha256": "20f98ec427189a97515de37257505c1bc1bdb26d9ba1327e393e8fcf426c2724"
+    },
+    {
+      "file": "after-390-welcome.webp",
+      "bytes": 22556,
+      "sha256": "e2e00fe51afb3bc8d237d614322580d7d0d9793203163771e659acc133b65f0c"
+    }
+  ],
+  "earlyIterationImages": [
+    "before-1280-welcome.webp",
+    "after-390-expanded-complex.webp",
+    "after-320-welcome.webp",
+    "after-1280-expanded-complex.webp",
+    "after-320-expanded-complex.webp"
+  ],
+  "originalPngArchiveSaved": false,
+  "originalPngArchiveLimitation": "Execution-log archive transfer was rejected by automatic approval review. Dedicated file transfer was approved and used for selected files only. The temporary sandbox reached its fixed lifetime before other images could be retrieved. Full final-head after PNG generation is wired into CI and remains pending that run."
+}

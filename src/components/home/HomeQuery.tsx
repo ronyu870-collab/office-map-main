@@ -8,7 +8,7 @@ import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientSc
 import { queryActionSchema, type QueryAction, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 import { HomeQueryResult } from './HomeQueryResult';
 import { resultSummary } from '@/src/lib/intelligence/query/presentation';
-import { QueryWelcome, AssistantHeading, QueryWorkingIndicator } from './HomeQueryExperience';
+import { QueryWelcome, AssistantHeading, QueryWorkingIndicator, queryStarters } from './HomeQueryExperience';
 import { QueryClientError, queryFailureMessage } from '@/src/services/queryClientErrors';
 import { readMapQueryContext, type BuildingSelection } from '@/src/lib/intelligence/query/buildingNavigation';
 import type { HistoryOpened } from '@/src/lib/intelligence/query/historyProtocol';
@@ -271,6 +271,8 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const needsConditions = reply?.status === 'clarification' && !assistantHelp;
   const retry = attempt && !busy && !terminalFailure && !reply?.result && reply?.status !== 'clarification';
   const examples = [...new Set(access.examples)];
+  const starters = queryStarters(examples);
+  const emptyConversation = !attempt && !history.length;
   const latestResult = React.useMemo(() => ready ? reply?.result : history.findLast(turn => turn.reply?.status === 'ready')?.reply?.result, [ready, reply, history]);
   const mode = expanded ? 'expanded' : 'compact';
   const historyShown = historyOpen && (expanded || compactHistoryOpen);
@@ -295,12 +297,12 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const startNew = () => { resetConversation(false); scroll.followNext(); input.current?.focus(); };
   return <div ref={workspaceAnchorRef} className={workspaceStyles.anchor}>
   <div ref={workspaceSurfaceRef} className={`${styles.conversation} ${workspaceStyles.surface}`} id="colliers-ai"
-    data-mode={mode} data-floating={floating} data-transitioning={transitioning}
+    data-mode={mode} data-floating={floating} data-transitioning={transitioning} data-empty={emptyConversation}
     role={floating ? 'dialog' : undefined} aria-modal={floating ? true : undefined}
     aria-label={floating ? 'Colliers AI 工作空间' : undefined} tabIndex={-1}>
-    {access.enabled && <header className={workspaceStyles.toolbar}>
-      <div className={workspaceStyles.identity} hidden={!expanded}><strong>Colliers AI</strong><span>研究工作空间</span></div>
-      <div className={workspaceStyles.toolbarActions}>
+    <header className={workspaceStyles.toolbar}>
+      <div className={workspaceStyles.identity}><strong>Colliers <span>AI</span></strong></div>
+      {access.enabled && <div className={workspaceStyles.toolbarActions}>
         <Button variant="ghost" className={workspaceStyles.homeButton} hidden={!expanded || historyShown} aria-label="返回主页" onClick={exitWorkspace}><ArrowLeft size={16} aria-hidden="true" /><span>主页</span></Button>
         {(expanded || attempt || history.length > 0) && <Button variant="ghost" hidden={expanded && historyShown} disabled={busy} aria-label="新对话" onClick={startNew}><Plus size={16} aria-hidden="true" /><span>新对话</span></Button>}
         <Button ref={historyToggle} variant="ghost" aria-label="历史记录" aria-expanded={historyShown} aria-controls="query-workspace-history" onClick={toggleHistory}><History size={16} aria-hidden="true" /><span>历史记录</span></Button>
@@ -314,8 +316,8 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
           onClick={() => expanded ? exitWorkspace() : expandWorkspace()}>
           {expanded ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
         </Button>
-      </div>
-    </header>}
+      </div>}
+    </header>
     <div id="query-workspace-body" className={workspaceStyles.body}>
     <div id="query-workspace-history" className={workspaceStyles.history} hidden={!access.enabled || !historyShown} inert={!access.enabled || !historyShown}>
       {access.enabled && historyMounted && <HomeQueryHistory key={`${queryScopeKey(scope)}:${access.permissionRevision ?? ''}`} scope={scope} permissionRevision={access.permissionRevision} refreshKey={historyRefresh}
@@ -354,19 +356,6 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       {!attempt && message && <p role="status" aria-live="polite" className={styles.status}>{message}</p>}
       {!attempt && savedId && !busy && <Button variant="ghost" onClick={() => void run({ idempotencyKey: crypto.randomUUID(), question: '', requestId: savedId }, true)}>检查状态并恢复结果</Button>}
     </div>}
-    {access.enabled && !attempt && !history.length && examples.length > 0 && <section className={styles.starters} aria-label="示例问题">
-      <p>今天想了解什么？</p>
-      <div className={styles.suggestions}>{examples.slice(0, 4).map(question => <ExampleQuestion key={question} variant="secondary" question={question} onSelect={edit} />)}</div>
-    </section>}
-    {access.enabled && <details className={styles.capabilities}><summary>我能做什么</summary>
-      <p>在你当前获权的范围内查找楼宇资料，分析净有效租金、空置率和季度变化，并查看数据来源。</p>
-      <p>未收录、未获授权或尚未开放的能力会明确说明。我不会修改业务数据，也不会把缺失信息当作零。</p>
-    </details>}
-    {access.enabled && <details className={styles.examples} onToggle={event => setExamplesOpen(event.currentTarget.open)}><summary>探索更多与查询范围</summary>
-      <div>{examplesOpen && examples.slice(4).map(question => <ExampleQuestion key={question} variant="ghost" question={question} onSelect={edit} />)}</div>
-      <p>楼宇目录按当前获权范围查询；季度指标采用当前跟踪样本。示例年份仅说明格式，不代表该期一定有数据。</p>
-      <p>当前会话保留全部问答，较长的此前回答按需展开。历史记录单独核对本人访问资格后打开原始快照；重新查询是另一项操作。选择“新对话”清除上文条件，身份变化时清除当前工作区。</p>
-    </details>}
     </div>
     </div>
     <div className={workspaceStyles.inputDock}>
@@ -383,12 +372,26 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
           submitDraft();
         }} />
       <div className={styles.composerFooter}>
-        <p id="home-query-status">{access.enabled ? 'Enter 发送 · Shift+Enter 换行' : message || (accessError ? '暂时无法核对查询资格，请稍后重进主页。原业务入口仍可使用。' : '目前请使用下方业务入口。')}</p>
+        <p id="home-query-status" className={access.enabled ? styles.keyboardHint : undefined}>{access.enabled ? 'Enter 发送 · Shift+Enter 换行' : message || (accessError ? '暂时无法核对查询资格，请稍后重进主页。原业务入口仍可使用。' : '目前请使用下方业务入口。')}</p>
         {busy ? <Button className={styles.sendButton} size="icon" variant="secondary" aria-label="停止等待" onClick={stopWaiting}><Square size={16} aria-hidden="true" /></Button>
           : <Button className={styles.sendButton} size="icon" aria-label="发送问题" disabled={!access.enabled || !draft.trim()} onClick={submitDraft}><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></Button>}
       </div>
     </div>
-    <p id="home-query-notice" className={access.enabled ? styles.privacy : 'sr-only'}>{access.enabled ? '正式提交的提问及回答会留存，供获权审计人员查看。请勿输入密码或密钥。' : '对话查询尚未开放。'}</p>
+    {access.enabled && emptyConversation && starters.length > 0 && <section className={styles.starters} aria-label="示例问题">
+      <div className={styles.suggestions}>{starters.map(({ question, label }) => <ExampleQuestion key={question} variant="ghost" question={question} label={label} onSelect={edit} />)}</div>
+    </section>}
+    <div className={`${styles.composerMeta} ${workspaceStyles.meta}`}>
+      <p id="home-query-notice" className={access.enabled ? styles.privacy : 'sr-only'}>{access.enabled ? '提问与回答会留存供获权审计。请勿输入密码或密钥。' : '对话查询尚未开放。'}</p>
+      {access.enabled && <details className={styles.capabilities} onToggle={event => setExamplesOpen(event.currentTarget.open)}><summary>能力与范围</summary>
+        <div className={styles.capabilityContent}>
+          <p>我是 Colliers AI，高力国际北京办公楼市场的智能研究助手。在你当前获权的范围内查找楼宇资料，分析净有效租金、空置率和季度变化，并查看数据来源。</p>
+          <p>未收录、未获授权或尚未开放的能力会明确说明。我不会修改业务数据，也不会把缺失信息当作零。</p>
+          <div className={styles.moreExamples}>{examplesOpen && examples.filter(question => !starters.some(item => item.question === question)).map(question => <ExampleQuestion key={question} variant="ghost" question={question} onSelect={edit} />)}</div>
+          <p>楼宇目录按当前获权范围查询；季度指标采用当前跟踪样本。示例年份仅说明格式，不代表该期一定有数据。</p>
+          <p>当前会话保留全部问答。历史记录会核对本人资格后打开原始快照；重新查询是另一项操作。“新对话”清除上文条件，身份变化时清除工作区。</p>
+        </div>
+      </details>}
+    </div>
     </div>
     </div>
     <div id="query-workspace-research" className={workspaceStyles.research} hidden={!access.enabled || !researchShown || !latestResult} inert={!access.enabled || !researchShown || !latestResult}>
@@ -427,8 +430,8 @@ function suggestions(reply: QueryReply | null): QueryAction[] {
   const parsed = queryActionSchema.array().max(6).safeParse(reply?.result?.parameters.suggestions);
   return parsed.success ? parsed.data : [];
 }
-function ExampleQuestion({ question, variant, onSelect }: { question: string; variant: 'ghost' | 'secondary'; onSelect: (question: string) => void }) {
-  return <Button variant={variant} onClick={() => onSelect(question)}><span>{question}</span><ArrowUpRight size={15} aria-hidden="true" /></Button>;
+function ExampleQuestion({ question, label, variant, onSelect }: { question: string; label?: string; variant: 'ghost' | 'secondary'; onSelect: (question: string) => void }) {
+  return <Button variant={variant} aria-label={label && label !== question ? `${label}：${question}` : question} title={label ? question : undefined} onClick={() => onSelect(question)}><span>{label ?? question}</span><ArrowUpRight size={14} aria-hidden="true" /></Button>;
 }
 function QueryActions({ actions, label, disabled, onSelect }: { actions?: QueryAction[]; label: string; disabled: boolean; onSelect: (action: QueryAction) => void }) {
   if (!actions?.length) return null;

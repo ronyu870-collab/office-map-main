@@ -1,0 +1,57 @@
+{
+  "observedOn": "2026-11-17",
+  "source": "https://api.github.com/repos/ronyu870-collab/office-map-main/rulesets/27013547",
+  "ruleset": {
+    "id": 27013547,
+    "name": "Main: engineering and visual acceptance",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "ronyu870-collab/office-map-main",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "refs/heads/main"
+        ]
+      }
+    },
+    "rules": [
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": false,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "Search and filter focus coverage",
+              "integration_id": 15368
+            },
+            {
+              "context": "Typecheck, lint, test and build",
+              "integration_id": 15368
+            },
+            {
+              "context": "Visual acceptance evidence",
+              "integration_id": 15368
+            }
+          ]
+        }
+      }
+    ],
+    "node_id": "RRS_lACqUmVwb3NpdG9yec5OjZqbzgGcMas",
+    "created_at": "2026-11-11T15:19:53.601+08:00",
+    "updated_at": "2026-11-11T15:19:53.715+08:00",
+    "bypass_actors": [],
+    "current_user_can_bypass": "never",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/ronyu870-collab/office-map-main/rulesets/27013547"
+      },
+      "html": {
+        "href": "https://github.com/ronyu870-collab/office-map-main/rules/27013547"
+      }
+    }
+  },
+  "limitation": "Legacy branch-protection read returned 403 for this integration; active repository ruleset read succeeded. All Verify jobs and repository MOB-05 are still required by the project rules."
+}

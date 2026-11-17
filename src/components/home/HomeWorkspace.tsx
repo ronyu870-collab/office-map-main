@@ -15,7 +15,7 @@ import {
   LogOut,
   Map,
   Lock,
-  Sparkles,
+  ChartNoAxesCombined,
   UserRound,
 } from 'lucide-react';
 
@@ -45,6 +45,7 @@ type WorkspaceModule = {
   module: string;
   title: string;
   adminOnly?: boolean;
+  note?: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
 };
 
@@ -59,7 +60,8 @@ const INTELLIGENCE_WORKSPACE: WorkspaceModule = {
   href: '/intelligence',
   module: 'intelligence',
   title: '业务智能 Intelligence',
-  icon: Sparkles,
+  icon: ChartNoAxesCombined,
+  note: '内部试用',
 };
 
 const BUSINESS_WORKSPACES: WorkspaceModule[] = [
@@ -184,7 +186,7 @@ function HomeHeader({
   };
 
   return (
-    <div className="mx-auto flex h-[54px] w-full max-w-[1176px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+    <div className={styles.headerContent}>
       <div className="flex min-w-0 items-center gap-3">
         <div className="relative h-7 w-[52px] shrink-0 overflow-hidden rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-brand)]">
           <Image src="/colliers-logo.png" unoptimized alt="Colliers 高力国际" width={592} height={337} priority className="absolute left-1/2 top-1/2 h-[31px] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
@@ -306,7 +308,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       onClick={(event) => onActivate(event, workspace)}
       className={`${styles.workspaceLink} ${canAccess ? '' : styles.unavailable}`}
       title={canAccess ? undefined : '当前账号无访问权限'}
-      aria-label={workspace.adminOnly ? workspace.title : undefined}
+      aria-label={workspace.adminOnly || workspace.note ? workspace.title : undefined}
       aria-describedby={workspace.adminOnly ? visibilityNoteId : undefined}
       {...accessibilityProps}
     >
@@ -314,6 +316,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       <div className={styles.workspaceText}>
         <h3>{workspace.title}</h3>
         {workspace.adminOnly && <p id={visibilityNoteId} className={styles.workspaceNote}>仅管理员可见</p>}
+        {workspace.note && <p className={styles.workspaceNote}>{workspace.note}</p>}
       </div>
       {canAccess ? <ArrowRight size={16} strokeWidth={1.5} className={styles.linkArrow} aria-hidden="true" />
         : <span>无访问权限</span>}
@@ -323,7 +326,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
 
 function LoadingHeader() {
   return (
-    <div className="mx-auto flex h-[54px] w-full max-w-[1176px] items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div className={styles.headerContent}>
       <div className="h-7 w-[220px] max-w-[calc(100%-64px)] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:w-[231px]" />
       <div className="h-10 w-[52px] animate-pulse rounded-[var(--cd-radius-sm)] bg-[var(--cd-color-border)] sm:h-9 sm:w-[88px]" />
     </div>
@@ -415,8 +418,6 @@ export function HomeWorkspace() {
 
   const MapIcon = MAP_WORKSPACE.icon;
   const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeRole);
-  const IntelligenceIcon = INTELLIGENCE_WORKSPACE.icon;
-  const intelligenceAccessibilityProps = getAccessibilityProps(INTELLIGENCE_WORKSPACE.module, INTELLIGENCE_WORKSPACE.title, activeRole);
 
   return (
     <WorkspaceShell
@@ -437,24 +438,8 @@ export function HomeWorkspace() {
             <h1 id="home-title" className="sr-only">主页</h1>
             <div className={styles.workSurface}>
               {(canSeeIntelligence || !activeSession) && <div className={styles.queryArea}>
-                {activeSession ? <>
-                  <div className={styles.queryHeading}>
-                    <label htmlFor="home-query">Colliers AI</label>
-                    {canSeeIntelligence ? <HomeIntentLink
-                      href={INTELLIGENCE_WORKSPACE.href}
-                      mayPrefetch={canAccessModule(INTELLIGENCE_WORKSPACE.module, activeRole)}
-                      onClick={(event) => handleWorkspaceActivation(event, INTELLIGENCE_WORKSPACE)}
-                      className={styles.intelligenceLink}
-                      aria-label={INTELLIGENCE_WORKSPACE.title}
-                      {...intelligenceAccessibilityProps}
-                    >
-                      <IntelligenceIcon size={16} strokeWidth={1.5} aria-hidden="true" />
-                      <span>业务智能</span><span className={styles.previewLabel}>内部试用</span>
-                      <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
-                    </HomeIntentLink> : null}
-                  </div>
-                  <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} displayName={activeSession.displayName} />
-                </> : <div className={styles.querySkeleton} aria-hidden="true" />}
+                {activeSession ? <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} displayName={activeSession.displayName} />
+                  : <div className={styles.querySkeleton} aria-hidden="true" />}
               </div>}
               <nav className={styles.navigation} aria-label="业务入口">
                 {canStartMap ? <HomeIntentLink
@@ -474,6 +459,7 @@ export function HomeWorkspace() {
                 <div className={styles.businessLinks}>
                   {activeSession ? visibleBusinessWorkspaces.map((workspace) => <WorkspaceCard key={workspace.href} workspace={workspace} role={activeRole} onActivate={handleWorkspaceActivation} />)
                     : [0, 1, 2, 3].map(item => <div key={item} className={styles.linkSkeleton} aria-hidden="true" />)}
+                  {canSeeIntelligence && <WorkspaceCard workspace={INTELLIGENCE_WORKSPACE} role={activeRole} onActivate={handleWorkspaceActivation} />}
                 </div>
               </nav>
             </div>

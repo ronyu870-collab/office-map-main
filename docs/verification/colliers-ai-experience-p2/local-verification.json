@@ -1,0 +1,39 @@
+{
+  "recordedOn": "2026-11-17",
+  "baseline": "b59e4f640ba630b24bfa843a3f5f8cd8a80f6f41",
+  "branch": "codex/colliers-ai-experience-p2-20261117",
+  "uiAndTestsDiffSha256": "a687e0383eefd9e8fce56ea128049b0af68ae8ba374e26966333bbb268781220",
+  "command": "NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY=syntheticfixture NEXT_PUBLIC_AMAP_KEY=syntheticfixture npm run verify",
+  "exitCode": 1,
+  "auditCoverage": "passed",
+  "typecheck": "passed",
+  "eslint": {
+    "errors": 0,
+    "warnings": 854
+  },
+  "tests": {
+    "filesPassed": 271,
+    "testsPassed": 2062
+  },
+  "productionCompilation": "passed",
+  "productionBuild": {
+    "status": "blocked",
+    "stage": "collect page data /api/oss",
+    "error": "uv_interface_addresses returned Unknown system error 1"
+  },
+  "completeVerifyPassed": false,
+  "rawLog": "local-verify.log.gz",
+  "rawLogSha256": "e534552c950fb69d8304f47a7064e2c96eafc408b36510d7aa6753c9fd3cdffd",
+  "focusRegression": {
+    "before": "focus-regression-before.log.gz",
+    "after": "focus-regression-after.log.gz",
+    "oldFailure": "focus entered a summary under a CSS-hidden ancestor",
+    "afterFocusedTests": 48,
+    "finalFullSuiteIncludesRegression": true
+  },
+  "limits": [
+    "Local build blockage is not a merge waiver.",
+    "Exact PR head CI and rendered visual review are separate evidence.",
+    "Physical iOS Safari and Android Chrome acceptance has not been performed."
+  ]
+}

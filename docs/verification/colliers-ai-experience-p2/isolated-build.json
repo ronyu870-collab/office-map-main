@@ -1,0 +1,32 @@
+{
+  "observedOn": "2026-11-17",
+  "project": "colliersdata",
+  "sandbox": "sbx_hlZYBX8kZjNK2PfOwUIVG5DV3Jel",
+  "designUiAndTestsDiffSha256": "a687e0383eefd9e8fce56ea128049b0af68ae8ba374e26966333bbb268781220",
+  "environment": {
+    "node": "24.22.3",
+    "next": "16.2.12",
+    "playwright": "1.65.1",
+    "chromium": "159.0.8154.6",
+    "vcpus": 2,
+    "memoryMB": 4096
+  },
+  "command": "npm run build",
+  "attempts": [
+    {
+      "result": "SIGKILL",
+      "cause": "Two development servers were still resident, occupying about 2.2 GB of the 4 GB sandbox."
+    },
+    {
+      "commandId": "cmd_231cc0b4a5a54b1c94e436de242d",
+      "exitCode": 0,
+      "result": "Production compilation, static generation and final route listing completed after stopping the observed development-server processes."
+    }
+  ],
+  "evidenceBoundary": "Exit file and final route-list text were read in the sandbox. Full build log was not transferred. No production credentials or writes were used. The later source/summary keyboard-order fix is covered separately by final-head CI.",
+  "cleanup": {
+    "status": "stopped",
+    "routes": [],
+    "durationMs": 2700457
+  }
+}

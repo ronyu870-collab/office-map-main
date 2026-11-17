@@ -170,13 +170,15 @@ describe('Home workspace behavior', () => {
     expect(navigation.queryByText('仅管理员可见')).not.toBeInTheDocument();
   });
 
-  it('shows all five business entries in order and identifies the two administrator entries', () => {
+  it('preserves business entry order and groups the existing Intelligence link with the authorized tools', () => {
     render(<HomeWorkspace />);
 
     const navigation = within(screen.getByRole('navigation', { name: '业务入口' }));
     expect(navigation.getAllByRole('link').map(link => link.getAttribute('href'))).toEqual([
-      '/map', '/lease-submission', '/update', '/oss', '/quarterly-research', '/occupier-insights',
+      '/map', '/lease-submission', '/update', '/oss', '/quarterly-research', '/occupier-insights', '/intelligence',
     ]);
+    expect(navigation.getByRole('link', { name: '业务智能 Intelligence' })).toHaveAttribute('href', '/intelligence');
+    expect(navigation.getByText('内部试用')).toBeVisible();
     expect(navigation.getAllByText('仅管理员可见')).toHaveLength(2);
     for (const name of ['北京写字楼季度研究', '企业选址洞察报告']) {
       const link = navigation.getByRole('link', { name });

@@ -1,0 +1,4784 @@
+{
+  "variant": "before",
+  "baseline": "b59e4f640ba630b24bfa843a3f5f8cd8a80f6f41",
+  "sourceRoot": "/vercel/before",
+  "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "fixtureDigest": "7cd34434c0cc7108f0829ec8325e70983293437e4dbf050739608e3aac706ab5",
+  "browser": "159.0.8154.6",
+  "screenshots": "Full page; fonts ready; Playwright animations disabled for stable finite animation endpoints; no CSS injection",
+  "environment": "Next development server; real React DOM; synthetic session and intercepted HTTP; no production writes",
+  "limitations": [
+    "Not a real authentication/DB test",
+    "Not physical iOS/Android; no real soft keyboard or file handling",
+    "No quantitative production performance claim"
+  ],
+  "records": [
+    {
+      "state": "welcome",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 290,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 316,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "business-team",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": -146.609375,
+          "width": 290,
+          "height": 56,
+          "bottom": -90.609375
+        },
+        "composer": {
+          "x": 37,
+          "y": -159.609375,
+          "width": 316,
+          "height": 136,
+          "bottom": -23.609375
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 54.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 513.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "expanded-welcome",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 340,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 366,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-viewport-tab-cycle",
+      "width": 390,
+      "height": 400,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 400
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 21,
+          "y": 277,
+          "width": 348,
+          "height": 56,
+          "bottom": 333
+        },
+        "composer": {
+          "x": 12,
+          "y": 268,
+          "width": 366,
+          "height": 128,
+          "bottom": 396
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 400,
+          "bottom": 400
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-answer",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 613.75,
+          "width": 290,
+          "height": 56,
+          "bottom": 669.75
+        },
+        "composer": {
+          "x": 37,
+          "y": 600.75,
+          "width": 316,
+          "height": 136,
+          "bottom": 736.75
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 815.125,
+          "width": 324,
+          "height": 459,
+          "bottom": 1274.125
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 1
+    },
+    {
+      "state": "clarification",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 290,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 316,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 2
+    },
+    {
+      "state": "data-result",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 290,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 316,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 3
+    },
+    {
+      "state": "expanded-complex-bottom",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 340,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 366,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-complex",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 340,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 366,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "history-open",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 340,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 366,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "research-open",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 340,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 366,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-multiturn",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 340,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 366,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "failure",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 290,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 316,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 5
+    },
+    {
+      "state": "waiting",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 290,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 316,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "stopped",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 290,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 316,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 324,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 110,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "permission-unavailable",
+      "width": 390,
+      "height": 844,
+      "role": "admin",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": {
+          "x": 50,
+          "y": 201,
+          "width": 290,
+          "height": 56,
+          "bottom": 257
+        },
+        "composer": {
+          "x": 37,
+          "y": 188,
+          "width": 316,
+          "height": 136,
+          "bottom": 324
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 356,
+          "width": 324,
+          "height": 459,
+          "bottom": 815
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "welcome",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 220,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 246,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "expanded-welcome",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 270,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 296,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-viewport-tab-cycle",
+      "width": 320,
+      "height": 400,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 400
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 21,
+          "y": 277,
+          "width": 278,
+          "height": 56,
+          "bottom": 333
+        },
+        "composer": {
+          "x": 12,
+          "y": 268,
+          "width": 296,
+          "height": 128,
+          "bottom": 396
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 400,
+          "bottom": 400
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-answer",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 613.75,
+          "width": 220,
+          "height": 56,
+          "bottom": 669.75
+        },
+        "composer": {
+          "x": 37,
+          "y": 600.75,
+          "width": 246,
+          "height": 136,
+          "bottom": 736.75
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 815.125,
+          "width": 254,
+          "height": 459,
+          "bottom": 1274.125
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 1
+    },
+    {
+      "state": "clarification",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 220,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 246,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 2
+    },
+    {
+      "state": "data-result",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 220,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 246,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 3
+    },
+    {
+      "state": "expanded-complex-bottom",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 270,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 296,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-complex",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 270,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 296,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "history-open",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 270,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 296,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "research-open",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 270,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 296,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-multiturn",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 25,
+          "y": 669,
+          "width": 270,
+          "height": 56,
+          "bottom": 725
+        },
+        "composer": {
+          "x": 12,
+          "y": 656,
+          "width": 296,
+          "height": 136,
+          "bottom": 792
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 844,
+          "bottom": 844
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "failure",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 220,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 246,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 5
+    },
+    {
+      "state": "waiting",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 220,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 246,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "stopped",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 727.390625,
+          "width": 220,
+          "height": 56,
+          "bottom": 783.390625
+        },
+        "composer": {
+          "x": 37,
+          "y": 714.390625,
+          "width": 246,
+          "height": 136,
+          "bottom": 850.390625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 928.765625,
+          "width": 254,
+          "height": 459,
+          "bottom": 1387.765625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "shortViewportTabCycle": {
+          "passed": true,
+          "invisibleFocus": []
+        },
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 87,
+          "revealedBelowFold": 111,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "permission-unavailable",
+      "width": 320,
+      "height": 844,
+      "role": "admin",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 320,
+          "height": 844
+        },
+        "scrollWidth": 320,
+        "input": {
+          "x": 50,
+          "y": 201,
+          "width": 220,
+          "height": 56,
+          "bottom": 257
+        },
+        "composer": {
+          "x": 37,
+          "y": 188,
+          "width": 246,
+          "height": 136,
+          "bottom": 324
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 33,
+          "y": 356,
+          "width": 254,
+          "height": 459,
+          "bottom": 815
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "welcome",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 650.375,
+          "width": 758,
+          "height": 56,
+          "bottom": 706.375
+        },
+        "composer": {
+          "x": 244,
+          "y": 633.375,
+          "width": 792,
+          "height": 136,
+          "bottom": 769.375
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 832.5625,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1097.5625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "business-team",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 19.375,
+          "width": 758,
+          "height": 56,
+          "bottom": 75.375
+        },
+        "composer": {
+          "x": 244,
+          "y": 2.375,
+          "width": 792,
+          "height": 136,
+          "bottom": 138.375
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 201.5625,
+          "width": 1062,
+          "height": 265,
+          "bottom": 466.5625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "expanded-welcome",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 387,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 370,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 832.5625,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1097.5625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-answer",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 572.0625,
+          "width": 758,
+          "height": 56,
+          "bottom": 628.0625
+        },
+        "composer": {
+          "x": 244,
+          "y": 555.0625,
+          "width": 792,
+          "height": 136,
+          "bottom": 691.0625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 754.25,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1019.25
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 1
+    },
+    {
+      "state": "clarification",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 244,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 2
+    },
+    {
+      "state": "data-result",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 244,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 3
+    },
+    {
+      "state": "expanded-complex-bottom",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 257,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 240,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-complex",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 257,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 240,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "history-open",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 387,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 370,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "research-open",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 113,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 96,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-multiturn",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 257,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 240,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1280,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "failure",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 244,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 5
+    },
+    {
+      "state": "waiting",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 244,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "stopped",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 244,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "permission-unavailable",
+      "width": 1280,
+      "height": 900,
+      "role": "admin",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 1280,
+          "height": 900
+        },
+        "scrollWidth": 1280,
+        "input": {
+          "x": 261,
+          "y": 209,
+          "width": 758,
+          "height": 56,
+          "bottom": 265
+        },
+        "composer": {
+          "x": 244,
+          "y": 192,
+          "width": 792,
+          "height": 136,
+          "bottom": 328
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 109,
+          "y": 364,
+          "width": 1062,
+          "height": 265,
+          "bottom": 629
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "welcome",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 652.171875,
+          "width": 758,
+          "height": 56,
+          "bottom": 708.171875
+        },
+        "composer": {
+          "x": 372,
+          "y": 635.171875,
+          "width": 792,
+          "height": 136,
+          "bottom": 771.171875
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 834.359375,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1099.359375
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "expanded-welcome",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 515,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 498,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1536,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 834.359375,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1099.359375
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-answer",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 572.0625,
+          "width": 758,
+          "height": 56,
+          "bottom": 628.0625
+        },
+        "composer": {
+          "x": 372,
+          "y": 555.0625,
+          "width": 792,
+          "height": 136,
+          "bottom": 691.0625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 754.25,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1019.25
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 1
+    },
+    {
+      "state": "clarification",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 372,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 2
+    },
+    {
+      "state": "data-result",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 372,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 3
+    },
+    {
+      "state": "expanded-complex-bottom",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 385,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 368,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1536,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-complex",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 385,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 368,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1536,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "history-open",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 515,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 498,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1536,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "research-open",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 241,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 224,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1536,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-multiturn",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 385,
+          "y": 741.8125,
+          "width": 766,
+          "height": 56,
+          "bottom": 797.8125
+        },
+        "composer": {
+          "x": 368,
+          "y": 724.8125,
+          "width": 800,
+          "height": 136,
+          "bottom": 860.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 1536,
+          "height": 900,
+          "bottom": 900
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "failure",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 372,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 5
+    },
+    {
+      "state": "waiting",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 372,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "stopped",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 769,
+          "width": 758,
+          "height": 56,
+          "bottom": 825
+        },
+        "composer": {
+          "x": 372,
+          "y": 752,
+          "width": 792,
+          "height": 136,
+          "bottom": 888
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 951.1875,
+          "width": 1062,
+          "height": 265,
+          "bottom": 1216.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "permission-unavailable",
+      "width": 1536,
+      "height": 900,
+      "role": "admin",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 1536,
+          "height": 900
+        },
+        "scrollWidth": 1536,
+        "input": {
+          "x": 389,
+          "y": 209,
+          "width": 758,
+          "height": 56,
+          "bottom": 265
+        },
+        "composer": {
+          "x": 372,
+          "y": 192,
+          "width": 792,
+          "height": 136,
+          "bottom": 328
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 237,
+          "y": 364,
+          "width": 1062,
+          "height": 265,
+          "bottom": 629
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "welcome",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 656.96875,
+          "width": 628,
+          "height": 56,
+          "bottom": 712.96875
+        },
+        "composer": {
+          "x": 53,
+          "y": 639.96875,
+          "width": 662,
+          "height": 136,
+          "bottom": 775.96875
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 839.15625,
+          "width": 670,
+          "height": 265,
+          "bottom": 1104.15625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "expanded-welcome",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 41,
+          "y": 865.8125,
+          "width": 686,
+          "height": 56,
+          "bottom": 921.8125
+        },
+        "composer": {
+          "x": 24,
+          "y": 848.8125,
+          "width": 720,
+          "height": 136,
+          "bottom": 984.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "bottom": 1024
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 839.15625,
+          "width": 670,
+          "height": 265,
+          "bottom": 1104.15625
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "short-answer",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 572.0625,
+          "width": 628,
+          "height": 56,
+          "bottom": 628.0625
+        },
+        "composer": {
+          "x": 53,
+          "y": 555.0625,
+          "width": 662,
+          "height": 136,
+          "bottom": 691.0625
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 754.25,
+          "width": 670,
+          "height": 265,
+          "bottom": 1019.25
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 1
+    },
+    {
+      "state": "clarification",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 789,
+          "width": 628,
+          "height": 56,
+          "bottom": 845
+        },
+        "composer": {
+          "x": 53,
+          "y": 772,
+          "width": 662,
+          "height": 136,
+          "bottom": 908
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 2
+    },
+    {
+      "state": "data-result",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 789,
+          "width": 628,
+          "height": 56,
+          "bottom": 845
+        },
+        "composer": {
+          "x": 53,
+          "y": 772,
+          "width": 662,
+          "height": 136,
+          "bottom": 908
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 3
+    },
+    {
+      "state": "expanded-complex-bottom",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 41,
+          "y": 865.8125,
+          "width": 686,
+          "height": 56,
+          "bottom": 921.8125
+        },
+        "composer": {
+          "x": 24,
+          "y": 848.8125,
+          "width": 720,
+          "height": 136,
+          "bottom": 984.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "bottom": 1024
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-complex",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 41,
+          "y": 865.8125,
+          "width": 686,
+          "height": 56,
+          "bottom": 921.8125
+        },
+        "composer": {
+          "x": 24,
+          "y": 848.8125,
+          "width": 720,
+          "height": 136,
+          "bottom": 984.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "bottom": 1024
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "history-open",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 41,
+          "y": 865.8125,
+          "width": 686,
+          "height": 56,
+          "bottom": 921.8125
+        },
+        "composer": {
+          "x": 24,
+          "y": 848.8125,
+          "width": 720,
+          "height": 136,
+          "bottom": 984.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "bottom": 1024
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "research-open",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 41,
+          "y": 865.8125,
+          "width": 686,
+          "height": 56,
+          "bottom": 921.8125
+        },
+        "composer": {
+          "x": 24,
+          "y": 848.8125,
+          "width": 720,
+          "height": 136,
+          "bottom": 984.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "bottom": 1024
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "expanded-multiturn",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 41,
+          "y": 865.8125,
+          "width": 686,
+          "height": 56,
+          "bottom": 921.8125
+        },
+        "composer": {
+          "x": 24,
+          "y": 848.8125,
+          "width": 720,
+          "height": 136,
+          "bottom": 984.8125
+        },
+        "dialog": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "bottom": 1024
+        },
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 4
+    },
+    {
+      "state": "failure",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 789,
+          "width": 628,
+          "height": 56,
+          "bottom": 845
+        },
+        "composer": {
+          "x": 53,
+          "y": 772,
+          "width": 662,
+          "height": 136,
+          "bottom": 908
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 5
+    },
+    {
+      "state": "waiting",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 789,
+          "width": 628,
+          "height": 56,
+          "bottom": 845
+        },
+        "composer": {
+          "x": 53,
+          "y": 772,
+          "width": 662,
+          "height": 136,
+          "bottom": 908
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "home-query",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "stopped",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "enabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 789,
+          "width": 628,
+          "height": 56,
+          "bottom": 845
+        },
+        "composer": {
+          "x": 53,
+          "y": 772,
+          "width": 662,
+          "height": 136,
+          "bottom": 908
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 971.1875,
+          "width": 670,
+          "height": 265,
+          "bottom": 1236.1875
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {
+        "continuousInputAndCursor": true,
+        "syntheticCompositionEnterGuard": true,
+        "sameComposerAndDraft": true,
+        "longResultTabCycle": {
+          "passed": true,
+          "belowFoldControls": 86,
+          "revealedBelowFold": 109,
+          "backgroundStayedFixed": true,
+          "issues": []
+        }
+      },
+      "errors": [],
+      "queryPosts": 6
+    },
+    {
+      "state": "permission-unavailable",
+      "width": 768,
+      "height": 1024,
+      "role": "admin",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 768,
+          "height": 1024
+        },
+        "scrollWidth": 768,
+        "input": {
+          "x": 70,
+          "y": 209,
+          "width": 628,
+          "height": 56,
+          "bottom": 265
+        },
+        "composer": {
+          "x": 53,
+          "y": 192,
+          "width": 662,
+          "height": 136,
+          "bottom": 328
+        },
+        "dialog": null,
+        "inputCount": 1,
+        "nav": {
+          "x": 49,
+          "y": 364,
+          "width": 670,
+          "height": 265,
+          "bottom": 629
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(255, 255, 255)",
+          "composer": "rgb(255, 255, 255)"
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "role-editor",
+      "width": 390,
+      "height": 844,
+      "role": "editor",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": null,
+        "composer": null,
+        "dialog": null,
+        "inputCount": 0,
+        "nav": {
+          "x": 33,
+          "y": 100,
+          "width": 324,
+          "height": 313,
+          "bottom": 413
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(245, 247, 250)",
+          "composer": null
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    },
+    {
+      "state": "role-viewer",
+      "width": 390,
+      "height": 844,
+      "role": "viewer",
+      "capability": "disabled",
+      "metrics": {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "scrollWidth": 390,
+        "input": null,
+        "composer": null,
+        "dialog": null,
+        "inputCount": 0,
+        "nav": {
+          "x": 33,
+          "y": 100,
+          "width": 324,
+          "height": 313,
+          "bottom": 413
+        },
+        "activeElement": "",
+        "colors": {
+          "page": "rgba(0, 0, 0, 0)",
+          "workspace": "rgb(245, 247, 250)",
+          "composer": null
+        }
+      },
+      "checks": {
+        "pageOverflow": true,
+        "singleInput": true,
+        "expandedInputWithinViewport": true
+      },
+      "interactionChecks": {},
+      "errors": [],
+      "queryPosts": 0
+    }
+  ]
+}
