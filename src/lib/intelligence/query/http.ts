@@ -136,7 +136,8 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
     const historySaved = parsed && result.status !== 'conflict'
       ? await recordHistorySubmission(client, keys, verified, semantic ? conversation.id : requestId, requestId) : false;
     if (result.status === 'clarification') {
-      // Store the exact bounded explanation; no business read has taken place.
+      // Reuse the sealed explanation/audit envelope, without a fact or model read.
+      const httpStatus = 'reason' in result.clarification && result.clarification.reason === 'assistant_help' ? 200 : 422;
       const response = { requestId, status: 'clarification', historySaved, ...result.clarification, ...(semantic ? { conversation } : {}) };
       const authority = await fresh();
       if (!authority.grants.includes('query:catalog')) throw new Error('QUERY_DENIED');
@@ -145,12 +146,12 @@ export async function handleQuerySubmission(request: Request, dependencies: Retu
         return json({ requestId, status: 'denied', error: '查询权限已变化，澄清选项未交付。' }, 403);
       }
       const deliveryHeaders = await prepareDelivery(audit, keys, verified, { requestId, kind: 'clarification', resultId: null, itemCount: 0,
-        bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus: 422 });
+        bodySha256: createHash('sha256').update(JSON.stringify(response)).digest('hex') }, { response, httpStatus });
       if ((await fresh()).permissionRevision !== authority.permissionRevision) {
         await audit.append(requestId, 'correction', { delivery: 'not_sent', reason: 'authorization_changed_before_response' });
         return json({ requestId, status: 'denied', error: '查询权限已变化。' }, 403);
       }
-      return json(response, 422, deliveryHeaders);
+      return json(response, httpStatus, deliveryHeaders);
     }
     if (result.status !== 'ready') {
       if (result.status === 'failed' && result.reason === 'history_reopen') return json({ requestId, status: 'failed', reason: 'history_reopen', historySaved,

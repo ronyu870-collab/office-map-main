@@ -84,6 +84,8 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     client.chart.mockImplementation(async (_scope, _id, result, request) => buildResultChart(result, request));
     render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: '分区域趋势' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    expect(input).toHaveValue('');
+    fireEvent.change(input, { target: { value: '尚未提交的新问题' } });
     fireEvent.click(await screen.findByRole('button', { name: '查看折线图' }));
     const figure = await screen.findByRole('figure', { name: '同源查询图表' });
     expect(figure).toHaveTextContent('各组共用相同纵轴范围'); expect(figure.querySelectorAll('svg')).toHaveLength(2);
@@ -109,6 +111,8 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: 'CBD净有效租金2026Q1至2026Q4趋势各期样本' } });
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    expect(input).toHaveValue('');
+    fireEvent.change(input, { target: { value: '尚未提交的新问题' } });
     fireEvent.click(await screen.findByRole('button', { name: '查看折线图' }));
     const figure = await screen.findByRole('figure', { name: '同源查询图表' });
     expect(figure.querySelectorAll('polyline')).toHaveLength(1);
@@ -119,7 +123,7 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     await waitFor(() => expect(figure.querySelectorAll('polyline')).toHaveLength(0));
     expect(client.submit).toHaveBeenCalledOnce();
     expect(client.chart.mock.calls.map(call => call[3].kind)).toEqual(['time_series', 'bar']);
-    expect(input).toHaveValue('CBD净有效租金2026Q1至2026Q4趋势各期样本');
+    expect(input).toHaveValue('尚未提交的新问题');
   });
   it('keeps character input, focus, selection and IME across pending and result updates', async () => {
     const pending = deferred<unknown>(); client.submit.mockReturnValue(pending.promise);
@@ -128,7 +132,8 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     await user.click(input); await user.type(input, 'C'); expect(input).toHaveFocus();
     await user.type(input, 'BD有哪些楼'); fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });
     expect(client.submit).toHaveBeenCalledOnce(); expect(input).toHaveFocus(); expect(input).toBeEnabled();
-    await user.type(input, 'A'); input.setSelectionRange(3, 3); await user.keyboard('Z');
+    expect(input).toHaveValue('');
+    await user.type(input, 'CBD有哪些楼A'); input.setSelectionRange(3, 3); await user.keyboard('Z');
     expect(input).toHaveValue('CBDZ有哪些楼A'); expect(input.selectionStart).toBe(4);
     await act(async () => { pending.resolve({ requestId, status: 'ready', result: buildAggregateResult(fixture(), 'rent') }); });
     expect(screen.getByRole('region', { name: '查询结果' })).toHaveTextContent('170');
@@ -182,7 +187,8 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     client.submit.mockResolvedValue({ status: 'clarification', requestId, message: '请明确年份与租金口径。' });
     render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: '今年租金' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
-    await screen.findByText('请明确年份与租金口径。'); expect(input).toHaveValue('今年租金'); expect(input).toBeEnabled();
+    await screen.findByText('请明确年份与租金口径。'); expect(input).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: '编辑问题' })); expect(input).toHaveValue('今年租金'); expect(input).toBeEnabled();
     expect(screen.queryByRole('region', { name: '查询结果' })).not.toBeInTheDocument(); expect(sessionStorage.length).toBe(0);
   });
   it('shows a chart from the same result, preserves draft and source focus, and requires an explicit export grant', async () => {
@@ -191,12 +197,13 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     client.chart.mockImplementation(async (_scope, _id, value, request) => buildResultChart(value, request));
     render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: '2026Q3CBD空置率' } }); fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
+    expect(input).toHaveValue(''); fireEvent.change(input, { target: { value: '尚未提交的新问题' } });
     await screen.findByRole('figure', { name: '同源查询图表' });
     fireEvent.click(screen.getByRole('button', { name: '查看柱状图' }));
     const chart = await screen.findByRole('figure', { name: '同源查询图表' }); expect(chart).toHaveTextContent('17.5');
     await waitFor(() => expect(client.chart).toHaveBeenCalledTimes(2));
     expect(client.chart.mock.calls[1].slice(0, 4)).toEqual([scope, requestId, resultViewSchema.parse(result), { kind: 'bar', field: 'value' }]);
-    expect(client.submit).toHaveBeenCalledOnce(); expect(input).toHaveValue('2026Q3CBD空置率');
+    expect(client.submit).toHaveBeenCalledOnce(); expect(input).toHaveValue('尚未提交的新问题');
     expect(screen.queryByText('下载本次结果')).not.toBeInTheDocument();
     fireEvent.click(chart.querySelector('button')!); expect(screen.getByRole('region', { name: '来源详情' })).toHaveFocus();
     fireEvent.click(screen.getByRole('button', { name: '关闭来源' })); expect(chart.querySelector('button')).toHaveFocus();

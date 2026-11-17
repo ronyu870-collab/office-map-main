@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 205,
+        branch: 'codex/colliers-experience-p0-20261117',
+        scope: 'Colliers AI conversational experience 2.0 P0, PR #205',
+        reason: 'User explicitly waived independent visual review and browser review for conversational experience P0 on 2026-11-17; applies only to PR #205',
+      },
+      {
         number: 204,
         branch: 'codex/fix-ai-clarification-protocol-20261117',
         scope: 'Colliers AI clarification response protocol and failure guidance, PR #204',

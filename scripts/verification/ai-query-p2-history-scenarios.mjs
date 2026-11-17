@@ -26,6 +26,25 @@ export async function verifyP2History({ db, app, check, person, call, recover, a
         values($1,$2,3,10000,$3,1000,false)`, [id, year, year === 2025 ? 80 + index * 20 : 100 + index * 40]);
     }
     await grant(owner); await grant(other);
+    await check('Experience P0 问候有真实审计、可恢复本人历史且不能读取他人问候', async () => {
+      const helpUser = await person('admin', 'experience-p0-help'); await grant(helpUser);
+      const greeting = await submit(helpUser, '你好');
+      assert.equal(greeting.status, 200, JSON.stringify(greeting.body));
+      assert.equal(greeting.body.reason, 'assistant_help');
+      assert.equal(greeting.body.historySaved, true);
+      assert.match(greeting.body.message, /Colliers AI/);
+      const audit = await events(greeting.body.requestId);
+      assert.equal(audit.filter(event => event.kind === 'received').length, 1);
+      assert.equal(audit.filter(event => event.kind === 'tool_started').length, 0);
+      const opened = await history(helpUser, { action: 'open', requestId: greeting.body.requestId });
+      assert.equal(opened.status, 200, JSON.stringify(opened.body));
+      assert.equal(opened.body.opened.selected.reply.reason, 'assistant_help');
+      assert.equal(opened.body.opened.selected.reply.message, greeting.body.message);
+      assert.equal((await history(other, { action: 'open', requestId: greeting.body.requestId })).status, 403);
+      await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [helpUser.id]);
+      assert.equal((await submit(helpUser, '你是谁')).status, 403);
+      assert.equal((await history(helpUser, { action: 'open', requestId: greeting.body.requestId })).status, 403);
+    });
     await check('P2 T10/T17 正式问答自动关联本人历史，对话恢复原始快照且不执行新查询', async () => {
       first = await submit(owner, '2026年第三季度CBD净有效租金是多少？', conversation);
       assert.equal(first.status, 200, JSON.stringify(first.body)); assert.equal(first.body.historySaved, true);

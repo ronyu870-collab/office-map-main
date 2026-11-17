@@ -1,3 +1,13 @@
+# 2026-11-17 — Colliers AI Conversational Experience 2.0 P0
+
+- 重组首页欢迎、身份、获权示例与主输入区；复用登录显示名问候，不将邮箱、UUID 或不可见控制字符当作姓名。保持账号/会话/权限隔离。
+- 提问气泡与助手回答统一排列，短历史回复直接可读，复杂历史结果先展示摘要后按需展开；强化来源摘要层次，不改变正式计算、图表、导出和地图入口。
+- 输入区保持稳定 DOM、中文输入法与在途草稿；发送时清空本次草稿，支持编辑原问题及重复 Enter 防重；恢复入口在空会话仍可使用。
+- 增加 180ms 轻量消息动效、聚焦/按压反馈及真实等待提示，遵循 reduced motion；不增加动画依赖、不伪造流式输出或查询进度。
+- 有界纯寒暄、身份/能力介绍及致谢通过原鉴权、加密审计、幂等及本人历史；HTTP 200 的 assistant_help 与业务 HTTP 422 澄清分开显示，不读业务快照、不额外调用模型。
+- 新增旧版失败/新版通过的 UI 与真实 HTTP 路由回归，补充实际 GoTrue→生产构建→PostgreSQL 的问候历史/越权/撤权场景；人工浏览器与视觉审查由用户本次豁免，不声称已执行。
+- 本批仅 P0，不包含 P1 全屏工作空间或全屏过渡。实施、验证与回退见 [P0 体验记录](docs/intelligence/home-query-experience-p0.md)。
+
 # 2026-11-17 — Colliers AI 澄清协议与异常提示修复
 
 - 修复服务端 HTTP 422 的 scope_required／period_required／metric_required／unsupported 等澄清 reason 在浏览器 Zod schema 被拒绝、误显示“未能取得查询响应”的缺陷；服务端语义规划与前端解码改为共享同一原因枚举，保留 scope_limit／history_reopen 的失败语义。
