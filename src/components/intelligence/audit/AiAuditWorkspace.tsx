@@ -96,7 +96,9 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
     const timer = window.setTimeout(() => clear('本次查看已超过一分钟，内容已收起。请重新检索以核对当前权限。'), 60000);
     return () => window.clearTimeout(timer);
   }, [page, clear]);
-  React.useEffect(() => {
+  // Complete detail focus in the commit; a pending passive effect could otherwise
+  // refocus the closing detail after its trigger has already regained focus.
+  React.useLayoutEffect(() => {
     if (detailOpen && selected) { detail.current?.focus({ preventScroll: true }); detail.current?.scrollIntoView?.({ block: 'nearest' }); }
   }, [detailOpen, selected]);
 

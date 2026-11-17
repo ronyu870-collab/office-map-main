@@ -1,0 +1,45 @@
+{
+  "head": "f852d5b89d58860c697c5462d8091467b5ea7926",
+  "testedMergeSha": "dbd4f7fb9e6c85c6b35a6474b4d17dbf6da9a3cf",
+  "run": "https://github.com/ronyu870-collab/office-map-main/actions/runs/44085449242",
+  "productionVisualMatrixExecuted": false,
+  "newScreenshotsAvailable": false,
+  "mainFailure": {
+    "job": 134046553272,
+    "file": "src/components/intelligence/audit/AiAuditWorkspace.test.tsx",
+    "line": 87,
+    "error": "closing detail expected original row focus, got body",
+    "filesPassed": 270,
+    "testsPassed": 2063,
+    "testsFailed": 1
+  },
+  "workspaceFailure": {
+    "artifactId": 14328784519,
+    "artifactSha256": "aa1f2b5c78c4242e621f96fe0c7d1715559a6b9ed8e12e1e23f57b825cef94ab",
+    "report": "ci-f852-p2-performance.json.gz",
+    "rawSha256": "482185c991bcdb4e7daef098c0478e29260b5c62e1c7adc1c6010c7ca356c143",
+    "samples": 333,
+    "complete": false,
+    "functionalPassed": false,
+    "budgetsMet": false,
+    "error": "mobile round 17 history_earlier_turns scrollIntoViewIfNeeded timed out before action; later samples dependency_failed or missing",
+    "firstExpandPerformanceExecuted": false,
+    "note": "No new conclusion about the first layout-batching optimization; the earlier 4f budget failure remains the comparison."
+  },
+  "regressionEvidence": [
+    {
+      "file": "audit-focus-before.log.gz",
+      "rawSha256": "3736eebd0eaf329d0286f9806f50cb1375ba852e08b946639d3f215d885bd6e3"
+    },
+    {
+      "file": "audit-focus-after.log.gz",
+      "rawSha256": "5f611c584e29257c65a9138094841647ff4769c9402c7d967bb7c2a500c347b7"
+    },
+    {
+      "file": "history-preparation-calibration.log.gz",
+      "rawSha256": "6deb376545cf2ae77fb350aebaeca4ae74cc215dc349e3bacbf9e455edfdd360"
+    }
+  ],
+  "rerun": false,
+  "gate": "Not mergeable; current-head full CI/visual and physical-device gates still required"
+}

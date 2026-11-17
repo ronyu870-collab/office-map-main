@@ -12,6 +12,7 @@
 | 隔离生产构建 | 设计版完整 `npm run build` 退出 0；[构建记录](isolated-build.json)，不代替最终 head CI |
 | 独立视觉 | 已实际看图状态见[独立评审](visual-review.md)；精确 head 的完整代表状态仍待 CI 截图与补充看图，整个 Visual acceptance 尚未写为通过 |
 | 视觉迭代后的本地验证 | UI 差异 `bf2856e7f37c54bff693c721af182dd5e475d5ce342657484f77f62bd4eb4656`；再次运行 npm run verify，审计／类型／Lint及271文件／2064项通过，完整构建仍受同一宿主限制，退出1。见[本轮记录](local-visual-iteration-verification.json)及[日志](local-visual-iteration-verify.log.gz) |
+| CI阻断修正后的本地验证 | 加入审计提交时序回归后，npm run verify 的审计／类型／Lint及271文件／2065项通过，编译通过，页面收集仍因同一宿主限制退出1；见[最新本地记录](local-ci-closure-verification.json)及[原始日志](local-ci-closure-verify.log.gz)。首页视觉差异仍为bf285，审计焦点及性能准备脚本另有摘要 |
 | 精确 head CI | 视觉迭代后须重新执行全部六个 Verify jobs 与 Visual acceptance evidence；当前完整 head 及最终状态由 PR 另行核实 |
 | 首次 PR head 复核 | `4f67196` 的主工程 job 和 76 状态生产矩阵完成；独立看图及原 P1 性能仍有实际失败，见本页第 7 节。旧 head 的成功项不能代替迭代后精确 head |
 | iOS Safari／Android Chrome | 无真实设备，未执行；模拟视口不能代替 MOB-05 |
@@ -98,3 +99,14 @@
 性能优化仅先读取锚点和祖先样式，再批量写入占位／inert／overflow，仍在同一 layout effect 完成隔离；340ms 动画、原采样与预算均保持。这是基于实际路径的第一轮局部优化，旧汇总数据没有分段 trace，不能提前断言哪一行独占额外耗时。新 head 必须重新通过原性能检查。旧性能脚本 baseline 字段仍提到 P0 无全屏，只是继承描述；本轮实际基线 b59 已有 P1，不据此豁免对照。
 
 上述发现的文件摘要、artifact 与版本见 [ci-first-head.json](ci-first-head.json)。迭代后的全部新状态按报告实际 `recordCount` 统计，仍需精确新 head CI 和独立重新看图。MOB-05 真机门槛保持未完成。
+
+## 8. 第二次 CI 的阻断与精确修复
+
+head `f852d5b89d58860c697c5462d8091467b5ea7926`、测试 merge `dbd4f7fb9e6c85c6b35a6474b4d17dbf6da9a3cf` 对应 [run 44085449242](https://github.com/ronyu870-collab/office-map-main/actions/runs/44085449242)。主job在单测阶段失败，**生产视觉矩阵没有执行，也没有新的图表／历史截图**；always上传步骤的成功状态不构成产物证据。
+
+| 阻断 | 原始证据与修正 |
+| --- | --- |
+| 审计详情关闭焦点落到 body | 270文件／2063项通过，AiAuditWorkspace一项原有关闭焦点断言失败。新增真实组件Profiler提交边界回归，在旧实现稳定得到相同body焦点，[旧失败](audit-focus-before.log.gz)与[修复后15项通过](audit-focus-after.log.gz)均保留。仅将详情聚焦effect移到layout提交阶段，条件、依赖、关闭处理、权限清空与DOM结构不变。 |
+| 原P2手机第17轮历史更早提问准备超时 | [333条原始记录](ci-f852-p2-performance.json.gz)：327成功、1失败、5依赖失败，后续计划样本缺测。失败在scrollIntoView前，没有发起更早提问请求，也没有pageerror。退出动画可仍绘制已hidden/inert的面板，原helper仅检查isVisible不足；新helper依据展开控制状态重开，并等待hidden／inert解除和真实可见。该准备发生在两个measureAction之间，计时与预算未改变。[原Node契约校准](history-preparation-calibration.log.gz)通过，最终同口径浏览器通过仍待确认。 |
+
+独立评审已只读核对两处diff，无新增布局、权限或数据变化，原有断言保留。没有直接重跑失败job放行，也没有再做无测量依据的第二轮性能优化；此次P1的120个首次展开／收起／再开样本未开始，原4f的反馈超预算仍须由最新head复测。版本、artifact SHA与日志摘要见 [ci-second-head.json](ci-second-head.json)。

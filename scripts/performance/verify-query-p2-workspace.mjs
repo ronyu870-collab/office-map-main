@@ -416,10 +416,15 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           endpoint: '/api/intelligence/query/history', action: 'list' });
         await prepareFullQueryWorkspace(page, { keepHistory: true });
         const showHistory = async () => {
-          if (!await history.isVisible()) {
-            await activate(page.getByRole('button', { name: '历史记录', exact: true }), profile);
-            await history.waitFor();
-          }
+          // A closing display transition can still paint an already hidden,
+          // inert panel. Use the control's state before preparing the next action.
+          const toggle = page.getByRole('button', { name: '历史记录', exact: true });
+          if (await toggle.getAttribute('aria-expanded') !== 'true') await activate(toggle, profile);
+          await page.waitForFunction(() => {
+            const container = document.getElementById('query-workspace-history');
+            return container && !container.hidden && !container.inert;
+          });
+          await history.waitFor({ state: 'visible' });
         };
         await history.getByRole('button', { name: `打开对话：${question}`, exact: true }).waitFor();
         let selectedResult = fixture.turns.at(-1).result;

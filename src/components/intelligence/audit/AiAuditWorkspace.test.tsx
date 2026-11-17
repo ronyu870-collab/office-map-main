@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Profiler } from 'react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { AiAuditSearch, AiAuditWorkspace } from './AiAuditWorkspace';
 import { AuditReadError } from '@/src/services/aiAuditClient';
@@ -85,6 +86,32 @@ test('keeps submitted text inert, distinguishes attempt and answer, and returns 
   fireEvent.click(screen.getByRole('button', { name: '查看关联回答与来源' }));
   expect(await screen.findByText(/没有可读取的关联执行记录/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '收起详情' })); expect(row).toHaveFocus(); expect(screen.queryByText(question)).not.toBeInTheDocument();
+});
+
+test('returns focus when details close before the linked-answer passive effect runs', async () => {
+  fixture.intake.mockResolvedValue({ status: 'ready', accessId: id, record: { ...item, document: { content: { payload: { rawRequest: JSON.stringify({ question: '请查 CBD' }) } } } } });
+  fixture.stream.mockResolvedValue({ status: 'ready', accessId: id, record: null });
+  let closeAfterAnswerCommit = false;
+  let closedAtCommit = false;
+  render(<Profiler id="audit-detail-focus" onRender={() => {
+    // A linked answer can commit its visible content before passive effects run.
+    // Close at that boundary, exercising the real handler without mocking focus.
+    if (closeAfterAnswerCommit && screen.queryByText(/没有可读取的关联执行记录/)) {
+      closeAfterAnswerCommit = false;
+      closedAtCommit = true;
+      screen.getByRole('button', { name: '收起详情' }).click();
+    }
+  }}><AiAuditSearch scope={scope} /></Profiler>);
+  clickSearch();
+  const row = await screen.findByRole('button', { name: /CBD最高的楼/ });
+  fireEvent.click(row);
+  await screen.findByText('请查 CBD');
+  closeAfterAnswerCommit = true;
+  fireEvent.click(screen.getByRole('button', { name: '查看关联回答与来源' }));
+  await waitFor(() => expect(closedAtCommit).toBe(true));
+  expect(screen.queryByRole('region', { name: '记录详情' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /CBD最高的楼/ })).toBe(row);
+  expect(row).toHaveFocus();
 });
 
 test('clears every visible record after a denied detail read and does not claim a service failure', async () => {

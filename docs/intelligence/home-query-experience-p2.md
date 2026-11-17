@@ -49,7 +49,7 @@ AI 专属色值和圆角在 `src/styles/tokens.css` 定义，01／06 记录角�
 
 - 已读取 AGENTS、standards 01–07 适用正文、AI 索引与 P0/P1 记录；安装 Next.js 16.2.12 的客户端边界文档已核对。
 - 结果／分析／历史／楼宇／导出等 7 个专项共 55 项通过；首页与工作空间首轮 50 项通过；加入焦点修正后相关 3 个文件 48 项通过。集合重叠，不累加为唯一总数。
-- 已执行最终 `npm run verify`：审计覆盖、TypeScript、ESLint（0 错误／854 条既有 warning）、271 个文件／2,064 项测试通过。生产编译通过，`/api/oss` 页面收集被宿主 `uv_interface_addresses` 限制阻断，退出码 1，**完整本地 verify 不标为通过**。原始压缩日志、旧焦点过滤失败及修复后通过的记录见验证目录。初轮旧示例预期和焦点问题已修正，未删除业务断言。
+- 来源／摘要及窄屏历史版本已执行 `npm run verify`：审计覆盖、TypeScript、ESLint（0 错误／854 条既有 warning）、271 个文件／2,064 项测试通过。生产编译通过，`/api/oss` 页面收集被宿主 `uv_interface_addresses` 限制阻断，退出码 1，**完整本地 verify 不标为通过**。原始压缩日志、旧焦点过滤失败及修复后通过的记录见验证目录。初轮旧示例预期和焦点问题已修正，未删除业务断言。
 - 本机 Chromium 因宿主 socket 系统调用限制无法启动，不能将本地 dev Ready 当作真实渲染。使用同一用户已连接、已核实项目归属的 Vercel 临时非持久测试环境；只传公开源码与合成 fixture，不传生产凭据或业务数据。
 - 实际页面截图、五视口状态、浏览器版本、源码差异摘要与独立看图结论登记在 [P2 验证记录](../verification/colliers-ai-experience-p2/README.md)。合成 HTTP 画面只证明实际前端布局，不冒称真实 Auth／生产结果。
 - 既有真实 PostgreSQL／GoTrue／HTTP 和 P1 工作空间性能回归由精确 PR head 的原 CI 执行，不降低断言或预算。
@@ -61,6 +61,12 @@ AI 专属色值和圆角在 `src/styles/tokens.css` 定义，01／06 记录角�
 `4f6719696d019ea00e33a3de4d8d55e9a2a99bdf` 的生产页面矩阵实际生成 76 张 PNG；主工程 job 通过，但独立看图发现 1280px 复杂结果的 SVG 区域空白，以及窄屏历史头部过高。保留原始失败画面，补实际图表几何、滚动后绘制帧、完整图表和数据结论的截图，不能用自动布局通过代替看图。
 
 同 head 的原 P1 工作空间 120 个切换样本功能断言通过，手机首次展开反馈 P90 124.3ms 超过 100ms；其内容可操作 P90 456.2ms 在 500ms 内，其余五条件通过。此失败未被重跑或豁免。局部优化先读取主页锚点与祖先原始样式，再统一写入占位、inert 和 overflow，减少同步读写交错；不改变动画时长或延后背景隔离。当前原始报告不能证明单个步骤的耗时占比，优化是否达标由新 head 相同采样和原预算确认。报告的“P0 无全屏基线”是旧 P1 脚本文案；本轮基线 b59 已具备全屏，不把该文案用作 P2 缺少对照的理由。见[首次 CI 记录](../verification/colliers-ai-experience-p2/ci-first-head.json)及[完整性能样本](../verification/colliers-ai-experience-p2/ci-4f-workspace-performance.json)。
+
+第二个 head `f852d5b89d58860c697c5462d8091467b5ea7926` 的主测试在审计详情关闭后的焦点断言失败，生产视觉矩阵未执行，没有该 head 的新截图。审计组件本轮此前没有差异；新增实际组件提交边界回归稳定重现：关联回答内容已提交、被动聚焦 effect 尚未执行时关闭详情，原记录按钮先获焦，随后旧 effect 抢回即将卸载的详情，最后落到 body。将该聚焦 effect 提前到 layout 阶段后，原14项和新增1项通过，原同DOM及焦点断言保留，数据、权限和DOM结构不变。
+
+同轮原 P2 测量在手机第17轮历史更早提问前中断，333条记录中327成功、1失败、5依赖失败，剩余计划样本缺测，不能标完整。准备 helper 原来仅看退出过渡中仍可见的面板，可能跳过重开；修正只在两个计时操作之间按 toggle 的 aria-expanded 打开，并等待 hidden／inert 解除及实际可见。原真实点击、30秒超时、20轮采样、事实／回执及全部预算不变。P1的首次展开性能阶段尚未运行，不将此次中断当作布局批量优化的第二次结果。两项修正均须在下一个精确 head 完整复验，见[第二次 CI 原始记录](../verification/colliers-ai-experience-p2/ci-second-head.json)。
+
+这两项修正后再次实际运行 `npm run verify`，审计、类型、Lint和271文件／2065项通过；编译通过，完整构建仍因同一宿主页面收集限制退出1。最新版源码摘要和完整日志见[本地闭环记录](../verification/colliers-ai-experience-p2/local-ci-closure-verification.json)，不能代替最新head的正式CI。
 
 ## 6. 发布与回退
 
