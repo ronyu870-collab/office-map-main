@@ -110,7 +110,7 @@ describe('Home workspace behavior', () => {
   it.each(['admin', 'editor', 'viewer'] as const)('keeps the new query unavailable for %s without replacing existing navigation', (role) => {
     setSession(role);
     render(<HomeWorkspace />);
-    const query = screen.queryByRole('textbox', { name: 'Colliers AI' });
+    const query = screen.queryByRole('textbox', { name: '向 Colliers AI 提问' });
     if (role === 'admin') {
       expect(query).toBeDisabled(); expect(query).toHaveValue('');
       expect(query).toHaveAttribute('placeholder', '对话查询尚未开放');

@@ -127,7 +127,7 @@ describe('homepage trusted query actual input and result lifecycle', () => {
   });
   it('keeps character input, focus, selection and IME across pending and result updates', async () => {
     const pending = deferred<unknown>(); client.submit.mockReturnValue(pending.promise);
-    render(view()); const input = screen.getByRole('textbox', { name: '对话查询' }) as HTMLTextAreaElement;
+    render(view()); const input = screen.getByRole('textbox', { name: '向 Colliers AI 提问' }) as HTMLTextAreaElement;
     await waitFor(() => expect(input).toBeEnabled()); const user = userEvent.setup();
     await user.click(input); await user.type(input, 'C'); expect(input).toHaveFocus();
     await user.type(input, 'BD有哪些楼'); fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true });

@@ -1,0 +1,255 @@
+{
+  "baseline": {
+    "commit": "4e16bbb43a4d28621366c65f8c15992ec1cd7a5c",
+    "rawBytes": 563805,
+    "gzipBytes": 172521,
+    "chunks": [
+      {
+        "file": "static/chunks/0ea84cac-89f1363e5bc749f0.js",
+        "bytes": 63844,
+        "gzipBytes": 13836
+      },
+      {
+        "file": "static/chunks/8312-8b61a60e50aa3dd7.js",
+        "bytes": 175027,
+        "gzipBytes": 48897
+      },
+      {
+        "file": "static/chunks/2884-8718a23a85e390b3.js",
+        "bytes": 8994,
+        "gzipBytes": 3640
+      },
+      {
+        "file": "static/chunks/4126-51241bcc44bd9d62.js",
+        "bytes": 5225,
+        "gzipBytes": 2621
+      },
+      {
+        "file": "static/chunks/1929-1fffa32054623c0e.js",
+        "bytes": 14784,
+        "gzipBytes": 5631
+      },
+      {
+        "file": "static/chunks/8958-d495398f72ecfd66.js",
+        "bytes": 12030,
+        "gzipBytes": 4801
+      },
+      {
+        "file": "static/chunks/3638-909b61a52559c54f.js",
+        "bytes": 7772,
+        "gzipBytes": 3256
+      },
+      {
+        "file": "static/chunks/app/layout-119413ba5a230d38.js",
+        "bytes": 34953,
+        "gzipBytes": 11651
+      },
+      {
+        "file": "static/chunks/3606-5a084d0ddf4309db.js",
+        "bytes": 76608,
+        "gzipBytes": 20843
+      },
+      {
+        "file": "static/chunks/4262-f7ab7e50c14494c0.js",
+        "bytes": 16223,
+        "gzipBytes": 6237
+      },
+      {
+        "file": "static/chunks/5302-3ee3783d88425478.js",
+        "bytes": 7564,
+        "gzipBytes": 2582
+      },
+      {
+        "file": "static/chunks/3709-91962a72ce72015e.js",
+        "bytes": 35992,
+        "gzipBytes": 13168
+      },
+      {
+        "file": "static/chunks/8092-5338425ddf48e006.js",
+        "bytes": 15374,
+        "gzipBytes": 5576
+      },
+      {
+        "file": "static/chunks/1941-40d69427b7c4764b.js",
+        "bytes": 46656,
+        "gzipBytes": 15041
+      },
+      {
+        "file": "static/chunks/app/page-6098ed4c86afde08.js",
+        "bytes": 42759,
+        "gzipBytes": 14741
+      }
+    ]
+  },
+  "stage": "production-webpack-compilation; page collection blocked by host uv_interface_addresses",
+  "lockSha256": "7bfe12690a19acaa693b184779f8605b5ae7899ad46b931ff6ffb311617538cf",
+  "route": "/",
+  "rawBytes": 563805,
+  "gzipBytes": 172521,
+  "chunks": [
+    {
+      "file": "static/chunks/0ea84cac-89f1363e5bc749f0.js",
+      "bytes": 63844,
+      "gzipBytes": 13836
+    },
+    {
+      "file": "static/chunks/8312-8b61a60e50aa3dd7.js",
+      "bytes": 175027,
+      "gzipBytes": 48897
+    },
+    {
+      "file": "static/chunks/2884-8718a23a85e390b3.js",
+      "bytes": 8994,
+      "gzipBytes": 3640
+    },
+    {
+      "file": "static/chunks/4126-51241bcc44bd9d62.js",
+      "bytes": 5225,
+      "gzipBytes": 2621
+    },
+    {
+      "file": "static/chunks/1929-1fffa32054623c0e.js",
+      "bytes": 14784,
+      "gzipBytes": 5631
+    },
+    {
+      "file": "static/chunks/8958-d495398f72ecfd66.js",
+      "bytes": 12030,
+      "gzipBytes": 4801
+    },
+    {
+      "file": "static/chunks/3638-909b61a52559c54f.js",
+      "bytes": 7772,
+      "gzipBytes": 3256
+    },
+    {
+      "file": "static/chunks/app/layout-119413ba5a230d38.js",
+      "bytes": 34953,
+      "gzipBytes": 11651
+    },
+    {
+      "file": "static/chunks/3606-5a084d0ddf4309db.js",
+      "bytes": 76608,
+      "gzipBytes": 20843
+    },
+    {
+      "file": "static/chunks/4262-f7ab7e50c14494c0.js",
+      "bytes": 16223,
+      "gzipBytes": 6237
+    },
+    {
+      "file": "static/chunks/5302-3ee3783d88425478.js",
+      "bytes": 7564,
+      "gzipBytes": 2582
+    },
+    {
+      "file": "static/chunks/3709-91962a72ce72015e.js",
+      "bytes": 35992,
+      "gzipBytes": 13168
+    },
+    {
+      "file": "static/chunks/8092-5338425ddf48e006.js",
+      "bytes": 15374,
+      "gzipBytes": 5576
+    },
+    {
+      "file": "static/chunks/1941-40d69427b7c4764b.js",
+      "bytes": 46656,
+      "gzipBytes": 15041
+    },
+    {
+      "file": "static/chunks/app/page-6098ed4c86afde08.js",
+      "bytes": 42759,
+      "gzipBytes": 14741
+    }
+  ],
+  "incrementalGzipBudgetBytes": 12288,
+  "limitations": [
+    "Emitted homepage client-reference chunks, not observed first-load network transfer",
+    "Full production build still requires native CI success"
+  ],
+  "current": {
+    "rawBytes": 577554,
+    "gzipBytes": 176710,
+    "chunks": [
+      {
+        "file": "static/chunks/0ea84cac-89f1363e5bc749f0.js",
+        "bytes": 63844,
+        "gzipBytes": 13836
+      },
+      {
+        "file": "static/chunks/8312-8b61a60e50aa3dd7.js",
+        "bytes": 175027,
+        "gzipBytes": 48897
+      },
+      {
+        "file": "static/chunks/2884-8718a23a85e390b3.js",
+        "bytes": 8994,
+        "gzipBytes": 3640
+      },
+      {
+        "file": "static/chunks/4126-51241bcc44bd9d62.js",
+        "bytes": 5225,
+        "gzipBytes": 2621
+      },
+      {
+        "file": "static/chunks/1929-1fffa32054623c0e.js",
+        "bytes": 14784,
+        "gzipBytes": 5631
+      },
+      {
+        "file": "static/chunks/8958-d495398f72ecfd66.js",
+        "bytes": 12030,
+        "gzipBytes": 4801
+      },
+      {
+        "file": "static/chunks/3638-909b61a52559c54f.js",
+        "bytes": 7772,
+        "gzipBytes": 3256
+      },
+      {
+        "file": "static/chunks/app/layout-e12ffe0fb6f1506a.js",
+        "bytes": 34953,
+        "gzipBytes": 11650
+      },
+      {
+        "file": "static/chunks/3606-5a084d0ddf4309db.js",
+        "bytes": 76608,
+        "gzipBytes": 20843
+      },
+      {
+        "file": "static/chunks/4262-f7ab7e50c14494c0.js",
+        "bytes": 16223,
+        "gzipBytes": 6237
+      },
+      {
+        "file": "static/chunks/9342-f43f3f43cd6a3067.js",
+        "bytes": 8630,
+        "gzipBytes": 2833
+      },
+      {
+        "file": "static/chunks/3709-91962a72ce72015e.js",
+        "bytes": 35992,
+        "gzipBytes": 13168
+      },
+      {
+        "file": "static/chunks/8092-5338425ddf48e006.js",
+        "bytes": 15374,
+        "gzipBytes": 5576
+      },
+      {
+        "file": "static/chunks/1941-fb5011f0c299d199.js",
+        "bytes": 48149,
+        "gzipBytes": 15647
+      },
+      {
+        "file": "static/chunks/app/page-1fbd5a74a024660e.js",
+        "bytes": 53949,
+        "gzipBytes": 18074
+      }
+    ]
+  },
+  "identicalLock": true,
+  "deltaGzipBytes": 4189,
+  "incrementalBudgetPassed": true
+}

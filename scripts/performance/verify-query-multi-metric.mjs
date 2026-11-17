@@ -129,12 +129,13 @@ export function summarizeMultiMetricPerformance(samples) {
 /** Retain all 80 multi-metric budget/oracle samples beside the 640 single-metric
  * A/B samples. This report is a candidate regression, not an A/B comparison of
  * multi-metric behavior. All Auth, HTTP, charts and receipts use the real path. */
-export async function verifyMultiMetricQueryPerformance({ browser, db, owner, ids, app, output, dataApiOrigin, semanticCalls, login, measure, githubEvent }) {
+export async function verifyMultiMetricQueryPerformance({ browser, db, owner, ids, app, output, dataApiOrigin, semanticCalls, login, measure, githubEvent, prepareWorkspace }) {
   const samples = [], validateResult = await multiMetricOracle(db, ids), beforeModelCalls = semanticCalls?.();
   const report = { version: 'query-multi-metric-performance/1', suite: 'regression', ...queryPerformanceRevision(process.env, githubEvent),
     production: false, realPhone: false, baseline: 'Existing 80-sample multi-metric regression with unchanged conditions and budgets; single-metric released-P1/current A/B is separately retained.',
     fixture: { buildings: 24, submarkets: 2, quarterlyRecords: 96, finalQuarterRentValidPerMarket: 11, finalQuarterVacancyValidPerMarket: 12 },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: SAMPLES, cacheDefinition: 'Fresh browser context and real login before a single-quarter query followed by a four-quarter query; both servers and database are warm.',
+    workspacePreparation: 'The real Expanded control is activated before query timing when available. Full multi-metric charts/tables, their existing numerical oracle and DOM delivery receipts remain mandatory; compact summaries are not endpoints.',
     boundaries: 'No production data, external model, intercepted HTTP, fake Auth or physical-phone claim. First feedback, correct chart readiness, source reopening and actual metric switching are timed in the browser.',
     budgets: { feedbackP90Ms: 100, desktopUsableP90Ms: 2500, mobileUsableP90Ms: 3500, sourceReopenP90Ms: 500, metricSwitch: 'same desktop/mobile usable budget' },
     samples, summary: [], modelCalls: null, complete: false, functionalPassed: false, budgetsMet: false };
@@ -156,8 +157,10 @@ export async function verifyMultiMetricQueryPerformance({ browser, db, owner, id
           downloadThroughput: profile.downloadMbps * 1000000 / 8, uploadThroughput: profile.uploadMbps * 1000000 / 8 });
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
         await login(page, app, owner, value => { loginHttpStatus = value; });
+        const workspaceMode = await prepareWorkspace(page);
         for (const step of scenarios) {
           const sample = { variant: 'after', profile: profile.name, round: round + 1, step: step.id, status: 'running', phase: 'query',
+            workspaceMode,
             networkRequests: [], networkFailures: [], receiptConfirmations: [], actualQueryRequests: 0, queryFailures: 0, pageErrors: 0,
             sourceVerified: false, metricSwitchVerified: false, oracleVerified: false };
           samples.push(sample); pair.push(sample);

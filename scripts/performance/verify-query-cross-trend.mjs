@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { crossTrendOracleRows, validateCrossTrendResult } from '../verification/ai-query-cross-trend-oracle.mjs';
-import { login, measure } from './verify-ai-query-conversation.mjs';
+import { login, measure, prepareFullQueryWorkspace } from './verify-ai-query-conversation.mjs';
 import { switchQueryMetric } from './verify-query-multi-metric.mjs';
 import { nearestRank, QUERY_PERFORMANCE_PROFILES, queryPerformanceErrorCode, queryPerformanceRevision } from './query-conversation-probe.mjs';
 
@@ -54,6 +54,7 @@ export async function verifyCrossTrendQueryPerformance({ db, person, app, output
     fixture: { buildings: 24, submarkets: 2, grades: 2, quarterlyRecords: 96, quarters: PERIODS, metricCount: 3,
       finalMissingRents: 2, finalInvalidVacancies: 2, differentMetricCohorts: true },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: SAMPLES,
+    workspacePreparation: 'Enter the real Expanded mode before timing, when available, so all 16 rows/three metrics and their original charts/sources are actually usable. The existing fact, request, receipt and time budgets are unchanged.',
     cacheDefinition: 'Fresh browser context and real login; explicit per-period cross trend followed by inherited paired-sample query. Servers/database are warm.',
     boundaries: 'Real disposable GoTrue, Next production build, SQL oracle, Data API, metric changes and DOM receipts; no intercepted HTTP, production data, external model or physical phone.',
     budgets: { feedbackP90Ms: 100, desktopUsableP90Ms: 2500, mobileUsableP90Ms: 3500, sourceReopenP90Ms: 500, metricSwitch: 'same desktop/mobile usable budget for each actual switch' },
@@ -97,8 +98,10 @@ export async function verifyCrossTrendQueryPerformance({ db, person, app, output
           downloadThroughput: profile.downloadMbps * 1000000 / 8, uploadThroughput: profile.uploadMbps * 1000000 / 8 });
         await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
         await login(page, app, owner, status => { loginHttpStatus = status; });
+        const workspaceMode = await prepareFullQueryWorkspace(page);
         for (const step of steps) {
           const sample = { variant: 'after', profile: profile.name, round: round + 1, step: step.id, status: 'running', phase: 'query',
+            workspaceMode,
             networkRequests: [], networkFailures: [], receiptConfirmations: [], actualQueryRequests: 0, queryFailures: 0, pageErrors: 0,
             sourceVerified: false, oracleVerified: false, vacancySwitchVerified: false, areaSwitchVerified: false };
           samples.push(sample); pair.push(sample);
