@@ -1,0 +1,1128 @@
+{
+  "version": "colliers-ai-experience-p2-viewport-performance/1",
+  "recordedDate": "2026-11-17",
+  "purpose": "Derived evidence index for the first-expand bottleneck. Complete raw samples remain unchanged in the referenced reports and archives.",
+  "repository": "ronyu870-collab/office-map-main",
+  "pullRequest": "https://github.com/ronyu870-collab/office-map-main/pull/207",
+  "measurementBase": {
+    "commit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+    "tree": "cdeb07617d76c663a58f651cfbdd61174fec8dd3"
+  },
+  "retainedSource": {
+    "path": "src/components/home/useQueryWorkspace.ts",
+    "bytes": 14412,
+    "gitBlob": "4962e9b565eecdbb79d438ef927074c9e5878e2e",
+    "sha256": "e36ba6c180d69892f89e45a60d68cde043f9fc7348a16edcae4cefa9f3a1d479",
+    "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+    "variant": "round2_viewport_snapshot",
+    "archive": "viewport-performance-round2.tar.gz",
+    "entry": "tmp/p2-transition-transfer/sources/after/useQueryWorkspace.ts",
+    "matchesMeasuredBytes": true
+  },
+  "budgets": {
+    "feedbackP90Ms": 100,
+    "loadedContentUsableP90Ms": 500,
+    "changed": false
+  },
+  "environment": {
+    "scope": "Rounds 2 and 3 same-VM controlled diagnosis; distinct from formal GitHub Actions real-Auth acceptance.",
+    "sessionId": "sbx_oOODgyaYk4wg1UB0kizjJm2BbAxK",
+    "projectId": "prj_v5QSqiwtENCeiRw27ZWMN7NdTSgS",
+    "vcpus": 4,
+    "memoryMB": 8192,
+    "node": "v24.22.3",
+    "os": "Ubuntu 26.04.1 LTS",
+    "playwright": "1.58.2",
+    "chromium": "145.0.7632.6",
+    "browserCompatibilityOverride": "PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64",
+    "browserCompatibilityReason": "Ubuntu 26 runtime; explicit Ubuntu 24.04 Chromium compatibility install for diagnostic only. Formal CI remains Ubuntu 24.04.",
+    "buildMode": "production",
+    "realReactDOM": true,
+    "authentication": "synthetic visual HTTP fixture; not real Auth/DB",
+    "production": false,
+    "productionWrites": false,
+    "realPhone": false,
+    "fixtureDigest": "7cd34434c0cc7108f0829ec8325e70983293437e4dbf050739608e3aac706ab5",
+    "profile": {
+      "width": 390,
+      "height": 844,
+      "cpuRate": 4,
+      "latencyMs": 150,
+      "downloadMbps": 10,
+      "uploadMbps": 5,
+      "isMobile": true,
+      "hasTouch": true
+    },
+    "cache": "Fresh browser context per variant and round; query/result ready before first_expand; collapse and reopen reuse that document; production servers are warm.",
+    "formalCiEnvironmentChanged": false
+  },
+  "method": {
+    "samplesPerVariantPerScenario": 20,
+    "scenarios": [
+      "first_expand",
+      "collapse",
+      "reopen"
+    ],
+    "order": "20 rounds, alternating before/after then after/before; fresh browser context every variant and round",
+    "traceOrGetterInstrumentationDuringAb": false,
+    "acceptanceObserver": {
+      "path": "scripts/performance/verify-query-experience-p1-workspace.mjs",
+      "gitBlob": "7ef40ba25ec57840cc502de8e1fd645ffb7ba526",
+      "sha256": "b485c83c285e5608df13a836fcd9c71c4b919bda197a9a17c7acfd99d680d189",
+      "unchangedFromMeasurementBase": true
+    },
+    "endpoints": {
+      "start": "Trusted activation of actual mode control, observed by unchanged P1 observer.",
+      "feedback": "Actual mode transition begins on a subsequent frame; not handler return or an early state label.",
+      "usable": "Transition finished, same textarea enabled, exact visual viewport occupied and composer visible."
+    },
+    "functionalChecks": [
+      "sameInput",
+      "sameDraftAndSelection",
+      "sameResult",
+      "noQueryReplay",
+      "noPageErrors"
+    ],
+    "functionalScope": "Actual DOM identity, draft and selection, rendered result, fixture query request count and page errors. Synthetic HTTP does not establish real Auth/DB or audit correctness.",
+    "outlierExclusion": "none"
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "change": "Batch original anchor/ancestor layout reads and inert/overflow writes.",
+      "measurementKind": "Separate formal Ubuntu 24 CI real-Auth runs with unchanged configured profiles; not the same-VM interleaved diagnostic A/B.",
+      "before": {
+        "rawReport": {
+          "path": "ci-4f-workspace-performance.json",
+          "bytes": 66921,
+          "sha256": "7eddf6b80f2a8ca2ba31f5a3fa3b1675f0f79b1ceaf2f54367c97faf844d5a9a"
+        },
+        "headSha": "4f6719696d019ea00e33a3de4d8d55e9a2a99bdf",
+        "testedMergeSha": "7527858284681c08fc05a598a359df25fbe97ec4",
+        "source": {
+          "path": "src/components/home/useQueryWorkspace.ts",
+          "bytes": 13737,
+          "gitBlob": "403e923a692d665fea403d5b5de71fe7e1f3c771",
+          "sha256": "e207af959269a0af393777bf827bc8d2ec8b820910a319a1a0962cd2f84d293e"
+        },
+        "sampleCount": 120,
+        "complete": true,
+        "functionalPassed": true,
+        "budgetsMet": false,
+        "mobileFirstExpand": {
+          "profile": "mobile",
+          "scenario": "first_expand",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 123.70000000006985,
+              "p90": 124.30000000004657
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 455.39999999990687,
+              "p90": 456.19999999995343
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": false
+        }
+      },
+      "after": {
+        "rawReport": {
+          "path": "ci-cf2-workspace-performance.json",
+          "bytes": 66683,
+          "sha256": "372c7a8d9fb9b61d31a5e9029df24ca503612f5475da04837f3b909182feb3b3"
+        },
+        "headSha": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+        "testedMergeSha": "df0194034f1c9ab80c14579ad7fcb50c205835a0",
+        "source": {
+          "path": "src/components/home/useQueryWorkspace.ts",
+          "bytes": 14206,
+          "gitBlob": "8137dd35a8c24e2b31a3b90835276180fde3411d",
+          "sha256": "9331cde3d201a365a99ddaa4dccae12b670bba881dfc830d59137020bbb84bd4"
+        },
+        "sampleCount": 120,
+        "complete": true,
+        "functionalPassed": true,
+        "budgetsMet": false,
+        "mobileFirstExpand": {
+          "profile": "mobile",
+          "scenario": "first_expand",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 123.9000000001397,
+              "p90": 124.80000000004657
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 456.0999999998603,
+              "p90": 456.5
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": false
+        }
+      },
+      "decision": "No improvement in mobile first-expand feedback; unchanged strict budget failed.",
+      "roundAccounting": "Intermediate f852 CI did not reach P1 measurement. Diagnosis, test repair and reruns are not additional code optimization rounds."
+    },
+    {
+      "round": 2,
+      "change": "Read one current VisualViewport snapshot before writing inherited CSS variables; reuse that height and perform initial sync before compact/placeholder writes.",
+      "sources": {
+        "before": {
+          "path": "src/components/home/useQueryWorkspace.ts",
+          "bytes": 14206,
+          "gitBlob": "8137dd35a8c24e2b31a3b90835276180fde3411d",
+          "sha256": "9331cde3d201a365a99ddaa4dccae12b670bba881dfc830d59137020bbb84bd4",
+          "commit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+          "variant": "round1_cf2",
+          "serverUrl": "http://127.0.0.1:3213"
+        },
+        "after": {
+          "path": "src/components/home/useQueryWorkspace.ts",
+          "bytes": 14412,
+          "gitBlob": "4962e9b565eecdbb79d438ef927074c9e5878e2e",
+          "sha256": "e36ba6c180d69892f89e45a60d68cde043f9fc7348a16edcae4cefa9f3a1d479",
+          "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+          "variant": "round2_viewport_snapshot",
+          "archive": "viewport-performance-round2.tar.gz",
+          "entry": "tmp/p2-transition-transfer/sources/after/useQueryWorkspace.ts",
+          "serverUrl": "http://127.0.0.1:3214"
+        },
+        "patch": {
+          "archive": "viewport-performance-round2.tar.gz",
+          "entry": "tmp/p2-transition-transfer/sources/viewport-snapshot.patch",
+          "bytes": 2351,
+          "sha256": "10e342d10f42dec26324adb7c1b102697d7b40166277bc77221a9d32ff13026e"
+        }
+      },
+      "measurement": {
+        "rawReport": {
+          "archive": "viewport-performance-round2.tar.gz",
+          "entry": "tmp/p2-transition-ab/transition-ab.json",
+          "bytes": 59488,
+          "sha256": "f5478d2759d928af4a3d8f3d38f8dec6ab99493fa2ebdad42b9ef3d82e4e9220"
+        },
+        "sampleCount": 120,
+        "complete": true,
+        "statusCounts": {
+          "success": 120
+        },
+        "functionalChecks": {
+          "sameInput": {
+            "passed": 120,
+            "expected": 120
+          },
+          "sameDraftAndSelection": {
+            "passed": 120,
+            "expected": 120
+          },
+          "sameResult": {
+            "passed": 120,
+            "expected": 120
+          },
+          "noQueryReplay": {
+            "passed": 120,
+            "expected": 120
+          },
+          "noPageErrors": {
+            "passed": 120,
+            "expected": 120
+          }
+        },
+        "allSamplesRetained": true,
+        "excludedSamples": 0,
+        "discardedOutliers": 0,
+        "percentileMethod": "nearest rank: sorted values at ceil(n * p) - 1, matching the original report",
+        "summariesRecomputedFromAllRawSamplesAndMatched": true,
+        "summaries": [
+          {
+            "variant": "before",
+            "scenario": "first_expand",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 122.20000000006985,
+                "p90": 184.59999999997672,
+                "minimum": 106.90000000002328,
+                "maximum": 198.20000000006985,
+                "samplesAboveBudget": 20
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 454,
+                "p90": 514,
+                "minimum": 437.29999999993015,
+                "maximum": 526.9000000000233,
+                "samplesAboveBudget": 4
+              }
+            },
+            "budgetsMet": false
+          },
+          {
+            "variant": "before",
+            "scenario": "collapse",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 44.699999999953434,
+                "p90": 59.40000000002328,
+                "minimum": 39.5,
+                "maximum": 66.5,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 384.10000000009313,
+                "p90": 396.79999999993015,
+                "minimum": 381.9000000000233,
+                "maximum": 404.4000000000233,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          },
+          {
+            "variant": "before",
+            "scenario": "reopen",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 57.79999999993015,
+                "p90": 71,
+                "minimum": 41.699999999953434,
+                "maximum": 73.90000000002328,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 372,
+                "p90": 375.5,
+                "minimum": 364.69999999995343,
+                "maximum": 405.30000000004657,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          },
+          {
+            "variant": "after",
+            "scenario": "first_expand",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 89,
+                "p90": 107.29999999993015,
+                "minimum": 70.59999999997672,
+                "maximum": 116.20000000006985,
+                "samplesAboveBudget": 4
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 420.4000000000233,
+                "p90": 436,
+                "minimum": 404.79999999993015,
+                "maximum": 445,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": false
+          },
+          {
+            "variant": "after",
+            "scenario": "collapse",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 44.59999999997672,
+                "p90": 60.70000000006985,
+                "minimum": 42.20000000006985,
+                "maximum": 68.69999999995343,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 384.4000000000233,
+                "p90": 392.80000000004657,
+                "minimum": 380,
+                "maximum": 401.70000000006985,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          },
+          {
+            "variant": "after",
+            "scenario": "reopen",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 57.300000000046566,
+                "p90": 73.60000000009313,
+                "minimum": 41,
+                "maximum": 89.90000000002328,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 372.20000000006985,
+                "p90": 374.10000000009313,
+                "minimum": 356.10000000009313,
+                "maximum": 389.19999999995343,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          }
+        ],
+        "budgetsMet": false
+      },
+      "decision": "Retained: substantial median reduction; first-expand feedback P90 remains above 100 ms.",
+      "preservation": "No persistent viewport cache; original animation duration, DOM identity, focus/selection/IME handling, listeners and cleanup remain."
+    },
+    {
+      "round": 3,
+      "change": "Capture background isolation reads before style writes and run isolation layout effect before animation destination measurement.",
+      "sources": {
+        "before": {
+          "path": "src/components/home/useQueryWorkspace.ts",
+          "bytes": 14412,
+          "gitBlob": "4962e9b565eecdbb79d438ef927074c9e5878e2e",
+          "sha256": "e36ba6c180d69892f89e45a60d68cde043f9fc7348a16edcae4cefa9f3a1d479",
+          "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+          "variant": "round2_viewport_snapshot",
+          "archive": "viewport-performance-round2.tar.gz",
+          "entry": "tmp/p2-transition-transfer/sources/after/useQueryWorkspace.ts",
+          "serverUrl": "http://127.0.0.1:3214",
+          "alsoArchivedAt": {
+            "archive": "viewport-performance-round3.tar.gz",
+            "entry": "tmp/p2-transition-transfer-third/sources/second-snapshot/useQueryWorkspace.ts"
+          }
+        },
+        "after": {
+          "path": "src/components/home/useQueryWorkspace.ts",
+          "bytes": 14790,
+          "gitBlob": "a00a34950b85ab1fa2da59fd217edf11c0b00f4d",
+          "sha256": "8096e235e45a484fd478f4d73b857cf8fe51ec796c73c64b513461d82ebccd81",
+          "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+          "variant": "round3_isolation_order_candidate",
+          "archive": "viewport-performance-round3.tar.gz",
+          "entry": "tmp/p2-transition-transfer-third/sources/third-batched/useQueryWorkspace.ts",
+          "serverUrl": "http://127.0.0.1:3215"
+        },
+        "patchFromRound2": {
+          "archive": "viewport-performance-round3.tar.gz",
+          "entry": "tmp/p2-transition-transfer-third/sources/second-to-third.patch",
+          "bytes": 9909,
+          "sha256": "b37ca38961c8a8d23ab617bedc02d91e57459597a7e9365a62b36eddc0fef6fb"
+        }
+      },
+      "sourceMappingNote": "The raw report baseline is the shared cf2 base commit. Its before server is the round-2 snapshot source, and its after server is the round-3 candidate; they are not the same source as the round-2 before variant.",
+      "measurement": {
+        "rawReport": {
+          "archive": "viewport-performance-round3.tar.gz",
+          "entry": "tmp/p2-transition-ab-third/transition-ab.json",
+          "bytes": 59541,
+          "sha256": "46feaf31c3bd855ab2cf5ef1f45f9e551cbdfe29545397010c4da7ef1bf5f7e2"
+        },
+        "sampleCount": 120,
+        "complete": true,
+        "statusCounts": {
+          "success": 120
+        },
+        "functionalChecks": {
+          "sameInput": {
+            "passed": 120,
+            "expected": 120
+          },
+          "sameDraftAndSelection": {
+            "passed": 120,
+            "expected": 120
+          },
+          "sameResult": {
+            "passed": 120,
+            "expected": 120
+          },
+          "noQueryReplay": {
+            "passed": 120,
+            "expected": 120
+          },
+          "noPageErrors": {
+            "passed": 120,
+            "expected": 120
+          }
+        },
+        "allSamplesRetained": true,
+        "excludedSamples": 0,
+        "discardedOutliers": 0,
+        "percentileMethod": "nearest rank: sorted values at ceil(n * p) - 1, matching the original report",
+        "summariesRecomputedFromAllRawSamplesAndMatched": true,
+        "summaries": [
+          {
+            "variant": "before",
+            "scenario": "first_expand",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 89.80000000004657,
+                "p90": 104.10000000009313,
+                "minimum": 71.80000000004657,
+                "maximum": 116.9000000001397,
+                "samplesAboveBudget": 4
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 420.19999999995343,
+                "p90": 435,
+                "minimum": 403.10000000009313,
+                "maximum": 448.89999999990687,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": false
+          },
+          {
+            "variant": "before",
+            "scenario": "collapse",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 45,
+                "p90": 61.9000000001397,
+                "minimum": 42.4000000001397,
+                "maximum": 88.30000000004657,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 383.9000000001397,
+                "p90": 389.5,
+                "minimum": 379.60000000009313,
+                "maximum": 397,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          },
+          {
+            "variant": "before",
+            "scenario": "reopen",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 57.10000000009313,
+                "p90": 69.9000000001397,
+                "minimum": 39.89999999990687,
+                "maximum": 71.89999999990687,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 371.0999999998603,
+                "p90": 372.80000000004657,
+                "minimum": 363.19999999995343,
+                "maximum": 375.39999999990687,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          },
+          {
+            "variant": "after",
+            "scenario": "first_expand",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 89.0999999998603,
+                "p90": 116.80000000004657,
+                "minimum": 71.60000000009313,
+                "maximum": 120.10000000009313,
+                "samplesAboveBudget": 5
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 420,
+                "p90": 444.30000000004657,
+                "minimum": 402.5,
+                "maximum": 447.69999999995343,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": false
+          },
+          {
+            "variant": "after",
+            "scenario": "collapse",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 45.10000000009313,
+                "p90": 61.39999999990687,
+                "minimum": 42.800000000046566,
+                "maximum": 68,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 383.4000000001397,
+                "p90": 389.0999999998603,
+                "minimum": 375,
+                "maximum": 404.30000000004657,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          },
+          {
+            "variant": "after",
+            "scenario": "reopen",
+            "expected": 20,
+            "observed": 20,
+            "missingSamples": 0,
+            "failedSamples": 0,
+            "functionalPassed": true,
+            "metrics": {
+              "feedback_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 54.800000000046566,
+                "p90": 61.199999999953434,
+                "minimum": 42.699999999953434,
+                "maximum": 81.9000000001397,
+                "samplesAboveBudget": 0
+              },
+              "content_usable_ms": {
+                "measured": 20,
+                "missing": 0,
+                "p50": 372.19999999995343,
+                "p90": 373.89999999990687,
+                "minimum": 365.30000000004657,
+                "maximum": 405.70000000018626,
+                "samplesAboveBudget": 0
+              }
+            },
+            "budgetsMet": true
+          }
+        ],
+        "budgetsMet": false
+      },
+      "sameAbScriptBytesAsRound2": true,
+      "decision": "Reverted: no material additional median benefit and worse first-expand feedback P90. Product source is restored byte-for-byte to the measured round-2 snapshot variant.",
+      "candidateRetained": false
+    }
+  ],
+  "diagnosis": {
+    "getterTimelines": [
+      {
+        "variant": "round1_cf2",
+        "timeline": {
+          "archive": "viewport-performance-round2.tar.gz",
+          "entry": "tmp/p2-transition-getters/selected_editor-timeline.json",
+          "bytes": 25008,
+          "sha256": "00c34bd42fc3993a0b0d3ad138c2eef998f9023f3332a3167ec5bd5603842e2b"
+        },
+        "window": "First captured click through first subsequent animate_call; instrumented diagnostic only.",
+        "clickToAnimateCallMs": 61.20000000001164,
+        "viewportReads": [
+          {
+            "name": "offsetTop",
+            "durationMs": 8.5
+          },
+          {
+            "name": "offsetLeft",
+            "durationMs": 7.7000000000116415
+          },
+          {
+            "name": "height",
+            "durationMs": 7.2000000000116415
+          },
+          {
+            "name": "width",
+            "durationMs": 7.2000000000116415
+          },
+          {
+            "name": "height",
+            "durationMs": 6.7999999999883585
+          }
+        ],
+        "viewportReadTotalMs": 37.40000000002328
+      },
+      {
+        "variant": "round2_viewport_snapshot",
+        "timeline": {
+          "archive": "viewport-performance-round2.tar.gz",
+          "entry": "tmp/p2-transition-getters-after/selected_editor-timeline.json",
+          "bytes": 24709,
+          "sha256": "d988733fa10c995d06e7ba86f395a0eadd1c28d255b0812554d14da2f1b14d58"
+        },
+        "window": "First captured click through first subsequent animate_call; instrumented diagnostic only.",
+        "clickToAnimateCallMs": 35.300000000046566,
+        "viewportReads": [
+          {
+            "name": "offsetTop",
+            "durationMs": 0
+          },
+          {
+            "name": "offsetLeft",
+            "durationMs": 0
+          },
+          {
+            "name": "height",
+            "durationMs": 0
+          },
+          {
+            "name": "width",
+            "durationMs": 0
+          }
+        ],
+        "viewportReadTotalMs": 0
+      }
+    ],
+    "getterInterpretation": "Interleaved viewport reads/CSS-variable writes caused synchronous layout work in the instrumented example. Snapshot-only removed that measured getter cost, but required React commit, layout and paint remain. A single timeline is not quantitative acceptance.",
+    "focusAlternatives": {
+      "report": {
+        "archive": "viewport-performance-round2.tar.gz",
+        "entry": "tmp/p2-transition-diagnostic/transition-diagnostic.json",
+        "bytes": 4567,
+        "sha256": "a8581e74a4db9975d9d15db7134d5e316015d43e476ff2407acf654a78c58b74"
+      },
+      "firstExpandSamples": [
+        {
+          "initial": "selected_editor",
+          "scenario": "first_expand",
+          "active": {
+            "active": "home-query",
+            "start": 17,
+            "end": 18
+          },
+          "measured": {
+            "status": "ready",
+            "feedback_ms": 131,
+            "content_usable_ms": 463.3999999999651,
+            "longTaskObserverSupported": true,
+            "long_task_count": 0,
+            "long_task_total_ms": 0,
+            "long_task_max_ms": 0
+          }
+        },
+        {
+          "initial": "unselected_editor",
+          "scenario": "first_expand",
+          "active": {
+            "active": "home-query",
+            "start": 18,
+            "end": 18
+          },
+          "measured": {
+            "status": "ready",
+            "feedback_ms": 134.70000000001164,
+            "content_usable_ms": 465,
+            "longTaskObserverSupported": true,
+            "long_task_count": 0,
+            "long_task_total_ms": 0,
+            "long_task_max_ms": 0
+          }
+        },
+        {
+          "initial": "toggle_focus",
+          "scenario": "first_expand",
+          "active": {
+            "active": "展开 Colliers AI 工作空间",
+            "start": 18,
+            "end": 18
+          },
+          "measured": {
+            "status": "ready",
+            "feedback_ms": 115.59999999997672,
+            "content_usable_ms": 445.5,
+            "longTaskObserverSupported": true,
+            "long_task_count": 0,
+            "long_task_total_ms": 0,
+            "long_task_max_ms": 0
+          }
+        }
+      ],
+      "interpretation": "Selected editor, unselected editor and toggle-focused examples all remained slow; these diagnostic examples do not identify active editor selection as the primary explanation."
+    },
+    "longTaskLimitation": "Original collector filters tasks by task.startTime >= clickStart. A task containing the captured click and synchronous work may begin before clickStart and be excluded. Zero recorded long tasks is not proof of zero synchronous main-thread work; the acceptance collector was not changed.",
+    "fullOriginalTracesAllPersisted": false,
+    "traceExcerpts": [
+      {
+        "variant": "original",
+        "excerpt": {
+          "archive": "viewport-performance-round3.tar.gz",
+          "entry": "tmp/p2-transition-transfer-third/trace-excerpts/original-click-to-animation-ready.json",
+          "bytes": 67303,
+          "sha256": "73d9aefe04e38bb4917f5e07af07d15f6fa31a86678a3ba711a9a3148a8c08b1"
+        },
+        "completeOriginalCapture": false,
+        "originalPath": "/tmp/p2-transition-getters/selected_editor-trace.json",
+        "originalBytes": 2317168,
+        "originalSha256": "70bf8a663cab2626168ee8f22019fedbe7fedb024a635503f6f62960d36e1dd9",
+        "originalEventCount": 11171,
+        "excerptEventCount": 297,
+        "windowDurationMs": 97.717,
+        "selectionCriterionDeclaredByProducer": "Original traceEvents on the first p2_diag_click mark pid/tid whose timestamp-duration interval intersects the interval from that click to the following p2_diag_animation_ready mark. Point events qualify by timestamp. All selected event objects and their fields are unchanged; unrelated threads and times are omitted.",
+        "excerptCountWindowThreadAndIntervalCheckedLocally": true,
+        "wholeOriginalTraceAvailableForIndependentByteComparison": false
+      },
+      {
+        "variant": "second-snapshot",
+        "excerpt": {
+          "archive": "viewport-performance-round3.tar.gz",
+          "entry": "tmp/p2-transition-transfer-third/trace-excerpts/second-snapshot-click-to-animation-ready.json",
+          "bytes": 60618,
+          "sha256": "df3f84faa823b91a3393e0bcc76f551484d502504ea2ba1a9343435ee95a28af"
+        },
+        "completeOriginalCapture": false,
+        "originalPath": "/tmp/p2-transition-getters-after/selected_editor-trace.json",
+        "originalBytes": 2157805,
+        "originalSha256": "81d94a8e2c39407758f14cf862d31b83b100cf8a3962f4b1895ff19c45694fb0",
+        "originalEventCount": 10289,
+        "excerptEventCount": 268,
+        "windowDurationMs": 86.676,
+        "selectionCriterionDeclaredByProducer": "Original traceEvents on the first p2_diag_click mark pid/tid whose timestamp-duration interval intersects the interval from that click to the following p2_diag_animation_ready mark. Point events qualify by timestamp. All selected event objects and their fields are unchanged; unrelated threads and times are omitted.",
+        "excerptCountWindowThreadAndIntervalCheckedLocally": true,
+        "wholeOriginalTraceAvailableForIndependentByteComparison": false
+      },
+      {
+        "variant": "third-batched",
+        "excerpt": {
+          "archive": "viewport-performance-round3.tar.gz",
+          "entry": "tmp/p2-transition-transfer-third/trace-excerpts/third-batched-click-to-animation-ready.json",
+          "bytes": 61108,
+          "sha256": "ec6aff80fecb0ac92d12b545052a332de191053880a9b1c913a6452c5c0461d0"
+        },
+        "completeOriginalCapture": false,
+        "originalPath": "/tmp/p2-transition-getters-third/selected_editor-trace.json",
+        "originalBytes": 2159861,
+        "originalSha256": "6b54cc3fb8188da53f2deeef6c197a33f69e08c65a6c2c153da852b39a5f8b75",
+        "originalEventCount": 10262,
+        "excerptEventCount": 272,
+        "windowDurationMs": 116.344,
+        "selectionCriterionDeclaredByProducer": "Original traceEvents on the first p2_diag_click mark pid/tid whose timestamp-duration interval intersects the interval from that click to the following p2_diag_animation_ready mark. Point events qualify by timestamp. All selected event objects and their fields are unchanged; unrelated threads and times are omitted.",
+        "excerptCountWindowThreadAndIntervalCheckedLocally": true,
+        "wholeOriginalTraceAvailableForIndependentByteComparison": false
+      }
+    ],
+    "traceDisclosure": "Three first-click-to-animation-ready main-thread subsets only; original entire-capture SHA256 retained. Do not call these complete original traces."
+  },
+  "archives": [
+    {
+      "path": "viewport-performance-round2.tar.gz",
+      "bytes": 49348,
+      "sha256": "e8011abd1806b325f04d8c00b3af4509dd2d700ddd84702ceced8c97191d8f92",
+      "verifiedLocally": true,
+      "fileCount": 16,
+      "metadataEntry": "tmp/p2-transition-transfer/metadata.json",
+      "allIncludedManifestEntriesSizeAndShaVerified": true,
+      "contents": "Complete 120-sample A/B, diagnostic timelines and reports, actual scripts, before/after source and patch, metadata.",
+      "notIncluded": "Full trace files listed in metadata are not in this archive. Their hashes identify the originals but do not provide their complete contents."
+    },
+    {
+      "path": "viewport-performance-round3.tar.gz",
+      "bytes": 53370,
+      "sha256": "f8259b38205a00d7e898abfde207a5591bbbb6c1ad2f1e466ca91a2967a7f832",
+      "verifiedLocally": true,
+      "fileCount": 12,
+      "metadataEntry": "tmp/p2-transition-transfer-third/metadata.json",
+      "allIncludedManifestEntriesSizeAndShaVerified": true,
+      "contents": "Complete third-round 120-sample A/B, third getter timeline and diagnostic report, unchanged measurement scripts, second/third sources and patch, three explicitly bounded trace excerpts, metadata.",
+      "notIncluded": "Complete original browser traces. Excerpts preserve a stated first-click-to-animation-ready window on the original main thread only."
+    }
+  ],
+  "localVerification": {
+    "retainedVariant": {
+      "command": "npm run verify",
+      "source": {
+        "path": "src/components/home/useQueryWorkspace.ts",
+        "bytes": 14412,
+        "gitBlob": "4962e9b565eecdbb79d438ef927074c9e5878e2e",
+        "sha256": "e36ba6c180d69892f89e45a60d68cde043f9fc7348a16edcae4cefa9f3a1d479",
+        "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+        "variant": "round2_viewport_snapshot",
+        "archive": "viewport-performance-round2.tar.gz",
+        "entry": "tmp/p2-transition-transfer/sources/after/useQueryWorkspace.ts"
+      },
+      "log": {
+        "path": "local-viewport-snapshot-verify.log.gz",
+        "bytes": 27398,
+        "sha256": "7169ba9217370eef08b82e1eaa3b463301394ce98b096337465341423952845e",
+        "uncompressedBytes": 461561,
+        "uncompressedSha256": "01acd138654e75ce6620f98316088c3741466b5afa1de3abeb9de0da5a5ff04a"
+      },
+      "auditCoveragePassed": true,
+      "typecheckPassed": true,
+      "lint": {
+        "errors": 0,
+        "warnings": 854
+      },
+      "testFilesPassed": 271,
+      "testsPassed": 2065,
+      "productionCompilationPassed": true,
+      "compilationSeconds": 9.3,
+      "productionBuildPassed": false,
+      "verifyPassed": false,
+      "processExitCodeObservedByExecutor": 1,
+      "blocker": "Host uv_interface_addresses error during page-data collection for /api/oss after successful compilation.",
+      "limitation": "The host failure is recorded; it is not an exemption from exact-head CI or a claim that npm run verify passed."
+    },
+    "retainedWorkspaceRegression": {
+      "source": {
+        "path": "src/components/home/useQueryWorkspace.ts",
+        "bytes": 14412,
+        "gitBlob": "4962e9b565eecdbb79d438ef927074c9e5878e2e",
+        "sha256": "e36ba6c180d69892f89e45a60d68cde043f9fc7348a16edcae4cefa9f3a1d479",
+        "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+        "variant": "round2_viewport_snapshot",
+        "archive": "viewport-performance-round2.tar.gz",
+        "entry": "tmp/p2-transition-transfer/sources/after/useQueryWorkspace.ts"
+      },
+      "log": {
+        "path": "viewport-snapshot-tests.log.gz",
+        "bytes": 504,
+        "sha256": "0a7bc569199dbdc2245cdd5c1ba2979e33d00cf4ef9571872b94c4e674f91d61"
+      },
+      "testFilesPassed": 1,
+      "testsPassed": 29,
+      "passed": true,
+      "scope": "Existing affected workspace tests; no application tests were rerun to produce this derived record."
+    },
+    "revertedThirdCandidate": {
+      "command": "npm run verify",
+      "source": {
+        "path": "src/components/home/useQueryWorkspace.ts",
+        "bytes": 14790,
+        "gitBlob": "a00a34950b85ab1fa2da59fd217edf11c0b00f4d",
+        "sha256": "8096e235e45a484fd478f4d73b857cf8fe51ec796c73c64b513461d82ebccd81",
+        "baseCommit": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+        "variant": "round3_isolation_order_candidate",
+        "archive": "viewport-performance-round3.tar.gz",
+        "entry": "tmp/p2-transition-transfer-third/sources/third-batched/useQueryWorkspace.ts"
+      },
+      "log": {
+        "path": "local-final-layout-batch-verify.log.gz",
+        "bytes": 27397,
+        "sha256": "99ca17c76ad7dfc9031b7481a05a1a7128f3da77b0f24b7b72a4fa3b20af5765",
+        "uncompressedBytes": 461561,
+        "uncompressedSha256": "0cc7ea45ed11f6e5210eb67926057f56fecc85aa945ad5dd9a9ec352d58e9e6a"
+      },
+      "auditCoveragePassed": true,
+      "typecheckPassed": true,
+      "lint": {
+        "errors": 0,
+        "warnings": 854
+      },
+      "testFilesPassed": 271,
+      "testsPassed": 2065,
+      "productionCompilationPassed": true,
+      "compilationSeconds": 8.0,
+      "productionBuildPassed": false,
+      "verifyPassed": false,
+      "processExitCodeObservedByExecutor": 1,
+      "blocker": "Host uv_interface_addresses error during page-data collection for /api/oss after successful compilation.",
+      "limitation": "The host failure is recorded; it is not an exemption from exact-head CI or a claim that npm run verify passed. This log validates the rejected candidate only, not the retained round-2 source."
+    }
+  },
+  "decision": {
+    "retainedVariant": "round2_viewport_snapshot",
+    "revertedVariant": "round3_isolation_order_candidate",
+    "codeOptimizationRoundsUsed": 3,
+    "maximumRoundsForSameBottleneck": 3,
+    "stoppedAfterRoundLimit": true,
+    "stoppingMeansPassed": false,
+    "overallPerformancePassed": false,
+    "nextStep": "New bottleneck evidence, representative stable target-device evidence or explicitly expanded interaction scope is needed before another optimization round; no fourth round or budget relaxation was performed.",
+    "retainedFirstExpandMeasurements": [
+      {
+        "round": 2,
+        "variant": "after",
+        "feedbackP90Ms": 107.29999999993015
+      },
+      {
+        "round": 3,
+        "variant": "before",
+        "feedbackP90Ms": 104.10000000009313
+      }
+    ]
+  },
+  "remainingGates": {
+    "VERIFY-06": {
+      "passed": false,
+      "reason": "Retained same-VM first-expand feedback P90 exceeds the unchanged 100 ms threshold. A later success in another CI environment cannot erase these recorded failures."
+    },
+    "MOB-05": {
+      "passed": false,
+      "iosSafariPhysicalDevice": "not tested",
+      "androidChromePhysicalDevice": "not tested",
+      "reason": "Emulated Chromium viewports do not replace actual soft keyboard, touch and platform evidence."
+    },
+    "finalExactHeadCI": {
+      "status": "not established by this file",
+      "reason": "This source-bound record does not attest to a future commit. Exact PR head, Verify, visual evidence and deployment statuses are recorded separately."
+    }
+  },
+  "diagnosticSampleTotals": {
+    "scope": "Rounds 2 and 3 same-VM A/B only; the separate formal CI reports in round 1 are not pooled into these statistics.",
+    "rawSamples": 240,
+    "expectedSamples": 240,
+    "missingSamples": 0,
+    "failedFunctionalSamples": 0,
+    "allFunctionalChecksPassed": true,
+    "excludedSamples": 0,
+    "discardedOutliers": 0,
+    "firstExpandConditionBudgetFailures": 4,
+    "performancePassed": false
+  },
+  "archiveRetrieval": {
+    "originalMeasurementSession": "sbx_oOODgyaYk4wg1UB0kizjJm2BbAxK",
+    "officialFilesystemSnapshot": "snap_MT1cy1A2hSOvkk6TgHMvMyZOpQ5q",
+    "exportOnlyRestoredSession": "sbx_xJMnO9xTW5MYABxNcS2R9NmVys0p",
+    "exportOnlySessionVcpus": 1,
+    "exportOnlySessionMemoryMB": 2048,
+    "measurementAttribution": "All reported timings were collected in the original 4-vCPU/8192-MB session. The restored 1-vCPU/2048-MB session only exported pre-existing bytes; it did not rerun the application or benchmarks.",
+    "nativeChunkTransfer": "The third archive was reassembled from native file-read chunks, verified against the original archive size/SHA256, and its 11 manifest-listed content files were independently checked.",
+    "archivesPresentInRepositoryEvidenceDirectory": true,
+    "temporaryResourceCleanup": {
+      "exportSession": "stopped after successful transfer",
+      "filesystemSnapshot": "deleted after successful transfer; API readback reported deleted",
+      "verifiedBy": "Parent executor /root; retrieval resource status does not change the original measurement environment."
+    }
+  }
+}

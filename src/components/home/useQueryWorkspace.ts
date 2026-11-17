@@ -78,11 +78,16 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     const node = surface.current;
     if (!node) return;
     const viewport = window.visualViewport;
-    node.style.setProperty('--query-viewport-top', `${viewport?.offsetTop ?? 0}px`);
-    node.style.setProperty('--query-viewport-left', `${viewport?.offsetLeft ?? 0}px`);
-    node.style.setProperty('--query-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
-    node.style.setProperty('--query-viewport-width', `${viewport?.width ?? (document.documentElement.clientWidth || window.innerWidth)}px`);
-    node.dataset.viewportCompact = String((viewport?.height ?? window.innerHeight) < 500);
+    // VisualViewport getters can synchronously flush layout. Read one fresh
+    // snapshot before writing inherited CSS variables, including on resize.
+    const top = viewport?.offsetTop ?? 0, left = viewport?.offsetLeft ?? 0;
+    const height = viewport?.height ?? window.innerHeight;
+    const width = viewport?.width ?? (document.documentElement.clientWidth || window.innerWidth);
+    node.style.setProperty('--query-viewport-top', `${top}px`);
+    node.style.setProperty('--query-viewport-left', `${left}px`);
+    node.style.setProperty('--query-viewport-height', `${height}px`);
+    node.style.setProperty('--query-viewport-width', `${width}px`);
+    node.dataset.viewportCompact = String(height < 500);
   }, []);
 
   const change = React.useCallback((next: boolean) => {
@@ -93,13 +98,13 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     // Read the homepage anchor before changing its height. The first expanded
     // layout should not force an extra synchronous layout between these writes.
     const origin = placeholder.getBoundingClientRect();
+    syncViewport();
     ticket.current++;
     animation.current?.cancel(); animation.current = null;
     if (!floatingRef.current) placeholder.style.height = `${from.height}px`;
     node.style.setProperty('--query-compact-top', `${origin.top}px`);
     node.style.setProperty('--query-compact-left', `${origin.left}px`);
     node.style.setProperty('--query-compact-width', `${origin.width || from.width}px`);
-    syncViewport();
     pending.current = { from, reading: position, expanded: next, ticket: ticket.current };
     reading.current = position;
     expandedRef.current = next; floatingRef.current = true;

@@ -110,3 +110,42 @@ head `f852d5b89d58860c697c5462d8091467b5ea7926`、测试 merge `dbd4f7fb9e6c85c6
 | 原P2手机第17轮历史更早提问准备超时 | [333条原始记录](ci-f852-p2-performance.json.gz)：327成功、1失败、5依赖失败，后续计划样本缺测。失败在scrollIntoView前，没有发起更早提问请求，也没有pageerror。退出动画可仍绘制已hidden/inert的面板，原helper仅检查isVisible不足；新helper依据展开控制状态重开，并等待hidden／inert解除和真实可见。该准备发生在两个measureAction之间，计时与预算未改变。[原Node契约校准](history-preparation-calibration.log.gz)通过，最终同口径浏览器通过仍待确认。 |
 
 独立评审已只读核对两处diff，无新增布局、权限或数据变化，原有断言保留。没有直接重跑失败job放行，也没有再做无测量依据的第二轮性能优化；此次P1的120个首次展开／收起／再开样本未开始，原4f的反馈超预算仍须由最新head复测。版本、artifact SHA与日志摘要见 [ci-second-head.json](ci-second-head.json)。
+
+## 9. 第三次精确 head：渲染复核通过，严格性能仍未通过
+
+head `cf2c7ed688eee45f061b6dbd0ddf783c051c0023` 对应 [Verify run 44088741089](https://github.com/ronyu870-collab/office-map-main/actions/runs/44088741089)（964／attempt 1）。测试 merge `df0194034f1c9ab80c14579ad7fcb50c205835a0` 与 head 的 tree 均为 `cdeb07617d76c663a58f651cfbdd61174fec8dd3`，已独立核对 Git 对象；这不是 main 合并。完整版本、job、artifact 摘要和原始报告索引见 [ci-third-head.json](ci-third-head.json)。此前各轮证据与失败保留。
+
+| 证据 | 本轮实际结果 |
+| --- | --- |
+| 六个 Verify jobs | **5 成功／1 失败**。主工程、搜索焦点、trusted query、cross-trend、lease-expiry 成功；P2 job 只在后续原 P1 手机首次展开反馈预算失败，不能标为全门通过。 |
+| 主工程与生产构建 | 271 文件／2065 项通过；独立 archived-ingestion 1 文件／4 项通过；生产编译成功、静态页面 26／26。搜索焦点另有 28 文件／258 项及 5 个契约用例通过。 |
+| 真实 Auth 与原性能 | trusted query 和 cross-trend 各 146 个 Auth／HTTP 场景通过；原查询／多指标 A/B、80 个交叉趋势性能样本及 lease-expiry 实际链路通过。 |
+| 原 P2 历史等交互 | **40 组／360 样本完整通过**，18 条件各 20 次；原数据、边界、请求、回执和预算均通过，146 个 Auth／HTTP 场景通过。showHistory 准备修正由本次完整同口径运行确认，未改变计时终点或样本数。 |
+| P2 实际画面 | 生产构建／Chromium 145.0.7632.6／合成会话，五宽度共 88 状态，自动布局失败与 pageerror 均为 0。独立评审实际看 56 张，并核对全部 88 PNG 摘要；**仅该 head 的 VERIFY-05 渲染层通过**，详见[补充独立结论](visual-review.md#cf2-精确-head-的独立渲染复核)。 |
+
+原 P1 [全部 120 样本](ci-cf2-workspace-performance.json)的状态保持、原结果、无重复查询／审计和撤权清理均通过，四视口操作序列通过；唯一未达项为 mobile first_expand 反馈 P50 **123.9 ms**／P90 **124.8 ms**，原预算仍为 100 ms。内容可用 P90 456.5 ms 在 500 ms 内，其余五条件通过。与 4f 的 123.7／124.3 ms 相比，第一轮批量读写优化没有显示改善，不能解释为已经解决。报告未记录事件时间线；已记录长任务为 0 不等于没有同步工作。
+
+[原 P2 完整报告](ci-cf2-p2-performance.json.gz)按原字节压缩保留。它仍包含 4 个非关键 `application_other / net::ERR_ABORTED`（mobile history_list 第 2／9／10／20 轮），关键请求与回执断言全部通过；不宣称网络错误为 0。报告的压缩及解压 SHA-256、原 artifact `14331737561` 的摘要均在 `ci-third-head.json`。
+
+视觉 artifact `14331737124` 为 6,581,108 bytes，ZIP SHA-256 `689a94e69aa65436095952c495d8b000b84457310267a06ad5b21ce3737781ad`。旧 1280px 空图和 320／768px 历史首条不可见的问题已在新画面关闭，未见新的严重视觉问题；旧设计图没有改标为 cf2。**本版本仍不可合并：严格性能未过，真实 iOS Safari／Android Chrome 的 MOB-05 未执行。** 本节不覆盖 cf2 之后的源码改变或尚未完成的优化验证，也不代表 Visual acceptance 工作流已通过、main 已合并或生产已部署。
+
+
+## 10. 首次展开分段诊断、三轮优化与回退
+
+正式 cf2 的失败促使分段诊断；没有降低原 100ms／500ms 门槛。新增诊断使用同项目临时4vCPU／8GB环境、Node24、Ubuntu26.04、真实 Next 生产构建、Playwright1.58.2／Chromium145.0.7632.6；Playwright按Ubuntu24.04兼容平台下载同版浏览器。正式GitHub Ubuntu24 CI未修改。手机条件为390×844、触摸、CPU×4、150ms／10Mbps下行／5Mbps上行。HTTP和身份为原视觉夹具，不能代替正式Auth或物理设备。
+
+原P1的 `observeExperienceTransition` 原样导入，不修改采样起点、真实几何变化加下一帧的终点或预算。trace／getter包装用于定位，下面A/B计时没有这些诊断包装。每版每条件20次、新建上下文，20轮交替前后顺序，首次展开／收起／重开共120条；每一条都核同一输入、草稿与选区、原结果、无查询重放和页面错误。两次A/B共240条均完整、功能保护通过，失败和较慢样本没有剔除。
+
+| 代码优化轮次 | 同条件首次展开反馈 P50／P90（ms） | 结论 |
+| --- | --- | --- |
+| 1：锚点和祖先样式读写分组 | 正式4f：123.7／124.3；正式cf2：123.9／124.8 | 没有可见收益，原严格预算失败。f852未进入P1测量，不另算一轮结果。 |
+| 2：VisualViewport快照 | 同机旧版：122.2／184.6；快照版：89.0／107.3 | 明确降低中位数，P90仍超100ms。内容可用P90：514.0→436.0ms。保留此较小改动。 |
+| 3：隔离先于目标矩形测量 | 同机快照对照：89.8／104.1；候选：89.1／116.8 | 无额外中位数收益，P90更差，已回退候选。内容可用P90：435.0／444.3ms。 |
+
+旧getter时间线显示offsetTop／offsetLeft／height／width／height分别耗8.5／7.7／7.2／7.2／6.8ms，和原trace五次同步布局对应。快照版这些getter均在样式写入前执行，该次诊断记录为0ms，但后续仍有必要的React提交、布局与绘制，不能把单次分段改善说成整体达标。原collector只统计任务起点位于点击之后的longtask；零记录不能排除包含该click的同步任务。
+
+[第二轮完整诊断包](viewport-performance-round2.tar.gz)保留120条原始A/B、三种焦点候选的完整时间线、getter前后时间线、实际测量脚本、前后源码与diff、环境和SHA。包49,348字节，SHA256 `e8011abd1806b325f04d8c00b3af4509dd2d700ddd84702ceced8c97191d8f92`。保留的产品源码blob为 `4962e9b565eecdbb79d438ef927074c9e5878e2e`，SHA256 `e36ba6c180d69892f89e45a60d68cde043f9fc7348a16edcae4cefa9f3a1d479`，与实际测量源码逐字节一致。第三轮候选、120条原始样本和明确标注的trace节选另保存在[第三轮诊断包](viewport-performance-round3.tar.gz)，摘要见[优化记录](viewport-performance.json)。完整trace与节选的界限按该包manifest记录，不冒称完整浏览器trace已全部取回。
+
+保留版本实际执行了29项现有工作空间回归及 `npm run verify`：审计、类型、Lint（0错误／854 warning）、271文件／2065项、生产编译通过；宿主页面收集仍在 `/api/oss` 的 `uv_interface_addresses` 退出1，见[原完整日志](local-viewport-snapshot-verify.log.gz)。第三轮候选的相同完整测试和编译也通过，但不能替代性能；其[原日志](local-final-layout-batch-verify.log.gz)另存，回退后不将它当作保留源码的证明。正式原CI和最新实际截图须按最终PR head重新核对，在PR body登记。
+
+**三轮结束不等于性能通过。** 保留方案在两个诊断A/B中的P90分别107.3／104.1ms，均超100ms；任何后续CI绿也不能抹掉这些同条件测量。下一步需取得新的布局／绘制瓶颈证据、稳定目标设备证据或明确扩大交互策略范围；本轮不继续第四轮、不短路动画、不预热样本、不放宽阈值。MOB-05仍独立未完成，不能合并或称生产发布。

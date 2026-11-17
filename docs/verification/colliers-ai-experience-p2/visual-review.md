@@ -111,3 +111,25 @@
 `f852d5b` 的主测试失败后未运行新视觉矩阵，因此本评审没有把任何旧图改标为该版本。独立复核确认后续审计详情修正只改变聚焦effect的提交时机，页面DOM、文案、条件与权限清空路径不变；实际组件新增回归保留详情消失、原row同DOM且获焦的断言。未声称已执行新的审计页生产浏览器闭环。
 
 原P2验证的showHistory准备动作改用aria-expanded决定重开，并等待hidden／inert解除和面板可见，位于两个既有计时操作之间；真实tap／scroll、结果校验、请求／回执、样本与预算未改变。两处源码复核没有阻断问题，运行通过及AI新截图的最终结论仍待下一精确head。
+
+## cf2 精确 head 的独立渲染复核
+
+**2026-11-17 独立结论：cf2 的 VERIFY-05 最终渲染层通过；不代表整体可合并或手机真机验收通过。** 本节由记录维护者依据独立评审 Agent `/root/review_gates` 的实际看图与摘要核对结论补记。此前阶段记录和原失败图继续保留，不将 `a687e…` 设计图或 4f 图改标为新版本。
+
+精确 head 为 `cf2c7ed688eee45f061b6dbd0ddf783c051c0023`，tree 为 `cdeb07617d76c663a58f651cfbdd61174fec8dd3`。[Verify run 44088741089](https://github.com/ronyu870-collab/office-map-main/actions/runs/44088741089) 实际测试 merge `df0194034f1c9ab80c14579ad7fcb50c205835a0` 与 head 同 tree；它不是 main 合并提交。环境为 Chromium 145.0.7632.6、Next production、实际 React 页面、合成会话与拦截 HTTP，没有生产写入。
+
+官方 artifact `14331737124` 已完整取回，6,581,108 bytes，ZIP SHA-256 `689a94e69aa65436095952c495d8b000b84457310267a06ad5b21ce3737781ad`。自动矩阵共 88 状态，布局断言及 pageerror 均为 0。评审者重新计算全部 **88 张 PNG** 的 SHA-256，与 provenance 全部相等；其中实际打开查看 **56 张**，没有将摘要核对冒称全部看图。完整版本和原始报告索引见 [ci-third-head.json](ci-third-head.json)。
+
+| 实际查看状态 | 视口宽度 | 张数 |
+| --- | --- | ---: |
+| welcome、data-summary、expanded-chart | 1280／1536／768／390／320 | 15 |
+| expanded-welcome、research-open、expanded-multiturn | 1280／768／320 | 9 |
+| expanded-complex、history-open | 1280／768／390／320 | 8 |
+| short-answer、clarification、data-result、expanded-complex-bottom、failure、waiting、stopped、permission-unavailable | 1280／320 | 16 |
+| business-team、team-details | 1280／390 | 4 |
+| short-viewport-tab-cycle | 320／390 | 2 |
+| role-editor、role-viewer | 390 | 2 |
+
+已查看画面的主页色块、输入主次、轻量建议、业务与团队区域、研究阅读层级和状态边界没有新的严重视觉问题。此前 1280px 空白图表在新画面中具有实际折线与坐标；320／768px 历史首次打开能够看见并操作首条记录，两项原发现已关闭。窄屏与平板历史的自动几何证据同时显示首条有效可见高度 59px、容器初始 scrollTop 为 0，未先滚动记录来取得通过。
+
+独立看图通过只适用于上述 head/tree。该版本六个 Verify jobs 为 **5 成功／1 失败**：原 P2 40 组／360 样本及状态保护通过，原 P1 手机首次展开反馈 P90 124.8ms 仍超过未变的 100ms 门槛；第一次批量读写优化没有显示改善。**真实 iOS Safari 与 Android Chrome 未执行，MOB-05 仍未通过且无本轮豁免。** 因而本段不提供合并批准，不代替整个 Visual acceptance 工作流，也不覆盖此后新的性能修改；新精确 head 仍需复核证据适用性。

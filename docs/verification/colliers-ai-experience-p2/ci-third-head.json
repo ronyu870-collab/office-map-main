@@ -1,0 +1,602 @@
+{
+  "head": "cf2c7ed688eee45f061b6dbd0ddf783c051c0023",
+  "testedMergeSha": "df0194034f1c9ab80c14579ad7fcb50c205835a0",
+  "tree": "cdeb07617d76c663a58f651cfbdd61174fec8dd3",
+  "commitRelationship": "GitHub pull-request test merge with the same tree as head; not a main merge",
+  "run": "https://github.com/ronyu870-collab/office-map-main/actions/runs/44088741089",
+  "runId": 44088741089,
+  "runNumber": 964,
+  "attempt": 1,
+  "verify": {
+    "completedJobs": 6,
+    "passedJobs": 5,
+    "failedJobs": 1,
+    "conclusion": "failure",
+    "rerun": false,
+    "failure": "Real Auth P2 workspace HTTP and browser integration / EXPERIENCE_BUDGET_FAILURE: mobile first_expand feedback P90 exceeds unchanged 100ms budget",
+    "jobs": [
+      {
+        "id": 134058277036,
+        "name": "Real Auth trusted query HTTP integration",
+        "status": "completed",
+        "conclusion": "success",
+        "failedSteps": []
+      },
+      {
+        "id": 134058277467,
+        "name": "Real Auth cross-trend HTTP and browser integration",
+        "status": "completed",
+        "conclusion": "success",
+        "failedSteps": []
+      },
+      {
+        "id": 134058277483,
+        "name": "Typecheck, lint, test and build",
+        "status": "completed",
+        "conclusion": "success",
+        "failedSteps": []
+      },
+      {
+        "id": 134058277513,
+        "name": "Real Auth P2 workspace HTTP and browser integration",
+        "status": "completed",
+        "conclusion": "failure",
+        "failedSteps": [
+          "Verify real P2 HTTP and forty browser interaction sets"
+        ]
+      },
+      {
+        "id": 134058277624,
+        "name": "Search and filter focus coverage",
+        "status": "completed",
+        "conclusion": "success",
+        "failedSteps": []
+      },
+      {
+        "id": 134058277667,
+        "name": "Real Auth lease expiry integration",
+        "status": "completed",
+        "conclusion": "success",
+        "failedSteps": []
+      }
+    ]
+  },
+  "engineering": {
+    "main": {
+      "testFilesPassed": 271,
+      "testsPassed": 2065,
+      "archivedIngestionFilesPassed": 1,
+      "archivedIngestionTestsPassed": 4,
+      "productionBuildPassed": true,
+      "staticPagesGenerated": 26,
+      "staticPagesExpected": 26
+    },
+    "searchFocus": {
+      "testFilesPassed": 28,
+      "testsPassed": 258,
+      "contractTestsPassed": 5
+    },
+    "trustedQuery": {
+      "authHttpScenariosPassed": 146,
+      "queryAndMultiMetricDesktopMobileAB": "passed"
+    },
+    "crossTrend": {
+      "authHttpScenariosPassed": 146,
+      "performanceSamples": 80,
+      "passed": true
+    },
+    "leaseExpiry": "real Auth, HTTP and browser integration passed"
+  },
+  "browserEvidence": {
+    "artifactId": 14331737124,
+    "artifactName": "colliers-ai-experience-p2-verification",
+    "artifactUrl": "https://github.com/ronyu870-collab/office-map-main/actions/runs/44088741089/artifacts/14331737124",
+    "artifactSha256": "689a94e69aa65436095952c495d8b000b84457310267a06ad5b21ce3737781ad",
+    "artifactBytes": 6581108,
+    "browser": "145.0.7632.6",
+    "environment": "Next production server; real React DOM; synthetic session and intercepted HTTP; no production writes",
+    "fixtureDigest": "7cd34434c0cc7108f0829ec8325e70983293437e4dbf050739608e3aac706ab5",
+    "observations": 88,
+    "pngCount": 88,
+    "stateCountsByWidth": {
+      "1280": 18,
+      "1536": 16,
+      "768": 16,
+      "390": 21,
+      "320": 17
+    },
+    "automatedLayoutFailures": 0,
+    "pageErrors": 0,
+    "independentVisualReview": {
+      "reviewer": "Independent review agent /root/review_gates",
+      "reviewDate": "2026-11-17",
+      "recordedBy": "Evidence maintainer, from the reviewer's actual-image review and hash-verification report",
+      "result": "passed",
+      "scope": "VERIFY-05 rendered-page visual review for this exact head/tree only",
+      "imagesActuallyViewed": 56,
+      "imagesWithMatchingProvenanceSha256": 88,
+      "reviewedCoverage": [
+        {
+          "widths": [
+            1280,
+            1536,
+            768,
+            390,
+            320
+          ],
+          "states": [
+            "welcome",
+            "data-summary",
+            "expanded-chart"
+          ]
+        },
+        {
+          "widths": [
+            1280,
+            768,
+            320
+          ],
+          "states": [
+            "expanded-welcome",
+            "research-open",
+            "expanded-multiturn"
+          ]
+        },
+        {
+          "widths": [
+            1280,
+            768,
+            390,
+            320
+          ],
+          "states": [
+            "expanded-complex",
+            "history-open"
+          ]
+        },
+        {
+          "widths": [
+            1280,
+            320
+          ],
+          "states": [
+            "short-answer",
+            "clarification",
+            "data-result",
+            "expanded-complex-bottom",
+            "failure",
+            "waiting",
+            "stopped",
+            "permission-unavailable"
+          ]
+        },
+        {
+          "widths": [
+            1280,
+            390
+          ],
+          "states": [
+            "business-team",
+            "team-details"
+          ]
+        },
+        {
+          "widths": [
+            320,
+            390
+          ],
+          "states": [
+            "short-viewport-tab-cycle"
+          ]
+        },
+        {
+          "widths": [
+            390
+          ],
+          "states": [
+            "role-editor",
+            "role-viewer"
+          ]
+        }
+      ],
+      "closedFindings": [
+        "Prior 1280px empty chart has visible plot and axes in the new final image",
+        "Prior 320px and 768px history panels now show an operable first entry on initial opening"
+      ],
+      "newSevereVisualIssues": false,
+      "limits": "Not physical-device acceptance, an overall Visual acceptance workflow result, a merge approval or evidence for later source changes"
+    },
+    "physicalDevices": {
+      "iosSafari": "not tested",
+      "androidChrome": "not tested",
+      "mob05Passed": false
+    }
+  },
+  "performance": {
+    "artifactId": 14331737561,
+    "artifactName": "ai-query-p2-workspace-auth",
+    "artifactUrl": "https://github.com/ronyu870-collab/office-map-main/actions/runs/44088741089/artifacts/14331737561",
+    "artifactSha256": "db5be137bac3816b965b082820d15235551c9c9dcb706dc50005bda9bbffdad9",
+    "artifactBytes": 49699,
+    "p1": {
+      "report": "ci-cf2-workspace-performance.json",
+      "rawSha256": "372c7a8d9fb9b61d31a5e9029df24ca503612f5475da04837f3b909182feb3b3",
+      "rawBytes": 66683,
+      "sampleCount": 120,
+      "allSamplesRetained": true,
+      "complete": true,
+      "functionalPassed": true,
+      "expandedRevocationCleared": true,
+      "budgetsMet": false,
+      "budgets": {
+        "feedbackP90Ms": 100,
+        "loadedContentUsableP90Ms": 500
+      },
+      "summary": [
+        {
+          "profile": "desktop",
+          "scenario": "first_expand",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 56.5,
+              "p90": 57.5
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 390,
+              "p90": 391.19999999995343
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": true
+        },
+        {
+          "profile": "desktop",
+          "scenario": "collapse",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 50.199999999953434,
+              "p90": 52.39999999990687
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 373.29999999993015,
+              "p90": 374
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": true
+        },
+        {
+          "profile": "desktop",
+          "scenario": "reopen",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 40.59999999997672,
+              "p90": 41.5
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 374,
+              "p90": 374.9000000000233
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": true
+        },
+        {
+          "profile": "mobile",
+          "scenario": "first_expand",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 123.9000000001397,
+              "p90": 124.80000000004657
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 456.0999999998603,
+              "p90": 456.5
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": false
+        },
+        {
+          "profile": "mobile",
+          "scenario": "collapse",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 43.5,
+              "p90": 45
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 383.39999999990687,
+              "p90": 387.19999999995343
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": true
+        },
+        {
+          "profile": "mobile",
+          "scenario": "reopen",
+          "expected": 20,
+          "observed": 20,
+          "failed": 0,
+          "missingSamples": 0,
+          "complete": true,
+          "metrics": {
+            "feedback_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 43.699999999953434,
+              "p90": 57.4000000001397
+            },
+            "content_usable_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 373.80000000004657,
+              "p90": 375.70000000006985
+            },
+            "long_task_count": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_total_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            },
+            "long_task_max_ms": {
+              "measured": 20,
+              "missing": 0,
+              "p50": 0,
+              "p90": 0
+            }
+          },
+          "budget": {
+            "feedbackP90Ms": 100,
+            "loadedContentUsableP90Ms": 500
+          },
+          "budgetsMet": true
+        }
+      ],
+      "firstOptimization": {
+        "baselineHead": "4f6719696d019ea00e33a3de4d8d55e9a2a99bdf",
+        "baselineMobileFirstExpandFeedbackP50Ms": 123.7,
+        "baselineMobileFirstExpandFeedbackP90Ms": 124.3,
+        "currentMobileFirstExpandFeedbackP50Ms": 123.9,
+        "currentMobileFirstExpandFeedbackP90Ms": 124.8,
+        "conclusion": "The first batched-layout read/write optimization showed no improvement; the unchanged strict feedback budget still fails."
+      },
+      "measurementLimits": "Relative feedback/usable samples only, without an event timeline. Zero recorded long tasks does not exclude synchronous work. No result is asserted for post-cf2 optimizations."
+    },
+    "p2": {
+      "report": "ci-cf2-p2-performance.json.gz",
+      "rawSha256": "df548d30f8cb9025f6c11ab1f8f352ebd1ebb959049b4c28b39726c37a6b28c2",
+      "rawBytes": 942890,
+      "gzipSha256": "89975a33180943f68b513e86926cb4499f123501d0440be9eb7be11329235b2f",
+      "gzipBytes": 34012,
+      "interactionSets": 40,
+      "sampleCount": 360,
+      "conditions": 18,
+      "samplesPerCondition": 20,
+      "allSamplesRetained": true,
+      "complete": true,
+      "functionalPassed": true,
+      "budgetsMet": true,
+      "budgets": {
+        "feedbackP90Ms": 100,
+        "desktopContentUsableP90Ms": 2500,
+        "mobileContentUsableP90Ms": 3500,
+        "loadedSummaryReopenP90Ms": 500
+      },
+      "allFactsBoundsRequestsReceiptsVerified": true,
+      "authHttpScenariosPassed": 146,
+      "pageErrors": 0,
+      "modelCalls": 0,
+      "historyPreparationFix": "Confirmed by the complete original 40 interaction sets / 360 samples, without changing action timers, sample counts, facts, receipts or budgets.",
+      "nonCriticalAbortedRequests": [
+        {
+          "profile": "mobile",
+          "round": 2,
+          "scenario": "history_list",
+          "failures": [
+            {
+              "kind": "application_other",
+              "critical": false,
+              "error": "net::ERR_ABORTED"
+            }
+          ]
+        },
+        {
+          "profile": "mobile",
+          "round": 9,
+          "scenario": "history_list",
+          "failures": [
+            {
+              "kind": "application_other",
+              "critical": false,
+              "error": "net::ERR_ABORTED"
+            }
+          ]
+        },
+        {
+          "profile": "mobile",
+          "round": 10,
+          "scenario": "history_list",
+          "failures": [
+            {
+              "kind": "application_other",
+              "critical": false,
+              "error": "net::ERR_ABORTED"
+            }
+          ]
+        },
+        {
+          "profile": "mobile",
+          "round": 20,
+          "scenario": "history_list",
+          "failures": [
+            {
+              "kind": "application_other",
+              "critical": false,
+              "error": "net::ERR_ABORTED"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "gate": "Not mergeable: exact-head Verify fails the original P1 feedback budget and MOB-05 remains unverified. Rendered visual review passed only for cf2; prior evidence is preserved.",
+  "workflowUpdatedAt": "2026-11-17T13:27:25Z"
+}
