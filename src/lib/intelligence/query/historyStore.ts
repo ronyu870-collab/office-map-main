@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { assistantHelpSchema } from './assistantHelp';
 import { decryptAuditContent, encryptAuditContent, redactSubmittedCredentials } from './auditCrypto';
 import type { AuditKeys } from './auditStore';
 import { authorizeConversationPlan } from './conversationStore';
@@ -8,10 +9,9 @@ import { queryConversationSchema, SEMANTIC_PROTOCOL_VERSION } from './conversati
 import { historyTurnSchema, type HistoryEntry, type HistoryInput, type HistoryOpened, type HistoryPage } from './historyProtocol';
 import { sealHistoryToken, unsealHistoryToken } from './historyToken';
 import { parseQueryPlan, planPeriods } from './plan';
-import { buildSemanticSuggestions, parseSemanticContext, type SemanticResolution } from './semanticPlanner';
+import { buildSemanticSuggestions, parseSemanticContext, type SemanticClarification, type SemanticResolution } from './semanticPlanner';
 import type { prepareSemanticExecution } from './semanticExecution';
 import type { Quarter } from './contracts';
-import { queryActionSchema } from './conversationProtocol';
 import { readQuerySnapshots } from './snapshotReader';
 import { resultViewSchema } from './presentation';
 import { readOwnResult, recoverOwnResult } from './recovery';
@@ -63,7 +63,7 @@ async function readQuestionMetadata(context: Context, requestId: string) {
   const receipt = decodeReceipt(context, requestId, events[0]);
   if (!receipt) throw new Error('QUERY_HISTORY_UNAVAILABLE');
   let authorizedPlan = false;
-  let plan = receipt.plan, clarification: { message: string; options: Array<{ id: string; label: string; question: string }> } | undefined;
+  let plan = receipt.plan, clarification: SemanticClarification | undefined;
   if (receipt.semantic) {
     for (const event of events) {
       if (event.kind !== 'tool_finished' && event.kind !== 'denied') continue;
@@ -74,10 +74,8 @@ async function readQuestionMetadata(context: Context, requestId: string) {
         if (content.resolution.semanticContext) {
           const storedContext = parseSemanticContext(content.resolution.semanticContext);
           if (storedContext.lastPlan) { authorizeConversationPlan(storedContext.lastPlan, context.authority); authorizedPlan = true; }
-          if (event.kind === 'denied' && storedContext.pending) clarification = {
-            message: storedContext.pending.clarification.message,
-            options: z.array(queryActionSchema).max(6).parse(storedContext.pending.clarification.options),
-          };
+          if (event.kind === 'denied') clarification = content.response?.reason === 'assistant_help'
+            ? assistantHelpSchema.parse(content.response) : storedContext.pending?.clarification;
         }
       }
     }

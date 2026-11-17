@@ -6,14 +6,14 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
-test('Colliers AI clarification fix waiver is confined to PR #204, its source, main target and current head', () => {
-  const scope = 'Colliers AI clarification response protocol and failure guidance, PR #204';
-  const reason = 'User explicitly waived independent visual review and mobile browser testing for Colliers AI clarification bug fix on 2026-11-17; applies only to PR #204';
+test('Experience P0 waiver is limited to PR #205, exact source/main/head and explicit user scope', () => {
+  const scope = 'Colliers AI conversational experience 2.0 P0, PR #205';
+  const reason = 'User explicitly waived independent visual review and browser review for conversational experience P0 on 2026-11-17; applies only to PR #205';
   const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
-  const candidate = { number: 204, body, head: { sha: head, ref: 'codex/fix-ai-clarification-protocol-20261117',
+  const candidate = { number: 205, body, head: { sha: head, ref: 'codex/colliers-experience-p0-20261117',
     repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
   assert.equal(checkVisualAcceptance(candidate), null);
-  for (const number of [203, 205]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
+  for (const number of [204, 206]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
@@ -21,264 +21,238 @@ test('Colliers AI clarification fix waiver is confined to PR #204, its source, m
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Unrelated approval') }), /specifically authorized/);
 });
-test('P2 waiver requires PR #203, the exact branch, target, repository, head and user authorization', () => {
-  const scope = 'Colliers AI P2 building, map, outputs and own work history, PR #203';
-  const reason = 'User explicitly waived independent visual review, manual browser visual review and physical-phone manual acceptance for Colliers AI P2 on 2026-11-15; applies only to PR #203';
+
+test('Colliers AI clarification fix waiver is limited to PR #204, exact branch/head/main and unchanged declared scope', () => {
+  const scope = 'Colliers AI clarification response protocol and failure guidance, PR #204';
+  const reason = 'User explicitly waived independent visual review and mobile browser testing for Colliers AI clarification bug fix on 2026-11-17; applies only to PR #204';
   const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 204, body, head: { sha: head, ref: 'codex/fix-ai-clarification-protocol-20261117',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 205 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Unrelated interface redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Please skip review') }), /specifically authorized/);
+});
+
+test('Colliers AI P2 waiver is limited to PR #203, exact branch/head/main and disclosed manual-review scope', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Colliers AI P2 building, map, outputs and own work history, PR #203',
+    'reason: User explicitly waived independent visual review, manual browser visual review and physical-phone manual acceptance for Colliers AI P2 on 2026-11-15; applies only to PR #203');
   const candidate = { number: 203, body, head: { sha: head, ref: 'codex/colliers-ai-p2-20261116', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
   assert.equal(checkVisualAcceptance(candidate), null);
-  for (const number of [202, 204]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/colliers-ai-p1-cross-trends' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 204 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/unrelated' } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Tests passed') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('scope: Colliers AI P2 building, map, outputs and own work history, PR #203', 'scope: Unrelated interface redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('reason: User explicitly waived independent visual review, manual browser visual review and physical-phone manual acceptance for Colliers AI P2 on 2026-11-15; applies only to PR #203', 'reason: Please skip review') }), /specifically authorized/);
 });
 
-test('P1 cross-trend continuation waiver is limited to PR #202 and its exact head and scope', () => {
-  const scope = 'Colliers AI P1 cross-dimensional quarterly trends, PR #202';
-  const reason = 'User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested remaining work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #202';
-  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+test('Colliers AI P1 cross-trend continuation waiver is limited to PR #202, exact branch/head/main and declared scope', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Colliers AI P1 cross-dimensional quarterly trends, PR #202',
+    'reason: User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested remaining work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #202');
   const candidate = { number: 202, body, head: { sha: head, ref: 'codex/colliers-ai-p1-cross-trends', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
   assert.equal(checkVisualAcceptance(candidate), null);
-  for (const number of [201, 203]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/colliers-ai-p1-followup' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 203 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/unrelated' } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Tests passed') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('scope: Colliers AI P1 cross-dimensional quarterly trends, PR #202', 'scope: Unrelated interface redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('reason: User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested remaining work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #202', 'reason: Please skip review') }), /specifically authorized/);
 });
 
-test('P1 continuation waiver is separately bound to PR #201 and cannot reuse the previous PR record', () => {
-  const scope = 'Colliers AI P1 follow-up multi-metric analysis and verification, PR #201';
-  const reason = 'User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested unresolved work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #201';
-  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+test('Colliers AI P1 continuation waiver is limited to PR #201, exact branch/head/main and disclosed inherited scope', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Colliers AI P1 follow-up multi-metric analysis and verification, PR #201',
+    'reason: User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested unresolved work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #201');
   const candidate = { number: 201, body, head: { sha: head, ref: 'codex/colliers-ai-p1-followup', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
   assert.equal(checkVisualAcceptance(candidate), null);
-  for (const number of [200, 202]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/colliers-ai-p1' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 202 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/unrelated' } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Tests passed') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('scope: Colliers AI P1 follow-up multi-metric analysis and verification, PR #201', 'scope: Unrelated interface redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('reason: User continued the same authorized Colliers AI P1 task on 2026-11-15 and requested unresolved work be completed and merged; the original P1 independent visual, browser visual and physical-phone manual review waiver is retained only for PR #201', 'reason: Please skip review') }), /specifically authorized/);
 });
 
-test('P1 visual waiver is bound to PR #200, exact repository, branch, target, head and disclosed authorization', () => {
-  const scope = 'Colliers AI P1 semantic conversation and trusted research, PR #200';
-  const reason = 'User explicitly waived independent visual review, browser visual review and physical-phone manual acceptance for Colliers AI P1 on 2026-11-15; applies only to PR #200';
-  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
-  const candidate = { number: 200, body,
-    head: { sha: head, ref: 'codex/colliers-ai-p1', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+test('Colliers AI P1 waiver is limited to PR #200, exact branch/head/main and the authorized scope and reason', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Colliers AI P1 semantic conversation and trusted research, PR #200',
+    'reason: User explicitly waived independent visual review, browser visual review and physical-phone manual acceptance for Colliers AI P1 on 2026-11-15; applies only to PR #200');
+  const candidate = { number: 200, body, head: { sha: head, ref: 'codex/colliers-ai-p1', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
   assert.equal(checkVisualAcceptance(candidate), null);
-  for (const number of [199, 201]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 201 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Tests passed') }), /specifically authorized/);
-});
-const passFields = [
-  'result: passed', 'head: ' + head, 'scope: 首页 / 常用工作',
-  'reviewer: Hang Yu', 'evidence: https://github.com/example/repo/pull/2#issuecomment-3',
-];
-
-test('accepts the current revision with a reviewer and an evidence link', () => {
-  assert.equal(check(record(...passFields).replaceAll('\n', '\r\n')), null);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('scope: Colliers AI P1 semantic conversation and trusted research, PR #200', 'scope: Unrelated interface redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('reason: User explicitly waived independent visual review, browser visual review and physical-phone manual acceptance for Colliers AI P1 on 2026-11-15; applies only to PR #200', 'reason: Please skip review') }), /specifically authorized/);
 });
 
-test('rejects missing, pending and ambiguous records', () => {
-  assert.match(check(null), /exactly one/);
-  assert.match(check(record('result: pending')), /pending/);
-  assert.match(check(record(...passFields) + '\n' + record('result: pending')), /exactly one/);
-  assert.match(check(record(...passFields, 'result: not-applicable')), /once each/);
+test('requires one record and rejects a pending or stale result', () => {
+  assert.match(check(''), /exactly one/);
+  assert.match(check(record('result: pending', 'head: ' + head)), /pending/);
+  assert.match(check(record('result: passed', 'head: old', 'scope: 首页', 'reviewer: Alice', 'evidence: https://example.com/review')), /current PR head/);
+  assert.match(check(record('result: not-applicable', 'head: ' + head, 'reason: docs only') + '\n' + record('result: passed')), /exactly one/);
 });
 
-test('a push invalidates both a pass and a not-applicable decision', () => {
-  const oldHead = 'b'.repeat(40);
-  assert.match(check(record(...passFields).replace(head, oldHead)), /current PR head/);
-  assert.match(check(record('result: not-applicable', 'head: ' + oldHead, 'reason: Docs only')), /current PR head/);
+test('accepts a scoped review tied to the head and HTTPS evidence', () => {
+  assert.equal(check(record('result: passed', 'head: ' + head, 'scope: 首页桌面与手机', 'reviewer: Independent reviewer', 'evidence: https://example.com/review')), null);
+  assert.match(check(record('result: passed', 'head: ' + head, 'reviewer: Independent reviewer', 'evidence: https://example.com/review')), /affected pages/);
+  assert.match(check(record('result: passed', 'head: ' + head, 'scope: 首页', 'reviewer: Independent reviewer', 'evidence: javascript:alert(1)')), /HTTPS/);
 });
 
-test('a pass requires a reviewer and a usable HTTPS evidence link', () => {
-  assert.match(check(record(...passFields.filter(line => !line.startsWith('reviewer:')))), /person/);
-  assert.match(check(record(...passFields.slice(0, -1))), /HTTPS/);
-  assert.match(check(record(...passFields.slice(0, -1), 'evidence: file:///tmp/review.png')), /HTTPS/);
+test('requires an explanation for non-interface changes and rejects ambiguous fields', () => {
+  assert.equal(check(record('result: not-applicable', 'head: ' + head, 'reason: Changes only documentation and server calculations.')), null);
+  assert.match(check(record('result: not-applicable', 'head: ' + head)), /Explain why/);
+  assert.match(check(record('result: not-applicable', 'result: passed', 'head: ' + head, 'reason: docs')), /once each/);
+  assert.match(check(record('result: not-applicable', 'head: ' + head, 'reason: docs', 'extra: hidden override')), /once each/);
 });
 
-test('a non-visual PR must explain why it is out of scope', () => {
-  const fields = ['result: not-applicable', 'head: ' + head];
-  assert.match(check(record(...fields, 'reason: ')), /Explain/);
-  assert.equal(check(record(...fields, 'reason: Corrected an internal documentation link')), null);
-});
-
-test('records a one-time user-authorized visual waiver for the exact PR without claiming it passed', () => {
-  const reason = 'User explicitly waived independent visual review and real-device acceptance for PR #190 on 2026-11-14';
-  const fields = [
-    'result: waived', 'head: ' + head,
+test('accepts only the explicitly authorized PR 190 waiver and discloses it', () => {
+  const body = record('result: waived', 'head: ' + head,
     'scope: Homepage market communication P0, PR #190',
-    'reason: ' + reason,
-  ];
-  const candidate = {
-    number: 190,
-    body: record(...fields),
-    head: {
-      sha: head,
-      ref: 'codex/market-communication-p0-20261113',
-      repo: { full_name: 'ronyu870-collab/office-map-main' },
-    },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 191 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'another/repository' } } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(head, 'b'.repeat(40)) }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields.filter(line => !line.startsWith('reason:'))) }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(reason, 'Documentation only') }), /specifically authorized/);
-  assert.match(check(record(...fields)), /specifically authorized/);
+    'reason: User explicitly waived independent visual review and real-device acceptance for PR #190 on 2026-11-14');
+  const approved = { number: 190, body, head: { sha: head, ref: 'codex/market-communication-p0-20261113', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 191 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('User explicitly waived independent visual review and real-device acceptance for PR #190 on 2026-11-14', 'skip it') }), /specifically authorized/);
 });
 
-test('PR #191 reuses the prior visual/real-device waiver by explicit user instruction, without broadening it', () => {
-  const reason = 'User explicitly authorized reusing PR #190 visual and real-device acceptance waiver for PR #191 on 2026-11-14';
-  const fields = [
-    'result: waived', 'head: ' + head,
+test('accepts only the explicitly authorized PR 191 reuse and does not broaden PR 190', () => {
+  const body = record('result: waived', 'head: ' + head,
     'scope: Homepage communication compact composer, PR #191',
-    'reason: ' + reason,
-  ];
-  const candidate = {
-    number: 191,
-    body: record(...fields),
-    head: {
-      sha: head,
-      ref: 'codex/communication-compact-home-20261114',
-      repo: { full_name: 'ronyu870-collab/office-map-main' },
-    },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 192 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 190 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'another/repository' } } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(head, 'b'.repeat(40)) }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace('PR #191', 'PR #192') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(reason, 'Documentation only') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields.filter(line => !line.startsWith('reason:'))) }), /specifically authorized/);
-  assert.match(check(record(...fields)), /specifically authorized/);
+    'reason: User explicitly authorized reusing PR #190 visual and real-device acceptance waiver for PR #191 on 2026-11-14');
+  const approved = { number: 191, body, head: { sha: head, ref: 'codex/communication-compact-home-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 192 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, number: 190 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'someone/office-map-main' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
 });
 
-test('allows the audit log exception only for PR #192 with the exact head, scope and reason', () => {
-  const reason = 'User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #192';
-  const body = record('result: waived', 'head: ' + head, 'scope: Audit log Codex exclusion, PR #192', 'reason: ' + reason);
-  const candidate = {
-    number: 192,
-    body,
-    head: { sha: head, ref: 'codex/audit-exclude-codex', repo: { full_name: 'ronyu870-collab/office-map-main' } },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 194 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'another-branch' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+test('accepts only the explicitly authorized PR 192 audit waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Audit log Codex exclusion, PR #192',
+    'reason: User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #192');
+  const approved = { number: 192, body, head: { sha: head, ref: 'codex/audit-exclude-codex', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 193 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
 });
 
-test('recognizes the default audit filter waiver only for its own PR and branch', () => {
-  const candidate = {
-    number: 193,
-    body: record(
-      'result: waived',
-      'head: ' + head,
-      'scope: Audit log default Codex exclusion, PR #193',
-      'reason: User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #193',
-    ),
-    head: { sha: head, ref: 'codex/audit-exclude-codex-default', repo: { full_name: 'ronyu870-collab/office-map-main' } },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 192 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/audit-exclude-codex' } }), /specifically authorized/);
+test('accepts only the explicitly authorized PR 193 default audit waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Audit log default Codex exclusion, PR #193',
+    'reason: User explicitly waived independent visual review and mobile testing for this conversation on 2026-11-14; this record applies only to PR #193');
+  const approved = { number: 193, body, head: { sha: head, ref: 'codex/audit-exclude-codex-default', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 194 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'codex/audit-exclude-codex' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'someone/office-map-main' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
 });
 
-test('PR #194 single-use waiver requires the matching district boundary scope and user authorization', () => {
-  const reason = 'User explicitly waived independent visual review and mobile testing for PR #194 on 2026-11-14; this record applies only to the district boundary dotted-line change';
-  const scope = 'Map district boundary dotted lines, PR #194';
-  const fields = ['result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason];
-  const candidate = {
-    number: 194,
-    body: record(...fields),
-    head: { sha: head, ref: 'codex/dotted-district-boundaries-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 195 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 193 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/another-branch' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'another/repository' } } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(scope, 'Other map changes, PR #194') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields).replace(reason, 'Documentation only') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: record(...fields.filter(line => !line.startsWith('reason:'))) }), /specifically authorized/);
-  assert.match(check(record(...fields)), /specifically authorized/);
+test('accepts only the explicitly authorized PR 194 map district boundary waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Map district boundary dotted lines, PR #194',
+    'reason: User explicitly waived independent visual review and mobile testing for PR #194 on 2026-11-14; this record applies only to the district boundary dotted-line change');
+  const approved = { number: 194, body, head: { sha: head, ref: 'codex/dotted-district-boundaries-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 195 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'someone/office-map-main' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('scope: Map district boundary dotted lines, PR #194', 'scope: Unrelated map redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('reason: User explicitly waived independent visual review and mobile testing for PR #194 on 2026-11-14; this record applies only to the district boundary dotted-line change', 'reason: Skip mobile testing') }), /specifically authorized/);
 });
 
-
-test('PR #195 search P0 waiver requires the exact PR, branch, head, scope and reason', () => {
-  const reason = 'User explicitly waived independent visual review and real-device acceptance for map search P0 fixes in PR #195 on 2026-11-14';
-  const scope = 'Map search navigation and future-supply visibility P0, PR #195';
-  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
-  const candidate = {
-    number: 195, body,
-    head: { sha: head, ref: 'codex/map-search-p0-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 194 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other changes') }), /specifically authorized/);
+test('accepts only the explicitly authorized PR 195 search navigation waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Map search navigation and future-supply visibility P0, PR #195',
+    'reason: User explicitly waived independent visual review and real-device acceptance for map search P0 fixes in PR #195 on 2026-11-14');
+  const approved = { number: 195, body, head: { sha: head, ref: 'codex/map-search-p0-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 196 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'someone/office-map-main' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('scope: Map search navigation and future-supply visibility P0, PR #195', 'scope: Unrelated map redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('reason: User explicitly waived independent visual review and real-device acceptance for map search P0 fixes in PR #195 on 2026-11-14', 'reason: Skip mobile testing') }), /specifically authorized/);
 });
 
+test('accepts only the explicitly authorized PR 196 search candidate waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Map search candidates and explicit positioning P1, PR #196',
+    'reason: User explicitly authorized the same independent visual and real-device waiver as PR #195 for map search second-batch changes in PR #196 on 2026-11-14');
+  const approved = { number: 196, body, head: { sha: head, ref: 'codex/map-search-p1-candidates-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 197 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'someone/office-map-main' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('scope: Map search candidates and explicit positioning P1, PR #196', 'scope: Unrelated map redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('reason: User explicitly authorized the same independent visual and real-device waiver as PR #195 for map search second-batch changes in PR #196 on 2026-11-14', 'reason: Skip mobile testing') }), /specifically authorized/);
+});
 
-test('PR #196 map search second-batch waiver is exact and cannot be reused', () => {
-  const scope = 'Map search candidates and explicit positioning P1, PR #196';
-  const reason = 'User explicitly authorized the same independent visual and real-device waiver as PR #195 for map search second-batch changes in PR #196 on 2026-11-14';
-  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
-  const candidate = {
-    number: 196, body,
-    head: { sha: head, ref: 'codex/map-search-p1-candidates-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 195 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/other-branch' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Not applicable') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Another change') }), /specifically authorized/);
+test('accepts only the explicitly authorized PR 197 viewport and search consistency waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Map third-batch viewport, popup stability and search consistency, PR #197',
+    'reason: User explicitly authorized the same independent visual and real-device acceptance waiver as the previous map search batches for PR #197 on 2026-11-14');
+  const approved = { number: 197, body, head: { sha: head, ref: 'codex/map-search-p2-viewport-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 198 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'another-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'someone/office-map-main' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('scope: Map third-batch viewport, popup stability and search consistency, PR #197', 'scope: Unrelated map redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('reason: User explicitly authorized the same independent visual and real-device acceptance waiver as the previous map search batches for PR #197 on 2026-11-14', 'reason: Skip mobile testing') }), /specifically authorized/);
+});
+
+test('accepts only the explicitly authorized PR #198 first-release waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Admin-only trusted data query and audit first release, PR #198',
+    'reason: User explicitly waived independent visual review and mobile testing for the admin first release on 2026-11-15; applies only to PR #198');
+  const approved = { number: 198, body, head: { sha: head, ref: 'codex/admin-query-first-release', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 199 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
 });
 
 
-test('PR #197 third-batch map search waiver is exact and never inherited by other changes', () => {
-  const scope = 'Map third-batch viewport, popup stability and search consistency, PR #197';
-  const reason = 'User explicitly authorized the same independent visual and real-device acceptance waiver as the previous map search batches for PR #197 on 2026-11-14';
-  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
-  const candidate = {
-    number: 197, body,
-    head: { sha: head, ref: 'codex/map-search-p2-viewport-20261114', repo: { full_name: 'ronyu870-collab/office-map-main' } },
-    base: { ref: 'main' },
-  };
-  assert.equal(checkVisualAcceptance(candidate), null);
-  assert.match(checkVisualAcceptance({ ...candidate, number: 196 }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'another-branch' } }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Unrelated work') }), /specifically authorized/);
-  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Another map change') }), /specifically authorized/);
+test('accepts only the explicitly authorized PR #199 homepage AI P0 waiver', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Homepage Colliers AI P0 conversation and result presentation, PR #199',
+    'reason: User explicitly waived visual and browser review for homepage AI P0 on 2026-11-15; applies only to PR #199');
+  const approved = { number: 199, body, head: { sha: head, ref: 'codex/home-ai-p0-20261115', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 200 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('Homepage Colliers AI P0 conversation and result presentation, PR #199', 'Unrelated scope') }), /specifically authorized/);
 });

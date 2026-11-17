@@ -268,7 +268,7 @@ describe('P1 actual semantic HTTP and encrypted-context integration', () => {
   });
 
   it.each([
-    { question: '你好', reason: 'scope_required' },
+    { question: '查询净有效租金', reason: 'scope_required' },
     { question: 'CBD净有效租金', reason: 'period_required' },
     { question: 'CBD最贵的楼是哪栋？', reason: 'metric_required' },
     { question: 'CBD租赁成交情况', reason: 'unsupported' },
@@ -414,5 +414,40 @@ describe('P1 actual semantic HTTP and encrypted-context integration', () => {
     expect(result.status).toBe(503); expect(result.body).not.toHaveProperty('result'); expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
     const forged = await h.submit({ ...input('金融街呢'), conversation: { id: question.conversation.id, parentRequestId: first.body.requestId, context: { metric: 'rent' } } });
     expect(forged.status).toBe(403); expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
+  });
+});
+
+describe('experience 2.0 P0 audited assistance', () => {
+  it.each(['你好', '你是谁', '你能做什么', '谢谢'])('answers %s without reading facts or calling a model', async question => {
+    const h = harness(); identityState.modelConfigured = true;
+    const body = input(question); const response = await h.submit(body);
+    expect(response.status).toBe(200);
+    expect(queryReplySchema.parse(response.body)).toMatchObject({ status: 'clarification', reason: 'assistant_help', message: expect.any(String), conversation: body.conversation });
+    expect(response.headers.get('x-query-delivery-token')).toBeTruthy();
+    expect(h.decoded(response.body.requestId, 'received')).toHaveLength(1);
+    expect(h.decoded(response.body.requestId, 'denied')).toHaveLength(1);
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
+    expect(h.calls('ai_query_available_periods')).toHaveLength(0);
+    expect(understandWithModel).not.toHaveBeenCalled();
+    const replay = await h.submit(body);
+    expect(replay.body.message).toBe(response.body.message);
+    expect(h.decoded(response.body.requestId, 'received')).toHaveLength(1);
+  });
+  it('preserves the authorized context across a greeting and a factual follow-up', async () => {
+    const h = harness(), id = randomUUID();
+    const first = await h.submit(input('2026Q3 CBD净有效租金', id));
+    const greeting = await h.submit(input('你好', id, first.body.requestId));
+    expect(greeting.status).toBe(200);
+    const next = await h.submit(input('金融街呢', id, greeting.body.requestId));
+    expect(next.status).toBe(200);
+    expect(next.body.result.parameters.executedPlan.scope.submarkets).toEqual(['金融街']);
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(2);
+  });
+  it('still denies help when the current query grant is unavailable', async () => {
+    const h = harness(); h.config.enabled = false;
+    const response = await h.submit(input('你好'));
+    expect(response.status).toBe(403);
+    expect(response.body.reason).not.toBe('assistant_help');
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(0);
   });
 });

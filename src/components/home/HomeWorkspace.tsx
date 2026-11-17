@@ -453,7 +453,7 @@ export function HomeWorkspace() {
                       <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
                     </HomeIntentLink> : null}
                   </div>
-                  <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} />
+                  <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} displayName={activeSession.displayName} />
                 </> : <div className={styles.querySkeleton} aria-hidden="true" />}
               </div>}
               <nav className={styles.navigation} aria-label="业务入口">

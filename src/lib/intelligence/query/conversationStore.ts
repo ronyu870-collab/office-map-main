@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { assistantHelpSchema } from './assistantHelp';
 import { authorizePlan } from './admission';
 import { decryptAuditContent } from './auditCrypto';
 import type { AuditKeys } from './auditStore';
@@ -68,6 +69,8 @@ export async function readConversation(client: SupabaseClient, identity: Verifie
   const suggestions = (resolved.suggestions ?? []).map(action => ({ ...action, plan: parseQueryPlan(action.plan) }));
   for (const action of suggestions) authorizeConversationPlan(action.plan, authority);
   if (!allowPending && !['succeeded', 'denied'].includes(record.state)) throw new Error('QUERY_CONTEXT_UNAVAILABLE');
+  const explanation = interpreted.kind === 'denied' && interpreted.content.response?.reason === 'assistant_help'
+    ? assistantHelpSchema.parse(interpreted.content.response) : context.pending?.clarification;
   return { state: record.state, context, plan, turn: resolved.turn, suggestions,
-    ...(interpreted.kind === 'denied' && context.pending ? { clarification: context.pending.clarification } : {}) };
+    ...(interpreted.kind === 'denied' && explanation ? { clarification: explanation } : {}) };
 }

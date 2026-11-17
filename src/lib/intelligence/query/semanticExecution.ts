@@ -17,6 +17,7 @@ import { assertMultiMetricResultSize } from './multiMetric';
 import { prepareBuildingIntent } from './buildingIntent';
 import type { BuildingSelection } from './buildingNavigation';
 import { mapPresentationQuestion } from './mapPresentationQuestion';
+import { resolveAssistantHelp } from './assistantHelp';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
   audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal };
@@ -44,6 +45,11 @@ export async function prepareSemanticExecution(input: Input) {
   if (previous && previous.turn >= 40) throw new Error('QUERY_CONTEXT_LIMIT');
   const context = previous?.context;
   const turn = (previous?.turn ?? 0) + 1;
+  const help = resolveAssistantHelp(question, context);
+  if (help) return { resolution: help, availability: undefined, suggestions: [],
+    metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: help.context, turn,
+      modelStatus: 'not_needed', suggestions: [], assistantHelp: true } };
+
   const building = await prepareBuildingIntent({ client, identity, authority, question, context, buildingSelection: input.buildingSelection, signal });
   if (building) {
     const { resolution, availability } = building;
