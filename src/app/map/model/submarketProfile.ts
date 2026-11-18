@@ -13,7 +13,8 @@ const demographicSchema = z.strictObject({
   scope: limitedText(120),
   asOf: limitedText(40),
   sourceUrl: httpsSource,
-});
+}).refine(value => Boolean(value.label && value.value && value.unit && value.scope && value.asOf && value.sourceUrl),
+  { message: '人口事实必须有数值、统计范围、时期和来源' });
 const policySchema = z.strictObject({
   title: limitedText(160),
   issuer: limitedText(100),
@@ -21,13 +22,15 @@ const policySchema = z.strictObject({
   applicability: limitedText(500),
   asOf: limitedText(60),
   sourceUrl: httpsSource,
-});
+}).refine(value => Boolean(value.title && value.issuer && value.summary && value.applicability && value.asOf && value.sourceUrl),
+  { message: '政策必须注明发布机构、适用条件、日期和原文' });
 const insightSchema = z.strictObject({
   title: limitedText(100),
   body: limitedText(1000),
   author: limitedText(80),
   asOf: limitedText(40),
-});
+}).refine(value => Boolean(value.title && value.body && value.author && value.asOf),
+  { message: '团队观点必须注明作者和更新日期' });
 
 export const submarketProfileSchema = z.strictObject({
   headline: limitedText(160),
