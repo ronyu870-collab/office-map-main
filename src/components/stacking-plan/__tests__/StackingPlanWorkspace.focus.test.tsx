@@ -27,7 +27,7 @@ const fixture = {
     { id: unitA, floor_id: floorA, unit_code: '整层', occupancy_status: 'occupied', tenant_name: '奥迪', area_sqm: 1716.47, lease_steps: [], notes: '尚未审核', verification_status: 'source_unverified', revision: 1, source_id: 'image' },
     { id: unitB, floor_id: floorB, unit_code: '整层', occupancy_status: 'vacant', tenant_name: null, area_sqm: 1716.47, lease_steps: [], notes: '', verification_status: 'source_unverified', revision: 1, source_id: 'image' },
   ],
-  sources: [{ id: 'image', title: '用户上传截图', source_as_of: null, as_of_kind: 'unknown', review_state: 'pending_source_date', source_note: null }],
+  sources: [{ id: 'image', title: '用户上传截图', source_as_of: '2026-11-18', as_of_kind: 'source_data_as_of', review_state: 'date_confirmed', source_note: null }],
   basis: 'source_snapshot_unverified',
 };
 
@@ -74,7 +74,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     fireEvent.change(notes, { target: { value: '首次校对—来源日期未确认' } });
     expect(notes.value).toBe('首次校对—来源日期未确认');
     expect(document.activeElement).toBe(notes);
-    expect(screen.getByText(/截至日期未确认/)).toBeInTheDocument();
+    expect(screen.getByText(/数据截至：2026-11-18/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.getSessionFast).toHaveBeenCalledTimes(1));
   });
 });
