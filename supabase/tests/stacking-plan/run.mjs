@@ -93,11 +93,15 @@ try {
       [targetBuilding,space.id,admin,space.revision,JSON.stringify({ notes:'synthetic change' })]);
     assert.equal(saved.rows[0].row.revision,space.revision+1);
     assert.equal(saved.rows[0].row.verification_status,'source_unverified');
+    // Synthetic service_role has only explicit grants (not Supabase's production BYPASSRLS).
+    // Read the journal as the test schema owner, then resume service-role mutation probes.
+    await connection.query('reset role');
     const journal = await connection.query('select actor_id,before_record,after_record from public.stacking_plan_space_events where space_id=$1',[space.id]);
     assert.equal(journal.rows.length,1);
     assert.equal(journal.rows[0].actor_id,admin);
     assert.equal(journal.rows[0].before_record.revision,space.revision);
     assert.equal(journal.rows[0].after_record.revision,space.revision+1);
+    await connection.query('set role service_role');
     await assert.rejects(
       connection.query('select public.stacking_plan_space_save($1,$2,$3,$4,$5::jsonb)',
         [targetBuilding,space.id,admin,space.revision,JSON.stringify({notes:'stale'})]),
@@ -113,6 +117,7 @@ try {
         [targetBuilding,space.id,viewer,space.revision+1,JSON.stringify({notes:'forbidden'})]),
       error => error.code==='42501',
     );
+    await connection.query('reset role');
     assert.equal(Number((await connection.query('select count(*) n from public.stacking_plan_space_events where space_id=$1',[space.id])).rows[0].n),1);
     console.log('PASS service RPC update + atomic before/after audit, stale conflict, forbidden patch, non-admin rejection');
   } finally {
