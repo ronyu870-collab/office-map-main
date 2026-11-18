@@ -235,7 +235,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           <div className={styles.state}>{error} <button type="button" onClick={() => setRefreshKey(v => v + 1)}>重试</button></div>
         ) : (
           <>
-            <div className={styles.caution}><strong>来源状态：待核验</strong> · 截至日期未确认。下方“已租”“空置”仅描述截图中的状态，不代表今天仍然有效。所有面积统计为原图观察值，不能与当前季度空置率互换。</div>
+            <div className={styles.caution}><strong>数据截至：{source?.source_as_of ?? '待确认'}</strong> · {source?.review_state === 'date_confirmed' ? '用户已确认来源日期；' : '来源日期待确认；'}租户及单元信息仍待逐项核验。“已租”“空置”是截图标注，不得与当前季度经营空置率混用。</div>
             <section className={styles.toolbar}>
               <div className={styles.tabs} aria-label="楼座">
                 {payload.towers.map(t => <button key={t.id} type="button" aria-pressed={tower?.id === t.id} className={tower?.id === t.id ? styles.activeTab : ''} onClick={() => { setTowerCode(t.code); setSelectedId(null); setFilter('all'); }}>{t.display_name}</button>)}
@@ -287,7 +287,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   <span><i className={styles.occupied}/>已租</span><span><i className={styles.vacant}/>空置</span>
                   <span><i className={styles.other}/>其他用途</span><span><i className={styles.unknown}/>待确认</span>
                 </div>
-                <p className={styles.disclaimer}>全部来自待确认日期的原始截图；单元横向宽度仅表达面积比例，不表示楼层真实平面位置。未知面积不参加合计。B1 等特殊用途楼层不计入办公楼层面积。</p>
+                <p className={styles.disclaimer}>图片来源数据截至 {source?.source_as_of ?? '待确认'}；尚未逐项核验。单元横向宽度仅表达面积比例，不表示真实平面位置。未知面积不参加合计，B1 等特殊用途楼层不计入办公楼层面积。</p>
               </section>
               <aside className={styles.details}>
                 {selected ? <>
@@ -305,14 +305,14 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   </div>) : <p className={styles.none}>原图未列明租金阶段</p>}
                   <div className={styles.field}><label htmlFor="sp-notes">备注 / 待核验事项</label><textarea id="sp-notes" rows={5} value={edit.notes} onChange={e => setEdit(v => ({ ...v, notes: e.target.value }))}/></div>
                   <button type="button" onClick={() => void save()} disabled={saving} className={styles.save}><Save size={15}/>{saving ? '正在保存…' : '保存草稿修改'}</button>
-                  <p className={styles.detailHint}>采用期望版本校验，成功保存保留前后快照。资料日期未确认前，不能将记录标记为正式核验。</p>
+                  <p className={styles.detailHint}>采用期望版本校验，成功保存保留前后快照。来源日期已记录；空间事实仍须逐项核验后方可认定为正式记录。</p>
                 </> : <>
                   <div className={styles.eyebrow}>BUILDING OVERVIEW</div>
                   <div className={styles.placeholderIcon}><Building2 size={30}/></div>
                   <h2>{tower?.display_name ?? '楼宇'}租赁详情</h2>
                   <p className={styles.detailHint}>在左侧选择任意楼层色块，查看租户、面积、阶梯租金和备注；Admin 可更正草稿并保留审计记录。</p>
                   <div className={styles.infoLine}><span>资料来源</span><strong>{source?.title ?? '暂无'}</strong></div>
-                  <div className={styles.infoLine}><span>数据截至日期</span><strong>待确认</strong></div>
+                  <div className={styles.infoLine}><span>数据截至日期</span><strong>{source?.source_as_of ?? '待确认'}</strong></div>
                   <div className={styles.infoLine}><span>当前状态</span><strong>仅内部草稿</strong></div>
                   <a href="/map" className={styles.returnLink}>返回地图 <ChevronRight size={14}/></a>
                 </>}
