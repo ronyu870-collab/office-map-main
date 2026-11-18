@@ -201,6 +201,10 @@ body:has(#map-container) .amap-info:has(.building-popup) .amap-info-close {
   background: color-mix(in srgb, var(--cd-color-surface-alt) 82%, var(--cd-color-border));
   color: var(--cd-color-text-primary);
 }
+.building-popup__actions > a.building-popup__action {
+  text-decoration: none;
+  cursor: pointer;
+}
 .building-popup__actions > :is([data-map-action="nearby-compare"], [data-map-action="building-compare"]) {
   --popup-action-hover: color-mix(in srgb, var(--cd-color-brand-soft) 88%, var(--cd-color-brand));
   background: var(--cd-color-brand-soft);
