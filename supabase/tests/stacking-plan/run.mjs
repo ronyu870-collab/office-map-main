@@ -50,6 +50,15 @@ try {
   await connection.query(migration);
   assert.equal(Number((await connection.query('select count(*) n from public.stacking_plan_spaces')).rows[0].n),64);
   console.log('PASS image-seeded two towers / 49 floors / 64 source-unverified units, idempotent replay');
+  // Date confirmation is a separate auditable business event, not an approval of space facts.
+  const dateMigration = await readFile(new URL('../../migrations/20261118230500_stacking_plan_xiaoyun33_source_date.sql', import.meta.url), 'utf8');
+  await connection.query(dateMigration);
+  const dateRow = (await connection.query("select source_as_of::text,as_of_kind,review_state from public.stacking_plan_sources where id='xiaoyun33-initial-screenshot'")).rows[0];
+  assert.equal(dateRow.source_as_of, '2026-11-18');
+  assert.equal(dateRow.as_of_kind, 'source_data_as_of');
+  assert.equal(dateRow.review_state, 'date_confirmed');
+  assert.equal((await connection.query("select count(*)::integer n from public.stacking_plan_spaces where verification_status='source_unverified'")).rows[0].n,64);
+  console.log('PASS confirmed source business date without approving 64 separate tenancy observations');
 
   const comparison = await connection.query(`
     select s.tenant_name,s.occupancy_status,s.area_sqm
