@@ -35,7 +35,8 @@ if (!process.argv.includes('--summary-only')) {
     ...(process.env.PERF_BROWSER_CHANNEL ? { channel: process.env.PERF_BROWSER_CHANNEL } : {}) });
   try {
     const page = await browser.newPage();
-    await page.setContent('<button>历史记录</button>');
+    // Match the real icon-only toolbar entry: its accessible name is not textContent.
+    await page.setContent('<button aria-label="历史记录"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8a5 5 0 1 1 2 4M3 3v5h5" /></svg></button>');
     await page.evaluate(() => document.querySelector('button').addEventListener('click', () => {
       const loader = document.createElement('p'); loader.setAttribute('role', 'status');
       loader.textContent = '正在打开历史记录…'; document.body.append(loader);
@@ -45,8 +46,10 @@ if (!process.argv.includes('--summary-only')) {
       setTimeout(() => { aside.innerHTML = '<button disabled aria-label="打开对话：校准">校准</button>'; }, 240);
       setTimeout(() => { aside.querySelector('button').disabled = false; }, 320);
     }));
-    await page.evaluate(observeP2WorkspaceAction, { mode: 'history_list', triggerText: '历史记录', expectedCount: 1, expectedTitle: '校准' });
+    await page.evaluate(observeP2WorkspaceAction, { mode: 'history_list', triggerAria: '历史记录', expectedCount: 1, expectedTitle: '校准' });
     await page.getByRole('button', { name: '历史记录', exact: true }).click();
+    assert.equal(await page.evaluate(() => Number.isFinite(window.__colliersP2Workspace.state.start)), true,
+      'The actual click on an icon-only history entry starts measurement through its accessible name');
     await page.waitForFunction(() => window.__colliersP2Workspace.state.status === 'ready');
     let measured = await page.evaluate(() => window.__colliersP2Workspace.read());
     assert.ok(measured.feedback_ms < 150, 'The real dynamic loader before the aside mounts is visible feedback');

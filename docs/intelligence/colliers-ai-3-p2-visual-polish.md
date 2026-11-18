@@ -22,7 +22,7 @@
 | 范围 | 本轮实现 | 保留的实际操作与间接依赖 |
 | --- | --- | --- |
 | 对话与工作空间 | 阅读宽度统一为 800px，正文采用 16px／1.8 行高；去掉助手正文 44px 缩进及多余大面积底板，用户消息使用浅色低强调气泡，输入面减少投影 | 单实例三态切换、发送与停止等待、错误恢复、按需侧栏、焦点与视口处理 |
-| 顶部工具栏 | 产品名与必要动作共用对齐线，图标统一 16px；桌面操作区 36px，窄屏／触控保持至少 44px，选中、Hover 与键盘焦点统一 | 历史、新对话、返回／全屏，研究资料仅在已有相关结果时出现 |
+| 顶部工具栏 | 产品名与必要动作共用对齐线，图标统一 16px；所有视口保留至少 44px 点击区，选中、Hover 与键盘焦点统一，保持轻量图标视觉 | 历史、新对话、返回／全屏，研究资料仅在已有相关结果时出现 |
 | 历史侧栏 | 标题为主、日期分组为辅，搜索继续保留；每条记录的重命名与归档收纳到更多菜单，提供键盘开关／焦点与触控操作 | 本人历史搜索、分页、原快照恢复、签名继续分析、重命名失败草稿及权限变化清理 |
 | 研究结果 | 按已有内容形成直接结论、核心指标、图表与分析、数据来源、统计口径与末尾操作五层；指标数字统一 24px，单位和期间弱化，使用等宽数字对齐 | 各查询类型、缺失／无效值、有效样本与警告、图表与表格、原来源和服务端快照 |
 | 指标与证据 | 结论依据、指标数值与来源摘要提供轻量来源入口；数据库 ID、执行条件和版本等技术信息按需展开 | 数据表、字段、期间、版本、原件引用与关联状态；必要样本与统计限制仍可见 |
@@ -46,9 +46,12 @@
 | 基线与保护 | `0f539116806e2e2c8a68afd3b769ed31a03ba8e6`；P1 #209 已合并。实时回读[规则集 #27013547](https://github.com/ronyu870-collab/office-map-main/rules/27013547) 为 active，要求 Search and filter focus coverage、Typecheck, lint, test and build、Visual acceptance evidence，且无 bypass actor。只读核查，不改变配置；基线结果不替代 P2 检查 |
 | 适用组件／功能回归 | 集成前定向回归通过：历史／工作空间 41 项、Focus 12 项、研究 5 文件／53 项、复制与楼宇 2 文件／11 项。后续焦点修正后历史／工作空间／Focus 3 文件／55 项通过；下载状态归位后 result-experience 17 项通过。各集合与全量测试重叠，不累计为总数 |
 | 本地 `npm run verify` | 中间完整调用的审计、类型、Lint（0 错误、854 条警告）及 272 文件／2,084 项测试通过；Next.js 16.2.12 webpack 编译成功（30.9s），随后 `/api/oss` 页面数据收集被宿主 `uv_interface_addresses` 错误阻断。完整本地 verify **未通过**，编译成功不等于完整生产构建成功 |
-| 最后两项修正后的 `npm run check` | 最终退出码 0：审计、类型、Lint（0 错误、854 条警告）和 272 文件／2,087 项测试全部通过。定向集合不重复累计；该命令不包含生产构建，不覆盖前述完整本地 verify 未通过事实 |
-| 搜索与筛选连续编辑 | 现有登记覆盖 HomeQuery、工作空间和历史入口，相关实际组件回归已在最终 check 运行；远端专属覆盖检查的最终结果见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210) |
+| 历史焦点／下载反馈修正后的本地 `npm run check`（CI 反馈前） | 退出码 0：审计、类型、Lint（0 错误、854 条警告）和 272 文件／2,087 项测试全部通过。定向集合不重复累计；该命令不包含生产构建，不覆盖前述完整本地 verify 未通过事实 |
+| 搜索与筛选连续编辑 | 现有登记覆盖 HomeQuery、工作空间和历史入口，相关实际组件回归已在上述 check 运行；远端专属覆盖检查的最终结果见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210) |
 | 专属豁免规则回归 | `node --test scripts/verification/visual-acceptance.node-test.mjs` 23 项全部通过，新增 #210 正向与错误编号／分支／仓库／目标／完整 head／scope／reason 拒绝验证，旧条目及通用校验保持 |
+| 首次精确 head 的远端回归 | `029762c011558124e3b8812db9353a3c25f5a115` 的 [Verify #975](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825) 原生生产构建及之前的工程／数据库步骤通过；主浏览器步骤因 `focus layout: touchClose` 失败，P2 Auth 的首次历史测量因旧文本触发条件未识别图标入口而超时。两项分别按下文修复，不将该轮记为 Verify 通过 |
+| CI 命中区修正后的定向回归 | 现有 Focus／workspace 两文件、42 项通过，`git diff --check` 通过；真实几何和完整最终 head 验证仍以原 CI 为准 |
+| 历史入口测量适配校准 | 两个脚本 `node --check` 及 `verify-query-p2-workspace-calibration.mjs --summary-only` 均退出 0；只证明语法与原摘要／预算保护，不冒充图标入口的浏览器校准通过。完整校准保留在原 CI；本地 Chromium 在启动阶段被宿主 socket 限制阻断，未运行页面场景 |
 | 精确 PR head 的完整 Verify | 六项必需 jobs 的最终状态、完整被测 head、构建与远端证据见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)；本地通过不能替代 CI |
 | Visual acceptance evidence | #210 的仓库／分支／目标／完整当前 head／scope／reason 联合校验；最终状态及精确 head 见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)。成功仅表示豁免记录合规，不是人工视觉通过 |
 | 独立人工视觉评审 | `waived`，本次用户明确豁免，未执行 |
@@ -67,9 +70,23 @@ npx vitest run src/components/home/__tests__/home-query-history.test.tsx -t 'ren
 
 两项均因真实焦点不符合预期而失败。修复仅在仍应由原历史操作接管焦点时恢复控件；用户已经主动转移焦点则保留其选择。随后 `home-query-history.test.tsx`、`home-query-workspace.test.tsx`、`home-query-focus.test.tsx` 三文件 55 项通过，包含搜索与重命名连续输入、菜单键盘和三态切换；回归进入既有 Vitest／CI，不用 Mock 固定成功替代实际交互断言。
 
-下载状态归位增加延迟失败场景，核对下载等待与失败反馈位于末尾操作区域，图表本身的状态仍留在图旁；`home-query-result-experience.test.tsx` 17 项通过。这两项修正发生在中间完整 `verify` 之后，因此最终另行运行全量 `check`，以其 272 文件／2,087 项通过及退出码 0 为最终应用源码的本地检查证据；先前 2,084 项只保留为中间验证记录。
+下载状态归位增加延迟失败场景，核对下载等待与失败反馈位于末尾操作区域，图表本身的状态仍留在图旁；`home-query-result-experience.test.tsx` 17 项通过。这两项修正发生在中间完整 `verify` 之后，因此最终另行运行全量 `check`，以其 272 文件／2,087 项通过及退出码 0 为该次应用源码的本地检查证据（早于下述 CI 反馈修正）；先前 2,084 项只保留为中间验证记录。
 
 生产编译后的阻断由独立 Node 探针核实：`os.networkInterfaces()` 与 `require('ali-oss')` 都直接返回 `ERR_SYSTEM_ERROR`，`syscall: uv_interface_addresses`、`errno: 1`；本轮 Git diff 确认 OSS 路由、`package.json` 和锁文件均未改。记录为本执行宿主的运行限制，不修改 OSS 业务或环境逻辑来绕开；最终完整生产构建必须由精确 PR head 的强制远端 CI 成功补齐。即使本地检查通过，六项既有 Verify jobs 仍全部要求绿色，不能只满足三个受保护的检查名称。
+
+### 首次 CI 的实际浏览器失败与修正
+
+首次发布 head `029762c011558124e3b8812db9353a3c25f5a115` 的 [Verify #975](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825) 在原生 runner 完成生产构建，未出现本地 OSS 宿主错误；但主工程 job `134607831455` 的实际浏览器步骤在 1280px 的首次 Focus 切换时失败，错误为 `focus layout: touchClose`。`query-focus-browser-checks.mjs` 保留 P1 对关闭按钮至少 44px 点击区的验证，本轮初版桌面工具栏降为 36px，实际矩形不满足要求。
+
+按真实失败恢复顶部工具栏在全部视口至少 44px 的点击区，同时保留 16px 图标和克制视觉；不删除或降低 `touchClose` 断言，也不修改性能预算。首次失败、后续修正 head 及完整 CI 结果在本次 PR 追溯，修正代码不等于已验证通过。新 head 必须重新满足六项 Verify 和准确 head 的 Visual acceptance evidence；失败轮的局部成功不作为替代。
+
+该轮保留 [P2 浏览器 artifact](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825/artifacts/14402671723) 及[首页入口证据](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825/artifacts/14402826119)。P2 artifact 仅到首次 Focus 失败前，不能据此声称本轮五视口全部通过。
+
+同一轮 P2 Auth job `134607831921` 在 `verify-query-p2-workspace.mjs` 的首次 `history_list` 操作测量中发生 35 秒等待超时。真实历史请求已返回，但历史工具栏已改为只有 `aria-label="历史记录"` 的图标按钮，旧 probe 仍以 `textContent` 匹配触发名称，采集器的 `start` 始终为 `null`，既未计时也未进入自身超时状态。该失败不是业务查询性能已测超预算，不能据此生成虚假的耗时样本。
+
+仅将该场景参数从 `triggerText` 改为既有采集器已支持的 `triggerAria`，不修改采集器、计时起点、真实键盘／触控操作、就绪条件、20 次采样、请求／回执核对或任何预算。首个校准场景同步为 16px SVG、无文本、带准确 aria-label 的按钮，并添加真实点击后 `start` 已设置的断言，避免文字替身再次掩盖入口差异。旧版实际 CI 超时证据见上述 job；本地 Chromium 因 `process_singleton_posix.cc:297 socket() failed: Operation not permitted` 在启动时失败，0 页面／0 视口，不虚构本地图标校准红绿结果；修正后的完整浏览器校准及 P2 链路继续由新 head 原 CI 执行。
+
+该 P2 Auth 失败轮保留 [artifact 14402343738](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825/artifacts/14402343738)，仅包含此前 HTTP／授权回归结果，未产出完整 P2 性能与后续空间切换结果；不能将其报告为性能通过。
 
 ## 4. PR 记录与发布
 

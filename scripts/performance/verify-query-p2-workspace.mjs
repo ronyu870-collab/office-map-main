@@ -403,7 +403,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           return body;
         };
         await measure({ scenario: 'history_list', locator: page.getByRole('button', { name: '历史记录', exact: true }),
-          probe: { mode: 'history_list', triggerText: '历史记录', expectedCount: 15, expectedTitle: question, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_list', triggerAria: '历史记录', expectedCount: 15, expectedTitle: question, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'list'),
           verify: async body => { assert.equal(body.page.entries.length, 15, 'P2_HISTORY_PAGE_MISMATCH'); assert.equal(body.page.hasMore, true, 'P2_HISTORY_PAGE_MISMATCH'); } });
         await measure({ scenario: 'history_next_page', locator: history.getByRole('button', { name: '下一页记录', exact: true }),
