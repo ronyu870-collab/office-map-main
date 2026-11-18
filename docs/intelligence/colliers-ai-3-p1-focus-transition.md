@@ -1,6 +1,6 @@
 # Colliers AI 3.0 P1 — 从紧凑输入到专注工作空间
 
-基线：远端 `main` 的 `f600c6bb4cbbb8cdac13275b729cb9ea4b361694`（3.0 P0，PR #208 已合并）；开发分支：`codex/colliers-ai-3-p1-focus-transition`。本记录只对应 3.0 P1；工程完成、PR、精确 head CI、合并和生产部署分别核实，不从上阶段成功推断本阶段已完成。
+基线：远端 `main` 的 `f600c6bb4cbbb8cdac13275b729cb9ea4b361694`（3.0 P0，PR #208 已合并）；开发分支：`codex/colliers-ai-3-p1-focus-transition`；[PR #209](https://github.com/ronyu870-collab/office-map-main/pull/209)。本记录只对应 3.0 P1；工程完成、PR、精确 head CI、合并和生产部署分别核实，不从上阶段成功推断本阶段已完成。
 
 ## 1. 授权与范围
 
@@ -49,8 +49,8 @@
 | 本地 `npm run verify` | 最终代码已完整调用：审计覆盖、类型通过；Lint 0 错误、854 条既有警告；272 文件／2,077 项测试通过。Next.js 16.2.12 webpack 生产编译成功（11.3s），收集 `/api/oss` 页面时宿主 `os.networkInterfaces` 的 `uv_interface_addresses` 返回 `system error 1`，最终退出码 1。完整本地 verify **未通过**；生产构建必须由精确 PR head 的原生 CI 补齐，不能用编译成功替代 |
 | 本地实际浏览器 | Chromium 启动受同环境 AF_UNIX `socket()` 限制，未完成真实页面执行；不把组件测试或模拟事件计为本地浏览器通过 |
 | 实际浏览器与性能 | 同一 CI 环境的基线／本版 A/B 回归已接入：基线 `f600c6b` 保留 120 个原全屏样本，本版 240 个样本覆盖原三条及新增三条 Focus 路径。每条件 20 次、反馈 P90 ≤100ms、操作可用 P90 ≤500ms 均保持；300ms 动画不改变预算。尚未取得本次 CI 测量结果，不虚构 P50／P90 或优化百分比 |
-| 精确 PR head 的 Verify | PR 创建后核实当前完整 SHA 与全部必需 job，不能用基线或本地结果替代 |
-| Visual acceptance evidence | 须按实际 PR 编号／分支／目标／完整 head／范围／理由登记专属授权并核实自动门禁；通过只表示豁免记录合规 |
+| 精确 PR head 的 Verify | PR #209 已创建；登记修改后须核实最终完整 SHA 与全部必需 job，不能用基线或本地结果替代 |
+| Visual acceptance evidence | 已按 PR #209／源分支／main／完整当前 head／本次范围与理由登记专属授权；`node --test scripts/verification/visual-acceptance.node-test.mjs` 22 项全部通过，包括本次正向及错误编号、分支、目标、仓库、head、reason、scope 拒绝测试，完整 head 同步更新可通过。最终 PR body 与 head 对齐后的 CI 结果仍须核实；通过只表示豁免记录合规 |
 | 独立人工视觉评审 | `waived`，用户本次明确豁免，未执行 |
 | 重复人工浏览器观感审查 | `waived`，用户本次明确豁免，未执行 |
 | 真实 iOS／Android 人工验收 | `waived`，用户本次明确豁免，未执行；模拟视口及组合事件不冒充真机与真实系统输入法验收 |
@@ -58,6 +58,13 @@
 以上数量对应提交前最终代码的完整本地 `verify` 与定向执行。首轮完整调用曾通过 272 文件／2,073 项测试、生产编译耗时 30.7s 后遇到相同页面收集限制；随后补入四项边界回归，最终变为 2,077 项。旧结果与定向子集不累计相加。环境限制已单独记录，不据此豁免完整 CI、同条件性能或真实 Auth／HTTP 回归。
 
 ## 5. 合并、部署与回退
+
+PR #209 的专属 `visual-acceptance` 记录使用以下完整范围和理由；`head` 必须填写当时 PR 的完整当前 SHA，每次实质推送后重新核对，不复用旧 head。
+
+```text
+scope: Colliers AI 3.0 P1 focus transition and single-instance workspace, PR #209
+reason: User explicitly waived independent visual review, repeated manual browser visual review and physical-phone manual acceptance for Colliers AI 3.0 P1 on 2026-11-18; applies only to PR #209
+```
 
 PR 编号、当前完整 head、该 head 的 CI、main 合并 commit 和 Vercel production 部署对应 commit 分别记录。创建 PR、Preview Ready 或 main 已合并不能单独证明生产已经发布；仅在目标环境与 commit 核实后报告部署确认。
 
