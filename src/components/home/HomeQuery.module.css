@@ -210,6 +210,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .welcome, .turn, .result, .status[data-state], .workingIndicator i { animation: none; }
-  .composer, .suggestions button, .sendButton { transition: none; }
+  .composer, .suggestions button, .sendButton, .keyboardHint { transition: none; }
   .sendButton:active:not(:disabled) { transform: none; }
 }

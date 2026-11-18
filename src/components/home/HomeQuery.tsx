@@ -58,7 +58,8 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const input = React.useRef<HTMLTextAreaElement>(null);
   const composing = React.useRef(false), alive = React.useRef(true);
   const { anchor: workspaceAnchorRef, surface: workspaceSurfaceRef, scroller: workspaceScrollRef,
-    toggle: workspaceToggleRef, expanded, floating, transitioning, expand: enterWorkspace, collapse: exitWorkspace,
+    composer: workspaceComposerRef, composerSlot: workspaceComposerSlotRef, toggle: workspaceToggleRef, mode, expanded, floating, transitioning,
+    focus: focusWorkspace, expand: expandWorkspace, collapse: exitWorkspace,
     clearComposition: clearWorkspaceComposition } = useQueryWorkspace(composing);
   const scroll = useQueryScroll(workspaceScrollRef,
     `${attempt?.idempotencyKey ?? ''}:${busy}:${message}:${reply?.status ?? ''}:${reply?.result?.resultId ?? ''}`,
@@ -127,13 +128,14 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     const timer = window.setInterval(focus, 30000);
     return () => { alive.current = false; previous?.abort(); current.current?.abort(); current.current = null; window.clearInterval(timer); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); };
   }, [scope, storageKey, resetConversation]);
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const node = input.current;
     if (node) {
       node.style.height = 'auto';
-      node.style.height = `${Math.max(expanded ? 56 : 28, Math.min(node.scrollHeight, 200))}px`;
+      const compact = node.closest('[data-mode]')?.getAttribute('data-mode') === 'compact';
+      node.style.height = `${Math.max(compact ? 28 : 56, Math.min(node.scrollHeight, 200))}px`;
     }
-  }, [draft, access.enabled, expanded]);
+  }, [draft, access.enabled]);
 
   const run = React.useCallback(async (next: Attempt, recovering = false) => {
     if (current.current || !access.enabled || composing.current) return;
@@ -196,7 +198,11 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     generation.current++; current.current?.abort(); current.current = null; setBusy(false);
     setMessage('已停止等待，服务端可能仍在处理。可重试本次请求或恢复结果，不能据此认定服务端已取消。');
   }
-  const edit = React.useCallback((question: string) => { setDraft(question); input.current?.focus(); }, []);
+  const edit = React.useCallback((question: string) => {
+    setDraft(question);
+    if (!expanded) focusWorkspace();
+    input.current?.focus({ preventScroll: true });
+  }, [expanded, focusWorkspace]);
   function newAttempt(question: string, parent = parentRequest): Attempt {
     return { idempotencyKey: crypto.randomUUID(), question,
       ...(buildingSelection ? { buildingSelection } : {}),
@@ -277,7 +283,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const starters = queryStarters(examples);
   const emptyConversation = !attempt && !history.length;
   const latestResult = React.useMemo(() => ready ? reply?.result : history.findLast(turn => turn.reply?.status === 'ready')?.reply?.result, [ready, reply, history]);
-  const mode = expanded ? 'expanded' : 'compact';
+  const presentation = expanded ? 'expanded' : 'compact';
   const historyShown = historyOpen && (expanded || compactHistoryOpen);
   const researchShown = researchOpen && expanded;
   function closeHistory() { setHistoryOpen(false); setCompactHistoryOpen(false); historyToggle.current?.focus({ preventScroll: true }); }
@@ -287,18 +293,18 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     if (!expanded) setCompactHistoryOpen(!historyShown);
     if (!window.matchMedia?.('(min-width: 1280px)').matches) setResearchOpen(false);
   }
-  const expandWorkspace = React.useCallback(() => {
-    enterWorkspace();
-    if (window.matchMedia?.('(min-width: 1024px)').matches && !historyMounted) {
-      setHistoryMounted(true); setHistoryOpen(true);
-    }
-  }, [enterWorkspace, historyMounted]);
   const currentHistory = (opened: HistoryOpened) => {
     scroll.followNext(); openHistory(opened);
     if (!window.matchMedia?.('(min-width: 1024px)').matches) closeHistory();
   };
-  const startNew = () => { resetConversation(false); scroll.followNext(); input.current?.focus(); };
+  const startNew = () => { resetConversation(false); scroll.followNext(); input.current?.focus({ preventScroll: true }); };
+  const preserveEditorFocus = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const active = document.activeElement;
+    if (composing.current || ((active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)
+      && workspaceSurfaceRef.current?.contains(active))) event.preventDefault();
+  };
   return <div ref={workspaceAnchorRef} className={workspaceStyles.anchor}>
+  <div className={workspaceStyles.backdrop} data-open={expanded} hidden={!floating} aria-hidden="true" />
   <div ref={workspaceSurfaceRef} className={`${styles.conversation} ${workspaceStyles.surface}`} id="colliers-ai"
     data-mode={mode} data-floating={floating} data-transitioning={transitioning} data-empty={emptyConversation}
     role={floating ? 'dialog' : undefined} aria-modal={floating ? true : undefined}
@@ -306,7 +312,6 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     <header className={workspaceStyles.toolbar}>
       <div className={workspaceStyles.identity}><strong>Colliers <span>AI</span></strong></div>
       {access.enabled && <div className={workspaceStyles.toolbarActions}>
-        <Button variant="ghost" className={workspaceStyles.homeButton} hidden={!expanded || historyShown} aria-label="返回主页" onClick={exitWorkspace}><ArrowLeft size={16} aria-hidden="true" /><span>主页</span></Button>
         {(expanded || attempt || history.length > 0) && <Button variant="ghost" hidden={expanded && historyShown} disabled={busy} aria-label="新对话" onClick={startNew}><Plus size={16} aria-hidden="true" /><span>新对话</span></Button>}
         <Button ref={historyToggle} variant="ghost" aria-label="历史记录" aria-expanded={historyShown} aria-controls="query-workspace-history" onClick={toggleHistory}><History size={16} aria-hidden="true" /><span>历史记录</span></Button>
         {latestResult && <Button ref={researchToggle} variant="ghost" aria-label="研究资料" aria-expanded={researchShown} aria-controls="query-workspace-research" onClick={() => {
@@ -314,10 +319,15 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
           if (!expanded) expandWorkspace();
           if (!window.matchMedia?.('(min-width: 1280px)').matches) setHistoryOpen(false);
         }}><PanelRight size={16} aria-hidden="true" /><span>研究资料</span></Button>}
-        <Button ref={workspaceToggleRef} variant="ghost" size="icon" aria-label={expanded ? '收起 Colliers AI 工作空间' : '展开 Colliers AI 工作空间'} aria-expanded={expanded} aria-controls="query-workspace-body"
-          onPointerDown={event => { if (document.activeElement === input.current || composing.current) event.preventDefault(); }}
+        {expanded && <Button variant="ghost" size="icon" aria-label={mode === 'expanded' ? '退出全屏 Colliers AI 工作空间' : '全屏 Colliers AI 工作空间'}
+          aria-pressed={mode === 'expanded'} aria-controls="query-workspace-body" onPointerDown={preserveEditorFocus}
+          onClick={() => mode === 'expanded' ? focusWorkspace() : expandWorkspace()}>
+          {mode === 'expanded' ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+        </Button>}
+        <Button ref={workspaceToggleRef} variant="ghost" size={expanded ? 'md' : 'icon'} aria-label={expanded ? '收起 Colliers AI 工作空间' : '展开 Colliers AI 工作空间'} aria-expanded={expanded} aria-controls="query-workspace-body"
+          onPointerDown={preserveEditorFocus}
           onClick={() => expanded ? exitWorkspace() : expandWorkspace()}>
-          {expanded ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
+          {expanded ? <><ArrowLeft size={18} aria-hidden="true" /><span>主页</span></> : <Maximize2 size={18} aria-hidden="true" />}
         </Button>
       </div>}
     </header>
@@ -332,9 +342,10 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       onScroll={scroll.onScroll}>
     <div className={workspaceStyles.reading}>
     {access.enabled && !attempt && !history.length && <QueryWelcome displayName={displayName} />}
+    {access.enabled && emptyConversation && expanded && <StarterQuestions starters={starters} onSelect={edit} />}
     {access.enabled && <div className={styles.transcript}>
       {history.map(turn => <PreviousTurn key={turn.attempt.idempotencyKey} turn={turn} scope={scope} internalExport={access.internalExport === true} onEdit={edit}
-        presentation={mode} onExpand={expandWorkspace}
+        presentation={presentation} onExpand={expandWorkspace}
         canFollowUp={!busy && (turn.reply?.conversation ?? turn.attempt.conversation)?.id === conversationId} onFollowUp={action => followUp(action, turn)} />)}
       {attempt && <article key={attempt.idempotencyKey} className={styles.turn} aria-label="本次问答" data-query-turn={attempt.idempotencyKey}>
         <p className={styles.question}><span className="sr-only">你的问题：</span>{attempt.question || '已恢复的查询'}</p>
@@ -344,7 +355,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         {busy && <QueryWorkingIndicator />}{message}
       </div>
       {activeTurn && activeContext && needsConditions && <QueryActions label="请选择查询口径" actions={reply?.options} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
-      {ready && reply?.result && <div hidden={collapsed}><HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} presentation={mode} onExpand={expandWorkspace} visible={!collapsed} /></div>}
+      {ready && reply?.result && <div hidden={collapsed}><HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} visible={!collapsed} /></div>}
       {ready && reply?.historySaved !== undefined && <p className={styles.saveStatus}>{reply.historySaved ? '本次分析已自动保存至历史记录。' : '本次结果已留存，历史列表暂不可用。'}</p>}
       {activeTurn && activeContext && ready && !collapsed && <QueryActions label="继续分析" actions={suggestions(reply)} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       <div className={`${styles.actions} ${styles.turnActions}`}>
@@ -363,10 +374,13 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     </div>
     <div className={workspaceStyles.inputDock}>
     {scroll.unseen && <div className={workspaceStyles.jump}><Button variant="secondary" onClick={scroll.toLatest}><ArrowDown size={14} aria-hidden="true" />回到最新消息</Button></div>}
-    <div className={`${styles.composer} ${access.enabled ? styles.enabled : ''}`}>
+    <div ref={workspaceComposerSlotRef} className={workspaceStyles.composerSlot}>
+    <div ref={workspaceComposerRef} className={`${styles.composer} ${access.enabled ? styles.enabled : ''}`}>
       {buildingSelection && <div className={styles.selectionContext}><span>来自地图 · 已选择 {buildingSelection.ids.length} 栋楼宇</span><Button variant="ghost" onClick={() => setBuildingSelection(null)}>移除项目范围</Button></div>}
       <textarea ref={input} id="home-query" aria-label="向 Colliers AI 提问" aria-describedby="home-query-status home-query-notice" disabled={!access.enabled}
         rows={expanded ? 2 : 1} maxLength={6000} value={draft} onChange={event => setDraft(event.target.value)}
+        onFocus={() => { if (access.enabled && mode === 'compact') focusWorkspace(); }}
+        onPointerDown={() => { if (access.enabled && mode === 'compact') focusWorkspace(); }}
         onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
         placeholder={access.enabled ? (attempt ? '继续追问或换个问题…' : '输入楼宇或市场问题…') : '对话查询尚未开放'}
         onKeyDown={event => {
@@ -380,9 +394,8 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
           : <Button className={styles.sendButton} size="icon" aria-label="发送问题" disabled={!access.enabled || !draft.trim()} onClick={submitDraft}><ArrowUp size={18} strokeWidth={1.5} aria-hidden="true" /></Button>}
       </div>
     </div>
-    {access.enabled && emptyConversation && starters.length > 0 && <section className={styles.starters} aria-label="示例问题">
-      <div className={styles.suggestions}>{starters.map(({ question, label }) => <ExampleQuestion key={question} variant="ghost" question={question} label={label} onSelect={edit} />)}</div>
-    </section>}
+    </div>
+    {access.enabled && emptyConversation && !expanded && <StarterQuestions starters={starters} onSelect={edit} />}
     <div className={`${styles.composerMeta} ${workspaceStyles.meta}`}>
       <p id="home-query-notice" className={access.enabled ? styles.privacy : 'sr-only'}>{access.enabled ? '提问与回答会留存供获权审计。请勿输入密码或密钥。' : '对话查询尚未开放。'}</p>
       {access.enabled && <details className={styles.capabilities} onToggle={event => setExamplesOpen(event.currentTarget.open)}><summary>能力与范围</summary>
@@ -432,6 +445,12 @@ function PreviousTurn({ turn, scope, internalExport, onEdit, canFollowUp, onFoll
 function suggestions(reply: QueryReply | null): QueryAction[] {
   const parsed = queryActionSchema.array().max(6).safeParse(reply?.result?.parameters.suggestions);
   return parsed.success ? parsed.data : [];
+}
+function StarterQuestions({ starters, onSelect }: { starters: { question: string; label: string }[]; onSelect: (question: string) => void }) {
+  if (!starters.length) return null;
+  return <section className={styles.starters} aria-label="示例问题">
+    <div className={styles.suggestions}>{starters.map(({ question, label }) => <ExampleQuestion key={question} variant="ghost" question={question} label={label} onSelect={onSelect} />)}</div>
+  </section>;
 }
 function ExampleQuestion({ question, label, variant, onSelect }: { question: string; label?: string; variant: 'ghost' | 'secondary'; onSelect: (question: string) => void }) {
   return <Button variant={variant} aria-label={label && label !== question ? `${label}：${question}` : question} title={label ? question : undefined} onClick={() => onSelect(question)}><span>{label ?? question}</span><ArrowUpRight size={14} aria-hidden="true" /></Button>;

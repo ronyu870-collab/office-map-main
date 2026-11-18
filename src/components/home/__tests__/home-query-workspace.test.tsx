@@ -55,7 +55,9 @@ function send(input: HTMLTextAreaElement, question: string) {
   fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
 }
 async function expand() {
-  fireEvent.click(screen.getByRole('button', { name: expandName }));
+  const button = screen.queryByRole('button', { name: expandName })
+    ?? screen.queryByRole('button', { name: '全屏 Colliers AI 工作空间' });
+  if (button) fireEvent.click(button);
   return screen.findByRole('dialog', { name: 'Colliers AI 工作空间' });
 }
 async function collapse() {
@@ -126,7 +128,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     // change as the short visualViewport layout, without replacing the input.
     screen.getByText('能力与范围').closest('details')!.parentElement!.style.display = 'none';
     fireEvent.change(input, { target: { value: '正在继续编辑的草稿' } });
-    const first = screen.getByRole('button', { name: '返回主页' });
+    const first = screen.getByRole('button', { name: '新对话' });
     first.focus();
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
     expect(screen.getByRole('button', { name: '发送问题' })).toHaveFocus();
@@ -137,16 +139,16 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(client.submit).toHaveBeenCalledOnce();
   });
 
-  it('keeps the personal greeting and simple answers in compact mode without using question length to force expansion', async () => {
+  it('keeps the greeting compact until editor interaction and never uses question length to force full screen', async () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => help(body));
     const { input } = await open();
     expect(screen.getByRole('heading', { name: '你好，Ron。' })).toBeVisible();
     expect(screen.getByRole('button', { name: expandName })).toBeEnabled();
     send(input, '你好'); await screen.findByText('助手回应：你好');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(input.closest('#colliers-ai')).toHaveAttribute('data-mode', 'focus');
     const longQuestion = '继续说明当前获权查询范围。'.repeat(45);
     send(input, longQuestion); await screen.findByText(`助手回应：${longQuestion}`);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(input.closest('#colliers-ai')).toHaveAttribute('data-mode', 'focus');
     expect(client.submit).toHaveBeenCalledTimes(2);
   });
 
@@ -528,7 +530,8 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     await act(async () => {
       motions[0].finish(); pending.resolve({ status: 'clarification', message: '旧账号的动画后回包' });
     });
-    expect(currentInput).toHaveFocus(); expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(currentInput).toHaveFocus();
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-mode', 'focus');
     expect(screen.queryByText('旧账号的动画后回包')).not.toBeInTheDocument();
   });
 
@@ -558,6 +561,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
     const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
     await screen.findByRole('region', { name: '查询结果' }); await expand();
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
     const historyPanel = await screen.findByRole('complementary', { name: '历史工作记录' });
     const search = within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' });
     fireEvent.click(screen.getByRole('button', { name: '研究资料' }));
@@ -586,6 +590,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
     const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
     await screen.findByRole('region', { name: '查询结果' }); await expand();
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
     const historyPanel = await screen.findByRole('complementary', { name: '历史工作记录' });
     fireEvent.click(screen.getByRole('button', { name: '研究资料' }));
     const researchPanel = await screen.findByRole('complementary', { name: '研究资料与口径' });

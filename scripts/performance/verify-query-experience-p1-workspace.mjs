@@ -8,19 +8,22 @@ import pg from 'pg';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { login } from './verify-ai-query-conversation.mjs';
 import { nearestRank, QUERY_PERFORMANCE_PROFILES, queryPerformanceRevision } from './query-conversation-probe.mjs';
+import { WORKSPACE_PERFORMANCE_BASELINE } from '../verification/query-performance-baseline.mjs';
 
 const require = createRequire(import.meta.url);
 export const EXPERIENCE_SAMPLES = 20;
-export const EXPERIENCE_SCENARIOS = ['first_expand', 'collapse', 'reopen'];
+export const EXPERIENCE_BASELINE_SCENARIOS = ['first_expand', 'collapse', 'reopen'];
+export const EXPERIENCE_SCENARIOS = [...EXPERIENCE_BASELINE_SCENARIOS, 'input_focus', 'focus_fullscreen', 'fullscreen_focus'];
 const EXPAND = '展开 Colliers AI 工作空间', COLLAPSE = '收起 Colliers AI 工作空间';
+const FULLSCREEN = '全屏 Colliers AI 工作空间', FOCUS = '退出全屏 Colliers AI 工作空间';
 const QUESTION = '2026Q3CBD净有效租金';
 const measures = ['feedback_ms', 'content_usable_ms', 'long_task_count', 'long_task_total_ms', 'long_task_max_ms'];
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const safeError = error => /^[A-Z][A-Z0-9_]+$/.test(error?.message ?? '') ? error.message
   : error?.name === 'TimeoutError' ? 'EXPERIENCE_BROWSER_TIMEOUT' : 'EXPERIENCE_OPERATION_FAILED';
 
-export function summarizeExperienceWorkspace(samples) {
-  return QUERY_PERFORMANCE_PROFILES.flatMap(profile => EXPERIENCE_SCENARIOS.map(scenario => {
+export function summarizeExperienceWorkspace(samples, scenarios = EXPERIENCE_SCENARIOS) {
+  return QUERY_PERFORMANCE_PROFILES.flatMap(profile => scenarios.map(scenario => {
     const rows = samples.filter(row => row.profile === profile.name && row.scenario === scenario);
     const metrics = Object.fromEntries(measures.map(field => {
       const values = rows.filter(row => row.status === 'success' && Number.isFinite(row[field])).map(row => row[field]);
@@ -37,6 +40,23 @@ export function summarizeExperienceWorkspace(samples) {
   }));
 }
 
+export function summarizeExperiencePair(samples) {
+  const summary = summarizeExperienceWorkspace(samples.filter(row => row.variant === 'after'));
+  const baselineSummary = summarizeExperienceWorkspace(samples.filter(row => row.variant === 'before'), EXPERIENCE_BASELINE_SCENARIOS);
+  const comparisons = summary.filter(row => EXPERIENCE_BASELINE_SCENARIOS.includes(row.scenario)).map(after => {
+    const before = baselineSummary.find(row => row.profile === after.profile && row.scenario === after.scenario);
+    return { profile: after.profile, scenario: after.scenario, complete: before.complete && after.complete,
+      metrics: Object.fromEntries(['feedback_ms', 'content_usable_ms'].map(metric => [metric,
+        Object.fromEntries(['p50', 'p90'].map(percentile => {
+          const baseline = before.metrics[metric][percentile], candidate = after.metrics[metric][percentile];
+          return [percentile, { before_ms: baseline, after_ms: candidate,
+            delta_ms: baseline !== null && candidate !== null ? candidate - baseline : null,
+            change_percent: baseline > 0 && candidate !== null ? (candidate - baseline) / baseline * 100 : null }];
+        }))])), baselineMetBudget: before.budgetsMet, candidateMetBudget: after.budgetsMet };
+  });
+  return { summary, baselineSummary, comparisons };
+}
+
 /** Browser observation only. Start at a trusted user action, finish after the
  * actual spatial animation ends and the same composer is usable. A mode flag,
  * skeleton, HTTP completion or animation start alone is never the endpoint. */
@@ -46,7 +66,7 @@ export function observeExperienceTransition({ trigger, target, timeoutMs = 10000
   const root = () => input?.closest('[data-mode]');
   const state = { status: 'waiting', feedback_ms: null, content_usable_ms: null,
     longTaskObserverSupported: PerformanceObserver.supportedEntryTypes.includes('longtask') };
-  let start = null, startBounds = null, stopped = false, frame, painting = false;
+  let start = null, startBounds = null, startMode = null, stopped = false, frame, painting = false;
   const tasks = [];
   const observer = state.longTaskObserverSupported ? new PerformanceObserver(list => {
     for (const entry of list.getEntries()) tasks.push({ start: entry.startTime, duration: entry.duration });
@@ -61,16 +81,19 @@ export function observeExperienceTransition({ trigger, target, timeoutMs = 10000
     const workspace = root();
     if (!visible(input) || input.disabled || document.querySelectorAll('#home-query').length !== 1
       || workspace?.dataset.mode !== target || workspace.dataset.transitioning !== 'false') return false;
-    if (workspace.getAnimations().some(animation => animation.playState === 'running')) return false;
-    if (target === 'expanded') {
+    if (workspace.getAnimations({ subtree: true }).some(animation => animation.playState === 'running')) return false;
+    if (target !== 'compact') {
       const dialog = document.querySelector('[role="dialog"][aria-label="Colliers AI 工作空间"]');
       if (!visible(dialog) || !dialog.contains(input) || dialog.getAttribute('aria-modal') !== 'true') return false;
       const bounds = dialog.getBoundingClientRect(), composer = input.getBoundingClientRect(), viewport = window.visualViewport;
       const top = viewport?.offsetTop ?? 0, left = viewport?.offsetLeft ?? 0;
       const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
-      if (Math.abs(bounds.left - left) > 3 || Math.abs(bounds.top - top) > 3
-        || Math.abs(bounds.width - width) > 3 || Math.abs(bounds.height - height) > 3
-        || composer.top < top || composer.bottom > top + height + 1) return false;
+      if (composer.top < Math.max(top, bounds.top) || composer.bottom > Math.min(top + height, bounds.bottom) + 1) return false;
+      if (target === 'expanded' || innerWidth < 640) {
+        if (Math.abs(bounds.left - left) > 3 || Math.abs(bounds.top - top) > 3
+          || Math.abs(bounds.width - width) > 3 || Math.abs(bounds.height - height) > 3) return false;
+      } else if (bounds.left < left || bounds.top < top || bounds.right > left + width + 1 || bounds.bottom > top + height + 1
+        || Math.abs(bounds.left + bounds.right - (left * 2 + width)) > 3 || bounds.width < width * .6 || bounds.height < height * .6) return false;
     }
     return true;
   };
@@ -79,11 +102,16 @@ export function observeExperienceTransition({ trigger, target, timeoutMs = 10000
     if (!visible(workspace) || !startBounds) return false;
     const bounds = workspace.getBoundingClientRect();
     return ['left', 'top', 'width', 'height'].some(field => Math.abs(bounds[field] - startBounds[field]) > .5)
+      || ((startMode === 'focus' && target === 'expanded') || (startMode === 'expanded' && target === 'focus'))
+        && visible(workspace.querySelector(`button[aria-label="${target === 'focus' ? '全屏 Colliers AI 工作空间' : '退出全屏 Colliers AI 工作空间'}"]`))
       || matchMedia('(prefers-reduced-motion: reduce)').matches && ready();
   };
-  const click = event => {
-    if (start === null && event.isTrusted && event.target?.closest?.('button')?.getAttribute('aria-label') === trigger) {
+  const begin = event => {
+    const matches = trigger === 'input' ? event.target === input
+      : event.type === 'click' && event.target?.closest?.('button')?.getAttribute('aria-label') === trigger;
+    if (start === null && event.isTrusted && matches) {
       startBounds = root()?.getBoundingClientRect() ?? null;
+      startMode = root()?.dataset.mode;
       start = performance.now(); state.status = 'running';
     }
   };
@@ -104,8 +132,12 @@ export function observeExperienceTransition({ trigger, target, timeoutMs = 10000
     }
     frame = requestAnimationFrame(tick);
   };
-  const stop = () => { stopped = true; cancelAnimationFrame(frame); observer?.disconnect(); document.removeEventListener('click', click, true); };
-  document.addEventListener('click', click, true); frame = requestAnimationFrame(tick);
+  const stop = () => {
+    stopped = true; cancelAnimationFrame(frame); observer?.disconnect();
+    for (const event of ['click', 'pointerdown', 'focusin']) document.removeEventListener(event, begin, true);
+  };
+  for (const event of ['click', 'pointerdown', 'focusin']) document.addEventListener(event, begin, true);
+  frame = requestAnimationFrame(tick);
   window.__colliersExperienceTransition = { state, stop, read: () => {
     const end = state.content_usable_ms === null ? performance.now() : start + state.content_usable_ms;
     const measured = tasks.filter(task => start !== null && task.start >= start && task.start <= end);
@@ -190,7 +222,8 @@ function observeRequests(page, app) {
     stop: () => { page.off('request', request); page.off('requestfinished', done); page.off('requestfailed', failed); page.off('response', response); page.off('pageerror', pageError); } };
 }
 
-async function assertLayout(page, expanded) {
+async function assertLayout(page, mode) {
+  const expected = typeof mode === 'boolean' ? mode ? 'expanded' : 'compact' : mode;
   const geometry = await page.evaluate(() => {
     const input = document.querySelector('#home-query'), root = input?.closest('[data-mode]');
     const inputBox = input?.getBoundingClientRect(), viewport = window.visualViewport;
@@ -204,8 +237,8 @@ async function assertLayout(page, expanded) {
   });
   assert.equal(geometry.overflow, false, 'EXPERIENCE_VIEWPORT_OVERFLOW');
   assert.equal(geometry.count, 1, 'EXPERIENCE_DUPLICATE_COMPOSER');
-  assert.equal(geometry.mode, expanded ? 'expanded' : 'compact', 'EXPERIENCE_WRONG_MODE');
-  if (expanded) {
+  assert.equal(geometry.mode, expected, 'EXPERIENCE_WRONG_MODE');
+  if (expected !== 'compact') {
     assert.equal(geometry.inputVisible, true, 'EXPERIENCE_COMPOSER_OCCLUDED');
     assert.equal(geometry.touch, true, 'EXPERIENCE_CLOSE_TARGET_TOO_SMALL');
   }
@@ -226,10 +259,12 @@ async function queryAuditSnapshot(db, userId) {
     (select count(*) from private.ai_query_audit_events where request_id in (select request_id from original))::int as events`, [userId])).rows[0];
 }
 
-async function changeMode({ page, network, db, userId, profile, round, scenario, samples, record = true }) {
-  const target = scenario === 'collapse' ? 'compact' : 'expanded';
-  const trigger = target === 'expanded' ? EXPAND : COLLAPSE;
-  const sample = { profile: profile.name, round, scenario, status: 'running' };
+async function changeMode({ page, network, db, userId, profile, round, scenario, samples, variant = 'after', record = true }) {
+  if (scenario === 'first_expand' || scenario === 'input_focus') await modeWithoutNetworkIdle(page, false);
+  const target = scenario === 'collapse' ? 'compact' : ['input_focus', 'fullscreen_focus'].includes(scenario) ? 'focus' : 'expanded';
+  const trigger = scenario === 'input_focus' ? 'input' : scenario === 'focus_fullscreen' ? FULLSCREEN
+    : scenario === 'fullscreen_focus' ? FOCUS : target === 'expanded' ? EXPAND : COLLAPSE;
+  const sample = { variant, profile: profile.name, round, scenario, status: 'running' };
   if (record) samples.push(sample);
   const node = await textarea(page).elementHandle(), draft = await draftSnapshot(page);
   const original = await currentResult(page).textContent().catch(() => null);
@@ -238,7 +273,11 @@ async function changeMode({ page, network, db, userId, profile, round, scenario,
   const auditBefore = await queryAuditSnapshot(db, userId);
   try {
     await page.evaluate(observeExperienceTransition, { trigger, target });
-    await activate(page.getByRole('button', { name: trigger, exact: true }), profile.name === 'mobile');
+    if (trigger === 'input') {
+      // Focus is a trusted browser action and preserves an existing selection;
+      // a pointer click is separately exercised by the viewport regressions.
+      await textarea(page).focus();
+    } else await activate(page.getByRole('button', { name: trigger, exact: true }), profile.name === 'mobile');
     await page.waitForFunction(() => ['ready', 'timeout'].includes(window.__colliersExperienceTransition?.state.status), null, { timeout: 12000 });
     const measured = await page.evaluate(() => window.__colliersExperienceTransition.read());
     Object.assign(sample, measured);
@@ -253,7 +292,7 @@ async function changeMode({ page, network, db, userId, profile, round, scenario,
     const auditAfter = await queryAuditSnapshot(db, userId);
     sample.noQueryOrAuditReplay = before === network.count('/api/intelligence/query') && JSON.stringify(auditBefore) === JSON.stringify(auditAfter);
     assert.ok(sample.noQueryOrAuditReplay, 'EXPERIENCE_DUPLICATE_QUERY_OR_AUDIT');
-    await assertLayout(page, target === 'expanded'); sample.status = 'success';
+    await assertLayout(page, target); sample.status = 'success';
     return sample;
   } catch (error) {
     sample.status = 'failed'; sample.error = safeError(error); throw error;
@@ -264,7 +303,9 @@ async function changeMode({ page, network, db, userId, profile, round, scenario,
 }
 
 async function modeWithoutNetworkIdle(page, expanded) {
-  await activate(page.getByRole('button', { name: expanded ? EXPAND : COLLAPSE, exact: true }), false);
+  const currentMode = await textarea(page).evaluate(node => node.closest('[data-mode]')?.dataset.mode);
+  if (currentMode === (expanded ? 'expanded' : 'compact')) return;
+  await activate(page.getByRole('button', { name: expanded ? currentMode === 'focus' ? FULLSCREEN : EXPAND : COLLAPSE, exact: true }), false);
   await page.waitForFunction(target => {
     const root = document.querySelector('#home-query')?.closest('[data-mode]');
     return root?.dataset.mode === target && root.dataset.transitioning === 'false';
@@ -341,7 +382,14 @@ async function pendingAndStop({ page, db, blocker, userId, ids, network }) {
     await page.getByRole('button', { name: '发送问题', exact: true }).click();
     await page.getByRole('button', { name: '停止等待', exact: true }).waitFor();
     await textarea(page).pressSequentially('next draft', { delay: 10 });
-    await modeWithoutNetworkIdle(page, false); await modeWithoutNetworkIdle(page, true);
+    await modeWithoutNetworkIdle(page, false);
+    await textarea(page).focus();
+    await page.waitForFunction(() => {
+      const root = document.querySelector('#colliers-ai');
+      return root?.dataset.mode === 'focus' && root.dataset.transitioning === 'false';
+    });
+    await assertLayout(page, 'focus');
+    await modeWithoutNetworkIdle(page, true);
     assert.equal(network.count('/api/intelligence/query'), start + 1, 'EXPERIENCE_PENDING_DUPLICATED');
     assert.equal(await textarea(page).inputValue(), 'next draft', 'EXPERIENCE_PENDING_DRAFT_LOST');
   } finally { await blocker.query('rollback'); }
@@ -415,6 +463,9 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
   const owner = JSON.parse(await readFile(previewFile, 'utf8')), settings = JSON.parse(await readFile(statusFile, 'utf8'));
   const app = new URL(owner.app), database = new URL(settings.DB_URL), api = new URL(settings.API_URL);
   assert.equal(app.hostname, '127.0.0.1'); assert.equal(app.port, '3289');
+  assert.equal(owner.beforeCommit, WORKSPACE_PERFORMANCE_BASELINE, 'EXPERIENCE_PINNED_BASELINE_MISSING');
+  const beforeApp = new URL(owner.beforeApp);
+  assert.equal(beforeApp.hostname, '127.0.0.1'); assert.equal(beforeApp.port, '3290');
   assert.equal(database.hostname, '127.0.0.1'); assert.equal(database.port, '55992');
   assert.equal(api.hostname, '127.0.0.1'); assert.equal(api.port, '55991');
   assert.match(owner.userId, /^[0-9a-f-]{36}$/);
@@ -422,27 +473,31 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
   await db.connect(); await blocker.connect(); await blocker.query("set lock_timeout='10s'");
   const ids = Array.from({ length: 12 }, () => randomUUID()), samples = [], layouts = [];
   const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
-  const report = { version: 'query-experience-p1-workspace/1', ...queryPerformanceRevision(process.env, githubEvent),
+  const report = { version: 'query-experience-p1-workspace/3', ...queryPerformanceRevision(process.env, githubEvent),
+    beforeCommit: WORKSPACE_PERFORMANCE_BASELINE,
     productionBuild: true, production: false, realPhone: false, manualVisualReview: false,
     authentication: 'Existing real GoTrue login form and scoped disposable PostgreSQL grant; no request interception, fake session or app-state replacement',
-    baseline: 'P0 has no full-screen mode; first-expand/collapse/reopen have no equivalent before measurement. Existing P1/P2 gates stay unchanged; homepage bundle A/B is recorded separately.',
-    cache: 'New browser context and real login for each 20-sample round. Query and original numeric result are ready; first_expand is the first expanded layout, reopen reuses the same document. Server/database are warm.',
-    endpoints: { start: 'Trusted keyboard/touch activation of the actual mode control', feedback: 'Mode transition visibly begins on a subsequent frame',
-      usable: 'Transition has finished, same textarea enabled, exact visual viewport occupied, composer in view; not animation start or response arrival' },
+    baseline: 'Pinned released P0 f600c6b and candidate each run first-expand/collapse/reopen 20 times per profile, alternating before/after within each round on this runner, same database, account, grants, fixture, browser/CPU/network conditions and unchanged 100/500ms budgets. The three candidate focus paths have no released-P0 equivalent and have no fabricated before values.',
+    actualBehaviorDifference: 'Released P0 first desktop expansion automatically opens history; candidate opens history only on demand. Each build retains its real behavior and resulting request cost. Candidate typing enters focus, then is explicitly collapsed before measuring the shared full-screen path; no source or app-state injection normalizes these differences.',
+    cache: 'New browser context and real login for each 20-sample round. Query and numeric result are ready; typing enters focus, then setup closes it. first_expand is the first full-screen layout; reopen and focus paths reuse the same document. Server/database are warm.',
+    endpoints: { start: 'Trusted keyboard/touch activation of the actual mode control, or trusted textarea focus', feedback: 'Geometry or the actual mode-control icon/label visibly changes on a subsequent frame (mobile focus/fullscreen can share bounds)',
+      usable: 'All workspace/composer animations finished, same textarea enabled and visible inside the actual modal; fullscreen occupies visual viewport, desktop focus is centered and contained; not animation start or response arrival' },
     auditVerification: 'Original query_submission ingress, original query streams and their event counts remain unchanged during mode switches. First authorized history reads and DOM delivery receipts retain separate audit trails. The original result/chart DOM acknowledgement must finish before a switch sample.',
     budgets: { feedbackP90Ms: 100, loadedContentUsableP90Ms: 500 }, profiles: QUERY_PERFORMANCE_PROFILES,
-    samplesPerCondition: EXPERIENCE_SAMPLES, samples, layouts, summary: [], complete: false, functionalPassed: false, budgetsMet: false,
+    samplesPerCondition: EXPERIENCE_SAMPLES, samples, layouts, summary: [], baselineSummary: [], comparisons: [], complete: false, functionalPassed: false, budgetsMet: false,
     disclosure: 'Automated composition events validate event handling; they are not real OS IME/soft-keyboard or physical-phone acceptance. Reports exclude credentials, request bodies, signed tokens, and source IDs.' };
   await mkdir(output, { recursive: true });
   const reportPath = path.join(output, 'experience-p1-workspace.json');
   const checkpoint = async () => {
-    report.summary = summarizeExperienceWorkspace(samples);
-    report.functionalPassed = report.summary.every(row => row.complete) && layouts.length === 4 && layouts.every(row => row.status === 'success');
+    Object.assign(report, summarizeExperiencePair(samples));
+    report.functionalPassed = report.summary.every(row => row.complete) && report.baselineSummary.every(row => row.complete)
+      && layouts.length === 4 && layouts.every(row => row.status === 'success');
     report.budgetsMet = report.summary.every(row => row.budgetsMet);
+    report.baselineBudgetsMet = report.baselineSummary.every(row => row.budgetsMet);
     await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n');
   };
   let browser, originalGrant;
-  const setupContext = async (profile, reducedMotion = 'no-preference') => {
+  const setupContext = async (profile, reducedMotion = 'no-preference', targetApp = app.origin) => {
     const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height },
       isMobile: profile.name === 'mobile', hasTouch: profile.name === 'mobile', serviceWorkers: 'block', timezoneId: 'Asia/Shanghai', reducedMotion });
     const page = await context.newPage(); page.setDefaultTimeout(20000);
@@ -450,8 +505,8 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: profile.latencyMs,
       downloadThroughput: profile.downloadMbps * 1e6 / 8, uploadThroughput: profile.uploadMbps * 1e6 / 8 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpuRate });
-    const network = observeRequests(page, app.origin);
-    try { await login(page, app.origin, owner, status => assert.equal(status, 200, 'EXPERIENCE_LOGIN_FAILURE')); }
+    const network = observeRequests(page, targetApp);
+    try { await login(page, targetApp, owner, status => assert.equal(status, 200, 'EXPERIENCE_LOGIN_FAILURE')); }
     catch (error) { network.stop(); await context.close(); throw error; }
     return { context, page, network };
   };
@@ -480,7 +535,8 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         const greeting = await send(page, '你好'); assert.equal(greeting.status(), 200, 'EXPERIENCE_GREETING_FAILURE');
         assert.equal((await greeting.json()).reason, 'assistant_help', 'EXPERIENCE_GREETING_NOT_HELP');
         await network.receipt(greeting, { surface: 'clarification' });
-        await page.getByRole('button', { name: '发送问题', exact: true }).waitFor(); await assertLayout(page, false);
+        await page.getByRole('button', { name: '发送问题', exact: true }).waitFor();
+        await modeWithoutNetworkIdle(page, false); await assertLayout(page, false);
         const answerResponse = await send(page, QUESTION);
         const answer = await queryReady(page, answerResponse, ids, network);
         await textarea(page).pressSequentially('draft', { delay: 15 });
@@ -512,7 +568,10 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         await research.waitFor();
         assert.match(await research.getByRole('region', { name: '当前分析范围', exact: true }).textContent(), /CBD/, 'EXPERIENCE_RESEARCH_SCOPE_MISSING');
         await assertLayout(page, true);
-        if (width === 1280) await resizeOpenPanels({ page, network, height: profile.height });
+        if (width === 1280) {
+          await page.getByRole('button', { name: '历史记录', exact: true }).click();
+          await resizeOpenPanels({ page, network, height: profile.height });
+        }
         await page.getByRole('button', { name: '关闭研究资料', exact: true }).click();
         assert.equal(network.count('/api/intelligence/query'), beforeSources, 'EXPERIENCE_RESEARCH_REEXECUTED');
 
@@ -580,13 +639,17 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
       finally { network.stop(); await context.close(); await checkpoint(); }
     }
 
-    for (const profile of QUERY_PERFORMANCE_PROFILES) for (let round = 1; round <= EXPERIENCE_SAMPLES; round++) {
-      const { context, page, network } = await setupContext(profile);
+    const variants = [{ name: 'before', app: beforeApp.origin, scenarios: EXPERIENCE_BASELINE_SCENARIOS },
+      { name: 'after', app: app.origin, scenarios: EXPERIENCE_SCENARIOS }];
+    for (const profile of QUERY_PERFORMANCE_PROFILES) for (let round = 1; round <= EXPERIENCE_SAMPLES; round++) for (const variant of variants) {
+      let session;
       try {
+        session = await setupContext(profile, 'no-preference', variant.app);
+        const { page, network } = session;
         const answer = await queryReady(page, await send(page, QUESTION), ids, network);
         await textarea(page).pressSequentially('next research draft', { delay: 5 });
         await textarea(page).press('ArrowLeft'); await textarea(page).press('Shift+ArrowLeft');
-        for (const scenario of EXPERIENCE_SCENARIOS) await changeMode({ page, network, db, userId: owner.userId, profile, round, scenario, samples });
+        for (const scenario of variant.scenarios) await changeMode({ page, network, db, userId: owner.userId, profile, round, scenario, samples, variant: variant.name });
         // A real follow-up after both layouts verifies parent + conversation are
         // retained, rather than only comparing text painted on the screen.
         const next = await send(page, QUESTION), request = next.request().postDataJSON();
@@ -595,7 +658,7 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         await queryReady(page, next, ids, network); await network.idle();
         assert.equal(network.errors.length, 0, 'EXPERIENCE_HTTP_FAILURE');
         assert.equal(network.browserErrors(), 0, 'EXPERIENCE_BROWSER_ERROR');
-        if (round === EXPERIENCE_SAMPLES && profile.name === 'mobile') {
+        if (variant.name === 'after' && round === EXPERIENCE_SAMPLES && profile.name === 'mobile') {
           await db.query('update private.ai_query_grants set enabled=false where user_id=$1', [owner.userId]);
           const denied = await send(page, QUESTION);
           assert.equal(denied.status(), 403, 'EXPERIENCE_REVOKED_ACCESS_ALLOWED');
@@ -603,18 +666,19 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
           report.expandedRevocationCleared = true;
         }
       } catch (error) {
-        const rows = samples.filter(row => row.profile === profile.name && row.round === round);
+        const rows = samples.filter(row => row.variant === variant.name && row.profile === profile.name && row.round === round);
         if (rows.length && rows.every(row => row.status === 'success')) { rows.at(-1).status = 'failed'; rows.at(-1).error = safeError(error); }
-        for (const scenario of EXPERIENCE_SCENARIOS) if (!rows.some(row => row.scenario === scenario)) samples.push({ profile: profile.name, round, scenario, status: 'dependency_failed', error: safeError(error) });
-        report.stoppedEarly = { profile: profile.name, round, error: safeError(error) }; throw error;
-      } finally { network.stop(); await context.close(); await checkpoint(); }
-      console.log(`EXPERIENCE_P1_WORKSPACE ${profile.name} ${round}/${EXPERIENCE_SAMPLES}`);
+        for (const scenario of variant.scenarios) if (!rows.some(row => row.scenario === scenario)) samples.push({ variant: variant.name, profile: profile.name, round, scenario, status: 'dependency_failed', error: safeError(error) });
+        report.stoppedEarly = { variant: variant.name, profile: profile.name, round, error: safeError(error) }; throw error;
+      } finally { session?.network.stop(); await session?.context.close(); await checkpoint(); }
+      console.log(`EXPERIENCE_P1_WORKSPACE ${variant.name} ${profile.name} ${round}/${EXPERIENCE_SAMPLES}`);
     }
     report.complete = true; await checkpoint();
     assert.equal(report.functionalPassed, true, 'EXPERIENCE_FUNCTIONAL_FAILURE');
+    assert.equal(report.baselineBudgetsMet, true, 'EXPERIENCE_BASELINE_BUDGET_FAILURE');
     assert.equal(report.budgetsMet, true, 'EXPERIENCE_BUDGET_FAILURE');
     assert.equal(report.expandedRevocationCleared, true, 'EXPERIENCE_REVOCATION_NOT_VERIFIED');
-    console.log('PASS EXPERIENCE_P1_WORKSPACE 120 transition samples and 4 viewport operation sequences');
+    console.log('PASS EXPERIENCE_P1_WORKSPACE 120 released-P0 + 240 candidate transition samples and 4 candidate viewport operation sequences');
     return { reportPath, summary: report.summary };
   } finally {
     await browser?.close(); await checkpoint();
@@ -638,7 +702,22 @@ function verifySummaryContract() {
   assert.equal(summarizeExperienceWorkspace(failed)[0].budgetsMet, false);
   const late = samples.map(row => ({ ...row, content_usable_ms: 501 })); assert.ok(summarizeExperienceWorkspace(late).every(row => !row.budgetsMet));
   const duplicate = samples.map(row => ({ ...row, noQueryOrAuditReplay: false })); assert.ok(summarizeExperienceWorkspace(duplicate).every(row => !row.complete));
-  console.log('PASS EXPERIENCE_P1_SUMMARY missing, failed, duplicated and over-budget samples cannot pass');
+  const after = samples.map(row => ({ ...row, variant: 'after' }));
+  const before = samples.filter(row => EXPERIENCE_BASELINE_SCENARIOS.includes(row.scenario))
+    .map(row => ({ ...row, variant: 'before', content_usable_ms: 400 }));
+  assert.equal(before.length, 120); assert.equal(after.length, 240);
+  const pair = summarizeExperiencePair([...before, ...after]);
+  assert.ok([...pair.summary, ...pair.baselineSummary].every(row => row.complete && row.budgetsMet));
+  assert.equal(pair.comparisons.length, 6, 'new focus paths must not invent before measurements');
+  assert.ok(pair.comparisons.every(row => row.metrics.content_usable_ms.p90.delta_ms === -40));
+  assert.ok(summarizeExperiencePair(after).baselineSummary.every(row => !row.complete && !row.budgetsMet));
+  const failedBaseline = structuredClone(before); failedBaseline[0].status = 'failed';
+  assert.equal(summarizeExperiencePair([...failedBaseline, ...after]).baselineSummary[0].complete, false,
+    'successful after samples cannot hide a failed before sample');
+  const missingBaseline = summarizeExperiencePair([...before.slice(1), ...after]);
+  assert.equal(missingBaseline.baselineSummary[0].missingSamples, 1);
+  assert.equal(missingBaseline.comparisons[0].complete, false);
+  console.log('PASS EXPERIENCE_P1_SUMMARY candidate/baseline missing, failed, duplicated and over-budget samples cannot pass; focus has no invented baseline');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

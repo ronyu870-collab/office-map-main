@@ -29,7 +29,7 @@ import { verifyP2History } from './ai-query-p2-history-scenarios.mjs';
 import { verifyCrossTrend } from './ai-query-cross-trend-scenarios.mjs';
 import { queryPerformanceSuite } from './query-performance-suite.mjs';
 import { queryPerformanceRevision } from '../performance/query-conversation-probe.mjs';
-import { startQueryPerformanceBaseline } from './query-performance-baseline.mjs';
+import { startQueryPerformanceBaseline, WORKSPACE_PERFORMANCE_BASELINE } from './query-performance-baseline.mjs';
 import { verifyRelativeQuarter } from './ai-query-relative-quarter-scenarios.mjs';
 import { verifyDistribution } from './ai-query-distribution-scenarios.mjs';
 import { verifyRelationship } from './ai-query-relationship-scenarios.mjs';
@@ -628,11 +628,16 @@ try{
     modelProvider:'isolated_synthetic_fixture',browserValidation:process.env.AI_QUERY_PERFORMANCE==='1',browserVisualReview:false,realDeviceReview:false},null,2)+'\n');
   console.log(`PASS ${results.length} real Auth/HTTP scenarios; no external model or production calls`);
   if(previewFile){
+    // Workspace A/B uses the latest released P0, separately from the older
+    // pinned query-engine baseline. Reuse this exact disposable Auth/DB/env and
+    // keep both real production servers alive through the existing hold hook.
+    if(suite==='p2_workspace')performanceBaseline=await startQueryPerformanceBaseline({root,env,log,until,commit:WORKSPACE_PERFORMANCE_BASELINE});
     const preview=await person('admin','preview');await grantQuery({setup:db},preview.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
     await db.query("insert into private.ai_audit_read_grants(user_id,valid_until,grant_reference) values($1,now()+interval '1 day','synthetic browser audit review')",[preview.id]);
     await db.query("insert into private.ai_audit_export_grants(user_id,enabled,valid_until,grant_reference) values($1,true,now()+interval '1 day','synthetic browser export')",[preview.id]);
     await db.query("update public.user_roles set phone='10000000000',full_name='合成验收账号' where user_id=$1",[preview.id]);
-    await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id}),{mode:0o600});
+    await writeFile(previewFile,JSON.stringify({app,email:preview.email,password:preview.password,phone:'10000000000',userId:preview.id,
+      ...(performanceBaseline?{beforeApp:performanceBaseline.app,beforeCommit:performanceBaseline.commit}:{})}),{mode:0o600});
     console.log('LOCAL_SYNTHETIC_PREVIEW_READY');
     await new Promise(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
   }
