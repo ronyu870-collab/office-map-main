@@ -52,6 +52,8 @@
 | 首次精确 head 的远端回归 | `029762c011558124e3b8812db9353a3c25f5a115` 的 [Verify #975](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825) 原生生产构建及之前的工程／数据库步骤通过；主浏览器步骤因 `focus layout: touchClose` 失败，P2 Auth 的首次历史测量因旧文本触发条件未识别图标入口而超时。两项分别按下文修复，不将该轮记为 Verify 通过 |
 | CI 命中区修正后的定向回归 | 现有 Focus／workspace 两文件、42 项通过，`git diff --check` 通过；真实几何和完整最终 head 验证仍以原 CI 为准 |
 | 历史入口测量适配校准 | 两个脚本 `node --check` 及 `verify-query-p2-workspace-calibration.mjs --summary-only` 均退出 0；只证明语法与原摘要／预算保护，不冒充图标入口的浏览器校准通过。完整校准保留在原 CI；本地 Chromium 在启动阶段被宿主 socket 限制阻断，未运行页面场景 |
+| 第二次精确 head 的远端回归 | `395f2ad60fd38613fbceb8c404ab3818a93ec4a4` 的 [Verify #976](https://github.com/ronyu870-collab/office-map-main/actions/runs/44248830340) 主工程 job 完整通过；实际浏览器 5 视口／88 条记录的检查为 true、错误为 0，包含各视口 `touchClose`。P2 图标入口校准通过，全部 360 性能样本完整，但 `buildings_snapshot` 的反馈 P90 桌面 182.6ms／手机条件 356.2ms 超过 100ms，因此该轮 Verify **未通过** |
+| 楼宇快照反馈采集修正 | 仅为 `buildings_snapshot` 识别实际历史面板内可见的「正在读取历史记录…」，增加面板外同文案拒绝、实际点击、旧结果／未知元数据／权限加载／缺卡片／缺地图链接及最终五卡片校准；不改应用、内容就绪条件、真实响应、20 次采样或预算。本地只核对脚本语法与摘要校准，完整浏览器校准和性能结果由修正后精确 head 原 CI 验证 |
 | 精确 PR head 的完整 Verify | 六项必需 jobs 的最终状态、完整被测 head、构建与远端证据见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)；本地通过不能替代 CI |
 | Visual acceptance evidence | #210 的仓库／分支／目标／完整当前 head／scope／reason 联合校验；最终状态及精确 head 见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)。成功仅表示豁免记录合规，不是人工视觉通过 |
 | 独立人工视觉评审 | `waived`，本次用户明确豁免，未执行 |
@@ -87,6 +89,35 @@ npx vitest run src/components/home/__tests__/home-query-history.test.tsx -t 'ren
 仅将该场景参数从 `triggerText` 改为既有采集器已支持的 `triggerAria`，不修改采集器、计时起点、真实键盘／触控操作、就绪条件、20 次采样、请求／回执核对或任何预算。首个校准场景同步为 16px SVG、无文本、带准确 aria-label 的按钮，并添加真实点击后 `start` 已设置的断言，避免文字替身再次掩盖入口差异。旧版实际 CI 超时证据见上述 job；本地 Chromium 因 `process_singleton_posix.cc:297 socket() failed: Operation not permitted` 在启动时失败，0 页面／0 视口，不虚构本地图标校准红绿结果；修正后的完整浏览器校准及 P2 链路继续由新 head 原 CI 执行。
 
 该 P2 Auth 失败轮保留 [artifact 14402343738](https://github.com/ronyu870-collab/office-map-main/actions/runs/44246824825/artifacts/14402343738)，仅包含此前 HTTP／授权回归结果，未产出完整 P2 性能与后续空间切换结果；不能将其报告为性能通过。
+
+### 第二次 CI 的反馈采集失败与校准
+
+修正 head `395f2ad60fd38613fbceb8c404ab3818a93ec4a4` 的 [Verify #976](https://github.com/ronyu870-collab/office-map-main/actions/runs/44248830340) 中，主工程 job `134614420841` 完整通过，包括原生生产构建与实际浏览器。其 [P2 浏览器 artifact 14403911473](https://github.com/ronyu870-collab/office-map-main/actions/runs/44248830340/artifacts/14403911473) 的 `after-browser.json` 记录 320／390／768／1280／1536px 五个视口，共 88 条结果，全部几何检查为 true、错误为 0；各视口 Focus 转换与 `touchClose` 通过，历史、研究、复杂图表、多轮、等待、停止、错误和权限不可用等后续场景均完成。这是自动功能／几何证据，不代表已执行豁免的人工视觉或真机验收。
+
+P2 Auth job `134614420901` 的图标入口与原采集器浏览器校准实际通过；随后桌面及手机条件各 20 轮、九场景共 360 个样本完成，`complete: true`、`functionalPassed: true`，但 `budgetsMet: false`，以 `P2_WORKSPACE_BUDGET_FAILURE` 退出。保留完整 [P2 性能 artifact 14403481617](https://github.com/ronyu870-collab/office-map-main/actions/runs/44248830340/artifacts/14403481617)，不删除失败样本、不用后续结果覆盖本轮失败。唯一超预算场景是 `buildings_snapshot` 的首次反馈，两个条件各 20 样本均完整、操作失败与缺测均为 0：
+
+| 条件 | 反馈 P50／P90 | 反馈 P90 预算 | 内容可用 P50／P90 | 内容 P90 预算 |
+| --- | --- | --- | --- | --- |
+| 桌面 1280×900，CPU×1，60ms／30Mbps | 163.2／182.6ms | ≤100ms | 573.5／579.5ms | ≤2500ms |
+| 手机模拟 390×844，CPU×4，150ms／10Mbps | 339.4／356.2ms | ≤100ms | 769.6／783.0ms | ≤3500ms |
+
+原始资源记录分段（各列均为 P50／P90；响应结束相对实际点击计时）：
+
+| 分段 | 桌面 | 手机模拟 |
+| --- | --- | --- |
+| 历史响应结束 | 121.5／126.7ms | 177.8／180.1ms |
+| 历史请求至首字节／传输 | 111.5／117.8ms；3.8／4.1ms | 115.1／147.8ms；45.2／54.1ms |
+| 楼宇响应结束 | 554.4／562.6ms | 723.3／728.9ms |
+| 楼宇请求至首字节／传输 | 107.3／118.1ms；2.7／2.8ms | 109.5／123.0ms；45.8／50.0ms |
+| 最终响应后的浏览器验证与渲染 | 18.0／21.9ms | 48.3／53.7ms |
+
+请求至首字节是浏览器资源计时，包含网络及服务端等待，不能冒称纯服务端计算耗时。桌面长任务数量为 0；手机条件长任务数量 P50／P90 为 1／1，最大长任务时长为 105／112ms。该轮数据只用于定位，不能因为内容可用达标就把超预算的反馈判为通过。
+
+源码及分段核对发现：`buildings_snapshot` 从历史条目打开，UI 会先显示实际历史面板的「正在读取历史记录…」；采集器的楼宇分支仍只匹配旧「正在读取本人」及楼宇模块提示，漏记这条已有可见反馈，直到历史响应后才识别楼宇加载。记录的反馈比历史响应结束晚桌面 41.0／44.9ms、手机条件 162.2／178.8ms，符合漏采阶段；不据此猜测真实反馈具体耗时。
+
+修正严格限于 `mode === 'buildings_snapshot'`，只接纳对应 `aside[aria-label="历史工作记录"]` 内可见且文本准确匹配的状态；面板外同文案不算反馈，楼宇翻页不因此接受历史状态。保留实际点击计时起点、真实响应核对、五个正确卡片、当前目录元数据、地图链接、新结果身份、无权限加载状态等既有内容就绪条件，以及全部请求、回执、授权、样本与预算。
+
+新增校准按实际点击后逐阶段绘制 DOM：同文案在历史面板外不得设置反馈；面板内真实忙碌状态可设置反馈但不能设置内容可用；旧结果、未知目录元数据、权限仍在核对、少于五卡片或缺少地图链接均不能结束测量，最后只有新结果中五张正确卡片全部可用才完成。阶段之间等待真实动画帧，不重设计时起点，也不把校准延时作为产品性能证据。本地 Chromium 的宿主阻断已独立确认，因此未再次尝试启动或绕过；本地语法／摘要检查与完整浏览器校准分别记录，最终结果以修正后精确 head 原 CI 为准。
 
 ## 4. PR 记录与发布
 

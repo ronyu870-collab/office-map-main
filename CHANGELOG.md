@@ -10,6 +10,7 @@
 - 中间完整 `verify` 的审计、类型、Lint（0 错误、854 条警告）与 272 文件／2,084 项测试通过，webpack 编译 30.9s 成功，但 `/api/oss` 页面收集因宿主 `uv_interface_addresses` 失败；独立 Node 与 ali-oss 探针复现，OSS 路由及依赖未改。完整本地 verify 未通过，不以编译成功替代完整构建；历史焦点与下载反馈修正后（CI 反馈前）的全量 `check` 退出码 0，审计、类型、Lint 与 272 文件／2,087 项测试全部通过，完整构建由精确 head 强制远端 CI 补齐。
 - 首次远端 head `029762c` 的原生生产构建通过，但实际浏览器在 1280px 首次 Focus 检查报 `focus layout: touchClose`：初版工具栏 36px 点击区小于 P1 保留的 44px 要求。据实恢复全部视口 44px 点击区，保持 16px 图标，不改验收断言或预算；失败证据保留，修正后的完整工程状态以新 head 的原 CI 为准。
 - 同轮 P2 Auth 在首次历史测量中超时：图标入口只有 aria-label，旧 probe 以 textContent 匹配而未开始计时。只将该场景改为采集器已有的 `triggerAria`，首个校准同步无文本 SVG 入口并断言实际点击启动计时，保留全部采样、请求、就绪条件和预算。语法与摘要校准通过；本地 Chromium 启动受宿主 socket 限制，未冒称本地完整浏览器校准通过，新 head 原 CI 必须验证。
+- 第二轮 head `395f2ad` 的主工程与五视口／88 条实际浏览器记录通过，图标入口校准通过；360 个 P2 性能样本完整且功能通过，但楼宇快照反馈 P90 桌面 182.6ms／手机条件 356.2ms 超过 100ms，该轮 Verify 仍未通过。定位为旧采集器未识别历史面板实际「正在读取历史记录…」提示，仅为该快照场景添加面板内准确匹配，并校准面板外拒绝、旧结果／未知元数据／授权等待／缺卡片／缺地图链接不能提前就绪；不改应用或预算，保留失败证据，修正后完整原 CI 结果以 PR 为准。
 - 规则集实时核实 active、三个 required checks、无 bypass；六项完整 Verify 与 Visual acceptance evidence 仍必须通过。精确 head CI、main commit、合并及生产部署的最终状态和完整证据见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)，不沿用 P1 结果。范围、本地验证、剩余边界和回退见 [P2 实施记录](docs/intelligence/colliers-ai-3-p2-visual-polish.md)。
 
 # 2026-11-18 — Colliers AI 3.0 P1 专注工作空间

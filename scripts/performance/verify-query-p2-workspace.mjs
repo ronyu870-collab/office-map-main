@@ -121,7 +121,9 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
     if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')]
       .some(node => visible(node) && node.textContent.includes('正在核对复制权限'));
     if (mode.startsWith('buildings')) return [...document.querySelectorAll('[role="status"]')]
-      .some(node => visible(node) && /正在读取本人|正在打开楼宇|正在核对楼宇/.test(node.textContent));
+      .some(node => visible(node) && (/正在读取本人|正在打开楼宇|正在核对楼宇/.test(node.textContent)
+        // A building snapshot opens through its history entry before the cards load.
+        || mode === 'buildings_snapshot' && panel()?.contains(node) && node.textContent.trim() === '正在读取历史记录…'));
     return false;
   };
   const click = event => {

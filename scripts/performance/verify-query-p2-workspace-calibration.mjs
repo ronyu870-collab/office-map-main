@@ -108,6 +108,62 @@ if (!process.argv.includes('--summary-only')) {
     assert.equal(measured.mounted.buildingCards, 1);
     await page.evaluate(() => window.__colliersP2Workspace.stop());
 
+    // Opening a saved building result first paints the history panel's busy state.
+    // Stage each DOM change after a real click; none of these fixture timings is
+    // a performance sample, and neither a loader nor a stale result is usable.
+    const buildingNames = Array.from({ length: 5 }, (_, index) => `校准楼宇${index + 1}`);
+    const buildingMarkup = ({ count = 5, metadata = 'CBD · A （当前目录）', omitLastMap = false } = {}) => buildingNames.slice(0, count)
+      .map((name, index) => `<article aria-label="${name}楼宇卡片"><p>${metadata}</p>${omitLastMap && index === count - 1 ? '' : `<a href="/map?building=${index}">详情</a>`}</article>`).join('');
+    const readAfterPaint = () => page.evaluate(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return window.__colliersP2Workspace.read();
+    });
+    const setBuildingMarkup = async markup => {
+      await page.evaluate(html => { document.querySelector('section[aria-label="查询楼宇信息"]').innerHTML = html; }, markup);
+      return readAfterPaint();
+    };
+    await page.setContent(`<button aria-label="打开对话：楼宇校准">打开</button><p id="outside-history-status" role="status"></p><aside aria-label="历史工作记录"><p role="status"></p></aside><section aria-label="查询结果"><section aria-label="查询楼宇信息">${buildingMarkup()}</section></section>`);
+    await page.evaluate(() => document.querySelector('button').addEventListener('click', () => {
+      document.getElementById('outside-history-status').textContent = '正在读取历史记录…';
+    }));
+    await page.evaluate(observeP2WorkspaceAction, { mode: 'buildings_snapshot', triggerAria: '打开对话：楼宇校准', expectedCount: 5,
+      expectedNames: buildingNames, expectedMetadata: { submarket: 'CBD', grade: 'A' } });
+    await page.getByRole('button', { name: '打开对话：楼宇校准', exact: true }).click();
+    measured = await readAfterPaint();
+    assert.ok(Number.isFinite(measured.start), 'The actual history entry click starts building-snapshot measurement');
+    const snapshotStart = measured.start;
+    assert.equal(measured.feedback_ms, null, 'The same history loading text outside its panel is not building-snapshot feedback');
+    assert.equal(measured.content_usable_ms, null, 'Five correct cards in the old result cannot complete snapshot open');
+
+    await page.evaluate(() => {
+      document.querySelector('aside[aria-label="历史工作记录"] [role="status"]').textContent = '正在读取历史记录…';
+    });
+    measured = await readAfterPaint();
+    assert.ok(Number.isFinite(measured.feedback_ms), 'The visible history panel busy state after the click is genuine feedback');
+    assert.equal(measured.content_usable_ms, null, 'History loading feedback cannot substitute for a new usable result');
+
+    await page.evaluate(markup => {
+      document.querySelector('aside[aria-label="历史工作记录"] [role="status"]').textContent = '';
+      const next = document.createElement('section'); next.setAttribute('aria-label', '查询结果');
+      next.innerHTML = `<section aria-label="查询楼宇信息">${markup}</section>`;
+      document.querySelector('section[aria-label="查询结果"]').replaceWith(next);
+    }, buildingMarkup({ metadata: '子市场未知 · 等级未知 （当前目录）' }));
+    measured = await readAfterPaint();
+    assert.equal(measured.content_usable_ms, null, 'New names without confirmed current-directory metadata cannot complete snapshot open');
+    measured = await setBuildingMarkup(`${buildingMarkup()}<p role="status">正在核对楼宇访问权限…</p>`);
+    assert.equal(measured.content_usable_ms, null, 'Complete cards with authorization still loading are not usable');
+    measured = await setBuildingMarkup(buildingMarkup({ count: 4 }));
+    assert.equal(measured.content_usable_ms, null, 'An incomplete building-card page is not usable');
+    measured = await setBuildingMarkup(buildingMarkup({ omitLastMap: true }));
+    assert.equal(measured.content_usable_ms, null, 'Every building card must retain its actual map link');
+    await setBuildingMarkup(buildingMarkup());
+    await page.waitForFunction(() => window.__colliersP2Workspace.state.status === 'ready');
+    measured = await page.evaluate(() => window.__colliersP2Workspace.read());
+    assert.equal(measured.start, snapshotStart, 'DOM stages never restart the actual click measurement');
+    assert.ok(measured.feedback_ms < measured.content_usable_ms);
+    assert.equal(measured.mounted.buildingCards, 5);
+    await page.evaluate(() => window.__colliersP2Workspace.stop());
+
     await page.setContent('<button>生成分析摘要</button>');
     await page.evaluate(observeP2WorkspaceAction, { mode: 'summary', triggerText: '生成分析摘要', timeoutMs: 60 });
     await page.getByRole('button', { name: '生成分析摘要', exact: true }).click();
@@ -116,6 +172,6 @@ if (!process.argv.includes('--summary-only')) {
     assert.equal(measured.content_usable_ms, null); assert.equal(measured.feedback_ms, null);
     await page.evaluate(() => window.__colliersP2Workspace.stop());
     await page.close();
-    console.log('PASS P2 paint collector calibration: disabled/stale content excluded, bounded cards confirmed, genuine Long Tasks collected, absent readiness retained as timeout; calibration timings are not product evidence');
+    console.log('PASS P2 paint collector calibration: icon-only click and scoped history feedback observed, disabled/stale/unauthorized/incomplete content excluded, bounded cards confirmed, genuine Long Tasks collected, absent readiness retained as timeout; calibration timings are not product evidence');
   } finally { await browser.close(); }
 }
