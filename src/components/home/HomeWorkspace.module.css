@@ -56,7 +56,7 @@
 .feedback { display: flex; justify-content: flex-end; margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--cd-color-border); }
 .feedback > button { width: auto; min-width: 0; min-height: 44px; gap: 8px; margin-top: 0; padding: 4px 8px; border: 0; background: transparent; }
 .feedback > button > span { font-size: 14px; }
-.querySkeleton { min-height: 320px; border-radius: var(--cd-radius-ai-surface); background: var(--cd-color-ai-surface); }
+.querySkeleton { min-height: 212px; border: 1px solid var(--cd-color-ai-border); border-radius: var(--cd-radius-ai-surface); background: var(--cd-color-ai-surface); }
 .mapSkeleton, .linkSkeleton { min-height: 80px; background: var(--cd-color-surface-alt); }
 @media (min-width: 640px) and (max-width: 959px) {
   .navigation { grid-template-columns: minmax(0, .85fr) minmax(0, 2fr); gap: 16px; }

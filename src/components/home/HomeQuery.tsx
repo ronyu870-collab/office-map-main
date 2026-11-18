@@ -129,8 +129,11 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   }, [scope, storageKey, resetConversation]);
   React.useEffect(() => {
     const node = input.current;
-    if (node) { node.style.height = 'auto'; node.style.height = `${Math.max(56, Math.min(node.scrollHeight, 200))}px`; }
-  }, [draft, access.enabled]);
+    if (node) {
+      node.style.height = 'auto';
+      node.style.height = `${Math.max(expanded ? 56 : 28, Math.min(node.scrollHeight, 200))}px`;
+    }
+  }, [draft, access.enabled, expanded]);
 
   const run = React.useCallback(async (next: Attempt, recovering = false) => {
     if (current.current || !access.enabled || composing.current) return;
@@ -363,7 +366,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     <div className={`${styles.composer} ${access.enabled ? styles.enabled : ''}`}>
       {buildingSelection && <div className={styles.selectionContext}><span>来自地图 · 已选择 {buildingSelection.ids.length} 栋楼宇</span><Button variant="ghost" onClick={() => setBuildingSelection(null)}>移除项目范围</Button></div>}
       <textarea ref={input} id="home-query" aria-label="向 Colliers AI 提问" aria-describedby="home-query-status home-query-notice" disabled={!access.enabled}
-        rows={2} maxLength={6000} value={draft} onChange={event => setDraft(event.target.value)}
+        rows={expanded ? 2 : 1} maxLength={6000} value={draft} onChange={event => setDraft(event.target.value)}
         onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
         placeholder={access.enabled ? (attempt ? '继续追问，或提出一个新问题…' : '想了解哪栋楼，或哪一个市场？') : '对话查询尚未开放'}
         onKeyDown={event => {
