@@ -150,8 +150,11 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     setBusy(true); setTerminalFailure(false); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在处理你的问题…'); setReply(null); setAttempt(next);
     setBuildingSelection(null);
     try {
+      const useAgent = access.agentEnabled === true && !!next.conversation && !next.buildingSelection && !next.replayRequestId && !next.conversation.resumeToken;
+      const payload = { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) };
       const result = recovering && next.requestId ? await trustedQueryClient.recover(scope, next.requestId, controller.signal)
-        : await trustedQueryClient.submit(scope, { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) }, controller.signal);
+        : useAgent ? await trustedQueryClient.submitAgent(scope, payload, controller.signal)
+          : await trustedQueryClient.submit(scope, payload, controller.signal);
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
       const updated = { ...next, requestId: result.requestId ?? next.requestId }; setAttempt(updated);
       // Capacity rejection and a confirmed failed recovery are terminal for
@@ -195,7 +198,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       if (current.current === controller) current.current = null;
       if (alive.current && ticket === generation.current) setBusy(false);
     }
-  }, [access.enabled, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
+  }, [access.enabled, access.agentEnabled, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
   function stopWaiting() {
     generation.current++; current.current?.abort(); current.current = null; setBusy(false);
     setMessage('已停止等待，服务端可能仍在处理。可重试本次请求或恢复结果，不能据此认定服务端已取消。');
