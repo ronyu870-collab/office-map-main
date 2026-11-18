@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Plus, X } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
+import { IconButton } from '@/src/components/ui/IconButton';
 import { Input } from '@/src/components/ui/Input';
 import type { HistoryEntry, HistoryOpened, HistoryPage } from '@/src/lib/intelligence/query/historyProtocol';
 import { queryScopeKey, type QueryClientScope } from '@/src/services/trustedQueryClient';
@@ -32,10 +33,31 @@ function HistoryPanel({ scope, refreshKey = 0, activeConversationId, busy: query
   const [saved, setSaved] = React.useState<{ owner: string; page: HistoryPage } | null>(null);
   const [thread, setThread] = React.useState<{ owner: string; opened: Omit<HistoryOpened, 'selected' | 'conversation'>; id: string } | null>(null);
   const [editing, setEditing] = React.useState<HistoryEntry | null>(null), [title, setTitle] = React.useState('');
+  const [menuId, setMenuId] = React.useState<string | null>(null);
+  const panel = React.useRef<HTMLElement>(null);
+  const titleForm = React.useRef<HTMLFormElement>(null);
+  const restoreEntry = React.useRef<string | null>(null);
   const active = React.useRef<{ generation: number; controller?: AbortController }>({ generation: 0 });
   const queryEpoch = React.useRef(0);
   const titleComposing = React.useRef(false);
   const page = saved?.owner === ownerKey ? saved.page : null;
+  React.useLayoutEffect(() => {
+    if (editing) { const input = titleForm.current?.querySelector('input'); input?.focus(); input?.select(); }
+  }, [editing]);
+  React.useLayoutEffect(() => {
+    if (editing || busy || !page || !restoreEntry.current) return;
+    const trigger = Array.from(panel.current?.querySelectorAll<HTMLButtonElement>('[data-history-actions]') ?? [])
+      .find(button => button.dataset.historyActions === restoreEntry.current);
+    // A delayed mutation/list refresh may finish after the user has moved on.
+    // Only recover focus lost with the original row/form, never retake another
+    // still-mounted control inside or outside this panel.
+    const focused = document.activeElement;
+    if (focused?.isConnected && focused !== document.body && focused !== trigger) {
+      restoreEntry.current = null; return;
+    }
+    const destination = trigger ?? panel.current?.querySelector<HTMLInputElement>('input[type="search"]');
+    destination?.focus({ preventScroll: true }); restoreEntry.current = null;
+  }, [editing, page, busy]);
   const dateGroups = React.useMemo(() => {
     const groups = new Map<string, HistoryEntry[]>();
     for (const entry of page?.entries ?? []) {
@@ -107,23 +129,28 @@ function HistoryPanel({ scope, refreshKey = 0, activeConversationId, busy: query
     finally { if (request.isCurrent()) setBusy(false); }
   };
 
-  return <aside className={styles.panel} aria-label="历史工作记录">
+  return <aside ref={panel} className={styles.panel} aria-label="历史工作记录" onFocusCapture={event => {
+    if (!restoreEntry.current || titleForm.current?.contains(event.target)) return;
+    if (event.target instanceof HTMLElement && event.target.dataset.historyActions === restoreEntry.current) return;
+    // Intentional focus changes supersede a pending restoration, including
+    // search, filters, navigation and other history entries.
+    restoreEntry.current = null;
+  }}>
     {(onNew || onHome) && <nav className={styles.navigation} aria-label="对话工作导航">
       {onNew && <Button variant="secondary" disabled={queryBusy} onClick={onNew}><Plus size={16} aria-hidden="true" />新对话</Button>}
       {onHome && <Button variant="ghost" onClick={onHome}><ArrowLeft size={16} aria-hidden="true" />返回主页</Button>}
     </nav>}
-    <div className={styles.heading}><h3>历史工作记录</h3>{onClose && <Button variant="ghost" onClick={onClose}>关闭历史</Button>}</div>
-    <p className={`${styles.note} ${styles.introduction}`}>打开原始回答，继续研究。历史快照保留当时的数据与口径。</p>
+    <div className={styles.heading}><h3>历史记录</h3>{onClose && <IconButton variant="ghost" label="关闭历史" onClick={onClose}><X size={16} aria-hidden="true" /></IconButton>}</div>
     <div className={styles.search}>
-      <label htmlFor={searchId}>搜索标题或最近问题</label>
-      <Input id={searchId} type="search" value={search} placeholder="项目、区域或分析主题"
-        onChange={event => { setSearch(event.target.value); setCursors([undefined]); setThread(null); }}
+      <label htmlFor={searchId} className="sr-only">搜索标题或最近问题</label>
+      <Input id={searchId} type="search" value={search} placeholder="搜索历史对话"
+        onChange={event => { setSearch(event.target.value); setCursors([undefined]); setThread(null); setMenuId(null); }}
         onCompositionStart={() => { setComposing(true); setBusy(false); }} onCompositionEnd={() => setComposing(false)} />
       <label className={styles.toggle}><input type="checkbox" checked={archived} onChange={event => {
-        setArchived(event.target.checked); setCursors([undefined]); setThread(null); setEditing(null);
+        setArchived(event.target.checked); setCursors([undefined]); setThread(null); setEditing(null); setMenuId(null);
       }} />查看已归档记录</label>
     </div>
-    <div role="status" aria-live="polite" className={styles.status}>{busy ? '正在读取本人有权访问的工作记录…' : ''}</div>
+    <div role="status" aria-live="polite" className={styles.status}>{busy ? '正在读取历史记录…' : ''}</div>
     {error && <div role="alert" className={styles.error}><p>{error}</p><Button variant="secondary" onClick={() => { setCursors([undefined]); setThread(null); setReload(value => value + 1); }}>重试读取历史</Button></div>}
     {visibleThread && <section className={styles.thread} aria-label="对话中的提问">
       <div className={styles.heading}><h4>{visibleThread.opened.title}</h4><Button variant="ghost" onClick={() => setThread(null)}>收起对话</Button></div>
@@ -136,26 +163,74 @@ function HistoryPanel({ scope, refreshKey = 0, activeConversationId, busy: query
     {page && !page.entries.length && !busy && <p className={styles.note}>{search ? '本页没有匹配的记录。' : archived ? '本页没有已归档记录。' : '本页暂无可查看的工作记录。'}{page.hasMore ? '可以继续检索下一页。' : ''}</p>}
     {dateGroups.map(([date, entries]) => <section className={styles.dateGroup} key={date} aria-label={`${date}的对话`}>
     <h4 className={styles.dateLabel}>{date}</h4>
-    <ul className={styles.entries}>{entries.map(entry => <li key={entry.conversationId} className={`${styles.entry} ${activeConversationId === entry.conversationId ? styles.selected : ''}`}>
-      {editing?.conversationId === entry.conversationId ? <form onSubmit={event => { event.preventDefault(); if (!titleComposing.current && title.trim() && !busy) void change(entry, true); }}>
+    <ul className={styles.entries}>{entries.map(entry => <li key={entry.conversationId} className={`${styles.entry} ${activeConversationId === entry.conversationId ? styles.selected : ''}`} data-menu-open={menuId === entry.conversationId}>
+      {editing?.conversationId === entry.conversationId ? <form ref={titleForm} onSubmit={event => { event.preventDefault(); if (!titleComposing.current && title.trim() && !busy) void change(entry, true); }}>
         <label htmlFor={titleId}>对话标题</label><Input id={titleId} value={title} maxLength={120}
           onChange={event => setTitle(event.target.value)} onCompositionStart={() => { titleComposing.current = true; }} onCompositionEnd={() => { titleComposing.current = false; }}
           onKeyDown={event => { if (event.key === 'Enter' && (titleComposing.current || event.nativeEvent.isComposing)) event.preventDefault(); }} />
-        <div className={styles.actions}><Button variant="ghost" onClick={() => setEditing(null)}>取消</Button><Button type="submit" disabled={busy || queryBusy || !title.trim()}>保存标题</Button></div>
+        <div className={styles.actions}><Button variant="ghost" onClick={() => { restoreEntry.current = entry.conversationId; setEditing(null); }}>取消</Button><Button type="submit" disabled={busy || queryBusy || !title.trim()}>保存标题</Button></div>
       </form> : <>
         <button className={styles.open} type="button" disabled={busy || queryBusy} aria-current={activeConversationId === entry.conversationId ? 'true' : undefined} aria-label={`打开对话：${entry.title}`} onClick={() => void open(entry.conversationId)}>
-          <strong>{entry.title}</strong><span>{entry.latestQuestion}</span><time dateTime={entry.updatedAt}>{displayDate(entry.updatedAt)}</time>
+          <strong>{entry.title}</strong>{search && <span>{entry.latestQuestion}</span>}<time className="sr-only" dateTime={entry.updatedAt}>{displayDate(entry.updatedAt)}</time>
         </button>
-        <div className={styles.actions}><Button variant="ghost" size="sm" disabled={busy || queryBusy} onClick={() => { setEditing(entry); setTitle(entry.title); }}>重命名</Button>
-          <Button variant="ghost" size="sm" disabled={busy || queryBusy} onClick={() => void change(entry)}>{entry.archived ? '移回工作记录' : '归档'}</Button></div>
+        <HistoryEntryActions entry={entry} open={menuId === entry.conversationId} disabled={busy || queryBusy}
+          onToggle={next => setMenuId(next ? entry.conversationId : null)}
+          onRename={() => { setMenuId(null); restoreEntry.current = entry.conversationId; setEditing(entry); setTitle(entry.title); }}
+          onArchive={() => { setMenuId(null); restoreEntry.current = entry.conversationId; void change(entry); }} />
       </>}
     </li>)}</ul></section>)}
     <div className={styles.pagination}>
-      {cursors.length > 1 && <Button variant="secondary" disabled={busy} onClick={() => setCursors(value => value.slice(0, -1))}>上一页记录</Button>}
-      {page?.hasMore && page.nextCursor && <Button variant="secondary" disabled={busy} onClick={() => { setThread(null); setCursors(value => [...value, page.nextCursor]); }}>下一页记录</Button>}
+      {cursors.length > 1 && <Button variant="secondary" disabled={busy} onClick={() => { setMenuId(null); setCursors(value => value.slice(0, -1)); }}>上一页记录</Button>}
+      {page?.hasMore && page.nextCursor && <Button variant="secondary" disabled={busy} onClick={() => { setMenuId(null); setThread(null); setCursors(value => [...value, page.nextCursor]); }}>下一页记录</Button>}
       {page?.indexing && <Button variant="ghost" disabled={busy} onClick={() => { setCursors([undefined]); setReload(value => value + 1); }}>继续载入早期记录</Button>}
     </div>
     {!!page?.unavailable && <p className={styles.note}>部分历史记录目前无法完整读取，未展示其内容。可以稍后重试。</p>}
-    <details className={styles.help}><summary>历史与归档说明</summary><p><span className={styles.compactExplanation}>历史快照保留当时的数据与口径。</span>重新查询会另行读取数据。归档仅整理本人的列表，不删除原始回答或正式审计记录。</p></details>
+    <details className={styles.help}><summary>历史与归档说明</summary><p>历史快照保留当时的数据与口径。重新查询会另行读取数据。归档仅整理本人的列表，不删除原始回答或正式审计记录。</p></details>
   </aside>;
+}
+
+/** The menu stays in its history row, so narrow panels never clip its actions. */
+function HistoryEntryActions({ entry, open, disabled, onToggle, onRename, onArchive }: {
+  entry: HistoryEntry; open: boolean; disabled: boolean;
+  onToggle: (open: boolean) => void; onRename: () => void; onArchive: () => void;
+}) {
+  const id = React.useId();
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const root = React.useRef<HTMLDivElement>(null);
+  const menu = React.useRef<HTMLDivElement>(null);
+  const onToggleRef = React.useRef(onToggle);
+  React.useLayoutEffect(() => { onToggleRef.current = onToggle; }, [onToggle]);
+  React.useEffect(() => {
+    if (!open) return;
+    menu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) onToggleRef.current(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
+  function close() { onToggle(false); trigger.current?.focus({ preventScroll: true }); }
+  return <div ref={root} className={styles.entryActions} onBlur={event => {
+    if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) onToggle(false);
+  }} onKeyDown={event => {
+    if (!open) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); return; }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const items = Array.from(menu.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []);
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus({ preventScroll: true });
+  }}>
+    <IconButton ref={trigger} className={styles.more} variant="ghost" label={`对话操作：${entry.title}`} title="更多操作"
+      data-history-actions={entry.conversationId} disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-controls={id}
+      onClick={() => onToggle(!open)} onKeyDown={event => {
+        if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); onToggle(true); }
+      }}><MoreHorizontal size={16} aria-hidden="true" /></IconButton>
+    {open && <div ref={menu} id={id} className={styles.entryMenu} role="menu" aria-label={`对话操作：${entry.title}`}>
+      <Button variant="ghost" role="menuitem" tabIndex={-1} disabled={disabled} onClick={onRename}>重命名</Button>
+      <Button variant="ghost" role="menuitem" tabIndex={-1} disabled={disabled} onClick={onArchive}>{entry.archived ? '移回工作记录' : '归档'}</Button>
+    </div>}
+  </div>;
 }

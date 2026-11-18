@@ -6,6 +6,7 @@
 
 | 责任 | 当前入口 |
 | --- | --- |
+| Colliers AI 3.0 P2 对话、历史与研究结果视觉精修 | [P2 视觉整合记录](colliers-ai-3-p2-visual-polish.md) |
 | Colliers AI 3.0 P1 紧凑输入、专注与全屏的单实例空间切换 | [P1 专注工作空间记录](colliers-ai-3-p1-focus-transition.md) |
 | Colliers AI 3.0 P0 首页紧凑输入与综合业务工作台 | [P0 紧凑首页记录](colliers-ai-3-p0-compact-home.md) |
 | Conversational Experience 2.0 P2 主页视觉与研究阅读层级 | [P2 体验记录](home-query-experience-p2.md) |

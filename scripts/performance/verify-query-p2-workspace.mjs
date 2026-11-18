@@ -121,7 +121,9 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
     if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')]
       .some(node => visible(node) && node.textContent.includes('正在核对复制权限'));
     if (mode.startsWith('buildings')) return [...document.querySelectorAll('[role="status"]')]
-      .some(node => visible(node) && /正在读取本人|正在打开楼宇|正在核对楼宇/.test(node.textContent));
+      .some(node => visible(node) && (/正在读取本人|正在打开楼宇|正在核对楼宇/.test(node.textContent)
+        // A building snapshot opens through its history entry before the cards load.
+        || mode === 'buildings_snapshot' && panel()?.contains(node) && node.textContent.trim() === '正在读取历史记录…'));
     return false;
   };
   const click = event => {
@@ -403,7 +405,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           return body;
         };
         await measure({ scenario: 'history_list', locator: page.getByRole('button', { name: '历史记录', exact: true }),
-          probe: { mode: 'history_list', triggerText: '历史记录', expectedCount: 15, expectedTitle: question, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_list', triggerAria: '历史记录', expectedCount: 15, expectedTitle: question, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'list'),
           verify: async body => { assert.equal(body.page.entries.length, 15, 'P2_HISTORY_PAGE_MISMATCH'); assert.equal(body.page.hasMore, true, 'P2_HISTORY_PAGE_MISMATCH'); } });
         await measure({ scenario: 'history_next_page', locator: history.getByRole('button', { name: '下一页记录', exact: true }),

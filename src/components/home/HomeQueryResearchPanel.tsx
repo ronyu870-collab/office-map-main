@@ -29,7 +29,7 @@ export function HomeQueryResearchPanel({ result, onClose }: { result: QueryResul
       research: research.success && research.data.findings.every(finding => finding.sourceIds.every(id => knownSources.has(id))) ? research.data : null };
   }, [result]);
   return <aside className={styles.panel} aria-label="研究资料与口径">
-    <div className={styles.heading}><h3>研究资料</h3>{onClose && <Button size="icon" variant="ghost" aria-label="关闭研究资料" onClick={onClose}><X size={18} aria-hidden="true" /></Button>}</div>
+    <div className={styles.heading}><h3>研究资料</h3>{onClose && <Button size="icon" variant="ghost" aria-label="关闭研究资料" onClick={onClose}><X size={16} aria-hidden="true" /></Button>}</div>
     <section className={styles.section} aria-label="当前分析范围"><h4>当前分析范围</h4><p>{resultScopeText(result)}</p></section>
     <section className={styles.section} aria-label="统计口径"><h4>数据与统计口径</h4><SourceOverview result={result} research={information.research} /></section>
     <section className={styles.section} aria-label="来源概览"><h4>来源概览</h4>

@@ -55,7 +55,14 @@ function ResultActions({ result, requestId, scope, internalExport, children }: P
     catch { setMessage('本次结果过长，暂无法生成摘要。请查看原分析或导出完整数据。'); }
   }
 
-  return <div className={styles.root}>
+  return <div className={styles.root} onKeyDown={event => {
+    // Close the local disclosure first; Escape must not also close the workspace.
+    if (event.key !== 'Escape' || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    const disclosure = event.target instanceof HTMLElement ? event.target.closest('details[open]') : null;
+    if (!(disclosure instanceof HTMLDetailsElement) || !event.currentTarget.contains(disclosure)) return;
+    event.preventDefault(); event.stopPropagation(); disclosure.open = false;
+    disclosure.querySelector('summary')?.focus({ preventScroll: true });
+  }}>
     <div className={styles.toolbar} aria-label="分析结果操作">
       {internalExport && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void copy('conclusion')}>复制结论</Button>}
       {children}

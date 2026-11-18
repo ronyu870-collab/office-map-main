@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 210,
+        branch: 'codex/colliers-ai-3-p2-visual-polish',
+        scope: 'Colliers AI 3.0 P2 conversation and research visual polish, PR #210',
+        reason: 'User explicitly waived independent visual review, repeated manual browser visual review and physical-phone manual acceptance for Colliers AI 3.0 P2 on 2026-11-18; applies only to PR #210',
+      },
+      {
         number: 209,
         branch: 'codex/colliers-ai-3-p1-focus-transition',
         scope: 'Colliers AI 3.0 P1 focus transition and single-instance workspace, PR #209',

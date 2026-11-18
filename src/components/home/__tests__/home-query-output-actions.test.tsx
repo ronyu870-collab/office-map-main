@@ -66,4 +66,17 @@ describe('P2 compact research result actions', () => {
     fireEvent.click(screen.getByRole('button', { name: '复制结论' }));
     await screen.findByText(/复制内容与当前结果不一致/); expect(clipboard).not.toHaveBeenCalled();
   });
+  it('closes the active action disclosure before Escape can leave the workspace', () => {
+    const leaveWorkspace = vi.fn();
+    render(<div onKeyDown={leaveWorkspace}><HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport /></div>);
+    const trigger = screen.getByText('更多操作');
+    fireEvent.click(trigger);
+    const action = screen.getByRole('button', { name: '复制关键数字' });
+    action.focus();
+    fireEvent.keyDown(action, { key: 'Escape' });
+    expect(trigger.closest('details')).not.toHaveAttribute('open');
+    expect(trigger).toHaveFocus();
+    expect(leaveWorkspace).not.toHaveBeenCalled();
+    expect(client.copy).not.toHaveBeenCalled();
+  });
 });
