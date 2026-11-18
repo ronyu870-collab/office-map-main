@@ -4,7 +4,7 @@
 
 地图存量楼宇“霄云路33号” `building_id=9ee3e3ff-4845-41a1-a78f-390c11b1917a`，下设 A/B 两座，不新建主档，不改 `building_metrics`、`building_current_data` 或历史／日常成交数据。
 
-- 数据库迁移：`supabase/migrations/20261118172000_stacking_plan_xiaoyun33_pilot.sql`，生产项目 `qhgxougfzzmgqjzzwudf` 已通过 Supabase 迁移执行；生成两座、49 层、64 个空间/单元草稿。
+- 数据库迁移：`supabase/migrations/20261118172000_stacking_plan_xiaoyun33_pilot.sql` 和来源日期确认迁移 `20261118230500_stacking_plan_xiaoyun33_source_date.sql`，生产项目 `qhgxougfzzmgqjzzwudf` 已通过 Supabase 迁移执行；生成两座、49 层、64 个空间/单元草稿。
 - 地图入口：已有 `MapController.buildInfoWindowContent` 的楼宇操作区新增 Admin 条件入口。访问 `/stacking-plan/{buildingId}`，独立加载工作台，不增加普通地图首屏 JS。
 - 页面：来源警示、楼座切换、分层状态/面积、按状态筛选、交互详情、Admin 草稿修正、PNG/SVG/XLSX 导出。
 - API：`/api/stacking-plan/[buildingId]`，服务端真实 Admin 权限和会话二次校验，拒绝模拟用户，明确 `Cache-Control: private,no-store`。REST 表对 anon/authenticated 无直接读取授权；由服务端 service_role 读、专用 RPC 写并审计。
@@ -12,7 +12,7 @@
 
 ## 数据事实与未确认事项
 
-资料来源仅为用户在对话中提供的一张 A/B 座竖向租赁截图。图片没有可证实的“数据截至”“业主确认”日期，**2026-11-18 只是接收日期，不是业务截至日期**。因此 `source_as_of=null`、`review_state=pending_source_date`、64 条空间均为 `verification_status=source_unverified`。原图出现“空置”也仅是当时来源表达，不能当作今日现时空置。
+资料来源为用户在对话中提供的一张 A/B 座竖向租赁截图。用户于 **2026-11-18** 明确确认其**数据截至日期为当日**（不是业主签章日期）。后续迁移 `20261118230500_stacking_plan_xiaoyun33_source_date.sql` 已写入生产：`source_as_of=2026-11-18`、`as_of_kind=source_data_as_of`、`review_state=date_confirmed`。**这一确认不等于图片所有租约事实已完成核验**：64 条空间依然均为 `verification_status=source_unverified`；有争议的租户名称、数据和现有成交记录仍须逐项核对。原图“空置”不能直接替代正式业主销控。
 
 - A 座：图片显示 20F—3F、1F、B1—B3；1F 为大堂、B1 还建面积、B2/B3 停车场。5F—3F 奥迪总 5,149.41㎡，逐层 1,716.47㎡，租金 330→360 元/㎡/月。15F—11F 为“还建面积”，未冒充空置。
 - B 座：图片显示 24F—1F、B1—B3；18F 日立数据原整层 1,633.41㎡，原图又注明分租后约 941.84㎡及 691.57㎡空置；分租时间与图片截至日期未独立核验。12F 814.52㎡及 814.51㎡分区，租约日期断档，保留原值与待核验说明。
