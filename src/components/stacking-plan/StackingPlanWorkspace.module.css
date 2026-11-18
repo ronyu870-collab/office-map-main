@@ -48,6 +48,7 @@
 .units{display:flex;gap:3px;overflow:hidden;min-width:0}
 .unit{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:4px;border:1px solid transparent;padding:3px 4px;cursor:pointer;overflow:hidden;min-width:0;transition:filter .15s,outline-color .15s}
 .unit:hover{filter:brightness(.965)}
+.unit:focus-visible{outline:2px solid #bd2e44;outline-offset:1px}
 .unit span{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;font-weight:700}
 .unit small{max-width:100%;font-size:10px;opacity:.72;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .occupied{background:#dcebf5!important;color:#265b7c!important;border-color:#bbd4e5!important}
@@ -89,4 +90,12 @@
 .notification{position:fixed;bottom:15px;right:20px;max-width:420px;z-index:1000;padding:12px 15px;background:#fff;border:1px solid #ddc1c5;box-shadow:0 5px 25px #20304020;border-radius:8px;color:#8e3345;font-size:12px;line-height:1.6}
 @media(max-width:1050px){.layout{grid-template-columns:minmax(0,1fr)}.details{position:static;min-height:0}.statGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.plan{padding:16px}.container{padding-top:20px}}
 @media(max-width:600px){.topbar{padding:0 12px;gap:8px;height:54px}.brand{font-size:11px}.brand span{display:none}.admin{font-size:9px;padding:5px}.heading{align-items:flex-start}.heading h1{font-size:20px}.heading h1 span{display:block;margin:4px 0 0}.lightButton{padding:8px}.statGrid{gap:8px}.statGrid>div{padding:13px 11px}.statGrid strong{font-size:18px}.controls{width:100%}.controls button,.controls select{flex:1;padding:8px 5px}.plan{padding:13px 8px}.sectionTitle{padding:0 4px}.roof{margin-left:40px;margin-right:64px}.tower{padding:5px 3px;box-shadow:3px 3px 0 #dce4ec}.floor{grid-template-columns:31px minmax(0,1fr) 55px;gap:3px;min-height:49px}.level strong{font-size:11px}.level small{font-size:8px}.unit span{font-size:9px}.unit small{font-size:8px}.floorArea{font-size:9px}.floorArea small{font-size:8px}.legend{gap:10px}.details{padding:18px}.notification{left:12px;right:12px;bottom:12px}}
+/* Dense B1 unit rows stay operable on touch devices instead of shrinking below a finger target. */
+@media(max-width:600px){
+  .units{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;touch-action:pan-x}
+  .unit{min-width:44px;min-height:44px;flex-shrink:0}
+  .controls button,.controls select,.tabs button,.lightButton{min-height:44px}
+  .field input,.field select,.field textarea{min-height:44px}
+  .detailHeader button{min-height:44px;min-width:44px}
+}
 @media(prefers-reduced-motion:reduce){.unit{transition:none}}
