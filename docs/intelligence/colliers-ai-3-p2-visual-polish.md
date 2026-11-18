@@ -1,6 +1,6 @@
 # Colliers AI 3.0 P2 — 对话与研究结果视觉整合
 
-基线：最新远端 `main` 的 `0f539116806e2e2c8a68afd3b769ed31a03ba8e6`，已包含 3.0 P0（PR #208）与 P1（PR #209）。开发分支：`codex/colliers-ai-3-p2-visual-polish`；目标：`main`。本记录只对应 3.0 P2，PR 编号、最终 head、工程检查、合并提交与生产部署须取得实际结果后分别登记。
+基线：最新远端 `main` 的 `0f539116806e2e2c8a68afd3b769ed31a03ba8e6`，已包含 3.0 P0（PR #208）与 P1（PR #209）。开发分支：`codex/colliers-ai-3-p2-visual-polish`；目标：`main`；[本次 PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)。本记录只对应 3.0 P2，记录实现与本地证据；最终完整 head、远端工程检查、main 合并提交与生产部署的最终状态及证据统一见本次 PR，不把创建 PR 或 Preview Ready 等同于生产发布。
 
 ## 1. 授权与边界
 
@@ -47,10 +47,10 @@
 | 适用组件／功能回归 | 集成前定向回归通过：历史／工作空间 41 项、Focus 12 项、研究 5 文件／53 项、复制与楼宇 2 文件／11 项。后续焦点修正后历史／工作空间／Focus 3 文件／55 项通过；下载状态归位后 result-experience 17 项通过。各集合与全量测试重叠，不累计为总数 |
 | 本地 `npm run verify` | 中间完整调用的审计、类型、Lint（0 错误、854 条警告）及 272 文件／2,084 项测试通过；Next.js 16.2.12 webpack 编译成功（30.9s），随后 `/api/oss` 页面数据收集被宿主 `uv_interface_addresses` 错误阻断。完整本地 verify **未通过**，编译成功不等于完整生产构建成功 |
 | 最后两项修正后的 `npm run check` | 最终退出码 0：审计、类型、Lint（0 错误、854 条警告）和 272 文件／2,087 项测试全部通过。定向集合不重复累计；该命令不包含生产构建，不覆盖前述完整本地 verify 未通过事实 |
-| 搜索与筛选连续编辑 | 现有登记覆盖 HomeQuery、工作空间和历史入口；最终按实际改动运行，不删除必需用例 |
-| 专属豁免规则回归 | 待取得实际 PR 编号后添加严格正向及拒绝测试，不预猜编号或放宽通用规则 |
-| 精确 PR head 的完整 Verify | 待 PR 创建与最终 head 检查；本地通过不能替代 CI |
-| Visual acceptance evidence | 待实际 PR 编号／完整当前 head／分支／目标／scope／reason 绑定及 CI 检查；成功仅表示豁免记录合规 |
+| 搜索与筛选连续编辑 | 现有登记覆盖 HomeQuery、工作空间和历史入口，相关实际组件回归已在最终 check 运行；远端专属覆盖检查的最终结果见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210) |
+| 专属豁免规则回归 | `node --test scripts/verification/visual-acceptance.node-test.mjs` 23 项全部通过，新增 #210 正向与错误编号／分支／仓库／目标／完整 head／scope／reason 拒绝验证，旧条目及通用校验保持 |
+| 精确 PR head 的完整 Verify | 六项必需 jobs 的最终状态、完整被测 head、构建与远端证据见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)；本地通过不能替代 CI |
+| Visual acceptance evidence | #210 的仓库／分支／目标／完整当前 head／scope／reason 联合校验；最终状态及精确 head 见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)。成功仅表示豁免记录合规，不是人工视觉通过 |
 | 独立人工视觉评审 | `waived`，本次用户明确豁免，未执行 |
 | 重复手工浏览器观感审查 | `waived`，本次用户明确豁免，未执行 |
 | 实体手机人工验收 | `waived`，本次用户明确豁免，未执行 |
@@ -73,24 +73,24 @@ npx vitest run src/components/home/__tests__/home-query-history.test.tsx -t 'ren
 
 ## 4. PR 记录与发布
 
-本次沿用现有 `visual-acceptance.mjs` 专属授权登记机制：仓库必须为 `ronyu870-collab/office-map-main`，源分支必须为 `codex/colliers-ai-3-p2-visual-polish`，目标为 `main`。只有实际创建的本次 PR 可获得登记；PR body 使用 `result: waived`，完整当前 head 必须与平台一致，scope 与 reason 必须与该 PR 的专属条目完全相同。PR 编号未知时不创建宽泛或占位放行条目。
+本次沿用现有 `visual-acceptance.mjs` 专属授权登记机制：仓库必须为 `ronyu870-collab/office-map-main`，PR 必须为 **#210**，源分支必须为 `codex/colliers-ai-3-p2-visual-polish`，目标为 `main`。PR body 使用 `result: waived`，完整当前 head 必须与平台一致，scope 与 reason 必须与本 PR 专属条目完全相同；不复用旧 head，不放宽通用校验。
 
-取得实际 PR 编号后使用以下文案，并替换其中的实际编号；`head` 不固定复用旧提交：
+本次 PR 的精确范围和授权理由：
 
 ```text
-scope: Colliers AI 3.0 P2 conversation and research visual polish, PR #<actual PR number>
-reason: User explicitly waived independent visual review, repeated manual browser visual review and physical-phone manual acceptance for Colliers AI 3.0 P2 on 2026-11-18; applies only to PR #<actual PR number>
+scope: Colliers AI 3.0 P2 conversation and research visual polish, PR #210
+reason: User explicitly waived independent visual review, repeated manual browser visual review and physical-phone manual acceptance for Colliers AI 3.0 P2 on 2026-11-18; applies only to PR #210
 ```
 
-| 发布阶段 | 状态 |
+| 发布阶段 | 最终状态与证据入口 |
 | --- | --- |
-| PR 与完整当前 head | 待创建／登记 |
-| 合并 main | 未执行，须精确 head 的所有必需检查通过 |
-| Vercel production | 未核实；Preview Ready 或 main 合并不等同于生产发布 |
-| 正式域名 | 待核对生产部署 commit 与 `https://www.colliersdata.com` alias |
+| PR 与完整当前 head | [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210) 的最终工程验证与 visual-acceptance 记录；每次更新后核对完整 SHA |
+| 合并 main | 本次 PR 的最终合并状态及 main commit；必须先满足精确 head 的全部必需检查 |
+| Vercel production | 本次 PR 的生产 deployment ID、target、commit 与 READY／失败状态；Preview Ready 或 main 合并不能代替该证据 |
+| 正式域名 | 本次 PR 的 `https://www.colliersdata.com` alias 与生产部署 commit 对应记录 |
 
 ## 5. 回退与剩余边界
 
 回退本次前端组件、AI 局部样式与对应规范记录即可恢复 P1 的已发布布局；不删除历史、来源快照、导出、审计或业务数据。P0 紧凑首页和 P1 单实例切换属于本次保留基线，不作为回退目标移除。
 
-人工视觉和真实手机验收均未执行，因此不声称所有设备的人工观感已经获验收。原件直接下载仍受既有来源契约限制；本轮未新增无 URL 原件的下载能力。实际自动工程结果、剩余问题和生产状态在取得证据后更新；本次豁免随本 PR 合并或关闭终止，不适用于后续 PR。
+人工视觉和真实手机验收均未执行，因此不声称所有设备的人工观感已经获验收。原件直接下载仍受既有来源契约限制；本轮未新增无 URL 原件的下载能力。远端自动工程结果、剩余问题及生产发布的最终状态见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)；本次豁免随本 PR 合并或关闭终止，不适用于后续 PR。

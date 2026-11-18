@@ -6,9 +6,9 @@
 - 同一结果内以局部 portal 将原复制／下载组件放到末尾，保留实例和状态，下载进度／成功／错误与操作区同行、图表状态留在图旁；结果更多及下载菜单的 Escape 只关闭当前展开项，不退出工作空间。图表品牌色与网格统一令牌，楼宇图文桌面并排、手机堆叠；清理 11 段无调用旧 CSS，不大范围改全站组件。
 - 修复历史重命名／归档迟到刷新抢走用户已主动转移焦点的问题，两条真实组件回归修复前均失败、修复后历史／工作空间／Focus 55 项通过；下载延迟失败反馈归位回归随结果体验 17 项通过，进入既有 CI。
 - 正式计算、授权字段、历史、地图、来源快照、导出契约及审计保持，不修改数据库或生产业务数据。
-- 用户本次明确豁免独立人工视觉、重复手工浏览器观感和实体手机人工验收，均记未执行；实际 PR 编号与完整当前 head 在创建后绑定，既有工程 CI 和分支保护不变。
+- 用户本次明确豁免独立人工视觉、重复手工浏览器观感和实体手机人工验收，均记未执行；只登记 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210) 的编号／分支／仓库／目标／完整当前 head／范围／理由组合。专属授权与既有保护的 Node 回归 23 项通过，不放宽工程 CI 或分支保护。
 - 中间完整 `verify` 的审计、类型、Lint（0 错误、854 条警告）与 272 文件／2,084 项测试通过，webpack 编译 30.9s 成功，但 `/api/oss` 页面收集因宿主 `uv_interface_addresses` 失败；独立 Node 与 ali-oss 探针复现，OSS 路由及依赖未改。完整本地 verify 未通过，不以编译成功替代完整构建；最后两项修正后的全量 `check` 退出码 0，审计、类型、Lint 与 272 文件／2,087 项测试全部通过，完整构建由精确 head 强制远端 CI 补齐。
-- 规则集实时核实 active、三个 required checks、无 bypass；六项完整 Verify 与 Visual acceptance evidence 仍必须通过。专属豁免检查、精确 head CI、合并及生产部署待实际结果，不沿用 P1 证据。范围、验证、剩余边界和回退见 [P2 实施记录](docs/intelligence/colliers-ai-3-p2-visual-polish.md)。
+- 规则集实时核实 active、三个 required checks、无 bypass；六项完整 Verify 与 Visual acceptance evidence 仍必须通过。精确 head CI、main commit、合并及生产部署的最终状态和完整证据见 [PR #210](https://github.com/ronyu870-collab/office-map-main/pull/210)，不沿用 P1 结果。范围、本地验证、剩余边界和回退见 [P2 实施记录](docs/intelligence/colliers-ai-3-p2-visual-polish.md)。
 
 # 2026-11-18 — Colliers AI 3.0 P1 专注工作空间
 
