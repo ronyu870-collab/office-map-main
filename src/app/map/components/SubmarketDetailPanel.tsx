@@ -24,6 +24,7 @@ type Props = {
   buildings: MarketBuilding[];
   futureCount: number;
   canEdit: boolean;
+  suspended?: boolean;
   onClose: () => void;
   onShowAll: () => void;
   onOpenBuilding: (id: string) => void;
@@ -180,7 +181,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 }
 
 export function SubmarketDetailPanel({
-  name, summary, buildings, futureCount, canEdit, onClose, onShowAll, onOpenBuilding,
+  name, summary, buildings, futureCount, canEdit, suspended = false, onClose, onShowAll, onOpenBuilding,
 }: Props) {
   const [expanded, setExpanded] = React.useState(false);
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
@@ -211,14 +212,14 @@ export function SubmarketDetailPanel({
 
   React.useEffect(() => {
     const listener = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || editing || event.defaultPrevented) return;
+      if (event.key !== 'Escape' || editing || suspended || event.defaultPrevented) return;
       if (document.querySelector('[aria-modal="true"]')) return;
       event.preventDefault();
       onClose();
     };
     document.addEventListener('keydown', listener);
     return () => document.removeEventListener('keydown', listener);
-  }, [editing, onClose]);
+  }, [editing, suspended, onClose]);
 
   const profile = detail?.profile;
   const series = detail?.trends?.[grade] ?? [];
