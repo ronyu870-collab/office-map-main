@@ -240,6 +240,10 @@ export function SubmarketDetailPanel({
   const scrollTo = (id: string) => {
     scrollRef.current?.querySelector(`#submarket-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+  const closePanel = () => {
+    if (editing && !window.confirm('当前编辑尚未保存，确定放弃更改并关闭子市场介绍吗？')) return;
+    onClose();
+  };
   const save = async (draft: SubmarketProfileDraft) => {
     const parsed = submarketProfileSchema.safeParse(draft);
     if (!parsed.success) { setSaveError('字段格式有误，请检查长度和来源链接。'); return; }
@@ -281,7 +285,7 @@ export function SubmarketDetailPanel({
             aria-label={expanded ? '收起宽版' : '展开阅读'}>
             {expanded ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}
           </button>
-          <button type="button" className={outlineButton} onClick={onClose} aria-label="关闭子市场介绍"><X size={19}/></button>
+          <button type="button" className={outlineButton} onClick={closePanel} aria-label="关闭子市场介绍"><X size={19}/></button>
         </div>
       </header>
 
@@ -322,6 +326,15 @@ export function SubmarketDetailPanel({
                 <span>租金有效样本：{summary.rentSampleCount} 个</span>
                 <span>空置率有效样本：{summary.vacancySampleCount} 个</span>
               </div>
+              {profile?.insights.length ? (
+                <div className="space-y-1.5 rounded-[6px] border-l-[3px] border-[#003e7e] bg-[#f8fafc] px-3 py-2.5">
+                  <h4 className="m-0 text-[12px] font-semibold text-[#003e7e]">核心市场观点</h4>
+                  {profile.insights.slice(0, 2).map((insight, index) => (
+                    <p key={index} className="m-0 text-[12px] leading-5 text-[#334155]">{insight.title}{insight.body ? `：${insight.body}` : ''}</p>
+                  ))}
+                  {profile.insights.length > 2 ? <button type="button" className="text-[12px] text-[#003e7e]" onClick={() => scrollTo('insights')}>查看全部观点</button> : null}
+                </div>
+              ) : null}
             </section>
 
             <section className="space-y-3" aria-labelledby="submarket-trend">
