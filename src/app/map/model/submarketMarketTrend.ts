@@ -28,7 +28,7 @@ export type SubmarketTrendPoint = {
 
 export type SubmarketTrendSeries = Record<'all' | 'a' | 'b', SubmarketTrendPoint[]>;
 
-type OfficeRecord = { id: string; grade: OfficeGrade };
+type OfficeRecord = { id: string; grade?: string | null };
 
 function recentQuarterKeys(last: number, size: number) {
   return Array.from({ length: size }, (_, index) => last - size + index + 1);
