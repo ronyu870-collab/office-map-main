@@ -1,6 +1,6 @@
 # Colliers AI 3.0 P0 — 紧凑 AI 与综合业务首页
 
-基线：远端 `main` 的 `195063eef7924b7ee9b627321cbab95bc36b06c6`（体验 2.0 P2 已合并）；分支：`codex/colliers-ai-3-p0-compact-home`。本记录只对应 3.0 P0，PR 编号、精确 head、工程结果、main 合并与生产发布分别以本次实际记录核实。
+基线：远端 `main` 的 `195063eef7924b7ee9b627321cbab95bc36b06c6`（体验 2.0 P2 已合并）；分支：`codex/colliers-ai-3-p0-compact-home`；[PR #208](https://github.com/ronyu870-collab/office-map-main/pull/208)。本记录只对应 3.0 P0，精确 head、工程结果、main 合并与生产发布分别以本次实际记录核实。
 
 ## 1. 授权与阶段边界
 
@@ -44,8 +44,8 @@
 | 本地 `npm run verify` | 已执行。审计覆盖、TypeScript、Lint（0 错误、854 警告）、271 文件／2,065 项测试通过；生产编译成功，但 `/api/oss` 页面收集时宿主不允许 `uv_interface_addresses`，命令退出 1，完整本地 verify 未通过。未修改 OSS 或伪造系统调用返回值；构建以精确 PR head CI 的实际结果补齐 |
 | 首页和 AI 适用回归 | `npx vitest run src/components/home/__tests__ --maxWorkers=2`：19 文件／177 项全部通过；覆盖身份、业务入口、建议只填草稿、中文组词与 229、发送、恢复、澄清、历史、来源、单输入节点及全屏往返。自动组合事件不作为真实系统输入法验收 |
 | 实际页面与空白风险 | 源码与组件回归保留独立导航／团队挂载；本地 Chromium 因 `socket()` 系统调用限制无法启动，不声称本地实页已验。复用现有 CI 的 `home-entry-browser.mjs` 与 `home-query-experience-p2-browser.mjs` 检查实际生产构建；后者额外记录 AI 区域几何尺寸，不新增人工观感评审 |
-| 精确 PR head 的 Verify | 待 PR 创建后核实全部必要 job，不能以本地通过替代 |
-| Visual acceptance evidence | 待绑定本次实际 PR、分支、完整 head、范围及明确授权后核实；通过仅表示豁免记录合规 |
+| 精确 PR head 的 Verify | PR #208 已创建；待最终 head 的全部必要 job 完成后核实，不能以本地通过替代 |
+| Visual acceptance evidence | 已登记 PR #208 专属授权；`node --test scripts/verification/visual-acceptance.node-test.mjs` 的 21 项契约测试通过，覆盖错误编号／分支／仓库／目标／head／范围／理由拒绝及当前完整 head 更新匹配。待最终 PR body 与当前 head 对齐后核实 CI；通过仅表示豁免记录合规 |
 | 独立人工视觉评审 | `waived`，用户本次明确豁免，未执行 |
 | 重复人工浏览器观感审查 | `waived`，用户本次明确豁免，未执行 |
 | 真实 iOS／Android 人工验收 | `waived`，用户本次明确豁免，未执行 |
