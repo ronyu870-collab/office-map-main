@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 211,
+        branch: 'codex/colliers-ai-4-agent-core',
+        scope: 'Colliers AI 4.0 DeepSeek-native Agent core and minimal homepage response display, PR #211',
+        reason: 'User requested expedited staged Colliers AI 4.0 delivery and allowed nonessential complex visual review to be skipped on 2026-11-18; waiver is restricted to PR #211 and does not assert visual or real-device acceptance',
+      },
+      {
         number: 210,
         branch: 'codex/colliers-ai-3-p2-visual-polish',
         scope: 'Colliers AI 3.0 P2 conversation and research visual polish, PR #210',

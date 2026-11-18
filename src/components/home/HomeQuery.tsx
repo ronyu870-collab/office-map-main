@@ -150,8 +150,11 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     setBusy(true); setTerminalFailure(false); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在处理你的问题…'); setReply(null); setAttempt(next);
     setBuildingSelection(null);
     try {
+      const useAgent = access.agentEnabled === true && !!next.conversation && !next.buildingSelection && !next.replayRequestId && !next.conversation.resumeToken;
+      const payload = { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) };
       const result = recovering && next.requestId ? await trustedQueryClient.recover(scope, next.requestId, controller.signal)
-        : await trustedQueryClient.submit(scope, { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) }, controller.signal);
+        : useAgent ? await trustedQueryClient.submitAgent(scope, payload, controller.signal)
+          : await trustedQueryClient.submit(scope, payload, controller.signal);
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
       const updated = { ...next, requestId: result.requestId ?? next.requestId }; setAttempt(updated);
       // Capacity rejection and a confirmed failed recovery are terminal for
@@ -160,7 +163,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       const terminal = result.status === 'failed' && (result.reason === 'scope_limit' || historyExpired || recovering);
       setTerminalFailure(terminal);
       if (historyExpired) { setResumedContext(null); setParentRequest(undefined); setConversationId(crypto.randomUUID()); }
-      if (terminal) clearSaved();
+      if (terminal || result.status === 'assistant') clearSaved();
       else if (updated.requestId) {
         setSavedId(updated.requestId); try { sessionStorage.setItem(storageKey, updated.requestId); } catch { /* Recovery also works in this mounted session. */ }
       }
@@ -174,9 +177,10 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       // Only completed, attributed turns become parents. A restored old request
       // without this page's conversation cannot silently seed a new dialogue.
       const responseConversation = result.conversation ?? next.conversation;
-      if ((result.status === 'ready' || result.status === 'clarification') && result.requestId
+      if ((result.status === 'ready' || result.status === 'assistant' || result.status === 'clarification') && result.requestId
         && responseConversation && responseConversation.id === next.conversation?.id) { setConversationId(responseConversation.id); setParentRequest(result.requestId); setResumedContext(null); }
-      if (result.status === 'ready' && result.result) setMessage('查询完成。');
+      if (result.status === 'ready' && result.result) setMessage('研究结果已生成。');
+      else if (result.status === 'assistant') setMessage('回复完成。');
       else if (historyExpired) setMessage('此历史上下文已过期，请重新打开历史记录后继续分析。也可以开始一个新问题。');
       else if (terminal) setMessage(result.reason === 'scope_limit'
         ? result.error ?? '本次查询范围超过交互容量，请减少子市场、季度或指标后重新提问。'
@@ -194,7 +198,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       if (current.current === controller) current.current = null;
       if (alive.current && ticket === generation.current) setBusy(false);
     }
-  }, [access.enabled, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
+  }, [access.enabled, access.agentEnabled, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
   function stopWaiting() {
     generation.current++; current.current?.abort(); current.current = null; setBusy(false);
     setMessage('已停止等待，服务端可能仍在处理。可重试本次请求或恢复结果，不能据此认定服务端已取消。');
@@ -279,7 +283,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const ready = reply?.status === 'ready' && !!reply.result;
   const assistantHelp = reply?.status === 'clarification' && reply.reason === 'assistant_help';
   const needsConditions = reply?.status === 'clarification' && !assistantHelp;
-  const retry = attempt && !busy && !terminalFailure && !reply?.result && reply?.status !== 'clarification';
+  const retry = attempt && !busy && !terminalFailure && !reply?.result && !['clarification', 'assistant'].includes(reply?.status ?? '');
   const examples = [...new Set(access.examples)];
   const starters = queryStarters(examples);
   const emptyConversation = !attempt && !history.length;
@@ -350,17 +354,18 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       {attempt && <article key={attempt.idempotencyKey} className={styles.turn} aria-label="本次问答" data-query-turn={attempt.idempotencyKey}>
         <p className={styles.question}><span className="sr-only">你的问题：</span>{attempt.question || '已恢复的查询'}</p>
         <div className={styles.assistantResponse}>
-        <AssistantHeading label={busy ? '正在处理' : assistantHelp ? '助手介绍' : needsConditions ? '需要补充条件' : ready ? '基于授权数据' : '查询状态'} />
+        <AssistantHeading label={busy ? '正在处理' : reply?.status === 'assistant' ? 'Colliers AI' : assistantHelp ? '助手介绍' : needsConditions ? '需要补充条件' : ready ? '基于授权数据' : '查询状态'} />
       <div role="status" aria-live="polite" className={ready ? 'sr-only' : styles.status} data-state={busy ? 'working' : assistantHelp ? 'help' : needsConditions ? 'clarification' : 'status'}>
         {busy && <QueryWorkingIndicator />}{message}
       </div>
+      {(reply?.status === 'assistant' || ready) && reply?.message && <p className={styles.answerText} style={{ whiteSpace: 'pre-wrap' }}>{reply.message}</p>}
       {activeTurn && activeContext && needsConditions && <QueryActions label="请选择查询口径" actions={reply?.options} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       {ready && reply?.result && <div hidden={collapsed}><HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} visible={!collapsed} /></div>}
       {ready && reply?.historySaved !== undefined && <p className={styles.saveStatus}>{reply.historySaved ? '本次分析已自动保存至历史记录。' : '本次结果已留存，历史列表暂不可用。'}</p>}
       {activeTurn && activeContext && ready && !collapsed && <QueryActions label="继续分析" actions={suggestions(reply)} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       <div className={`${styles.actions} ${styles.turnActions}`}>
         {retry && <Button variant="secondary" onClick={() => void run(attempt)}>重试本次请求</Button>}
-        {savedId && !busy && !ready && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId, conversation: attempt?.conversation }, true)}>检查状态并恢复结果</Button>}
+        {savedId && !busy && !ready && reply?.status !== 'assistant' && <Button variant="ghost" onClick={() => void run({ idempotencyKey: attempt?.idempotencyKey ?? crypto.randomUUID(), question: attempt?.question ?? '', requestId: savedId, conversation: attempt?.conversation }, true)}>检查状态并恢复结果</Button>}
         {attempt && !busy && <Button variant="ghost" onClick={() => edit(attempt.question)}>编辑问题</Button>}
         {ready && attempt && <><Button variant="ghost" onClick={reexecute} disabled={!attempt.question || !attempt.requestId || busy}>重新查询</Button>
           <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? '展开本次结果' : '收起本次结果'}</Button></>}
@@ -431,14 +436,14 @@ function PreviousTurn({ turn, scope, internalExport, onEdit, canFollowUp, onFoll
   return <article className={styles.previousTurn} aria-label="此前问答" data-query-turn={turn.attempt.idempotencyKey}>
     <p className={styles.question}><span className="sr-only">你的问题：</span>{turn.attempt.question || '已恢复的查询'}</p>
     <div className={styles.assistantResponse}>
-      <AssistantHeading label={result ? '基于授权数据' : help ? '助手介绍' : turn.reply?.status === 'clarification' ? '需要补充条件' : '查询状态'} />
+      <AssistantHeading label={result ? '基于授权数据' : turn.reply?.status === 'assistant' ? 'Colliers AI' : help ? '助手介绍' : turn.reply?.status === 'clarification' ? '需要补充条件' : '查询状态'} />
       {result ? <>
-        <p className={styles.previousSummary}>{resultSummary(result)[0]}</p>
+        <p className={styles.previousSummary} style={{ whiteSpace: 'pre-wrap' }}>{turn.reply?.message || resultSummary(result)[0]}</p>
         <details onToggle={event => { setOpen(event.currentTarget.open); if (event.currentTarget.open) setMounted(true); }}><summary>Colliers AI · 查看此前回答</summary>
           {mounted && <HomeQueryResult result={result} delivery={turn.reply ?? undefined} requestId={turn.reply?.requestId} scope={scope} internalExport={internalExport} presentation={presentation} onExpand={onExpand} visible={open} />}
           {open && controls}
         </details>
-      </> : <><p className={styles.answerText}>{turn.message}</p>{controls}</>}
+      </> : <><p className={styles.answerText} style={{ whiteSpace: 'pre-wrap' }}>{turn.reply?.status === 'assistant' ? turn.reply.message : turn.message}</p>{controls}</>}
     </div>
   </article>;
 }
