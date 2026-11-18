@@ -51,7 +51,9 @@ function makeSvg(tower: Tower, floors: Floor[], spaces: Space[], name: string, s
     const y = top + index * rowHeight;
     const units = spaces.filter(s => s.floor_id === floor.id);
     const total = units.reduce((sum, s) => sum + Math.max(0, numeric(s.area_sqm) ?? 0), 0);
-    const weights = units.map(s => total > 0 ? Math.max(0, numeric(s.area_sqm) ?? 0) / total : 1 / Math.max(units.length, 1));
+    const measured = units.filter(s => numeric(s.area_sqm) !== null).length;
+    const fallbackArea = measured && total > 0 ? total / measured : 1;
+    const weights = units.map(s => Math.max(0.01, numeric(s.area_sqm) ?? fallbackArea));
     const sumWeights = weights.reduce((s, n) => s + n, 0);
     let offset = 0;
     const tiles = units.map((unit, unitIndex) => {
@@ -260,15 +262,18 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                 <div className={styles.roof}><span>{tower?.display_name}</span></div>
                 <div className={styles.tower}>
                   {visibleFloors.length ? visibleFloors.map(f => {
-                    const units = unitList.filter(s => s.floor_id === f.id && (filter === 'all' || s.occupancy_status === filter));
+                    const units = unitList.filter(s => s.floor_id === f.id);
                     const known = units.reduce((sum, s) => sum + (numeric(s.area_sqm) ?? 0), 0);
+                    const measured = units.filter(s => numeric(s.area_sqm) !== null).length;
+                    const fallbackArea = measured && known > 0 ? known / measured : 1;
+                    const displayArea = units.reduce((sum, s) => sum + (numeric(s.area_sqm) ?? fallbackArea), 0);
                     return <div className={styles.floor} key={f.id}>
                       <div className={styles.level}><strong>{f.floor_code}</strong><small>{f.zone ?? ''}</small></div>
                       <div className={styles.units}>
                         {units.map(s => <button type="button" key={s.id} onClick={() => selectUnit(s)}
                           title={`${s.tenant_name || STATUS[s.occupancy_status]} · ${fmt(s.area_sqm)}㎡`}
                           className={`${styles.unit} ${styles[s.occupancy_status]} ${selected?.id === s.id ? styles.chosen : ''}`}
-                          style={{ flex: known > 0 ? Math.max(0, numeric(s.area_sqm) ?? 0) / known : 1 / units.length, minWidth: 0 }}>
+                          style={{ flex: displayArea > 0 ? (numeric(s.area_sqm) ?? fallbackArea) / displayArea : 1 / units.length, minWidth: 0 }}>
                           <span>{s.tenant_name ?? (s.occupancy_status === 'vacant' ? '空置' : s.occupancy_status === 'unknown' ? s.unit_code + ' 待确认' : s.unit_code)}</span>
                           <small>{fmt(s.area_sqm)}㎡</small>
                         </button>)}
