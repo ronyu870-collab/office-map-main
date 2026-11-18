@@ -36,6 +36,26 @@ async function authorize(request: NextRequest): Promise<Authorized | Failure> {
   }
 }
 
+/** Transactional audit write: the service-only RPC updates the source draft and
+ * appends before/after snapshots in stacking_plan_space_events atomically. */
+async function writeAuditStackingSpace(client: SupabaseClient, input: {
+  buildingId: string; spaceId: string; actorId: string; revision: number; patch: Record<string, unknown>;
+}) {
+  return client.rpc('stacking_plan_space_save', {
+    p_building_id: input.buildingId, p_space_id: input.spaceId,
+    p_actor: input.actorId, p_expected_revision: input.revision, p_patch: input.patch,
+  });
+}
+
+/** Export is an explicit audited action; no export is authorized before this insert. */
+async function writeAuditStackingExport(client: SupabaseClient, input: {
+  buildingId: string; actorId: string; format: string;
+}) {
+  return client.from('stacking_plan_export_events').insert({
+    building_id: input.buildingId, actor_id: input.actorId, export_format: input.format,
+  });
+}
+
 async function findBuilding(client: SupabaseClient, id: string) {
   return client.from('buildings').select('id,name').eq('id', id).maybeSingle();
 }
@@ -121,9 +141,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
     const { client, actorId, guard } = auth;
     await guard();
-    const { data, error } = await client.rpc('stacking_plan_space_save', {
-      p_building_id: id, p_space_id: body.space_id, p_actor: actorId,
-      p_expected_revision: body.expected_revision, p_patch: patch,
+    const { data, error } = await writeAuditStackingSpace(client, {
+      buildingId: id, spaceId: body.space_id, actorId,
+      revision: Number(body.expected_revision), patch,
     });
     if (error) {
       if (error.code === '40001') return reply({ error: '已有其他修改，请刷新后重试' }, 409);
@@ -154,8 +174,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { data: building, error: buildingError } = await findBuilding(client, id);
     if (buildingError || !building) return reply({ error: '楼宇不存在或不可读取' }, 404);
     await guard();
-    const { error } = await client.from('stacking_plan_export_events')
-      .insert({ building_id: id, actor_id: actorId, export_format: body.format });
+    const { error } = await writeAuditStackingExport(client, {
+      buildingId: id, actorId, format: String(body.format),
+    });
     if (error) return databaseUnavailable(error);
     await guard();
     return reply({ ok: true });
