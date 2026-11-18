@@ -741,7 +741,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
                 preserves the narrative scroll and permits an explicit return. */}
             <div className={areaProjectOpen ? 'hidden' : 'contents'}>
               <SubmarketDetailPanel key={selectedSubmarket} name={selectedSubmarket} summary={selectedSummary}
-                buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin'}
+                buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin'} suspended={areaProjectOpen}
                 onClose={() => { setSelectedSubmarket(null); setAreaProjectOpen(false); }}
                 onShowAll={showSubmarketBuildings}
                 onOpenBuilding={id => {
