@@ -52,6 +52,8 @@
 
 不关闭工作流、不修改硬性分支保护、不把界面变更伪报为 `not-applicable`。仅按已有专属登记机制处理本次人工验收授权；完整工程 CI 的结果仍独立成立。
 
+首轮精确 head `761c667a659ea3d2c9aeee252256aa9f6b74add2` 的主工程 CI 已通过完整生产构建和自动浏览器回归。88 个 AI 页面／状态记录全部通过既有检查，1280／1536px 桌面及 768px 视口空态区域实测 214px，输入面 600×56px；390px 输入面 324×56px。320px 时较长 placeholder 换行，将空输入面撑到 66px，故进一步缩短初次与追问提示，不改变完整用户输入或发送逻辑。该修正后仍须核对最新 PR head 的全部 CI；首轮结果不能替代新版本。原始结构化证据见 [首轮 Verify](https://github.com/ronyu870-collab/office-map-main/actions/runs/44228489758) 的 `colliers-ai-experience-p2-verification` artifact；未进行人工看图。
+
 ## 5. 合并、发布与回退
 
 PR、当前 head、精确 head 的必要检查、main 合并 commit 和 Vercel production 部署状态分别核验；创建 PR、Preview Ready 或 main 已合并均不能单独证明生产已经发布。只有核对生产部署对应的 commit 和环境后才报告部署确认。

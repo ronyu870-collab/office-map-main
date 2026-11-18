@@ -368,7 +368,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       <textarea ref={input} id="home-query" aria-label="向 Colliers AI 提问" aria-describedby="home-query-status home-query-notice" disabled={!access.enabled}
         rows={expanded ? 2 : 1} maxLength={6000} value={draft} onChange={event => setDraft(event.target.value)}
         onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
-        placeholder={access.enabled ? (attempt ? '继续追问，或提出一个新问题…' : '想了解哪栋楼，或哪一个市场？') : '对话查询尚未开放'}
+        placeholder={access.enabled ? (attempt ? '继续追问或换个问题…' : '输入楼宇或市场问题…') : '对话查询尚未开放'}
         onKeyDown={event => {
           if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || composing.current || event.keyCode === 229) return;
           event.preventDefault();
