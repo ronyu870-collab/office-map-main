@@ -3,8 +3,8 @@
 import * as React from 'react';
 import dynamic from 'next/dynamic';
 import {
-  ArrowUpRight, BookOpenText, Building2, ChartNoAxesCombined, ChevronRight,
-  ExternalLink, Expand, FileText, MapPin, Maximize2, Minimize2, Pencil,
+  ArrowUpRight, Building2, ChevronRight,
+  ExternalLink, MapPin, Maximize2, Minimize2, Pencil,
   Plus, RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
 
