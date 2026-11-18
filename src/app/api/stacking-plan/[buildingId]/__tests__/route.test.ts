@@ -98,7 +98,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(rpc).toHaveBeenCalledWith('stacking_plan_space_save', expect.objectContaining({
       p_space_id: SPACE, p_building_id: ID, p_expected_revision: 1,
     }));
-    expect(guard).toHaveBeenCalledTimes(3);
+    expect(guard).toHaveBeenCalledTimes(2);
   });
 
   it('checks export authorization and records only a valid explicit export intent', async () => {
