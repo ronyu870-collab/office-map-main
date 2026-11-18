@@ -118,6 +118,24 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
 
 describe('Conversational Experience P1 shared workspace lifecycle', () => {
+  it('closes a history action menu with Escape before closing the workspace', async () => {
+    historyClient.list.mockResolvedValue({ entries: [{ conversationId: requestIds[0], requestId: requestIds[1],
+      title: '季度研究', latestQuestion: '租金趋势', updatedAt: '2026-11-18T01:00:00.000Z', archived: false }],
+      hasMore: false, indexing: false, unavailable: 0 });
+    const { input } = await open(); const surface = await expand();
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+    const trigger = await screen.findByRole('button', { name: '对话操作：季度研究' });
+    const user = userEvent.setup(); await user.click(trigger);
+    expect(screen.getByRole('menuitem', { name: '重命名' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument(); expect(trigger).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Colliers AI 工作空间' })).toBe(surface);
+    expect(screen.getByRole('textbox', { name: '向 Colliers AI 提问' })).toBe(input);
+    expect(screen.getAllByRole('button', { name: '新对话' })).toHaveLength(1);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Colliers AI 工作空间' })).not.toBeInTheDocument());
+    expect(client.submit).not.toHaveBeenCalled(); expect(historyClient.change).not.toHaveBeenCalled();
+  });
   it('skips controls inside CSS-hidden metadata when cycling focus in a short workspace', async () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => help(body));
     const { input } = await open();

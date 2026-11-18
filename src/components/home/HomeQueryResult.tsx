@@ -28,6 +28,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   const [page, setPage] = React.useState(0);
   const [selected, setSelected] = React.useState<{ ids: readonly string[]; label: string } | null>(null);
   const [sourcePage, setSourcePage] = React.useState(0);
+  const [actionContainer, setActionContainer] = React.useState<HTMLDivElement | null>(null);
   const resultPanel = React.useRef<HTMLElement>(null);
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
@@ -54,6 +55,18 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   if (!condensed && !detailsMounted) setDetailsMounted(true);
   const scalarColumn = result.operation === 'aggregate' && result.table.rows.length === 1 && result.table.columns.length === 1 ? result.table.columns[0] : null;
   const scalar = scalarColumn ? result.table.rows[0].cells[scalarColumn.key] : null;
+  // Choose an existing, attributed result statement before method text. These
+  // are display values from the saved result, never new client calculations.
+  const conclusionIndex = result.operation === 'distribution' || result.operation === 'relationship' ? 1 : 0;
+  const aggregateConclusion = multipleMetrics && result.operation === 'aggregate' && result.table.rows.length === 1
+    ? metrics.map(metric => {
+      const key = resultMetricColumns(result, metric).value;
+      const column = result.table.columns.find(item => item.key === key);
+      const cell = result.table.rows[0].cells[key];
+      return column && cell ? `${metricLabels[metric]}为 ${cellText(cell, column.unit)}${cell.kind === 'number' ? ` ${units[column.unit ?? ''] ?? column.unit ?? ''}` : ''}` : null;
+    }).filter(Boolean).join('；') : null;
+  const conclusion = primaryFinding?.text ?? (aggregateConclusion ? `${aggregateConclusion}。` : summary[conclusionIndex] ?? summary[0]);
+  const context = summary.filter((line, index) => (primaryFinding || index !== conclusionIndex) && line !== conclusion);
   const rows = result.table.rows.slice(page * 25, (page + 1) * 25);
   const sourceMap = React.useMemo(() => new Map(result.sources.map(source => [source.id, source])), [result]);
   const sources = selected ? selected.ids.flatMap(id => sourceMap.has(id) ? [sourceMap.get(id)!] : []) : [];
@@ -71,15 +84,17 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation}>
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
     <div className={experienceStyles.answer}>
-      <p className={experienceStyles.conclusion}>{primaryFinding?.text ?? summary[0]}</p>
+      <p className={experienceStyles.conclusion}>{conclusion}
+        {primaryFinding && <button type="button" className={experienceStyles.citation} aria-label="查看结论依据"
+          onClick={event => showSources(primaryFinding.sourceIds, primaryFinding.title, event.currentTarget)}>依据</button>}
+      </p>
       <p className={experienceStyles.scope}>{resultScopeText(result)}</p>
       {scalar && scalarColumn && <section className={`${styles.metric} ${experienceStyles.metric}`} aria-label="核心指标">
         <h3>{scalarColumn.label}</h3>
-        <button type="button" className={scalar.kind === 'number' ? `${styles.metricValue} ${experienceStyles.metricValue}` : styles.metricUnknown}
+        <div className={experienceStyles.metricReading}><button type="button" className={scalar.kind === 'number' ? `${styles.metricValue} ${experienceStyles.metricValue}` : styles.metricUnknown}
           aria-label={`查看来源：${scalarColumn.label} ${cellText(scalar, scalarColumn.unit)}`}
           onClick={event => showSources(scalar.sourceIds, scalarColumn.label, event.currentTarget)}>{cellText(scalar, scalarColumn.unit)}</button>
-        {scalar.kind === 'number' && <span className={styles.metricUnit}>{units[scalarColumn.unit ?? ''] ?? scalarColumn.unit}</span>}
-        <p className={styles.notice}>点选数值查看来源</p>
+        {scalar.kind === 'number' && <span className={experienceStyles.metricUnit}>{units[scalarColumn.unit ?? ''] ?? scalarColumn.unit}</span>}</div>
       </section>}
       {multipleMetrics && result.operation === 'aggregate' && result.table.rows.length === 1 && <div className={`${styles.multiMetrics} ${experienceStyles.metrics}`}>
         {metrics.map(metric => {
@@ -88,21 +103,20 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
           const cell = result.table.rows[0].cells[key];
           return column && cell ? <section className={styles.metricComparison} aria-label={`${metricLabels[metric]}指标`} key={metric}>
             <h3>{metricLabels[metric]}</h3>
-            <button type="button" className={styles.cell} aria-label={`查看来源：${metricLabels[metric]} ${cellText(cell, column.unit)}`}
+            <div className={experienceStyles.metricReading}><button type="button" className={cell.kind === 'number' ? experienceStyles.metricValue : styles.metricUnknown} aria-label={`查看来源：${metricLabels[metric]} ${cellText(cell, column.unit)}`}
               onClick={event => showSources(cell.sourceIds, metricLabels[metric], event.currentTarget)}>{cellText(cell, column.unit)}</button>
-            {cell.kind === 'number' && <span>{units[column.unit ?? ''] ?? column.unit}</span>}
+            {cell.kind === 'number' && <span className={experienceStyles.metricUnit}>{units[column.unit ?? ''] ?? column.unit}</span>}</div>
           </section> : null;
         })}
       </div>}
-      {summary.slice(1, scalar ? 2 : undefined).map(line => <p key={line} className={experienceStyles.context}>{line}</p>)}
-      <SourceOverview result={result} research={research} />
+      <SourceOverview result={result} research={research} onSource={showSources} />
     </div>
     {condensed && <div className={experienceStyles.preview}>
       <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
       <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>
     </div>}
     {detailsMounted && <div hidden={condensed} className={experienceStyles.details}>
-    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} />}
+    {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} actionContainer={actionContainer} />}
     {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
     {hasBuildings && requestId && scope && <HomeQueryBuildings result={result} requestId={requestId} scope={scope} onSource={showSources} />}
     {!scalar && result.table.rows.length > 0 && <>
@@ -126,10 +140,17 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       </div>
     </>}
     </div>}
-    <div className={`${styles.limitations} ${experienceStyles.limitations}`}>{result.limitations.map(line => <p key={line}>{line}</p>)}</div>
+    <section className={experienceStyles.sourceSummary} aria-label="数据来源">
+      <h3>数据来源</h3>
+      <button type="button" className={experienceStyles.sourceLink} onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看 {result.sources.length} 条获权来源</button>
+      <p>数值可逐项追溯；来源清单包含未参与计算的候选记录。</p>
+    </section>
+    {(context.length > 0 || result.limitations.length > 0) && <section className={`${styles.limitations} ${experienceStyles.limitations}`} aria-label="统计口径与限制">
+      <h3>统计口径与限制</h3>
+      {[...new Set([...context, ...result.limitations])].map(line => <p key={line}>{line}</p>)}
+    </section>}
     <details className={`${styles.trace} ${experienceStyles.provenance}`}>
       <summary>来源、口径与结果版本</summary>
-      {scalar && summary.slice(2).map(line => <p key={line}>{line}</p>)}
       <details className={styles.trace}><summary>实际执行条件</summary>
         <pre className={styles.auditJson}>{JSON.stringify({
           operation: result.operation,
@@ -144,6 +165,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
       <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
     </details>
+    <div ref={setActionContainer} className={experienceStyles.resultActions} />
     {selected && <section ref={sourcePanel} tabIndex={-1} className={`${styles.sources} ${experienceStyles.sources}`} aria-label="来源详情">
       <div className={styles.sourceHeading}><h3>{selected.label}</h3><Button variant="ghost" onClick={() => {
         setSelected(null);
@@ -171,7 +193,8 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
 });
 
 const analysisCoverageSchema = z.object({ coverage: z.object({ valid: z.number().int().nonnegative() }) });
-export function SourceOverview({ result, research }: { result: QueryResultView; research: ResearchAnalysis | null }) {
+export function SourceOverview({ result, research, onSource }: { result: QueryResultView; research: ResearchAnalysis | null;
+  onSource?: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void }) {
   const periods = ['period', 'start', 'end', 'base', 'current'].flatMap(key => {
     const parsed = quarterSchema.safeParse(result.parameters[key]);
     return parsed.success ? [`${parsed.data.year} Q${parsed.data.quarter}`] : [];
@@ -181,9 +204,11 @@ export function SourceOverview({ result, research }: { result: QueryResultView; 
   const scope = z.object({ inventory: z.string().optional() }).safeParse(result.parameters.scope);
   const tracked = scope.success && scope.data.inventory === 'tracked';
   const source = hasQuarter ? `${period ? `${period} ` : ''}${tracked ? '季度跟踪样本' : '季度数据'}` : result.sources.some(item => item.table === 'building_brochure_data') ? '楼宇目录及楼书参数' : '当前获权楼宇目录';
+  const sourceLabel = <p>数据来源：{onSource ? <button type="button" className={experienceStyles.sourceLink}
+    onClick={event => onSource(result.sources.map(item => item.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>{source}</button> : source}</p>;
   const metrics = resultMetrics(result);
   if (metrics.length > 1) return <section className={`${experienceStyles.basis} ${experienceStyles.multipleBasis}`} aria-label="数据依据摘要">
-    <p>数据来源：{source}</p>
+    {sourceLabel}
     <p>各指标分别核验有效样本，样本数量和面积分母可能不同。</p>
     {metrics.map(metric => {
       const series = research?.series.filter(item => item.metric === metric) ?? [];
@@ -206,7 +231,7 @@ export function SourceOverview({ result, research }: { result: QueryResultView; 
     : coverage.success ? `${coverage.data.coverage.valid} 栋` : research && research.series.length > 1 ? '各组独立统计，见分析明细' : null;
   const method = metrics.length === 1 ? metricMethod(metrics[0]) : null;
   return <section className={experienceStyles.basis} aria-label="数据依据摘要">
-    <p>数据来源：{source}</p>{sample && <p>有效样本：{sample}</p>}{method && <p>统计方式：{method}</p>}
+    {sourceLabel}{sample && <p>有效样本：{sample}</p>}{method && <p>统计方式：{method}</p>}
   </section>;
 }
 

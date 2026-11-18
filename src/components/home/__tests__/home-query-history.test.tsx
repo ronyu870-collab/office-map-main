@@ -41,7 +41,8 @@ describe('own history mounted input and bounded record lifecycle', () => {
   });
   it('keeps rename editable during IME and preserves the title when save fails', async () => {
     render(<HomeQueryHistory scope={scope} onOpen={() => {}} />); await screen.findByText(entry.title);
-    await userEvent.click(screen.getByRole('button', { name: '重命名' }));
+    await userEvent.click(screen.getByRole('button', { name: '对话操作：CBD季度分析' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: '重命名' }));
     const input = screen.getByRole('textbox', { name: '对话标题' }) as HTMLInputElement;
     const user = userEvent.setup(); await user.click(input); await user.clear(input); await user.type(input, '研究');
     input.setSelectionRange(1, 1); await user.keyboard('季度'); expect(input).toHaveValue('研季度究'); expect(input.selectionStart).toBe(3);
@@ -76,7 +77,8 @@ describe('own history mounted input and bounded record lifecycle', () => {
     client.list.mockResolvedValue({ ...page, entries: [{ ...entry, title: '第二页工作' }], indexing: false });
     await userEvent.click(screen.getByRole('button', { name: '下一页记录' })); await screen.findByText('第二页工作');
     expect(screen.queryByText(entry.title)).not.toBeInTheDocument(); expect(screen.getByRole('button', { name: '上一页记录' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '归档' }));
+    await userEvent.click(screen.getByRole('button', { name: '对话操作：第二页工作' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: '归档' }));
     await waitFor(() => expect(client.change).toHaveBeenCalledWith(scope, { action: 'archive', conversationId, archived: true }, expect.any(AbortSignal)));
   });
   it('groups saved work by its recorded date and exposes the currently restored conversation', async () => {
@@ -88,6 +90,78 @@ describe('own history mounted input and bounded record lifecycle', () => {
     await userEvent.click(screen.getByRole('button', { name: '新对话' })); expect(onNew).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole('button', { name: '返回主页' })); expect(onHome).toHaveBeenCalledOnce();
     expect(client.open).not.toHaveBeenCalled(); expect(client.change).not.toHaveBeenCalled();
+  });
+  it('keeps row actions on demand and supports keyboard navigation, Escape and rename cancellation', async () => {
+    render(<HomeQueryHistory scope={scope} onOpen={() => {}} />);
+    const trigger = await screen.findByRole('button', { name: '对话操作：CBD季度分析' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: '归档' })).not.toBeInTheDocument();
+    const user = userEvent.setup(); trigger.focus(); await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: '重命名' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}'); expect(screen.getByRole('menuitem', { name: '归档' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}'); expect(screen.getByRole('menuitem', { name: '重命名' })).toHaveFocus();
+    await user.keyboard('{End}'); expect(screen.getByRole('menuitem', { name: '归档' })).toHaveFocus();
+    await user.keyboard('{Home}{Escape}'); expect(trigger).toHaveFocus(); expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await user.keyboard('{Enter}{Enter}');
+    const input = screen.getByRole('textbox', { name: '对话标题' }); expect(input).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: '取消' }));
+    expect(screen.getByRole('button', { name: '对话操作：CBD季度分析' })).toHaveFocus();
+    expect(client.change).not.toHaveBeenCalled();
+  });
+  it('exposes one row menu at a time and closes it when focus or pointer leaves', async () => {
+    client.list.mockResolvedValue({ ...page, entries: [entry, { ...entry, conversationId: '33333333-3333-4333-8333-333333333333', title: '金融街研究' }] });
+    render(<HomeQueryHistory scope={scope} onOpen={() => {}} />);
+    const first = await screen.findByRole('button', { name: '对话操作：CBD季度分析' });
+    const user = userEvent.setup(); await user.click(first);
+    await user.click(screen.getByRole('button', { name: '对话操作：金融街研究' }));
+    expect(screen.getAllByRole('menu')).toHaveLength(1);
+    expect(screen.getByRole('menu', { name: '对话操作：金融街研究' })).toBeInTheDocument();
+    await user.click(screen.getByRole('searchbox')); expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await user.click(first); await user.tab(); expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(client.change).not.toHaveBeenCalled();
+  });
+  it('restores an archived conversation through its menu and returns focus after a failed archive', async () => {
+    client.list.mockResolvedValue({ ...page, entries: [{ ...entry, archived: true }] });
+    client.change.mockRejectedValueOnce(new Error('未归档，请稍后重试。'));
+    render(<HomeQueryHistory scope={scope} onOpen={() => {}} />);
+    const trigger = await screen.findByRole('button', { name: '对话操作：CBD季度分析' });
+    const user = userEvent.setup(); await user.click(trigger); await user.click(screen.getByRole('menuitem', { name: '移回工作记录' }));
+    await screen.findByText('未归档，请稍后重试。');
+    expect(client.change).toHaveBeenCalledWith(scope, { action: 'archive', conversationId, archived: false }, expect.any(AbortSignal));
+    expect(trigger).toHaveFocus(); expect(screen.getByRole('button', { name: '打开对话：CBD季度分析' })).toBeEnabled();
+  });
+  it('keeps continuous search focus when a rename refresh finishes after the user moves to search', async () => {
+    render(<HomeQueryHistory scope={scope} onOpen={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '对话操作：CBD季度分析' }));
+    await user.click(screen.getByRole('menuitem', { name: '重命名' }));
+    const title = screen.getByRole('textbox', { name: '对话标题' });
+    await user.clear(title); await user.type(title, 'CBD年度研究');
+    const refresh = deferred<HistoryPage>(); client.list.mockReturnValueOnce(refresh.promise);
+    await user.click(screen.getByRole('button', { name: '保存标题' }));
+    await waitFor(() => expect(client.list).toHaveBeenCalledTimes(2));
+    const searchResult = deferred<HistoryPage>(); client.list.mockReturnValueOnce(searchResult.promise);
+    const search = screen.getByRole('searchbox') as HTMLInputElement;
+    await user.click(search); await user.type(search, 'C');
+    await waitFor(() => expect(client.list).toHaveBeenLastCalledWith(scope, expect.objectContaining({ search: 'C' }), expect.any(AbortSignal)));
+    searchResult.resolve({ ...page, entries: [{ ...entry, title: 'CBD年度研究' }] });
+    await screen.findByRole('button', { name: '打开对话：CBD年度研究' });
+    expect(search).toHaveFocus(); expect(search.selectionStart).toBe(1);
+    await user.keyboard('BD'); expect(search).toHaveValue('CBD'); expect(search).toHaveFocus();
+    refresh.resolve(page);
+    expect(client.change).toHaveBeenCalledOnce();
+  });
+  it('keeps a different focused control when archive refresh removes the original history row', async () => {
+    render(<><HomeQueryHistory scope={scope} onOpen={() => {}} /><button type="button">其他工作操作</button></>);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '对话操作：CBD季度分析' }));
+    const refresh = deferred<HistoryPage>(); client.list.mockReturnValueOnce(refresh.promise);
+    await user.click(screen.getByRole('menuitem', { name: '归档' }));
+    await waitFor(() => expect(client.list).toHaveBeenCalledTimes(2));
+    const other = screen.getByRole('button', { name: '其他工作操作' }); await user.click(other); expect(other).toHaveFocus();
+    refresh.resolve({ ...page, entries: [] });
+    await screen.findByText('本页暂无可查看的工作记录。');
+    expect(other).toHaveFocus(); expect(client.change).toHaveBeenCalledOnce();
   });
   it('does not interrupt an active query by restoring history, while search and returning home remain usable', async () => {
     const onHome = vi.fn(), onNew = vi.fn(), onOpen = vi.fn();

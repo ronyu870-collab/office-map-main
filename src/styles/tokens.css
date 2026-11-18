@@ -14,6 +14,7 @@
   /* AI work area: a quiet bridge between the workspace and white editor. */
   --cd-color-ai-surface: #f1f5fa;
   --cd-color-ai-border: #dce5ef;
+  --cd-color-ai-chart-fill: #bacfe5;
   --cd-color-success: #16855b;
   --cd-color-success-soft: #eef8f3;
   --cd-color-warning: #c27803;
@@ -43,6 +44,12 @@
   --cd-line-height-tight: 1.25;
   --cd-line-height-normal: 1.5;
   --cd-line-height-relaxed: 1.7;
+
+  /* Continuous AI reading; shared business forms and tables retain their scale. */
+  --cd-ai-reading-width: 50rem;
+  --cd-ai-body-size: var(--cd-font-size-lg);
+  --cd-ai-body-leading: 1.8;
+  --cd-ai-message-gap: var(--cd-space-10);
 
   --cd-radius-sm: 4px;
   --cd-radius-md: 6px;

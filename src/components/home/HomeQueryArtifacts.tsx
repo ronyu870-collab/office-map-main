@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
@@ -10,10 +11,12 @@ import { metricLabels, resultMetrics, resultMetricColumns, type ResultMetric } f
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryResultActions } from './HomeQueryResultActions';
 import styles from './HomeQuery.module.css';
+import experienceStyles from './HomeQueryResultExperience.module.css';
 
 type Props = { result: QueryResultView; requestId: string; scope: QueryClientScope; internalExport: boolean; visible?: boolean;
+  actionContainer?: HTMLElement | null;
   onSource: (ids: readonly string[], label: string, trigger: HTMLButtonElement) => void };
-export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true }: Props) {
+export function HomeQueryArtifacts({ result, requestId, scope, internalExport, onSource, visible = true, actionContainer }: Props) {
   const numeric = React.useMemo(() => result.table.columns.filter(c => c.unit && result.table.rows.every(r => r.cells[c.key]?.kind !== 'text')), [result]);
   const [field, setField] = React.useState(numeric[0]?.key ?? '');
   const metrics = React.useMemo(() => resultMetrics(result), [result]);
@@ -24,6 +27,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const selectedField = metricColumns?.value ?? metricColumns?.base ?? field;
   const [chart, setChart] = React.useState<ResultChart | null>(null);
   const [message, setMessage] = React.useState('');
+  const [messageTarget, setMessageTarget] = React.useState<'chart' | 'download'>('chart');
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(0);
   useQueryPresentationReceipt(scope, chart, chart ? { surface: 'chart', page, pageSize: 25, layout: chart.kind === 'histogram'?'histogram_all':chart.kind === 'box_plot'?'box_plot_all':chart.kind === 'heatmap'?'heatmap_all':chart.kind === 'faceted_line'?'faceted_line_all':chart.kind === 'line'?'line_all':chart.kind === 'scatter' ? 'scatter_all' : 'bar_page' } : null, visible);
@@ -44,6 +48,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const run = React.useCallback(async (input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') => {
     if (active.current || (typeof input !== 'string' && completedRequest.current === JSON.stringify(input))) return;
     const controller = new AbortController(); active.current = controller;
+    setMessageTarget(typeof input === 'string' ? 'download' : 'chart');
     setBusy(true); setMessage(typeof input === 'string' ? '正在核对导出权限并生成文件…' : '正在核对权限并生成同源图表…');
     try {
       if (typeof input === 'string') {
@@ -85,7 +90,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const [min, max] = chart ? chartBounds(chart, 'y') : [0, 0];
   const span = max - min || 1;
   const position = (value: number) => (value - min) / span * 100;
-  return <div className={styles.artifacts}>
+  const actions = <div hidden={!visible} role="group" aria-label="结果操作与反馈">
     <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
         <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
@@ -93,22 +98,28 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
         {numeric.length > 0 && <Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button>}
       </div></details>}
     </HomeQueryResultActions>
-    <div className={styles.actions}>
+    <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'download' ? message : ''}</p>
+  </div>;
+  return <div className={styles.artifacts}>
+    <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
       {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
         const chosen = metrics.find(item => item === event.target.value);
         if (!chosen || active.current) return;
         setChart(null); completedRequest.current = null; setMessage(''); setPage(0); setMetric(chosen);
       }}>{metrics.map(item => <option key={item} value={item}>{metricLabels[item]}</option>)}</select></label>
         : !multipleMetrics && numeric.length > 1 && result.operation !== 'compare' && !isTrend && !isCross && !isRelationship && !isDistribution && <label className={styles.chartSelect}>图表指标<select value={field} disabled={busy} onChange={e => setField(e.target.value)}>{numeric.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></label>}
-      {numeric.length > 0 && result.operation !== 'aggregate' && <Button variant="secondary" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
+      {numeric.length > 0 && result.operation !== 'aggregate' && <Button variant="ghost" disabled={busy} onClick={() => void run(request)}>{isDistribution?'查看直方图':isRelationship?'查看散点图':isCross?'查看热力表':isTrend?'查看折线图':'查看柱状图'}</Button>}
       {isDistribution && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'box_plot'})}>查看箱线图</Button>}
       {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
     </div>
-    <p role="status" className={styles.notice}>{message}</p>
+    <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'chart' ? message : ''}</p>
     {chart && <figure className={styles.chart} aria-label="同源查询图表">
-      <figcaption>{chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit]??chart.distribution.unit}），有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : <>{chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}。有效图示 {chart.renderedCount} 项，未知 {chart.unknownCount} 项；未知不画成零。</>}</figcaption>
+      <figcaption className={experienceStyles.chartCaption}>
+        <span>{chart.distribution ? `${chart.distribution.label}（${units[chart.distribution.unit] ?? chart.distribution.unit}）` : chart.kind === 'scatter' ? `${chart.xLabel}（${units[chart.xUnit ?? ''] ?? chart.xUnit}）与${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）` : `${chart.yLabel}（${units[chart.yUnit] ?? chart.yUnit}）`}</span>
+        <span className={experienceStyles.chartNote}>{chart.distribution ? `有效样本 ${chart.distribution.validCount} 栋，排除 ${chart.distribution.excludedCount} 栋。` : `有效图示 ${chart.renderedCount} 项，未知 ${chart.unknownCount} 项；未知不画成零。`}</span>
+      </figcaption>
       {chart.kind === 'histogram'||chart.kind === 'box_plot' ? <DistributionPlot chart={chart} onSource={onSource}/> : chart.kind === 'heatmap' ? <Heatmap chart={chart} onSource={onSource}/> : chart.kind === 'bar' ? <>
         <p className={styles.notice}>统一零基线，数轴范围 {min}–{max}；点选数值查看来源。</p>
         <div>{shown.map((point, i) => <div className={styles.barRow} key={`${point.yCell.entityId}:${point.yCell.key}:${i}`}>
@@ -120,14 +131,23 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       {(chart.kind==='line'||chart.kind==='faceted_line') && <p className={styles.notice}>季度连续排列，缺数据处断线；数值与来源见下方原表。横向滚动可查看全部季度。</p>}
       {chart.kind === 'scatter' && <p className={styles.notice}>仅绘制两个字段都有有效值的联合样本，不代表因果关系。各楼数值和可点选来源见下方原表。</p>}
     </figure>}
+    {actionContainer === undefined ? actions : actionContainer ? createPortal(actions, actionContainer) : null}
   </div>;
 }
+function ChartGrid({ left, right, top, bottom }: { left: number; right: number; top: number; bottom: number }) {
+  return <g aria-hidden="true" stroke="var(--cd-color-border)" strokeDasharray="3 4" strokeWidth="1">
+    {[.25, .5, .75].map(fraction => <line key={fraction} x1={left} x2={right}
+      y1={top + (bottom - top) * fraction} y2={top + (bottom - top) * fraction} />)}
+  </g>;
+}
+
 function Scatter({ chart }: { chart: ResultChart }) {
   const valid = chart.points.filter(p => p.state === 'valid');
   const [xmin, xmax] = chartBounds(chart, 'x'), [ymin, ymax] = chartBounds(chart, 'y');
   return <div className={styles.scatterScroll} tabIndex={0} aria-label="散点图，可横向滚动；明细见原表"><svg width="640" height="380" role="img" aria-label={`${chart.xLabel}与${chart.yLabel}，有效联合样本 ${valid.length}`}>
-    <path d="M70 30 V320 H600" fill="none" stroke="#667085" />
-    {valid.map((p, i) => <circle key={i} cx={70 + ((p.x as number) - xmin) / (xmax - xmin || 1) * 530} cy={320 - (p.y! - ymin) / (ymax - ymin || 1) * 290} r="4" fill="#003e7e"><title>{p.label}：{p.xText}，{p.yText}</title></circle>)}
+    <ChartGrid left={70} right={600} top={30} bottom={320} />
+    <path d="M70 30 V320 H600" fill="none" stroke="var(--cd-color-border-strong)" />
+    {valid.map((p, i) => <circle key={i} cx={70 + ((p.x as number) - xmin) / (xmax - xmin || 1) * 530} cy={320 - (p.y! - ymin) / (ymax - ymin || 1) * 290} r="4" fill="var(--cd-color-brand)"><title>{p.label}：{p.xText}，{p.yText}</title></circle>)}
     <text x="60" y="35" textAnchor="end">{ymax}</text><text x="60" y="320" textAnchor="end">{ymin}</text><text x="70" y="344">{xmin}</text><text x="600" y="344" textAnchor="end">{xmax}</text>
     <text x="70" y="370">{chart.xLabel}（{units[chart.xUnit ?? ''] ?? chart.xUnit}）</text>
   </svg></div>;
@@ -137,9 +157,10 @@ function TrendLine({chart,height=380,bounds}:{chart:ResultChart;height?:number;b
   const plot=lineGeometry(chart,undefined,height,bounds);
   return <div className={styles.scatterScroll} tabIndex={0} aria-label="季度趋势图，可横向滚动；缺期断线，来源见原表">
     <svg width={plot.width} height={plot.height} role="img" aria-label={`${chart.title}，${chart.yLabel}季度趋势，${chart.points.length}个季度，${chart.unknownCount}个季度未知`}>
-      <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="#667085"/>
-      {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="#003e7e" strokeWidth="2"/>)}
-      {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="#003e7e"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
+      <ChartGrid left={plot.left} right={plot.right} top={plot.top} bottom={plot.bottom} />
+      <path d={`M${plot.left} ${plot.top} V${plot.bottom} H${plot.right}`} fill="none" stroke="var(--cd-color-border-strong)"/>
+      {plot.segments.map((segment,i)=><polyline key={i} points={segment} fill="none" stroke="var(--cd-color-brand)" strokeWidth="2" strokeLinejoin="round"/>)}
+      {plot.points.map(p=><g key={p.point.label}>{p.y!==null&&<circle cx={p.x} cy={p.y} r="4" fill="var(--cd-color-brand)"><title>{p.point.label}：{p.point.yText}</title></circle>}<text x={p.x} y={plot.bottom+26} textAnchor="middle">{p.point.label}</text></g>)}
       <text x={plot.left-10} y={plot.top+5} textAnchor="end">{plot.max}</text><text x={plot.left-10} y={plot.bottom} textAnchor="end">{plot.min}</text>
       <text x={plot.left} y={plot.height-8}>季度；{chart.yLabel}（{units[chart.yUnit]??chart.yUnit}）</text>
     </svg>
@@ -173,14 +194,15 @@ function DistributionPlot({chart,onSource}:{chart:ResultChart;onSource:Props['on
   return <>
     <div className={styles.scatterScroll} tabIndex={0} aria-label="分布图，可横向滚动；精确数值与来源见下方">
       {chart.kind==='histogram'?<svg width="640" height="320" role="img" aria-label={`${d.label}直方图，${d.validCount}栋有效样本`}>
-        <path d="M50 20 V260 H620" fill="none" stroke="#667085"/>
-        {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="#bacfe5"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
+        <ChartGrid left={50} right={620} top={20} bottom={260} />
+        <path d="M50 20 V260 H620" fill="none" stroke="var(--cd-color-border-strong)"/>
+        {chart.points.map((p,i)=>{const width=560/chart.points.length,left=55+i*width,height=(p.y??0)/maxCount*210;return <g key={p.yCell.entityId}><rect x={left} y={260-height} width={Math.max(1,width-2)} height={height} fill="var(--cd-color-ai-chart-fill, #bacfe5)"><title>{p.label}：{p.yText}栋</title></rect><text x={left+width/2} y={250-height} textAnchor="middle">{p.yText}</text><text x={left+width/2} y="284" textAnchor="middle">{i+1}</text></g>;})}
         <text x="50" y="310">区间编号（边界见下方）；纵向为楼宇数量</text>
       </svg>:<svg width="100%" height="200" role="img" aria-label={`${d.label}箱线图，${d.validCount}栋有效样本`}>
-        <line x1={percent(x('lowerWhisker'))} x2={percent(x('upperWhisker'))} y1="80" y2="80" stroke="#667085"/>
-        <rect x={percent(x('q1'))} y="55" width={percent(x('q3')-x('q1'))} height="50" fill="#bacfe5" stroke="#667085"/>
-        {(['lowerWhisker','median','upperWhisker'] as const).map(key=><line key={key} x1={percent(x(key))} x2={percent(x(key))} y1="55" y2="105" stroke="#003e7e"/>)}
-        {chart.points.filter(p=>p.outlier===true&&p.y!==null).map(p=><circle key={p.yCell.entityId} cx={percent(g.scale(p.y!))} cy="80" r="4" fill="#003e7e"><title>{p.label}：{p.yText}</title></circle>)}
+        <line x1={percent(x('lowerWhisker'))} x2={percent(x('upperWhisker'))} y1="80" y2="80" stroke="var(--cd-color-border-strong)"/>
+        <rect x={percent(x('q1'))} y="55" width={percent(x('q3')-x('q1'))} height="50" fill="var(--cd-color-ai-chart-fill, #bacfe5)" stroke="var(--cd-color-border-strong)"/>
+        {(['lowerWhisker','median','upperWhisker'] as const).map(key=><line key={key} x1={percent(x(key))} x2={percent(x(key))} y1="55" y2="105" stroke="var(--cd-color-brand)"/>)}
+        {chart.points.filter(p=>p.outlier===true&&p.y!==null).map(p=><circle key={p.yCell.entityId} cx={percent(g.scale(p.y!))} cy="80" r="4" fill="var(--cd-color-brand)"><title>{p.label}：{p.yText}</title></circle>)}
         <text x={percent(70)} y="145">{g.min}</text><text x={percent(600)} y="145" textAnchor="end">{g.max}</text><text x={percent(70)} y="180">{d.label}（{units[d.unit]??d.unit}）</text>
       </svg>}
     </div>

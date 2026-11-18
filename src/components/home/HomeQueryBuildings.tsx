@@ -66,7 +66,7 @@ function BuildingCard({ building, metadata, result, requestId, scope, single, on
   }, [scopeKey, requestId, result.resultId, building.id, photoId, photoRequested, revision]);
   const columns = result.table.columns.filter(column => column.key !== 'name' && building.cells[column.key]);
   const visible = expanded ? columns : columns.slice(0, 2);
-  return <article className={styles.card} aria-label={`${building.name}楼宇卡片`}>
+  return <article className={`${styles.card} ${photoRequested && metadata?.photo ? styles.withPhoto : ''}`} aria-label={`${building.name}楼宇卡片`}>
     <div className={styles.cardHeading}><h4>{building.name}</h4><p>{metadata?.submarket ?? '子市场未知'} · {metadata?.grade ?? '等级未知'} <span>（当前目录）</span></p></div>
     {photoRequested && metadata?.photo && <figure className={styles.photo}>
       {photo ? <><img src={photo.url} alt={metadata.photo.caption} loading="lazy" onError={() => { setPhoto(undefined); setError('照片加载失败，请重试。'); }} />

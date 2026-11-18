@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUp, ArrowUpRight, ArrowDown, Square, History, Maximize2, Minimize2, PanelRight, Plus, ArrowLeft } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, ArrowDown, Square, History, Maximize2, Minimize2, PanelRight, Plus, X } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
+import { IconButton } from '@/src/components/ui/IconButton';
 import { trustedQueryClient, queryScopeKey, type QueryAccess, type QueryClientScope, type QueryReply } from '@/src/services/trustedQueryClient';
 import { queryActionSchema, type QueryAction, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 import { HomeQueryResult } from './HomeQueryResult';
@@ -312,30 +313,29 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     <header className={workspaceStyles.toolbar}>
       <div className={workspaceStyles.identity}><strong>Colliers <span>AI</span></strong></div>
       {access.enabled && <div className={workspaceStyles.toolbarActions}>
-        {(expanded || attempt || history.length > 0) && <Button variant="ghost" hidden={expanded && historyShown} disabled={busy} aria-label="新对话" onClick={startNew}><Plus size={16} aria-hidden="true" /><span>新对话</span></Button>}
-        <Button ref={historyToggle} variant="ghost" aria-label="历史记录" aria-expanded={historyShown} aria-controls="query-workspace-history" onClick={toggleHistory}><History size={16} aria-hidden="true" /><span>历史记录</span></Button>
-        {latestResult && <Button ref={researchToggle} variant="ghost" aria-label="研究资料" aria-expanded={researchShown} aria-controls="query-workspace-research" onClick={() => {
+        {(expanded || attempt || history.length > 0) && <Button variant="ghost" disabled={busy} aria-label="新对话" title="新对话" onClick={startNew}><Plus size={16} aria-hidden="true" /><span>新对话</span></Button>}
+        <IconButton ref={historyToggle} variant="ghost" label="历史记录" aria-expanded={historyShown} aria-controls="query-workspace-history" onClick={toggleHistory}><History size={16} aria-hidden="true" /></IconButton>
+        {latestResult && <IconButton ref={researchToggle} variant="ghost" label="研究资料" aria-expanded={researchShown} aria-controls="query-workspace-research" onClick={() => {
           setResearchMounted(true); setResearchOpen(!researchShown);
           if (!expanded) expandWorkspace();
           if (!window.matchMedia?.('(min-width: 1280px)').matches) setHistoryOpen(false);
-        }}><PanelRight size={16} aria-hidden="true" /><span>研究资料</span></Button>}
-        {expanded && <Button variant="ghost" size="icon" aria-label={mode === 'expanded' ? '退出全屏 Colliers AI 工作空间' : '全屏 Colliers AI 工作空间'}
+        }}><PanelRight size={16} aria-hidden="true" /></IconButton>}
+        {expanded && <IconButton variant="ghost" label={mode === 'expanded' ? '退出全屏 Colliers AI 工作空间' : '全屏 Colliers AI 工作空间'}
           aria-pressed={mode === 'expanded'} aria-controls="query-workspace-body" onPointerDown={preserveEditorFocus}
           onClick={() => mode === 'expanded' ? focusWorkspace() : expandWorkspace()}>
-          {mode === 'expanded' ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
-        </Button>}
-        <Button ref={workspaceToggleRef} variant="ghost" size={expanded ? 'md' : 'icon'} aria-label={expanded ? '收起 Colliers AI 工作空间' : '展开 Colliers AI 工作空间'} aria-expanded={expanded} aria-controls="query-workspace-body"
+          {mode === 'expanded' ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+        </IconButton>}
+        <IconButton ref={workspaceToggleRef} variant="ghost" label={expanded ? '收起 Colliers AI 工作空间' : '展开 Colliers AI 工作空间'} title={expanded ? '返回主页' : '展开 Colliers AI 工作空间'} aria-expanded={expanded} aria-controls="query-workspace-body"
           onPointerDown={preserveEditorFocus}
           onClick={() => expanded ? exitWorkspace() : expandWorkspace()}>
-          {expanded ? <><ArrowLeft size={18} aria-hidden="true" /><span>主页</span></> : <Maximize2 size={18} aria-hidden="true" />}
-        </Button>
+          {expanded ? <X size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+        </IconButton>
       </div>}
     </header>
     <div id="query-workspace-body" className={workspaceStyles.body}>
     <div id="query-workspace-history" className={workspaceStyles.history} hidden={!access.enabled || !historyShown} inert={!access.enabled || !historyShown}>
       {access.enabled && historyMounted && <HomeQueryHistory key={`${queryScopeKey(scope)}:${access.permissionRevision ?? ''}`} scope={scope} permissionRevision={access.permissionRevision} refreshKey={historyRefresh}
-        activeConversationId={conversationId} busy={busy} onOpen={currentHistory} onClose={closeHistory}
-        onNew={expanded ? startNew : undefined} onHome={expanded ? exitWorkspace : undefined} />}
+        activeConversationId={conversationId} busy={busy} onOpen={currentHistory} onClose={closeHistory} />}
     </div>
     <div className={workspaceStyles.main}>
     <div ref={workspaceScrollRef} className={workspaceStyles.scroller} role="region" aria-label="对话记录" tabIndex={0}

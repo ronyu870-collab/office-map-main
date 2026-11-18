@@ -17,10 +17,8 @@ export function HomeQueryInsights({ research, primaryFindingId, onSource }: { re
   const [calculationOpen, setCalculationOpen] = React.useState(false);
   const [seriesPage, setSeriesPage] = React.useState(0);
   const findings = research.findings.filter(finding => finding.id !== primaryFindingId);
-  const primary = research.findings.find(finding => finding.id === primaryFindingId);
   const metrics = [...new Set(research.series.map(series => series.metric))];
   return <section className={`${styles.insights} ${experienceStyles.insights}`} aria-label="分析与样本核查">
-    {primary && <Button variant="ghost" className={experienceStyles.findingAction} onClick={event => onSource(primary.sourceIds, primary.title, event.currentTarget)}>查看结论依据</Button>}
     {metrics.length > 1 ? <>
       {metrics.map(metric => <section key={metric} aria-label={`${metricLabels[metric]}分析`}>
         <FindingList findings={findings.filter(finding => finding.evidence.metric === metric)} onSource={onSource} />
