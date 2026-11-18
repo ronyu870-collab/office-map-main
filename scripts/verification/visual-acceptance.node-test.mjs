@@ -6,6 +6,21 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Colliers AI 4.0 core waiver is restricted to PR #211 and current exact head', () => {
+  const scope = 'Colliers AI 4.0 DeepSeek-native Agent core and minimal homepage response display, PR #211';
+  const reason = 'User requested expedited staged Colliers AI 4.0 delivery and allowed nonessential complex visual review to be skipped on 2026-11-18; waiver is restricted to PR #211 and does not assert visual or real-device acceptance';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 211, body, head: { sha: head, ref: 'codex/colliers-ai-4-agent-core',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 210 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'unrelated-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Unrelated redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Skip all CI checks') }), /specifically authorized/);
+});
+
 test('Colliers AI 3.0 P2 waiver is limited to PR #210, conversation and research polish and the current exact head', () => {
   const scope = 'Colliers AI 3.0 P2 conversation and research visual polish, PR #210';
   const reason = 'User explicitly waived independent visual review, repeated manual browser visual review and physical-phone manual acceptance for Colliers AI 3.0 P2 on 2026-11-18; applies only to PR #210';

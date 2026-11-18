@@ -10,7 +10,7 @@ import { buildingAnalysisHref } from '@/src/lib/intelligence/query/buildingNavig
 import type { QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 import type { HistoryOpened } from '@/src/lib/intelligence/query/historyProtocol';
 
-const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), recover: vi.fn(), reportDelivery: vi.fn() }));
+const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), submitAgent: vi.fn(), recover: vi.fn(), reportDelivery: vi.fn() }));
 const historyClient = vi.hoisted(() => ({ list: vi.fn(), open: vi.fn(), change: vi.fn() }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client,
   queryScopeKey: (scope: object) => JSON.stringify(scope) }));
@@ -118,6 +118,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
 
 describe('Conversational Experience P1 shared workspace lifecycle', () => {
+  it('uses the native Agent only when the authorized capabilities advertise an available model', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true });
+    client.submitAgent.mockImplementation(async (_scope, body: Submission) => ({
+      requestId: requestIds[0], status: 'assistant', conversation: body.conversation,
+      message: '模型回答：' + body.question, historySaved: false,
+    }));
+    const { input } = await open(); send(input, '你好');
+    await screen.findByText('模型回答：你好');
+    expect(client.submitAgent).toHaveBeenCalledTimes(1);
+    expect(client.submit).not.toHaveBeenCalled();
+  });
+
   it('closes a history action menu with Escape before closing the workspace', async () => {
     historyClient.list.mockResolvedValue({ entries: [{ conversationId: requestIds[0], requestId: requestIds[1],
       title: '季度研究', latestQuestion: '租金趋势', updatedAt: '2026-11-18T01:00:00.000Z', archived: false }],
