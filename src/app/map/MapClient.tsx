@@ -157,11 +157,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
   const [selectedSubmarket, setSelectedSubmarket] = React.useState<string | null>(null);
+  const [areaProjectOpen, setAreaProjectOpen] = React.useState(false);
   React.useEffect(() => {
     const open = (event: Event) => {
       const name = normalizeMapSubmarket((event as CustomEvent<{ name?: string }>).detail?.name);
       if (!name || name === '其他') return;
       setSelectedSubmarket(name);
+      setAreaProjectOpen(false);
       setIsFilterPanelOpen(false);
       setIsSupplyOpen(false);
       setIsListVisible(false);
@@ -710,6 +712,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const name = selectedSubmarket;
     cancelPendingBuildingNavigation();
     setSelectedSubmarket(null);
+    setAreaProjectOpen(false);
     setSearchInput('');
     issueFilterCommand('patch', {
       ...createDefaultFilterState(),
@@ -732,13 +735,33 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     <>
       <MapWorkbenchView
         submarketDetailPanel={selectedSubmarket && selectedSummary && workspaceView === 'map' ? (
-          <SubmarketDetailPanel key={selectedSubmarket} name={selectedSubmarket} summary={selectedSummary}
-            buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin'}
-            onClose={() => setSelectedSubmarket(null)} onShowAll={showSubmarketBuildings}
-            onOpenBuilding={id => {
-              const building = allBuildings.find(item => item.id === id);
-              if (building) handleBuildingClick(building);
-            }} />
+          <>
+            {/* Keep the same panel mounted while presenting a representative building.
+                On mobile the panel covers the map; hiding, rather than unmounting,
+                preserves the narrative scroll and permits an explicit return. */}
+            <div className={areaProjectOpen ? 'hidden' : 'contents'}>
+              <SubmarketDetailPanel key={selectedSubmarket} name={selectedSubmarket} summary={selectedSummary}
+                buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin'}
+                onClose={() => { setSelectedSubmarket(null); setAreaProjectOpen(false); }}
+                onShowAll={showSubmarketBuildings}
+                onOpenBuilding={id => {
+                  const building = allBuildings.find(item => item.id === id);
+                  if (building) {
+                    setAreaProjectOpen(true);
+                    handleBuildingClick(building);
+                  }
+                }} />
+            </div>
+            {areaProjectOpen ? (
+              <button type="button" onClick={() => {
+                  controllerRef.current?.closeInfoWindow?.();
+                  setAreaProjectOpen(false);
+                }}
+                className="pointer-events-auto absolute left-3 top-[64px] z-[435] inline-flex min-h-11 max-w-[calc(100vw-24px)] items-center gap-2 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[13px] font-semibold text-[#003e7e] shadow-[0_4px_14px_rgba(23,32,51,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] sm:left-4">
+                返回{selectedSubmarket}子市场介绍
+              </button>
+            ) : null}
+          </>
         ) : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         stats={stats}
