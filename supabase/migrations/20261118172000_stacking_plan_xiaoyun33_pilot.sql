@@ -113,6 +113,13 @@ end $fn$;
 revoke all on function private.stacking_plan_update_space(uuid,uuid,uuid,integer,jsonb) from public,anon,authenticated;
 grant usage on schema private to service_role;
 grant execute on function private.stacking_plan_update_space(uuid,uuid,uuid,integer,jsonb) to service_role;
+-- PostgREST 公共路由只暴露 invoker wrapper；实际写入校验保留在 private schema。
+create or replace function public.stacking_plan_space_save(p_building_id uuid,p_space_id uuid,p_actor uuid,p_expected_revision integer,p_patch jsonb)
+returns jsonb language sql security invoker set search_path = '' as $sql$
+  select private.stacking_plan_update_space(p_building_id,p_space_id,p_actor,p_expected_revision,p_patch)
+$sql$;
+revoke all on function public.stacking_plan_space_save(uuid,uuid,uuid,integer,jsonb) from public,anon,authenticated;
+grant execute on function public.stacking_plan_space_save(uuid,uuid,uuid,integer,jsonb) to service_role;
 
 -- 仅当真实主档存在才录入试点。保持既有楼宇参数、季度和成交数据不变。
 insert into public.stacking_plan_sources(id,building_id,title,source_as_of,as_of_kind,review_state,source_note)
