@@ -1,5 +1,5 @@
 import { mapOptionalNumber, observedVacantArea } from './vacancyMetrics';
-import { officeGrade, type OfficeGrade } from './submarketOverview';
+import { officeGrade } from './submarketOverview';
 
 export type TrendMetricRow = {
   building_id: string;
