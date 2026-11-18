@@ -273,7 +273,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                         {units.map(s => <button type="button" key={s.id} onClick={() => selectUnit(s)}
                           title={`${s.tenant_name || STATUS[s.occupancy_status]} · ${fmt(s.area_sqm)}㎡`}
                           className={`${styles.unit} ${styles[s.occupancy_status]} ${selected?.id === s.id ? styles.chosen : ''}`}
-                          style={{ flex: displayArea > 0 ? (numeric(s.area_sqm) ?? fallbackArea) / displayArea : 1 / units.length, minWidth: 0 }}>
+                          style={{ flex: displayArea > 0 ? (numeric(s.area_sqm) ?? fallbackArea) / displayArea : 1 / units.length }}>
                           <span>{s.tenant_name ?? (s.occupancy_status === 'vacant' ? '空置' : s.occupancy_status === 'unknown' ? s.unit_code + ' 待确认' : s.unit_code)}</span>
                           <small>{fmt(s.area_sqm)}㎡</small>
                         </button>)}
