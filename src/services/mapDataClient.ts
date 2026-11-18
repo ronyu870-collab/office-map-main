@@ -92,3 +92,44 @@ export async function fetchBuildingTrendPayload(buildingId: string) {
   return Array.isArray(payload.metrics) ? payload.metrics : [];
 }
 
+
+export type SubmarketDetailPayload = {
+  submarket: string;
+  stockCount: number;
+  profileAvailable: boolean;
+  profile: import('@/src/app/map/model/submarketProfile').SubmarketProfile;
+  trends: import('@/src/app/map/model/submarketMarketTrend').SubmarketTrendSeries;
+  quarterMethod: string;
+  source: string;
+};
+
+/** Read only when an area brief is opened. Auth and impersonation mirror the map endpoint. */
+export async function fetchSubmarketDetailPayload(name: string): Promise<SubmarketDetailPayload> {
+  const params = new URLSearchParams({ submarket: name });
+  const payload = await fetchMapJson(`/api/map/submarket?${params.toString()}`);
+  if (!payload || typeof payload !== 'object' || !payload.trends || !payload.profile) {
+    throw new Error('子市场资料响应不完整');
+  }
+  return payload as SubmarketDetailPayload;
+}
+
+/** Admin-only editorial update; the API revalidates role and refuses impersonated mutations. */
+export async function saveSubmarketProfile(
+  name: string,
+  draft: import('@/src/app/map/model/submarketProfile').SubmarketProfileDraft,
+) {
+  const session = await getSessionFast();
+  const token = session?.session?.access_token;
+  if (!token) throw new Error('登录状态已失效');
+  const headers = withImpersonationHeaders({
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  });
+  const response = await fetch(`/api/map/submarket?${new URLSearchParams({ submarket: name })}`, {
+    method: 'PUT', cache: 'no-store', headers, body: JSON.stringify(draft),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(String(payload.error ?? '子市场资料保存失败'));
+  return payload.profile as import('@/src/app/map/model/submarketProfile').SubmarketProfile;
+}
