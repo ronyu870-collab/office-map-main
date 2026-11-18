@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { checkFocusTransitions } from './query-focus-browser-checks.mjs';
 
 // Actual Next/React pages, synthetic HTTP data. This is visual and interaction
 // evidence only; it does not claim production authentication, real DB or phones.
@@ -243,12 +244,35 @@ async function chartPaintEvidence(screenshotPath, bounds, viewportWidth) {
 async function send(session, question, kind) {
   session.control.answer = kind;
   await session.page.locator('#home-query').fill(question);
+  const firstSubmit = variant === 'after' && !session.calls.some(call => call.path === '/api/intelligence/query' && call.method === 'POST');
+  const composerRect = () => session.page.locator('#home-query').evaluate(input => {
+    const rect = input.parentElement.getBoundingClientRect();
+    return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+  });
+  let before;
+  if (firstSubmit) {
+    await session.page.waitForFunction(() => {
+      const surface = document.querySelector('#colliers-ai');
+      return ['focus', 'expanded'].includes(surface?.dataset.mode) && surface.dataset.transitioning === 'false';
+    });
+    before = await composerRect();
+  }
   await session.page.getByRole('button', { name: '发送问题', exact: true }).click();
   if (kind === 'waiting') await session.page.getByRole('button', { name: '停止等待', exact: true }).waitFor();
   else await session.page.getByRole('button', { name: '发送问题', exact: true }).waitFor();
+  if (firstSubmit) {
+    await settledPaint(session.page);
+    const after = await composerRect();
+    for (const field of ['top', 'left', 'width', 'height']) {
+      assert.ok(Math.abs(before[field] - after[field]) <= 3, `first submit keeps the active composer ${field} stable: ${before[field]} -> ${after[field]}`);
+    }
+    session.interactionChecks.firstSubmitComposerStable = { passed: true, before, after };
+  }
 }
 async function expanded(page, open) {
-  await page.getByRole('button', { name: open ? '展开 Colliers AI 工作空间' : '收起 Colliers AI 工作空间', exact: true }).click();
+  const mode = await page.locator('#colliers-ai').getAttribute('data-mode');
+  if (mode === (open ? 'expanded' : 'compact')) return;
+  await page.getByRole('button', { name: open ? mode === 'focus' ? '全屏 Colliers AI 工作空间' : '展开 Colliers AI 工作空间' : '收起 Colliers AI 工作空间', exact: true }).click();
   await page.waitForFunction(value => { const node = document.querySelector('#colliers-ai'); return node?.dataset.mode === value && node?.dataset.transitioning === 'false'; }, open ? 'expanded' : 'compact');
 }
 // A focusable node can have a box while still being outside its scrollport.
@@ -314,6 +338,7 @@ try {
     const session = await makePage(width);
     const { page, control } = session;
     await capture(session, 'welcome');
+    if (variant === 'after') await checkFocusTransitions(session, examples);
     if (width === 1280 || width === 390) {
       await page.getByRole('navigation', { name: '业务入口', exact: true }).evaluate(node => node.scrollIntoView({ block: 'start' }));
       // The activity module is lazy mounted. A scroll position alone can still
@@ -341,7 +366,7 @@ try {
     await input.dispatchEvent('compositionend', { data: '中文' });
     await input.pressSequentially('草稿');
     const draftBeforeSwitch = await input.inputValue();
-    session.interactionChecks = { continuousInputAndCursor: true, syntheticCompositionEnterGuard: true };
+    session.interactionChecks = { ...session.interactionChecks, continuousInputAndCursor: true, syntheticCompositionEnterGuard: true };
     if (width < 640) {
       await page.setViewportSize({ width, height: 400 });
       session.height = 400;

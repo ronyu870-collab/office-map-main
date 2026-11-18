@@ -6,13 +6,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 export const QUERY_PERFORMANCE_BASELINE = '69f51a65639ec60a06058f6ce9fab6d9fdfe3830';
+export const WORKSPACE_PERFORMANCE_BASELINE = 'f600c6bb4cbbb8cdac13275b729cb9ea4b361694';
 
-/** Build the released P1 source against the same disposable Auth/database.
+/** Build one pinned released source against the same disposable Auth/database.
  * No source edits, fake authorization, production credentials or mutable main ref.
  */
-export async function startQueryPerformanceBaseline({ root, env, log, until }) {
+export async function startQueryPerformanceBaseline({ root, env, log, until, commit = QUERY_PERFORMANCE_BASELINE }) {
   assert.equal(env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
   assert.equal(new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname, '127.0.0.1');
+  assert.ok([QUERY_PERFORMANCE_BASELINE, WORKSPACE_PERFORMANCE_BASELINE].includes(commit), 'Only a pinned released baseline may be built');
   const directory = await mkdtemp(path.join(tmpdir(), 'colliers-query-p1-baseline-'));
   const app = 'http://127.0.0.1:3290';
   let server;
@@ -23,22 +25,22 @@ export async function startQueryPerformanceBaseline({ root, env, log, until }) {
     await rm(directory, { recursive: true, force: true });
   };
   try {
-    const archive = spawn('git', ['archive', '--format=tar', QUERY_PERFORMANCE_BASELINE], { cwd: root, stdio: ['ignore', 'pipe', log.fd] });
+    const archive = spawn('git', ['archive', '--format=tar', commit], { cwd: root, stdio: ['ignore', 'pipe', log.fd] });
     const unpack = spawn('tar', ['-xf', '-', '-C', directory], { stdio: ['pipe', log.fd, log.fd] });
     archive.stdout.pipe(unpack.stdin);
     const exits = await Promise.all([once(archive, 'exit'), once(unpack, 'exit')]);
-    assert.ok(exits.every(([code]) => code === 0), 'The exact released P1 archive must be available');
+    assert.ok(exits.every(([code]) => code === 0), 'The exact pinned release archive must be available');
     assert.deepEqual(await readFile(path.join(directory, 'package-lock.json')), await readFile(path.join(root, 'package-lock.json')),
       'A/B must use identical installed dependencies; install a separate baseline if the lockfile changes');
     await symlink(path.join(root, 'node_modules'), path.join(directory, 'node_modules'), 'dir');
     const build = spawn('npm', ['run', 'build'], { cwd: directory, env, stdio: ['ignore', log.fd, log.fd] });
-    assert.equal((await once(build, 'exit'))[0], 0, 'The actual released P1 production build must pass');
+    assert.equal((await once(build, 'exit'))[0], 0, 'The actual released production build must pass');
     server = spawn(process.execPath, [path.join(root, 'node_modules/next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '--port', '3290'],
       { cwd: directory, env, stdio: ['ignore', log.fd, log.fd] });
     await until(async () => {
       try { return (await fetch(app + '/api/intelligence/query', { signal: AbortSignal.timeout(1000) })).status === 405; }
       catch { return false; }
-    }, 'Released P1 production server startup');
-    return { app, commit: QUERY_PERFORMANCE_BASELINE, close };
+    }, 'Pinned release production server startup');
+    return { app, commit, close };
   } catch (error) { await close(); throw error; }
 }

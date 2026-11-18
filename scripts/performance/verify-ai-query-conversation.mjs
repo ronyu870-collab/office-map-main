@@ -193,9 +193,12 @@ export async function login(page, app, owner, recordHttpStatus) {
  * releases have no control and keep their original UI. This is a user action,
  * never DOM/state injection, and does not weaken any result/receipt endpoint. */
 export async function prepareFullQueryWorkspace(page, { keepHistory = false } = {}) {
-  const expand = page.getByRole('button', { name: '展开 Colliers AI 工作空间', exact: true });
-  if (!await expand.count()) return 'legacy';
-  await expand.click();
+  const mode = await page.locator('#home-query').evaluate(node => node.closest('[data-mode]')?.dataset.mode);
+  const expand = page.getByRole('button', { name: mode === 'focus' ? '全屏 Colliers AI 工作空间' : '展开 Colliers AI 工作空间', exact: true });
+  if (mode !== 'expanded') {
+    if (!await expand.count()) return 'legacy';
+    await expand.click();
+  }
   await page.waitForFunction(() => {
     const input = document.querySelector('#home-query'), surface = input?.closest('[data-mode]');
     return input && !input.disabled && surface?.dataset.mode === 'expanded' && surface.dataset.transitioning === 'false';

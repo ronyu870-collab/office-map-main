@@ -12,6 +12,12 @@
     "cases": ["keeps character input, focus, selection and IME across pending and result updates"]
   },
   {
+    "id": "homepage-query-focus-transition",
+    "roots": ["src/components/home/HomeQuery.tsx", "src/components/home/useQueryWorkspace.ts", "src/components/home/HomeQueryWorkspace.module.css"],
+    "file": "src/components/home/__tests__/home-query-focus.test.tsx",
+    "cases": ["opens focus from the real editor and keeps continuous typing, middle edits and selection across all three modes", "preserves composition and editor focus while explicitly switching focus and full screen"]
+  },
+  {
     "id": "map-search",
     "roots": [
       "src/app/map/MapClient.tsx",
