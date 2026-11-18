@@ -64,6 +64,16 @@ function providerUrl(): string {
   return url.toString().replace(/\/$/, '') + '/chat/completions';
 }
 
+/** Publication eligibility is distinct from an API key merely being present.
+ * Local protocol-test providers are not production DeepSeek agents. */
+export function deepseekAgentConfigured(): boolean {
+  if (!process.env.DEEPSEEK_API_KEY?.trim()) return false;
+  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash';
+  if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(model)) return false;
+  try { providerUrl(); return true; }
+  catch { return false; }
+}
+
 async function boundedJson(response: Response, maximum = 160000): Promise<unknown> {
   if (!response.body) throw new ModelProviderError('invalid_response');
   const reader = response.body.getReader();
@@ -85,7 +95,7 @@ async function boundedJson(response: Response, maximum = 160000): Promise<unknow
 export async function completeWithDeepSeek(messages: ModelMessage[], signal: AbortSignal): Promise<ModelCompletion> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new ModelProviderError('not_configured');
-  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-flash';
+  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash';
   if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(model)) throw new ModelProviderError('invalid_configuration');
   const url = providerUrl();
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(18000)]);

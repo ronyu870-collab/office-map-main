@@ -6,7 +6,7 @@
 
 前端向已授权的 capabilities 接口取得模型配置可用性标记，生产有 DeepSeek 密钥时默认发送 Agent；未配置供应商的预览环境保持原可信查询接口，避免让预览历史和真实 Auth 测试误调用无模型的 Agent。此标志不是数据授权，服务端在两条路径上仍重新验证资格和权限。
 
-服务端依次进行有界输入接收及加密审计、真实身份与同源校验、现有 admin-only 独立查询资格校验和模型预算 RPC。DeepSeek 通过官方 Chat Completions（DEEPSEEK_CHAT_MODEL 优先，兼容原 DEEPSEEK_MODEL，默认 deepseek-flash）负责理解、自然语言回答与原生 Tool Calling，明确禁用 Thinking 以确保工具调用上下文协议简单一致。
+服务端依次进行有界输入接收及加密审计、真实身份与同源校验、现有 admin-only 独立查询资格校验和模型预算 RPC。DeepSeek 通过官方 Chat Completions（DEEPSEEK_CHAT_MODEL 优先，兼容原 DEEPSEEK_MODEL，默认 deepseek-v4-flash）负责理解、自然语言回答与原生 Tool Calling，明确禁用 Thinking 以确保工具调用上下文协议简单一致。
 
 Agent 注册只读的 query_verified_real_estate 工具，可自主连续调用多次。服务端将请求交给既有 semanticExecution、QueryPlan、snapshotReader、executePlan 完成获权楼宇及季度市场数据计算，再仅向 DeepSeek 发送有限、去原始记录的事实摘要；正式结果保留不可变审计、字段来源和独立授权恢复。模型不能自写 SQL、访问未注册函数或修改数据库。
 

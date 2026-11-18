@@ -1,3 +1,4 @@
+import { deepseekAgentConfigured } from '@/src/lib/intelligence/agent/modelProvider';
 import { authorizePlan } from './admission';
 import { queryHttpDependencies } from './http';
 import { QUESTION_GRAMMAR_VERSION, QUESTION_SUBMARKETS, resolveBusinessQuestion } from './question';
@@ -21,7 +22,7 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         if (result.kind !== 'plan') return false;
         try { authorizePlan(result.plan, authority); return true; } catch { return false; }
       });
-    return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), agentEnabled: Boolean(process.env.DEEPSEEK_API_KEY?.trim()), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
+    return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), agentEnabled: deepseekAgentConfigured(), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
   } catch (error) {
     const denied = error instanceof Error && ['QUERY_DENIED', 'QUERY_UNAUTHENTICATED'].includes(error.message);
     return json({ enabled: false, examples: [] }, denied ? 403 : 503);

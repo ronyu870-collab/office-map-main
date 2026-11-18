@@ -4,7 +4,7 @@ import { DATA_TOOL, type ModelCompletion } from './modelProvider';
 
 const signal = new AbortController().signal;
 const completion = (content: string | null, tools?: Array<{ id: string; question: string; name?: string }>): ModelCompletion => ({
-  model: 'deepseek-flash', inputTokens: 32, outputTokens: 20,
+  model: 'deepseek-v4-flash', inputTokens: 32, outputTokens: 20,
   message: { role: 'assistant', content,
     ...(tools ? { tool_calls: tools.map(tool => ({
       id: tool.id, type: 'function' as const,
@@ -18,7 +18,7 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     const runTool = vi.fn();
     const result = await runAgentLoop({ question: '你好', signal, invoke, runTool });
     expect(result.answer).toContain('你好');
-    expect(result.model).toBe('deepseek-flash');
+    expect(result.model).toBe('deepseek-v4-flash');
     expect(result.calls).toBe(1);
     expect(result.toolCalls).toBe(0);
     expect(result.inputTokens).toBe(32);

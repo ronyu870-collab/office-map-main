@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { encryptAuditContent } from '../query/auditCrypto';
 import type { AuditKeys } from '../query/auditStore';
 import type { DataAuthority, VerifiedQueryIdentity } from '../query/serverAuthority';
-import { readAgentHistory, AGENT_CONVERSATION_PROTOCOL } from './agentConversation';
+import { readAgentHistory, trimAgentHistory, AGENT_CONVERSATION_PROTOCOL } from './agentConversation';
 
 const identity: VerifiedQueryIdentity = {
   actorId: randomUUID(), effectiveUserId: randomUUID(), sessionId: randomUUID(),
@@ -28,6 +28,14 @@ function event(requestId: string, kind: string, content: unknown, sequence: numb
 }
 
 describe('owner-bound Agent multi-turn context from existing encrypted audit RPC', () => {
+  it('redacts recognizable credentials before any history is sent to a future model call', () => {
+    const secret = 'sk-abcdefghijklmnopqrstuv123456';
+    const history = trimAgentHistory([], '我的 API key: ' + secret, '请不要复述 ' + secret);
+    expect(JSON.stringify(history)).not.toContain(secret);
+    expect(history[0].user).toContain('已脱敏');
+    expect(history[0].assistant).toContain('已脱敏');
+  });
+
   it('recovers only authenticated agent answer events visible through the production RPC contract', async () => {
     const requestId = randomUUID(), conversationId = randomUUID();
     const history = [{ user: 'CBD最近净有效租金多少？', assistant: '已查询CBD最新有效季度。' }];

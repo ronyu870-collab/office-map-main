@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import type { AuditKeys } from '../query/auditStore';
-import { decryptAuditContent } from '../query/auditCrypto';
+import { decryptAuditContent, redactSubmittedCredentials } from '../query/auditCrypto';
 import type { DataAuthority, VerifiedQueryIdentity } from '../query/serverAuthority';
 import type { QueryConversation } from '../query/conversationProtocol';
 
@@ -53,7 +53,7 @@ export async function readAgentHistory(
 }
 
 export function trimAgentHistory(history: AgentHistory, question: string, answer: string): AgentHistory {
-  return historySchema.parse([...history, { user: question.slice(0, 1800),
-    assistant: answer.slice(0, 3000) }].slice(-4));
+  return historySchema.parse([...history, { user: redactSubmittedCredentials(question).text.slice(0, 1800),
+    assistant: redactSubmittedCredentials(answer).text.slice(0, 3000) }].slice(-4));
 }
 

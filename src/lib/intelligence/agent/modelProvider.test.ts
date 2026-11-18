@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
+import { completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
 
 const fake = { DEEPSEEK_API_KEY: 'fake-for-protocol-test-only',
-  DEEPSEEK_API_BASE_URL: 'https://api.deepseek.com', DEEPSEEK_MODEL: 'deepseek-flash' };
+  DEEPSEEK_API_BASE_URL: 'https://api.deepseek.com', DEEPSEEK_MODEL: 'deepseek-v4-flash' };
 let previous: Record<string, string | undefined>;
 
 beforeEach(() => {
@@ -16,9 +16,18 @@ afterEach(() => {
 });
 
 describe('DeepSeek official native chat completion protocol', () => {
+  it('enables Agent only for valid official DeepSeek provider configuration, not a local synthetic test server', () => {
+    expect(deepseekAgentConfigured()).toBe(true);
+    process.env.DEEPSEEK_API_BASE_URL = 'http://127.0.0.1:49222';
+    expect(deepseekAgentConfigured()).toBe(false);
+    process.env.DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com';
+    process.env.DEEPSEEK_API_KEY = '';
+    expect(deepseekAgentConfigured()).toBe(false);
+  });
+
   it('sends a real tool schema and detects provider-reported tool calling', async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({
-      model: 'deepseek-flash', choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
+      model: 'deepseek-v4-flash', choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
         tool_calls: [{ id: 'c1', type: 'function', function: {
           name: 'query_verified_real_estate', arguments: '{"question":"查询CBD最新净有效租金"}' } }] } }],
       usage: { prompt_tokens: 210, completion_tokens: 41 },
@@ -31,7 +40,7 @@ describe('DeepSeek official native chat completion protocol', () => {
     const [url, init] = fetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.deepseek.com/chat/completions');
     const sent = JSON.parse(String(init.body));
-    expect(sent.model).toBe('deepseek-flash');
+    expect(sent.model).toBe('deepseek-v4-flash');
     expect(sent.tools[0].function.name).toBe('query_verified_real_estate');
     expect(sent.thinking.type).toBe('disabled');
     expect(sent.stream).toBe(false);
