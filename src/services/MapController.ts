@@ -2632,6 +2632,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (trend) trend.buildingId = null;
   }
 
+  /** Close the active detail without changing zoom, filters or the map viewport. */
+  closeInfoWindow(): void {
+    this.infoWindow?.close?.();
+  }
+
   getMapInstance(): unknown {
     return this.map;
   }
