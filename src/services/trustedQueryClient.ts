@@ -146,7 +146,8 @@ export const trustedQueryClient = {
     received(scope, null, await call('/artifact', scope, signal, input, input.resultId) as { blob: Blob; filename: string }),
   capabilities: async (scope: QueryClientScope, signal: AbortSignal): Promise<QueryAccess> => capabilitiesSchema.parse(await call('/capabilities', scope, signal)),
   submit: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation; buildingSelection?: BuildingSelection; replayRequestId?: string }, signal: AbortSignal): Promise<QueryReply> => {
-    const raw = await call('', scope, signal, input), reply = decodeQueryReply(raw);
+    const route = !input.conversation || input.buildingSelection || input.replayRequestId || input.conversation.resumeToken ? '' : '/agent';
+    const raw = await call(route, scope, signal, input), reply = decodeQueryReply(raw);
     if (reply.conversation && (!input.conversation || reply.conversation.id !== input.conversation.id
       || reply.conversation.parentRequestId !== input.conversation.parentRequestId)) throw new Error('查询响应与当前对话不一致，请重试原请求。');
     return received(scope, raw, reply);

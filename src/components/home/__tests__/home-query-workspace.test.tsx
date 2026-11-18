@@ -476,13 +476,13 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     const fetcher = vi.fn(async (url: string, options?: RequestInit) => {
       if (url.endsWith('/capabilities')) return Response.json(access);
       if (url.endsWith('/receipt')) return Response.json({ status: 'recorded' });
-      if (url === '/api/intelligence/query' && options?.method === 'POST') return pending.promise;
+      if (url === '/api/intelligence/query/agent' && options?.method === 'POST') return pending.promise;
       throw new Error(`Unexpected isolated endpoint: ${url}`);
     });
     vi.stubGlobal('fetch', fetcher);
     const { input } = await open(); send(input, '你好');
-    await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url === '/api/intelligence/query')).toHaveLength(1));
-    const [, init] = fetcher.mock.calls.find(([url]) => url === '/api/intelligence/query')!;
+    await waitFor(() => expect(fetcher.mock.calls.filter(([url]) => url === '/api/intelligence/query/agent')).toHaveLength(1));
+    const [, init] = fetcher.mock.calls.find(([url]) => url === '/api/intelligence/query/agent')!;
     expect(init).toMatchObject({ method: 'POST', cache: 'no-store',
       headers: { Authorization: 'Bearer isolated-workspace-test-token', 'Content-Type': 'application/json' } });
     const body = JSON.parse(init!.body as string) as Submission;
@@ -499,7 +499,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(receipts.map(item => item.phase).sort()).toEqual(['client_dom_committed', 'client_received']);
     expect(receipts.every(item => item.bodySha256 === digest)).toBe(true);
     await collapse(); await expand(); await new Promise(resolve => setTimeout(resolve, 50));
-    expect(fetcher.mock.calls.filter(([url]) => url === '/api/intelligence/query')).toHaveLength(1);
+    expect(fetcher.mock.calls.filter(([url]) => url === '/api/intelligence/query/agent')).toHaveLength(1);
     expect(fetcher.mock.calls.filter(([url]) => url.endsWith('/receipt'))).toHaveLength(2);
     expect(client.recover).not.toHaveBeenCalled();
   });

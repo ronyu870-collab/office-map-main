@@ -48,12 +48,13 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   const context={requestId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId};
   const receipt=JSON.parse(decryptAuditContent(read.events[0].cipher,{...context,eventId:read.events[0].event_id},new Map([[keys.keyId,keys.encryptionKey]])));
   let planInput = receipt?.content?.plan;
-  if (planInput?.resolution === 'server_semantic/1') {
+  if (planInput?.resolution === 'server_semantic/1' || planInput?.resolution === 'server_agent/1') {
     // History calls this only after owner-checked archive access in the current
     // session. The original session remains part of the immutable audit record.
     if (!options.reauthorizedHistory && receipt?.content?.sessionId !== identity.sessionId) throw new Error('QUERY_DENIED');
-    const resolved = read.events.filter(event => event.kind === 'tool_finished').map(event =>
-      JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content)
+    const resolvedToolEvents = read.events.filter(event => event.kind === 'tool_finished').map(event =>
+      JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content);
+    const resolved = (planInput?.resolution === 'server_agent/1' ? resolvedToolEvents.reverse() : resolvedToolEvents)
       .find(value => value?.resolution?.protocol === 'research-conversation/1' && value?.plan);
     if (!resolved) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     planInput = resolved.plan;
