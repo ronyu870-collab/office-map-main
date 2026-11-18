@@ -31,6 +31,8 @@ import {
   type RenderMode,
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
+import { normalizeMapSubmarket } from './model/mapDomain';
+import { submarketSummary } from './model/submarketOverview';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { recordMapStartup } from '@/src/utils/mapStartupProbe';
 import { useMapWorkspaceView } from './runtime/useMapWorkspaceView';
@@ -43,6 +45,11 @@ import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
 
 // Admin-only editing is never part of the normal Map path. Keep its Supabase,
 // audit and form runtime out of the MapClient chunk until an admin opens it.
+const SubmarketDetailPanel = dynamic(
+  () => import('./components/SubmarketDetailPanel').then(module => module.SubmarketDetailPanel),
+  { ssr: false },
+);
+
 const BuildingMetricsEditModal = dynamic(
   () => import('@/src/components/map/BuildingMetricsEditModal').then(module => module.BuildingMetricsEditModal),
   { ssr: false },
@@ -149,6 +156,26 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
+  const [selectedSubmarket, setSelectedSubmarket] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const open = (event: Event) => {
+      const name = normalizeMapSubmarket((event as CustomEvent<{ name?: string }>).detail?.name);
+      if (!name || name === '其他') return;
+      setSelectedSubmarket(name);
+      setIsFilterPanelOpen(false);
+      setIsSupplyOpen(false);
+      setIsListVisible(false);
+    };
+    window.addEventListener('map-submarket-open', open);
+    return () => window.removeEventListener('map-submarket-open', open);
+  }, []);
+
+  const selectedSummary = React.useMemo(() => selectedSubmarket
+    ? submarketSummary(allBuildings, selectedSubmarket) : null, [allBuildings, selectedSubmarket]);
+  const selectedFutureCount = React.useMemo(() => selectedSubmarket
+    ? futureSupplies.filter(supply => !isPendingFutureSupply(supply)
+      && normalizeMapSubmarket(supply.submarket) === selectedSubmarket).length : 0,
+    [futureSupplies, selectedSubmarket]);
 
   const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
@@ -337,13 +364,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   React.useEffect(() => {
     if (prevCompetitorRef.current !== null && competitorBuildings === null && controllerRef.current && mapReady) {
       const ctrl = controllerRef.current;
-      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
+      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders, allBuildings);
       if ((filterState?.showFutureSupply ?? true) && filteredFutureSupplies.length > 0) {
         ctrl.renderFutureMarkers(filteredFutureSupplies, renderMode);
       }
     }
     prevCompetitorRef.current = competitorBuildings;
-  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders, filterState]);
+  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders, filterState, allBuildings]);
 
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
@@ -431,7 +458,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
       if (filtered.length > 0) recordMapStartup('stock_render_start');
-      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
+      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders, allBuildings);
       if (filtered.length > 0) recordMapStartup('stock_render_returned');
     }
     setStats(computeStatsFromBuildings(filtered));
@@ -678,11 +705,41 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     }
   };
 
+  const showSubmarketBuildings = () => {
+    if (!selectedSubmarket) return;
+    const name = selectedSubmarket;
+    cancelPendingBuildingNavigation();
+    setSelectedSubmarket(null);
+    setSearchInput('');
+    issueFilterCommand('patch', {
+      ...createDefaultFilterState(),
+      submarkets: [name],
+      projectTypes: ['甲级写字楼', '乙级写字楼'],
+      showFutureSupply: false,
+    });
+    setUserHasInteracted(true);
+    setIsListVisible(true);
+    const matches = allBuildings.filter(building => normalizeMapSubmarket(building.submarket) === name
+      && (/A|P|B/i.test(String(building.grade ?? '')) && !String(building.grade ?? '').toUpperCase().includes('BP')));
+    if (matches.some(building => Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat))) {
+      controllerRef.current?.fitToBuildings(matches);
+    }
+  };
+
   if (!allowed) return <MapLoadingShell />;
 
   return (
     <>
       <MapWorkbenchView
+        submarketDetailPanel={selectedSubmarket && selectedSummary && workspaceView === 'map' ? (
+          <SubmarketDetailPanel key={selectedSubmarket} name={selectedSubmarket} summary={selectedSummary}
+            buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin'}
+            onClose={() => setSelectedSubmarket(null)} onShowAll={showSubmarketBuildings}
+            onOpenBuilding={id => {
+              const building = allBuildings.find(item => item.id === id);
+              if (building) handleBuildingClick(building);
+            }} />
+        ) : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}
