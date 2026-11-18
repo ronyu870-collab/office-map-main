@@ -173,6 +173,32 @@
 .capabilities summary { cursor: pointer; width: fit-content; padding-block: 4px; }
 .capabilities p { max-width: 76ch; line-height: 1.8; margin-top: 8px; }
 .capabilities summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+
+/* The business homepage uses a compact editor. The same mounted textarea and
+   controls keep their existing layout in the explicitly expanded workspace. */
+.conversation[data-mode="compact"] .welcome { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; max-width: none; padding: 0; text-align: left; }
+.conversation[data-mode="compact"] .welcome h3 { font-size: 20px; line-height: 1.4; letter-spacing: 0; }
+.conversation[data-mode="compact"] .welcome > p { margin: 0; font-size: 14px; line-height: 1.5; }
+.conversation[data-mode="compact"] .composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; min-height: 56px; padding: 4px 8px 4px 16px; border-color: var(--cd-color-border); box-shadow: none; }
+.conversation[data-mode="compact"] .composer:hover { border-color: var(--cd-color-border-strong); }
+.conversation[data-mode="compact"] .composer:focus-within { border-color: var(--cd-color-brand); }
+.conversation[data-mode="compact"] .composer textarea { min-height: 28px; max-height: 200px; line-height: 28px; }
+.conversation[data-mode="compact"] .composerFooter { min-height: 44px; margin: 0; align-self: end; justify-content: flex-end; }
+.conversation[data-mode="compact"] .keyboardHint { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.conversation[data-mode="compact"] .selectionContext { grid-column: 1 / -1; margin-block: 4px 8px; }
+.conversation[data-mode="compact"] .composer:not(.enabled) textarea,
+.conversation[data-mode="compact"] .composer:not(.enabled) .composerFooter { grid-column: 1 / -1; }
+.conversation[data-mode="compact"] .composer:not(.enabled) .composerFooter { justify-content: space-between; }
+.conversation[data-mode="compact"] .suggestions { justify-content: flex-start; gap: 4px 20px; margin-top: 4px; }
+.conversation[data-mode="compact"] .suggestions button { min-height: 32px; }
+.conversation[data-mode="compact"] .composerMeta { align-items: center; gap: 0 16px; margin-top: 4px; }
+.conversation[data-mode="compact"] .privacy { line-height: 20px; }
+.conversation[data-mode="compact"] .capabilities summary { min-height: 24px; padding-block: 2px; }
+@media (max-width: 639px), (pointer: coarse) {
+  .conversation[data-mode="compact"] .suggestions button,
+  .conversation[data-mode="compact"] .capabilities summary { min-height: 44px; }
+}
+
 .workingIndicator { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; vertical-align: middle; }
 .workingIndicator i { width: 4px; height: 4px; border-radius: 50%; background: var(--cd-color-brand); animation: workingPulse 1200ms ease-in-out infinite; }
 .workingIndicator i:nth-child(2) { animation-delay: 150ms; }

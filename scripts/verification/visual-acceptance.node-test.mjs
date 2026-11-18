@@ -6,6 +6,25 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Colliers AI 3.0 P0 waiver is limited to PR #208, compact homepage scope and the current exact head', () => {
+  const scope = 'Colliers AI 3.0 P0 compact homepage and composer, PR #208';
+  const reason = 'User explicitly waived independent visual review, repeated manual browser visual review and physical-phone manual acceptance for Colliers AI 3.0 P0 on 2026-11-18; applies only to PR #208';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 208, body, head: { sha: head, ref: 'codex/colliers-ai-3-p0-compact-home',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  for (const number of [207, 209]) assert.match(checkVisualAcceptance({ ...candidate, number }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'codex/colliers-ai-3-p1' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(head, head.slice(0, 7)), head: { ...candidate.head, sha: head.slice(0, 7) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other interface changes') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Please skip engineering CI') }), /specifically authorized/);
+  const nextHead = 'c'.repeat(40);
+  assert.equal(checkVisualAcceptance({ ...candidate, body: body.replace(head, nextHead), head: { ...candidate.head, sha: nextHead } }), null);
+});
+
 test('Experience P1 waiver is limited to PR #206, exact source/main/head and all three authorized manual checks', () => {
   const scope = 'Colliers AI conversational experience 2.0 P1 continuous workspace, PR #206';
   const reason = 'User explicitly waived independent visual review, manual browser visual review and physical-phone manual acceptance for conversational experience P1 on 2026-11-17; applies only to PR #206';

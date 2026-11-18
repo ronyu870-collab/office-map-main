@@ -46,6 +46,10 @@
 .history, .research { min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; background: var(--cd-color-workspace); max-height: min(48dvh, 480px); animation: panelEnter 180ms ease-out; }
 .history[hidden], .research[hidden] { display: none; }
 .research { order: -1; }
+.surface[data-mode="compact"] .toolbar { min-height: 44px; padding-block: 0; }
+.surface[data-mode="compact"] .inputDock { max-width: 664px; padding-bottom: 12px; }
+.surface[data-mode="compact"][data-empty="true"] .scroller { scrollbar-gutter: auto; }
+.surface[data-mode="compact"][data-empty="true"] .reading { max-width: 600px; padding: 0 0 8px; }
 .surface[data-mode="compact"][data-empty="false"] .toolbar { padding-bottom: 8px; }
 .surface[data-mode="compact"][data-empty="false"] .scroller { margin-block: 8px 16px; border-block: 1px solid var(--cd-color-ai-border); background: var(--cd-color-surface); }
 .surface[data-mode="compact"][data-empty="false"] .reading { padding-block: 24px; }
