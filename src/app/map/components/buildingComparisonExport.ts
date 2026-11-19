@@ -27,9 +27,10 @@ const DETAIL: Field[] = [
   { key: 'leed', label: 'LEED 认证', width: 140 },
 ];
 
-const escapeXml = (value: string) => value.replace(/[&<>"']/g, char => ({
+const XML_ENTITIES: Record<string, string> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
-}[char] ?? char));
+};
+const escapeXml = (value: string) => value.replace(/[&<>"']/g, char => XML_ENTITIES[char] ?? char);
 
 function stringValue(value: unknown): string {
   return value === null || value === undefined || String(value).trim() === '' ? '—' : String(value);
@@ -165,7 +166,8 @@ export function buildComparisonSvg(buildings: ComparisonBuilding[], layout: Comp
     }
   }
 
-  const height = y + 90;
+  const footerLineCount = wrapText(subtitle, width - innerMargin * 2, 13).length;
+  const height = y + Math.max(100, 60 + footerLineCount * 23);
   const title = layout === 'rows' ? '北京办公楼项目参数对比' : '北京重点楼宇参数对比';
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height +
     '" viewBox="0 0 ' + width + ' ' + height + '">' +
@@ -177,7 +179,7 @@ export function buildComparisonSvg(buildings: ComparisonBuilding[], layout: Comp
     '<text x="' + innerMargin + '" y="115" font-size="15" fill="#667085">已选 ' + buildings.length + ' 栋 · 生成日期：' + escapeXml(new Date().toLocaleDateString('zh-CN')) + '</text>' +
     body.join('') +
     '<path d="M' + innerMargin + ' ' + (height - 76) + ' H' + (width - innerMargin) + '" stroke="#D9E0E8"/>' +
-    linesSvg(subtitle, innerMargin, height - 48, width - innerMargin * 2, { size: 13, fill: '#667085' }) +
+    linesSvg(subtitle, innerMargin, height - 25 - (footerLineCount - 1) * 23 - 23, width - innerMargin * 2, { size: 13, fill: '#667085' }) +
     '<text x="' + innerMargin + '" y="' + (height - 19) + '" font-size="13" fill="#667085">仅供内部业务参考 · 项目数据及口径请以最新正式资料为准</text>' +
     '</g></svg>';
   return { svg, width, height };

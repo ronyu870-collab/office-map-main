@@ -9,6 +9,7 @@ import { SearchBar } from '@/src/components/SearchBar';
 import { AppHeader, Button } from '@/src/components/ui';
 import { MaskedText } from '@/src/components/demo';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { FullBuildingList } from './FullBuildingList';
 import { hasBuildingLocation, type FullListBuilding } from '../model/fullBuildingList';
 import { describeMapSearchMatch, rankMapSearchCandidates } from '../model/mapSearchCandidates';
@@ -388,24 +389,25 @@ export function MapWorkbenchView({
 
   const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
   const [searchChoicesOpen, setSearchChoicesOpen] = React.useState(false);
-  // Selection survives filter changes and sidebar unmounts; an account/role/view scope change clears it.
+  // Keep selections through filtering and sidebar closure, not across account or impersonation changes.
+  const comparisonScope = JSON.stringify([searchContextKey, getImpersonationTargetUserId()]);
   const [comparisonSelection, setComparisonSelection] = React.useState<{
-    scope: string | undefined; items: Map<string, FullListBuilding>;
-  }>({ scope: searchContextKey, items: new Map() });
-  const selectedComparisonBuildings = comparisonSelection.scope === searchContextKey
+    scope: string; items: Map<string, FullListBuilding>;
+  }>({ scope: comparisonScope, items: new Map() });
+  const selectedComparisonBuildings = comparisonSelection.scope === comparisonScope
     ? Array.from(comparisonSelection.items.values()) : [];
   const handleComparisonSelectionChange = React.useCallback((rows: FullListBuilding[], selected: boolean) => {
     setComparisonSelection(previous => {
-      const next = new Map(previous.scope === searchContextKey ? previous.items : []);
+      const next = new Map<string, FullListBuilding>(previous.scope === comparisonScope ? previous.items : []);
       for (const building of rows) {
         if (!building?.id) continue;
         const key = (building._dataType === 'future' ? 'future:' : 'existing:') + building.id;
         if (selected) next.set(key, building);
         else next.delete(key);
       }
-      return { scope: searchContextKey, items: next };
+      return { scope: comparisonScope, items: next };
     });
-  }, [searchContextKey]);
+  }, [comparisonScope]);
   const searchInputWrapRef = React.useRef<HTMLDivElement>(null);
   const searchChoicesRef = React.useRef<HTMLDivElement>(null);
   const moreFiltersTriggerId = React.useId();
