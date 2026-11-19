@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 224,
+        branch: 'codex/submarket-modal-visual-upgrade-20261119',
+        scope: 'Colliers map submarket centered research modal, responsive layout and trend presentation, PR #224',
+        reason: 'User explicitly waived independent visual acceptance and requested direct main merge for PR #224 on 2026-11-19; manual visual review was not performed and all engineering, security and data checks remain mandatory',
+      },
+      {
         number: 217,
         branch: 'codex/colliers-ai-4-p0-p1-release-20261119',
         scope: 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #217',
