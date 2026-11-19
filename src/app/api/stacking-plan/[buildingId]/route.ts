@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { IMPERSONATION_REQUEST_HEADER, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { createAdminSessionGuard } from '@/src/lib/intelligence/adminSession';
@@ -8,6 +9,13 @@ export const dynamic = 'force-dynamic';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEADERS = { 'Cache-Control': 'private, no-store', Vary: 'Authorization, x-colliers-impersonate-user' };
+const EVIDENCE_BUCKET = 'stacking-plan-evidence';
+const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+const ORIGINAL_MIMES: Record<string, string> = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp',
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+};
 type RouteContext = { params: Promise<{ buildingId: string }> };
 type Authorized = { client: SupabaseClient; actorId: string; guard: () => Promise<void> };
 type Failure = { response: NextResponse };
@@ -75,13 +83,34 @@ export async function GET(request: NextRequest, context: RouteContext) {
     const auth = await authorize(request);
     if ('response' in auth) return auth.response;
     const { client, guard } = auth;
+    // Original bytes are never exposed by a public or signed Storage URL.
+    const originalSourceId = new URL(request.url).searchParams.get('original');
+    if (originalSourceId !== null) {
+      if (!/^[a-zA-Z0-9_-]{2,100}$/.test(originalSourceId)) return reply({ error: '原件来源标识无效' }, 400);
+      const { data: source, error: sourceError } = await client.from('stacking_plan_sources')
+        .select('id,evidence_storage_path,evidence_filename,evidence_mime')
+        .eq('building_id', id).eq('id', originalSourceId).maybeSingle();
+      if (sourceError) return databaseUnavailable(sourceError);
+      if (!source?.evidence_storage_path) return reply({ error: '尚未归档原始文件' }, 404);
+      await guard();
+      const { data: file, error: fileError } = await client.storage.from(EVIDENCE_BUCKET)
+        .download(source.evidence_storage_path);
+      if (fileError || !file) return databaseUnavailable(fileError ?? new Error('Missing original'));
+      await guard();
+      const extension = ORIGINAL_MIMES[source.evidence_mime as string] ?? 'bin';
+      return new NextResponse(await file.arrayBuffer(), { headers: {
+        ...HEADERS, 'Content-Type': 'application/octet-stream',
+        'Content-Disposition': 'attachment; filename="stacking-original.' + extension + '"',
+        'X-Content-Type-Options': 'nosniff',
+      } });
+    }
     const { data: building, error: buildingError } = await findBuilding(client, id);
     if (buildingError) return databaseUnavailable(buildingError);
     if (!building) return reply({ error: '楼宇不存在' }, 404);
 
     const [towerResult, sourceResult] = await Promise.all([
       client.from('stacking_plan_towers').select('id,building_id,code,display_name').eq('building_id', id).order('code'),
-      client.from('stacking_plan_sources').select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note').eq('building_id', id),
+      client.from('stacking_plan_sources').select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note,evidence_storage_path,evidence_filename,evidence_mime,evidence_size_bytes,evidence_sha256,evidence_uploaded_at').eq('building_id', id),
     ]);
     if (towerResult.error || sourceResult.error) return databaseUnavailable(towerResult.error ?? sourceResult.error);
     const towers = towerResult.data ?? [];
@@ -165,12 +194,81 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!id) return reply({ error: '无效的楼宇 ID' }, 400);
     const auth = await authorize(request);
     if ('response' in auth) return auth.response;
+    const { client, actorId, guard } = auth;
+    if ((request.headers.get('content-type') ?? '').toLowerCase().includes('multipart/form-data')) {
+      const claimedLength = Number(request.headers.get('content-length') ?? 0);
+      if (claimedLength > MAX_EVIDENCE_BYTES + 16384) return reply({ error: '原件不得超过 10 MB' }, 413);
+      const form = await request.formData();
+      const original = form.get('file');
+      const sourceId = form.get('source_id');
+      if (typeof sourceId !== 'string' || !/^[a-zA-Z0-9_-]{2,100}$/.test(sourceId)
+          || !(original instanceof File)) return reply({ error: '请选择有效来源与原始文件' }, 400);
+      const ext = ORIGINAL_MIMES[original.type];
+      if (!ext || original.size < 1 || original.size > MAX_EVIDENCE_BYTES)
+        return reply({ error: '仅允许 10 MB 内的 PNG、JPG、WebP、PDF 或 XLSX 原件' }, 400);
+      const buffer = Buffer.from(await original.arrayBuffer());
+      // Detect the actual file signature; do not trust a caller-provided MIME.
+      const signature = buffer.subarray(0, 8);
+      const validMagic = original.type === 'image/png'
+        ? signature.equals(Buffer.from([137,80,78,71,13,10,26,10]))
+        : original.type === 'image/jpeg'
+          ? signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff
+          : original.type === 'image/webp'
+            ? buffer.toString('ascii',0,4) === 'RIFF' && buffer.toString('ascii',8,12) === 'WEBP'
+            : original.type === 'application/pdf'
+              ? buffer.toString('ascii',0,5) === '%PDF-'
+              : signature[0] === 0x50 && signature[1] === 0x4b && signature[2] === 3 && signature[3] === 4;
+      if (!validMagic) return reply({ error: '文件内容与声明格式不符' }, 400);
+      const filename = original.name.split(/[\\/]/).pop()?.replace(/[\x00-\x1f\x7f]/g,'').slice(0,200) || 'original.' + ext;
+      const sha256 = createHash('sha256').update(buffer).digest('hex');
+      const path = id + '/' + sourceId + '/' + sha256 + '.' + ext;
+      const { data: source, error: sourceError } = await client.from('stacking_plan_sources')
+        .select('id,evidence_sha256,evidence_storage_path')
+        .eq('building_id', id).eq('id', sourceId).maybeSingle();
+      if (sourceError) return databaseUnavailable(sourceError);
+      if (!source) return reply({ error: '来源不存在' }, 404);
+      await guard();
+      if (source.evidence_sha256 === sha256 && source.evidence_storage_path === path) {
+        return reply({ ok: true, duplicate: true, sha256 });
+      }
+
+      const existingBucket = await client.storage.getBucket(EVIDENCE_BUCKET);
+      if (!existingBucket.data) {
+        const created = await client.storage.createBucket(EVIDENCE_BUCKET, {
+          public: false, fileSizeLimit: MAX_EVIDENCE_BYTES, allowedMimeTypes: Object.keys(ORIGINAL_MIMES),
+        });
+        if (created.error) {
+          // A concurrent admin may have created it; verify again without loosening access.
+          const raced = await client.storage.getBucket(EVIDENCE_BUCKET);
+          if (!raced.data) return databaseUnavailable(created.error);
+        }
+      }
+      const bucket = await client.storage.getBucket(EVIDENCE_BUCKET);
+      if (bucket.error || !bucket.data || bucket.data.public) {
+        return reply({ error: '原件私有存储未配置或权限不安全' }, 503);
+      }
+      const uploaded = await client.storage.from(EVIDENCE_BUCKET)
+        .upload(path, buffer, { contentType: original.type, cacheControl: '0', upsert: false });
+      if (uploaded.error) return databaseUnavailable(uploaded.error);
+      await guard();
+      const { data, error } = await client.rpc('stacking_plan_source_attach', {
+        p_building_id: id, p_source_id: sourceId, p_actor: actorId,
+        p_path: path, p_name: filename, p_mime: original.type,
+        p_size: original.size, p_sha256: sha256,
+      });
+      if (error) {
+        // Never delete an existing source file. This new content-addressed object
+        // remains private for administrative recovery if metadata persistence fails.
+        return databaseUnavailable(error);
+      }
+      await guard();
+      return reply({ ok: true, source: data, sha256 });
+    }
     const input: unknown = await request.json().catch(() => null);
     const body = input && typeof input === 'object' && !Array.isArray(input) ? input as Record<string, unknown> : {};
     if (body.action !== 'export' || !['xlsx','png','svg'].includes(String(body.format))) {
       return reply({ error: '无效的导出类型' }, 400);
     }
-    const { client, actorId, guard } = auth;
     const { data: building, error: buildingError } = await findBuilding(client, id);
     if (buildingError || !building) return reply({ error: '楼宇不存在或不可读取' }, 404);
     await guard();
