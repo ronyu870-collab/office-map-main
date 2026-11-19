@@ -218,8 +218,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       const form = await request.formData();
       const original = form.get('file');
       const sourceId = form.get('source_id');
+      // Node/undici and jsdom expose different File constructors. Validate the
+      // standard web File contract rather than comparing one global constructor.
+      const fileLike = original !== null && typeof original !== 'string'
+        && typeof original.name === 'string' && typeof original.type === 'string'
+        && typeof original.size === 'number' && typeof original.arrayBuffer === 'function';
       if (typeof sourceId !== 'string' || !/^[a-zA-Z0-9_-]{2,100}$/.test(sourceId)
-          || !(original instanceof File)) return reply({ error: '请选择有效来源与原始文件' }, 400);
+          || !fileLike) return reply({ error: '请选择有效来源与原始文件' }, 400);
       const ext = ORIGINAL_MIMES[original.type];
       if (!ext || original.size < 1 || original.size > MAX_EVIDENCE_BYTES)
         return reply({ error: '仅允许 4 MB 内的 PNG、JPG、WebP、PDF 或 XLSX 原件' }, 400);
