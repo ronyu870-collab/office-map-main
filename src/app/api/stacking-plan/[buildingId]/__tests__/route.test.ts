@@ -104,6 +104,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(result.sources[0].source_as_of).toBeNull();
     expect(result.sources[0].evidence_storage_path).toBeNull();
     expect(result.basis).toBe('source_snapshot_unverified');
+    expect(result.evidence_storage_ready).toBe(false);
     expect(sources.select).toHaveBeenCalledTimes(2);
   });
 
