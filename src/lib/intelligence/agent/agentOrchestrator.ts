@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { type ModelCompletion, type ModelMessage } from './modelProvider';
 import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
 
-export const AGENT_LIMITS = { rounds: 6, tools: 6, maxToolText: 5000, maxHistoryTurns: 8 } as const;
+export const AGENT_LIMITS = { rounds: 6, tools: 6, maxToolText: 5000, maxHistoryTurns: 8, maxTotalTokens: 60000 } as const;
 const toolInputSchema = z.strictObject({ question: z.string().trim().min(2).max(1000) });
 export type AgentToolObservation<T> = { content: string; result?: T };
 export type AgentLoopResult<T> = {
@@ -58,6 +58,8 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
     await input.onEvent?.({ type: 'model_finished', model: completed.model,
       inputTokens: completed.inputTokens, outputTokens: completed.outputTokens,
       providerRequestId: completed.providerRequestId });
+    if ((inputTokens ?? 0) + (outputTokens ?? 0) > AGENT_LIMITS.maxTotalTokens)
+      throw new Error('AGENT_TOKEN_BUDGET_EXCEEDED');
     const requested = completed.message.tool_calls ?? [];
     if (!requested.length) {
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
