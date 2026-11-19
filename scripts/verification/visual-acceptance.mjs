@@ -36,6 +36,18 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 213,
+        branch: 'codex/stacking-plan-xiaoyun33-pilot',
+        scope: 'Xiaoyun Road 33 A/B Admin Stacking Plan and map entry, PR #213',
+        reason: 'User explicitly waived standalone independent visual acceptance review and requested direct main merge of Stacking Plan PR #213 on 2026-11-19; this one-time waiver records unperformed review and does not waive engineering, authorization or data checks',
+      },
+      {
+        number: 211,
+        branch: 'codex/colliers-ai-4-agent-core',
+        scope: 'Colliers AI 4.0 DeepSeek-native Agent core and minimal homepage response display, PR #211',
+        reason: 'User requested expedited staged Colliers AI 4.0 delivery and allowed nonessential complex visual review to be skipped on 2026-11-18; waiver is restricted to PR #211 and does not assert visual or real-device acceptance',
+      },
+      {
         number: 210,
         branch: 'codex/colliers-ai-3-p2-visual-polish',
         scope: 'Colliers AI 3.0 P2 conversation and research visual polish, PR #210',
