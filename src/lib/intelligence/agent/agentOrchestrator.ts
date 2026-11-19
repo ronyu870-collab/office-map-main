@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { type ModelCompletion, type ModelMessage } from './modelProvider';
 import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
 
-export const AGENT_LIMITS = { rounds: 6, tools: 6, maxToolText: 5000, maxHistoryTurns: 4 } as const;
+export const AGENT_LIMITS = { rounds: 6, tools: 6, maxToolText: 5000, maxHistoryTurns: 8 } as const;
 const toolInputSchema = z.strictObject({ question: z.string().trim().min(2).max(1000) });
 export type AgentToolObservation<T> = { content: string; result?: T };
 export type AgentLoopResult<T> = {

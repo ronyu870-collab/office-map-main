@@ -1,10 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { encryptAuditContent } from '../query/auditCrypto';
+import { sealHistoryToken } from '../query/historyToken';
+const stubs = vi.hoisted(() => ({ read: vi.fn(), recover: vi.fn(), load: vi.fn() }));
+vi.mock('../query/recovery', () => ({ readOwnResult: stubs.read, recoverOwnResult: stubs.recover }));
+vi.mock('../query/serverAuthority', async original => ({
+  ...(await original<typeof import('../query/serverAuthority')>()),
+  loadDataAuthority: stubs.load,
+}));
 import type { AuditKeys } from '../query/auditStore';
 import type { DataAuthority, VerifiedQueryIdentity } from '../query/serverAuthority';
-import { readAgentHistory, trimAgentHistory, AGENT_CONVERSATION_PROTOCOL } from './agentConversation';
+import { readAgentHistory, restoreOwnAgentAnswer, trimAgentHistory, AGENT_CONVERSATION_PROTOCOL } from './agentConversation';
 
 const identity: VerifiedQueryIdentity = {
   actorId: randomUUID(), effectiveUserId: randomUUID(), sessionId: randomUUID(),
@@ -28,6 +35,14 @@ function event(requestId: string, kind: string, content: unknown, sequence: numb
 }
 
 describe('owner-bound Agent multi-turn context from existing encrypted audit RPC', () => {
+  beforeEach(() => { vi.resetAllMocks(); });
+  it('retains at most eight recent turns without admitting raw credentials', () => {
+    let turns: ReturnType<typeof trimAgentHistory> = [];
+    for (let index = 0; index < 12; index++) turns = trimAgentHistory(turns, `第${index}轮`, `回答${index}`);
+    expect(turns).toHaveLength(8);
+    expect(turns[0].user).toContain('第4轮');
+    expect(turns.at(-1)?.user).toContain('第11轮');
+  });
   it('redacts recognizable credentials before any history is sent to a future model call', () => {
     const secret = 'sk-abcdefghijklmnopqrstuv123456';
     const history = trimAgentHistory([], '我的 API key: ' + secret, '请不要复述 ' + secret);
@@ -70,11 +85,74 @@ describe('owner-bound Agent multi-turn context from existing encrypted audit RPC
       .rejects.toThrow('AGENT_CONTEXT_UNAVAILABLE');
   });
 
-  it('rejects unsafe history restore tokens rather than leaking an old session', async () => {
+
+  it('reopens an original audited natural-language answer without duplicating or fabricating data', async () => {
+    const requestId = randomUUID(), conversationId = randomUUID(), plainText = '你好，我可以帮你查询北京办公楼。';
+    const turn = { user: '你好', assistant: plainText };
+    stubs.read.mockResolvedValueOnce({ state: 'succeeded', permission_revision: authority.permissionRevision,
+      head_hash: 'f'.repeat(64), head_sequence: 3, events: [
+        event(requestId, 'received', { sessionId: randomUUID(),
+          authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId },
+          metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+        event(requestId, 'tool_finished', { protocol: 'agent-answer/1',
+          permissionRevision: authority.permissionRevision, history: [turn] }, 2),
+        event(requestId, 'response_generated', { result: { version: 'agent-message/1',
+          text: plainText, model: 'deepseek-flash' } }, 3),
+      ] });
+    stubs.load.mockResolvedValueOnce(authority);
+    const restored = await restoreOwnAgentAnswer({} as SupabaseClient, identity, keys, authority,
+      conversationId, requestId, new AbortController().signal);
+    expect(restored.message).toBe(plainText);
+    expect(restored.result).toBeUndefined();
+    expect(stubs.recover).not.toHaveBeenCalled();
+  });
+
+  it('rejects altered archived AI text and never returns a forged message', async () => {
+    const requestId = randomUUID(), conversationId = randomUUID();
+    stubs.read.mockResolvedValueOnce({ state: 'succeeded', permission_revision: authority.permissionRevision,
+      head_hash: 'f'.repeat(64), head_sequence: 3, events: [
+        event(requestId, 'received', { authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId },
+          metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+        event(requestId, 'tool_finished', { protocol: 'agent-answer/1',
+          permissionRevision: authority.permissionRevision, history: [{ user: '您好', assistant: '真实回答' }] }, 2),
+        event(requestId, 'response_generated', { result: { version: 'agent-message/1',
+          text: '伪造回答' } }, 3),
+      ] });
+    await expect(restoreOwnAgentAnswer({} as SupabaseClient, identity, keys, authority,
+      conversationId, requestId, new AbortController().signal)).rejects.toThrow('QUERY_HISTORY_UNAVAILABLE');
+  });
+
+  it('continues a sealed previous-session turn only after rechecking the archived owner and sources', async () => {
+    const requestId = randomUUID(), conversationId = randomUUID();
+    const history = [{ user: 'CBD空置率？', assistant: '基于当前授权数据，CBD已有季度指标。' }];
+    const events = [
+      event(requestId, 'received', { sessionId: randomUUID(),
+        authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId },
+        metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+      event(requestId, 'tool_finished', { protocol: 'agent-answer/1',
+        permissionRevision: authority.permissionRevision, history }, 2),
+      event(requestId, 'response_generated', { result: { version: 'agent-message/1',
+        text: history[0].assistant } }, 3),
+    ];
+    stubs.read.mockResolvedValueOnce({ state: 'succeeded', permission_revision: authority.permissionRevision,
+      head_hash: 'f'.repeat(64), head_sequence: 3, events });
+    stubs.load.mockResolvedValueOnce(authority);
+    const client = { rpc: vi.fn().mockReturnValue({ abortSignal: vi.fn().mockResolvedValue({
+      data: { allowed: true, permission_revision: authority.permissionRevision, state: 'succeeded', events }, error: null,
+    }) }) } as unknown as SupabaseClient;
+    const resumeToken = sealHistoryToken(identity, authority.permissionRevision, 'history-resume',
+      { requestId, conversationId }, keys);
+    const restored = await readAgentHistory(client, identity, keys, authority,
+      { id: conversationId, parentRequestId: requestId, resumeToken }, new AbortController().signal);
+    expect(restored).toEqual(history);
+    expect(stubs.read).toHaveBeenCalledOnce();
+  });
+
+  it('rejects unsafe history restore tokens as a permission denial without calling the RPC', async () => {
     const rpc = vi.fn();
     await expect(readAgentHistory({ rpc } as unknown as SupabaseClient, identity, keys, authority,
       { id: randomUUID(), parentRequestId: randomUUID(), resumeToken: 'unverified' },
-      new AbortController().signal)).rejects.toThrow('AGENT_RESUME_NOT_SUPPORTED');
+      new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
     expect(rpc).not.toHaveBeenCalled();
   });
 });

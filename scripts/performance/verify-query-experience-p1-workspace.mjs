@@ -601,7 +601,15 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         await currentResult(page).getByRole('button', { name: /^查看来源：/ }).first().waitFor();
         await network.receipt(openedResponse, { surface: 'answer_table', sourceCount: 'empty' });
         assert.equal(network.count('/api/intelligence/query'), beforeHistory, 'EXPERIENCE_HISTORY_REEXECUTED');
-        if (await history.getByRole('button', { name: '关闭历史', exact: true }).isVisible()) await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+        // Opening a saved turn auto-closes history on narrow viewports. Avoid
+        // racing that close animation with a click on a now-hidden control.
+        // Verify the actual closed state rather than weakening the behavior check.
+        if (width >= 1024) {
+          await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+          await history.waitFor({ state: 'hidden' });
+        } else {
+          await history.waitFor({ state: 'hidden' });
+        }
         if (width === 1280) layout.stopServerState = await pendingAndStop({ page, db, blocker, userId: owner.userId, ids, network });
         const longResponse = await send(page, '找出2026Q3CBD季度总面积超过5万平方米的楼，并查看净有效租金');
         assert.equal(longResponse.status(), 200, 'EXPERIENCE_LONG_RESULT_HTTP_FAILURE');

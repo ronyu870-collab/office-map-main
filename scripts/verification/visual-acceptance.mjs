@@ -42,6 +42,12 @@ export function checkVisualAcceptance(pr) {
         reason: 'User explicitly waived independent visual acceptance and requested direct main merge for PR #224 on 2026-11-19; manual visual review was not performed and all engineering, security and data checks remain mandatory',
       },
       {
+        number: 216,
+        branch: 'codex/colliers-ai-4-p2-owned-history-20261119',
+        scope: 'Colliers AI 4.0 P2 encrypted agent context and authenticated history indexing, PR #216',
+        reason: 'User explicitly waived manual browser review, independent visual review, screenshots and physical-device acceptance for staged Colliers AI 4.0 on 2026-11-19; this PR-specific waiver does not replace CI or permission validation',
+      },
+      {
         number: 217,
         branch: 'codex/colliers-ai-4-p0-p1-release-20261119',
         scope: 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #217',

@@ -360,6 +360,38 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(client.submit).toHaveBeenCalledTimes(2);
   });
 
+  it('continues an authenticated native Agent history through the Agent endpoint, not legacy query', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true });
+    const conversationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const entry = { conversationId, requestId: requestIds[0], title: 'Agent 市场分析',
+      latestQuestion: 'CBD 市场情况', updatedAt: '2026-11-18T01:00:00.000Z', archived: false };
+    const turn = { requestId: requestIds[0], question: entry.latestQuestion,
+      state: 'succeeded', submittedAt: entry.updatedAt };
+    const opened: HistoryOpened = { title: entry.title, turns: [turn],
+      selected: { ...turn, reply: { requestId: requestIds[0], status: 'assistant',
+        isNativeAgent: true, message: '已完成 CBD 市场分析。' } },
+      conversation: { id: conversationId, parentRequestId: requestIds[0], resumeToken: 'signed-native-agent-parent' },
+      hasMore: false };
+    historyClient.list.mockResolvedValue({ entries: [entry], hasMore: false, indexing: false, unavailable: 0 });
+    historyClient.open.mockResolvedValue(opened);
+    client.submitAgent.mockImplementation(async (_scope, body: Submission) => ({
+      requestId: requestIds[1], status: 'assistant', conversation: body.conversation,
+      message: '模型追问：' + body.question,
+    }));
+    const { input } = await open(); await expand();
+    if (!screen.queryByRole('button', { name: '打开对话：Agent 市场分析' }))
+      fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+    fireEvent.click(await screen.findByRole('button', { name: '打开对话：Agent 市场分析' }));
+    // The restored message appears both as an accessible status and as the
+    // assistant's original reply. Assert actual presence without assuming uniqueness.
+    expect((await screen.findAllByText('已完成 CBD 市场分析。')).length).toBeGreaterThanOrEqual(2);
+    send(input, '为什么不同？');
+    await screen.findByText('模型追问：为什么不同？');
+    expect(client.submitAgent).toHaveBeenCalledOnce();
+    expect(client.submit).not.toHaveBeenCalled();
+    expect(client.submitAgent.mock.calls[0][1].conversation).toEqual(opened.conversation);
+  });
+
   it('opens an existing historical snapshot once and continues its signed parent after a workspace round trip', async () => {
     const conversationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     const entry = { conversationId, requestId: requestIds[0], title: '原始季度研究', latestQuestion: '历史季度的净有效租金',

@@ -37,7 +37,7 @@ import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/q
 import { queryActionSchema, queryClarificationReasonSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
 const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional() });
-export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(),
+export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(), isNativeAgent: z.boolean().optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional() });
 const replySchema = queryReplySchema;
 export type QueryReply = z.infer<typeof replySchema>;

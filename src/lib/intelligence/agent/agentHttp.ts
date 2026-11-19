@@ -16,6 +16,7 @@ import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
 import { queryVerifiedRealEstate } from './verifiedDataTool';
+import { recordHistorySubmission } from '../query/historyStore';
 import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
 
@@ -189,9 +190,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     await audit.append(requestId, 'succeeded', { delivery: 'not_yet_sent',
       provider: 'deepseek', model: execution.model, toolCalls: execution.toolCalls });
     completed = true;
+    // History indexing is optional until the owner-only RPC is deployed.
+    const historySaved = await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
     const responseBody = { requestId, status: execution.result ? 'ready' : 'assistant',
       message: execution.answer, ...(execution.result ? { result: execution.result } : {}),
-      conversation: valid.conversation, historySaved: false,
+      conversation: valid.conversation, historySaved,
       agent: { model: execution.model, modelCalls: execution.calls,
         toolCalls: execution.toolCalls, inputTokens: execution.inputTokens,
         outputTokens: execution.outputTokens } };
