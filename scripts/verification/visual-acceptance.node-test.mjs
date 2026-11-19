@@ -6,6 +6,22 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('AI 4.0 stage P0/P1 manual review waiver is uniquely scoped to PR #217', () => {
+  const scope = 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #217';
+  const reason = 'User explicitly waived manual browser review, independent visual review, screenshot comparison and physical-phone testing for staged Colliers AI 4.0 on 2026-11-19; applies only to PR #217 and does not waive Verify or security checks';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 217, body, head: { sha: head,
+    ref: 'codex/colliers-ai-4-p0-p1-release-20261119',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 211 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip all checks') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated work') }), /specifically authorized/);
+});
+
 test('Submarket PR #212 one-time manual acceptance waiver is limited to exact identity, scope, reason and head', () => {
   const scope = 'Map submarket three-stat bubbles, expandable business brief, quarterly trends and editorial maintenance, PR #212';
   const reason = 'User explicitly authorized a one-time waiver of independent visual acceptance and physical-device manual acceptance for PR #212 on 2026-11-19; those reviews were not performed and engineering, authorization and data checks remain mandatory';
