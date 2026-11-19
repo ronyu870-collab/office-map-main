@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SPECIALIST_DATA_TOOLS } from './toolRegistry';
+import { SPECIALIST_DATA_TOOLS, PRESENTATION_TOOLS } from './toolRegistry';
 
 export type ModelToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } };
 export type ModelMessage = {
@@ -30,7 +30,7 @@ export const DATA_TOOL = {
   },
 } as const;
 
-export const AGENT_TOOLS = [DATA_TOOL, ...SPECIALIST_DATA_TOOLS] as const;
+export const AGENT_TOOLS = [DATA_TOOL, ...SPECIALIST_DATA_TOOLS, ...PRESENTATION_TOOLS] as const;
 export const DEFAULT_AGENT_MODEL = 'deepseek-flash';
 const SUPPORTED_AGENT_MODELS = new Set(['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v4-flash']);
 function configuredModel(): string {
@@ -102,7 +102,8 @@ async function boundedJson(response: Response, maximum = 160000): Promise<unknow
 }
 
 /** One real DeepSeek completion; no mock or rule-generated text is substituted on failure. */
-export async function completeWithDeepSeek(messages: ModelMessage[], signal: AbortSignal): Promise<ModelCompletion> {
+export async function completeWithDeepSeek(messages: ModelMessage[], signal: AbortSignal,
+  onDelta?: (delta: string) => Promise<void>): Promise<ModelCompletion> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new ModelProviderError('not_configured');
   const model = configuredModel();
@@ -113,7 +114,8 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
     response = await fetch(url, { method: 'POST', cache: 'no-store', redirect: 'error', signal: deadline,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
       body: JSON.stringify({ model, messages, tools: AGENT_TOOLS, tool_choice: 'auto',
-        thinking: { type: 'disabled' }, stream: false, max_tokens: 1800 }),
+        thinking: { type: 'disabled' }, stream: !!onDelta,
+        ...(onDelta ? { stream_options: { include_usage: true } } : {}), max_tokens: 1800 }),
     });
   } catch (error) {
     if (signal.aborted) throw error;
@@ -126,6 +128,10 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
       : response.status === 404 ? 'model_not_found'
       : response.status === 429 ? 'rate_limited'
       : 'provider_unavailable');
+  }
+  if (onDelta) {
+    const { parseDeepSeekStream } = await import('./modelStream');
+    return parseDeepSeekStream(response, model, onDelta, deadline);
   }
   const parsed = responseSchema.safeParse(await boundedJson(response));
   if (!parsed.success) throw new ModelProviderError('invalid_response');

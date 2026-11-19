@@ -4,7 +4,7 @@ import { queryHttpDependencies } from './http';
 import { QUESTION_GRAMMAR_VERSION, QUESTION_SUBMARKETS, resolveBusinessQuestion } from './question';
 import { loadDataAuthority, verifyQueryIdentity } from './serverAuthority';
 
-export type QueryCapabilities = { enabled: boolean; examples: string[]; grammarVersion?: string; permissionRevision?: string; internalExport?: boolean; agentEnabled?: boolean };
+export type QueryCapabilities = { enabled: boolean; examples: string[]; grammarVersion?: string; permissionRevision?: string; internalExport?: boolean; agentEnabled?: boolean; agentStreamEnabled?: boolean };
 export async function handleQueryCapabilities(request: Request, dependencies: ReturnType<typeof queryHttpDependencies>): Promise<Response> {
   const json = (body: QueryCapabilities, status = 200) => Response.json(body, { status, headers: {
     'Cache-Control': 'private, no-store', Vary: 'Authorization, X-Colliers-Impersonate-User', 'X-Content-Type-Options': 'nosniff',
@@ -22,7 +22,8 @@ export async function handleQueryCapabilities(request: Request, dependencies: Re
         if (result.kind !== 'plan') return false;
         try { authorizePlan(result.plan, authority); return true; } catch { return false; }
       });
-    return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), agentEnabled: deepseekAgentConfigured(), grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
+    return json({ enabled: true, examples, internalExport: authority.grants.includes('export:internal'), agentEnabled: deepseekAgentConfigured(),
+      agentStreamEnabled: deepseekAgentConfigured() && process.env.AI_AGENT_STREAM_ENABLED !== 'false', grammarVersion: QUESTION_GRAMMAR_VERSION, permissionRevision: authority.permissionRevision });
   } catch (error) {
     const denied = error instanceof Error && ['QUERY_DENIED', 'QUERY_UNAUTHENTICATED'].includes(error.message);
     return json({ enabled: false, examples: [] }, denied ? 403 : 503);

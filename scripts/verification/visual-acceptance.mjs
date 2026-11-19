@@ -36,6 +36,24 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 223,
+        branch: 'codex/colliers-ai-4-p1-evidence-artifacts-20261119',
+        scope: 'Colliers AI 4.0 P1 source evidence deterministic charts authorized map and research tools, PR #223',
+        reason: 'User explicitly waived independent visual review, manual browser walkthrough, screenshots and physical-phone testing for Colliers AI 4.0 on 2026-11-19; only PR #223 is covered and CI, permission, security and build checks remain mandatory',
+      },
+      {
+        number: 221,
+        branch: 'codex/colliers-ai-4-p2-native-stream-20261119',
+        scope: 'Colliers AI 4.0 native DeepSeek SSE, tool progress and signed terminal reply, PR #221',
+        reason: 'User explicitly waived manual browser review, standalone visual review, screenshot comparison and physical phone testing for Colliers AI 4.0 staged work on 2026-11-19; waiver is limited to PR #221 and does not waive engineering, security or CI checks',
+      },
+      {
+        number: 218,
+        branch: 'codex/colliers-ai-4-p3-audit-cost-20261119',
+        scope: 'Colliers AI 4.0 P3 server-side token budget, cost planning and encrypted accounting, PR #218',
+        reason: 'User explicitly waived manual browser, standalone visual, screenshot and physical-device review for staged Colliers AI 4.0 on 2026-11-19; this waiver applies solely to PR #218, not Verify, security, integration or production model checks',
+      },
+      {
         number: 219,
         branch: 'codex/stacking-plan-p0-p1-quality-facade-20261119',
         scope: 'Stacking Plan P0 source integrity and P1 building facade redesign, Admin A/B pilot, PR #219',
