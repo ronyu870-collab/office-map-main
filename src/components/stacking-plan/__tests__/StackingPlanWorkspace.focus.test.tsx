@@ -44,6 +44,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
     const initial = await screen.findByRole('button', { name: /奥迪/ });
     fireEvent.click(initial);
+    fireEvent.click(screen.getByRole('button', { name: /编辑来源草稿/ }));
     const tenant = screen.getByLabelText('租户 / 用途') as HTMLInputElement;
     tenant.focus();
     fireEvent.change(tenant, { target: { value: '奥迪中国' } });
@@ -67,6 +68,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
   it('keeps unsaved notes editable during the filter transition and does not rewrite the source snapshot', async () => {
     render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
     fireEvent.click(await screen.findByRole('button', { name: /奥迪/ }));
+    fireEvent.click(screen.getByRole('button', { name: /编辑来源草稿/ }));
     const notes = screen.getByLabelText('备注 / 待核验事项') as HTMLTextAreaElement;
     notes.focus();
     fireEvent.change(notes, { target: { value: '首次校对' } });
@@ -76,5 +78,35 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     expect(document.activeElement).toBe(notes);
     expect(screen.getByText(/数据截至：2026-11-18/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.getSessionFast).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps tenant search focus through live results, edits and Chinese IME without replacing the input', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    const search = await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' }) as HTMLInputElement;
+    search.focus();
+    fireEvent.change(search, { target: { value: '奥' } });
+    expect(document.activeElement).toBe(search);
+    expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
+    search.setSelectionRange(1,1);
+    fireEvent.change(search, { target: { value: '奥迪' } });
+    expect(screen.getByRole('searchbox', { name: '搜索租户、楼层或单元' })).toBe(search);
+    expect(document.activeElement).toBe(search);
+    fireEvent.compositionStart(search);
+    fireEvent.change(search, { target: { value: '奥迪中国' } });
+    fireEvent.compositionEnd(search);
+    expect(search.value).toBe('奥迪中国');
+    expect(screen.queryByRole('button', { name: /奥迪 · / })).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+    expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
+    expect(document.activeElement).toBe(search);
+    expect(search.value).toBe('');
+  });
+
+  it('shows the source quality caveat and never infers verified tenant facts from a date-confirmed screenshot', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    await screen.findByText(/逐项已核验/);
+    expect(screen.getByText(/来源快照 · 未逐项核验/)).toBeInTheDocument();
+    expect(screen.getByText(/原始文件未归档/)).toBeInTheDocument();
+    expect(screen.getByText(/来源快照 · 未逐项核验/)).toBeInTheDocument();
   });
 });
