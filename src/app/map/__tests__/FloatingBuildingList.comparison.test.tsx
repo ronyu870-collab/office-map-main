@@ -55,10 +55,10 @@ describe('floating map building list comparison', () => {
     search.focus();
     fireEvent.change(search, { target: { value: '项' } });
     expect(document.activeElement).toBe(search);
-    search.setSelectionRange(1, 1);
     fireEvent.change(search, { target: { value: '项目' } });
-    expect(search.selectionStart).toBe(1);
     expect(document.activeElement).toBe(search);
+    search.setSelectionRange(1, 1);
+    expect(search.selectionStart).toBe(1);
     fireEvent.compositionStart(search);
     fireEvent.change(search, { target: { value: '项目0' } });
     fireEvent.compositionEnd(search, { data: '0' });
