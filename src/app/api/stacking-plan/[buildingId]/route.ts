@@ -116,7 +116,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // existing source snapshots readable without claiming the original is archived.
     let sources = sourceResult.data ?? [];
     let sourceError = sourceResult.error;
+    let evidenceStorageReady = true;
     if (sourceError?.code === '42703') {
+      evidenceStorageReady = false;
       const legacy = await client.from('stacking_plan_sources')
         .select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note').eq('building_id', id);
       sourceError = legacy.error;
@@ -145,7 +147,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       }
     }
     await guard();
-    return reply({ building, towers, floors, spaces, sources, basis: 'source_snapshot_unverified' });
+    return reply({ building, towers, floors, spaces, sources, evidence_storage_ready: evidenceStorageReady, basis: 'source_snapshot_unverified' });
   } catch (error) {
     return databaseUnavailable(error);
   }
