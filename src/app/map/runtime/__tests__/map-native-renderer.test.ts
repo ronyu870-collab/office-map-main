@@ -177,7 +177,7 @@ describe('native map visual hierarchy', () => {
       controller.renderMarkers(data, 'default', undefined, undefined, false);
       await flushFrames();
       const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
-      expect(filtered.map(name => name.split('，')[0])).toEqual(['玉渊潭', 'CBD']);
+      expect(filtered.map(name => name.split(' · ')[0])).toEqual(['玉渊潭', 'CBD']);
 
       const beforeEmpty = harness.markerInstances.length;
       controller.renderMarkers([], 'default', undefined, undefined, true);
