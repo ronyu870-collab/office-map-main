@@ -382,7 +382,9 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     if (!screen.queryByRole('button', { name: '打开对话：Agent 市场分析' }))
       fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
     fireEvent.click(await screen.findByRole('button', { name: '打开对话：Agent 市场分析' }));
-    await screen.findByText('已完成 CBD 市场分析。');
+    // The restored message appears both as an accessible status and as the
+    // assistant's original reply. Assert actual presence without assuming uniqueness.
+    expect((await screen.findAllByText('已完成 CBD 市场分析。')).length).toBeGreaterThanOrEqual(2);
     send(input, '为什么不同？');
     await screen.findByText('模型追问：为什么不同？');
     expect(client.submitAgent).toHaveBeenCalledOnce();
