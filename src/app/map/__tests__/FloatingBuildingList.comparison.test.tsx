@@ -64,7 +64,7 @@ describe('floating map building list comparison', () => {
     fireEvent.compositionEnd(search, { data: '0' });
     expect(document.activeElement).toBe(search);
     expect(search.value).toBe('项目0');
-    expect(screen.getAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
   });
 
   it('keeps selected buildings while switching list modes and filtering without losing unchecked rows', () => {
