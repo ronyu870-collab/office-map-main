@@ -57,60 +57,10 @@ begin
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     or p_sha256 is null
-    or p_sha256 !~ '^[0-9a-f]{64}
-    raise exception 'INVALID_EVIDENCE' using errcode='22023';
-  end if;
-
-  select * into old_row from public.stacking_plan_sources
-    where id=p_source_id and building_id=p_building_id for update;
-  if not found then
-    raise exception 'SOURCE_NOT_FOUND' using errcode='P0002';
-  end if;
-  if old_row.evidence_sha256 is not distinct from p_sha256
-     and old_row.evidence_storage_path is not distinct from p_path then
-    return to_jsonb(old_row); -- replay-safe, no duplicate audit
-  end if;
-  update public.stacking_plan_sources set
-    evidence_storage_path=p_path,
-    evidence_filename=p_name,
-    evidence_mime=p_mime,
-    evidence_size_bytes=p_size,
-    evidence_sha256=p_sha256,
-    evidence_uploaded_at=now(),
-    evidence_uploaded_by=p_actor
-  where id=p_source_id returning * into new_row;
-  insert into public.stacking_plan_source_events(source_id,actor_id,action,before_record,after_record)
-  values (p_source_id,p_actor,'attach_original',to_jsonb(old_row),to_jsonb(new_row));
-  return to_jsonb(new_row);
-end $fn$;
-
-revoke all on function private.stacking_plan_attach_source_original(uuid,text,uuid,text,text,text,integer,text)
-  from public,anon,authenticated;
-grant execute on function private.stacking_plan_attach_source_original(uuid,text,uuid,text,text,text,integer,text)
-  to service_role;
-
-create or replace function public.stacking_plan_source_attach(
-  p_building_id uuid,
-  p_source_id text,
-  p_actor uuid,
-  p_path text,
-  p_name text,
-  p_mime text,
-  p_size integer,
-  p_sha256 text
-) returns jsonb language sql security invoker set search_path = '' as $sql$
-  select private.stacking_plan_attach_source_original(
-    p_building_id,p_source_id,p_actor,p_path,p_name,p_mime,p_size,p_sha256
-  )
-$sql$;
-revoke all on function public.stacking_plan_source_attach(uuid,text,uuid,text,text,text,integer,text)
-  from public,anon,authenticated;
-grant execute on function public.stacking_plan_source_attach(uuid,text,uuid,text,text,integer,text)
-  to service_role;
-commit;
-
+    or p_sha256 !~ '^[0-9a-f]{64}$'
     or p_path is null
-    or p_path <> p_building_id::text || '/' || p_source_id || '/' || p_sha256 || '.' ||
+    or p_path <> (
+      p_building_id::text || '/' || p_source_id || '/' || p_sha256 || '.' ||
       (case p_mime
         when 'image/png' then 'png'
         when 'image/jpeg' then 'jpg'
@@ -118,7 +68,8 @@ commit;
         when 'application/pdf' then 'pdf'
         when 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' then 'xlsx'
         else 'invalid'
-       end)
+      end)
+    )
   then
     raise exception 'INVALID_EVIDENCE' using errcode='22023';
   end if;
