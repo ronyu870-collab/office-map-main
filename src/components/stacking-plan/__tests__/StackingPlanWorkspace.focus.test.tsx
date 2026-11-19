@@ -76,7 +76,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     fireEvent.change(notes, { target: { value: '首次校对—来源日期未确认' } });
     expect(notes.value).toBe('首次校对—来源日期未确认');
     expect(document.activeElement).toBe(notes);
-    expect(screen.getByText(/数据截至：2026-11-18/)).toBeInTheDocument();
+    expect(screen.getByText(/数据截至 2026-11-18/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.getSessionFast).toHaveBeenCalledTimes(1));
   });
 
@@ -95,7 +95,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     fireEvent.change(search, { target: { value: '奥迪中国' } });
     fireEvent.compositionEnd(search);
     expect(search.value).toBe('奥迪中国');
-    expect(screen.queryByRole('button', { name: /奥迪 · / })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /奥迪/ })).not.toBeInTheDocument();
     fireEvent.change(search, { target: { value: '' } });
     expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
     expect(document.activeElement).toBe(search);
