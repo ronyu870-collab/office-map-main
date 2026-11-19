@@ -45,11 +45,37 @@ describe('DeepSeek official native chat completion protocol', () => {
     expect(sent.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual([
       'query_verified_real_estate', 'search_buildings', 'get_building_profile',
       'query_quarterly_metrics', 'compare_market_segments', 'analyze_market_trends',
+      'get_source_evidence', 'prepare_chart', 'prepare_map_selection', 'prepare_research_output',
     ]);
     expect(sent.tools[0].function.name).toBe('query_verified_real_estate');
     expect(sent.thinking.type).toBe('disabled');
     expect(sent.stream).toBe(false);
     expect(sent.messages[0].role).toBe('user');
+  });
+
+  it('uses official SSE include_usage and forwards only real vendor increments', async () => {
+    const chunks = [
+      { id: 'real-id', model: 'deepseek-flash', choices: [{ index: 0,
+        delta: { content: '你好' }, finish_reason: null }] },
+      { id: 'real-id', model: 'deepseek-flash', choices: [{ index: 0,
+        delta: {}, finish_reason: 'stop' }] },
+      { id: 'real-id', model: 'deepseek-flash', choices: [],
+        usage: { prompt_tokens: 99, completion_tokens: 2 } },
+    ];
+    const body = chunks.map(item => 'data: ' + JSON.stringify(item) + '\n\n').join('') + 'data: [DONE]\n\n';
+    const fetch = vi.fn().mockResolvedValue(new Response(body,
+      { headers: { 'Content-Type': 'text/event-stream' } }));
+    vi.stubGlobal('fetch', fetch);
+    const deltas: string[] = [];
+    const result = await completeWithDeepSeek([{ role: 'user', content: '你好' }],
+      new AbortController().signal, async delta => { deltas.push(delta); });
+    expect(result.message.content).toBe('你好');
+    expect(result.inputTokens).toBe(99);
+    expect(result.outputTokens).toBe(2);
+    expect(deltas).toEqual(['你好']);
+    const sent = JSON.parse(String((fetch.mock.calls[0] as [string, RequestInit])[1].body));
+    expect(sent.stream).toBe(true);
+    expect(sent.stream_options).toEqual({ include_usage: true });
   });
 
   it.each([[401, 'unauthorized'], [402, 'payment_required'], [404, 'model_not_found'], [429, 'rate_limited']])(
