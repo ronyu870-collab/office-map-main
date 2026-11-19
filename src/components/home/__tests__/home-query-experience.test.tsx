@@ -35,7 +35,7 @@ describe('experience 2.0 P0', () => {
     fireEvent.click(screen.getByRole('button', { name: '市场租金趋势：CBD最近四季度租金趋势' }));
     expect(input).toHaveValue('CBD最近四季度租金趋势');
     expect(input).toHaveFocus();
-    fireEvent.click(screen.getByText('能力与范围'));
+    fireEvent.click(screen.getByRole('button', { name: '能力与范围' }));
     expect(screen.getByText(/我是 Colliers AI，高力国际北京办公楼市场的智能研究助手/)).toBeVisible();
     expect(await screen.findByRole('button', { name: '第五个获权示例' })).toBeVisible();
     expect(screen.getByRole('textbox')).toBe(input);

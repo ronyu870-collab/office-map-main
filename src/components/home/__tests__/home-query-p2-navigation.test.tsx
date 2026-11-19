@@ -65,10 +65,10 @@ describe('P2 AI, map and original historical snapshot navigation', () => {
 
   it('opens the original map-linked snapshot without issuing a new query or replacing its period', async () => {
     await openArchived();
-    expect(historyClient.open).toHaveBeenCalledWith(scope, { requestId: ids[0] }, expect.any(AbortSignal));
+    expect(historyClient.open).toHaveBeenCalledWith(scope, { requestId: ids[0], includeTimeline: true }, expect.any(AbortSignal));
     expect(client.submit).not.toHaveBeenCalled(); expect(client.recover).not.toHaveBeenCalled();
     expect(screen.getByText(turn.question)).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('已打开原始历史快照，未重新查询');
+    expect(screen.getByRole('region', { name: '查询结果' })).toHaveAttribute('data-result-id', result.resultId);
     expect(JSON.stringify(sessionStorage)).not.toContain(turn.question);
     expect(JSON.stringify(sessionStorage)).not.toContain(archived.conversation.resumeToken);
   });

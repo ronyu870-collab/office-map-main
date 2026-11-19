@@ -169,20 +169,18 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument(); expect(trigger).toHaveFocus();
     expect(screen.getByRole('dialog', { name: 'Colliers AI 工作空间' })).toBe(surface);
     expect(screen.getByRole('textbox', { name: '向 Colliers AI 提问' })).toBe(input);
-    expect(screen.getAllByRole('button', { name: '新对话' })).toHaveLength(1);
+    expect(within(screen.getByRole('complementary', { name: '历史工作记录' })).getByRole('button', { name: '新对话' })).toBeEnabled();
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Colliers AI 工作空间' })).not.toBeInTheDocument());
     expect(client.submit).not.toHaveBeenCalled(); expect(historyClient.change).not.toHaveBeenCalled();
   });
-  it('skips controls inside CSS-hidden metadata when cycling focus in a short workspace', async () => {
+  it('skips the closed help panel when cycling workspace focus', async () => {
     client.submit.mockImplementation(async (_scope, body: Submission) => help(body));
     const { input } = await open();
     send(input, '你好');
     await screen.findByText('助手回应：你好');
     await expand();
-    // jsdom does not apply viewport CSS. Apply the same ancestor visibility
-    // change as the short visualViewport layout, without replacing the input.
-    screen.getByText('能力与范围').closest('details')!.parentElement!.style.display = 'none';
+    expect(screen.getByText(/我是 Colliers AI，高力国际北京办公楼市场的智能研究助手/)).not.toBeVisible();
     fireEvent.change(input, { target: { value: '正在继续编辑的草稿' } });
     const first = screen.getByRole('button', { name: '新对话' });
     first.focus();
@@ -359,7 +357,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     const [, original, signal] = client.submit.mock.calls[0] as [object, Submission, AbortSignal];
     await expand(); await collapse(); await expand();
     fireEvent.click(screen.getByRole('button', { name: '停止等待' }));
-    expect(signal.aborted).toBe(true); expect(screen.getByText(/已停止等待，服务端可能仍在处理/)).toBeVisible();
+    expect(signal.aborted).toBe(true); expect(screen.getByText(/已停止等待，回答可能仍在生成/)).toBeVisible();
     fireEvent.change(input, { target: { value: '停止之后的草稿' } });
     await collapse(); fireEvent.click(screen.getByRole('button', { name: '重试本次请求' }));
     await screen.findByText('助手回应：需要等待的问题');
@@ -434,7 +432,8 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     await collapse(); await expand();
     expect(screen.getByRole('region', { name: '查询结果' })).toBe(rendered);
     expect(historyClient.open).toHaveBeenCalledOnce();
-    expect(screen.getByText(/已打开原始历史快照，未重新查询/)).toBeInTheDocument();
+    expect(screen.queryByText(/已打开原始历史快照，未重新查询/)).not.toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: '本次问答' })).getByText(entry.latestQuestion)).toBeVisible();
     send(input, '在原范围继续分析'); await screen.findByText('助手回应：在原范围继续分析');
     expect(client.submit.mock.calls[0][1].conversation).toEqual(opened.conversation);
     expect(JSON.stringify(sessionStorage)).not.toContain(opened.conversation.resumeToken);
@@ -642,8 +641,8 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(document.body.style.overflow).not.toBe('hidden');
   });
 
-  it('reduces desktop dual panels to one on a narrow viewport without losing the composing draft or reopening panels on widening', async () => {
-    const viewport = controlResponsiveWidth(1280);
+  it('closes side panels before a narrow drawer could cover a composing draft and does not reopen them on widening', async () => {
+    const viewport = controlResponsiveWidth(1440);
     client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
     const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
     await screen.findByRole('region', { name: '查询结果' }); await expand();
@@ -657,14 +656,14 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     input.focus(); input.setSelectionRange(2, 6); fireEvent.compositionStart(input);
     act(() => viewport.resize(320));
     await waitFor(() => expect(screen.queryByRole('complementary', { name: '历史工作记录' })).not.toBeInTheDocument());
-    expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toBe(researchPanel);
+    expect(screen.queryByRole('complementary', { name: '研究资料与口径' })).not.toBeInTheDocument();
     expect(historyPanel).toBeInTheDocument(); expect(historyPanel).not.toBeVisible();
     expect(search).toBeInTheDocument(); expect(input).toHaveFocus(); expect(input).toHaveValue('缩窄窗口时仍在编辑的草稿');
     expect([input.selectionStart, input.selectionEnd]).toEqual([2, 6]);
     fireEvent.keyDown(input, { key: 'Escape' }); expect(screen.getByRole('dialog')).toBeInTheDocument();
-    act(() => viewport.resize(1280));
+    act(() => viewport.resize(1440));
     expect(screen.queryByRole('complementary', { name: '历史工作记录' })).not.toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toBe(researchPanel);
+    expect(researchPanel).not.toBeVisible();
     fireEvent.compositionEnd(input); fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
     expect(screen.getByRole('complementary', { name: '历史工作记录' })).toBe(historyPanel);
     expect(within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' })).toBe(search);
@@ -672,7 +671,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
   });
 
   it('keeps the history search and its IME focus when a dual-panel desktop workspace becomes narrow', async () => {
-    const viewport = controlResponsiveWidth(1280);
+    const viewport = controlResponsiveWidth(1440);
     client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
     const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
     await screen.findByRole('region', { name: '查询结果' }); await expand();
@@ -687,13 +686,41 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     expect(screen.getByRole('complementary', { name: '历史工作记录' })).toBe(historyPanel);
     expect(researchPanel).toBeInTheDocument(); expect(researchPanel).not.toBeVisible();
     expect(search).toHaveFocus(); expect(search).toHaveValue('中文历史研究');
-    fireEvent.keyDown(search, { key: 'Escape' }); expect(screen.getByRole('dialog')).toBeInTheDocument();
-    act(() => viewport.resize(1280));
+    fireEvent.keyDown(search, { key: 'Escape' }); expect(screen.getByRole('dialog', { name: 'Colliers AI 工作空间' })).toBeInTheDocument();
+    act(() => viewport.resize(1440));
     expect(screen.queryByRole('complementary', { name: '研究资料与口径' })).not.toBeInTheDocument();
     expect(search).toHaveFocus(); expect(search).toHaveValue('中文历史研究');
     fireEvent.compositionEnd(search); fireEvent.keyDown(search, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.getByRole('button', { name: expandName })).toHaveFocus();
+    expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
+  });
+
+  it('keeps the focused research panel when both side panels become a drawer', async () => {
+    const viewport = controlResponsiveWidth(1440);
+    client.submit.mockImplementation(async (_scope, body: Submission) => ({ requestId: requestIds[0], status: 'ready', result, conversation: body.conversation }));
+    const { input } = await open(); send(input, '2026Q3 CBD净有效租金');
+    await screen.findByRole('region', { name: '查询结果' }); await expand();
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+    const historyPanel = await screen.findByRole('complementary', { name: '历史工作记录' });
+    const search = within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' });
+    fireEvent.change(search, { target: { value: '保留的历史筛选' } });
+    fireEvent.click(screen.getByRole('button', { name: '研究资料' }));
+    const researchPanel = await screen.findByRole('complementary', { name: '研究资料与口径' });
+    const sourceButton = within(researchPanel).getByRole('button', { name: '查看来源明细' });
+    sourceButton.focus();
+    act(() => viewport.resize(320));
+    expect(screen.getByRole('dialog', { name: '研究资料侧栏' })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: '研究资料与口径' })).toBe(researchPanel);
+    expect(sourceButton).toHaveFocus();
+    expect(historyPanel).toBeInTheDocument(); expect(historyPanel).not.toBeVisible();
+    expect(search).toBeInTheDocument(); expect(search).toHaveValue('保留的历史筛选');
+    act(() => viewport.resize(1440));
+    expect(sourceButton).toHaveFocus(); expect(researchPanel).toBeVisible();
+    expect(historyPanel).not.toBeVisible(); expect(screen.getByLabelText('Colliers AI')).toBe(input);
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+    expect(within(historyPanel).getByRole('searchbox', { name: '搜索标题或最近问题' })).toBe(search);
+    expect(search).toHaveValue('保留的历史筛选');
     expect(client.submit).toHaveBeenCalledOnce(); expect(client.recover).not.toHaveBeenCalled();
   });
 

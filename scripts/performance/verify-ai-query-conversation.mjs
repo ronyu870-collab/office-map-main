@@ -194,6 +194,16 @@ export async function login(page, app, owner, recordHttpStatus) {
  * never DOM/state injection, and does not weaken any result/receipt endpoint. */
 export async function prepareFullQueryWorkspace(page, { keepHistory = false } = {}) {
   const mode = await page.locator('#home-query').evaluate(node => node.closest('[data-mode]')?.dataset.mode);
+  const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
+  const historyWasOpen = await history.isVisible();
+  // A narrow history drawer correctly makes the toolbar inert. Close it through
+  // its own control before changing mode, then restore it if the caller needs it.
+  const closeDrawer = mode !== 'expanded' && historyWasOpen && await history.evaluate(node =>
+    node.closest('#query-workspace-history')?.getAttribute('aria-modal') === 'true');
+  if (closeDrawer) {
+    await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+    await history.waitFor({ state: 'hidden' });
+  }
   const expand = page.getByRole('button', { name: mode === 'focus' ? '全屏 Colliers AI 工作空间' : '展开 Colliers AI 工作空间', exact: true });
   if (mode !== 'expanded') {
     if (!await expand.count()) return 'legacy';
@@ -203,8 +213,11 @@ export async function prepareFullQueryWorkspace(page, { keepHistory = false } = 
     const input = document.querySelector('#home-query'), surface = input?.closest('[data-mode]');
     return input && !input.disabled && surface?.dataset.mode === 'expanded' && surface.dataset.transitioning === 'false';
   });
+  if (keepHistory && closeDrawer) {
+    await page.getByRole('button', { name: '历史记录', exact: true }).click();
+    await history.waitFor({ state: 'visible' });
+  }
   if (!keepHistory) {
-    const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
     if (await history.isVisible()) {
       // Finish the initial directory read outside query timing; subsequent real
       // reads/receipts retain their existing network attribution and assertions.

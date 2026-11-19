@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistoryOpened, HistoryPage } from '@/src/lib/intelligence/query/historyProtocol';
 const client = vi.hoisted(() => ({ list: vi.fn(), open: vi.fn(), change: vi.fn() }));
 vi.mock('@/src/services/trustedQueryHistoryClient', () => ({ trustedQueryHistoryClient: client }));
-import { HomeQueryHistory } from '../HomeQueryHistory';
+import { HomeQueryHistory, historyDateLabel } from '../HomeQueryHistory';
 
 const scope = { actorId: 'first', effectiveId: 'first', sessionId: 'session', targetId: null };
 const conversationId = '11111111-1111-4111-8111-111111111111', requestId = '22222222-2222-4222-8222-222222222222';
@@ -34,7 +34,7 @@ describe('own history mounted input and bounded record lifecycle', () => {
     fireEvent.compositionStart(input); fireEvent.change(input, { target: { value: '中文组词' } }); fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
     await new Promise(resolve => setTimeout(resolve, 280)); expect(client.list).toHaveBeenCalledTimes(calls); expect(input).toHaveFocus();
     client.list.mockResolvedValue({ ...page, entries: [] }); fireEvent.compositionEnd(input);
-    await screen.findByText('本页没有匹配的记录。'); expect(input).toHaveFocus(); expect(input).toHaveValue('中文组词');
+    await screen.findByText('没有找到匹配的对话'); expect(input).toHaveFocus(); expect(input).toHaveValue('中文组词');
     pending.resolve(page); fireEvent.input(input, { target: { value: '中文组词继续' }, inputType: 'insertText', data: '继续' }); expect(input).toHaveValue('中文组词继续'); expect(input).toHaveFocus();
     await user.clear(input); await waitFor(() => expect(client.list).toHaveBeenLastCalledWith(scope, expect.objectContaining({ search: '' }), expect.any(AbortSignal)));
     expect(input).toHaveFocus();
@@ -58,7 +58,7 @@ describe('own history mounted input and bounded record lifecycle', () => {
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith(opened));
     expect(screen.getByRole('region', { name: '对话中的提问' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '查看更早提问' }));
-    await waitFor(() => expect(client.open).toHaveBeenLastCalledWith(scope, { conversationId, cursor: 'older' }, expect.any(AbortSignal)));
+    await waitFor(() => expect(client.open).toHaveBeenLastCalledWith(scope, { conversationId, cursor: 'older', includeTimeline: true }, expect.any(AbortSignal)));
     expect(client.change).not.toHaveBeenCalled();
   });
   it('clears old account history immediately and ignores delayed results after owner or permission changes', async () => {
@@ -68,7 +68,7 @@ describe('own history mounted input and bounded record lifecycle', () => {
     client.list.mockResolvedValue({ ...page, entries: [] });
     view.rerender(<HomeQueryHistory scope={{ ...scope, actorId: 'second', effectiveId: 'second' }} permissionRevision="two" onOpen={() => {}} />);
     expect(screen.queryByText(entry.title)).not.toBeInTheDocument(); pending.resolve(page);
-    await screen.findByText('本页暂无可查看的工作记录。'); expect(screen.queryByText(entry.title)).not.toBeInTheDocument();
+    await screen.findByText('还没有历史对话'); expect(screen.queryByText(entry.title)).not.toBeInTheDocument();
     expect(client.list.mock.calls[0][2].aborted).toBe(true);
   });
   it('keeps only one page mounted and exposes archive recovery and unfinished legacy indexing', async () => {
@@ -86,7 +86,7 @@ describe('own history mounted input and bounded record lifecycle', () => {
     render(<HomeQueryHistory scope={scope} activeConversationId={conversationId} onOpen={() => {}} onNew={onNew} onHome={onHome} />);
     const selected = await screen.findByRole('button', { name: '打开对话：CBD季度分析' });
     expect(selected).toHaveAttribute('aria-current', 'true');
-    expect(screen.getByRole('region', { name: '2026年11月15日的对话' })).toContainElement(selected);
+    expect(screen.getByRole('region', { name: `${historyDateLabel(entry.updatedAt)}的对话` })).toContainElement(selected);
     await userEvent.click(screen.getByRole('button', { name: '新对话' })); expect(onNew).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole('button', { name: '返回主页' })); expect(onHome).toHaveBeenCalledOnce();
     expect(client.open).not.toHaveBeenCalled(); expect(client.change).not.toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe('own history mounted input and bounded record lifecycle', () => {
     await waitFor(() => expect(client.list).toHaveBeenCalledTimes(2));
     const other = screen.getByRole('button', { name: '其他工作操作' }); await user.click(other); expect(other).toHaveFocus();
     refresh.resolve({ ...page, entries: [] });
-    await screen.findByText('本页暂无可查看的工作记录。');
+    await screen.findByText('还没有历史对话');
     expect(other).toHaveFocus(); expect(client.change).toHaveBeenCalledOnce();
   });
   it('does not interrupt an active query by restoring history, while search and returning home remain usable', async () => {
@@ -188,4 +188,57 @@ describe('own history mounted input and bounded record lifecycle', () => {
     expect(onOpen).not.toHaveBeenCalled();
     expect(screen.queryByRole('region', { name: '对话中的提问' })).not.toBeInTheDocument();
   });
+  it('keeps the search node mounted while archive tabs change with keyboard and clear returns focus', async () => {
+    render(<HomeQueryHistory scope={scope} onOpen={() => {}} />);
+    await screen.findByText(entry.title);
+    const user = userEvent.setup();
+    const input = screen.getByRole('searchbox');
+    await user.type(input, 'CBD');
+    const recent = screen.getByRole('tab', { name: '最近对话' });
+    recent.focus(); await user.keyboard('{ArrowRight}');
+    const archive = screen.getByRole('tab', { name: '已归档' });
+    expect(archive).toHaveFocus(); expect(archive).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('searchbox')).toBe(input); expect(input).toHaveValue('CBD');
+    await waitFor(() => expect(client.list).toHaveBeenLastCalledWith(scope, expect.objectContaining({ archived: true, search: 'CBD' }), expect.any(AbortSignal)));
+    await user.click(screen.getByRole('button', { name: '清空历史搜索' }));
+    expect(input).toHaveValue(''); expect(input).toHaveFocus();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', archive.id);
+  });
+  it('separates the conversation index from the global list and requests full history snapshots', async () => {
+    const response = { ...opened, timeline: [opened.selected] };
+    client.open.mockResolvedValue(response);
+    render(<HomeQueryHistory scope={scope} onOpen={() => {}} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '打开对话：CBD季度分析' }));
+    await screen.findByRole('region', { name: '对话中的提问' });
+    expect(client.open).toHaveBeenCalledWith(scope, { conversationId, includeTimeline: true }, expect.any(AbortSignal));
+    expect(screen.queryByRole('button', { name: '打开对话：CBD季度分析' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `查看记录：${entry.latestQuestion}` })).toHaveAttribute('aria-current', 'step');
+    expect(screen.queryByRole('button', { name: '查看更早提问' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '全部对话' }));
+    expect(screen.getByRole('button', { name: '打开对话：CBD季度分析' })).toBeInTheDocument();
+  });
+  it('groups dates by Beijing calendar days rather than elapsed hours or UTC dates', () => {
+    const now = new Date('2026-11-19T16:05:00Z');
+    expect(historyDateLabel('2026-11-19T16:01:00Z', now)).toBe('今天');
+    expect(historyDateLabel('2026-11-19T15:59:00Z', now)).toBe('昨天');
+    expect(historyDateLabel('2026-11-16T00:00:00Z', now)).toBe('近7天');
+    expect(historyDateLabel('2026-11-01T00:00:00Z', now)).toBe('近30天');
+    expect(historyDateLabel('2026-08-01T00:00:00Z', now)).toBe('2026年8月');
+    expect(historyDateLabel('not-a-date', now)).toBe('日期未记录');
+  });
+
+  it.each(['新对话', '关闭历史', '返回主页'])('ignores an in-flight history open after %s', async action => {
+    const pending = deferred<HistoryOpened>(); client.open.mockReturnValueOnce(pending.promise);
+    const onOpen = vi.fn(), onLeave = vi.fn();
+    render(<HomeQueryHistory scope={scope} onOpen={onOpen} onNew={onLeave} onClose={onLeave} onHome={onLeave} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '打开对话：CBD季度分析' }));
+    await user.click(screen.getByRole('button', { name: action }));
+    expect(onLeave).toHaveBeenCalledOnce();
+    pending.resolve(opened);
+    await waitFor(() => expect(screen.getByRole('button', { name: '打开对话：CBD季度分析' })).toBeEnabled());
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
 });

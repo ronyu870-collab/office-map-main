@@ -32,6 +32,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   const resultPanel = React.useRef<HTMLElement>(null);
   const sourcePanel = React.useRef<HTMLElement>(null);
   const returnFocus = React.useRef<HTMLButtonElement | null>(null);
+  const sectionId = React.useId();
   const summary = resultSummary(result);
   const availability = resultAvailability(result);
   const hasBuildings = React.useMemo(() => resultBuildingRows(result).length > 0, [result]);
@@ -48,6 +49,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   // Shape and information density determine the preview, never question length.
   // Small tables, short trends and single metrics stay usable on the homepage.
   const complex = result.table.rows.length > 8 || (research?.series.length ?? 0) > 4 || (research?.findings.length ?? 0) > 6;
+  const hasAnalysisNavigation = !!research || (!!requestId && !!scope && result.operation !== 'aggregate' && result.table.columns.some(column => column.unit));
   const condensed = presentation === 'compact' && complex && !inlineExpanded;
   const [detailsMounted, setDetailsMounted] = React.useState(!condensed);
   // Once revealed, retain the exact child instances, including their chart
@@ -74,6 +76,11 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
   function showSources(ids: readonly string[], label: string, trigger: HTMLButtonElement) {
     returnFocus.current = trigger; setSelected({ ids: [...new Set(ids)], label }); setSourcePage(0);
   }
+  function goToSection(name: string) {
+    const section = document.getElementById(`${sectionId}-${name}`);
+    section?.focus({ preventScroll: true });
+    section?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+  }
   React.useEffect(() => {
     if (!selected) return;
     // This focus change follows an explicit source action, never a query result
@@ -81,7 +88,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     sourcePanel.current?.focus({ preventScroll: true });
     sourcePanel.current?.scrollIntoView?.({ block: 'nearest' });
   }, [selected]);
-  return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation}>
+  return <section ref={resultPanel} tabIndex={-1} className={`${styles.result} ${experienceStyles.result}`} aria-label="查询结果" data-presentation={presentation} data-result-id={result.resultId}>
     {availability && <section className={styles.emptyState} aria-label="查询数据状态"><h3>{availability.title}</h3><p>{availability.description}</p></section>}
     <div className={experienceStyles.answer}>
       <p className={experienceStyles.conclusion}>{conclusion}
@@ -115,11 +122,21 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
       <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>
     </div>}
+    {complex && !condensed && <nav className={experienceStyles.directory} aria-label="本条回答目录">
+      <span>跳转至</span>
+      {hasAnalysisNavigation && <button type="button" aria-controls={`${sectionId}-analysis`} onClick={() => goToSection('analysis')}>图表与分析</button>}
+      {hasBuildings && requestId && scope && <button type="button" aria-controls={`${sectionId}-buildings`} onClick={() => goToSection('buildings')}>相关楼宇</button>}
+      {!scalar && result.table.rows.length > 0 && <button type="button" aria-controls={`${sectionId}-table`} onClick={() => goToSection('table')}>结果明细</button>}
+      <button type="button" aria-controls={`${sectionId}-sources`} onClick={() => goToSection('sources')}>来源与口径</button>
+    </nav>}
     {detailsMounted && <div hidden={condensed} className={experienceStyles.details}>
+    {(requestId && scope || research) && <section id={`${sectionId}-analysis`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="图表与分析">
     {requestId && scope && <HomeQueryArtifacts result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible && !condensed} actionContainer={actionContainer} />}
     {research && <HomeQueryInsights research={research} primaryFindingId={primaryFinding?.id} onSource={showSources} />}
-    {hasBuildings && requestId && scope && <HomeQueryBuildings result={result} requestId={requestId} scope={scope} onSource={showSources} />}
-    {!scalar && result.table.rows.length > 0 && <>
+    </section>}
+    {hasBuildings && requestId && scope && <section id={`${sectionId}-buildings`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="相关楼宇"><HomeQueryBuildings result={result} requestId={requestId} scope={scope} onSource={showSources} /></section>}
+    {!scalar && result.table.rows.length > 0 && <section id={`${sectionId}-table`} tabIndex={-1} className={experienceStyles.readingSection} aria-label="结果明细">
+      <h3 className={experienceStyles.sectionTitle}>结果明细</h3>
       <div className={`${styles.tableScroll} ${experienceStyles.table}`} tabIndex={0} aria-label="查询结果表，可横向滚动">
         <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>
           <th key={column.key} scope="col" className={column.unit ? styles.number : undefined}>{column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}</th>)}</tr></thead>
@@ -138,12 +155,12 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
           <Button variant="ghost" disabled={(page + 1) * 25 >= result.table.rows.length} onClick={() => setPage(value => value + 1)}>下一页</Button>
         </div>}
       </div>
-    </>}
+    </section>}
     </div>}
-    <section className={experienceStyles.sourceSummary} aria-label="数据来源">
+    <section id={`${sectionId}-sources`} tabIndex={-1} className={experienceStyles.sourceSummary} aria-label="数据来源">
       <h3>数据来源</h3>
-      <button type="button" className={experienceStyles.sourceLink} onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看 {result.sources.length} 条获权来源</button>
-      <p>数值可逐项追溯；来源清单包含未参与计算的候选记录。</p>
+      <button type="button" data-query-all-sources className={experienceStyles.sourceLink} onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看 {result.sources.length} 条获权来源</button>
+      <p>包含未参与计算的候选记录；点选具体数值可查看对应依据。</p>
     </section>
     {(context.length > 0 || result.limitations.length > 0) && <section className={`${styles.limitations} ${experienceStyles.limitations}`} aria-label="统计口径与限制">
       <h3>统计口径与限制</h3>
@@ -163,7 +180,6 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       <p>使用的数据表与字段：{[...new Set(result.sources.map(source => `${source.table}.${source.field}`))].join('；') || '未取得可用来源记录。'}</p>
       <p>结果生成于 {new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(result.createdAt))}（北京时间）。恢复结果保留原快照，不代表最新数据。</p>
       <dl><dt>结果编号</dt><dd>{result.resultId}</dd><dt>数据版本</dt><dd>{result.dataVersion}</dd><dt>字段口径</dt><dd>{result.registryVersion}</dd></dl>
-      <Button variant="secondary" onClick={event => showSources(result.sources.map(source => source.id), '全部获权候选来源（含未参与计算的记录）', event.currentTarget)}>查看全部来源</Button>
     </details>
     <div ref={setActionContainer} className={experienceStyles.resultActions} />
     {selected && <section ref={sourcePanel} tabIndex={-1} className={`${styles.sources} ${experienceStyles.sources}`} aria-label="来源详情">

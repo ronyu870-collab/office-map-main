@@ -6,6 +6,7 @@
 
 | 责任 | 当前入口 |
 | --- | --- |
+| AI 38 项体验修复：Markdown、连续历史、复制、侧栏与输入 | [逐项实施与验证](ai-experience-38-fixes.md) |
 | Colliers AI 4.0 DeepSeek-Native Agent 核心首批 | [Agent 交付记录](colliers-ai-4-agent-core.md) |
 | Colliers AI 3.0 P2 对话、历史与研究结果视觉精修 | [P2 视觉整合记录](colliers-ai-3-p2-visual-polish.md) |
 | Colliers AI 3.0 P1 紧凑输入、专注与全屏的单实例空间切换 | [P1 专注工作空间记录](colliers-ai-3-p1-focus-transition.md) |

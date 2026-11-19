@@ -5,7 +5,7 @@ import { createRpcAuditPort } from './auditStore';
 import { prepareDelivery } from './deliveryToken';
 import type { queryHttpDependencies } from './http';
 import { readQueryBody } from './httpBody';
-import { historyInputSchema } from './historyProtocol';
+import { historyInputSchema, type HistorySnapshot } from './historyProtocol';
 import { changeOwnHistory, listOwnHistory, openOwnHistory } from './historyStore';
 import { recordQueryIntake } from './intake';
 import { prepareQueryJsonResponse } from './jsonResponse';
@@ -53,9 +53,32 @@ export async function handleOwnHistory(request: Request, dependencies: ReturnTyp
       responseBody = { status: 'ready', page }; itemCount = page.entries.length;
     } else if (input.action === 'open') {
       const opened = await openOwnHistory(context, input);
-      responseBody = { status: 'ready', opened: opened.opened }; recheck = opened.recheck;
+      recheck = opened.recheck;
       resultId = opened.opened.selected.reply.result?.resultId ?? null;
       itemCount = opened.opened.selected.reply.result?.table.rows.length ?? 0;
+      if (opened.opened.timeline) {
+        const delivered = new Map(opened.opened.timeline.map(turn => [turn.requestId, turn]));
+        delivered.set(opened.opened.selected.requestId, opened.opened.selected);
+        const signed = new Map<string, HistorySnapshot>();
+        for (const [sourceRequestId, turn] of delivered) {
+          // A per-turn challenge binds this exact snapshot and its own result
+          // page bounds. Its digest excludes delivery metadata, avoiding a
+          // self-reference; the outer HTTP digest covers the complete envelope.
+          const snapshot = { ...turn }; delete snapshot.delivery;
+          const bodySha256 = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+          const headers = await prepareDelivery(audit, keys, identity, { requestId: attemptId, bodySha256,
+            resultId: turn.reply.result?.resultId ?? null, itemCount: turn.reply.result?.table.rows.length ?? 0,
+            kind: turn.reply.result ? 'result' : turn.reply.status === 'clarification' ? 'clarification' : 'status' },
+          { httpStatus: 200, surface: 'history_snapshot', sourceRequestId, conversationId: opened.opened.conversation.id });
+          signed.set(sourceRequestId, { ...snapshot, delivery: { deliveryToken: headers['X-Query-Delivery-Token'], bodySha256 } });
+        }
+        responseBody = { status: 'ready', opened: { ...opened.opened,
+          selected: signed.get(opened.opened.selected.requestId)!,
+          timeline: opened.opened.timeline.map(turn => signed.get(turn.requestId)!) } };
+        // The HTTP response is a batch, not the selected result. Its receipt
+        // acknowledges arrival only; each result above owns its DOM challenge.
+        resultId = null; itemCount = signed.size;
+      } else responseBody = { status: 'ready', opened: opened.opened };
     } else {
       await changeOwnHistory(context, input);
       responseBody = { status: 'saved', action: input.action };

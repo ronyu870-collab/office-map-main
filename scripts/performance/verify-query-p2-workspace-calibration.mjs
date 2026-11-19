@@ -23,6 +23,8 @@ assert.equal(summary(rows.map(row => ({ ...row, content_usable_ms: 2501 }))).bud
 assert.equal(summary(rows.map(row => ({ ...row, scenario: 'summary_reopen', content_usable_ms: 501 })), 'summary_reopen').budgetsMet, false);
 assert.equal(summary(rows.map(row => ({ ...row, scenario: 'summary_reopen', content_usable_ms: 500 })), 'summary_reopen').budgetsMet, true);
 assert.equal(summary(rows.map(row => ({ ...row, profile: 'mobile' }))).measurementComplete, false);
+assert.equal(summary(rows.map(row => ({ ...row, scenario: 'history_earlier_turns' })), 'history_earlier_turns').measurementComplete, false);
+assert.equal(summary(rows.map(row => ({ ...row, scenario: 'history_earlier_turns', timelinePresentationVerified: true })), 'history_earlier_turns').measurementComplete, true);
 assert.equal(p2WorkspaceErrorCode(new Error('P2_HTTP_NOT_READY\n\n400 !== 200')), 'P2_HTTP_NOT_READY');
 assert.equal(p2WorkspaceErrorCode(new Error('bearer credential or a business question')), 'P2_OPERATION_FAILED');
 console.log('PASS P2 workspace summary calibration: all 20 samples, facts, bounds, requests, receipts, long-task support and per-path budgets are mandatory; diagnostics omit arbitrary messages');
@@ -58,28 +60,47 @@ if (!process.argv.includes('--summary-only')) {
     assert.equal(measured.mounted.historyEntries, 1);
     await page.evaluate(() => window.__colliersP2Workspace.stop());
 
-    await page.setContent('<button aria-label="打开对话：校准">打开</button><aside aria-label="历史工作记录"><button aria-label="查看记录：校准">记录</button></aside><section aria-label="查询结果"><section aria-label="核心指标"><button>旧值</button></section></section>');
+    await page.setContent('<button aria-label="打开对话：校准">打开</button><aside aria-label="历史工作记录"><button aria-label="查看记录：校准">记录</button></aside><article aria-label="本次问答" data-query-turn="old"><section aria-label="查询结果"><section aria-label="核心指标"><button>旧值</button></section></section></article>');
     await page.evaluate(() => document.querySelector('button').addEventListener('click', () => {
       setTimeout(() => {
         document.querySelector('section[aria-label="查询结果"]').remove();
         const section = document.createElement('section'); section.setAttribute('aria-label', '查询结果');
-        section.innerHTML = '<section aria-label="核心指标"><button disabled>原始快照</button></section>'; document.body.append(section);
+        section.innerHTML = '<section aria-label="核心指标"><button disabled>原始快照</button></section>'; document.querySelector('article').append(section);
         setTimeout(() => { section.querySelector('button').disabled = false; }, 120);
       }, 140);
     }));
-    await page.evaluate(observeP2WorkspaceAction, { mode: 'history_snapshot', triggerAria: '打开对话：校准', expectedCount: 1 });
+    await page.evaluate(observeP2WorkspaceAction, { mode: 'history_snapshot', triggerAria: '打开对话：校准', expectedCount: 1, expectedTranscriptCount: 1 });
     await page.getByRole('button', { name: '打开对话：校准', exact: true }).click();
     await page.waitForFunction(() => window.__colliersP2Workspace.state.status === 'ready');
     measured = await page.evaluate(() => window.__colliersP2Workspace.read());
     assert.ok(measured.content_usable_ms >= 250, 'Stale result or new disabled numeric control cannot complete snapshot open');
     await page.evaluate(() => window.__colliersP2Workspace.stop());
 
+    await page.setContent('<button>加载更早问答</button><aside aria-label="历史工作记录"><button aria-label="查看记录：校准">记录</button></aside><article aria-label="本次问答" data-query-turn="current"><section aria-label="查询结果"><section aria-label="核心指标"><button>当前值</button></section></section></article>');
+    await page.evaluate(() => document.querySelector('button').addEventListener('click', () => {
+      const button = document.querySelector('button'); button.disabled = true; button.textContent = '正在加载更早问答…';
+      setTimeout(() => {
+        const earlier = document.createElement('article'); earlier.setAttribute('aria-label', '此前问答'); earlier.dataset.queryTurn = 'earlier';
+        earlier.innerHTML = '<p>已授权的更早回答</p><button data-query-result-disclosure="earlier" disabled>展开数据与来源</button>';
+        document.querySelector('article').before(earlier);
+        setTimeout(() => { earlier.querySelector('button').disabled = false; button.disabled = false; button.textContent = '加载更早问答'; }, 120);
+      }, 140);
+    }));
+    await page.evaluate(observeP2WorkspaceAction, { mode: 'history_turns', triggerText: '加载更早问答', expectedCount: 1, expectedTranscriptCount: 2 });
+    await page.getByRole('button', { name: '加载更早问答', exact: true }).click();
+    await page.waitForFunction(() => window.__colliersP2Workspace.state.status === 'ready');
+    measured = await page.evaluate(() => window.__colliersP2Workspace.read());
+    assert.ok(measured.content_usable_ms >= 250, 'A disabled earlier-result control cannot complete timeline prepending');
+    assert.ok(measured.feedback_ms < measured.content_usable_ms);
+    assert.equal(measured.mounted.transcriptTurns, 2); assert.equal(measured.mounted.results, 1);
+    await page.evaluate(() => window.__colliersP2Workspace.stop());
+
     await page.setContent('<button>复制结论</button><p role="status"></p>');
     await page.evaluate(() => document.querySelector('button').addEventListener('click', () => {
       const button = document.querySelector('button'), message = document.querySelector('[role="status"]');
-      button.disabled = true; message.textContent = '正在核对复制权限…';
+      button.disabled = true; message.textContent = '正在复制…';
       setTimeout(() => { const until = performance.now() + 65; while (performance.now() < until) { /* Long-task collector calibration. */ } }, 70);
-      setTimeout(() => { message.textContent = '已复制，包含必要口径。'; }, 170);
+      setTimeout(() => { message.textContent = '已复制结论。'; }, 170);
       setTimeout(() => { button.disabled = false; }, 260);
     }));
     await page.evaluate(observeP2WorkspaceAction, { mode: 'copy', triggerText: '复制结论' });

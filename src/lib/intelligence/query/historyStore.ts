@@ -7,7 +7,7 @@ import { decryptAuditContent, encryptAuditContent, redactSubmittedCredentials } 
 import type { AuditKeys } from './auditStore';
 import { authorizeConversationPlan } from './conversationStore';
 import { queryConversationSchema, SEMANTIC_PROTOCOL_VERSION } from './conversationProtocol';
-import { historyTurnSchema, type HistoryEntry, type HistoryInput, type HistoryOpened, type HistoryPage } from './historyProtocol';
+import { HISTORY_TIMELINE_PAGE_SIZE, historyTurnSchema, type HistorySnapshot, type HistoryEntry, type HistoryInput, type HistoryOpened, type HistoryPage } from './historyProtocol';
 import { sealHistoryToken, unsealHistoryToken } from './historyToken';
 import { parseQueryPlan, planPeriods } from './plan';
 import { buildSemanticSuggestions, parseSemanticContext, type SemanticClarification, type SemanticResolution } from './semanticPlanner';
@@ -115,7 +115,7 @@ async function readQuestionMetadata(context: Context, requestId: string) {
   return { ...receipt, plan, clarification, needsParentAuthorization: (receipt.semantic || receipt.agent) && !authorizedPlan, state: z.string().parse(data.state) };
 }
 
-async function readQuestion(context: Context, requestId: string) {
+export async function readQuestion(context: Context, requestId: string) {
   const receipt = await readQuestionMetadata(context, requestId);
   // Failed continuations have no executed plan. Their inherited question/title
   // must still honor the parent's scope rather than falling back to catalog-only
@@ -224,46 +224,26 @@ export async function listOwnHistory(context: Context, input: Extract<HistoryInp
       { beforeTime: last.updated_at, beforeId: last.conversation_id }) } : {}) };
 }
 
-export async function openOwnHistory(context: Context, input: Extract<HistoryInput, { action: 'open' }>) {
-  if (!input.conversationId) {
-    const located = await historyRpc(context, { action: 'locate', requestId: input.requestId });
-    input = { ...input, conversationId: z.uuid().parse(located.conversationId) };
-  }
-  const conversationId = input.conversationId!;
-  const page = await historyRpc(context, { action: 'turns', conversationId: input.conversationId, requestId: input.requestId, ...cursorInput(context, input) });
-  const thread = threadSchema.parse(page.thread);
-  const rows = z.array(z.object({ request_id: z.uuid(), submitted_at: z.string(), state: z.string() })).min(1).max(10).parse(page.records);
-  const requestId = input.requestId ?? rows[0].request_id;
-  const questionFor = await readQuestionPage(context, [...rows.map(row => row.request_id), requestId]);
-  const turns = [];
-  for (const row of rows) {
-    const receipt = questionFor(row.request_id);
-    if (receipt.conversation.id !== input.conversationId) throw new Error('QUERY_DENIED');
-    turns.push(historyTurnSchema.parse({ requestId: row.request_id, question: receipt.question, submittedAt: row.submitted_at, state: row.state }));
-  }
-  const question = questionFor(requestId);
-  if (question.conversation.id !== input.conversationId) throw new Error('QUERY_DENIED');
+/** Restores one immutable answer through the same current authorization path as
+ * an explicitly selected history turn. A timeline never bypasses source ACLs. */
+async function restoreHistorySnapshot(context: Context, conversationId: string, requestId: string,
+  question: Awaited<ReturnType<typeof readQuestion>>, submittedAt: string) {
   const record = await readOwnResult(context.client, context.identity, requestId, 'archive', context.signal);
   const agentAnswer = question.agent && record.state === 'succeeded'
     ? await restoreOwnAgentAnswer(context.client, context.identity, context.keys,
       context.authority, conversationId, requestId, context.signal) : null;
   const restored = !question.agent && record.state === 'succeeded'
     ? await recoverOwnResult(context.client, context.identity, context.keys, requestId, record, context.signal, { reauthorizedHistory: true }) : null;
-  const selectedRow = z.object({ request_id: z.literal(requestId), submitted_at: z.string() }).parse(page.selected);
-  const submittedAt = selectedRow.submitted_at;
   const reply = agentAnswer ? { requestId, status: agentAnswer.result ? 'ready' : 'assistant', isNativeAgent: true,
     message: agentAnswer.message, ...(agentAnswer.result ? { result: agentAnswer.result } : {}) }
     : { requestId, status: restored ? 'ready' : question.clarification ? 'clarification' : record.state,
       ...(restored ? { result: resultViewSchema.parse(restored.result) } : question.clarification ?? { message: '此轮未生成可恢复的结果，可重新发起查询。' }) };
-  const last = rows.at(-1)!, hasMore = page.hasMore === true;
-  const opened: HistoryOpened = { title: titleFor(context, thread, question.question), turns, selected: {
-    requestId, question: question.question, submittedAt, state: record.state, reply },
-    conversation: { id: conversationId, ...((agentAnswer || (restored && question.semantic)) ? { parentRequestId: requestId,
+  const resumable = !!(agentAnswer || (restored && question.semantic));
+  const turn: HistorySnapshot = { requestId, question: question.question, submittedAt, state: record.state, reply: { ...reply,
+    ...(resumable ? { conversation: { id: conversationId, parentRequestId: requestId,
       resumeToken: sealHistoryToken(context.identity, context.authority.permissionRevision, 'history-resume',
-        { conversationId: input.conversationId, requestId }, context.keys) } : {}) }, hasMore,
-    ...(hasMore ? { nextCursor: nextCursor(context, { action: 'open', conversationId: input.conversationId },
-      { beforeTime: last.submitted_at, beforeId: last.request_id }) } : {}) };
-  return { opened, recheck: async () => {
+        { conversationId, requestId }, context.keys) } } : {}) } };
+  return { turn, recheck: async () => {
     if (restored) await restored.recheck();
     if (agentAnswer) await agentAnswer.recheck();
     if (question.clarification) await readQuestion(context, requestId);
@@ -271,6 +251,71 @@ export async function openOwnHistory(context: Context, input: Extract<HistoryInp
     if (final.permission_revision !== context.authority.permissionRevision) throw new Error('QUERY_DENIED');
     if ((restored || agentAnswer) && (final.head_hash !== record.head_hash || final.head_sequence !== record.head_sequence))
       throw new Error('QUERY_RESULT_CHANGED');
+  } };
+}
+
+export async function openOwnHistory(context: Context, input: Extract<HistoryInput, { action: 'open' }>) {
+  if (!input.conversationId) {
+    const located = await historyRpc(context, { action: 'locate', requestId: input.requestId });
+    input = { ...input, conversationId: z.uuid().parse(located.conversationId) };
+  }
+  const conversationId = input.conversationId!;
+  let page = await historyRpc(context, { action: 'turns', conversationId, requestId: input.requestId, ...cursorInput(context, input) });
+  const rowsSchema = z.array(z.object({ request_id: z.uuid(), submitted_at: z.string(), state: z.string() })).max(10);
+  let availableRows = rowsSchema.min(1).parse(page.records);
+  if (input.includeTimeline && input.requestId && !input.cursor) {
+    const selectedIndex = availableRows.findIndex(row => row.request_id === input.requestId);
+    if (selectedIndex >= 0) availableRows = availableRows.slice(selectedIndex);
+    else {
+      // The index RPC returns the latest page even when a much older request is
+      // selected. Anchor a fresh page strictly before that owned turn, then add
+      // the selected turn once; newer answers must not appear before it.
+      const selected = z.object({ request_id: z.literal(input.requestId), submitted_at: z.string() }).parse(page.selected);
+      const question = await readQuestion(context, input.requestId);
+      if (question.conversation.id !== conversationId) throw new Error('QUERY_DENIED');
+      page = await historyRpc(context, { action: 'turns', conversationId, requestId: input.requestId,
+        beforeTime: selected.submitted_at, beforeId: input.requestId });
+      availableRows = [{ ...selected, state: question.state }, ...rowsSchema.parse(page.records)];
+    }
+  }
+  const thread = threadSchema.parse(page.thread);
+  // Full answers are deliberately paged more tightly than the lightweight turn
+  // index. Advancing from the last returned row avoids skipping the remainder.
+  const rows = input.includeTimeline ? availableRows.slice(0, HISTORY_TIMELINE_PAGE_SIZE) : availableRows;
+  const requestId = input.requestId ?? rows[0].request_id;
+  const questionFor = await readQuestionPage(context, [...rows.map(row => row.request_id), requestId]);
+  const turns = rows.map(row => {
+    const receipt = questionFor(row.request_id);
+    if (receipt.conversation.id !== conversationId) throw new Error('QUERY_DENIED');
+    return historyTurnSchema.parse({ requestId: row.request_id, question: receipt.question, submittedAt: row.submitted_at, state: row.state });
+  });
+  const question = questionFor(requestId);
+  if (question.conversation.id !== conversationId) throw new Error('QUERY_DENIED');
+  const selectedRow = z.object({ request_id: z.literal(requestId), submitted_at: z.string() }).parse(page.selected);
+  const toRestore = input.includeTimeline ? [...turns] : [];
+  if (!toRestore.some(turn => turn.requestId === requestId)) toRestore.push({ requestId, question: question.question,
+    submittedAt: selectedRow.submitted_at, state: question.state });
+  const snapshots = new Map<string, Awaited<ReturnType<typeof restoreHistorySnapshot>>>();
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(2, toRestore.length) }, async () => {
+    while (next < toRestore.length) {
+      const turn = toRestore[next++];
+      snapshots.set(turn.requestId, await restoreHistorySnapshot(context, conversationId, turn.requestId,
+        questionFor(turn.requestId), turn.submittedAt));
+    }
+  }));
+  context.signal.throwIfAborted();
+  const selected = snapshots.get(requestId)!;
+  const last = rows.at(-1)!, hasMore = availableRows.length > rows.length || page.hasMore === true;
+  const opened: HistoryOpened = { title: titleFor(context, thread, question.question), turns, selected: selected.turn,
+    ...(input.includeTimeline ? { timeline: turns.map(turn => snapshots.get(turn.requestId)!.turn).reverse() } : {}),
+    conversation: selected.turn.reply.conversation ?? { id: conversationId }, hasMore,
+    ...(hasMore ? { nextCursor: nextCursor(context, { action: 'open', conversationId },
+      { beforeTime: last.submitted_at, beforeId: last.request_id }) } : {}) };
+  return { opened, recheck: async () => {
+    // All replies are withheld if even one visible turn changes or loses access
+    // between the initial recovery and the final HTTP response.
+    for (const snapshot of snapshots.values()) await snapshot.recheck();
   } };
 }
 

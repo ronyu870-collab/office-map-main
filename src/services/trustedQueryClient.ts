@@ -53,6 +53,17 @@ export type QueryClientScope = { actorId: string; effectiveId: string; sessionId
 // transport guards rather than constructing a parallel authenticated client.
 export const receiveTrustedQueryValue = received;
 export const trustedQueryRequest = call;
+/** A signed nested snapshot can own a DOM receipt only after both its enclosing
+ * transport and its exact unprojected content have passed digest validation. */
+export async function bindTrustedQueryReceipt(parent: object, raw: object, value: object,
+  receipt: DeliveryReceipt, signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted();
+  if (!receipts.has(parent)) throw new Error('历史交付校验失败，请重新打开对话。');
+  await bindReceipt(value, new Response(null, { headers: {
+    'x-query-delivery-token': receipt.deliveryToken, 'x-query-body-sha256': receipt.bodySha256,
+  } }), new TextEncoder().encode(JSON.stringify(raw)));
+  signal.throwIfAborted();
+}
 export const queryScopeKey = (scope: QueryClientScope) => JSON.stringify([scope.actorId, scope.effectiveId, scope.sessionId, scope.targetId]);
 
 async function call(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown,

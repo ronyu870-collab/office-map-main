@@ -41,10 +41,11 @@ export function queryStarters(examples: readonly string[]): { question: string; 
   return selected;
 }
 
-export function AssistantHeading({ label }: { label: string }) {
+export function AssistantHeading({ label }: { label?: string }) {
+  const description = label?.trim();
   return <div className={styles.replyHeading}>
     <span className={styles.assistantMark} aria-hidden="true"><Building2 size={16} strokeWidth={1.6} /></span>
-    <strong>Colliers AI</strong><span className={styles.replyLabel}>{label}</span>
+    <strong>Colliers AI</strong>{description && description !== 'Colliers AI' && <span className={styles.replyLabel}>{description}</span>}
   </div>;
 }
 
