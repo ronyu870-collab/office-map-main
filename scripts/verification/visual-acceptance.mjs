@@ -36,10 +36,10 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
-        number: 214,
+        number: 215,
         branch: 'codex/colliers-ai-4-p0-p1-agent-tools-20261119',
-        scope: 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #214',
-        reason: 'User explicitly waived manual browser review, independent visual review, screenshot comparison and physical-phone testing for staged Colliers AI 4.0 on 2026-11-19; applies only to PR #214 and does not waive Verify or security checks',
+        scope: 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #215',
+        reason: 'User explicitly waived manual browser review, independent visual review, screenshot comparison and physical-phone testing for staged Colliers AI 4.0 on 2026-11-19; applies only to PR #215 and does not waive Verify or security checks',
       },
       {
         number: 211,
