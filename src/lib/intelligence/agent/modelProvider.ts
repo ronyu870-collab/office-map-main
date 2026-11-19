@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SPECIALIST_DATA_TOOLS } from './toolRegistry';
 
 export type ModelToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } };
 export type ModelMessage = {
@@ -12,6 +13,7 @@ export type ModelCompletion = {
   message: ModelMessage;
   inputTokens: number | null;
   outputTokens: number | null;
+  providerRequestId?: string;
 };
 
 export const DATA_TOOL = {
@@ -28,7 +30,17 @@ export const DATA_TOOL = {
   },
 } as const;
 
+export const AGENT_TOOLS = [DATA_TOOL, ...SPECIALIST_DATA_TOOLS] as const;
+export const DEFAULT_AGENT_MODEL = 'deepseek-flash';
+const SUPPORTED_AGENT_MODELS = new Set(['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v4-flash']);
+function configuredModel(): string {
+  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || DEFAULT_AGENT_MODEL;
+  if (!SUPPORTED_AGENT_MODELS.has(model)) throw new ModelProviderError('invalid_configuration');
+  return model;
+}
+
 const responseSchema = z.object({
+  id: z.string().min(1).max(150).optional(),
   model: z.string().min(1).max(120).optional(),
   choices: z.array(z.object({
     finish_reason: z.string(),
@@ -68,9 +80,7 @@ function providerUrl(): string {
  * Local protocol-test providers are not production DeepSeek agents. */
 export function deepseekAgentConfigured(): boolean {
   if (!process.env.DEEPSEEK_API_KEY?.trim()) return false;
-  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash';
-  if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(model)) return false;
-  try { providerUrl(); return true; }
+  try { configuredModel(); providerUrl(); return true; }
   catch { return false; }
 }
 
@@ -95,15 +105,14 @@ async function boundedJson(response: Response, maximum = 160000): Promise<unknow
 export async function completeWithDeepSeek(messages: ModelMessage[], signal: AbortSignal): Promise<ModelCompletion> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new ModelProviderError('not_configured');
-  const model = process.env.DEEPSEEK_CHAT_MODEL?.trim() || process.env.DEEPSEEK_MODEL?.trim() || 'deepseek-v4-flash';
-  if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(model)) throw new ModelProviderError('invalid_configuration');
+  const model = configuredModel();
   const url = providerUrl();
   const deadline = AbortSignal.any([signal, AbortSignal.timeout(18000)]);
   let response: Response;
   try {
     response = await fetch(url, { method: 'POST', cache: 'no-store', redirect: 'error', signal: deadline,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-      body: JSON.stringify({ model, messages, tools: [DATA_TOOL], tool_choice: 'auto',
+      body: JSON.stringify({ model, messages, tools: AGENT_TOOLS, tool_choice: 'auto',
         thinking: { type: 'disabled' }, stream: false, max_tokens: 1800 }),
     });
   } catch (error) {
@@ -129,6 +138,7 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
       ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) },
     inputTokens: parsed.data.usage?.prompt_tokens ?? null,
     outputTokens: parsed.data.usage?.completion_tokens ?? null,
+    ...(parsed.data.id ? { providerRequestId: parsed.data.id } : {}),
   };
 }
 

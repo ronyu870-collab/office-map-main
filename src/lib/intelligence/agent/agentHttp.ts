@@ -16,6 +16,7 @@ import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
 import { queryVerifiedRealEstate } from './verifiedDataTool';
+import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
 
 const inputSchema = z.strictObject({
@@ -127,17 +128,22 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     await audit.append(requestId, 'tool_started', { tool: 'deepseek_chat', provider: 'deepseek',
       operation: 'native_tool_calling', historyTurns: history.length });
     let completedModels = 0, reportedInput: number | null = 0, reportedOutput: number | null = 0;
+    const providerRequestIds: string[] = [];
     const onEvent = async (event: AgentEvent) => {
       if (event.type === 'model_finished') {
         completedModels++;
+        if (event.providerRequestId) providerRequestIds.push(event.providerRequestId);
         reportedInput = reportedInput === null || event.inputTokens === null || event.inputTokens === undefined
           ? null : reportedInput + event.inputTokens;
         reportedOutput = reportedOutput === null || event.outputTokens === null || event.outputTokens === undefined
           ? null : reportedOutput + event.outputTokens;
+      } else if (event.type === 'tool_started') {
+        await audit!.append(requestId, 'tool_started', { tool: event.name,
+          provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
       } else if (event.type === 'tool_finished') {
         await audit!.append(requestId, 'tool_finished', {
-          tool: event.name, status: event.status, provider: 'trusted_query_engine',
-          permissionRevision: authority.permissionRevision });
+          tool: event.name, status: event.status, reused: event.reused === true,
+          provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
       }
     };
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
@@ -145,7 +151,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
         history, invoke: completeWithDeepSeek, signal, onEvent,
-        runTool: async (_name, args) => {
+        runTool: async (name, args) => {
+          if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
           const rechecked = await fresh();
           if (rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
@@ -156,11 +163,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     } catch (error) {
       await audit.append(requestId, 'accounting', { provider: 'deepseek', status: 'incomplete',
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
+        providerRequestIds: providerRequestIds.slice(0, 6),
         cost: null, costStatus: 'provider_invoice_not_available' });
       throw error;
     }
     await audit.append(requestId, 'accounting', { provider: 'deepseek', status: 'completed',
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
+      providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
       inputTokens: execution.inputTokens, outputTokens: execution.outputTokens,
       cost: null, costStatus: 'provider_invoice_not_available' });
     const current = await fresh();

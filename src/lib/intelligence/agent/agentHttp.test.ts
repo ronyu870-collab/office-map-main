@@ -100,6 +100,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(output.agent.modelCalls).toBe(2);
     expect(output.agent.toolCalls).toBe(1);
     expect(state.tool).toHaveBeenCalledOnce();
+    expect(state.append.mock.calls.some(x => x[1] === 'tool_started' && x[2]?.tool === 'query_verified_real_estate')).toBe(true);
     expect(state.provider).toHaveBeenCalledTimes(2);
     expect(state.provider.mock.calls[1][0].some((m: { role: string; tool_call_id?: string }) =>
       m.role === 'tool' && m.tool_call_id === 'tool-1')).toBe(true);
