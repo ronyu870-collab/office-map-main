@@ -50,3 +50,9 @@ Agent 注册只读的 query_verified_real_estate 工具，可自主连续调用�
 
 - 之前 `HomeQuery` 凡带 `resumeToken` 均回退旧查询服务，即使历史来自 DeepSeek Agent。现在历史 API 仅在真实已归档的 Agent 请求中返回 `isNativeAgent` 标记；前端将该标记作为路由提示，且服务端依然独立验证身份、签名、会话、权限和来源。
 - 已增加真实组件回归：Agent 历史打开后追问走 Agent；旧受控查询历史保持旧路由。历史目录未安装时仍不能宣称已经有可用跨设备恢复。
+
+## 2026-11-19 历史数据库生产发布复核
+
+- 仓库 `20261115173338_ai_query_own_history.sql` 已在生产 Supabase `qhgxougfzzmgqjzzwudf` 应用，Supabase 迁移记录 `20261119070020`／`ai_query_own_history`。此前“生产尚未安装历史迁移”的阶段描述已过时，此段为最新状态。
+- 生产应用前事务 dry-run 后回滚，三张表和 RPC 均未遗留；正式应用后核验 private 三表存在且均开启 RLS、public/private RPC 存在。仅 service_role 可执行公开 RPC，anon 和 authenticated 不可执行；authenticated 不可 SELECT 私有会话表。
+- 数据库结构和权限已上线，但需要 PR #216 应用发布及真实登录的历史保存/列表/恢复/撤权验证后才能宣称 AI 4.0 业务功能正式可用。现有历史表无初始记录；不会回写已有业务成交或季度租金。

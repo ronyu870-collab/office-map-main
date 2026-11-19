@@ -1,3 +1,9 @@
+# 2026-11-19 — Colliers AI 本人工作历史数据库生产发布
+
+- 正式将仓库既有 `20261115173338_ai_query_own_history.sql` 迁移应用至 Supabase 生产 `qhgxougfzzmgqjzzwudf`，生产迁移登记号 `20261119070020`，名称 `ai_query_own_history`。
+- 应用前先在生产同一 PostgreSQL 引擎执行完整事务演练并明确 ROLLBACK，核查三表与 RPC 不会遗留。正式迁移后读回核验：private 三表与 public/private 双 RPC 存在、三张表 RLS 全部开启、service_role 具 RPC 执行权、anon/authenticated 无 RPC 执行权、authenticated 无直接私表 SELECT，起始记录为零。
+- 这是数据层发布，**不等于** AI 4.0 P2 应用代码已合并、Vercel 已部署或管理员登录端到端验证成功；未修改现有楼宇或租赁成交业务数据。精确 GitHub PR head CI 与历史列表真实登录恢复仍分别核验。
+
 # 2026-11-19 — Colliers AI 4.0 P2 历史 Agent 研究重开与跨会话续接
 
 - 真实 320px 自适应浏览器回归修正测试竞态：打开历史条目后，移动端按产品契约自动隐藏历史面板；此前测试在隐藏期间重复点击“关闭历史”触发 20 秒超时。现在桌面点击关闭、手机等待已关闭，保留可见与最终状态验证，不删除性能阈值或权限验证。
