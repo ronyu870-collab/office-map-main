@@ -128,6 +128,11 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL 17 Stacking Plan role, migration and audit regressions
+        run: node supabase/tests/stacking-plan/run.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL 17 lease company AI regressions
         run: node supabase/tests/lease-company-ai/run.mjs
         env:

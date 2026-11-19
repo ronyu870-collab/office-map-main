@@ -2522,6 +2522,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
             <button type="button" class="building-popup__action" data-map-action="building-compare">楼宇对比</button>
             <button type="button" class="building-popup__action" data-map-action="building-ai" hidden>AI 分析</button>
             <button type="button" class="building-popup__action" data-map-action="related-leases">关联成交</button>
+            ${this._isAdmin && !this._isDemo && building.id === "9ee3e3ff-4845-41a1-a78f-390c11b1917a" ? `<a class="building-popup__action" href="/stacking-plan/${id}" aria-label="查看${name}的租赁堆叠图">Stacking Plan</a>` : ""}
             <button type="button" class="building-popup__action" data-map-action="trend" data-popup-action="trend" aria-controls="info-chart-panel" aria-expanded="false">季度趋势</button>
             <button type="button" class="building-popup__action" data-map-action="contact" data-popup-action="contact">联系方式</button>
             <button type="button" class="building-popup__action" data-map-action="building-sales-control"
