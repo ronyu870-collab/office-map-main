@@ -266,7 +266,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
       const uploaded = await client.storage.from(EVIDENCE_BUCKET)
         .upload(path, buffer, { contentType: original.type, cacheControl: '0', upsert: false });
-      if (uploaded.error) return databaseUnavailable(uploaded.error);
+      if (uploaded.error) {
+        // A prior request may have uploaded the immutable object then lost its
+        // metadata RPC response. Only resume if downloaded bytes match exactly.
+        const existing = await client.storage.from(EVIDENCE_BUCKET).download(path);
+        if (existing.error || !existing.data) return databaseUnavailable(uploaded.error);
+        const previousBytes = Buffer.from(await existing.data.arrayBuffer());
+        if (previousBytes.length !== buffer.length
+            || createHash('sha256').update(previousBytes).digest('hex') !== sha256) {
+          return reply({ error: '原件存储中存在不一致的同路径文件，请联系管理员' }, 409);
+        }
+      }
       await guard();
       const { data, error } = await client.rpc('stacking_plan_source_attach', {
         p_building_id: id, p_source_id: sourceId, p_actor: actorId,
