@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { Blob as NodeBlob } from 'node:buffer';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -65,7 +66,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
   const exportsTable = { insert };
   const rpc = vi.fn(async () => ({ data: { id: SPACE, revision: 2, notes: '更新' }, error: null }));
   const upload = vi.fn(async () => ({ data: { path: 'private' }, error: null }));
-  const download = vi.fn(async () => ({ data: new Blob(['test']), error: null }));
+  const download = vi.fn(async () => ({ data: new NodeBlob(['test']), error: null }));
   const getBucket = vi.fn(async () => ({ data: { public: false }, error: null }));
   const createBucket = vi.fn(async () => ({ data: { name: 'stacking-plan-evidence' }, error: null }));
   const storage = { getBucket, createBucket, from: vi.fn(() => ({ upload, download })) };
@@ -189,7 +190,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
   it('recovers a repeated content-addressed upload only when the stored bytes match', async () => {
     const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
     upload.mockResolvedValueOnce({ data:null, error:{ code:'ResourceAlreadyExists',message:'already exists' } } as never);
-    download.mockResolvedValueOnce({ data:new Blob([originalBytes]), error:null });
+    download.mockResolvedValueOnce({ data:new NodeBlob([originalBytes]), error:null });
     const request = pngMultipartRequest(originalBytes);
     const response = await POST(request,params);
     expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
@@ -202,7 +203,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
   it('rejects a conflicting existing object rather than accepting untrusted bytes', async () => {
     const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
     upload.mockResolvedValueOnce({ data:null, error:{code:'ResourceAlreadyExists',message:'exists'} } as never);
-    download.mockResolvedValueOnce({ data:new Blob(['mismatch']), error:null });
+    download.mockResolvedValueOnce({ data:new NodeBlob(['mismatch']), error:null });
     const request = pngMultipartRequest(originalBytes);
     const response = await POST(request,params);
     expect(response.status).toBe(409);
