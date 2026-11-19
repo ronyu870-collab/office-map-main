@@ -12,11 +12,11 @@ describe('map overlay hierarchy css', () => {
     expect(css).not.toContain('#map-container:not(.map-is-zooming)[data-marker-tier="dot"]');
     expect(css).not.toContain('#map-container:not(.map-is-zooming)[data-marker-tier="building"]');
   });
-  it('does not force legacy 82px submarket circles into rectangular cards', () => {
+  it('keeps expanded legacy submarket bubbles circular', () => {
     const workbench = readFileSync(resolve(process.cwd(), 'src/app/map/map-workbench.css'), 'utf8');
     const legacy = readFileSync(resolve(process.cwd(), 'src/services/MapController.ts'), 'utf8');
     expect(workbench).not.toContain('.amap-marker > div[style*="width: 82px; height: 82px"]');
-    expect(legacy).toContain('width: 82px; height: 82px; border-radius: 50%');
+    expect(legacy).toContain('width: 102px; height: 102px; border-radius: 50%');
     expect(workbench).toContain('.map-future-supply-marker');
   });
 

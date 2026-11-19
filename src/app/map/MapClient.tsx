@@ -31,6 +31,8 @@ import {
   type RenderMode,
 } from './model/mapDomain';
 import { MapDataStore } from './model/MapDataStore';
+import { normalizeMapSubmarket } from './model/mapDomain';
+import { submarketSummary } from './model/submarketOverview';
 import { useMapRuntime } from './runtime/useMapRuntime';
 import { recordMapStartup } from '@/src/utils/mapStartupProbe';
 import { useMapWorkspaceView } from './runtime/useMapWorkspaceView';
@@ -43,6 +45,11 @@ import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
 
 // Admin-only editing is never part of the normal Map path. Keep its Supabase,
 // audit and form runtime out of the MapClient chunk until an admin opens it.
+const SubmarketDetailPanel = dynamic(
+  () => import('./components/SubmarketDetailPanel').then(module => module.SubmarketDetailPanel),
+  { ssr: false },
+);
+
 const BuildingMetricsEditModal = dynamic(
   () => import('@/src/components/map/BuildingMetricsEditModal').then(module => module.BuildingMetricsEditModal),
   { ssr: false },
@@ -149,6 +156,28 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
   const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
+  const [selectedSubmarket, setSelectedSubmarket] = React.useState<string | null>(null);
+  const [areaProjectOpen, setAreaProjectOpen] = React.useState(false);
+  React.useEffect(() => {
+    const open = (event: Event) => {
+      const name = normalizeMapSubmarket((event as CustomEvent<{ name?: string }>).detail?.name);
+      if (!name || name === '其他') return;
+      setSelectedSubmarket(name);
+      setAreaProjectOpen(false);
+      setIsFilterPanelOpen(false);
+      setIsSupplyOpen(false);
+      setIsListVisible(false);
+    };
+    window.addEventListener('map-submarket-open', open);
+    return () => window.removeEventListener('map-submarket-open', open);
+  }, []);
+
+  const selectedSummary = React.useMemo(() => selectedSubmarket
+    ? submarketSummary(allBuildings, selectedSubmarket) : null, [allBuildings, selectedSubmarket]);
+  const selectedFutureCount = React.useMemo(() => selectedSubmarket
+    ? futureSupplies.filter(supply => !isPendingFutureSupply(supply)
+      && normalizeMapSubmarket(supply.submarket) === selectedSubmarket).length : 0,
+    [futureSupplies, selectedSubmarket]);
 
   const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
@@ -343,7 +372,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       }
     }
     prevCompetitorRef.current = competitorBuildings;
-  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders, filterState]);
+  }, [competitorBuildings, filteredBuildings, filteredFutureSupplies, renderMode, districtLeedStats, activeCompareGroups, mapReady, showAreaPlaceholders, filterState, allBuildings]);
 
   // 新增：开发者工具状态
   const [isExporting, setIsExporting] = React.useState(false);
@@ -678,11 +707,62 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     }
   };
 
+  const showSubmarketBuildings = () => {
+    if (!selectedSubmarket) return;
+    const name = selectedSubmarket;
+    cancelPendingBuildingNavigation();
+    setSelectedSubmarket(null);
+    setAreaProjectOpen(false);
+    setSearchInput('');
+    issueFilterCommand('patch', {
+      ...createDefaultFilterState(),
+      submarkets: [name],
+      projectTypes: ['甲级写字楼', '乙级写字楼'],
+      showFutureSupply: false,
+    });
+    setUserHasInteracted(true);
+    setIsListVisible(true);
+    const matches = allBuildings.filter(building => normalizeMapSubmarket(building.submarket) === name
+      && (/A|P|B/i.test(String(building.grade ?? '')) && !String(building.grade ?? '').toUpperCase().includes('BP')));
+    if (matches.some(building => Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat))) {
+      controllerRef.current?.fitToBuildings(matches);
+    }
+  };
+
   if (!allowed) return <MapLoadingShell />;
 
   return (
     <>
       <MapWorkbenchView
+        submarketDetailPanel={selectedSubmarket && selectedSummary && workspaceView === 'map' ? (
+          <>
+            {/* Keep the same panel mounted while presenting a representative building.
+                On mobile the panel covers the map; hiding, rather than unmounting,
+                preserves the narrative scroll and permits an explicit return. */}
+            <div className={areaProjectOpen ? 'hidden' : 'contents'}>
+              <SubmarketDetailPanel key={selectedSubmarket} name={selectedSubmarket} summary={selectedSummary}
+                buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin'} suspended={areaProjectOpen}
+                onClose={() => { setSelectedSubmarket(null); setAreaProjectOpen(false); }}
+                onShowAll={showSubmarketBuildings}
+                onOpenBuilding={id => {
+                  const building = allBuildings.find(item => item.id === id);
+                  if (building) {
+                    setAreaProjectOpen(true);
+                    handleBuildingClick(building);
+                  }
+                }} />
+            </div>
+            {areaProjectOpen ? (
+              <button type="button" onClick={() => {
+                  controllerRef.current?.closeInfoWindow?.();
+                  setAreaProjectOpen(false);
+                }}
+                className="pointer-events-auto absolute left-3 top-[64px] z-[435] inline-flex min-h-11 max-w-[calc(100vw-24px)] items-center gap-2 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[13px] font-semibold text-[#003e7e] shadow-[0_4px_14px_rgba(23,32,51,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] sm:left-4">
+                返回{selectedSubmarket}子市场介绍
+              </button>
+            ) : null}
+          </>
+        ) : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}

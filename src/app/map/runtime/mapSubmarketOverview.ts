@@ -1,3 +1,5 @@
+import type { SubmarketSummary } from '../model/submarketOverview';
+
 type AreaRenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
 
 type AreaAnchor = {
@@ -38,28 +40,49 @@ export function createAreaPlaceholder(
   name: string,
   open: () => void,
   mode: AreaRenderMode = 'default',
+  summary?: SubmarketSummary,
 ): HTMLButtonElement {
   const bubble = document.createElement('button');
   bubble.type = 'button';
   bubble.title = name;
+  bubble.setAttribute('aria-label', `查看${name}子市场介绍`);
 
   const fixedRent = getAreaFixedRent(name);
-  const showRent = fixedRent !== null && !isNameOnlyArea(name, mode);
-  bubble.className = showRent ? 'map-submarket-bubble' : NAME_ONLY_BUBBLE_CLASS;
+  const hasOffice = (summary?.officeCount ?? 0) > 0;
+  const showReference = !hasOffice && fixedRent !== null && !isNameOnlyArea(name, mode);
+  bubble.className = hasOffice || showReference ? 'map-submarket-bubble' : NAME_ONLY_BUBBLE_CLASS;
 
   const heading = document.createElement('span');
   heading.className = 'map-submarket-bubble__name';
   heading.textContent = name;
   bubble.append(heading);
 
-  if (showRent) {
+  if (hasOffice) {
+    const metrics = document.createElement('div');
+    metrics.className = 'map-submarket-bubble__metrics';
+    const rent = document.createElement('span');
+    rent.className = 'map-submarket-bubble__primary';
+    rent.textContent = summary?.rent != null ? `¥${summary.rent.toFixed(1)}` : fixedRent !== null ? `¥${fixedRent}*` : '¥—';
+    const separator = document.createElement('span');
+    separator.className = 'map-submarket-bubble__sep';
+    separator.textContent = '·';
+    const vacant = document.createElement('span');
+    vacant.className = 'map-submarket-bubble__secondary';
+    vacant.textContent = summary?.vacancyPct != null ? `${summary.vacancyPct.toFixed(1)}%` : '—';
+    metrics.append(rent, separator, vacant);
+    const count = document.createElement('div');
+    count.className = 'map-submarket-bubble__count';
+    count.textContent = `甲乙级 ${summary?.officeCount ?? 0} 个`;
+    bubble.append(metrics, count);
+  } else if (showReference) {
     const metrics = document.createElement('div');
     metrics.className = 'map-submarket-bubble__metrics';
     const primary = document.createElement('span');
     primary.className = 'map-submarket-bubble__primary';
-    primary.textContent = `¥${fixedRent}`;
+    primary.textContent = `¥${fixedRent}*`;
     metrics.append(primary);
     bubble.append(metrics);
+    bubble.title = `${name} · *区域参考租金，非加权均值`;
   }
 
   bubble.addEventListener('click', event => { event.stopPropagation(); open(); });

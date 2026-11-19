@@ -6,6 +6,22 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Submarket PR #212 one-time manual acceptance waiver is limited to exact identity, scope, reason and head', () => {
+  const scope = 'Map submarket three-stat bubbles, expandable business brief, quarterly trends and editorial maintenance, PR #212';
+  const reason = 'User explicitly authorized a one-time waiver of independent visual acceptance and physical-device manual acceptance for PR #212 on 2026-11-19; those reviews were not performed and engineering, authorization and data checks remain mandatory';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 212, body, head: { sha: head, ref: 'codex/map-submarket-market-brief-20261118',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 213 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other module') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Skip every required CI check') }), /specifically authorized/);
+});
+
 test('Stacking Plan PR #213 waiver requires exact repository, branch, scope, reason and current head', () => {
   const scope = 'Xiaoyun Road 33 A/B Admin Stacking Plan and map entry, PR #213';
   const reason = 'User explicitly waived standalone independent visual acceptance review and requested direct main merge of Stacking Plan PR #213 on 2026-11-19; this one-time waiver records unperformed review and does not waive engineering, authorization or data checks';

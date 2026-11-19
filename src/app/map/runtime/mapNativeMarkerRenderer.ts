@@ -2,6 +2,8 @@
 
 import type { MapController } from '@/src/services/MapController';
 import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
+import { summarizeSubmarkets } from '../model/submarketOverview';
+import { normalizeMapSubmarket } from '../model/mapDomain';
 import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
@@ -522,6 +524,7 @@ export function installNativeMarkerRenderer(
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
   let lastShowAreaPlaceholders = false;
+  let lastOverviewBuildings: any[] | undefined;
   let futureSignature = '';
   let frame: number | null = null;
   let pending: {
@@ -530,6 +533,7 @@ export function installNativeMarkerRenderer(
     groups?: any[];
     signature: string;
     showAreaPlaceholders: boolean;
+    overviewBuildings?: any[];
   } | null = null;
   let activeTier: MarkerMode | null = null;
 
@@ -575,11 +579,12 @@ export function installNativeMarkerRenderer(
     massMarks = null;
   };
 
-  const buildSubmarkets = (buildings: any[], mode: RenderMode, showAreaPlaceholders: boolean): MarkerLike[] => {
+  const buildSubmarkets = (buildings: any[], mode: RenderMode, showAreaPlaceholders: boolean, overviewBuildings?: any[]): MarkerLike[] => {
+    const summaries = summarizeSubmarkets(overviewBuildings ?? (controller._allBuildingsCache?.length ? controller._allBuildingsCache : buildings));
     const aggregateMap = new Map<string, SubmarketAggregate>();
 
     for (const building of buildings) {
-      const name = String(building?.submarket ?? '').trim();
+      const name = normalizeMapSubmarket(building?.submarket);
       if (!name || name === '其他') continue;
 
       let item = aggregateMap.get(name);
@@ -642,73 +647,55 @@ export function installNativeMarkerRenderer(
         item.lngSum / item.coordCount,
         item.latSum / item.coordCount,
       ];
-      const rent =
-        item.rentWeightAreaSum > 0
-          ? item.rentWeightSum / item.rentWeightAreaSum
-          : 0;
-      const vacancy =
-        item.totalArea > 0
-          ? (item.vacantArea / item.totalArea) * 100
-          : Number.NaN;
+      const summary = summaries.get(item.name);
+      const rent = summary?.rent ?? getAreaFixedRent(item.name) ?? 0;
+      const vacancy = summary?.vacancyPct ?? Number.NaN;
       const leed = item.count > 0 ? (item.leedCount / item.count) * 100 : 0;
       const fixedRent = getAreaFixedRent(item.name);
-      const accent = submarketAccent(mode, fixedRent ?? rent, vacancy, leed);
-      const size = 78 + Math.min(10, Math.round(Math.sqrt(item.count) * 1.35));
+      const accent = submarketAccent(mode, rent, vacancy, leed);
+      const size = 86 + Math.min(12, Math.round(Math.sqrt(summary?.officeCount ?? item.count) * 1.25));
 
-      let primary = `¥${rent > 0 ? rent.toFixed(0) : '–'}`;
-      let secondary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
-      let separator = '<span class="map-submarket-bubble__sep">·</span>';
-      if (mode === 'rent') {
-        primary = `¥${rent > 0 ? rent.toFixed(1) : '–'}`;
-        secondary = '平均租金';
-        separator = '';
-      } else if (mode === 'vacancy') {
-        primary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
-        secondary = '空置率';
-        separator = '';
-      } else if (mode === 'leed') {
-        primary = `${leed.toFixed(0)}%`;
-        secondary = 'LEED';
-        separator = '';
-      }
-
-      const nameOnly = isNameOnlyArea(item.name, mode);
+      const count = summary?.officeCount ?? 0;
+      const nameOnly = isNameOnlyArea(item.name, mode) && count === 0;
       const bubbleClass = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
-      const accentStyle = nameOnly ? '' : `--sm-accent:${accent};`;
-      // A fixed rent has no vacancy figure, so the bubble shows the rent alone
-      // instead of pairing it with a dash.
-      const metrics = nameOnly ? '' : fixedRent !== null ? `
-        <div class="map-submarket-bubble__metrics">
-          <span class="map-submarket-bubble__primary">¥${fixedRent}</span>
-        </div>` : `
-        <div class="map-submarket-bubble__metrics">
-          <span class="map-submarket-bubble__primary">${primary}</span>${separator}
-          <span class="map-submarket-bubble__secondary">${secondary}</span>
-        </div>`;
-      const content = `
-        <div class="${bubbleClass}" data-render-mode="${mode}"
-          title="${escapeHtml(item.name)}" style="${accentStyle}--sm-size:${size}px">
-          <div class="map-submarket-bubble__name">${escapeHtml(item.name)}</div>${metrics}
-        </div>`;
-
+      const isReference = summary?.rent == null && fixedRent !== null;
+      const rentText = rent > 0 ? `¥${rent.toFixed(1)}${isReference ? '*' : ''}` : '¥—';
+      const vacancyText = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '—';
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.className = bubbleClass;
+      element.dataset.renderMode = mode;
+      element.title = `${item.name}，甲乙级${count}个${isReference ? '，*区域参考租金' : ''}`;
+      element.setAttribute('aria-label', `查看${item.name}子市场介绍，甲乙级${count}个`);
+      if (!nameOnly) element.style.setProperty('--sm-accent', accent);
+      element.style.setProperty('--sm-size', `${size}px`);
+      const metrics = nameOnly ? '' : `
+        <span class="map-submarket-bubble__metrics">
+          <span class="map-submarket-bubble__primary">${rentText}</span>
+          <span class="map-submarket-bubble__sep">·</span>
+          <span class="map-submarket-bubble__secondary">${vacancyText}</span>
+        </span>
+        <span class="map-submarket-bubble__count">甲乙级 ${count} 个</span>
+        ${mode === 'leed' ? `<span class="map-submarket-bubble__context">LEED ${leed.toFixed(0)}%</span>` : ''}`;
+      element.innerHTML = `<span class="map-submarket-bubble__name">${escapeHtml(item.name)}</span>${metrics}`;
+      const openBrief = () => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: item.name } }));
+      element.addEventListener('click', event => { event.stopPropagation(); openBrief(); });
       const marker = new Marker({
         position: center,
-        content,
+        content: element,
         anchor: 'center',
         zooms: [3, MARKER_ZOOM.submarketMax],
         zIndex: 92,
         topWhenClick: true,
       });
-      marker.on?.('click', () => {
-        map.setZoomAndCenter?.(12.15, center, false, 320);
-      });
+      marker.on?.('click', openBrief);
       result.push(marker);
     }
 
     for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
       const content = createAreaPlaceholder(name, () => {
-        if (activeTier === 'submarket') map.setZoomAndCenter?.(12.15, center, false, 320);
-      }, mode);
+        if (activeTier === 'submarket') window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
+      }, mode, summaries.get(name));
       result.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, MARKER_ZOOM.submarketMax], zIndex: 92 }));
     }
     return result;
@@ -951,12 +938,13 @@ export function installNativeMarkerRenderer(
     groups: any[] | undefined,
     signature: string,
     showAreaPlaceholders: boolean,
+    overviewBuildings?: any[],
   ) => {
     clearNativeLayers();
     originalClear();
     metricCache = new WeakMap<object, any | null>();
 
-    submarketMarkers = buildSubmarkets(buildings, mode, showAreaPlaceholders);
+    submarketMarkers = buildSubmarkets(buildings, mode, showAreaPlaceholders, overviewBuildings);
     controller.submarketMarkers = submarketMarkers;
     if (submarketMarkers.length > 0) {
       map.add?.(submarketMarkers as unknown[]);
@@ -976,6 +964,7 @@ export function installNativeMarkerRenderer(
     lastMode = mode;
     lastGroups = groups;
     lastShowAreaPlaceholders = showAreaPlaceholders;
+    lastOverviewBuildings = overviewBuildings;
     lastSignature = signature;
     applyLayerOpacity();
     container.classList.remove('map-marker-rendering');
@@ -987,8 +976,10 @@ export function installNativeMarkerRenderer(
     _districtStats?: unknown,
     groups?: any[],
     showAreaPlaceholders = false,
+    overviewBuildings?: any[],
   ) => {
     const buildings = Array.isArray(input) ? input : [];
+    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : (controller._allBuildingsCache?.length ? controller._allBuildingsCache : buildings);
     const signature = `${renderSignature(
       buildings,
       mode,
@@ -996,7 +987,7 @@ export function installNativeMarkerRenderer(
       objectTokens,
       metricCache,
       () => tokenCounter++,
-    )}|${showAreaPlaceholders}`;
+    )}|${showAreaPlaceholders}|${overview === buildings ? '' : renderSignature(overview, 'default', undefined, objectTokens, metricCache, () => tokenCounter++)}`;
     if (signature === lastSignature) {
       if (frame !== null) cancelAnimationFrame(frame);
       frame = null;
@@ -1005,7 +996,7 @@ export function installNativeMarkerRenderer(
     }
     if (signature === pending?.signature) return;
 
-    pending = { buildings, mode, groups, signature, showAreaPlaceholders };
+    pending = { buildings, mode, groups, signature, showAreaPlaceholders, overviewBuildings: overview };
     container.classList.add('map-marker-rendering');
     if (frame !== null) cancelAnimationFrame(frame);
     frame = requestAnimationFrame(() => {
@@ -1013,7 +1004,7 @@ export function installNativeMarkerRenderer(
       const next = pending;
       pending = null;
       if (next) {
-        commit(next.buildings, next.mode, next.groups, next.signature, next.showAreaPlaceholders);
+        commit(next.buildings, next.mode, next.groups, next.signature, next.showAreaPlaceholders, next.overviewBuildings);
       }
     });
   }) as ControllerInternals['renderMarkers'];
@@ -1073,7 +1064,8 @@ export function installNativeMarkerRenderer(
         building => fresh.get(String(building?.id)) ?? building,
       );
       lastSignature = '';
-      controller.renderMarkers(next, lastMode, undefined, lastGroups, lastShowAreaPlaceholders);
+      controller.renderMarkers(next, lastMode, undefined, lastGroups, lastShowAreaPlaceholders,
+        lastOverviewBuildings?.map(building => fresh.get(String(building?.id)) ?? building));
     }) as ControllerInternals['refreshBuildingData'];
   }
 
