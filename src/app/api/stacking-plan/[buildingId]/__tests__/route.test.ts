@@ -171,6 +171,39 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(guard).toHaveBeenCalledTimes(3);
   });
 
+  it('recovers a repeated content-addressed upload only when the stored bytes match', async () => {
+    const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
+    upload.mockResolvedValueOnce({ data:null, error:{ code:'ResourceAlreadyExists',message:'already exists' } } as never);
+    download.mockResolvedValueOnce({ data:new Blob([originalBytes]), error:null });
+    const form = new FormData();
+    form.set('source_id','src');
+    form.set('file',new File([originalBytes],'same.png',{type:'image/png'}));
+    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
+      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
+    });
+    const response = await POST(request,params);
+    expect(response.status).toBe(200);
+    expect(download).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith('stacking_plan_source_attach',expect.objectContaining({
+      p_size:originalBytes.length,
+    }));
+  });
+
+  it('rejects a conflicting existing object rather than accepting untrusted bytes', async () => {
+    const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
+    upload.mockResolvedValueOnce({ data:null, error:{code:'ResourceAlreadyExists',message:'exists'} } as never);
+    download.mockResolvedValueOnce({ data:new Blob(['mismatch']), error:null });
+    const form = new FormData();
+    form.set('source_id','src');
+    form.set('file',new File([originalBytes],'same.png',{type:'image/png'}));
+    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
+      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
+    });
+    const response = await POST(request,params);
+    expect(response.status).toBe(409);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it('checks export authorization and records only a valid explicit export intent', async () => {
     expect((await POST(req('POST', { action: 'export', format: 'pdf' }), params)).status).toBe(400);
     expect(insert).not.toHaveBeenCalled();
