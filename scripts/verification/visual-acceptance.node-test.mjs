@@ -41,7 +41,7 @@ test('Map PNG comparison PR #225 manual-review waiver is exact and scoped', () =
 
 test('Submarket PR #226 one-time manual acceptance waiver requires exact PR identity and head', () => {
   const scope = 'Submarket full-screen modal regression fixes: building return race, valid-quarter trend digest and pointer backdrop, PR #226';
-  const reason = 'User explicitly requested PR #226 main merge with continued independent visual and real-device acceptance waiver on 2026-11-20; only this PR's manual review is waived and existing engineering, authorization and data protections remain unchanged';
+  const reason = 'User explicitly requested PR #226 main merge with continued independent visual and real-device acceptance waiver on 2026-11-20; only manual review for this PR is waived and existing engineering, authorization and data protections remain unchanged';
   const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
   const candidate = { number: 226, body, head: { sha: head, ref: 'codex/fix-submarket-modal-regressions-20261119',
     repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
