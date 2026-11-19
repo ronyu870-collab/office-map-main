@@ -32,13 +32,19 @@ const controller = vi.hoisted(() => ({
     setZoomAndCenter: vi.fn(),
   },
   openBuildingInfoWindow: vi.fn(),
+  closeInfoWindow: vi.fn(),
 }));
 
 const controllerRef = vi.hoisted(() => ({ current: controller }));
 
 vi.mock('next/dynamic', () => ({
-  default: () => function MockDynamicComponent() {
-    return null;
+  default: () => function MockDynamicComponent({
+    name, suspended, onOpenBuilding,
+  }: { name?: string; suspended?: boolean; onOpenBuilding?: (id: string) => void }) {
+    if (!name || !onOpenBuilding) return null;
+    return <button type="button" disabled={suspended} onClick={() => onOpenBuilding('building-1')}>
+      open-submarket-test-building
+    </button>;
   },
 }));
 
@@ -81,17 +87,20 @@ vi.mock('@/src/app/map/components/MapLoadingShell', () => ({
 vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
   MapWorkbenchView: ({
     queryPanel,
+    submarketDetailPanel,
     onRenderModeChange,
     onSearch,
     onFilterChange,
   }: {
     queryPanel?: React.ReactNode;
+    submarketDetailPanel?: React.ReactNode;
     onRenderModeChange: (mode: 'rent') => void;
     onSearch: (value: string) => void;
     onFilterChange: (state: SidebarFilterState) => void;
   }) => (
     <>
       {queryPanel}
+      {submarketDetailPanel}
       <button type="button" onClick={() => onRenderModeChange('rent')}>
         switch-to-rent
       </button>
@@ -140,6 +149,44 @@ describe('MapClient render mode synchronization', () => {
     controller.fetchFutureSupplies.mockResolvedValue([]);
     controller.getDisplayOverridesCache.mockReturnValue(new Map());
     queryBridge.selection = null; queryBridge.publish = undefined;
+  });
+
+
+  it('does not reopen a delayed building popup after returning to the submarket modal', async () => {
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    act(() => {
+      window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } }));
+    });
+    const open = screen.getByRole('button', { name: 'open-submarket-test-building' });
+    vi.useFakeTimers();
+    try {
+      fireEvent.click(open);
+      expect(controller.map.setZoomAndCenter).toHaveBeenCalledWith(16, [116.46, 39.91], false, 500);
+      const back = screen.getByRole('button', { name: '返回CBD子市场介绍' });
+      fireEvent.click(back);
+      act(() => { vi.advanceTimersByTime(650); });
+      expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'open-submarket-test-building' })).toBeInTheDocument();
+      expect(controller.closeInfoWindow).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not hide the submarket modal if building navigation is rejected', async () => {
+    controller.fetchMapData.mockResolvedValueOnce([
+      { ...BUILDINGS[0], location_lng: Number.NaN },
+    ]);
+    render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+    await waitFor(() => expect(controller.fetchMapData).toHaveBeenCalled());
+    await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+    act(() => {
+      window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } }));
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'open-submarket-test-building' }));
+    expect(screen.queryByRole('button', { name: '返回CBD子市场介绍' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'open-submarket-test-building' })).toBeInTheDocument();
   });
 
   it('re-renders map markers when the display mode changes before any filter state exists', async () => {

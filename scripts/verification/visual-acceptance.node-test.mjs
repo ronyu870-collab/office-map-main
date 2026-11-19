@@ -83,6 +83,22 @@ test('Map PNG comparison PR #225 manual-review waiver is exact and scoped', () =
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip all CI') }), /specifically authorized/);
 });
 
+test('Submarket PR #226 one-time manual acceptance waiver requires exact PR identity and head', () => {
+  const scope = 'Submarket full-screen modal regression fixes: building return race, valid-quarter trend digest and pointer backdrop, PR #226';
+  const reason = 'User explicitly requested PR #226 main merge with continued independent visual and real-device acceptance waiver on 2026-11-20; only manual review for this PR is waived and existing engineering, authorization and data protections remain unchanged';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 226, body, head: { sha: head, ref: 'codex/fix-submarket-modal-regressions-20261119',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 224 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Anything') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Skip all engineering checks') }), /specifically authorized/);
+});
+
 test('Submarket PR #224 user-authorized manual visual waiver is exact-scope and current-head only', () => {
   const scope = 'Colliers map submarket centered research modal, responsive layout and trend presentation, PR #224';
   const reason = 'User explicitly waived independent visual acceptance and requested direct main merge for PR #224 on 2026-11-19; manual visual review was not performed and all engineering, security and data checks remain mandatory';

@@ -13,6 +13,7 @@ import { fetchSubmarketDetailPayload, saveSubmarketProfile, type SubmarketDetail
 import { normalizeMapSubmarket } from '../model/mapDomain';
 import { mostRecentMarketMetric, officeGrade, type MarketBuilding, type SubmarketSummary } from '../model/submarketOverview';
 import { emptySubmarketProfile, submarketProfileSchema, type SubmarketProfileDraft } from '../model/submarketProfile';
+import { summarizeSubmarketTrend } from '../model/submarketTrendDigest';
 
 const TrendChart = dynamic(
   () => import('./SubmarketTrendChart').then(module => module.SubmarketTrendChart),
@@ -266,11 +267,7 @@ export function SubmarketDetailPanel({
 
   const profile = detail?.profile;
   const series = detail?.trends?.[grade] ?? [];
-  const latest = series[series.length - 1];
-  const previous = series[series.length - 2];
-  const rentChange = latest?.rent != null && previous?.rent != null ? latest.rent - previous.rent : null;
-  const vacancyChange = latest?.vacancyPct != null && previous?.vacancyPct != null ? latest.vacancyPct - previous.vacancyPct : null;
-  const hasTrend = series.some(row => row.rent !== null || row.vacancyPct !== null);
+  const { latest, previous, rentChange, vacancyChange, hasTrend } = summarizeSubmarketTrend(series);
 
   const projects = React.useMemo(() => buildings
     .filter(building => normalizeMapSubmarket(building.submarket) === name
@@ -321,7 +318,8 @@ export function SubmarketDetailPanel({
       className={suspended
         ? 'hidden'
         : 'fixed inset-0 z-[950] flex items-center justify-center bg-[rgb(15_23_42_/_0.48)] sm:p-6'}
-      onMouseDown={event => {
+      onPointerDown={event => {
+        // Pointer events include touch and pen; only the genuine backdrop closes.
         if (event.target === event.currentTarget) closePanel();
       }}
     >
@@ -477,7 +475,7 @@ export function SubmarketDetailPanel({
                     <div className="flex items-center gap-2 text-[13px] font-semibold text-[#003e7e]">
                       <BarChart3 size={16} aria-hidden="true" /> 行情速读
                     </div>
-                    <p className="mb-0 mt-4 text-[12px] text-[#667085]">最新季度</p>
+                    <p className="mb-0 mt-4 text-[12px] text-[#667085]">最新有效季度</p>
                     <p className="mb-0 mt-1 text-[18px] font-semibold tabular-nums">{hasTrend ? latest?.period || '—' : '—'}</p>
                     <div className="mt-4 space-y-4 border-t border-[#d9e0e8] pt-4">
                       <div>
@@ -500,8 +498,9 @@ export function SubmarketDetailPanel({
                       </div>
                     </div>
                     <p className="mb-0 mt-4 border-t border-[#d9e0e8] pt-4 text-[12px] leading-6 text-[#667085]">
-                      {previous ? '以上变化对比 ' + previous.period + '，各季样本可能不同，不代表同楼宇租金变化。'
-                        : '暂无可供对比的上一季度记录；仅展示已核实的历史数据。'}
+                      {previous && (rentChange != null || vacancyChange != null)
+                        ? '可比变化基于与 ' + previous.period + ' 相邻的季度；各季样本可能不同，不代表同楼宇租金变化。'
+                        : '目前没有相邻两个季度的可比有效样本；不跨越缺失季度推算变化。'}
                     </p>
                   </aside>
                 </div>
