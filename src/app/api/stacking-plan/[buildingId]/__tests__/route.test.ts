@@ -25,6 +25,26 @@ const req = (method = 'GET', body?: unknown, headers?: Record<string, string>) =
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 const params = { params: Promise.resolve({ buildingId: ID }) };
+// Real HTTP multipart bytes avoid jsdom's incompatible File/FormData constructors.
+const pngMultipartRequest = (bytes: Uint8Array) => {
+  const boundary = 'colliers-stacking-test-boundary';
+  const prefix = Buffer.from(
+    '--' + boundary + '\r\n'
+    + 'Content-Disposition: form-data; name="source_id"\r\n\r\nsrc\r\n'
+    + '--' + boundary + '\r\n'
+    + 'Content-Disposition: form-data; name="file"; filename="source.png"\r\n'
+    + 'Content-Type: image/png\r\n\r\n',
+  );
+  const suffix = Buffer.from('\r\n--' + boundary + '--\r\n');
+  return new NextRequest('http://localhost/api/stacking-plan/' + ID, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer testing',
+      'Content-Type': 'multipart/form-data; boundary=' + boundary,
+    },
+    body: new Uint8Array(Buffer.concat([prefix, Buffer.from(bytes), suffix])),
+  });
+};
 const identity = (role: string, impersonating = false) => ({
   identity: { caller: { id: 'tester' }, callerRole: role, effectiveRole: role, isImpersonating: impersonating },
 });
@@ -149,15 +169,10 @@ describe('Stacking Plan identity and read/write boundary', () => {
   });
 
   it('accepts a valid administrator original file and binds it to the source with an audited RPC', async () => {
-    const form = new FormData();
-    form.set('source_id', 'src');
     const pngSignature = new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0]);
-    form.set('file', new File([pngSignature], 'source.png', { type:'image/png' }));
-    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
-      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
-    });
+    const request = pngMultipartRequest(pngSignature);
     const result = await POST(request,params);
-    expect(result.status).toBe(200);
+    expect(result.status, JSON.stringify(await result.clone().json())).toBe(200);
     expect(getBucket).toHaveBeenCalledWith('stacking-plan-evidence');
     expect(upload).toHaveBeenCalledWith(
       expect.stringContaining(ID + '/src/'),
@@ -175,14 +190,9 @@ describe('Stacking Plan identity and read/write boundary', () => {
     const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
     upload.mockResolvedValueOnce({ data:null, error:{ code:'ResourceAlreadyExists',message:'already exists' } } as never);
     download.mockResolvedValueOnce({ data:new Blob([originalBytes]), error:null });
-    const form = new FormData();
-    form.set('source_id','src');
-    form.set('file',new File([originalBytes],'same.png',{type:'image/png'}));
-    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
-      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
-    });
+    const request = pngMultipartRequest(originalBytes);
     const response = await POST(request,params);
-    expect(response.status).toBe(200);
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
     expect(download).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledWith('stacking_plan_source_attach',expect.objectContaining({
       p_size:originalBytes.length,
@@ -193,12 +203,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
     const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
     upload.mockResolvedValueOnce({ data:null, error:{code:'ResourceAlreadyExists',message:'exists'} } as never);
     download.mockResolvedValueOnce({ data:new Blob(['mismatch']), error:null });
-    const form = new FormData();
-    form.set('source_id','src');
-    form.set('file',new File([originalBytes],'same.png',{type:'image/png'}));
-    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
-      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
-    });
+    const request = pngMultipartRequest(originalBytes);
     const response = await POST(request,params);
     expect(response.status).toBe(409);
     expect(rpc).not.toHaveBeenCalled();
