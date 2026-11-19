@@ -571,10 +571,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, []);
 
   // 🌟 地图联动：点击列表卡片时，地图自动定位到对应楼宇并打开信息窗口
-  const handleBuildingClick = React.useCallback((building: any) => {
-    if (workspaceViewRef.current !== 'map') return;
+  const handleBuildingClick = React.useCallback((building: any): boolean => {
+    if (workspaceViewRef.current !== 'map') return false;
     cancelPendingBuildingNavigation();
-    if (!controllerRef.current || !mapReady) return;
+    if (!controllerRef.current || !mapReady) return false;
     
     const ctrl = controllerRef.current;
     const lng = building.location_lng;
@@ -582,7 +582,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
       console.warn('[MapClient] Invalid building coordinates:', building.name);
-      return;
+      return false;
     }
     
     // 地图平滑移动到楼宇位置并放大。连续点击时只允许最后一次导航打开弹窗。
@@ -603,6 +603,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       buildingName: building.name,
       dataType: building._dataType || 'existing',
     });
+    return true;
   }, [appSession?.user?.email, mapReady, cancelPendingBuildingNavigation, workspaceViewRef]);
 
   const fullListBusy = mapDataLoading || !mapReady || settledFullListFilterKey !== fullListFilterKey;
@@ -746,14 +747,16 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
                 onShowAll={showSubmarketBuildings}
                 onOpenBuilding={id => {
                   const building = allBuildings.find(item => item.id === id);
-                  if (building) {
-                    setAreaProjectOpen(true);
-                    handleBuildingClick(building);
-                  }
+                  // Suspend the research modal only if navigation was actually accepted.
+                  // Otherwise keep the modal visible instead of stranding the user.
+                  if (building && handleBuildingClick(building)) setAreaProjectOpen(true);
                 }} />
             </div>
             {areaProjectOpen ? (
               <button type="button" onClick={() => {
+                  // The building popup opens after a 600ms map movement. Cancel
+                  // that timer before returning, or it reappears over the modal.
+                  cancelPendingBuildingNavigation();
                   controllerRef.current?.closeInfoWindow?.();
                   setAreaProjectOpen(false);
                 }}

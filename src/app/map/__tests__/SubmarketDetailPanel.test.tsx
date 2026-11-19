@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -116,14 +116,35 @@ describe('submarket research modal', () => {
     unmount();
   });
 
+
+  it('uses the latest quarter containing real observations, not the trailing empty axis cell', async () => {
+    const makePoint = (period: string, rent: number | null, vacancyPct: number | null) => ({
+      period, year: 2026, quarter: Number(period.slice(-1)), rent, vacancyPct,
+      rentSamples: rent == null ? 0 : 1, vacancySamples: vacancyPct == null ? 0 : 1,
+      rentArea: rent == null ? 0 : 100, vacancyArea: vacancyPct == null ? 0 : 100,
+    });
+    const series = [
+      makePoint('2026Q1', 180, 10),
+      makePoint('2026Q2', 170, 12),
+      makePoint('2026Q3', null, null),
+    ];
+    api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
+    render(<SubmarketDetailPanel {...props} />);
+    const digest = within(screen.getByRole('complementary', { name: '季度行情解读' }));
+    await waitFor(() => expect(digest.getByText('2026Q2')).toBeInTheDocument());
+    expect(digest.getByText('-10.0 元/㎡/月')).toBeInTheDocument();
+    expect(digest.getByText('+2.0 个百分点')).toBeInTheDocument();
+    expect(digest.getByText(/基于与 2026Q1 相邻的季度/)).toBeInTheDocument();
+  });
+
   it('supports Escape, explicit close and backdrop dismissal without losing the map click handlers', async () => {
     const onClose = vi.fn();
     const { unmount } = render(<SubmarketDetailPanel {...props} onClose={onClose} />);
-    fireEvent.mouseDown(screen.getByRole('dialog'));
+    fireEvent.pointerDown(screen.getByRole('dialog'));
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.mouseDown(document.querySelector('[data-map-submarket-backdrop]')!);
+    fireEvent.pointerDown(document.querySelector('[data-map-submarket-backdrop]')!);
     expect(onClose).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole('button', { name: '关闭子市场介绍' }));
     expect(onClose).toHaveBeenCalledTimes(3);
