@@ -134,6 +134,29 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(download).not.toHaveBeenCalled();
   });
 
+  it('accepts a valid administrator original file and binds it to the source with an audited RPC', async () => {
+    const form = new FormData();
+    form.set('source_id', 'src');
+    const pngSignature = new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0]);
+    form.set('file', new File([pngSignature], 'source.png', { type:'image/png' }));
+    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
+      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
+    });
+    const result = await POST(request,params);
+    expect(result.status).toBe(200);
+    expect(getBucket).toHaveBeenCalledWith('stacking-plan-evidence');
+    expect(upload).toHaveBeenCalledWith(
+      expect.stringContaining(ID + '/src/'),
+      expect.anything(),
+      expect.objectContaining({ contentType:'image/png',upsert:false }),
+    );
+    expect(rpc).toHaveBeenCalledWith('stacking_plan_source_attach', expect.objectContaining({
+      p_building_id: ID, p_source_id:'src', p_actor:'tester',
+      p_mime:'image/png', p_size:12,
+    }));
+    expect(guard).toHaveBeenCalledTimes(3);
+  });
+
   it('checks export authorization and records only a valid explicit export intent', async () => {
     expect((await POST(req('POST', { action: 'export', format: 'pdf' }), params)).status).toBe(400);
     expect(insert).not.toHaveBeenCalled();
