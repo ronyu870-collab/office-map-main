@@ -48,6 +48,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const [conversationId, setConversationId] = React.useState(() => crypto.randomUUID());
   const [parentRequest, setParentRequest] = React.useState<string | undefined>(undefined);
   const [resumedContext, setResumedContext] = React.useState<QueryConversation | null>(null);
+  const [resumedAgent, setResumedAgent] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [compactHistoryOpen, setCompactHistoryOpen] = React.useState(false);
   const [historyMounted, setHistoryMounted] = React.useState(false);
@@ -90,7 +91,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const resetConversation = React.useCallback((clearDraft = true) => {
     generation.current++; current.current?.abort(); current.current = null;
     setParentRequest(undefined); setConversationId(crypto.randomUUID());
-    setResumedContext(null); setBuildingSelection(null); setResearchOpen(false);
+    setResumedContext(null); setResumedAgent(false); setBuildingSelection(null); setResearchOpen(false);
     setBusy(false); setTerminalFailure(false); setReply(null); setAttempt(null); setHistory([]); setCollapsed(false); setMessage('');
     if (clearDraft) {
       setDraft(''); composing.current = false; clearWorkspaceComposition(); exitWorkspace();
@@ -150,7 +151,8 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     setBusy(true); setTerminalFailure(false); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在处理你的问题…'); setReply(null); setAttempt(next);
     setBuildingSelection(null);
     try {
-      const useAgent = access.agentEnabled === true && !!next.conversation && !next.buildingSelection && !next.replayRequestId && !next.conversation.resumeToken;
+      const useAgent = access.agentEnabled === true && !!next.conversation && !next.buildingSelection && !next.replayRequestId
+        && (!next.conversation.resumeToken || resumedAgent);
       const payload = { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) };
       const result = recovering && next.requestId ? await trustedQueryClient.recover(scope, next.requestId, controller.signal)
         : useAgent ? await trustedQueryClient.submitAgent(scope, payload, controller.signal)
@@ -198,7 +200,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       if (current.current === controller) current.current = null;
       if (alive.current && ticket === generation.current) setBusy(false);
     }
-  }, [access.enabled, access.agentEnabled, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
+  }, [access.enabled, access.agentEnabled, resumedAgent, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
   function stopWaiting() {
     generation.current++; current.current?.abort(); current.current = null; setBusy(false);
     setMessage('已停止等待，服务端可能仍在处理。可重试本次请求或恢复结果，不能据此认定服务端已取消。');
@@ -245,6 +247,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     const selected = opened.selected;
     setBusy(false); setTerminalFailure(false); setHistory([]); setCollapsed(false);
     setConversationId(opened.conversation.id); setParentRequest(opened.conversation.parentRequestId); setResumedContext(opened.conversation);
+    setResumedAgent(selected.reply.isNativeAgent === true);
     setAttempt({ idempotencyKey: crypto.randomUUID(), question: selected.question, requestId: selected.requestId, conversation: opened.conversation });
     setReply(selected.reply); setMessage(selected.reply.status === 'ready' ? '已打开原始历史快照，未重新查询。' : selected.reply.message ?? selected.reply.error ?? '已打开历史工作记录。');
     setDraft(''); setBuildingSelection(null); setSavedId(selected.requestId);

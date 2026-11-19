@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { AGENT_CONVERSATION_PROTOCOL, restoreOwnAgentAnswer } from '../agent/agentConversation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { assistantHelpSchema } from './assistantHelp';
@@ -42,12 +43,14 @@ function decodeReceipt(context: Context, requestId: string, raw: unknown) {
   if (decoded?.authority?.actorId !== context.identity.actorId || decoded?.authority?.effectiveUserId !== context.identity.effectiveUserId) throw new Error('QUERY_DENIED');
   const metadata = decoded?.metadata;
   // Control attempts/recovery/downloads remain audit events, not user questions.
-  const isQuestion = metadata?.protocol === SEMANTIC_PROTOCOL_VERSION
+  const agent = metadata?.protocol === AGENT_CONVERSATION_PROTOCOL;
+  const isQuestion = metadata?.protocol === SEMANTIC_PROTOCOL_VERSION || agent
     || ['initial_question_submission', 'initial_structured_submission'].includes(metadata?.relation);
   if (!isQuestion || metadata?.rejectedRetryOf) return null;
   const question = z.string().min(1).max(6000).parse(decoded.submittedText);
-  const conversation = metadata?.protocol === SEMANTIC_PROTOCOL_VERSION ? queryConversationSchema.parse(metadata.conversation) : { id: requestId };
-  return { question, conversation, semantic: metadata?.protocol === SEMANTIC_PROTOCOL_VERSION, plan: decoded.plan };
+  const conversation = metadata?.protocol === SEMANTIC_PROTOCOL_VERSION || agent
+    ? queryConversationSchema.parse(metadata.conversation) : { id: requestId };
+  return { question, conversation, semantic: metadata?.protocol === SEMANTIC_PROTOCOL_VERSION, agent, plan: decoded.plan };
 }
 
 /** Lists need only original question/plan metadata; result numbers and sources
@@ -64,6 +67,22 @@ async function readQuestionMetadata(context: Context, requestId: string) {
   if (!receipt) throw new Error('QUERY_HISTORY_UNAVAILABLE');
   let authorizedPlan = false;
   let plan = receipt.plan, clarification: SemanticClarification | undefined;
+  if (receipt.agent) {
+    // Agent records may be listed by their owner, but never treat the sentinel
+    // server_agent/1 plan as a real data query. Bind any stored final plan to the
+    // caller's current business authorization before showing metadata.
+    for (const event of events) {
+      if (event.kind !== 'tool_finished') continue;
+      const content = JSON.parse(decryptAuditContent(event.cipher, { requestId, eventId: event.event_id,
+        actorId: context.identity.actorId, effectiveUserId: context.identity.effectiveUserId },
+        new Map([[context.keys.keyId, context.keys.encryptionKey]]))).content;
+      if (content?.protocol === 'agent-answer/1' && content.plan) {
+        plan = parseQueryPlan(content.plan);
+        authorizeConversationPlan(plan, context.authority);
+        authorizedPlan = true;
+      }
+    }
+  }
   if (receipt.semantic) {
     for (const event of events) {
       if (event.kind !== 'tool_finished' && event.kind !== 'denied') continue;
@@ -80,7 +99,9 @@ async function readQuestionMetadata(context: Context, requestId: string) {
       }
     }
   }
-  if (plan && plan.resolution !== 'server_semantic/1') { authorizeConversationPlan(parseQueryPlan(plan), context.authority); authorizedPlan = true; }
+  if (plan && plan.resolution !== 'server_semantic/1' && plan.resolution !== 'server_agent/1') {
+    authorizeConversationPlan(parseQueryPlan(plan), context.authority); authorizedPlan = true;
+  }
   if (clarification) {
     const buildingIds = clarification.options.filter(option => option.id.startsWith('building:')).map(option => z.uuid().parse(option.id.slice(9)));
     if (buildingIds.length) {
@@ -91,7 +112,7 @@ async function readQuestionMetadata(context: Context, requestId: string) {
       if (buildingIds.some(id => !allowedIds.has(id))) throw new Error('QUERY_DENIED');
     }
   }
-  return { ...receipt, plan, clarification, needsParentAuthorization: receipt.semantic && !authorizedPlan, state: z.string().parse(data.state) };
+  return { ...receipt, plan, clarification, needsParentAuthorization: (receipt.semantic || receipt.agent) && !authorizedPlan, state: z.string().parse(data.state) };
 }
 
 async function readQuestion(context: Context, requestId: string) {
@@ -223,26 +244,33 @@ export async function openOwnHistory(context: Context, input: Extract<HistoryInp
   const question = questionFor(requestId);
   if (question.conversation.id !== input.conversationId) throw new Error('QUERY_DENIED');
   const record = await readOwnResult(context.client, context.identity, requestId, 'archive', context.signal);
-  const restored = record.state === 'succeeded'
+  const agentAnswer = question.agent && record.state === 'succeeded'
+    ? await restoreOwnAgentAnswer(context.client, context.identity, context.keys,
+      context.authority, conversationId, requestId, context.signal) : null;
+  const restored = !question.agent && record.state === 'succeeded'
     ? await recoverOwnResult(context.client, context.identity, context.keys, requestId, record, context.signal, { reauthorizedHistory: true }) : null;
   const selectedRow = z.object({ request_id: z.literal(requestId), submitted_at: z.string() }).parse(page.selected);
   const submittedAt = selectedRow.submitted_at;
-  const reply = { requestId, status: restored ? 'ready' : question.clarification ? 'clarification' : record.state,
-    ...(restored ? { result: resultViewSchema.parse(restored.result) } : question.clarification ?? { message: '此轮未生成可恢复的结果，可重新发起查询。' }) };
+  const reply = agentAnswer ? { requestId, status: agentAnswer.result ? 'ready' : 'assistant', isNativeAgent: true,
+    message: agentAnswer.message, ...(agentAnswer.result ? { result: agentAnswer.result } : {}) }
+    : { requestId, status: restored ? 'ready' : question.clarification ? 'clarification' : record.state,
+      ...(restored ? { result: resultViewSchema.parse(restored.result) } : question.clarification ?? { message: '此轮未生成可恢复的结果，可重新发起查询。' }) };
   const last = rows.at(-1)!, hasMore = page.hasMore === true;
   const opened: HistoryOpened = { title: titleFor(context, thread, question.question), turns, selected: {
     requestId, question: question.question, submittedAt, state: record.state, reply },
-    conversation: { id: conversationId, ...(restored && question.semantic ? { parentRequestId: requestId,
+    conversation: { id: conversationId, ...((agentAnswer || (restored && question.semantic)) ? { parentRequestId: requestId,
       resumeToken: sealHistoryToken(context.identity, context.authority.permissionRevision, 'history-resume',
         { conversationId: input.conversationId, requestId }, context.keys) } : {}) }, hasMore,
     ...(hasMore ? { nextCursor: nextCursor(context, { action: 'open', conversationId: input.conversationId },
       { beforeTime: last.submitted_at, beforeId: last.request_id }) } : {}) };
   return { opened, recheck: async () => {
     if (restored) await restored.recheck();
+    if (agentAnswer) await agentAnswer.recheck();
     if (question.clarification) await readQuestion(context, requestId);
     const final = await readOwnResult(context.client, context.identity, requestId, 'status', context.signal);
     if (final.permission_revision !== context.authority.permissionRevision) throw new Error('QUERY_DENIED');
-    if (restored && (final.head_hash !== record.head_hash || final.head_sequence !== record.head_sequence)) throw new Error('QUERY_RESULT_CHANGED');
+    if ((restored || agentAnswer) && (final.head_hash !== record.head_hash || final.head_sequence !== record.head_sequence))
+      throw new Error('QUERY_RESULT_CHANGED');
   } };
 }
 
