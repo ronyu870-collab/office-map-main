@@ -56,3 +56,18 @@ Agent 注册只读的 query_verified_real_estate 工具，可自主连续调用�
 - 仓库 `20261115173338_ai_query_own_history.sql` 已在生产 Supabase `qhgxougfzzmgqjzzwudf` 应用，Supabase 迁移记录 `20261119070020`／`ai_query_own_history`。此前“生产尚未安装历史迁移”的阶段描述已过时，此段为最新状态。
 - 生产应用前事务 dry-run 后回滚，三张表和 RPC 均未遗留；正式应用后核验 private 三表存在且均开启 RLS、public/private RPC 存在。仅 service_role 可执行公开 RPC，anon 和 authenticated 不可执行；authenticated 不可 SELECT 私有会话表。
 - 数据库结构和权限已上线，但需要 PR #216 应用发布及真实登录的历史保存/列表/恢复/撤权验证后才能宣称 AI 4.0 业务功能正式可用。现有历史表无初始记录；不会回写已有业务成交或季度租金。
+
+## 2026-11-19 P3 预算、成本与运行可观测性补强
+
+- 新增 `agentCost.ts`，以官方 2026-11-19 定价生成保守美元成本计划区间；因没有精确输入缓存拆分和供应商计费事件，保留 `cost:null`，区间仅作为运营预算参考，不作为账单。
+- `AGENT_LIMITS.maxTotalTokens=60000` 超额阻止下一工具/下一模型轮调用，保留调用轮次/次数/超时预算。已返回但 usage 超限的模型轮次只能计入失败而非合法完成。
+- 单次 Agent 执行的 `durationMs` 与规划区间写入既有加密 accounting 事件，普通日志不写用户输入或密钥。
+- 无数据库变更。未涉及真实流式、长期历史、第三方联网搜索与生产管理员会话验收。
+
+## 2026-11-19 — P2 独立 SSE 工作批次
+
+- 官方 DeepSeek SSE：modelStream.ts 处理 data:、[DONE]、分片文本与 tool_calls[index] 参数，含 stream_options.include_usage 的 choices: [] 计费尾帧；仅完整响应进入原 Agent Orchestrator 的正式模型结果。
+- /api/intelligence/query/agent/stream 只接受已获权的 POST，并经原有 Agent 身份/预算/工具/来源与审计处理；工具状态来自真实 tool_started/tool_finished。模型增量逐段重核当前权限，撤权后禁止继续发送敏感结果。取消不会另开执行任务；幂等键仍绑定当前请求。
+- 浏览器使用同一个受控 SSE Schema 和签名交付凭据，正文的部分文本在完成前不进入正式答复、不触发历史或授权导出。对失败/网络中断保持不确定状态，不将部分文本当作正式结果。
+- 服务端 AI_AGENT_STREAM_ENABLED=false 可以回退原非流式 DeepSeek 接口；依现有 admin-only 能力返回标志，预览缺密钥时不自动暴露流式。
+- 不新增 RLS、SQL、成交数据入口或对外公开搜索。单元测试使用合成协议字节，仅覆盖解码、序列、前端状态；真实供应商 API 的成功调用与端到端 HTTP 安全验收需另行提供证据。

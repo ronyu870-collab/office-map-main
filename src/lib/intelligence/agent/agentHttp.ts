@@ -15,6 +15,7 @@ import { queryConversationSchema } from '../query/conversationProtocol';
 import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
+import { estimateAgentCostRange } from './agentCost';
 import { queryVerifiedRealEstate } from './verifiedDataTool';
 import { recordHistorySubmission } from '../query/historyStore';
 import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
@@ -25,6 +26,11 @@ const inputSchema = z.strictObject({
   conversation: queryConversationSchema,
 });
 type Dependencies = { client: SupabaseClient; keys: AuditKeys; enabled: boolean };
+export type AgentStreamObserver = (event:
+  | { type: 'run_started'; requestId: string }
+  | { type: 'tool_started'; name: string }
+  | { type: 'tool_completed'; name: string; status: 'ready' | 'limited' }
+  | { type: 'message_delta'; delta: string }) => Promise<void>;
 const secureHeaders = { 'Cache-Control': 'private, no-store',
   'X-Content-Type-Options': 'nosniff', Vary: 'Authorization, ' + IMPERSONATION_REQUEST_HEADER };
 const json = (payload: unknown, status: number) => Response.json(payload, { status, headers: secureHeaders });
@@ -51,6 +57,7 @@ function providerMessage(error: unknown): string {
   }
   if (error instanceof Error && error.message === 'AGENT_CONTEXT_UNAVAILABLE') return '之前的对话已过期或权限已变化，请开始新对话。';
   if (error instanceof Error && error.message === 'AGENT_RESUME_NOT_SUPPORTED') return '旧会话暂不能以 Agent 模式直接续接，请开始新对话。';
+  if (error instanceof Error && error.message === 'AGENT_TOKEN_BUDGET_EXCEEDED') return '本轮研究超过模型 token 安全预算，未执行后续工具或生成新的结论。';
   if (error instanceof Error && error.message === 'AGENT_TOOL_BUDGET_EXCEEDED') return '本次研究超过安全工具执行上限，未将部分过程误报为完成。';
   if (error instanceof Error && error.message === 'QUERY_DENIED') return '查询权限已变化或当前没有该数据的访问资格。';
   return '本次 AI 执行未完成，请查看执行状态或重新发起请求。';
@@ -58,7 +65,8 @@ function providerMessage(error: unknown): string {
 
 /** Agent-specific authenticated route, preserving existing formal results, sources
  * and DB RLS. LLM requests are suggestions; the service remains the authority. */
-export async function handleAgentSubmission(request: Request, dependencies: Dependencies): Promise<Response> {
+export async function handleAgentSubmission(request: Request, dependencies: Dependencies,
+  observer?: AgentStreamObserver): Promise<Response> {
   const { client, keys } = dependencies;
   let requestId: string = randomUUID();
   let audit: ReturnType<typeof createRpcAuditPort> | undefined;
@@ -126,13 +134,17 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         : 'DeepSeek 调用预算校验未通过，本轮没有调用模型。' }, 503);
     }
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
+    await observer?.({ type: 'run_started', requestId });
     await audit.append(requestId, 'tool_started', { tool: 'deepseek_chat', provider: 'deepseek',
       operation: 'native_tool_calling', historyTurns: history.length });
+    const agentStartedAt = Date.now();
     let completedModels = 0, reportedInput: number | null = 0, reportedOutput: number | null = 0;
+    let reportedModel: string | null = null;
     const providerRequestIds: string[] = [];
     const onEvent = async (event: AgentEvent) => {
       if (event.type === 'model_finished') {
         completedModels++;
+        reportedModel = event.model ?? reportedModel;
         if (event.providerRequestId) providerRequestIds.push(event.providerRequestId);
         reportedInput = reportedInput === null || event.inputTokens === null || event.inputTokens === undefined
           ? null : reportedInput + event.inputTokens;
@@ -141,17 +153,45 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       } else if (event.type === 'tool_started') {
         await audit!.append(requestId, 'tool_started', { tool: event.name,
           provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
+        if (event.name) await observer?.({ type: 'tool_started', name: event.name });
       } else if (event.type === 'tool_finished') {
         await audit!.append(requestId, 'tool_finished', {
           tool: event.name, status: event.status, reused: event.reused === true,
           provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
+        if (event.name) await observer?.({ type: 'tool_completed', name: event.name,
+          status: event.status ?? 'limited' });
       }
     };
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
-        history, invoke: completeWithDeepSeek, signal, onEvent,
+        history,
+        invoke: async (messages, currentSignal) => {
+          if (!observer) return completeWithDeepSeek(messages, currentSignal);
+          // Bound provisional updates; never make a DB authorization RPC for
+          // every individual supplier token. Every visible batch must pass a
+          // live permission-revision check before it reaches the browser.
+          let pending = '', lastFlush = 0;
+          const flush = async () => {
+            while (pending.length) {
+              const delta = pending.slice(0, 3500);
+              pending = pending.slice(delta.length);
+              const current = await fresh();
+              if (current.permissionRevision !== authority.permissionRevision
+                || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+              await observer({ type: 'message_delta', delta });
+              lastFlush = Date.now();
+            }
+          };
+          const result = await completeWithDeepSeek(messages, currentSignal, async delta => {
+            pending += delta;
+            if (!lastFlush || pending.length >= 96 || Date.now() - lastFlush >= 250) await flush();
+          });
+          await flush();
+          return result;
+        },
+        signal, onEvent,
         runTool: async (name, args) => {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
           const rechecked = await fresh();
@@ -165,14 +205,18 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       await audit.append(requestId, 'accounting', { provider: 'deepseek', status: 'incomplete',
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
         providerRequestIds: providerRequestIds.slice(0, 6),
-        cost: null, costStatus: 'provider_invoice_not_available' });
+        cost: null, costStatus: 'planning_range_not_invoice',
+        costEstimate: estimateAgentCostRange(reportedModel, reportedInput, reportedOutput),
+        durationMs: Math.max(0, Date.now() - agentStartedAt) });
       throw error;
     }
     await audit.append(requestId, 'accounting', { provider: 'deepseek', status: 'completed',
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
       inputTokens: execution.inputTokens, outputTokens: execution.outputTokens,
-      cost: null, costStatus: 'provider_invoice_not_available' });
+      cost: null, costStatus: 'planning_range_not_invoice',
+      costEstimate: estimateAgentCostRange(execution.model, execution.inputTokens, execution.outputTokens),
+      durationMs: Math.max(0, Date.now() - agentStartedAt) });
     const current = await fresh();
     if (current.permissionRevision !== authority.permissionRevision
       || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');

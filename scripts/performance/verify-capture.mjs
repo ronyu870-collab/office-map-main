@@ -49,7 +49,12 @@ async function verifyDocumentCollector() {
           probe?.recordMapStage?.('tiles_complete');
           document.querySelector('#tiles').hidden = false;
           document.querySelector('#records').hidden = false;
-          setTimeout(() => { document.querySelector('#markers').hidden = false }, 60);
+          // The fixture intentionally exposes record readiness before markers.
+          // Observe two animation frames between stages: a 60ms timer alone
+          // can collapse into the same measurement frame on busy CI runners.
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            document.querySelector('#markers').hidden = false;
+          }));
         });
       });
       </script>`);
