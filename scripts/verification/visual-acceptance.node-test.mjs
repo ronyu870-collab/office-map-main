@@ -6,11 +6,11 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
-test('AI 4.0 stage P0/P1 manual review waiver is uniquely scoped to PR #214', () => {
-  const scope = 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #214';
-  const reason = 'User explicitly waived manual browser review, independent visual review, screenshot comparison and physical-phone testing for staged Colliers AI 4.0 on 2026-11-19; applies only to PR #214 and does not waive Verify or security checks';
+test('AI 4.0 stage P0/P1 manual review waiver is uniquely scoped to PR #215', () => {
+  const scope = 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #215';
+  const reason = 'User explicitly waived manual browser review, independent visual review, screenshot comparison and physical-phone testing for staged Colliers AI 4.0 on 2026-11-19; applies only to PR #215 and does not waive Verify or security checks';
   const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
-  const candidate = { number: 214, body, head: { sha: head,
+  const candidate = { number: 215, body, head: { sha: head,
     ref: 'codex/colliers-ai-4-p0-p1-agent-tools-20261119',
     repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
   assert.equal(checkVisualAcceptance(candidate), null);
