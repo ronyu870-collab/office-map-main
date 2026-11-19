@@ -251,7 +251,7 @@ export async function openOwnHistory(context: Context, input: Extract<HistoryInp
     ? await recoverOwnResult(context.client, context.identity, context.keys, requestId, record, context.signal, { reauthorizedHistory: true }) : null;
   const selectedRow = z.object({ request_id: z.literal(requestId), submitted_at: z.string() }).parse(page.selected);
   const submittedAt = selectedRow.submitted_at;
-  const reply = agentAnswer ? { requestId, status: agentAnswer.result ? 'ready' : 'assistant',
+  const reply = agentAnswer ? { requestId, status: agentAnswer.result ? 'ready' : 'assistant', isNativeAgent: true,
     message: agentAnswer.message, ...(agentAnswer.result ? { result: agentAnswer.result } : {}) }
     : { requestId, status: restored ? 'ready' : question.clarification ? 'clarification' : record.state,
       ...(restored ? { result: resultViewSchema.parse(restored.result) } : question.clarification ?? { message: '此轮未生成可恢复的结果，可重新发起查询。' }) };
