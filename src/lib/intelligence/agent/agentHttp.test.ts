@@ -84,6 +84,10 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.receive).toHaveBeenCalledOnce();
     expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
     expect(state.append.mock.calls.map(x => x[1])).toContain('accounting');
+    expect(state.append.mock.calls.find(x => x[1] === 'accounting')?.[2]).toMatchObject({
+      cost: null, costStatus: 'planning_range_not_invoice', durationMs: expect.any(Number),
+      costEstimate: { minUsd: expect.any(Number), maxUsd: expect.any(Number) },
+    });
     expect(response.headers.get('x-query-delivery-token')).toMatch(/\./);
   });
 

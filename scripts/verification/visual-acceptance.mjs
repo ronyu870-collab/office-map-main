@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 218,
+        branch: 'codex/colliers-ai-4-p3-audit-cost-20261119',
+        scope: 'Colliers AI 4.0 P3 server-side token budget, cost planning and encrypted accounting, PR #218',
+        reason: 'User explicitly waived manual browser, standalone visual, screenshot and physical-device review for staged Colliers AI 4.0 on 2026-11-19; this waiver applies solely to PR #218, not Verify, security, integration or production model checks',
+      },
+      {
         number: 216,
         branch: 'codex/colliers-ai-4-p2-owned-history-20261119',
         scope: 'Colliers AI 4.0 P2 encrypted agent context and authenticated history indexing, PR #216',

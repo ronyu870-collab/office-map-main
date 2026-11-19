@@ -68,6 +68,19 @@ test('Colliers AI 4.0 P2 history waiver requires exact PR, head, branch, and sco
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip CI') }), /specifically authorized/);
 });
 
+test('Colliers AI 4.0 P3 server costs waiver requires PR #218 exact scope', () => {
+  const scope = 'Colliers AI 4.0 P3 server-side token budget, cost planning and encrypted accounting, PR #218';
+  const reason = 'User explicitly waived manual browser, standalone visual, screenshot and physical-device review for staged Colliers AI 4.0 on 2026-11-19; this waiver applies solely to PR #218, not Verify, security, integration or production model checks';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 218, body, head: { sha: head, ref: 'codex/colliers-ai-4-p3-audit-cost-20261119',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 217 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip all checks') }), /specifically authorized/);
+});
+
 test('Colliers AI 4.0 core waiver is restricted to PR #211 and current exact head', () => {
   const scope = 'Colliers AI 4.0 DeepSeek-native Agent core and minimal homepage response display, PR #211';
   const reason = 'User requested expedited staged Colliers AI 4.0 delivery and allowed nonessential complex visual review to be skipped on 2026-11-18; waiver is restricted to PR #211 and does not assert visual or real-device acceptance';

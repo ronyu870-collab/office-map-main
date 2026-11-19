@@ -80,6 +80,14 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     expect(runTool).toHaveBeenCalledTimes(1);
   });
 
+  it('fails closed at the cumulative token cap before executing requested tools', async () => {
+    const runTool = vi.fn();
+    const answer = { ...completion(null, [{ id: 'big', question: '查询CBD' }]), inputTokens: 60001, outputTokens: 12 };
+    await expect(runAgentLoop({ question: '研究CBD', signal, runTool,
+      invoke: vi.fn().mockResolvedValue(answer) })).rejects.toThrow('AGENT_TOKEN_BUDGET_EXCEEDED');
+    expect(runTool).not.toHaveBeenCalled();
+  });
+
   it('bounds tool calls and fails closed instead of pretending to finish', async () => {
     const runTool = vi.fn();
     const many = Array.from({ length: 7 }, (_, i) => ({ id: String(i), question: '查询项目 ' + i }));
