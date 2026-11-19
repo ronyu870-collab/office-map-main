@@ -32,3 +32,27 @@ Agent 注册只读的 query_verified_real_estate 工具，可自主连续调用�
 - 模型默认 ID 更新为 DeepSeek 2026-10-17 官方 `deepseek-flash`，保留旧兼容别名 `deepseek-v4-flash` 和 `deepseek-v4-pro` 的已注册环境配置；对退役模型名称直接判为配置问题。生产变量 `DEEPSEEK_MODEL` 需按实际配置核验，不因存在而视为支持。
 - 当前继续保留最多六轮/六工具预算；审核序列添加真实调用开始、结束及复用标识，供应商原生响应提供 ID 时加密审计记录。并未新获管理会话或供应商请求成功记录，不得声明完成生产端到端验收。
 - 本批不修改数据库／权限，长期流式、完整历史与成交安全封装仍待后续阶段。人工视觉、浏览器及真实手机验证按 2026-11-19 当前用户指令豁免，PR 标注范围，不得将未执行称为通过。
+
+## 2026-11-19 P2 增量：历史索引与有界连续上下文
+
+- 本批将加密存储的 Agent 上下文最多保留八轮，延续原有 credential-redaction／authority-revision／session 校验。高频长期聊天仍缺真正的结构化摘要与 token 计算。
+- Agent 成功后会调用已有 `recordHistorySubmission`，成功显示 `historySaved: true`；数据库未应用 `20261115173338_ai_query_own_history.sql` 时会按代码契约明确返回 false，不将成功答复当作已归档。
+- 统一历史列表现可识别 `colliers-agent-conversation/1` 首次提问并验证收到的真实计划，但原生 Agent 的回答在历史「打开并继续」路径尚不能按全部来源重新恢复，不能宣称完成跨会话研究历史。
+- 不修改原业务数据与 RLS。现有仓库内的历史迁移不代表生产已安装，需要通过隔离真实 PostgreSQL/Auth 验证后方可单独发布。
+
+## 2026-11-19 P2 增量：Agent 历史恢复和续接
+
+- `restoreOwnAgentAnswer` 只从当前账号可读、哈希审计链验证通过的归档解密。无业务数据的模型消息与加密摘要交叉验证；包含业务结果的回复仍通过 `recoverOwnResult` 的来源、模型计划及权限重新检查。
+- 统一历史打开接口现在可以重开 Agent 已成功回答，并签发绑定当前用户/会话/权限和短期时间的 resume token；只有验证 token 且重查上轮数据访问权限后才允许 DeepSeek 继承旧上下文。
+- 用户变更账号、审计加密不一致、RLS 撤销或来源无权均拒绝历史续接。本批未接入实时流式或取消后断线续传。
+
+### 2026-11-19 历史续接路由补漏
+
+- 之前 `HomeQuery` 凡带 `resumeToken` 均回退旧查询服务，即使历史来自 DeepSeek Agent。现在历史 API 仅在真实已归档的 Agent 请求中返回 `isNativeAgent` 标记；前端将该标记作为路由提示，且服务端依然独立验证身份、签名、会话、权限和来源。
+- 已增加真实组件回归：Agent 历史打开后追问走 Agent；旧受控查询历史保持旧路由。历史目录未安装时仍不能宣称已经有可用跨设备恢复。
+
+## 2026-11-19 历史数据库生产发布复核
+
+- 仓库 `20261115173338_ai_query_own_history.sql` 已在生产 Supabase `qhgxougfzzmgqjzzwudf` 应用，Supabase 迁移记录 `20261119070020`／`ai_query_own_history`。此前“生产尚未安装历史迁移”的阶段描述已过时，此段为最新状态。
+- 生产应用前事务 dry-run 后回滚，三张表和 RPC 均未遗留；正式应用后核验 private 三表存在且均开启 RLS、public/private RPC 存在。仅 service_role 可执行公开 RPC，anon 和 authenticated 不可执行；authenticated 不可 SELECT 私有会话表。
+- 数据库结构和权限已上线，但需要 PR #216 应用发布及真实登录的历史保存/列表/恢复/撤权验证后才能宣称 AI 4.0 业务功能正式可用。现有历史表无初始记录；不会回写已有业务成交或季度租金。

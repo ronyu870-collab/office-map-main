@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 const state = vi.hoisted(() => ({
   receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(),
-  identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(),
+  identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(),
 }));
 
 vi.mock('../query/serverAuthority', () => ({
@@ -15,6 +15,7 @@ vi.mock('../query/auditStore', async original => ({
   createRpcAuditPort: () => ({ receive: state.receive, append: state.append }),
 }));
 vi.mock('../query/intake', () => ({ recordQueryIntake: state.intake }));
+vi.mock('../query/historyStore', () => ({ recordHistorySubmission: state.save }));
 vi.mock('./modelProvider', async original => ({
   ...(await original<typeof import('./modelProvider')>()),
   completeWithDeepSeek: state.provider,
@@ -61,6 +62,7 @@ beforeEach(() => {
   state.append.mockResolvedValue(undefined);
   state.intake.mockResolvedValue(undefined);
   state.history.mockResolvedValue([]);
+  state.save.mockResolvedValue(true);
   state.provider.mockResolvedValue({ model: 'deepseek-v4-flash', inputTokens: 12, outputTokens: 18,
     message: { role: 'assistant', content: '你好，我可以帮你分析北京办公楼市场。' } });
 });
@@ -77,6 +79,8 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(output.agent).toMatchObject({ model: 'deepseek-v4-flash', modelCalls: 1, toolCalls: 0, inputTokens: 12, outputTokens: 18 });
     expect(state.provider).toHaveBeenCalledOnce();
     expect(state.provider.mock.calls[0][0].at(-1)).toMatchObject({ role: 'user', content: '你好' });
+    expect(output.historySaved).toBe(true);
+    expect(state.save).toHaveBeenCalledWith(expect.anything(), keys, expect.anything(), input.conversation.id, output.requestId);
     expect(state.receive).toHaveBeenCalledOnce();
     expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
     expect(state.append.mock.calls.map(x => x[1])).toContain('accounting');
@@ -104,6 +108,15 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.provider).toHaveBeenCalledTimes(2);
     expect(state.provider.mock.calls[1][0].some((m: { role: string; tool_call_id?: string }) =>
       m.role === 'tool' && m.tool_call_id === 'tool-1')).toBe(true);
+  });
+
+  it('answers normally when optional history migration is absent', async () => {
+    state.save.mockResolvedValue(false);
+    const { request } = fakeRequest();
+    const response = await handleAgentSubmission(request, deps());
+    expect(response.status).toBe(200);
+    expect((await response.json()).historySaved).toBe(false);
+    expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
   });
 
   it('denies unauthenticated access without model or tool execution', async () => {

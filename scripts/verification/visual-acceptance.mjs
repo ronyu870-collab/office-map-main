@@ -36,6 +36,18 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 219,
+        branch: 'codex/stacking-plan-p0-p1-quality-facade-20261119',
+        scope: 'Stacking Plan P0 source integrity and P1 building facade redesign, Admin A/B pilot, PR #219',
+        reason: 'User explicitly waived original stacking board photo archiving and independent visual acceptance and requested direct main merge of PR #219 on 2026-11-19; this one-time waiver does not waive Verify, permissions, audit or source-unverified status',
+      },
+      {
+        number: 216,
+        branch: 'codex/colliers-ai-4-p2-owned-history-20261119',
+        scope: 'Colliers AI 4.0 P2 encrypted agent context and authenticated history indexing, PR #216',
+        reason: 'User explicitly waived manual browser review, independent visual review, screenshots and physical-device acceptance for staged Colliers AI 4.0 on 2026-11-19; this PR-specific waiver does not replace CI or permission validation',
+      },
+      {
         number: 217,
         branch: 'codex/colliers-ai-4-p0-p1-release-20261119',
         scope: 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #217',

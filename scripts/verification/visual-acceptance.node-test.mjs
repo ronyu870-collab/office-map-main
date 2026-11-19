@@ -38,6 +38,23 @@ test('Submarket PR #212 one-time manual acceptance waiver is limited to exact id
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Skip every required CI check') }), /specifically authorized/);
 });
 
+test('Stacking Plan P0/P1 PR #219 direct-merge waiver only exempts original photo and manual visual review', () => {
+  const scope = 'Stacking Plan P0 source integrity and P1 building facade redesign, Admin A/B pilot, PR #219';
+  const reason = 'User explicitly waived original stacking board photo archiving and independent visual acceptance and requested direct main merge of PR #219 on 2026-11-19; this one-time waiver does not waive Verify, permissions, audit or source-unverified status';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 219, body, head: { sha: head,
+    ref: 'codex/stacking-plan-p0-p1-quality-facade-20261119', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 213 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other-feature' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated feature') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'waive all tests') }), /specifically authorized/);
+});
+
 test('Stacking Plan PR #213 waiver requires exact repository, branch, scope, reason and current head', () => {
   const scope = 'Xiaoyun Road 33 A/B Admin Stacking Plan and map entry, PR #213';
   const reason = 'User explicitly waived standalone independent visual acceptance review and requested direct main merge of Stacking Plan PR #213 on 2026-11-19; this one-time waiver records unperformed review and does not waive engineering, authorization or data checks';
@@ -52,6 +69,20 @@ test('Stacking Plan PR #213 waiver requires exact repository, branch, scope, rea
   assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Other module') }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Waive all CI') }), /specifically authorized/);
+});
+
+test('Colliers AI 4.0 P2 history waiver requires exact PR, head, branch, and scope', () => {
+  const scope = 'Colliers AI 4.0 P2 encrypted agent context and authenticated history indexing, PR #216';
+  const reason = 'User explicitly waived manual browser review, independent visual review, screenshots and physical-device acceptance for staged Colliers AI 4.0 on 2026-11-19; this PR-specific waiver does not replace CI or permission validation';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 216, body, head: { sha: head, ref: 'codex/colliers-ai-4-p2-owned-history-20261119',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 215 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'test' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip CI') }), /specifically authorized/);
 });
 
 test('Colliers AI 4.0 core waiver is restricted to PR #211 and current exact head', () => {
