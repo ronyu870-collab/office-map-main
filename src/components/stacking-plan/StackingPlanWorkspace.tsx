@@ -36,6 +36,7 @@ type Source = {
 type Payload = {
   building: { id: string; name: string }; towers: Tower[];
   floors: Floor[]; spaces: Space[]; sources: Source[]; basis: string;
+  evidence_storage_ready?: boolean;
 };
 type ExportScope = 'visible' | 'all';
 
@@ -411,10 +412,13 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   原始文件{source?.evidence_storage_path ? '已归档' : '未归档'}
                 </span>
                 <input ref={fileInput} type="file" className={styles.hiddenFile} accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx"
+                  disabled={payload.evidence_storage_ready === false}
                   aria-label="选择原始资料文件" onChange={event => {
                     const file = event.target.files?.[0]; if (file) void uploadOriginal(file);
                   }} />
-                <button type="button" disabled={!!busy} onClick={() => fileInput.current?.click()}>
+                <button type="button" disabled={!!busy || payload.evidence_storage_ready === false}
+                  title={payload.evidence_storage_ready === false ? '数据库原件归档迁移尚未部署' : '选择原始证据文件'}
+                  onClick={() => fileInput.current?.click()}>
                   <FileUp size={15}/> {source?.evidence_storage_path ? '替换原件' : '上传原件'}
                 </button>
                 {source?.evidence_storage_path && <button type="button" disabled={!!busy}
