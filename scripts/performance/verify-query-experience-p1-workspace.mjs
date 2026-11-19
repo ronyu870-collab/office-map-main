@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -405,8 +405,18 @@ async function pendingAndStop({ page, db, blocker, userId, ids, network }) {
     const [request] = await Promise.all([page.waitForRequest(request => new URL(request.url()).pathname === '/api/intelligence/query' && request.method() === 'POST'),
       page.getByRole('button', { name: '发送问题', exact: true }).click()]);
     submitted = request.postDataJSON();
+    // The same owner can have more than one in-flight audit stream. Select
+    // exactly the request bound to the POST idempotency key, never whichever
+    // unseen stream happens to be returned first by an unordered query.
+    const digest = createHash('sha256')
+      .update(`query-http/1:${userId}:${userId}:${submitted.idempotencyKey}`)
+      .digest().subarray(0, 16);
+    digest[6] = (digest[6] & 15) | 128;
+    digest[8] = (digest[8] & 63) | 128;
+    const hex = digest.toString('hex');
+    const exactId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
     await until(async () => {
-      const rows = (await db.query('select request_id from private.ai_query_audit_streams where actor_id=$1', [userId])).rows;
+      const rows = (await db.query('select request_id from private.ai_query_audit_streams where actor_id=$1 and request_id=$2', [userId, exactId])).rows;
       stoppedId = rows.find(row => !prior.has(row.request_id))?.request_id;
       return Boolean(stoppedId);
     }, 'EXPERIENCE_PENDING_AUDIT_MISSING');
