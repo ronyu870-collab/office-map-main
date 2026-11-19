@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 226,
+        branch: 'codex/fix-submarket-modal-regressions-20261119',
+        scope: 'Submarket full-screen modal regression fixes: building return race, valid-quarter trend digest and pointer backdrop, PR #226',
+        reason: 'User explicitly requested PR #226 main merge with continued independent visual and real-device acceptance waiver on 2026-11-20; only this PR's manual review is waived and existing engineering, authorization and data protections remain unchanged',
+      },
+      {
         number: 225,
         branch: 'codex/map-list-comparison-png-20261119',
         scope: 'Map floating project-list selection and A/B high-resolution PNG comparison export, PR #225',
