@@ -24,6 +24,21 @@ test('Stacking Plan P0/P1 PR #219 direct-merge waiver only exempts original phot
 });
 
 
+test('Map PNG comparison PR #225 manual-review waiver is exact and scoped', () => {
+  const scope = 'Map floating project-list selection and A/B high-resolution PNG comparison export, PR #225';
+  const reason = 'User explicitly waived manual browser and independent visual acceptance for PR #225 on 2026-11-19 and authorized main merge after code checks; engineering and security checks remain mandatory';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 225, body, head: { sha: head,
+    ref: 'codex/map-list-comparison-png-20261119', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 224 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'dev' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated work') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip all CI') }), /specifically authorized/);
+});
+
 test('Submarket PR #224 user-authorized manual visual waiver is exact-scope and current-head only', () => {
   const scope = 'Colliers map submarket centered research modal, responsive layout and trend presentation, PR #224';
   const reason = 'User explicitly waived independent visual acceptance and requested direct main merge for PR #224 on 2026-11-19; manual visual review was not performed and all engineering, security and data checks remain mandatory';

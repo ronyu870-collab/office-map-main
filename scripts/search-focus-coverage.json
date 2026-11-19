@@ -457,5 +457,16 @@
       "keeps Stacking Plan tenant input focused through filters, mid-word edits and Chinese IME",
       "keeps unsaved notes editable during the filter transition and does not rewrite the source snapshot"
     ]
+  },
+  {
+    "id": "map-floating-list-comparison",
+    "roots": [
+      "src/app/map/components/FloatingBuildingList.tsx"
+    ],
+    "file": "src/app/map/__tests__/FloatingBuildingList.comparison.test.tsx",
+    "cases": [
+      "keeps the map search input focused through list result updates and Chinese composition",
+      "keeps selected buildings while switching list modes and filtering without losing unchecked rows"
+    ]
   }
 ]

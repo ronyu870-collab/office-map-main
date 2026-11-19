@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 225,
+        branch: 'codex/map-list-comparison-png-20261119',
+        scope: 'Map floating project-list selection and A/B high-resolution PNG comparison export, PR #225',
+        reason: 'User explicitly waived manual browser and independent visual acceptance for PR #225 on 2026-11-19 and authorized main merge after code checks; engineering and security checks remain mandatory',
+      },
+      {
         number: 219,
         branch: 'codex/stacking-plan-p0-p1-quality-facade-20261119',
         scope: 'Stacking Plan P0 source integrity and P1 building facade redesign, Admin A/B pilot, PR #219',

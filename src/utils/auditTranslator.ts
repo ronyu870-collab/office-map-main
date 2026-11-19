@@ -154,6 +154,8 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `查看了楼宇详情：「${p.buildingName ?? p.building_name ?? p.buildingId ?? p.building_id ?? "未知楼宇"}」`;
     case "EXPORT_MAP_DATA":
       return `导出了地图数据${p.file_name ? ` · ${p.file_name}` : ''}`;
+    case "EXPORT_BUILDING_COMPARISON":
+      return `导出了楼宇参数对比图（${p.count ?? 0} 栋，${p.layout === 'columns' ? '横向比较' : '纵向列表'}）`;
     case "VIEW_BI_CHART": {
       const tabName = p.tab === 'submarket' ? '子市场分析' : p.tab === 'pe' ? '私募板块' : p.tab === 'lease' ? '租赁成交分析' : p.tab ?? '';
       return `查看了商业分析图表：「${tabName}」`;
