@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEADERS = { 'Cache-Control': 'private, no-store', Vary: 'Authorization, x-colliers-impersonate-user' };
 const EVIDENCE_BUCKET = 'stacking-plan-evidence';
-const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+// Stay below Vercel Functions' 4.5 MB request and response payload cap.
+const MAX_EVIDENCE_BYTES = 4 * 1024 * 1024;
 const ORIGINAL_MIMES: Record<string, string> = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp',
   'application/pdf': 'pdf',
@@ -213,7 +214,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { client, actorId, guard } = auth;
     if ((request.headers.get('content-type') ?? '').toLowerCase().includes('multipart/form-data')) {
       const claimedLength = Number(request.headers.get('content-length') ?? 0);
-      if (claimedLength > MAX_EVIDENCE_BYTES + 16384) return reply({ error: '原件不得超过 10 MB' }, 413);
+      if (claimedLength > MAX_EVIDENCE_BYTES + 16384) return reply({ error: '原件不得超过 4 MB' }, 413);
       const form = await request.formData();
       const original = form.get('file');
       const sourceId = form.get('source_id');
@@ -221,7 +222,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           || !(original instanceof File)) return reply({ error: '请选择有效来源与原始文件' }, 400);
       const ext = ORIGINAL_MIMES[original.type];
       if (!ext || original.size < 1 || original.size > MAX_EVIDENCE_BYTES)
-        return reply({ error: '仅允许 10 MB 内的 PNG、JPG、WebP、PDF 或 XLSX 原件' }, 400);
+        return reply({ error: '仅允许 4 MB 内的 PNG、JPG、WebP、PDF 或 XLSX 原件' }, 400);
       const buffer = Buffer.from(await original.arrayBuffer());
       // Detect the actual file signature; do not trust a caller-provided MIME.
       const signature = buffer.subarray(0, 8);
