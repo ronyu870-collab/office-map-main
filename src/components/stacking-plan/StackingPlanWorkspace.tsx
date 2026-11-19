@@ -86,6 +86,7 @@ function makeSvg(
   const width = 1160, rowHeight = 52, top = 183, height = top + rowHeight * rows.length + 142;
   const header = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">',
+    '<defs><pattern id="sp-unverified" patternUnits="userSpaceOnUse" width="12" height="12" patternTransform="rotate(45)"><path d="M0 0V12" stroke="#78899B" stroke-opacity="0.18" stroke-width="2"/></pattern></defs>',
     '<rect width="' + width + '" height="' + height + '" fill="#FFFFFF"/>',
     '<rect x="0" y="0" width="7" height="' + height + '" fill="#003E7E"/>',
     '<text x="42" y="51" font-size="14" fill="#003E7E" font-weight="700" font-family="Arial,Microsoft YaHei,sans-serif">COLLIERS INTELLIGENCE</text>',
@@ -106,7 +107,10 @@ function makeSvg(
       const x = 119 + offset; offset += w;
       const color = COLORS[unit.occupancy_status];
       const text = w > 72 ? '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (y + 27) + '" font-size="13" fill="' + color.ink + '" text-anchor="middle" font-weight="600" font-family="Arial,Microsoft YaHei,sans-serif">' + esc(brief(asUnitName(unit), Math.max(3, Math.floor(w / 17)))) + '</text>' : '';
-      return '<rect x="' + x.toFixed(1) + '" y="' + (y + 2) + '" width="' + Math.max(w - 3, 0).toFixed(1) + '" height="43" rx="3" fill="' + color.fill + '" stroke="#D6DEE7"/>' + text;
+      const outline = '<rect x="' + x.toFixed(1) + '" y="' + (y + 2) + '" width="' + Math.max(w - 3, 0).toFixed(1) + '" height="43" rx="3"';
+      return outline + ' fill="' + color.fill + '" stroke="#D6DEE7"/>'
+        + (unit.verification_status !== 'verified' ? outline + ' fill="url(#sp-unverified)"/>' : '')
+        + text;
     }).join('');
     const remainder = layout.residualLabel
       ? '<rect x="' + (119 + offset).toFixed(1) + '" y="' + (y + 2) + '" width="' + Math.max(layout.residual / total * 890 - 3, 0).toFixed(1) + '" height="43" fill="#F5F5F4" stroke="#CBD5E1" stroke-dasharray="3 3"/>'
@@ -119,8 +123,17 @@ function makeSvg(
       + '<line x1="116" x2="1123" y1="' + (y + 49) + '" y2="' + (y + 49) + '" stroke="#E4E9F0"/>';
   }).join('');
   const scope = filtered ? '当前筛选范围（隐藏其余单元）' : '完整已建模范围';
+  const legend = ([['已租', COLORS.occupied.fill], ['空置', COLORS.vacant.fill],
+    ['其他用途', COLORS.other.fill], ['待确认', COLORS.unknown.fill]] as const)
+    .map(([label, fill], index) => {
+      const x = 43 + index * 142;
+      const y = height - 114;
+      return '<rect x="' + x + '" y="' + y + '" width="15" height="15" rx="2" fill="' + fill + '" stroke="#C5D0DA"/>'
+        + '<text x="' + (x + 22) + '" y="' + (y + 12) + '" font-size="13" fill="#405368" font-family="Arial,Microsoft YaHei,sans-serif">' + esc(label) + '</text>';
+    }).join('');
   const foot = [
-    '<text x="43" y="' + (height - 104) + '" font-size="14" fill="#405368" font-family="Arial,Microsoft YaHei,sans-serif">■ 已租　■ 空置　■ 其他用途　■ 状态待确认</text>',
+    legend,
+    '<text x="620" y="' + (height - 102) + '" font-size="13" fill="#667085" font-family="Arial,Microsoft YaHei,sans-serif">斜纹：未逐项核验</text>',
     '<text x="43" y="' + (height - 75) + '" font-size="13" fill="#667085" font-family="Arial,Microsoft YaHei,sans-serif">' + esc(scope) + ' · 未标明面积不代表空置；色块只反映来源中可读面积比例</text>',
     '<text x="43" y="' + (height - 46) + '" font-size="13" fill="#667085" font-family="Arial,Microsoft YaHei,sans-serif">数据截至：' + esc(source?.source_as_of ?? '未知') + ' · 来源：' + esc(brief(source?.title ?? '未提供', 48)) + ' · 仅供内部核验</text>',
     '<text x="43" y="' + (height - 22) + '" font-size="12" fill="#87551F" font-family="Arial,Microsoft YaHei,sans-serif">' + esc(missing.length ? '楼层编号待核：' + missing.join('、') + '（不能认定存在或不存在）' : '全部空间事实仍须按来源逐项核验') + '</text>',
@@ -269,13 +282,13 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           const check = areaCheck(floor, unitList.filter(s => s.floor_id === floor.id));
           const base = {
             '项目': excelText(payload.building.name), '楼座': excelText(tower.display_name),
-            '楼层': floor.floor_code, '原图楼层面积(㎡)': areaNumber(floor.floor_area_sqm),
+            '楼层': excelText(floor.floor_code), '原图楼层面积(㎡)': areaNumber(floor.floor_area_sqm),
             '单元面积合计差额(㎡)': check.reference === null ? null : Number((check.reference - check.recorded).toFixed(2)),
           };
           const unitRecords = spaces.length ? spaces : [null];
           return unitRecords.map(space => ({
             ...base,
-            '单元': space?.unit_code ?? '未录入单元',
+            '单元': excelText(space?.unit_code ?? '未录入单元'),
             '租户 / 用途': excelText(space?.tenant_name),
             '来源标注状态': space ? OCCUPANCY_LABELS[space.occupancy_status] : '未知',
             '单元面积(㎡)': areaNumber(space?.area_sqm),
@@ -576,7 +589,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                     }}><X size={18}/></button>
                   </div>
                   <h2>{selected.tenant_name || asUnitName(selected)}</h2>
-                  <p className={styles.detailHint}>{tower?.display_name} · {selectedFloor?.floor_code}F · {selected.unit_code}</p>
+                  <p className={styles.detailHint}>{tower?.display_name} · {selectedFloor?.floor_code?.startsWith('B') ? selectedFloor.floor_code : selectedFloor?.floor_code + 'F'} · {selected.unit_code}</p>
                   <div className={styles.detailFacts}>
                     <div><small>来源标注状态</small><strong>{OCCUPANCY_LABELS[selected.occupancy_status]}</strong></div>
                     <div><small>单元面积</small><strong>{fmt(selected.area_sqm)} ㎡</strong></div>
@@ -590,7 +603,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                         const floor = floors.find(f => f.id === space.floor_id);
                         return <button key={space.id} type="button" aria-current={selected.id === space.id}
                           onClick={() => selectUnit(space)}>
-                          {floor?.floor_code}F <span>{fmt(space.area_sqm)}㎡</span>
+                          {floor?.floor_code?.startsWith('B') ? floor.floor_code : floor?.floor_code + 'F'} <span>{fmt(space.area_sqm)}㎡</span>
                         </button>;
                       })}
                     </div>
