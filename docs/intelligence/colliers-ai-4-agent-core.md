@@ -25,3 +25,10 @@ Agent 注册只读的 query_verified_real_estate 工具，可自主连续调用�
 - 当前 Agent 对话的 historySaved=false；现有旧查询的原始历史及导出路径不删除或迁移。Agent 业务查询结果的恢复沿用受信任结果机制。
 - 用户本次要求压缩不必要的人工 UI 评审；仓库规定的必要 Verify、精确 PR head 检查及安全回归仍不得伪称通过。
 
+
+## 2026-11-19 P0/P1 增量：专业工具分流与模型配置核验
+
+- Agent 新增 `search_buildings`、`get_building_profile`、`query_quarterly_metrics`、`compare_market_segments`、`analyze_market_trends` 五个注册工具，并保留 `query_verified_real_estate`。它们是具名只读能力入口，**全部复用**当前 `prepareSemanticExecution → readQuerySnapshots → executeQueryPlan` 的获权事实查询引擎，尚非独立的租赁成交、外部搜索、全文资料检索工具；遇到目前查询引擎尚不支持的条件应返回受限或澄清。
+- 模型默认 ID 更新为 DeepSeek 2026-10-17 官方 `deepseek-flash`，保留旧兼容别名 `deepseek-v4-flash` 和 `deepseek-v4-pro` 的已注册环境配置；对退役模型名称直接判为配置问题。生产变量 `DEEPSEEK_MODEL` 需按实际配置核验，不因存在而视为支持。
+- 当前继续保留最多六轮/六工具预算；审核序列添加真实调用开始、结束及复用标识，供应商原生响应提供 ID 时加密审计记录。并未新获管理会话或供应商请求成功记录，不得声明完成生产端到端验收。
+- 本批不修改数据库／权限，长期流式、完整历史与成交安全封装仍待后续阶段。人工视觉、浏览器及真实手机验证按 2026-11-19 当前用户指令豁免，PR 标注范围，不得将未执行称为通过。
