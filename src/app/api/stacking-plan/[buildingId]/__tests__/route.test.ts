@@ -94,6 +94,19 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(guard).toHaveBeenCalled();
   });
 
+  it('keeps the date-confirmed unverified source visible until the additive evidence migration is deployed', async () => {
+    sources.select.mockImplementationOnce(() => ({
+      eq: vi.fn(async () => ({ data: null, error: { code: '42703', message: 'column does not exist' } })),
+    }));
+    const response = await GET(req(),params);
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.sources[0].source_as_of).toBeNull();
+    expect(result.sources[0].evidence_storage_path).toBeNull();
+    expect(result.basis).toBe('source_snapshot_unverified');
+    expect(sources.select).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects non-whitelisted patches before RPC', async () => {
     const response = await PATCH(req('PATCH', {
       space_id: SPACE, expected_revision: 1, patch: { verification_status: 'verified' },
