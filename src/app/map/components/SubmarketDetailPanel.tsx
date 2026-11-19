@@ -2,10 +2,11 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
+import { createPortal } from 'react-dom';
 import {
-  ArrowUpRight, Building2, ChevronRight,
-  ExternalLink, MapPin, Maximize2, Minimize2, Pencil,
-  Plus, RefreshCw, Save, Trash2, X,
+  ArrowUpRight, BarChart3, BriefcaseBusiness, Building2, ChevronRight,
+  ExternalLink, FileText, Info, Landmark, Lightbulb, MapPin, Pencil,
+  Plus, RefreshCw, Save, TrainFront, Trash2, UsersRound, X,
 } from 'lucide-react';
 
 import { fetchSubmarketDetailPayload, saveSubmarketProfile, type SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -15,7 +16,7 @@ import { emptySubmarketProfile, submarketProfileSchema, type SubmarketProfileDra
 
 const TrendChart = dynamic(
   () => import('./SubmarketTrendChart').then(module => module.SubmarketTrendChart),
-  { ssr: false, loading: () => <div className="flex h-[308px] items-center justify-center text-sm text-[#667085]">正在准备趋势图…</div> },
+  { ssr: false, loading: () => <div className="flex h-[304px] sm:h-[352px] xl:h-[380px] items-center justify-center text-sm text-[#667085]">正在准备趋势图…</div> },
 );
 
 type Props = {
@@ -34,8 +35,9 @@ const number = (value: number | null, decimals = 1) => value == null || !Number.
   ? '—' : value.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
 const sectionNames = [
-  ['overview', '概况'], ['trend', '行情'], ['industry', '产业'],
-  ['population', '人口交通'], ['policies', '政策'], ['insights', '观点'], ['buildings', '项目'],
+  ['overview', '总览'], ['trend', '趋势'], ['profile-overview', '概况'], ['industry', '产业'],
+  ['transport', '交通'], ['population', '人口'], ['policies', '政策'],
+  ['insights', '观点'], ['buildings', '项目'],
 ] as const;
 
 const quietButton = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[13px] text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
@@ -47,9 +49,12 @@ function EmptyCopy({ children = '暂无经核实的资料，待维护。' }: { c
 
 function Title({ id, title, description }: { id: string; title: string; description?: string }) {
   return (
-    <div id={id} className="scroll-mt-4 border-b border-[#e7ebf0] pb-2">
-      <h3 className="m-0 text-[15px] font-semibold text-[#172033]">{title}</h3>
-      {description ? <p className="mt-1 text-[12px] leading-5 text-[#667085]">{description}</p> : null}
+    <div className="mb-5 flex items-start gap-3">
+      <span aria-hidden="true" className="mt-1 h-6 w-1 shrink-0 rounded-sm bg-[#003e7e]" />
+      <div className="min-w-0">
+        <h3 id={id} className="m-0 scroll-mt-6 text-[16px] font-semibold leading-6 text-[#172033] sm:text-[18px]">{title}</h3>
+        {description ? <p className="mt-1 text-[12px] leading-5 text-[#667085]">{description}</p> : null}
+      </div>
     </div>
   );
 }
@@ -120,7 +125,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
           <div key={index} className="space-y-2 rounded-[6px] border border-[#d9e0e8] bg-[#f8fafc] p-3">
             <div className="flex justify-between"><span className="text-xs text-[#667085]">事实 {index + 1}</span>
               <button type="button" aria-label="删除人口事实" onClick={() => remove('demographics', index)} className={outlineButton}><Trash2 size={14}/></button></div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Field label="名称" value={row.label} onChange={v => change('demographics', index, 'label', v)} />
               <Field label="数值" value={row.value} onChange={v => change('demographics', index, 'value', v)} />
               <Field label="单位" value={row.unit} onChange={v => change('demographics', index, 'unit', v)} />
@@ -140,7 +145,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
             <div className="flex justify-between"><span className="text-xs text-[#667085]">政策 {index + 1}</span>
               <button type="button" aria-label="删除政策" onClick={() => remove('policies', index)} className={outlineButton}><Trash2 size={14}/></button></div>
             <Field label="政策名称" value={row.title} onChange={v => change('policies', index, 'title', v)} />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Field label="发布机构" value={row.issuer} onChange={v => change('policies', index, 'issuer', v)} />
               <Field label="发布时间／有效期" value={row.asOf} onChange={v => change('policies', index, 'asOf', v)} />
             </div>
@@ -160,7 +165,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
               <button type="button" aria-label="删除观点" onClick={() => remove('insights', index)} className={outlineButton}><Trash2 size={14}/></button></div>
             <Field label="标题" value={row.title} onChange={v => change('insights', index, 'title', v)} />
             <Field label="观点内容与依据" multi value={row.body} onChange={v => change('insights', index, 'body', v)} />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Field label="负责人" value={row.author} onChange={v => change('insights', index, 'author', v)} />
               <Field label="观点截至" value={row.asOf} onChange={v => change('insights', index, 'asOf', v)} />
             </div>
@@ -183,7 +188,6 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 export function SubmarketDetailPanel({
   name, summary, buildings, futureCount, canEdit, suspended = false, onClose, onShowAll, onOpenBuilding,
 }: Props) {
-  const [expanded, setExpanded] = React.useState(false);
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -191,9 +195,10 @@ export function SubmarketDetailPanel({
   const [editing, setEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [reload, setReload] = React.useState(0);
+  const dialogRef = React.useRef<HTMLElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const headingRef = React.useRef<HTMLHeadingElement>(null);
-  const [reload, setReload] = React.useState(0);
 
   React.useEffect(() => {
     let live = true;
@@ -206,20 +211,58 @@ export function SubmarketDetailPanel({
     return () => { live = false; };
   }, [name, reload]);
 
+  const closePanel = React.useCallback(() => {
+    if (saving) return;
+    if (editing && !window.confirm('当前编辑尚未保存，确定放弃更改并关闭子市场介绍吗？')) return;
+    onClose();
+  }, [editing, saving, onClose]);
+
+  // A representative building suspends this overlay without unmounting its
+  // content: returning to the submarket restores the previous scroll position.
   React.useEffect(() => {
+    if (suspended) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     headingRef.current?.focus({ preventScroll: true });
-  }, [name]);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [name, suspended]);
 
   React.useEffect(() => {
-    const listener = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || editing || suspended || event.defaultPrevented) return;
-      if (document.querySelector('[aria-modal="true"]')) return;
-      event.preventDefault();
-      onClose();
+    if (suspended) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closePanel();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusables = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ) ?? []).filter(element => element.getAttribute('aria-hidden') !== 'true');
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) {
+        event.preventDefault();
+        headingRef.current?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === headingRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!dialogRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener('keydown', listener);
-    return () => document.removeEventListener('keydown', listener);
-  }, [editing, suspended, onClose]);
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [suspended, closePanel]);
 
   const profile = detail?.profile;
   const series = detail?.trends?.[grade] ?? [];
@@ -239,11 +282,10 @@ export function SubmarketDetailPanel({
     }).slice(0, 4), [buildings, name]);
 
   const scrollTo = (id: string) => {
-    scrollRef.current?.querySelector(`#submarket-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  const closePanel = () => {
-    if (editing && !window.confirm('当前编辑尚未保存，确定放弃更改并关闭子市场介绍吗？')) return;
-    onClose();
+    const element = scrollRef.current?.querySelector('#submarket-' + id);
+    const reduceMotion = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
   };
   const save = async (draft: SubmarketProfileDraft) => {
     const parsed = submarketProfileSchema.safeParse(draft);
@@ -258,185 +300,358 @@ export function SubmarketDetailPanel({
     } finally { setSaving(false); }
   };
 
-  const metric = (label: string, value: string, unit: string) => (
-    <div className="min-w-0 border-r border-[#e0e6ec] py-1 last:border-r-0">
-      <p className="m-0 text-[11px] text-[#667085]">{label}</p>
-      <div className="mt-1 flex flex-wrap items-baseline justify-center gap-1 text-[#172033]">
-        <strong className="text-[19px] font-semibold tabular-nums">{value}</strong><span className="text-[10px] text-[#667085]">{unit}</span>
+  const metric = (label: string, value: string, unit: string, note: string) => (
+    <div className="min-w-0 rounded-[8px] border border-[#d9e5f0] bg-white px-4 py-4 sm:px-5">
+      <p className="m-0 text-[12px] font-medium text-[#475569]">{label}</p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-2">
+        <strong className="text-[24px] font-semibold leading-tight tabular-nums text-[#003e7e]">{value}</strong>
+        <span className="text-[12px] text-[#667085]">{unit}</span>
       </div>
+      <p className="mb-0 mt-2 text-[12px] text-[#667085]">{note}</p>
     </div>
   );
 
-  return (
-    <aside data-map-submarket-panel aria-label={`${name}子市场详情`}
-      className={`pointer-events-auto absolute bottom-3 left-3 right-3 top-[64px] z-[405] flex flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white text-[#172033] shadow-[0_8px_28px_rgba(23,32,51,0.17)] sm:bottom-4 sm:left-4 sm:right-auto sm:top-[64px] ${expanded ? 'sm:w-[min(780px,calc(100vw-32px))]' : 'sm:w-[420px]'}`}
-      style={{ fontFamily: 'Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif' }}>
-      <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#d9e0e8] px-4 py-3.5 sm:px-5">
-        <div className="min-w-0">
-          <h2 tabIndex={-1} ref={headingRef} className="m-0 text-[19px] font-semibold leading-7 text-[#172033] outline-none">{name}</h2>
-          <p className="mt-0.5 text-[12px] text-[#667085]">子市场概况 · 北京办公楼市场</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {canEdit && detail?.profileAvailable && !editing ? (
-            <button type="button" className={outlineButton} aria-label="编辑子市场介绍" title="编辑子市场介绍"
-              onClick={() => { setEditing(true); setSaveError(null); }}><Pencil size={16}/></button>
-          ) : null}
-          <button type="button" className={outlineButton + ' hidden sm:inline-grid'}
-            onClick={() => setExpanded(value => !value)} title={expanded ? '收起宽版' : '展开阅读'}
-            aria-label={expanded ? '收起宽版' : '展开阅读'}>
-            {expanded ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}
-          </button>
-          <button type="button" className={outlineButton} onClick={closePanel} aria-label="关闭子市场介绍"><X size={19}/></button>
-        </div>
-      </header>
+  // Map is still mounted beneath the overlay; render above its header and SDK
+  // stacking contexts rather than inside the old left-side panel container.
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      data-map-submarket-backdrop
+      aria-hidden={suspended ? true : undefined}
+      className={suspended
+        ? 'hidden'
+        : 'fixed inset-0 z-[950] flex items-center justify-center bg-[rgb(15_23_42_/_0.48)] sm:p-6'}
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) closePanel();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        data-map-submarket-panel
+        role="dialog"
+        aria-modal={!suspended}
+        aria-labelledby="submarket-dialog-heading"
+        className="flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none border border-[#d9e0e8] bg-[#f5f7fa] text-[#172033] shadow-[0_16px_56px_rgba(15,23,42,0.22)] sm:h-[calc(100dvh-48px)] sm:max-w-[1400px] sm:rounded-[10px]"
+        style={{ fontFamily: 'Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif' }}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#d9e0e8] bg-white px-4 py-3 sm:px-7 sm:py-4">
+          <div className="min-w-0">
+            <p className="m-0 text-[12px] font-medium text-[#667085]">北京办公楼市场 / 子市场研究</p>
+            <h2 id="submarket-dialog-heading" tabIndex={-1} ref={headingRef}
+              className="m-0 mt-1 text-[20px] font-semibold leading-7 text-[#172033] outline-none sm:text-[24px]">
+              {name}
+            </h2>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {canEdit && detail?.profileAvailable && !editing ? (
+              <button type="button" className={quietButton} onClick={() => { setEditing(true); setSaveError(null); }}>
+                <Pencil size={15} aria-hidden="true" /> <span className="hidden sm:inline">维护资料</span><span className="sm:hidden">编辑</span>
+              </button>
+            ) : null}
+            <button type="button" className={outlineButton + ' border border-[#e2e8f0]'}
+              onClick={closePanel} aria-label="关闭子市场介绍" title="关闭子市场介绍">
+              <X size={19} aria-hidden="true" />
+            </button>
+          </div>
+        </header>
 
-      {!editing ? (
-        <nav aria-label="子市场介绍章节" className="flex shrink-0 gap-1 overflow-x-auto border-b border-[#edf0f4] px-3 py-2 sm:px-4">
-          {sectionNames.map(([id, title]) => <button key={id} type="button" onClick={() => scrollTo(id)}
-            className="min-h-8 shrink-0 rounded-[5px] px-2.5 text-[12px] font-medium text-[#667085] hover:bg-[#edf4fb] hover:text-[#003e7e]">{title}</button>)}
-        </nav>
-      ) : null}
+        {!editing ? (
+          <nav aria-label="子市场介绍章节" className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#d9e0e8] bg-white px-3 py-2 sm:px-6">
+            {sectionNames.map(([id, title]) => (
+              <button type="button" key={id} aria-controls={'submarket-' + id} onClick={() => scrollTo(id)}
+                className="min-h-9 shrink-0 rounded-[6px] px-3 text-[13px] font-medium text-[#475569] transition-colors hover:bg-[#edf4fb] hover:text-[#003e7e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
+                {title}
+              </button>
+            ))}
+          </nav>
+        ) : null}
 
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
-        {editing ? (
-          <ProfileEditor name={name} key={name} value={profile ? {
-            headline: profile.headline, overview: profile.overview, industries: profile.industries,
-            transport: profile.transport, demographics: profile.demographics,
-            policies: profile.policies, insights: profile.insights,
-          } : emptySubmarketProfile()} saving={saving} error={saveError}
-            onCancel={() => { setEditing(false); setSaveError(null); }} onSave={save} />
-        ) : (
-          <>
-            <section className="space-y-3" aria-labelledby="submarket-overview">
-              <Title id="submarket-overview" title="区域概况"/>
-              {profile?.headline ? <p className="text-[15px] font-medium leading-7 text-[#003e7e]">{profile.headline}</p> : null}
-              {profile?.overview ? <p className="whitespace-pre-line text-[13px] leading-6">{profile.overview}</p> : <EmptyCopy>区域定位与基本情况待研究人员维护。</EmptyCopy>}
-              <div className="grid grid-cols-3 rounded-[7px] border border-[#e1e7ee] bg-[#f8fafc] py-3 text-center">
-                {metric('净有效租金', number(summary.rent), '元/㎡/月')}
-                {metric('空置率', number(summary.vacancyPct), '%')}
-                {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个')}
+        <div ref={scrollRef} tabIndex={0} aria-label="子市场介绍内容"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] sm:px-7 sm:py-6 lg:px-10">
+          {editing ? (
+            <div className="mx-auto max-w-[880px] rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-7">
+              <div className="mb-5 border-b border-[#e7ebf0] pb-4">
+                <h3 className="m-0 text-[18px] font-semibold">维护子市场介绍</h3>
+                <p className="mt-1 text-[13px] text-[#667085]">保留现有字段及来源校验，保存后返回研究展示页。</p>
               </div>
-              <p className="m-0 text-[11px] leading-5 text-[#667085]">
-                甲级含超甲级；不含产业园与未来供应。租金、空置率按各楼最新可用指标和有效面积加权，不同楼宇的最新季度可能不同。
-              </p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[12px] text-[#475569]">
-                <span>甲级：<strong className="text-[#172033]">{summary.gradeACount} 个</strong></span>
-                <span>乙级：<strong className="text-[#172033]">{summary.gradeBCount} 个</strong></span>
-                <span>产业园（另计）：<strong className="text-[#172033]">{summary.parkCount} 个</strong></span>
-                <span>未来供应（另计）：<strong className="text-[#172033]">{futureCount} 个</strong></span>
-                <span>租金有效样本：{summary.rentSampleCount} 个</span>
-                <span>空置率有效样本：{summary.vacancySampleCount} 个</span>
-              </div>
-              {profile?.insights.length ? (
-                <div className="space-y-1.5 rounded-[6px] border-l-[3px] border-[#003e7e] bg-[#f8fafc] px-3 py-2.5">
-                  <h4 className="m-0 text-[12px] font-semibold text-[#003e7e]">核心市场观点</h4>
-                  {profile.insights.slice(0, 2).map((insight, index) => (
-                    <p key={index} className="m-0 text-[12px] leading-5 text-[#334155]">{insight.title}{insight.body ? `：${insight.body}` : ''}</p>
-                  ))}
-                  {profile.insights.length > 2 ? <button type="button" className="text-[12px] text-[#003e7e]" onClick={() => scrollTo('insights')}>查看全部观点</button> : null}
-                </div>
-              ) : null}
-            </section>
-
-            <section className="space-y-3" aria-labelledby="submarket-trend">
-              <Title id="submarket-trend" title="租金与空置率趋势" description="同一季度时间轴 · 双纵轴（左：元/㎡/月，右：%）"/>
-              <div role="group" aria-label="趋势分级" className="inline-flex flex-wrap gap-1 rounded-[6px] bg-[#f1f5f9] p-1">
-                {([['all', '甲乙级合计'], ['a', '甲级'], ['b', '乙级']] as const).map(([id, label]) =>
-                  <button type="button" key={id} aria-pressed={grade === id} onClick={() => setGrade(id)}
-                    className={`min-h-8 rounded-[5px] px-3 text-[12px] ${grade === id ? 'bg-white font-semibold text-[#003e7e] shadow-sm' : 'text-[#667085]'}`}>{label}</button>)}
-              </div>
-              {loading ? <div role="status" className="flex min-h-[180px] items-center justify-center text-sm text-[#667085]">正在读取季度指标…</div>
-                : loadError ? <div role="alert" className="space-y-3 rounded-[6px] border border-[#f1d4d0] bg-[#fff7f6] p-3 text-[13px] text-[#a61e1e]">
-                  <p>{loadError}</p>
-                  <button type="button" className={quietButton} onClick={() => setReload(v => v + 1)}><RefreshCw size={15}/> 重试</button>
-                </div>
-                  : hasTrend ? (
-                    <>
-                      <TrendChart data={series}/>
-                      <div className="grid grid-cols-2 gap-2 rounded-[6px] bg-[#f8fafc] p-3 text-[12px]">
-                        <div><span className="text-[#667085]">最新有记录季度</span><p className="mt-1 font-semibold">{latest?.period ?? '—'}</p></div>
-                        <div><span className="text-[#667085]">有效样本</span><p className="mt-1">租金 {latest?.rentSamples ?? 0} / 空置 {latest?.vacancySamples ?? 0} 个</p></div>
-                        <div><span className="text-[#667085]">租金与前季比较</span><p className="mt-1 font-medium">{rentChange == null ? '—' : `${rentChange > 0 ? '+' : ''}${rentChange.toFixed(1)} 元/㎡/月`}</p></div>
-                        <div><span className="text-[#667085]">空置率与前季比较</span><p className="mt-1 font-medium">{vacancyChange == null ? '—' : `${vacancyChange > 0 ? '+' : ''}${vacancyChange.toFixed(1)} 个百分点`}</p></div>
-                      </div>
-                      <p className="text-[11px] leading-5 text-[#667085]">来源：系统 building_metrics 季度记录。每季度独立选择有效面积样本，未核实或缺失的数据不补零；曲线不可直接解释为因果关系。</p>
-                    </>
-                  ) : <EmptyCopy>当前子市场尚无可用于绘图的连续季度指标。</EmptyCopy>}
-            </section>
-
-            <section className="space-y-3" aria-labelledby="submarket-industry">
-              <Title id="submarket-industry" title="产业与企业需求" description="区域产业特征、需求来源与适合的办公客户"/>
-              {profile?.industries ? <p className="whitespace-pre-line text-[13px] leading-6">{profile.industries}</p> : <EmptyCopy/>}
-            </section>
-
-            <section className="space-y-3" aria-labelledby="submarket-population">
-              <Title id="submarket-population" title="人口、就业与交通" description="人口数据必须注明实际统计地域，不用行政区数字替代子市场"/>
-              {(profile?.demographics.length ?? 0) > 0 ? (
-                <div className={`grid gap-2 ${expanded ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
-                  {profile?.demographics.map((fact, index) => (
-                    <div key={index} className="space-y-1 rounded-[6px] border border-[#e1e7ee] p-3">
-                      <div className="text-[12px] text-[#667085]">{fact.label || '人口事实'}</div>
-                      <div className="text-[18px] font-semibold tabular-nums">{fact.value || '—'} <span className="text-[11px] font-normal">{fact.unit}</span></div>
-                      <div className="text-[11px] leading-5 text-[#667085]">{fact.scope || '范围待确认'}{fact.asOf ? ` · ${fact.asOf}` : ''}</div>
-                      {fact.sourceUrl ? <a target="_blank" rel="noopener noreferrer" href={fact.sourceUrl} className="inline-flex items-center gap-1 text-[11px] text-[#003e7e]">数据来源 <ExternalLink size={12}/></a> : null}
+              <ProfileEditor name={name} key={name} value={profile ? {
+                headline: profile.headline, overview: profile.overview, industries: profile.industries,
+                transport: profile.transport, demographics: profile.demographics,
+                policies: profile.policies, insights: profile.insights,
+              } : emptySubmarketProfile()} saving={saving} error={saveError}
+                onCancel={() => { setEditing(false); setSaveError(null); }} onSave={save} />
+            </div>
+          ) : (
+            <div className="mx-auto max-w-[1280px] space-y-6 sm:space-y-7">
+              <section id="submarket-overview" aria-label="子市场市场总览"
+                className="scroll-mt-5 rounded-[10px] border border-[#cddfee] bg-[#edf4fb] p-4 sm:p-6 lg:p-7">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(250px,0.8fr)] lg:gap-7">
+                  <div className="min-w-0">
+                    <p className="m-0 text-[12px] font-semibold text-[#003e7e]">子市场画像 / MARKET BRIEF</p>
+                    <h3 className="mt-3 text-[20px] font-semibold leading-[1.4] text-[#172033] sm:text-[24px]">
+                      {loading ? '正在读取区域介绍…' : profile?.headline || name + ' · 区域市场概览'}
+                    </h3>
+                    <p className="mb-0 mt-3 line-clamp-3 max-w-[760px] whitespace-pre-line text-[14px] leading-7 text-[#475569]">
+                      {loading ? '楼宇存量指标已就绪，区域文字和历史行情正在加载。'
+                        : profile?.overview || '区域定位与概况尚待研究人员补充。可先查阅下方已收录楼宇的客观统计。'}
+                    </p>
+                    {profile?.overview ? (
+                      <button type="button" onClick={() => scrollTo('profile-overview')} className="mt-2 text-left text-[12px] font-medium text-[#003e7e] hover:underline">
+                        继续阅读区域解读 <ChevronRight size={13} aria-hidden="true" className="inline" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="rounded-[8px] border border-[#d7e4f0] bg-white px-4 py-4 sm:px-5">
+                    <div className="flex items-center gap-2 text-[12px] font-semibold text-[#003e7e]">
+                      <Lightbulb size={16} aria-hidden="true"/> 研究提示
                     </div>
-                  ))}
+                    <p className="mb-0 mt-3 line-clamp-4 text-[14px] font-medium leading-6 text-[#334155]">
+                      {profile?.insights[0]?.title || '目前没有可供引用的区域研究观点'}
+                    </p>
+                    <p className="mb-0 mt-2 line-clamp-3 whitespace-pre-line text-[12px] leading-5 text-[#667085]">
+                      {profile?.insights[0]?.body || '核心判断、客户适配及风险限制需结合项目和实际成交进一步核验。'}
+                    </p>
+                    <p className="mb-0 mt-3 border-t border-[#e7ebf0] pt-3 text-[12px] text-[#855100]">
+                      AI公开资料研究（待业务团队复核）
+                    </p>
+                  </div>
                 </div>
-              ) : <EmptyCopy>暂无可确认统计范围、时间和来源的人口与就业数据。</EmptyCopy>}
-              {profile?.transport ? <p className="whitespace-pre-line text-[13px] leading-6">{profile.transport}</p> : <EmptyCopy>交通与通勤说明待维护。</EmptyCopy>}
-            </section>
 
-            <section className="space-y-3" aria-labelledby="submarket-policies">
-              <Title id="submarket-policies" title="政策与规划" description="保留政策适用条件、文件日期与原文依据"/>
-              {profile?.policies.length ? profile.policies.map((policy, index) => (
-                <article key={index} className="space-y-1.5 border-b border-[#e7ebf0] pb-3 last:border-none">
-                  <h4 className="m-0 text-[13px] font-semibold">{policy.title || '未命名政策'}</h4>
-                  <div className="text-[11px] text-[#667085]">{[policy.issuer, policy.asOf].filter(Boolean).join(' · ') || '发布日期待核实'}</div>
-                  {policy.summary ? <p className="whitespace-pre-line text-[13px] leading-6">{policy.summary}</p> : null}
-                  {policy.applicability ? <p className="text-[12px] leading-5 text-[#475569]">适用范围及条件：{policy.applicability}</p> : null}
-                  {policy.sourceUrl ? <a href={policy.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] text-[#003e7e]">查看政策原文 <ExternalLink size={13}/></a> : null}
-                </article>
-              )) : <EmptyCopy>该子市场暂无经过来源核验的政策与规划摘要。</EmptyCopy>}
-            </section>
-
-            <section className="space-y-3" aria-labelledby="submarket-insights">
-              <Title id="submarket-insights" title="团队市场观点" description="区域判断、适合的客户和需要向客户说明的限制"/>
-              {profile?.insights.length ? profile.insights.map((insight, index) => (
-                <article key={index} className="space-y-1.5 rounded-[6px] border-l-[3px] border-[#003e7e] bg-[#f8fafc] px-3 py-2.5">
-                  <h4 className="m-0 text-[13px] font-semibold">{insight.title || '市场观点'}</h4>
-                  <p className="whitespace-pre-line text-[13px] leading-6">{insight.body}</p>
-                  <p className="text-[11px] text-[#667085]">{[insight.author, insight.asOf].filter(Boolean).join(' · ') || '待署名和核实日期'}</p>
-                </article>
-              )) : <EmptyCopy>团队优势、客户适配和风险限制观点待维护，不自动生成未经核实的判断。</EmptyCopy>}
-            </section>
-
-            <section className="space-y-3" aria-labelledby="submarket-buildings">
-              <Title id="submarket-buildings" title="区域项目" description="展示部分有坐标的甲乙级写字楼；按最新可用总面积排序，不代表推荐排名"/>
-              {projects.length ? (
-                <div className="divide-y divide-[#edf0f4] rounded-[6px] border border-[#e1e7ee]">
-                  {projects.map(project => (
-                    <button type="button" key={project.id} onClick={() => project.id && onOpenBuilding(project.id)}
-                      className="flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
-                      <Building2 className="shrink-0 text-[#667085]" size={17}/>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{project.name || '未命名项目'}</span>
-                        <span className="text-[11px] text-[#667085]">{officeGrade(project.grade) === 'a' ? '甲级写字楼' : '乙级写字楼'}</span></span>
-                      <ChevronRight className="shrink-0 text-[#667085]" size={16}/>
-                    </button>
-                  ))}
+                <div className="mt-6 grid grid-cols-1 gap-3 min-[520px]:grid-cols-3">
+                  {metric('平均净有效租金', number(summary.rent), '元/㎡/月', '有效楼宇 ' + summary.rentSampleCount + ' 个')}
+                  {metric('平均空置率', number(summary.vacancyPct), '%', '有效楼宇 ' + summary.vacancySampleCount + ' 个')}
+                  {metric('甲级＋乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
                 </div>
-              ) : <EmptyCopy>没有可定位的甲乙级项目，其他项目可在完整列表中核对。</EmptyCopy>}
-              <button type="button" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] border border-[#bdcddc] bg-[#edf4fb] px-3 text-[13px] font-semibold text-[#003e7e] hover:bg-[#e2edf8]"
-                onClick={onShowAll}><MapPin size={15}/> 查看本子市场全部项目 <ArrowUpRight size={15}/></button>
-            </section>
+                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-[#cadbe9] pt-4 text-[12px] text-[#475569]">
+                  <span>产业园另计：<strong className="text-[#172033]">{summary.parkCount} 个</strong></span>
+                  <span>未来供应另计：<strong className="text-[#172033]">{futureCount} 个</strong></span>
+                  <span>统计口径：已收录甲乙级存量项目；甲级含超甲级</span>
+                </div>
+                <p className="mb-0 mt-2 text-[12px] leading-5 text-[#667085]">
+                  汇总租金、空置率沿用地图现有最新有效楼宇指标和面积加权口径，各楼宇的最新季度可能不同；不包括产业园及未来供应。
+                </p>
+              </section>
 
-            <p className="border-t border-[#e7ebf0] pt-3 text-[11px] leading-5 text-[#667085]">
-              本页市场统计仅反映系统已收录且具有有效身份的存量数据，不代表整个子市场全部真实市场库存。
-              {profile?.updatedAt ? `区域资料最近维护：${new Date(profile.updatedAt).toLocaleDateString('zh-CN')}` : '区域介绍尚未维护。'}
-              {detail && !detail.profileAvailable ? ' 内容维护表尚未部署，需先应用本功能的数据库迁移。' : ''}
-            </p>
-          </>
-        )}
-      </div>
-    </aside>
+              <section aria-labelledby="submarket-trend" className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6 lg:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Title id="submarket-trend" title="租金与空置率趋势"
+                      description="同季度样本 · 过去八季度 · 左轴：净有效租金（元/㎡/月） / 右轴：空置率（%）"/>
+                  </div>
+                  <div role="group" aria-label="趋势楼宇等级" className="inline-flex flex-wrap gap-1 rounded-[6px] bg-[#f1f5f9] p-1">
+                    {([['all', '甲乙级合计'], ['a', '甲级'], ['b', '乙级']] as const).map(([id, label]) => (
+                      <button type="button" key={id} aria-pressed={grade === id} onClick={() => setGrade(id)}
+                        className={'min-h-9 rounded-[5px] px-3 text-[12px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] '
+                          + (grade === id ? 'bg-white text-[#003e7e] shadow-sm' : 'text-[#475569] hover:text-[#003e7e]')}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_270px] xl:gap-7">
+                  <div className="min-w-0">
+                    {loading ? (
+                      <div role="status" className="flex h-[304px] items-center justify-center rounded-[8px] bg-[#f8fafc] text-[13px] text-[#667085] sm:h-[352px]">
+                        正在读取季度指标…
+                      </div>
+                    ) : loadError ? (
+                      <div role="alert" className="space-y-3 rounded-[8px] border border-[#f1d4d0] bg-[#fff7f6] p-5 text-[13px] text-[#a61e1e]">
+                        <p className="m-0">季度数据读取失败：{loadError}</p>
+                        <button type="button" className={quietButton} onClick={() => setReload(v => v + 1)}>
+                          <RefreshCw size={15} aria-hidden="true"/> 重新加载
+                        </button>
+                      </div>
+                    ) : hasTrend ? (
+                      <TrendChart data={series} />
+                    ) : (
+                      <div role="status" className="flex min-h-[260px] flex-col items-center justify-center rounded-[8px] border border-dashed border-[#c3ccd8] bg-[#f8fafc] px-5 text-center">
+                        <BarChart3 size={28} aria-hidden="true" className="text-[#8a94a6]" />
+                        <p className="mb-0 mt-3 text-[14px] font-semibold text-[#334155]">暂无足够的季度行情数据</p>
+                        <p className="mt-2 max-w-[420px] text-[12px] leading-6 text-[#667085]">
+                          当前等级暂无可绘制的租金或空置率记录。不会用其他区域或推算值补齐曲线；可切换等级核对。
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <aside aria-label="季度行情解读" className="rounded-[8px] border border-[#e1e7ee] bg-[#f8fafc] p-4 sm:p-5">
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-[#003e7e]">
+                      <BarChart3 size={16} aria-hidden="true" /> 行情速读
+                    </div>
+                    <p className="mb-0 mt-4 text-[12px] text-[#667085]">最新季度</p>
+                    <p className="mb-0 mt-1 text-[18px] font-semibold tabular-nums">{hasTrend ? latest?.period || '—' : '—'}</p>
+                    <div className="mt-4 space-y-4 border-t border-[#d9e0e8] pt-4">
+                      <div>
+                        <p className="m-0 text-[12px] text-[#667085]">净有效租金变化</p>
+                        <p className="mb-0 mt-1 text-[16px] font-semibold tabular-nums">
+                          {rentChange == null ? '暂无可比值' : (rentChange > 0 ? '+' : '') + number(rentChange) + ' 元/㎡/月'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="m-0 text-[12px] text-[#667085]">空置率变化</p>
+                        <p className="mb-0 mt-1 text-[16px] font-semibold tabular-nums">
+                          {vacancyChange == null ? '暂无可比值' : (vacancyChange > 0 ? '+' : '') + number(vacancyChange) + ' 个百分点'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="m-0 text-[12px] text-[#667085]">最新季度有效样本</p>
+                        <p className="mb-0 mt-1 text-[13px] font-medium">
+                          租金 {latest?.rentSamples ?? 0} / 空置 {latest?.vacancySamples ?? 0} 个
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mb-0 mt-4 border-t border-[#d9e0e8] pt-4 text-[12px] leading-6 text-[#667085]">
+                      {previous ? '以上变化对比 ' + previous.period + '，各季样本可能不同，不代表同楼宇租金变化。'
+                        : '暂无可供对比的上一季度记录；仅展示已核实的历史数据。'}
+                    </p>
+                  </aside>
+                </div>
+                <p className="mb-0 mt-4 flex items-start gap-2 border-t border-[#edf0f4] pt-4 text-[12px] leading-6 text-[#667085]">
+                  <Info size={15} aria-hidden="true" className="mt-0.5 shrink-0" />
+                  来源：系统 building_metrics 季度正式记录。各季度独立按有效面积样本计算；缺失不补零、草稿不计入，曲线不构成因果或预测结论。
+                </p>
+              </section>
+
+              <section aria-labelledby="submarket-profile-overview" className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6">
+                <Title id="submarket-profile-overview" title="区域概况与基本定位" description="完整区域介绍，保留经维护的原始业务叙述"/>
+                {profile?.overview ? (
+                  <p className="m-0 whitespace-pre-line text-[14px] leading-7 text-[#334155]">{profile.overview}</p>
+                ) : <EmptyCopy>当前子市场暂无可核实的区域概况资料。</EmptyCopy>}
+              </section>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <section aria-labelledby="submarket-industry"
+                  className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6">
+                  <div className="mb-3 flex items-center gap-2 text-[#003e7e]"><BriefcaseBusiness size={18} aria-hidden="true" /><span className="text-[12px] font-medium">产业结构</span></div>
+                  <Title id="submarket-industry" title="产业与客户特征" description="区域产业定位、主要需求及适配办公客户"/>
+                  {profile?.industries ? (
+                    <p className="m-0 whitespace-pre-line text-[14px] leading-7 text-[#334155]">{profile.industries}</p>
+                  ) : <EmptyCopy>尚无经核实的产业及客户结构资料。</EmptyCopy>}
+                </section>
+                <section aria-labelledby="submarket-transport"
+                  className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6">
+                  <div className="mb-3 flex items-center gap-2 text-[#003e7e]"><TrainFront size={18} aria-hidden="true" /><span className="text-[12px] font-medium">基础设施</span></div>
+                  <Title id="submarket-transport" title="交通与通达性" description="轨道交通、道路联系及通勤说明"/>
+                  {profile?.transport ? (
+                    <p className="m-0 whitespace-pre-line text-[14px] leading-7 text-[#334155]">{profile.transport}</p>
+                  ) : <EmptyCopy>交通及通勤研究资料待维护。</EmptyCopy>}
+                </section>
+              </div>
+
+              <section aria-labelledby="submarket-population" className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6">
+                <div className="mb-3 flex items-center gap-2 text-[#003e7e]"><UsersRound size={18} aria-hidden="true" /><span className="text-[12px] font-medium">背景统计</span></div>
+                <Title id="submarket-population" title="人口与就业背景" description="逐条展示事实对应的行政区／统计地域、截至时间和可追溯来源"/>
+                <p className="mb-4 rounded-[6px] bg-[#fff7e8] px-3 py-2 text-[12px] leading-5 text-[#855100]">
+                  行政区统计人口不等于子市场实际人口，各项数据请以卡片标注的统计范围为准。
+                </p>
+                {profile?.demographics.length ? (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {profile.demographics.map((fact, index) => (
+                      <article key={index} className="min-w-0 rounded-[8px] border border-[#e1e7ee] bg-[#f8fafc] p-4">
+                        <h4 className="m-0 text-[13px] font-medium text-[#475569]">{fact.label}</h4>
+                        <p className="mb-0 mt-2 text-[22px] font-semibold tabular-nums text-[#172033]">
+                          {fact.value} <span className="text-[12px] font-normal text-[#667085]">{fact.unit}</span>
+                        </p>
+                        <p className="mb-0 mt-3 text-[12px] leading-5 text-[#667085]">范围：{fact.scope}</p>
+                        <p className="mb-0 mt-1 text-[12px] leading-5 text-[#667085]">截至：{fact.asOf}</p>
+                        {fact.sourceUrl ? (
+                          <a href={fact.sourceUrl} target="_blank" rel="noopener noreferrer"
+                            className="mt-3 inline-flex min-h-9 items-center gap-1 text-[12px] font-medium text-[#003e7e] hover:underline">
+                            查看统计来源 <ExternalLink size={13} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : <EmptyCopy>暂无统计范围、日期和来源齐全的人口或就业事实。</EmptyCopy>}
+              </section>
+
+              <section aria-labelledby="submarket-policies" className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6">
+                <div className="mb-3 flex items-center gap-2 text-[#003e7e]"><Landmark size={18} aria-hidden="true" /><span className="text-[12px] font-medium">政策环境</span></div>
+                <Title id="submarket-policies" title="政策与规划" description="展示发布主体、时间、适用条件与政策原文，不推定仍然有效"/>
+                {profile?.policies.length ? (
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {profile.policies.map((policy, index) => (
+                      <article key={index} className="min-w-0 rounded-[8px] border border-[#e1e7ee] bg-[#f8fafc] p-4 sm:p-5">
+                        <div className="flex items-start gap-3">
+                          <FileText size={17} aria-hidden="true" className="mt-1 shrink-0 text-[#003e7e]" />
+                          <div className="min-w-0">
+                            <h4 className="m-0 text-[14px] font-semibold leading-6 text-[#172033]">{policy.title}</h4>
+                            <p className="mb-0 mt-1 text-[12px] text-[#667085]">{policy.issuer} · {policy.asOf}</p>
+                          </div>
+                        </div>
+                        <p className="mb-0 mt-3 whitespace-pre-line text-[13px] leading-6 text-[#334155]">{policy.summary}</p>
+                        <p className="mb-0 mt-3 rounded-[6px] bg-white px-3 py-2 text-[12px] leading-5 text-[#475569]">
+                          <strong className="font-medium">适用范围与条件：</strong>{policy.applicability}
+                        </p>
+                        {policy.sourceUrl ? (
+                          <a href={policy.sourceUrl} target="_blank" rel="noopener noreferrer"
+                            className="mt-3 inline-flex min-h-9 items-center gap-1 text-[12px] font-medium text-[#003e7e] hover:underline">
+                            查看政策原文 <ExternalLink size={13} aria-hidden="true" />
+                          </a>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                ) : <EmptyCopy>尚无已核实来源与适用条件的政策资料。</EmptyCopy>}
+              </section>
+
+              <section aria-labelledby="submarket-insights" className="rounded-[10px] border border-[#cddfee] bg-[#edf4fb] p-4 sm:p-6">
+                <div className="mb-3 flex items-center gap-2 text-[#003e7e]"><Lightbulb size={18} aria-hidden="true" /><span className="text-[12px] font-medium">研究观察</span></div>
+                <Title id="submarket-insights" title="核心观点与业务提示" description="区域特征、客户适配与风险限制均需业务人员结合实际项目复核"/>
+                <p className="mb-4 rounded-[6px] border border-[#e8d9ba] bg-[#fff7e8] px-3 py-2 text-[12px] font-medium leading-5 text-[#855100]">
+                  AI公开资料研究（待业务团队复核） · 不作为高力国际正式研究报告结论
+                </p>
+                {profile?.insights.length ? (
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {profile.insights.map((insight, index) => (
+                      <article key={index} className="rounded-[8px] border border-[#d9e0e8] border-l-[3px] border-l-[#003e7e] bg-white p-4 sm:p-5">
+                        <h4 className="m-0 text-[14px] font-semibold text-[#172033]">{insight.title}</h4>
+                        <p className="mb-0 mt-3 whitespace-pre-line text-[13px] leading-6 text-[#334155]">{insight.body}</p>
+                        <p className="mb-0 mt-3 border-t border-[#edf0f4] pt-3 text-[12px] text-[#667085]">{insight.author} · {insight.asOf}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : <EmptyCopy>尚无可展示的研究观点。请由业务团队补充并复核。</EmptyCopy>}
+              </section>
+
+              <section aria-labelledby="submarket-buildings" className="rounded-[10px] border border-[#d9e0e8] bg-white p-4 sm:p-6">
+                <div className="mb-3 flex items-center gap-2 text-[#003e7e]"><Building2 size={18} aria-hidden="true" /><span className="text-[12px] font-medium">项目目录</span></div>
+                <Title id="submarket-buildings" title="区域代表性项目"
+                  description="按系统最新可用总面积展示部分可定位的甲乙级项目，仅供查看，不代表推荐排名"/>
+                {projects.length ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {projects.map(project => (
+                      <button type="button" key={project.id} onClick={() => project.id && onOpenBuilding(project.id)}
+                        className="group flex min-h-16 min-w-0 items-center gap-3 rounded-[8px] border border-[#e1e7ee] bg-[#f8fafc] p-4 text-left transition-colors hover:border-[#b8cddd] hover:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
+                        <Building2 size={19} aria-hidden="true" className="shrink-0 text-[#003e7e]" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-semibold">{project.name || '未命名项目'}</span>
+                          <span className="mt-1 block text-[12px] text-[#667085]">{officeGrade(project.grade) === 'a' ? '甲级写字楼' : '乙级写字楼'}</span>
+                        </span>
+                        <ChevronRight size={17} aria-hidden="true" className="shrink-0 text-[#667085] group-hover:text-[#003e7e]" />
+                      </button>
+                    ))}
+                  </div>
+                ) : <EmptyCopy>当前暂无可定位的甲乙级项目，其他项目可在完整列表中核对。</EmptyCopy>}
+                <button type="button" onClick={onShowAll}
+                  className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-semibold text-white hover:bg-[#002f61] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#003e7e] sm:w-auto">
+                  <MapPin size={16} aria-hidden="true" /> 在地图查看本区域全部项目 <ArrowUpRight size={15} aria-hidden="true" />
+                </button>
+              </section>
+
+              <footer className="flex flex-wrap items-start gap-2 border-t border-[#d9e0e8] px-1 py-3 text-[12px] leading-6 text-[#667085]">
+                <Info size={15} aria-hidden="true" className="mt-1 shrink-0" />
+                <p className="m-0 flex-1">
+                  本页统计只反映系统已收录且有有效身份的甲乙级存量项目，不代表子市场全部市场库存。
+                  {profile?.updatedAt ? ' 区域资料最近维护：' + new Date(profile.updatedAt).toLocaleDateString('zh-CN') + '。' : ' 区域介绍尚未完成维护。'}
+                  {detail && !detail.profileAvailable ? ' 区域资料表尚未部署，需先完成数据库迁移。' : ''}
+                </p>
+              </footer>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>,
+    document.body,
   );
 }
