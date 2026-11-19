@@ -112,7 +112,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
       client.from('stacking_plan_towers').select('id,building_id,code,display_name').eq('building_id', id).order('code'),
       client.from('stacking_plan_sources').select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note,evidence_storage_path,evidence_filename,evidence_mime,evidence_size_bytes,evidence_sha256,evidence_uploaded_at').eq('building_id', id),
     ]);
-    if (towerResult.error || sourceResult.error) return databaseUnavailable(towerResult.error ?? sourceResult.error);
+    // Preview may run before the additive production evidence migration. Keep
+    // existing source snapshots readable without claiming the original is archived.
+    let sources = sourceResult.data ?? [];
+    let sourceError = sourceResult.error;
+    if (sourceError?.code === '42703') {
+      const legacy = await client.from('stacking_plan_sources')
+        .select('id,building_id,title,source_as_of,as_of_kind,review_state,source_note').eq('building_id', id);
+      sourceError = legacy.error;
+      sources = (legacy.data ?? []).map(item => ({
+        ...item, evidence_storage_path: null, evidence_filename: null,
+        evidence_mime: null, evidence_size_bytes: null, evidence_sha256: null,
+        evidence_uploaded_at: null,
+      }));
+    }
+    if (towerResult.error || sourceError) return databaseUnavailable(towerResult.error ?? sourceError);
     const towers = towerResult.data ?? [];
     let floors: Record<string, unknown>[] = [];
     let spaces: Record<string, unknown>[] = [];
@@ -131,7 +145,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       }
     }
     await guard();
-    return reply({ building, towers, floors, spaces, sources: sourceResult.data ?? [], basis: 'source_snapshot_unverified' });
+    return reply({ building, towers, floors, spaces, sources, basis: 'source_snapshot_unverified' });
   } catch (error) {
     return databaseUnavailable(error);
   }
