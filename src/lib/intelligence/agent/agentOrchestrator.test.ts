@@ -80,6 +80,40 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     expect(runTool).toHaveBeenCalledTimes(1);
   });
 
+  it('does not reuse the previous quarter\'s chart after the Agent obtains a new verified result', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce(completion(null, [{ id: 'data-a', name: 'query_quarterly_metrics', question: 'CBD 2026Q1' }]))
+      .mockResolvedValueOnce(completion(null, [{ id: 'chart-a', name: 'prepare_chart', question: '展示该季度图表' }]))
+      .mockResolvedValueOnce(completion(null, [{ id: 'data-b', name: 'query_quarterly_metrics', question: 'CBD 2026Q2' }]))
+      .mockResolvedValueOnce(completion(null, [{ id: 'chart-b', name: 'prepare_chart', question: '展示该季度图表' }]))
+      .mockResolvedValueOnce(completion('两期数据均已核验。'));
+    let current = 'none';
+    const runTool = vi.fn().mockImplementation(async (name: string, args: { question: string }) => {
+      if (name === 'query_quarterly_metrics') {
+        current = args.question.includes('Q1') ? 'Q1' : 'Q2';
+        return { content: JSON.stringify({ status: 'ready', period: current }),
+          result: { resultId: current } };
+      }
+      return { content: JSON.stringify({ status: 'ready', chartFrom: current }),
+        result: { resultId: current } };
+    });
+    const answer = await runAgentLoop({ question: '比较 CBD 2026Q1 和 Q2', signal, invoke, runTool });
+    expect(answer.toolCalls).toBe(4);
+    expect(runTool.mock.calls.filter(call => call[0] === 'prepare_chart')).toHaveLength(2);
+    const finalContext = invoke.mock.calls[4][0] as Array<{ role: string; content: string | null }>;
+    const twoCharts = finalContext.filter(message => message.role === 'tool' && message.content?.includes('chartFrom'));
+    expect(twoCharts.map(message => JSON.parse(message.content!).chartFrom)).toEqual(['Q1', 'Q2']);
+    expect(answer.result).toEqual({ resultId: 'Q2' });
+  });
+
+  it('fails closed at the cumulative token cap before executing requested tools', async () => {
+    const runTool = vi.fn();
+    const answer = { ...completion(null, [{ id: 'big', question: '查询CBD' }]), inputTokens: 60001, outputTokens: 12 };
+    await expect(runAgentLoop({ question: '研究CBD', signal, runTool,
+      invoke: vi.fn().mockResolvedValue(answer) })).rejects.toThrow('AGENT_TOKEN_BUDGET_EXCEEDED');
+    expect(runTool).not.toHaveBeenCalled();
+  });
+
   it('bounds tool calls and fails closed instead of pretending to finish', async () => {
     const runTool = vi.fn();
     const many = Array.from({ length: 7 }, (_, i) => ({ id: String(i), question: '查询项目 ' + i }));

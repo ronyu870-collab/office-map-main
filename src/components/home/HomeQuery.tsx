@@ -38,6 +38,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
   const [draft, setDraft] = React.useState('');
   const [reply, setReply] = React.useState<QueryReply | null>(null);
   const [message, setMessage] = React.useState('');
+  const [streamDraft, setStreamDraft] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [terminalFailure, setTerminalFailure] = React.useState(false);
   const [collapsed, setCollapsed] = React.useState(false);
@@ -64,7 +65,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     focus: focusWorkspace, expand: expandWorkspace, collapse: exitWorkspace,
     clearComposition: clearWorkspaceComposition } = useQueryWorkspace(composing);
   const scroll = useQueryScroll(workspaceScrollRef,
-    `${attempt?.idempotencyKey ?? ''}:${busy}:${message}:${reply?.status ?? ''}:${reply?.result?.resultId ?? ''}`,
+    `${attempt?.idempotencyKey ?? ''}:${busy}:${message}:${streamDraft.length}:${reply?.status ?? ''}:${reply?.result?.resultId ?? ''}`,
     transitioning);
   const historyToggle = React.useRef<HTMLButtonElement>(null);
   const researchToggle = React.useRef<HTMLButtonElement>(null);
@@ -92,7 +93,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     generation.current++; current.current?.abort(); current.current = null;
     setParentRequest(undefined); setConversationId(crypto.randomUUID());
     setResumedContext(null); setResumedAgent(false); setBuildingSelection(null); setResearchOpen(false);
-    setBusy(false); setTerminalFailure(false); setReply(null); setAttempt(null); setHistory([]); setCollapsed(false); setMessage('');
+    setBusy(false); setTerminalFailure(false); setReply(null); setAttempt(null); setHistory([]); setCollapsed(false); setMessage(''); setStreamDraft('');
     if (clearDraft) {
       setDraft(''); composing.current = false; clearWorkspaceComposition(); exitWorkspace();
       setHistoryOpen(false); setCompactHistoryOpen(false); setHistoryMounted(false); setResearchMounted(false);
@@ -148,15 +149,36 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       // An interrupted new query must not restore the previous question's ID.
       clearSaved();
     }
-    setBusy(true); setTerminalFailure(false); setCollapsed(false); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在处理你的问题…'); setReply(null); setAttempt(next);
+    setBusy(true); setTerminalFailure(false); setCollapsed(false); setStreamDraft(''); setMessage(recovering ? '正在核对权限并恢复结果…' : '正在处理你的问题…'); setReply(null); setAttempt(next);
     setBuildingSelection(null);
     try {
       const useAgent = access.agentEnabled === true && !!next.conversation && !next.buildingSelection && !next.replayRequestId
         && (!next.conversation.resumeToken || resumedAgent);
       const payload = { idempotencyKey: next.idempotencyKey, question: next.question, ...(next.conversation ? { conversation: next.conversation } : {}), ...(next.buildingSelection ? { buildingSelection: next.buildingSelection } : {}), ...(next.replayRequestId ? { replayRequestId: next.replayRequestId } : {}) };
       const result = recovering && next.requestId ? await trustedQueryClient.recover(scope, next.requestId, controller.signal)
-        : useAgent ? await trustedQueryClient.submitAgent(scope, payload, controller.signal)
-          : await trustedQueryClient.submit(scope, payload, controller.signal);
+        : useAgent && access.agentStreamEnabled === true
+          ? await trustedQueryClient.submitAgentStream(scope, payload as typeof payload & { conversation: QueryConversation },
+            controller.signal, event => {
+              if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
+              const labels: Record<string, string> = {
+                query_verified_real_estate: '核对房地产数据',
+                search_buildings: '检索楼宇资料',
+                get_building_profile: '核对楼宇信息',
+                query_quarterly_metrics: '查询季度指标',
+                compare_market_segments: '比较子市场',
+                analyze_market_trends: '分析季度趋势',
+              };
+              if (event.type === 'run_started') setMessage('已连接 DeepSeek，正在研究问题…');
+              else if (event.type === 'tool_started') {
+                setStreamDraft(''); setMessage('正在' + (labels[event.name] ?? '执行已授权数据查询') + '…');
+              } else if (event.type === 'tool_completed') setMessage('数据步骤已完成，正在整理回答…');
+              else if (event.type === 'message_delta') {
+                setStreamDraft(current => (current + event.delta).slice(0, 12000));
+                setMessage('正在生成回答…');
+              }
+            })
+          : useAgent ? await trustedQueryClient.submitAgent(scope, payload, controller.signal)
+            : await trustedQueryClient.submit(scope, payload, controller.signal);
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
       const updated = { ...next, requestId: result.requestId ?? next.requestId }; setAttempt(updated);
       // Capacity rejection and a confirmed failed recovery are terminal for
@@ -174,7 +196,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
         setMessage(result.error ?? '当前查询资格已不可用，请重新核对权限。');
         return;
       }
-      setReply(result);
+      setStreamDraft(''); setReply(result);
       setHistoryRefresh(value => value + 1);
       // Only completed, attributed turns become parents. A restored old request
       // without this page's conversation cannot silently seed a new dialogue.
@@ -195,14 +217,14 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
     } catch (error) {
       if (!alive.current || ticket !== generation.current || controller.signal.aborted) return;
       if (error instanceof QueryClientError && error.kind === 'identity') { setAccess(CLOSED); resetConversation(); }
-      setMessage(queryFailureMessage(error));
+      setStreamDraft(''); setMessage(queryFailureMessage(error));
     } finally {
       if (current.current === controller) current.current = null;
       if (alive.current && ticket === generation.current) setBusy(false);
     }
-  }, [access.enabled, access.agentEnabled, resumedAgent, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
+  }, [access.enabled, access.agentEnabled, access.agentStreamEnabled, resumedAgent, attempt, reply, message, clearSaved, resetConversation, scope, storageKey]);
   function stopWaiting() {
-    generation.current++; current.current?.abort(); current.current = null; setBusy(false);
+    generation.current++; current.current?.abort(); current.current = null; setBusy(false); setStreamDraft('');
     setMessage('已停止等待，服务端可能仍在处理。可重试本次请求或恢复结果，不能据此认定服务端已取消。');
   }
   const edit = React.useCallback((question: string) => {
@@ -361,6 +383,7 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
       <div role="status" aria-live="polite" className={ready ? 'sr-only' : styles.status} data-state={busy ? 'working' : assistantHelp ? 'help' : needsConditions ? 'clarification' : 'status'}>
         {busy && <QueryWorkingIndicator />}{message}
       </div>
+      {busy && streamDraft && <p className={styles.answerText} style={{ whiteSpace: 'pre-wrap' }} aria-label="正在生成的部分回答">{streamDraft}</p>}
       {(reply?.status === 'assistant' || ready) && reply?.message && <p className={styles.answerText} style={{ whiteSpace: 'pre-wrap' }}>{reply.message}</p>}
       {activeTurn && activeContext && needsConditions && <QueryActions label="请选择查询口径" actions={reply?.options} disabled={busy} onSelect={action => followUp(action, activeTurn)} />}
       {ready && reply?.result && <div hidden={collapsed}><HomeQueryResult key={reply.result.resultId} result={reply.result} delivery={reply} requestId={reply.requestId} scope={scope} internalExport={access.internalExport === true} presentation={presentation} onExpand={expandWorkspace} visible={!collapsed} /></div>}

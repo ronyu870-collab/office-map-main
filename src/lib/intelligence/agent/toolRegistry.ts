@@ -50,7 +50,31 @@ export const SPECIALIST_DATA_TOOLS = [
   },
 ] as const;
 
+export const PRESENTATION_TOOLS = [
+  { type: 'function', function: {
+    name: 'get_source_evidence',
+    description: '读取本轮前一项已授权正式房地产查询的来源证据、核验状态与限制；无查询结果时明确拒绝，不获取未授权原文。',
+    parameters,
+  } },
+  { type: 'function', function: {
+    name: 'prepare_chart',
+    description: '基于本轮最近一次已授权正式查询结果，让确定性图表程序生成趋势、比较或分布图规格与可追溯数据。未查询数值绝不作图。',
+    parameters,
+  } },
+  { type: 'function', function: {
+    name: 'prepare_map_selection',
+    description: '依据本轮最新获权的楼宇明细结果生成可重新鉴权的地图跳转引用，不允许模型任意指定楼宇ID。',
+    parameters,
+  } },
+  { type: 'function', function: {
+    name: 'prepare_research_output',
+    description: '由当前已授权结果和来源生成确定性研究摘要草稿，包括期间、样本、公式口径和限制，不编造正式数字。',
+    parameters,
+  } },
+] as const;
+
 export const REGISTERED_AGENT_TOOL_NAMES = new Set<string>([
   'query_verified_real_estate',
   ...SPECIALIST_DATA_TOOLS.map(tool => tool.function.name),
+  ...PRESENTATION_TOOLS.map(tool => tool.function.name),
 ]);

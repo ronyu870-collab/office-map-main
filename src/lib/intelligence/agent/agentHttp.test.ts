@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildTrendResult } from '../query/result';
+import { fixture } from '../query/__tests__/fixtures';
+import { parseQueryPlan } from '../query/plan';
 
 const state = vi.hoisted(() => ({
   receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(),
@@ -84,6 +87,10 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.receive).toHaveBeenCalledOnce();
     expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
     expect(state.append.mock.calls.map(x => x[1])).toContain('accounting');
+    expect(state.append.mock.calls.find(x => x[1] === 'accounting')?.[2]).toMatchObject({
+      cost: null, costStatus: 'planning_range_not_invoice', durationMs: expect.any(Number),
+      costEstimate: { minUsd: expect.any(Number), maxUsd: expect.any(Number) },
+    });
     expect(response.headers.get('x-query-delivery-token')).toMatch(/\./);
   });
 
@@ -110,6 +117,39 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       m.role === 'tool' && m.tool_call_id === 'tool-1')).toBe(true);
   });
 
+  it('uses one authorized data tool before source-bound presentation tools in the same native Agent run', async () => {
+    const start = { year: 2026, quarter: 1 }, end = { year: 2026, quarter: 2 };
+    const raw = buildTrendResult([fixture(start), fixture(end)], 'rent', 'per_period');
+    const verified = { ...raw, parameters: { ...raw.parameters,
+      executedPlan: parseQueryPlan({ operation: 'trend', metric: 'rent', start, end,
+        mode: 'per_period', scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
+    state.tool.mockResolvedValue({ content: '{"status":"ready","registeredSources":12}', result: verified });
+    const toolCall = (id: string, name: string, question: string) => ({
+      id, type: 'function', function: { name, arguments: JSON.stringify({ question }) },
+    });
+    state.provider.mockReset()
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 25, outputTokens: 8,
+        message: { role: 'assistant', content: null,
+          tool_calls: [toolCall('data-1', 'query_verified_real_estate', 'CBD 2026Q1至Q2净有效租金趋势')] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 37, outputTokens: 15,
+        message: { role: 'assistant', content: null,
+          tool_calls: [toolCall('chart-1', 'prepare_chart', '根据刚才授权趋势生成带来源图表')] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 80, outputTokens: 45,
+        message: { role: 'assistant', content: '已按获权季度净有效租金结果生成可信趋势图的规格。' } });
+    const { request } = fakeRequest('分析 CBD 两季度租金并给出图表');
+    const response = await handleAgentSubmission(request, deps());
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.status).toBe('ready');
+    expect(result.agent.toolCalls).toBe(2);
+    expect(state.tool).toHaveBeenCalledTimes(1);
+    const toolMessages = state.provider.mock.calls[2][0].filter((m: { role: string }) => m.role === 'tool');
+    const presented = JSON.parse(toolMessages.at(-1)?.content ?? '{}');
+    expect(presented.status).toBe('ready');
+    expect(presented.chartKind).toBe('line');
+    expect(presented.points.some((point: { sourceIds: string[] }) => point.sourceIds.length > 0)).toBe(true);
+  });
+
   it('answers normally when optional history migration is absent', async () => {
     state.save.mockResolvedValue(false);
     const { request } = fakeRequest();
@@ -117,6 +157,24 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).historySaved).toBe(false);
     expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
+  });
+
+  it('batches native streaming deltas while rechecking current authority before each visible batch', async () => {
+    const text = '增'.repeat(250), observed: Array<{ type: string; delta?: string }> = [];
+    state.provider.mockImplementation(async (_messages: unknown, _signal: AbortSignal,
+      onDelta: ((value: string) => Promise<void>) | undefined) => {
+      for (const char of text) await onDelta?.(char);
+      return { model: 'deepseek-flash', inputTokens: 120, outputTokens: 260,
+        message: { role: 'assistant', content: text } };
+    });
+    const { request } = fakeRequest('概括市场');
+    const response = await handleAgentSubmission(request, deps(), async event => {
+      observed.push(event);
+    });
+    expect(response.status).toBe(200);
+    expect(observed.filter(event => event.type === 'message_delta').map(event => event.delta).join('')).toBe(text);
+    expect(state.authority.mock.calls.length).toBeLessThan(30);
+    expect(observed.filter(event => event.type === 'run_started')).toHaveLength(1);
   });
 
   it('denies unauthenticated access without model or tool execution', async () => {
