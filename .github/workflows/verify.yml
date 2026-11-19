@@ -52,7 +52,9 @@ jobs:
           && github.event.pull_request.head.ref == vars.CI_TEMP_RUNNER_BRANCH
           && fromJSON('["self-hosted","Linux","X64","colliers-visual-ci"]')
           || 'ubuntu-24.04' }}
-    timeout-minutes: 20
+    # Full PG17 + production build + serial production-browser calibration exceeds 20m.
+    # Retain all tests; enlarge the job time budget instead of skipping coverage.
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:17.6

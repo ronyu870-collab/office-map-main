@@ -6,6 +6,24 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Stacking Plan P0/P1 PR #219 direct-merge waiver only exempts original photo and manual visual review', () => {
+  const scope = 'Stacking Plan P0 source integrity and P1 building facade redesign, Admin A/B pilot, PR #219';
+  const reason = 'User explicitly waived original stacking board photo archiving and independent visual acceptance and requested direct main merge of PR #219 on 2026-11-19; this one-time waiver does not waive Verify, permissions, audit or source-unverified status';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 219, body, head: { sha: head,
+    ref: 'codex/stacking-plan-p0-p1-quality-facade-20261119', repo: { full_name: 'ronyu870-collab/office-map-main' } },
+    base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 213 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other-feature' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated feature') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'waive all tests') }), /specifically authorized/);
+});
+
+
 test('Submarket PR #224 user-authorized manual visual waiver is exact-scope and current-head only', () => {
   const scope = 'Colliers map submarket centered research modal, responsive layout and trend presentation, PR #224';
   const reason = 'User explicitly waived independent visual acceptance and requested direct main merge for PR #224 on 2026-11-19; manual visual review was not performed and all engineering, security and data checks remain mandatory';

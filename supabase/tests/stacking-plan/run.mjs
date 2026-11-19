@@ -60,6 +60,17 @@ try {
   assert.equal((await connection.query("select count(*)::integer n from public.stacking_plan_spaces where verification_status='source_unverified'")).rows[0].n,64);
   console.log('PASS confirmed source business date without approving 64 separate tenancy observations');
 
+  const evidenceMigration = await readFile(
+    new URL('../../migrations/20261119133000_stacking_plan_source_evidence.sql', import.meta.url), 'utf8'
+  );
+  await connection.query(evidenceMigration);
+  await connection.query(evidenceMigration);
+  const evidenceColumns = await connection.query(
+    "select column_name from information_schema.columns where table_schema='public' and table_name='stacking_plan_sources' and column_name like 'evidence_%'"
+  );
+  assert.equal(evidenceColumns.rows.length,7);
+  console.log('PASS evidence metadata migration is repeatable and preserves source data');
+
   const comparison = await connection.query(`
     select s.tenant_name,s.occupancy_status,s.area_sqm
     from public.stacking_plan_spaces s
@@ -80,7 +91,7 @@ try {
       has_table_privilege('authenticated',oid,'select') as user_read
     from pg_class where relnamespace='public'::regnamespace and relname like 'stacking_plan_%' and relkind='r';
   `);
-  assert.equal(restrictions.rows.length,6);
+  assert.equal(restrictions.rows.length,7);
   assert.ok(restrictions.rows.every(r=>r.relrowsecurity===true && !r.anon_read && !r.user_read));
   const execute = await connection.query(`
     select has_function_privilege('authenticated','public.stacking_plan_space_save(uuid,uuid,uuid,integer,jsonb)','execute') as actor,
@@ -129,6 +140,59 @@ try {
     await connection.query('reset role');
     assert.equal(Number((await connection.query('select count(*) n from public.stacking_plan_space_events where space_id=$1',[space.id])).rows[0].n),1);
     console.log('PASS service RPC update + atomic before/after audit, stale conflict, forbidden patch, non-admin rejection');
+
+    // A source attachment must atomically change metadata and journal old/new
+    // values; replays must not add a second event or confirm tenancy.
+    const sourceId = 'xiaoyun33-initial-screenshot';
+    const sha256 = 'a'.repeat(64);
+    const args = [
+      targetBuilding, sourceId, admin,
+      targetBuilding + '/' + sourceId + '/' + sha256 + '.png',
+      'synthetic-original.png', 'image/png', 2030, sha256,
+    ];
+    const archived = await connection.query(
+      'select public.stacking_plan_source_attach($1,$2,$3,$4,$5,$6,$7,$8) as item', args
+    );
+    assert.equal(archived.rows[0].item.evidence_sha256,sha256);
+    assert.equal(archived.rows[0].item.source_as_of,'2026-11-18');
+    await connection.query(
+      'select public.stacking_plan_source_attach($1,$2,$3,$4,$5,$6,$7,$8)',args
+    );
+    await assert.rejects(
+      connection.query('select public.stacking_plan_source_attach($1,$2,$3,$4,$5,$6,$7,$8)',[
+        targetBuilding,sourceId,viewer,args[3],args[4],args[5],args[6],args[7],
+      ]),
+      error => error.code==='42501'
+    );
+    await assert.rejects(
+      connection.query('select public.stacking_plan_source_attach($1,$2,$3,$4,$5,$6,$7,$8)',[
+        targetBuilding,sourceId,admin,'other-building/source/original.png',args[4],args[5],args[6],args[7],
+      ]),
+      error => error.code==='22023'
+    );
+    await connection.query('reset role');
+    const evidenceEvents = await connection.query(
+      'select actor_id, before_record, after_record from public.stacking_plan_source_events where source_id=$1',
+      [sourceId]
+    );
+    assert.equal(evidenceEvents.rows.length,1);
+    assert.equal(evidenceEvents.rows[0].actor_id,admin);
+    assert.equal(evidenceEvents.rows[0].before_record.evidence_storage_path,null);
+    assert.equal(evidenceEvents.rows[0].after_record.evidence_sha256,sha256);
+    const currentEvidence = (await connection.query(
+      'select source_as_of,review_state,evidence_sha256 from public.stacking_plan_sources where id=$1',[sourceId]
+    )).rows[0];
+    assert.equal(currentEvidence.evidence_sha256,sha256);
+    assert.equal(currentEvidence.review_state,'date_confirmed');
+    assert.equal((await connection.query(
+      "select count(*) n from public.stacking_plan_spaces where verification_status='source_unverified'"
+    )).rows[0].n,'64');
+    await connection.query('set role service_role');
+    const grants = await connection.query(
+      "select has_function_privilege('authenticated','public.stacking_plan_source_attach(uuid,text,uuid,text,text,text,integer,text)','execute') user_execute, has_function_privilege('service_role','public.stacking_plan_source_attach(uuid,text,uuid,text,text,text,integer,text)','execute') service_execute"
+    );
+    assert.deepEqual(grants.rows[0],{user_execute:false,service_execute:true});
+    console.log('PASS private original attachment, idempotency, atomic audit, role and path protection');
   } finally {
     await connection.query('reset role');
   }

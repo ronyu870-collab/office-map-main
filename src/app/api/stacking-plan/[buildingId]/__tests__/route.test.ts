@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { Blob as NodeBlob } from 'node:buffer';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -25,19 +26,51 @@ const req = (method = 'GET', body?: unknown, headers?: Record<string, string>) =
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 const params = { params: Promise.resolve({ buildingId: ID }) };
+// Real HTTP multipart bytes avoid jsdom's incompatible File/FormData constructors.
+const pngMultipartRequest = (bytes: Uint8Array) => {
+  const boundary = 'colliers-stacking-test-boundary';
+  const prefix = Buffer.from(
+    '--' + boundary + '\r\n'
+    + 'Content-Disposition: form-data; name="source_id"\r\n\r\nsrc\r\n'
+    + '--' + boundary + '\r\n'
+    + 'Content-Disposition: form-data; name="file"; filename="source.png"\r\n'
+    + 'Content-Type: image/png\r\n\r\n',
+  );
+  const suffix = Buffer.from('\r\n--' + boundary + '--\r\n');
+  return new NextRequest('http://localhost/api/stacking-plan/' + ID, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer testing',
+      'Content-Type': 'multipart/form-data; boundary=' + boundary,
+    },
+    body: new Uint8Array(Buffer.concat([prefix, Buffer.from(bytes), suffix])),
+  });
+};
 const identity = (role: string, impersonating = false) => ({
   identity: { caller: { id: 'tester' }, callerRole: role, effectiveRole: role, isImpersonating: impersonating },
 });
 
 describe('Stacking Plan identity and read/write boundary', () => {
   const guard = vi.fn(async () => undefined);
-  const sources = { select: vi.fn(() => ({ eq: vi.fn(async () => ({ data: [{ id: 'src', source_as_of: null, review_state: 'pending_source_date' }], error: null })) })) };
+  const source = { id: 'src', source_as_of: null, review_state: 'pending_source_date',
+    evidence_storage_path: null, evidence_sha256: null, evidence_filename: null, evidence_mime: null };
+  const sourceRecord = { eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: source, error: null })) })) };
+  const sources = { select: vi.fn((selection: string) =>
+    selection.startsWith('id,building_id')
+      ? { eq: vi.fn(async () => ({ data: [source], error: null })) }
+      : { eq: vi.fn(() => sourceRecord) }
+  ) };
   const towers = { select: vi.fn(() => ({ eq: vi.fn(() => ({ order: vi.fn(async () => ({ data: [], error: null })) })) })) };
   const buildings = { select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { id: ID, name: '霄云路33号' }, error: null })) })) })) };
   const insert = vi.fn(async () => ({ error: null }));
   const exportsTable = { insert };
   const rpc = vi.fn(async () => ({ data: { id: SPACE, revision: 2, notes: '更新' }, error: null }));
-  const db = { from: vi.fn((table: string) => {
+  const upload = vi.fn(async () => ({ data: { path: 'private' }, error: null }));
+  const download = vi.fn(async () => ({ data: new NodeBlob(['test']), error: null }));
+  const getBucket = vi.fn(async () => ({ data: { public: false }, error: null }));
+  const createBucket = vi.fn(async () => ({ data: { name: 'stacking-plan-evidence' }, error: null }));
+  const storage = { getBucket, createBucket, from: vi.fn(() => ({ upload, download })) };
+  const db = { storage, from: vi.fn((table: string) => {
     if (table === 'buildings') return buildings;
     if (table === 'stacking_plan_sources') return sources;
     if (table === 'stacking_plan_towers') return towers;
@@ -82,6 +115,20 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(guard).toHaveBeenCalled();
   });
 
+  it('keeps the date-confirmed unverified source visible until the additive evidence migration is deployed', async () => {
+    sources.select.mockImplementationOnce((() => ({
+      eq: vi.fn(async () => ({ data: null, error: { code: '42703', message: 'column does not exist' } })),
+    })) as never);
+    const response = await GET(req(),params);
+    expect(response.status).toBe(200);
+    const result = await response.json();
+    expect(result.sources[0].source_as_of).toBeNull();
+    expect(result.sources[0].evidence_storage_path).toBeNull();
+    expect(result.basis).toBe('source_snapshot_unverified');
+    expect(result.evidence_storage_ready).toBe(false);
+    expect(sources.select).toHaveBeenCalledTimes(2);
+  });
+
   it('rejects non-whitelisted patches before RPC', async () => {
     const response = await PATCH(req('PATCH', {
       space_id: SPACE, expected_revision: 1, patch: { verification_status: 'verified' },
@@ -99,6 +146,68 @@ describe('Stacking Plan identity and read/write boundary', () => {
       p_space_id: SPACE, p_building_id: ID, p_expected_revision: 1,
     }));
     expect(guard).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects non-admin evidence uploads before accessing private Storage', async () => {
+    mocks.resolveIdentity.mockResolvedValue(identity('viewer'));
+    const response = await POST(req('POST', { action: 'source_evidence' }), params);
+    expect(response.status).toBe(403);
+    expect(getBucket).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing evidence and invalid original download requests without touching storage', async () => {
+    const form = new FormData();
+    form.set('source_id','src');
+    const request = new NextRequest('http://localhost/api/stacking-plan/' + ID, {
+      method:'POST',headers:{Authorization:'Bearer testing'},body:form,
+    });
+    expect((await POST(request,params)).status).toBe(400);
+    const downloadRequest = new NextRequest('http://localhost/api/stacking-plan/' + ID + '?original=src', {
+      headers:{Authorization:'Bearer testing'},
+    });
+    expect((await GET(downloadRequest,params)).status).toBe(404);
+    expect(download).not.toHaveBeenCalled();
+  });
+
+  it('accepts a valid administrator original file and binds it to the source with an audited RPC', async () => {
+    const pngSignature = new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0]);
+    const request = pngMultipartRequest(pngSignature);
+    const result = await POST(request,params);
+    expect(result.status, JSON.stringify(await result.clone().json())).toBe(200);
+    expect(getBucket).toHaveBeenCalledWith('stacking-plan-evidence');
+    expect(upload).toHaveBeenCalledWith(
+      expect.stringContaining(ID + '/src/'),
+      expect.anything(),
+      expect.objectContaining({ contentType:'image/png',upsert:false }),
+    );
+    expect(rpc).toHaveBeenCalledWith('stacking_plan_source_attach', expect.objectContaining({
+      p_building_id: ID, p_source_id:'src', p_actor:'tester',
+      p_mime:'image/png', p_size:12,
+    }));
+    expect(guard).toHaveBeenCalledTimes(3);
+  });
+
+  it('recovers a repeated content-addressed upload only when the stored bytes match', async () => {
+    const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
+    upload.mockResolvedValueOnce({ data:null, error:{ code:'ResourceAlreadyExists',message:'already exists' } } as never);
+    download.mockResolvedValueOnce({ data:new NodeBlob([originalBytes]), error:null });
+    const request = pngMultipartRequest(originalBytes);
+    const response = await POST(request,params);
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    expect(download).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith('stacking_plan_source_attach',expect.objectContaining({
+      p_size:originalBytes.length,
+    }));
+  });
+
+  it('rejects a conflicting existing object rather than accepting untrusted bytes', async () => {
+    const originalBytes = new Uint8Array([137,80,78,71,13,10,26,10,20,21,22,23]);
+    upload.mockResolvedValueOnce({ data:null, error:{code:'ResourceAlreadyExists',message:'exists'} } as never);
+    download.mockResolvedValueOnce({ data:new NodeBlob(['mismatch']), error:null });
+    const request = pngMultipartRequest(originalBytes);
+    const response = await POST(request,params);
+    expect(response.status).toBe(409);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('checks export authorization and records only a valid explicit export intent', async () => {
