@@ -388,6 +388,24 @@ export function MapWorkbenchView({
 
   const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
   const [searchChoicesOpen, setSearchChoicesOpen] = React.useState(false);
+  // Selection survives filter changes and sidebar unmounts; an account/role/view scope change clears it.
+  const [comparisonSelection, setComparisonSelection] = React.useState<{
+    scope: string | undefined; items: Map<string, FullListBuilding>;
+  }>({ scope: searchContextKey, items: new Map() });
+  const selectedComparisonBuildings = comparisonSelection.scope === searchContextKey
+    ? Array.from(comparisonSelection.items.values()) : [];
+  const handleComparisonSelectionChange = React.useCallback((rows: FullListBuilding[], selected: boolean) => {
+    setComparisonSelection(previous => {
+      const next = new Map(previous.scope === searchContextKey ? previous.items : []);
+      for (const building of rows) {
+        if (!building?.id) continue;
+        const key = (building._dataType === 'future' ? 'future:' : 'existing:') + building.id;
+        if (selected) next.set(key, building);
+        else next.delete(key);
+      }
+      return { scope: searchContextKey, items: next };
+    });
+  }, [searchContextKey]);
   const searchInputWrapRef = React.useRef<HTMLDivElement>(null);
   const searchChoicesRef = React.useRef<HTMLDivElement>(null);
   const moreFiltersTriggerId = React.useId();
@@ -752,6 +770,8 @@ export function MapWorkbenchView({
                 onBuildingClick={onBuildingClick}
                 targetBuildingId={targetBuildingId}
                 onBuildingHover={onBuildingHover}
+                selectedComparisonBuildings={selectedComparisonBuildings}
+                onComparisonSelectionChange={handleComparisonSelectionChange}
               />
             </div>
           </div>
