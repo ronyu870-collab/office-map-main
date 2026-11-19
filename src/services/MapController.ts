@@ -17,6 +17,8 @@ import { isPendingFutureSupply } from "@/src/lib/future-supply-status";
 import { MAP_BUILDING_TIER_MIN_ZOOM } from "@/src/app/map/runtime/mapMarkerZoom";
 import { clearMapReadCache } from "./mapReadCache";
 import { bindBuildingPopup } from "./map/buildingPopup";
+import { summarizeSubmarkets, officeGrade } from "@/src/app/map/model/submarketOverview";
+import { normalizeMapSubmarket } from "@/src/app/map/model/mapDomain";
 import { getBuildingMediaPilot } from "@/src/lib/sales-materials/building-media-pilot";
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger, type GalleryPhoto } from "./map/buildingPhotoGallery";
 import { photoSummaries } from "@/src/lib/building-photos/model";
@@ -2009,6 +2011,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     comparisonGroups?: CompareGroup[],
     // Read by the installed overview renderers; legacy point rendering ignores it.
     _showAreaPlaceholders = false,
+    overviewBuildings?: BuildingWithMetrics[],
   ): void {
     if (this._destroyed || !this.map || !this.AMap) return;
     const AMap = this.AMap;
@@ -2076,8 +2079,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     }
 
     const submarketMap = new Map<string, any>();
-    for (const b of items) {
-      const sub = b.submarket?.trim?.() ?? "";
+    const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
+    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? (this._allBuildingsCache.length ? this._allBuildingsCache : items));
+    for (const b of overviewBuildings ?? items) {
+      const sub = normalizeMapSubmarket(b.submarket);
+      if (!visibleSubmarkets.has(sub)) continue;
       if (!sub || sub === "其他") continue;
 
       if (!submarketMap.has(sub)) {
@@ -2094,7 +2100,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         });
       }
       const agg = submarketMap.get(sub);
-      agg.count += 1;
+      if (officeGrade(b.grade) === 'a' || officeGrade(b.grade) === 'b') agg.count += 1;
       if (Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat)) {
         agg.lngSum += b.location_lng;
         agg.latSum += b.location_lat;
@@ -2154,24 +2160,21 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const centerLat = agg.latSum / agg.coordCount;
 
       // 计算用于数值比较的纯数字
-      const avgRentNum =
-        agg.rentWeightAreaSum > 0
-          ? agg.rentWeightSum / agg.rentWeightAreaSum
-          : 0;
-      const vacRateNum =
-        agg.totalArea > 0 ? (agg.vacantArea / agg.totalArea) * 100 : 0;
+      const fullSummary = fullSubmarketSummaries.get(agg.name);
+      const avgRentNum = fullSummary?.rent ?? 0;
+      const vacRateNum = fullSummary?.vacancyPct ?? Number.NaN;
 
       // 显示用的文本
       const avgRent = avgRentNum > 0 ? avgRentNum.toFixed(1) : "-";
-      const vacRate = agg.totalArea > 0 ? vacRateNum.toFixed(1) : "-";
+      const vacRate = Number.isFinite(vacRateNum) ? vacRateNum.toFixed(1) : "-";
 
       // ================ 增加模式联动的气泡样式引擎 ================
       let bgColor = "rgba(0, 62, 126, 0.92)"; // 默认底色（蓝）
       let hoverColor = "rgba(0, 62, 126, 1)";
 
       let extraContent = `
-        <div style="font-size: 10px; font-weight: 700; opacity: 0.95;">¥${avgRent}</div>
-        <div style="font-size: 10px; font-weight: 700; color: #fcd34d;">${vacRate === "-" ? "—" : `${vacRate}%`}</div>
+        <div style="font-size: 11px; font-weight: 700; opacity: 0.95;">¥${avgRent} · ${vacRate === "-" ? "—" : `${vacRate}%`}</div>
+        <div style="font-size: 11px; font-weight: 700; color: #fcd34d;">甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
       `;
 
       if (renderMode === "rent") {
@@ -2193,8 +2196,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
 
         extraContent = `
-          <div style="font-size: 10px; font-weight: 700; color: #fcd34d; margin-top: 2px;">平均租金</div>
-          <div style="font-size: 11px; font-weight: 800; opacity: 0.95;">¥${avgRent}</div>
+          <div style="font-size: 11px; font-weight: 700; opacity: 0.95;">¥${avgRent} · ${vacRate === "-" ? "—" : `${vacRate}%`}</div>
+          <div style="font-size: 11px; font-weight: 700; color: #fcd34d;">甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
         `;
       } else if (renderMode === "vacancy") {
         if (vacRateNum === 0 && agg.totalArea === 0) {
@@ -2215,8 +2218,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
         }
 
         extraContent = `
-          <div style="font-size: 10px; font-weight: 700; color: #fcd34d; margin-top: 2px;">空置率</div>
-          <div style="font-size: 11px; font-weight: 800; opacity: 0.95;">${vacRate === "-" ? "—" : `${vacRate}%`}</div>
+          <div style="font-size: 11px; font-weight: 700; opacity: 0.95;">¥${avgRent} · ${vacRate === "-" ? "—" : `${vacRate}%`}</div>
+          <div style="font-size: 11px; font-weight: 700; color: #fcd34d;">甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
         `;
       } else if (renderMode === "leed") {
         // 直接从子市场的楼宇计算 LEED 认证率
@@ -2259,13 +2262,13 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
         extraContent = `
           <div style="font-size: 10px; font-weight: 700; color: #fef08a; margin-top: 2px;">LEED 认证率</div>
-          <div style="font-size: 13px; font-weight: 900; opacity: 0.95;">${leedPercentage}%</div>
+          <div style="font-size: 12px; font-weight: 700; opacity: 0.95;">${leedPercentage}% · 甲乙级 ${fullSummary?.officeCount ?? 0} 个</div>
         `;
       }
 
       const smMarkerEl = `
         <div style="
-          width: 82px; height: 82px; border-radius: 50%;
+          width: 102px; height: 102px; border-radius: 50%;
           background: ${bgColor}; border: 2px solid rgba(255,255,255,0.9);
           box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; justify-content: center;
           color: #ffffff; cursor: pointer; backdrop-filter: blur(4px); transition: transform 0.2s ease, background 0.2s;
@@ -2278,11 +2281,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       const smMarker = new AMap.Marker({
         position: [centerLng, centerLat],
         content: smMarkerEl,
-        offset: new AMap.Pixel(-41, -41),
+        offset: new AMap.Pixel(-51, -51),
         zIndex: 90,
       });
       smMarker.on("click", () => {
-        this.map.setZoomAndCenter(14, [centerLng, centerLat]);
+        window.dispatchEvent(new CustomEvent("map-submarket-open", { detail: { name: agg.name } }));
       });
       this.submarketMarkers.push(smMarker);
     }
@@ -2628,6 +2631,11 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       trend.chart = null;
     }
     if (trend) trend.buildingId = null;
+  }
+
+  /** Close the active detail without changing zoom, filters or the map viewport. */
+  closeInfoWindow(): void {
+    this.infoWindow?.close?.();
   }
 
   getMapInstance(): unknown {

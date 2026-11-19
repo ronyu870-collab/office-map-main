@@ -46,6 +46,21 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       msg.role === 'tool' && msg.tool_call_id === 'market-2')).toBe(true);
   });
 
+
+  it('routes registered specialist tools through the injected authorized executor', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ ...completion(null, [{ id: 'q1', question: '比较CBD和金融街最新空置率', name: 'compare_market_segments' }]) })
+      .mockResolvedValueOnce(completion('可信来源显示两个子市场的统计结果。'));
+    const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready","sample":20}', result: { source: 'trusted' } });
+    const events: string[] = [];
+    const result = await runAgentLoop({ question: '对比市场', signal, invoke, runTool,
+      onEvent: async event => { events.push(event.type + ':' + (event.name ?? 'model')); } });
+    expect(result.toolNames).toEqual(['compare_market_segments']);
+    expect(runTool.mock.calls[0][0]).toBe('compare_market_segments');
+    expect(events).toEqual(['model_finished:model', 'tool_started:compare_market_segments',
+      'tool_finished:compare_market_segments', 'model_finished:model']);
+  });
+
   it('rejects an unregistered tool before any executor call', async () => {
     const runTool = vi.fn();
     await expect(runAgentLoop({ question: '删除系统表', signal, runTool,

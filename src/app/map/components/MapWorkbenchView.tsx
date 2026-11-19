@@ -52,6 +52,7 @@ type DisplayOverride = {
 
 type MapWorkbenchViewProps = {
   queryPanel?: React.ReactNode;
+  submarketDetailPanel?: React.ReactNode;
   stats: MapStatsState;
   futureSupplyCalendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   futureSuppliesCount: number;
@@ -329,6 +330,7 @@ function SupplyPanel({
 
 export function MapWorkbenchView({
   queryPanel,
+  submarketDetailPanel,
   stats,
   futureSupplyCalendar,
   futureSuppliesCount,
@@ -505,6 +507,7 @@ export function MapWorkbenchView({
 
       <main className="relative min-h-0 flex-1 overflow-hidden">
         <div id="map-container" className="absolute inset-0 bg-[#f3f6f8]" onPointerDownCapture={closeOpenWorkspaces} />
+        {submarketDetailPanel}
 
         <div data-map-focus-top className="pointer-events-none absolute inset-x-3 top-3 z-[330] flex items-start gap-2 sm:inset-x-4">
           <div className="pointer-events-auto flex shrink-0 gap-2">

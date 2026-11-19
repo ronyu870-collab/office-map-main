@@ -4,6 +4,8 @@ import type { MapController } from '@/src/services/MapController';
 import { MAP_BUILDING_TIER_MIN_ZOOM } from './mapMarkerZoom';
 import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
+import { summarizeSubmarkets } from '../model/submarketOverview';
+import { normalizeMapSubmarket } from '../model/mapDomain';
 import { createAreaPlaceholder, getAreaFixedRent, getAreaPlaceholders, isNameOnlyArea, NAME_ONLY_BUBBLE_CLASS } from './mapSubmarketOverview';
 
 type RenderMode = 'default' | 'rent' | 'vacancy' | 'leed';
@@ -324,6 +326,7 @@ export function installMapVisualHierarchyV3(
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
   let lastShowAreaPlaceholders = false;
+  let lastOverviewBuildings: any[] | undefined;
   let pendingFrame: number | null = null;
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
@@ -469,13 +472,14 @@ export function installMapVisualHierarchyV3(
     set.future = markers;
   };
 
-  const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean): LayerSet => {
+  const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean, overviewBuildings?: any[]): LayerSet => {
+    const summaries = summarizeSubmarkets(overviewBuildings ?? (c._allBuildingsCache?.length ? c._allBuildingsCache : buildings));
     const labels = new Map<string, any>();
     const ranks = new Map<string, number>();
     const aggregates = new Map<string, any>();
 
     for (const building of buildings) {
-      const name = String(building?.submarket ?? '').trim();
+      const name = normalizeMapSubmarket(building?.submarket);
       if (!name || name === '其他') continue;
       let aggregate = aggregates.get(name);
       if (!aggregate) {
@@ -510,37 +514,47 @@ export function installMapVisualHierarchyV3(
       if (!aggregate.coords) continue;
       positionedNames.add(aggregate.name);
       const center: [number, number] = [aggregate.lng / aggregate.coords, aggregate.lat / aggregate.coords];
-      const rent = aggregate.rentArea > 0 ? aggregate.rentSum / aggregate.rentArea : 0;
-      const vacancy = aggregate.area > 0 ? (aggregate.vacant / aggregate.area) * 100 : Number.NaN;
-      const leedPercent = aggregate.count > 0 ? (aggregate.leed / aggregate.count) * 100 : 0;
+      const summary = summaries.get(aggregate.name);
       const fixedRent = getAreaFixedRent(aggregate.name);
-      const accentRent = fixedRent ?? rent;
+      const rent = summary?.rent ?? fixedRent ?? 0;
+      const vacancy = summary?.vacancyPct ?? Number.NaN;
+      const leedPercent = aggregate.count > 0 ? (aggregate.leed / aggregate.count) * 100 : 0;
+      const accentRent = rent;
       let accent: string = PALETTE.brand;
       if (mode === 'rent') accent = accentRent <= 0 ? PALETTE.neutral : accentRent >= 300 ? PALETTE.extreme : accentRent >= 200 ? PALETTE.high : accentRent >= 100 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'vacancy') accent = !Number.isFinite(vacancy) ? PALETTE.neutral : vacancy >= 30 ? PALETTE.extreme : vacancy >= 20 ? PALETTE.high : vacancy >= 10 ? PALETTE.medium : PALETTE.low;
       else if (mode === 'leed') accent = leedPercent >= 60 ? '#3f715f' : leedPercent >= 40 ? '#537f6c' : leedPercent >= 20 ? '#6f927f' : leedPercent > 0 ? '#88a493' : PALETTE.neutral;
 
-      const size = 74 + Math.min(12, Math.round(Math.sqrt(aggregate.count) * 1.45));
-      let primary = `¥${rent > 0 ? rent.toFixed(0) : '–'}`;
-      let secondary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–';
-      if (mode === 'rent') { primary = `¥${rent > 0 ? rent.toFixed(1) : '–'}`; secondary = '平均租金'; }
-      else if (mode === 'vacancy') { primary = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '–'; secondary = '空置率'; }
-      else if (mode === 'leed') { primary = `${leedPercent.toFixed(0)}%`; secondary = 'LEED'; }
-      const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
-
-      const element = document.createElement('div');
-      const nameOnly = isNameOnlyArea(aggregate.name, mode);
+      const count = summary?.officeCount ?? 0;
+      const size = 86 + Math.min(12, Math.round(Math.sqrt(count + (summary?.parkCount ?? 0)) * 1.25));
+      const referenceRent = summary?.rent == null && fixedRent !== null;
+      const rentLabel = rent > 0 ? `¥${rent.toFixed(1)}${referenceRent ? '*' : ''}` : '¥—';
+      const vacancyLabel = Number.isFinite(vacancy) ? `${vacancy.toFixed(1)}%` : '—';
+      const nameOnly = isNameOnlyArea(aggregate.name, mode) && count === 0;
+      const element = document.createElement('button');
+      element.type = 'button';
       element.className = nameOnly ? NAME_ONLY_BUBBLE_CLASS : 'map-submarket-bubble';
       element.dataset.renderMode = mode;
-      element.title = aggregate.name;
+      element.title = `${aggregate.name} · 甲乙级${count}个${referenceRent ? ' · *为区域参考租金，非加权均值' : ''}`;
+      element.setAttribute('aria-label', `查看${aggregate.name}子市场介绍，甲乙级${count}个，租金${rentLabel}，空置率${vacancyLabel}`);
       if (!nameOnly) element.style.setProperty('--sm-accent', accent);
       element.style.setProperty('--sm-size', `${size}px`);
-      // A fixed rent has no vacancy figure, so the bubble shows the rent alone.
-      const metrics = nameOnly ? '' : fixedRent !== null
-        ? `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">¥${fixedRent}</span></div>`
-        : `<div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
-      element.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</div>${metrics}`;
-
+      const metrics = nameOnly ? '' : `
+        <div class="map-submarket-bubble__metrics">
+          <span class="map-submarket-bubble__primary">${rentLabel}</span>
+          <span class="map-submarket-bubble__sep">·</span>
+          <span class="map-submarket-bubble__secondary">${vacancyLabel}</span>
+        </div>
+        <div class="map-submarket-bubble__count">甲乙级 ${count} 个</div>
+        ${mode === 'leed' ? `<span class="map-submarket-bubble__context">LEED ${leedPercent.toFixed(0)}%</span>` : ''}`;
+      element.innerHTML = `<span class="map-submarket-bubble__name">${escapeHtml(aggregate.name)}</span>${metrics}`;
+      const openBrief = () => {
+        window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: aggregate.name } }));
+      };
+      element.addEventListener('click', event => {
+        event.stopPropagation();
+        if (currentTier === 'submarket' && !zooming) openBrief();
+      });
       const marker = new Marker({
         position: center,
         content: element,
@@ -552,16 +566,16 @@ export function installMapVisualHierarchyV3(
       });
       marker.on?.('click', () => {
         if (currentTier !== 'submarket' || zooming) return;
-        element.classList.add('is-expanding');
-        map.setZoomAndCenter?.(12.15, center, false, 320);
-        window.setTimeout(() => element.classList.remove('is-expanding'), 380);
+        openBrief();
       });
       submarkets.push(marker);
     }
     for (const { name, center } of getAreaPlaceholders(showAreaPlaceholders, positionedNames)) {
       const content = createAreaPlaceholder(name, () => {
-        if (currentTier === 'submarket' && !zooming) map.setZoomAndCenter?.(12.15, center, false, 320);
-      }, mode);
+        if (currentTier === 'submarket' && !zooming) {
+          window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name } }));
+        }
+      }, mode, summaries.get(name));
       submarkets.push(new Marker({ position: center, content, anchor: 'center', zooms: [3, 20], zIndex: 92, opacity: 0 }));
     }
     if (submarkets.length) map.add?.(submarkets);
@@ -746,7 +760,7 @@ export function installMapVisualHierarchyV3(
     }
   };
 
-  const swap = (next: LayerSet, signature: string, buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean) => {
+  const swap = (next: LayerSet, signature: string, buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean, overviewBuildings?: any[]) => {
     dismissHover();
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     if (outgoing) removeLayerSet(map, outgoing);
@@ -757,6 +771,7 @@ export function installMapVisualHierarchyV3(
     lastMode = mode;
     lastGroups = groups;
     lastShowAreaPlaceholders = showAreaPlaceholders;
+    lastOverviewBuildings = overviewBuildings;
     container.classList.add('map-marker-swapping');
 
     requestAnimationFrame(() => {
@@ -769,13 +784,14 @@ export function installMapVisualHierarchyV3(
     });
   };
 
-  c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[], showAreaPlaceholders = false) => {
+  c.renderMarkers = ((input: any[], mode: RenderMode = 'default', _stats?: unknown, groups?: any[], showAreaPlaceholders = false, overviewBuildings?: any[]) => {
     const buildings = Array.isArray(input) ? input : [];
     if (selectedId && !buildings.some(building => String(building?.id ?? '') === selectedId)) {
       c.infoWindow?.close?.();
       clearSelection();
     }
-    const signature = `${renderSignature(buildings, mode, groups)}|${showAreaPlaceholders}`;
+    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : (c._allBuildingsCache?.length ? c._allBuildingsCache : buildings);
+    const signature = `${renderSignature(buildings, mode, groups)}|${showAreaPlaceholders}|${overview === buildings ? '' : renderSignature(overview, 'default')}`;
     if (signature === lastSignature) {
       if (pendingFrame !== null) {
         cancelAnimationFrame(pendingFrame);
@@ -787,8 +803,8 @@ export function installMapVisualHierarchyV3(
     if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     pendingFrame = requestAnimationFrame(() => {
       pendingFrame = null;
-      const next = build(buildings, mode, groups, showAreaPlaceholders);
-      swap(next, signature, buildings, mode, groups, showAreaPlaceholders);
+      const next = build(buildings, mode, groups, showAreaPlaceholders, overview);
+      swap(next, signature, buildings, mode, groups, showAreaPlaceholders, overview);
     });
   }) as ControllerInternals['renderMarkers'];
 
@@ -840,6 +856,7 @@ export function installMapVisualHierarchyV3(
         undefined,
         lastGroups,
         lastShowAreaPlaceholders,
+        lastOverviewBuildings?.map(building => fresh.get(String(building?.id)) ?? building),
       );
     }) as ControllerInternals['refreshBuildingData'];
   }

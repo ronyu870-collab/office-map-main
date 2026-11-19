@@ -36,6 +36,18 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 217,
+        branch: 'codex/colliers-ai-4-p0-p1-release-20261119',
+        scope: 'Colliers AI 4.0 P0/P1 backend model support and read-only tool registry, PR #217',
+        reason: 'User explicitly waived manual browser review, independent visual review, screenshot comparison and physical-phone testing for staged Colliers AI 4.0 on 2026-11-19; applies only to PR #217 and does not waive Verify or security checks',
+      },
+      {
+        number: 212,
+        branch: 'codex/map-submarket-market-brief-20261118',
+        scope: 'Map submarket three-stat bubbles, expandable business brief, quarterly trends and editorial maintenance, PR #212',
+        reason: 'User explicitly authorized a one-time waiver of independent visual acceptance and physical-device manual acceptance for PR #212 on 2026-11-19; those reviews were not performed and engineering, authorization and data checks remain mandatory',
+      },
+      {
         number: 213,
         branch: 'codex/stacking-plan-xiaoyun33-pilot',
         scope: 'Xiaoyun Road 33 A/B Admin Stacking Plan and map entry, PR #213',
