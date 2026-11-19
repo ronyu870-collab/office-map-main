@@ -164,6 +164,26 @@ export async function checkpointQueryPerformancePair(samples, { checkpoint, onFa
   for (const failure of failures) onFailure(failure);
   throw new Error('QUERY_PERFORMANCE_PAIR_FAILED');
 }
+
+/** Use the actual reachable New Conversation entry before the next timed query.
+ * A narrow toolbar keeps this action in history; an open modal history panel
+ * also makes toolbar actions inert. Neither case permits clicking hidden UI. */
+export async function startNewQueryConversation(page) {
+  const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
+  if (await history.isVisible()) {
+    await history.getByRole('button', { name: '新对话', exact: true }).click();
+    return;
+  }
+  const direct = page.getByRole('button', { name: '新对话', exact: true });
+  if (await direct.isVisible()) {
+    await direct.click();
+    return;
+  }
+  await page.getByRole('button', { name: '历史记录', exact: true }).click();
+  await history.waitFor({ state: 'visible' });
+  await history.getByRole('button', { name: '新对话', exact: true }).click();
+}
+
 export function nearestRank(values, percentile) {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
   return sorted.length ? sorted[Math.max(0, Math.ceil(percentile * sorted.length) - 1)] : null;

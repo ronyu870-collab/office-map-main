@@ -26,8 +26,10 @@ const HomeQueryHistory = dynamic(() => import('./HomeQueryHistory').then(module 
 const HomeQueryResearchPanel = dynamic(() => import('./HomeQueryResearchPanel').then(module => module.HomeQueryResearchPanel), {
   loading: () => <p role="status">正在打开研究资料…</p>,
 });
-const HomeQueryMarkdown = dynamic(() => import('./HomeQueryMarkdown').then(module => module.HomeQueryMarkdown));
-const HomeQueryAssistantActions = dynamic(() => import('./HomeQueryAssistantActions').then(module => module.HomeQueryAssistantActions));
+// First mounting a heavy answer module must not suspend send/stop feedback in
+// the shared workspace. An explicit loading component adds a local boundary.
+const HomeQueryMarkdown = dynamic(() => import('./HomeQueryMarkdown').then(module => module.HomeQueryMarkdown), { loading: () => null });
+const HomeQueryAssistantActions = dynamic(() => import('./HomeQueryAssistantActions').then(module => module.HomeQueryAssistantActions), { loading: () => null });
 type Attempt = { idempotencyKey: string; question: string; requestId?: string; conversation?: QueryConversation; buildingSelection?: BuildingSelection; replayRequestId?: string };
 type Turn = { attempt: Attempt; reply: QueryReply | null; message: string };
 const CLOSED: QueryAccess = { enabled: false, examples: [] };

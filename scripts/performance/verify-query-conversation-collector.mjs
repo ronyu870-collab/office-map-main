@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { observeQueryConversation, nearestRank, summarizeQueryPerformance, queryPerformanceErrorCode,
-  queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
+  queryPerformanceFailureDiagnostics, checkpointQueryPerformancePair, queryPerformanceRevision, startNewQueryConversation } from './query-conversation-probe.mjs';
 import './verify-query-conversation-network.mjs';
 import { multiMetricOracle, observeMetricSwitch, summarizeMultiMetricPerformance } from './verify-query-multi-metric.mjs';
 import './verify-query-cross-trend-calibration.mjs';
@@ -44,6 +44,64 @@ assert.equal(queryPerformanceFailureDiagnostics([{ ...common, content_usable_ms:
 assert.equal(queryPerformanceFailureDiagnostics([{ ...common, source_open_ms: null }])[0].error, 'MISSING_REQUIRED_MEASUREMENT');
 assert.equal(queryPerformanceFailureDiagnostics([{ ...common, step: 'four_quarter_trend', source_reopen_ms: null }])[0].error, 'MISSING_REQUIRED_MEASUREMENT');
 await checkpointQueryPerformancePair([common], { checkpoint: async failures => assert.equal(failures.length, 0), onFailure: () => assert.fail('healthy pair stopped') });
+
+// Read-only locator contract, with no browser or product performance claims.
+// Hidden controls cannot be clicked; a lazy history panel is usable only after
+// its real visible wait. The fixture deliberately exposes no DOM/state APIs.
+function newConversationControls({ toolbar = false, historyOpen = false, historyAvailable = true } = {}) {
+  const actions = [];
+  let open = historyOpen, requested = false, resets = 0;
+  const clickNew = async (where, visible, options) => {
+    assert.equal(options, undefined, 'New Conversation must use ordinary actionable clicks');
+    assert.ok(visible, 'NEW_CONVERSATION_CONTROL_NOT_VISIBLE');
+    actions.push(`click:${where}`); resets++; open = false;
+  };
+  const history = {
+    isVisible: async () => open,
+    waitFor: async options => {
+      assert.deepEqual(options, { state: 'visible' }); assert.ok(requested);
+      actions.push('wait:history-visible'); open = true;
+    },
+    getByRole: (role, options) => {
+      assert.equal(role, 'button'); assert.deepEqual(options, { name: '新对话', exact: true });
+      return { click: options => clickNew('history-new', open, options) };
+    },
+  };
+  const page = { getByRole: (role, options) => {
+    if (role === 'complementary') {
+      assert.deepEqual(options, { name: '历史工作记录', exact: true }); return history;
+    }
+    assert.equal(role, 'button'); assert.equal(options.exact, true);
+    if (options.name === '新对话') return {
+      isVisible: async () => { assert.ok(!(toolbar && open), 'AMBIGUOUS_NEW_CONVERSATION_ENTRY'); return toolbar; },
+      click: options => clickNew('toolbar-new', toolbar && !open, options),
+    };
+    assert.equal(options.name, '历史记录');
+    return { click: async options => {
+      assert.equal(options, undefined); assert.ok(historyAvailable, 'HISTORY_CONTROL_NOT_VISIBLE');
+      actions.push('click:history'); requested = true;
+    } };
+  } };
+  return { page, actions, resets: () => resets };
+}
+const mobileControls = newConversationControls();
+await assert.rejects(mobileControls.page.getByRole('button', { name: '新对话', exact: true }).click(), /NEW_CONVERSATION_CONTROL_NOT_VISIBLE/);
+await startNewQueryConversation(mobileControls.page);
+assert.deepEqual(mobileControls.actions, ['click:history', 'wait:history-visible', 'click:history-new']);
+assert.equal(mobileControls.resets(), 1);
+const desktopControls = newConversationControls({ toolbar: true });
+await startNewQueryConversation(desktopControls.page);
+assert.deepEqual(desktopControls.actions, ['click:toolbar-new']); assert.equal(desktopControls.resets(), 1);
+for (const toolbar of [false, true]) {
+  const openHistoryControls = newConversationControls({ toolbar, historyOpen: true });
+  await startNewQueryConversation(openHistoryControls.page);
+  assert.deepEqual(openHistoryControls.actions, ['click:history-new']); assert.equal(openHistoryControls.resets(), 1);
+}
+const unavailableControls = newConversationControls({ historyAvailable: false });
+await assert.rejects(startNewQueryConversation(unavailableControls.page), /HISTORY_CONTROL_NOT_VISIBLE/);
+assert.equal(unavailableControls.resets(), 0, 'Unavailable real controls must fail setup, never fabricate a reset');
+console.log('PASS New Conversation entry contract: visible desktop entry, lazy narrow history entry, existing modal history and unavailable-control failure; no hidden clicks, DOM mutation or browser execution');
+
 const multiCommon = { ...common, step: 'multi_quarter', oracleVerified: true, sourceVerified: true,
   metricSwitchVerified: true, source_reopen_ms: 30, metric_switch_ms: 150 };
 const multiRows = Array.from({ length: 20 }, () => ({ ...multiCommon }));
