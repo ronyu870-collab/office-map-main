@@ -118,6 +118,6 @@ create or replace function public.stacking_plan_source_attach(
 $sql$;
 revoke all on function public.stacking_plan_source_attach(uuid,text,uuid,text,text,text,integer,text)
   from public,anon,authenticated;
-grant execute on function public.stacking_plan_source_attach(uuid,text,uuid,text,text,integer,text)
+grant execute on function public.stacking_plan_source_attach(uuid,text,uuid,text,text,text,integer,text)
   to service_role;
 commit;
