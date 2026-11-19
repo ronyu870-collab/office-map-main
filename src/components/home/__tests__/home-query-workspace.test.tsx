@@ -8,9 +8,10 @@ import { resultViewSchema } from '@/src/lib/intelligence/query/presentation';
 import { fixture } from '@/src/lib/intelligence/query/__tests__/fixtures';
 import { buildingAnalysisHref } from '@/src/lib/intelligence/query/buildingNavigation';
 import type { QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
+import type { AgentProgressEvent } from '@/src/lib/intelligence/agent/agentStreamProtocol';
 import type { HistoryOpened } from '@/src/lib/intelligence/query/historyProtocol';
 
-const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), submitAgent: vi.fn(), recover: vi.fn(), reportDelivery: vi.fn() }));
+const client = vi.hoisted(() => ({ capabilities: vi.fn(), submit: vi.fn(), submitAgent: vi.fn(), submitAgentStream: vi.fn(), recover: vi.fn(), reportDelivery: vi.fn() }));
 const historyClient = vi.hoisted(() => ({ list: vi.fn(), open: vi.fn(), change: vi.fn() }));
 vi.mock('@/src/services/trustedQueryClient', () => ({ trustedQueryClient: client,
   queryScopeKey: (scope: object) => JSON.stringify(scope) }));
@@ -128,6 +129,31 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     await screen.findByText('模型回答：你好');
     expect(client.submitAgent).toHaveBeenCalledTimes(1);
     expect(client.submit).not.toHaveBeenCalled();
+  });
+
+  it('shows only observed DeepSeek progress until the signed terminal reply has arrived', async () => {
+    client.capabilities.mockResolvedValue({ ...access, agentEnabled: true, agentStreamEnabled: true });
+    const terminal = deferred<void>();
+    client.submitAgentStream.mockImplementation(async (_scope: typeof scope, body: Submission,
+      _signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void) => {
+      onProgress({ type: 'run_started', requestId: requestIds[0] });
+      onProgress({ type: 'tool_started', name: 'query_quarterly_metrics' });
+      onProgress({ type: 'tool_completed', name: 'query_quarterly_metrics', status: 'ready' });
+      onProgress({ type: 'message_delta', delta: '逐步' });
+      await terminal.promise;
+      return { requestId: requestIds[0], status: 'assistant', conversation: body.conversation,
+        message: '逐步形成的正式模型回答。', historySaved: false };
+    });
+    const { input } = await open(); send(input, 'CBD 季度数据如何？');
+    const provisional = await screen.findByLabelText('正在生成的部分回答');
+    expect(provisional).toHaveTextContent('逐步');
+    expect(screen.getByText('正在生成回答…')).toBeInTheDocument();
+    expect(client.submitAgent).not.toHaveBeenCalled();
+    expect(client.submit).not.toHaveBeenCalled();
+    terminal.resolve(undefined);
+    await screen.findByText('逐步形成的正式模型回答。');
+    expect(screen.queryByLabelText('正在生成的部分回答')).not.toBeInTheDocument();
+    expect(client.submitAgentStream).toHaveBeenCalledOnce();
   });
 
   it('closes a history action menu with Escape before closing the workspace', async () => {
@@ -382,9 +408,7 @@ describe('Conversational Experience P1 shared workspace lifecycle', () => {
     if (!screen.queryByRole('button', { name: '打开对话：Agent 市场分析' }))
       fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
     fireEvent.click(await screen.findByRole('button', { name: '打开对话：Agent 市场分析' }));
-    // The restored message appears both as an accessible status and as the
-    // assistant's original reply. Assert actual presence without assuming uniqueness.
-    expect((await screen.findAllByText('已完成 CBD 市场分析。')).length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText('已完成 CBD 市场分析。')).length).toBeGreaterThan(0);
     send(input, '为什么不同？');
     await screen.findByText('模型追问：为什么不同？');
     expect(client.submitAgent).toHaveBeenCalledOnce();

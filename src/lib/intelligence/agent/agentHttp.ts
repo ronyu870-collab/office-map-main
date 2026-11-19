@@ -26,6 +26,11 @@ const inputSchema = z.strictObject({
   conversation: queryConversationSchema,
 });
 type Dependencies = { client: SupabaseClient; keys: AuditKeys; enabled: boolean };
+export type AgentStreamObserver = (event:
+  | { type: 'run_started'; requestId: string }
+  | { type: 'tool_started'; name: string }
+  | { type: 'tool_completed'; name: string; status: 'ready' | 'limited' }
+  | { type: 'message_delta'; delta: string }) => Promise<void>;
 const secureHeaders = { 'Cache-Control': 'private, no-store',
   'X-Content-Type-Options': 'nosniff', Vary: 'Authorization, ' + IMPERSONATION_REQUEST_HEADER };
 const json = (payload: unknown, status: number) => Response.json(payload, { status, headers: secureHeaders });
@@ -60,7 +65,8 @@ function providerMessage(error: unknown): string {
 
 /** Agent-specific authenticated route, preserving existing formal results, sources
  * and DB RLS. LLM requests are suggestions; the service remains the authority. */
-export async function handleAgentSubmission(request: Request, dependencies: Dependencies): Promise<Response> {
+export async function handleAgentSubmission(request: Request, dependencies: Dependencies,
+  observer?: AgentStreamObserver): Promise<Response> {
   const { client, keys } = dependencies;
   let requestId: string = randomUUID();
   let audit: ReturnType<typeof createRpcAuditPort> | undefined;
@@ -128,6 +134,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         : 'DeepSeek 调用预算校验未通过，本轮没有调用模型。' }, 503);
     }
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
+    await observer?.({ type: 'run_started', requestId });
     await audit.append(requestId, 'tool_started', { tool: 'deepseek_chat', provider: 'deepseek',
       operation: 'native_tool_calling', historyTurns: history.length });
     const agentStartedAt = Date.now();
@@ -146,17 +153,45 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       } else if (event.type === 'tool_started') {
         await audit!.append(requestId, 'tool_started', { tool: event.name,
           provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
+        if (event.name) await observer?.({ type: 'tool_started', name: event.name });
       } else if (event.type === 'tool_finished') {
         await audit!.append(requestId, 'tool_finished', {
           tool: event.name, status: event.status, reused: event.reused === true,
           provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
+        if (event.name) await observer?.({ type: 'tool_completed', name: event.name,
+          status: event.status ?? 'limited' });
       }
     };
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
-        history, invoke: completeWithDeepSeek, signal, onEvent,
+        history,
+        invoke: async (messages, currentSignal) => {
+          if (!observer) return completeWithDeepSeek(messages, currentSignal);
+          // Bound provisional updates; never make a DB authorization RPC for
+          // every individual supplier token. Every visible batch must pass a
+          // live permission-revision check before it reaches the browser.
+          let pending = '', lastFlush = 0;
+          const flush = async () => {
+            while (pending.length) {
+              const delta = pending.slice(0, 3500);
+              pending = pending.slice(delta.length);
+              const current = await fresh();
+              if (current.permissionRevision !== authority.permissionRevision
+                || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+              await observer({ type: 'message_delta', delta });
+              lastFlush = Date.now();
+            }
+          };
+          const result = await completeWithDeepSeek(messages, currentSignal, async delta => {
+            pending += delta;
+            if (!lastFlush || pending.length >= 96 || Date.now() - lastFlush >= 250) await flush();
+          });
+          await flush();
+          return result;
+        },
+        signal, onEvent,
         runTool: async (name, args) => {
           if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
           const rechecked = await fresh();

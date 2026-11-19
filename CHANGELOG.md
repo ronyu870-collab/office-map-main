@@ -1,3 +1,12 @@
+# 2026-11-19 — Colliers AI 4.0 P2 原生 DeepSeek 流式 Agent（独立待验 PR）
+
+- 通过 DeepSeek 官方 Chat Completions SSE 增量数据与 stream_options.include_usage 读取真实模型文本、索引化 Tool Calling 参数及模型 usage；没有最终 [DONE] 视为失败，不合成完成回复。
+- 新增单次经授权 POST /api/intelligence/query/agent/stream，沿用旧 Agent 的 admin-only、模型预算、来源和权限重核、加密审计、请求幂等与正式结果；只展示实际发生的工具开始/结束，不暴露模型私有推理。
+- 浏览器流式客户端采用统一 Zod 事件协议；增量文本仅作为“正在生成的部分回答”临时展示，只有服务器完成全部授权并生成原有签名交付凭据，才按正式完成进入原回复、历史与交付回执路径。停止/网络中断不能误标成功，不自动重试已执行工具。
+- 不改首页综合业务结构或真实数据库表。使用 admin 才可见的 agentStreamEnabled 能力与服务端 AI_AGENT_STREAM_ENABLED=false 回退控制，关闭流式时继续使用旧非流式 DeepSeek Agent。
+- 新增官方 usage-only 尾帧、分片 UTF-8、工具参数拼接、缺失 DONE、客户端断线/伪造完成、实际 HomeQuery 状态和服务端签名终态测试；模拟数据测试不算真实供应商验收。人工视觉/浏览器/真机检查依用户授权豁免，不豁免工程 CI 和安全回归。
+- 本批仅在独立分支开发，未合并/未宣称已上线。真实 DeepSeek API 成功、最新 PR 精确 head Verify 与生产部署以实际平台记录为准。未实现跨网络断线后继续原 SSE；中断需要通过安全恢复接口核实原请求，而不能重复运行工具。
+
 # 2026-11-19 — Colliers AI 4.0 P3：保守成本区间与模型累计 token 预算
 
 - 增加按 DeepSeek 官方人民币/美元费用公示推导的美元保守计划成本区间（峰/谷价格、缓存输入命中与未命中边界），明确不是实际账单，不记录敏感输入；新增不可识别模型/缺失 usage 时不报虚假估价的测试。

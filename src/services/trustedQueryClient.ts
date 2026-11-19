@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { QueryClientError } from './queryClientErrors';
 import type { BuildingSelection } from '@/src/lib/intelligence/query/buildingNavigation';
+import type { AgentProgressEvent } from '@/src/lib/intelligence/agent/agentStreamProtocol';
 import { buildingContextSchema, type BuildingContext } from '@/src/lib/intelligence/query/buildingCards';
 import { parseArtifactFilename } from '@/src/lib/intelligence/query/artifactFilename';
 import type { DeliveryReceipt, DeliveryReport, DeliveryView } from '@/src/lib/intelligence/query/delivery';
@@ -36,7 +37,7 @@ import type { ChartRequest, ResultChart } from '@/src/lib/intelligence/query/cha
 import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { queryActionSchema, queryClarificationReasonSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
-const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional() });
+const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional(), agentStreamEnabled: z.boolean().optional() });
 export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(), isNativeAgent: z.boolean().optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional() });
 const replySchema = queryReplySchema;
@@ -54,13 +55,14 @@ export const receiveTrustedQueryValue = received;
 export const trustedQueryRequest = call;
 export const queryScopeKey = (scope: QueryClientScope) => JSON.stringify([scope.actorId, scope.effectiveId, scope.sessionId, scope.targetId]);
 
-async function call(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown, downloadResultId?: string): Promise<unknown> {
+async function call(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown,
+  downloadResultId?: string, onStreamProgress?: (event: AgentProgressEvent) => void): Promise<unknown> {
   const controller = new AbortController();
   let timedOut = false;
   const relay = () => controller.abort(signal.reason);
   if (signal.aborted) relay(); else signal.addEventListener('abort', relay, { once: true });
   const timer = setTimeout(() => { timedOut = true; controller.abort(); }, path === '/capabilities' ? 15000 : path === '/receipt' ? 10000 : 90000);
-  try { return await callOnce(path, scope, controller.signal, body, downloadResultId); }
+  try { return await callOnce(path, scope, controller.signal, body, downloadResultId, onStreamProgress); }
   catch (error) {
     if (signal.aborted) throw signal.reason;
     if (timedOut) throw new QueryClientError('timeout', '等待查询响应超时。');
@@ -69,7 +71,8 @@ async function call(path: string, scope: QueryClientScope, signal: AbortSignal, 
   } finally { clearTimeout(timer); signal.removeEventListener('abort', relay); }
 }
 
-async function callOnce(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown, downloadResultId?: string): Promise<unknown> {
+async function callOnce(path: string, scope: QueryClientScope, signal: AbortSignal, body?: unknown,
+  downloadResultId?: string, onStreamProgress?: (event: AgentProgressEvent) => void): Promise<unknown> {
   const [{ getSessionFast }, { withImpersonationHeaders, getImpersonationTargetUserId }] = await Promise.all([
     import('@/src/services/Auth'), import('@/src/services/impersonationHeaders'),
   ]);
@@ -87,6 +90,23 @@ async function callOnce(path: string, scope: QueryClientScope, signal: AbortSign
     headers: withImpersonationHeaders({ Authorization: `Bearer ${session.session.access_token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  if (path === '/agent/stream') {
+    const { readAgentEventStream } = await import('./agentStreamReader');
+    const final = await readAgentEventStream(response, signal, onStreamProgress ?? (() => {}));
+    const raw = final.reply;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      throw new QueryClientError('protocol', 'AI 流式终态响应格式不正确。');
+    const bytes = new TextEncoder().encode(JSON.stringify(raw));
+    // The wire carries the original canonical JSON and server-signed digest
+    // in the terminal SSE frame, never a speculative browser-side success.
+    const signed = new Response(null, { headers: {
+      'x-query-delivery-token': final.receipt.deliveryToken,
+      'x-query-body-sha256': final.receipt.bodySha256,
+    } });
+    await bindReceipt(raw, signed, bytes);
+    await currentSession();
+    return raw;
+  }
   if (downloadResultId && response.ok && !response.headers.get('content-type')?.includes('application/json')) {
     const filename = parseArtifactFilename(response.headers.get('content-disposition'));
     const mime = response.headers.get('content-type') ?? '';
@@ -156,6 +176,16 @@ export const trustedQueryClient = {
     const raw = await call('/agent', scope, signal, input), reply = decodeQueryReply(raw);
     if (reply.conversation && (reply.conversation.id !== input.conversation.id
       || reply.conversation.parentRequestId !== input.conversation.parentRequestId)) throw new Error('AI 响应与当前对话不一致，请重试原请求。');
+    return received(scope, raw, reply);
+  },
+  submitAgentStream: async (scope: QueryClientScope,
+    input: { idempotencyKey: string; question: string; conversation: QueryConversation },
+    signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void): Promise<QueryReply> => {
+    const raw = await call('/agent/stream', scope, signal, input, undefined, onProgress);
+    const reply = decodeQueryReply(raw);
+    if (reply.conversation && (reply.conversation.id !== input.conversation.id
+      || reply.conversation.parentRequestId !== input.conversation.parentRequestId))
+      throw new Error('AI 流式响应与当前对话不一致，请重试原请求。');
     return received(scope, raw, reply);
   },
   recover: async (scope: QueryClientScope, requestId: string, signal: AbortSignal): Promise<QueryReply> => { const raw = await call('/recover', scope, signal, { requestId, action: 'recover' }); return received(scope, raw, decodeQueryReply(raw)); },

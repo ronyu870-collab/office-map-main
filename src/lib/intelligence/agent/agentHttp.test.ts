@@ -123,6 +123,24 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
   });
 
+  it('batches native streaming deltas while rechecking current authority before each visible batch', async () => {
+    const text = '增'.repeat(250), observed: Array<{ type: string; delta?: string }> = [];
+    state.provider.mockImplementation(async (_messages: unknown, _signal: AbortSignal,
+      onDelta: ((value: string) => Promise<void>) | undefined) => {
+      for (const char of text) await onDelta?.(char);
+      return { model: 'deepseek-flash', inputTokens: 120, outputTokens: 260,
+        message: { role: 'assistant', content: text } };
+    });
+    const { request } = fakeRequest('概括市场');
+    const response = await handleAgentSubmission(request, deps(), async event => {
+      observed.push(event);
+    });
+    expect(response.status).toBe(200);
+    expect(observed.filter(event => event.type === 'message_delta').map(event => event.delta).join('')).toBe(text);
+    expect(state.authority.mock.calls.length).toBeLessThan(30);
+    expect(observed.filter(event => event.type === 'run_started')).toHaveLength(1);
+  });
+
   it('denies unauthenticated access without model or tool execution', async () => {
     state.identity.mockRejectedValue(new Error('QUERY_UNAUTHENTICATED'));
     const { request } = fakeRequest();
