@@ -49,7 +49,7 @@ begin
   ) then
     raise exception 'ADMIN_DENIED' using errcode='42501';
   end if;
-  if p_size is null or p_size < 1 or p_size > 10485760
+  if p_size is null or p_size < 1 or p_size > 4194304
     or length(coalesce(p_name,'')) not between 1 and 200
     or p_mime not in (
       'image/png','image/jpeg','image/webp','application/pdf',
