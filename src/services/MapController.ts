@@ -2080,7 +2080,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
     const submarketMap = new Map<string, any>();
     const visibleSubmarkets = new Set(items.map(b => normalizeMapSubmarket(b.submarket)));
-    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? items);
+    const fullSubmarketSummaries = summarizeSubmarkets(overviewBuildings ?? (this._allBuildingsCache.length ? this._allBuildingsCache : items));
     for (const b of overviewBuildings ?? items) {
       const sub = normalizeMapSubmarket(b.submarket);
       if (!visibleSubmarkets.has(sub)) continue;

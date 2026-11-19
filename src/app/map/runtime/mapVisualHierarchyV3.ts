@@ -473,7 +473,7 @@ export function installMapVisualHierarchyV3(
   };
 
   const build = (buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean, overviewBuildings?: any[]): LayerSet => {
-    const summaries = summarizeSubmarkets(overviewBuildings ?? buildings);
+    const summaries = summarizeSubmarkets(overviewBuildings ?? (c._allBuildingsCache?.length ? c._allBuildingsCache : buildings));
     const labels = new Map<string, any>();
     const ranks = new Map<string, number>();
     const aggregates = new Map<string, any>();
@@ -790,7 +790,7 @@ export function installMapVisualHierarchyV3(
       c.infoWindow?.close?.();
       clearSelection();
     }
-    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : buildings;
+    const overview = Array.isArray(overviewBuildings) ? overviewBuildings : (c._allBuildingsCache?.length ? c._allBuildingsCache : buildings);
     const signature = `${renderSignature(buildings, mode, groups)}|${showAreaPlaceholders}|${overview === buildings ? '' : renderSignature(overview, 'default')}`;
     if (signature === lastSignature) {
       if (pendingFrame !== null) {

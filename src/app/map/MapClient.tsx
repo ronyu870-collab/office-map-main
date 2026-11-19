@@ -366,7 +366,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   React.useEffect(() => {
     if (prevCompetitorRef.current !== null && competitorBuildings === null && controllerRef.current && mapReady) {
       const ctrl = controllerRef.current;
-      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders, allBuildings);
+      ctrl.renderMarkers(filteredBuildings, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
       if ((filterState?.showFutureSupply ?? true) && filteredFutureSupplies.length > 0) {
         ctrl.renderFutureMarkers(filteredFutureSupplies, renderMode);
       }
@@ -460,7 +460,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     // 竞品分析模式下跳过地图标记渲染，避免覆盖竞品标记
     if (!competitorModeRef.current) {
       if (filtered.length > 0) recordMapStartup('stock_render_start');
-      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders, allBuildings);
+      ctrl.renderMarkers(filtered, renderMode, districtLeedStats, activeCompareGroups.length > 0 ? activeCompareGroups : undefined, showAreaPlaceholders);
       if (filtered.length > 0) recordMapStartup('stock_render_returned');
     }
     setStats(computeStatsFromBuildings(filtered));

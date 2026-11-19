@@ -155,32 +155,38 @@ describe('native map visual hierarchy', () => {
       controller.renderMarkers(data, 'default', undefined, undefined, true);
       await flushFrames();
       const contents = harness.markerInstances.map(marker => marker.options.content as HTMLElement);
-      const populated = contents.find(node => node.title === '玉渊潭');
-      // The supplied rent replaces the weighted average and carries no vacancy.
-      expect(populated?.textContent).toBe('玉渊潭¥150');
-      expect(populated?.querySelector('.map-submarket-bubble__secondary')).toBeNull();
-      expect(contents.find(node => node.title === 'CBD')?.textContent).toContain('¥305');
-      const pending = contents.find(node => node.title === '四季青');
-      expect(pending?.textContent).toBe('四季青¥140');
+      const populated = contents.find(node => node.title.startsWith('玉渊潭'));
+      // Complete office observations retain weighted rent, vacant percentage and office count.
+      expect(populated?.textContent).toContain('¥205.8');
+      expect(populated?.textContent).toContain('31.0%');
+      expect(populated?.textContent).toContain('甲乙级 1 个');
+      expect(populated?.querySelector('.map-submarket-bubble__secondary')).not.toBeNull();
+      expect(contents.find(node => node.title.startsWith('CBD'))?.textContent).toContain('¥305');
+      const pending = contents.find(node => node.title.startsWith('四季青'));
+      expect(pending?.textContent).toBe('四季青¥140*');
       expect(pending?.querySelector('.map-submarket-bubble__metrics')).not.toBeNull();
+      const onAreaOpen = vi.fn();
+      window.addEventListener('map-submarket-open', onAreaOpen);
       pending?.click();
-      expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.274193, 39.942414], false, 320);
+      expect((onAreaOpen.mock.calls[0]?.[0] as CustomEvent)?.detail).toEqual({ name: '四季青' });
+      expect(harness.setZoomAndCenter).not.toHaveBeenCalled();
+      window.removeEventListener('map-submarket-open', onAreaOpen);
       expect(harness.massMarksInstances[0].data).toHaveLength(2);
 
       const previousMarkers = harness.markerInstances.length;
       controller.renderMarkers(data, 'default', undefined, undefined, false);
       await flushFrames();
       const filtered = harness.markerInstances.slice(previousMarkers).map(marker => marker.options.content.title);
-      expect(filtered).toEqual(['玉渊潭', 'CBD']);
+      expect(filtered.map(name => name.split('，')[0])).toEqual(['玉渊潭', 'CBD']);
 
       const beforeEmpty = harness.markerInstances.length;
       controller.renderMarkers([], 'default', undefined, undefined, true);
       await flushFrames();
-      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭¥150', '四季青¥140']);
+      expect(harness.markerInstances.slice(beforeEmpty).map(marker => marker.options.content.textContent)).toEqual(['玉渊潭¥150*', '四季青¥140*']);
     } finally { cleanup(); }
   });
 
-  it('falls back to names only for the two designated areas in vacancy and LEED views', async () => {
+  it('keeps A/B indicators where observed and names-only markers for unobserved areas', async () => {
     const harness = createNativeHarness();
     const controller = {
       AMap: harness.AMap, map: harness.map,
@@ -194,10 +200,10 @@ describe('native map visual hierarchy', () => {
         controller.renderMarkers(data, mode, undefined, undefined, true);
         await flushFrames();
         const contents = harness.markerInstances.slice(previous).map(marker => marker.options.content as HTMLElement);
-        const yuyuantan = contents.find(node => node.title === '玉渊潭');
-        expect(yuyuantan?.textContent).toBe('玉渊潭');
-        expect(yuyuantan?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
-        const sijiqing = contents.find(node => node.title === '四季青');
+        const yuyuantan = contents.find(node => node.title.startsWith('玉渊潭'));
+        expect(yuyuantan?.textContent).toContain('甲乙级 1 个');
+        expect(yuyuantan?.querySelector('.map-submarket-bubble__metrics')).not.toBeNull();
+        const sijiqing = contents.find(node => node.title.startsWith('四季青'));
         expect(sijiqing?.textContent).toBe('四季青');
         expect(sijiqing?.querySelector('.map-submarket-bubble__metrics')).toBeNull();
       }
@@ -508,7 +514,7 @@ describe('native map visual hierarchy', () => {
     cleanup();
   });
 
-  it('keeps click navigation coherent from submarket to dot to detail', async () => {
+  it('opens an area introduction first and leaves dot-to-building navigation working', async () => {
     const harness = createNativeHarness();
     const open = vi.fn();
     const controller: any = {
@@ -521,8 +527,12 @@ describe('native map visual hierarchy', () => {
     controller.renderMarkers([building('a', 'CBD', 116.46, 39.91, 305, 0.08)], 'default');
     await flushFrames();
 
+    const onAreaOpen = vi.fn();
+    window.addEventListener('map-submarket-open', onAreaOpen);
     harness.markerInstances[0].handlers.emit('click');
-    expect(harness.setZoomAndCenter).toHaveBeenCalledWith(12.15, [116.46, 39.91], false, 320);
+    expect((onAreaOpen.mock.calls[0]?.[0] as CustomEvent)?.detail).toEqual({ name: 'CBD' });
+    expect(harness.setZoomAndCenter).not.toHaveBeenCalled();
+    window.removeEventListener('map-submarket-open', onAreaOpen);
 
     harness.setZoom(11.8);
     harness.emitMap('zoomend');
