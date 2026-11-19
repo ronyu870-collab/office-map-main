@@ -341,6 +341,11 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
 
   async function uploadOriginal(file: File) {
     if (!source || busy) return;
+    if (file.size > 4 * 1024 * 1024) {
+      setError('原始文件超过 4 MB，当前安全上传通道无法接收。请先压缩文件。');
+      if (fileInput.current) fileInput.current.value = '';
+      return;
+    }
     if (source.evidence_storage_path &&
         !window.confirm('将保留旧版本审计记录，并把新的文件作为当前原始凭据。确认继续吗？')) return;
     setBusy('upload'); setError(null); setFeedback(null);
