@@ -110,6 +110,19 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     expect(screen.getByText(/来源快照 · 截至 2026-11-18/)).toBeInTheDocument();
   });
 
+  it('opens a dimmed unit without hiding its floor behind the old search', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    const search = await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' }) as HTMLInputElement;
+    fireEvent.change(search, { target: { value: '奥迪' } });
+    const dimmed = screen.getByRole('button', { name: 'A 座 4层 空置' });
+    expect(dimmed.className).toContain('miniMuted');
+    fireEvent.click(dimmed);
+    expect(search.value).toBe('');
+    expect(screen.getByRole('button', { name: '分层详情' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('complementary', { name: '租赁单元详情' })).toHaveTextContent('4F');
+    expect(screen.getByRole('button', { name: 'A 座' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('preserves unsaved edit fields when refresh is rejected', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     try {
