@@ -1,0 +1,36 @@
+import { emptySubmarketProfile, type SubmarketProfile, type SubmarketProfileDraft } from './submarketProfile';
+
+/**
+ * Editorial release gate. Review the underlying evidence before publishing;
+ * removing a draft label is not evidence of factual approval.
+ */
+const internalMarkers = /(?:草稿|草案|待复核|待审核|待维护|研究提示|研究初稿|业务团队复核|仅供内部|内部讨论|不作为高力国际|非高力国际|尚未核实|AI公开资料研究|AI基于公开信息|AI依据公开资料)/i;
+
+export function publicBriefReviewErrors(draft: SubmarketProfileDraft): string[] {
+  const errors: string[] = [];
+  for (const [field, label] of [
+    ['headline', '市场定位'], ['overview', '区域概况'],
+    ['industries', '产业特点'], ['transport', '交通条件'],
+  ] as const) {
+    if (!draft[field].trim()) errors.push(label + '尚未填写');
+  }
+  const sections: Array<[string, string]> = [
+    ['市场定位', draft.headline],
+    ['区域概况', draft.overview],
+    ['产业特点', draft.industries],
+    ['交通条件', draft.transport],
+    ...draft.demographics.map(row => ['人口与就业', Object.values(row).join(' ')] as [string, string]),
+    ...draft.policies.map(row => ['政策资料', Object.values(row).join(' ')] as [string, string]),
+    ...draft.insights.map(row => ['研究观点', Object.values(row).join(' ')] as [string, string]),
+  ];
+  for (const [label, text] of sections) {
+    if (internalMarkers.test(text)) errors.push(label + '仍包含草案或内部标记');
+  }
+  return [...new Set(errors)];
+}
+
+export function visibleSubmarketProfile(profile: SubmarketProfile, published: boolean): SubmarketProfile {
+  // Both failure to publish and legacy draft rows must fail closed.
+  if (published && publicBriefReviewErrors(profile).length === 0) return profile;
+  return { ...emptySubmarketProfile(), submarket: profile.submarket, updatedAt: null, updatedBy: null };
+}
