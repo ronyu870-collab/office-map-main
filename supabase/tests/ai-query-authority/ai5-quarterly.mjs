@@ -40,7 +40,7 @@ async function snapshot(quarter) {
   const a = await authority();
   return service('select public.ai_query_snapshot_read($1,$1,$2,$3,$4,$5,$6,$7,$8) value',
     [OWNER, SESSION, a.permission_revision, ['netEffectiveRent', 'totalArea'],
-      [{ year: 2026, quarter }], 'tracked', ['CBD'], null]);
+      JSON.stringify([{ year: 2026, quarter }]), 'tracked', ['CBD'], null]);
 }
 function check(name, body) {
   return Promise.resolve().then(body).then(() => { console.log('PASS AI5 ' + name); });
@@ -118,6 +118,16 @@ try {
     assert.equal(c.overlap.conflicting_values, 1);
     assert.equal((await snapshot(3)).rows.filter(row => row.metrics.length === 1).length, 1);
     assert.deepEqual(names(await periods()), ['2026Q2', '2026Q3']);
+  });
+  await check('ungranted metric fields do not leak through quality or conflict counts', async () => {
+    const onlyArea = await coverage({ fields: ['totalArea'] });
+    assert.equal(onlyArea.submitted.missing_rent_latest, null);
+    assert.equal(onlyArea.overlap.conflicting_values, 0);
+    assert.equal(onlyArea.submitted.zero_area_latest, 1);
+    const onlyRent = await coverage({ fields: ['netEffectiveRent'] });
+    assert.equal(onlyRent.submitted.zero_area_latest, null);
+    assert.equal(onlyRent.submitted.missing_rent_latest, 1);
+    assert.equal(onlyRent.overlap.conflicting_values, 1);
   });
   await check('zero area, missing rent, invalid quarter and changing catalog scopes are not silently fixed', async () => {
     await db.setup.query("update public.buildings set submarket='金融街' where id=$1", [BUILDINGS[2]]);

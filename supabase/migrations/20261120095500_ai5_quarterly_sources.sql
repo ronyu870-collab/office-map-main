@@ -203,8 +203,10 @@ begin
     select count(*) as submission_rows,count(distinct building_id) as submission_buildings,
       count(*) filter(where rn=1) as latest_rows,
       count(*) filter(where rn>1) as superseded_rows,
-      count(*) filter(where rn=1 and total_area=0) as zero_area_latest,
-      count(*) filter(where rn=1 and net_effective_rent is null) as missing_rent_latest,
+      case when 'totalArea'=any(p_fields) or 'vacantArea'=any(p_fields)
+        then count(*) filter(where rn=1 and total_area=0) else null end as zero_area_latest,
+      case when 'netEffectiveRent'=any(p_fields)
+        then count(*) filter(where rn=1 and net_effective_rent is null) else null end as missing_rent_latest,
       count(*) filter(where rn=1
         and (not ('totalArea'=any(p_fields)) or total_area>0)
         and (not ('netEffectiveRent'=any(p_fields)) or net_effective_rent>0)
@@ -217,9 +219,11 @@ begin
   ), overlapping as (
     select count(distinct s.building_id) as overlapping_buildings,
       count(distinct s.building_id) filter(where
-        (s.total_area is not null and m.total_area is not null and s.total_area is distinct from m.total_area)
-        or (s.vacant_area is not null and m.vacant_area is not null and s.vacant_area is distinct from m.vacant_area)
-        or (s.net_effective_rent is not null and m.net_effective_rent is not null
+        (('totalArea'=any(p_fields) or 'vacantArea'=any(p_fields)) and s.total_area is not null
+          and m.total_area is not null and s.total_area is distinct from m.total_area)
+        or ('vacantArea'=any(p_fields) and s.vacant_area is not null
+          and m.vacant_area is not null and s.vacant_area is distinct from m.vacant_area)
+        or ('netEffectiveRent'=any(p_fields) and s.net_effective_rent is not null and m.net_effective_rent is not null
           and s.net_effective_rent is distinct from m.net_effective_rent)) as conflicting_values
     from submissions s join metrics m on m.building_id=s.building_id and m.formal
     where s.rn=1

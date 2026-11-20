@@ -22,7 +22,7 @@ const coverageSchema = z.strictObject({
   submitted: z.strictObject({
     source: z.literal('quarterly_submissions'), rows: count, buildings: count,
     latest_rows: count, superseded_rows: count, latest_field_complete: count,
-    zero_area_latest: count, missing_rent_latest: count, submitted_outside_calendar_quarter: count,
+    zero_area_latest: count.nullable(), missing_rent_latest: count.nullable(), submitted_outside_calendar_quarter: count,
   }),
   overlap: z.strictObject({ buildings: count, conflicting_values: count }),
 });
