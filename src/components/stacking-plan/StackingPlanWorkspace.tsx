@@ -62,10 +62,6 @@ const esc = (value: string) => value.replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
 }[c] ?? c));
 const brief = (value: string, max = 20) => value.length > max ? value.slice(0, max) + '…' : value;
-const excelText = (value: string | null | undefined) => {
-  const safe = value ?? '';
-  return /^[\s]*[=+\-@]/.test(safe) ? "'" + safe : safe;
-};
 const asUnitName = (unit: Space) => unit.tenant_name
   || (unit.occupancy_status === 'vacant' ? '空置' : unit.occupancy_status === 'unknown' ? unit.unit_code + ' · 待确认' : unit.unit_code);
 const isFiltered = (filter: SpaceFilter, search: string) => filter !== 'all' || search.trim().length > 0;
