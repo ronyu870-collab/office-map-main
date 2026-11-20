@@ -4,6 +4,9 @@ import { z } from 'zod';
  * goes through the existing QueryReply and signed receipt validators. */
 export const agentStreamEventSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('run_started'), requestId: z.uuid() }),
+  z.strictObject({ type: z.literal('phase_changed'),
+    phase: z.enum(['understanding', 'tool_selection', 'executing', 'verification', 'synthesis', 'completed']),
+    tools: z.array(z.string().min(1).max(100)).max(8).optional() }),
   z.strictObject({ type: z.literal('tool_started'), name: z.string().min(1).max(100) }),
   z.strictObject({ type: z.literal('tool_completed'), name: z.string().min(1).max(100),
     status: z.enum(['ready', 'limited']) }),

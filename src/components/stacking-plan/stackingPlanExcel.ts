@@ -1,5 +1,5 @@
 import {
-  areaCheck, areaNumber, selectFloorRows,
+  areaCheck, areaNumber, selectFloorRows, unitLayout,
   type PlanFloor, type PlanSpace, type SpaceFilter,
 } from './stackingPlanModel';
 
@@ -114,6 +114,197 @@ export function createStackingExcelRecords<S extends ExportableSpace>(input: Exp
 }
 
 
+
+/**
+ * A native editable double-tower diagram, rather than a flattened record table
+ * or an embedded screenshot. Each occupied segment is an Excel merged cell.
+ * Unknown / uncovered floor area is kept neutral and is NEVER called vacant.
+ */
+export const STACKING_DIAGRAM_COLUMNS = 24;
+export type StackingDiagramLayout = {
+  rows: (string | number | null)[][];
+  merges: { s: { r: number; c: number }; e: { r: number; c: number } }[];
+  styles: Record<string, number>;
+  heights: number[];
+  widths: number[];
+};
+
+const diagramColumn = (index: number) => {
+  let n = index + 1;
+  let result = '';
+  while (n > 0) {
+    n -= 1;
+    result = String.fromCharCode(65 + n % 26) + result;
+    n = Math.floor(n / 26);
+  }
+  return result;
+};
+
+const diagramRef = (row: number, column: number) =>
+  diagramColumn(column) + String(row + 1);
+
+const diagramName = (space: PlanSpace) => space.tenant_name?.trim()
+  || (space.occupancy_status === 'vacant' ? '空置'
+    : space.occupancy_status === 'other' ? '其他用途'
+      : space.occupancy_status === 'unknown' ? '待确认' : space.unit_code);
+
+const diagramArea = (value: number | string | null | undefined) => {
+  const area = num(value);
+  return area === null ? '—' : area.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + '㎡';
+};
+
+/** Allocate at least one visible cell per recorded unit; remaining cells are proportional. */
+function diagramWidths(weights: number[], capacity: number): number[] {
+  if (!weights.length) return [];
+  if (weights.length >= capacity) return weights.map((_, i) => i < capacity ? 1 : 0);
+  const valid = weights.map(w => Math.max(w, 0.001));
+  const sum = valid.reduce((a, b) => a + b, 0);
+  const remaining = capacity - valid.length;
+  const shares = valid.map(w => remaining * w / sum);
+  const widths = shares.map(v => 1 + Math.floor(v));
+  let extra = capacity - widths.reduce((a, b) => a + b, 0);
+  shares.map((v, i) => ({ i, fraction: v - Math.floor(v) }))
+    .sort((a, b) => b.fraction - a.fraction || a.i - b.i)
+    .forEach(item => { if (extra > 0) { widths[item.i] += 1; extra -= 1; } });
+  return widths;
+}
+
+export function createStackingDiagramLayout<S extends ExportableSpace>(
+  input: ExportInput<S>,
+): StackingDiagramLayout {
+  const left = { floor: 1, area: 2, first: 3 };
+  const right = { floor: 28, area: 29, first: 30 };
+  const columns = 54;
+  const towerRows = input.towers.slice(0, 2).map(tower => {
+    const local = input.floors.filter(f => f.tower_id === tower.id);
+    const floorIds = new Set(local.map(f => f.id));
+    const localUnits = input.spaces.filter(s => floorIds.has(s.floor_id));
+    const matched = selectFloorRows(local, localUnits,
+      input.scope === 'all' ? 'all' : input.filter,
+      input.scope === 'all' ? '' : input.search);
+    const ids = new Set(matched.flatMap(item => item.spaces.map(space => space.id)));
+    return { tower, floors: [...local].sort((a, b) => b.level_order - a.level_order),
+      units: localUnits, visible: ids };
+  });
+  const height = Math.max(1, ...towerRows.map(t => t.floors.length));
+  const rows: (string | number | null)[][] = Array.from({ length: height + 9 },
+    () => Array.from({ length: columns }, () => null));
+  const heights = rows.map(() => 27);
+  const widths = Array.from({ length: columns }, () => 4.25);
+  const merges: StackingDiagramLayout['merges'] = [];
+  const styles: Record<string, number> = {};
+  heights[0] = 32;
+  heights[1] = 14;
+  heights[2] = 21;
+  heights[3] = 29;
+  heights[4] = 28;
+  widths[0] = 3;
+  widths[27] = 4;
+  for (const pos of [left, right]) {
+    widths[pos.floor] = 8;
+    widths[pos.area] = 14;
+  }
+  const place = (row: number, start: number, end: number, value: string | number | null, style: number) => {
+    rows[row][start] = value;
+    for (let c = start; c <= end; c++) styles[diagramRef(row, c)] = style;
+    if (end > start) merges.push({ s: { r: row, c: start }, e: { r: row, c: end } });
+  };
+  place(0, 1, columns - 1, protect(input.projectName) + '  ·  Stacking Plan', 1);
+  place(2, 1, columns - 1, input.towers.map(t => protect(t.display_name)).join('  /  ') + '  ·  租赁堆叠图', 2);
+  towerRows.forEach((group, index) => {
+    const pos = index === 0 ? left : right;
+    const end = pos.first + STACKING_DIAGRAM_COLUMNS - 1;
+    place(3, pos.floor, end, protect(group.tower.display_name), 2);
+    place(4, pos.floor, pos.floor, '楼层', 3);
+    place(4, pos.area, pos.area, '建筑面积（㎡）', 3);
+    place(4, pos.first, end, '租户 / 单元面积', 3);
+    for (const [floorIndex, floor] of group.floors.entries()) {
+      const row = 5 + floorIndex;
+      heights[row] = Math.max(heights[row], 32);
+      place(row, pos.floor, pos.floor,
+        protect(floor.floor_code.startsWith('B') ? floor.floor_code : floor.floor_code + 'F'), 4);
+      place(row, pos.area, pos.area, num(floor.floor_area_sqm), 10);
+      const fullUnits = group.units.filter(s => s.floor_id === floor.id);
+      const shown = fullUnits.filter(s => group.visible.has(s.id));
+      if (!shown.length) {
+        place(row, pos.first, end, '', 9);
+        continue;
+      }
+      const layout = unitLayout(floor, shown, input.scope === 'visible');
+      const parts = shown.map(s => ({ space: s, weight: layout.items.find(item => item.id === s.id)?.weight ?? 1 }));
+      const remaining = layout.residual > 0.1 ? [{ space: null, weight: layout.residual }] : [];
+      const allParts: { space: S | null; weight: number }[] = [...parts, ...remaining];
+      const allocations = diagramWidths(allParts.map(p => p.weight), STACKING_DIAGRAM_COLUMNS);
+      let col = pos.first;
+      for (let k = 0; k < allParts.length && col <= end; k++) {
+        const part = allParts[k];
+        const width = allocations[k];
+        if (!width) continue;
+        if (!part.space) {
+          place(row, col, Math.min(end, col + width - 1), '', 9);
+        } else {
+          const statusStyle = {
+            occupied: 5, vacant: 6, other: 7, unknown: 8,
+          }[part.space.occupancy_status];
+          place(row, col, Math.min(end, col + width - 1),
+            protect(diagramName(part.space) + ' · ' + diagramArea(part.space.area_sqm)), statusStyle);
+        }
+        col += width;
+      }
+      if (col <= end) place(row, col, end, '', 9);
+    }
+    // Merge only consecutive, confidently full-floor same-name labels.
+    // This groups the picture, not the legal lease identity or underlying rows.
+    const fullFloorTenant = (floor: PlanFloor) => {
+      const units = group.units.filter(unit => unit.floor_id === floor.id
+        && group.visible.has(unit.id));
+      if (units.length !== 1) return null;
+      const tenant = units[0];
+      const area = num(tenant.area_sqm);
+      const reference = num(floor.floor_area_sqm);
+      if (tenant.occupancy_status !== 'occupied' || !tenant.tenant_name?.trim()
+        || area === null || reference === null || Math.abs(area - reference) > 0.5) return null;
+      return { name: tenant.tenant_name.trim(), area, level: floor.level_order };
+    };
+    for (let i = 0; i < group.floors.length;) {
+      const first = fullFloorTenant(group.floors[i]);
+      if (!first) { i += 1; continue; }
+      let endIndex = i + 1;
+      let totalArea = first.area;
+      let previousLevel = first.level;
+      while (endIndex < group.floors.length) {
+        const next = fullFloorTenant(group.floors[endIndex]);
+        if (!next || next.name.toLocaleLowerCase() !== first.name.toLocaleLowerCase()
+          || next.level !== previousLevel - 1) break;
+        totalArea += next.area;
+        previousLevel = next.level;
+        endIndex += 1;
+      }
+      if (endIndex - i > 1) {
+        const firstRow = 5 + i;
+        const lastRow = 5 + endIndex - 1;
+        for (let k = merges.length - 1; k >= 0; k--) {
+          const m = merges[k];
+          if (m.s.r >= firstRow && m.e.r <= lastRow
+            && m.s.c >= pos.first && m.e.c <= end) merges.splice(k, 1);
+        }
+        rows[firstRow][pos.first] = protect(first.name + ' · ' +
+          totalArea.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + '㎡');
+        for (let k = firstRow + 1; k <= lastRow; k++) rows[k][pos.first] = null;
+        merges.push({ s: { r: firstRow, c: pos.first }, e: { r: lastRow, c: end } });
+      }
+      i = endIndex;
+    }
+  });
+  const legendRow = height + 6;
+  heights[legendRow] = 26;
+  place(legendRow, 1, 4, '已租', 5);
+  place(legendRow, 5, 8, '空置', 6);
+  place(legendRow, 9, 13, '其他用途', 7);
+  place(legendRow, 14, 18, '待确认', 8);
+  return { rows, merges, styles, heights, widths };
+}
+
 /**
  * Single workbook constructor used by the actual download path and binary tests.
  * This keeps filters, source disclosure and spreadsheet structure in one place.
@@ -124,6 +315,13 @@ export function buildStackingWorkbook<S extends ExportableSpace>(
 ) {
   const records = createStackingExcelRecords(input);
   const workbook = XLSX.utils.book_new();
+  const diagram = createStackingDiagramLayout(input);
+  const diagramSheet = XLSX.utils.aoa_to_sheet(diagram.rows);
+  diagramSheet['!merges'] = diagram.merges;
+  diagramSheet['!cols'] = diagram.widths.map(wch => ({ wch }));
+  diagramSheet['!rows'] = diagram.heights.map(hpt => ({ hpt }));
+  XLSX.utils.book_append_sheet(workbook, diagramSheet, '楼宇租赁堆叠图');
+
   const addSheet = (
     rows: Record<string, string | number | null>[],
     name: string,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SPECIALIST_DATA_TOOLS, PRESENTATION_TOOLS } from './toolRegistry';
+import { SPECIALIST_DATA_TOOLS, WORKSET_TOOLS, PRESENTATION_TOOLS } from './toolRegistry';
 
 export type ModelToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } };
 export type ModelMessage = {
@@ -20,7 +20,7 @@ export const DATA_TOOL = {
   type: 'function',
   function: {
     name: 'query_verified_real_estate',
-    description: '查询高力国际北京区现有授权楼宇、季度租金、空置率、面积、跨季度比较、市场趋势与统计结果。可以连续调用获取不同市场和期间；不查询成交客户、私人合同或外部网页。先明确统计口径，缺少必要条件时让助手向用户澄清。',
+    description: '旧版兼容只读自然语言查询。仅用于用户使用最新有效季度、楼宇名字消歧或多轮模糊条件等尚无法转换成结构化参数的场景；明确范围与季度优先使用专业结构化工具。已弃用，不再新增调用场景。',
     parameters: {
       type: 'object',
       properties: { question: { type: 'string', description: '要交给获权房地产可信查询引擎的完整中文问题；明确地区、指标、期间与必要筛选条件。' } },
@@ -30,7 +30,7 @@ export const DATA_TOOL = {
   },
 } as const;
 
-export const AGENT_TOOLS = [DATA_TOOL, ...SPECIALIST_DATA_TOOLS, ...PRESENTATION_TOOLS] as const;
+export const AGENT_TOOLS = [DATA_TOOL, ...SPECIALIST_DATA_TOOLS, ...WORKSET_TOOLS, ...PRESENTATION_TOOLS] as const;
 export const DEFAULT_AGENT_MODEL = 'deepseek-flash';
 const SUPPORTED_AGENT_MODELS = new Set(['deepseek-flash', 'deepseek-v4-pro', 'deepseek-v4-flash']);
 function configuredModel(): string {

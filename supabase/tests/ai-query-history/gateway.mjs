@@ -24,7 +24,7 @@ const check = async (scenario, fn) => { await fn(); results.push({ scenario, sta
 const migration = file => readFile(new URL('../../migrations/' + file, import.meta.url), 'utf8');
 try {
   await loadAuditPrerequisites(db); await applyAdminOnly(db); await addSnapshotFixture(db);
-  for (const file of ['20261113042352_ai_query_result_recovery.sql','20261115103701_ai_query_available_periods.sql', '20261115173338_ai_query_own_history.sql']) await db.setup.query(await migration(file));
+  for (const file of ['20261113042352_ai_query_result_recovery.sql', '20261113145743_ai_query_group_dimensions.sql', '20261115103701_ai_query_available_periods.sql', '20261115173338_ai_query_own_history.sql']) await db.setup.query(await migration(file));
   await db.setup.query("update public.user_roles set role='admin' where user_id=$1", [OWNER]);
   await db.setup.query('update private.ai_query_control set enabled=true'); await grantQuery(db, OWNER);
   const exports = { auditStore: ['createRpcAuditPort'], serverAuthority: ['loadDataAuthority'], admission: ['runAuditedSubmission'],

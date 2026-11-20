@@ -36,6 +36,24 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 233,
+        branch: 'codex/ai5-p0-agent-orchestration',
+        scope: 'Colliers AI 5.0 stage 03 read-only structured Agent orchestration, result worksets, SSE and authenticated HTTP, PR #233',
+        reason: 'User explicitly waived manual browser, screenshot and independent visual review for Colliers AI 5.0 stage 03 on 2026-11-20; not performed, and typecheck, CI, authorization, audit and real HTTP remain mandatory',
+      },
+      {
+        number: 232,
+        branch: 'codex/ai5-p0-query-correctness',
+        scope: 'Colliers AI 5.0 stage 02 permission identification, catalog listing and per-building height/net effective rent ranking, PR #232',
+        reason: 'User explicitly waived manual browser, independent visual and physical-device acceptance for Colliers AI 5.0 stage 02 on 2026-11-20; these reviews were not performed and typecheck, CI, authorization, HTTP and database checks remain mandatory',
+      },
+      {
+        number: 234,
+        branch: 'codex/stacking-plan-xiaoyun33-polish-20261120',
+        scope: 'Xiaoyun Road 33 A/B Stacking Plan visual polish, editable stacked Excel and high-resolution PNG/SVG exports, PR #234',
+        reason: 'User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #234 on 2026-11-20 while requesting PRs #232, #233 and #234 merge to main; these reviews were not performed and engineering CI, permission, audit and export checks remain mandatory',
+      },
+      {
         number: 231,
         branch: 'codex/submarket-client-brief-p0-p1-20261120',
         scope: 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231',

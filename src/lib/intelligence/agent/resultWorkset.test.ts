@@ -1,0 +1,99 @@
+import { describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { fixture } from '../query/__tests__/fixtures';
+import { buildListResult } from '../query/result';
+import { AuthorizedResultWorkset, WORKSET_LIMITS, type WorksetOwner } from './resultWorkset';
+
+const owner = (): WorksetOwner => ({ requestId: randomUUID(), actorId: randomUUID(),
+  effectiveUserId: randomUUID(), sessionId: randomUUID(),
+  permissionRevision: 'a'.repeat(64), policyVersion: 'test' });
+
+function manyBuildings(count = 25) {
+  const result = buildListResult(fixture(), ['height']);
+  const rows = Array.from({ length: count }, (_, index) => {
+    const source = result.table.rows[index % result.table.rows.length];
+    return { ...source, entityId: 'building-' + index,
+      cells: { ...source.cells, name: { kind: 'text' as const, value: '测试楼宇 ' + index,
+        sourceIds: source.cells.name.sourceIds } } };
+  });
+  return { ...result, table: { ...result.table, rows } };
+}
+
+describe('AI 5.0 ephemeral authorized result workset', () => {
+  it('preserves entire authorized table behind the model preview, including later pages and counts', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const data = manyBuildings(25);
+    const ref = workset.register(data, identity);
+    expect(ref).toMatchObject({ requestId: identity.requestId, resultId: data.resultId, rowCount: 25 });
+    const summary = workset.summary(data.resultId, identity);
+    expect(summary.rowCount).toBe(25);
+    expect(summary.columns.find(column => column.field === 'name')?.text).toBe(25);
+    const page = workset.page({ resultId: data.resultId, offset: 8, limit: 5 }, identity);
+    expect(page.rowCount).toBe(25);
+    expect(page.totalMatched).toBe(25);
+    expect(page.returnedRows).toBe(5);
+    expect(page.rows[0].values.name.value).toBe('测试楼宇 8');
+    expect(page.hasMore).toBe(true);
+    expect(page.nextOffset).toBe(13);
+    const tail = workset.page({ resultId: data.resultId, offset: 23, limit: 20 }, identity);
+    expect(tail.rows).toHaveLength(2);
+    expect(tail.hasMore).toBe(false);
+  });
+
+  it('filters full results deterministically and rejects unapproved columns rather than guessing', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const ref = workset.register(manyBuildings(), identity);
+    const filtered = workset.page({ resultId: ref.resultId, offset: 0, limit: 100,
+      filter: { field: 'name', operator: 'contains', value: '楼宇 12' } }, identity);
+    expect(filtered.totalMatched).toBe(1);
+    expect(filtered.rows[0].values.name.value).toBe('测试楼宇 12');
+    expect(() => workset.page({ resultId: ref.resultId, offset: 0, limit: 2,
+      sort: { field: 'private_contract', direction: 'desc' } }, identity)).toThrow('AGENT_FIELD_NOT_AVAILABLE');
+    const sorted = workset.page({ resultId: ref.resultId, offset: 0, limit: 4,
+      sort: { field: 'name', direction: 'asc' } }, identity);
+    expect(sorted.rows).toHaveLength(4);
+    expect(sorted.totalMatched).toBe(25);
+  });
+
+  it('retains multiple result IDs, separate sources and full coverage for each', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const a = manyBuildings(25), b = manyBuildings(14);
+    workset.register(a, identity);
+    workset.register(b, identity);
+    expect(workset.manifest(identity).map(row => row.resultId)).toEqual([a.resultId, b.resultId]);
+    const compare = workset.compare([a.resultId, b.resultId], identity);
+    expect(compare.comparedCount).toBe(2);
+    expect(compare.results.map(row => row.totalRows)).toEqual([25, 14]);
+    expect(compare.results.map(row => row.resultId)).toEqual([a.resultId, b.resultId]);
+    const coverage = workset.coverage(b.resultId, identity);
+    expect(coverage.rowCount).toBe(14);
+    expect(coverage.columns.find(column => column.field === 'height')?.valid).toBeGreaterThan(0);
+    expect(() => workset.compare([a.resultId, a.resultId], identity)).toThrow('AGENT_DUPLICATE_RESULT_ID');
+  });
+
+  it('denies revoked and cross-user references, including a valid UUID from another task', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const ref = workset.register(manyBuildings(), identity);
+    for (const changed of [
+      { ...identity, actorId: randomUUID() },
+      { ...identity, effectiveUserId: randomUUID() },
+      { ...identity, requestId: randomUUID() },
+      { ...identity, sessionId: randomUUID() },
+      { ...identity, permissionRevision: 'b'.repeat(64) },
+      { ...identity, policyVersion: 'changed' },
+    ]) {
+      expect(() => workset.read(ref.resultId, changed)).toThrow('QUERY_DENIED');
+      expect(() => workset.page({ resultId: ref.resultId, offset: 0, limit: 1 }, changed)).toThrow('QUERY_DENIED');
+      expect(() => workset.manifest(changed)).toThrow('QUERY_DENIED');
+    }
+    expect(() => workset.read(randomUUID(), identity)).toThrow('AGENT_RESULT_NOT_FOUND');
+  });
+
+  it('bounds total results and never evicts earlier authorized entries silently', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    for (let i = 0; i < WORKSET_LIMITS.results; i++) workset.register(manyBuildings(4), identity);
+    expect(workset.manifest(identity)).toHaveLength(WORKSET_LIMITS.results);
+    expect(() => workset.register(manyBuildings(4), identity)).toThrow('AGENT_WORKSET_LIMIT');
+    expect(workset.manifest(identity)).toHaveLength(WORKSET_LIMITS.results);
+  });
+});

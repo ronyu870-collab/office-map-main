@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildTrendResult } from '../query/result';
+import { buildTrendResult, buildListResult } from '../query/result';
 import { fixture } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
 
 const state = vi.hoisted(() => ({
-  receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(),
+  receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(),
   identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(),
 }));
 
@@ -23,7 +23,7 @@ vi.mock('./modelProvider', async original => ({
   ...(await original<typeof import('./modelProvider')>()),
   completeWithDeepSeek: state.provider,
 }));
-vi.mock('./verifiedDataTool', () => ({ queryVerifiedRealEstate: state.tool }));
+vi.mock('./verifiedDataTool', () => ({ queryVerifiedRealEstate: state.tool, executeStructuredDataTool: state.structured }));
 vi.mock('./agentConversation', async original => ({
   ...(await original<typeof import('./agentConversation')>()),
   readAgentHistory: state.history,
@@ -111,7 +111,9 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(output.agent.modelCalls).toBe(2);
     expect(output.agent.toolCalls).toBe(1);
     expect(state.tool).toHaveBeenCalledOnce();
-    expect(state.append.mock.calls.some(x => x[1] === 'tool_started' && x[2]?.tool === 'query_verified_real_estate')).toBe(true);
+    expect(state.append.mock.calls.some(x => x[1] === 'tool_finished'
+      && x[2]?.protocol === 'agent-answer/1'
+      && x[2]?.toolTrace.some((step: { name: string }) => step.name === 'query_verified_real_estate'))).toBe(true);
     expect(state.provider).toHaveBeenCalledTimes(2);
     expect(state.provider.mock.calls[1][0].some((m: { role: string; tool_call_id?: string }) =>
       m.role === 'tool' && m.tool_call_id === 'tool-1')).toBe(true);
@@ -205,5 +207,104 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.provider).not.toHaveBeenCalled();
     expect(state.append.mock.calls.map(x => x[1])).toContain('failed');
   });
-});
+  it('routes structured tool calls through authorized executor and paginates an earlier result by its genuine ID', async () => {
+    const rawA = buildListResult(fixture(), ['height']);
+    const rawB = buildListResult(fixture(), ['height']);
+    const planA = parseQueryPlan({ operation: 'list', scope: { inventory: 'tracked', submarkets: ['CBD'] },
+      fields: ['height'], period: null });
+    const planB = parseQueryPlan({ operation: 'list', scope: { inventory: 'tracked', submarkets: ['金融街'] },
+      fields: ['height'], period: null });
+    const a = { ...rawA, parameters: { ...rawA.parameters, executedPlan: planA } };
+    const b = { ...rawB, parameters: { ...rawB.parameters, executedPlan: planB } };
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function' as const,
+      function: { name, arguments: JSON.stringify(args) } });
+    state.provider.mockReset()
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 15, outputTokens: 20,
+        message: { role: 'assistant', content: null,
+          tool_calls: [call('a', 'search_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] } })] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 20, outputTokens: 20,
+        message: { role: 'assistant', content: null,
+          tool_calls: [call('b', 'search_buildings', { scope: { inventory: 'tracked', submarkets: ['金融街'] } })] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 25, outputTokens: 20,
+        message: { role: 'assistant', content: null,
+          tool_calls: [call('page', 'read_result_page', { resultId: a.resultId, offset: 1, limit: 2 })] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 20, outputTokens: 25,
+        message: { role: 'assistant', content: '已分别核验CBD及金融街楼宇目录，结果按授权样本列示。' } });
+    state.structured
+      .mockResolvedValueOnce({ content: JSON.stringify({ status: 'ready', rowCount: a.table.rows.length }), result: a })
+      .mockResolvedValueOnce({ content: JSON.stringify({ status: 'ready', rowCount: b.table.rows.length }), result: b });
+    const { request } = fakeRequest('列出两个子市场并读取CBD第二页');
+    const response = await handleAgentSubmission(request, deps());
+    const output = await response.json();
+    expect(response.status).toBe(200);
+    expect(output.result.resultId).toBe(b.resultId);
+    expect(output.agent.toolCalls).toBe(3);
+    expect(output.agent.executionStatus).toBe('completed');
+    expect(output.agent.workset).toHaveLength(2);
+    expect(output.agent.workset.map((item: { resultId: string }) => item.resultId))
+      .toEqual([a.resultId, b.resultId]);
+    expect(state.structured).toHaveBeenCalledTimes(2);
+    expect(state.structured.mock.calls.map((entry: unknown[]) => entry[1])).toEqual(['search_buildings', 'search_buildings']);
+    const page = JSON.parse(state.provider.mock.calls[3][0].at(-1).content);
+    expect(page.status).toBe('ready');
+    expect(page.resultId).toBe(a.resultId);
+    expect(page.totalMatched).toBe(a.table.rows.length);
+    expect(page.rows).toHaveLength(2);
+    expect(output.agent.phases).toContain('verification');
+    const saved = state.append.mock.calls.find(entry => entry[1] === 'tool_finished'
+      && entry[2]?.protocol === 'agent-answer/1')?.[2];
+    expect(saved.workset).toHaveLength(2);
+    expect(saved.toolTrace).toHaveLength(3);
+  });
 
+  it('fails authorization after a first result instead of reading the workset after revocation', async () => {
+    const raw = buildListResult(fixture(), ['height']);
+    const a = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({
+      operation: 'list', fields: ['height'], period: null,
+      scope: { inventory: 'tracked', submarkets: ['CBD'] },
+    }) } };
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function' as const,
+      function: { name, arguments: JSON.stringify(args) } });
+    state.structured.mockResolvedValue({ content: '{"status":"ready"}', result: a });
+    state.provider.mockReset()
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 12,
+        message: { role: 'assistant', content: null,
+          tool_calls: [call('list', 'search_buildings',
+            { scope: { inventory: 'tracked', submarkets: ['CBD'] } })] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 12,
+        message: { role: 'assistant', content: null,
+          tool_calls: [call('page', 'read_result_page', { resultId: a.resultId })] } });
+    let checks = 0;
+    state.authority.mockImplementation(async () => {
+      checks++;
+      return checks < 5 ? authority : { ...authority, permissionRevision: 'c'.repeat(64) };
+    });
+    const { request } = fakeRequest('先查CBD再翻页');
+    const response = await handleAgentSubmission(request, deps());
+    expect(response.status).toBe(403);
+    expect((await response.json()).status).toBe('denied');
+    expect(state.append.mock.calls.some(entry => entry[1] === 'denied')).toBe(true);
+    expect(state.provider).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not claim complete success after authorized source read fails', async () => {
+    state.provider.mockReset()
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 10,
+        message: { role: 'assistant', content: null, tool_calls: [{
+          id: 'read-1', type: 'function', function: { name: 'query_verified_real_estate',
+            arguments: '{"question":"查CBD所有楼宇"}' },
+        }] } })
+      .mockResolvedValueOnce({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 10,
+        message: { role: 'assistant', content: '已获得全部正式数据。' } });
+    state.tool.mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
+    const { request } = fakeRequest('查CBD所有楼宇');
+    const response = await handleAgentSubmission(request, deps());
+    expect(response.status).toBe(200);
+    const output = await response.json();
+    expect(output.status).toBe('assistant');
+    expect(output.agent.executionStatus).toBe('limited');
+    expect(output.message).toContain('未取得可核验的完整结果');
+    expect(output.agent.unresolvedFailures[0]).toMatchObject({ code: 'source_unavailable' });
+  });
+
+});

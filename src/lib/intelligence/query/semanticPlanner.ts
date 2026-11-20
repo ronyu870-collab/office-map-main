@@ -136,6 +136,8 @@ function detectedMarkets(text: string): string[] {
   return unique(matches.sort((a, b) => a.at - b.at).map(item => item.value));
 }
 const allScopePattern = /全部获权楼宇|全部获权范围|全部有权访问的楼宇/;
+const buildingHeightRankPattern = /(?:最高|最矮)(?:的)?(?:\d{1,3}|[二两三四五六七八九十]{1,3})?(?:栋|座|幢)?(?:楼|写字楼|楼宇|大厦)|(?:高度|建筑高度)(?:最高|最低)/;
+const rankingCountPattern = /(?:排名前|前|最高的?|最低的?|最贵的?|最便宜的?)(\d{1,3}|[二两三四五六七八九十]{1,3})(?:栋|座|幢)?/;
 const pairReferencePattern = /两者|两地|这两(?:个)?(?:地区|子市场|区域)?|这两个/;
 const manyReferencePattern = /这些(?:地区|子市场|区域)|上述(?:地区|子市场|区域)|它们/;
 const pairedSamplePattern = /共同(?:有效)?样本|配对样本|同样本/;
@@ -219,9 +221,9 @@ export function inferSemanticPeriodFields(question: string, contextInput?: Seman
   const metric = knownMetric ?? model?.metric;
   const explicitFields = (Object.keys(fieldLabels) as NumericField[]).filter(value => text.includes(fieldLabels[value]));
   let field: NumericField | undefined = explicitFields[0] ?? (knownMetric === 'rent' ? 'netEffectiveRent' : knownMetric === 'totalArea' ? 'totalArea' : prior?.operation === 'rank' ? prior.field : undefined);
-  if (/最高的楼|最高楼/.test(text) && !/租金|最贵|空置率/.test(text)) field = 'height';
+  if (buildingHeightRankPattern.test(text) && !/租金|最贵|最便宜|空置率/.test(text)) field = 'height';
   field ??= model?.field;
-  const rank = /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二三四五六七八九十]栋/.test(text);
+  const rank = /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二两三四五六七八九十]栋/.test(text);
   const list = /有哪些|有多少栋|楼宇列表|楼列表|列表|列出|清单|找出|筛出|筛选/.test(text);
   const distribution = /分布|分位数|直方图|箱线图/.test(text);
   const relationship = /关系|相关性|相关关系/.test(text) && statedMetrics.includes('rent') && statedMetrics.includes('vacancy');
@@ -375,8 +377,8 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   if (!metricMatches.length && metric) inherited.push('指标口径');
   const explicitFields = (Object.keys(fieldLabels) as (keyof typeof fieldLabels)[]).filter(field => text.includes(fieldLabels[field]));
   let field: keyof typeof fieldLabels | undefined = explicitFields[0] ?? (metric === 'rent' ? 'netEffectiveRent' : metric === 'totalArea' ? 'totalArea' : prior?.operation === 'rank' ? prior.field : undefined);
-  if (/最高的楼|最高楼/.test(text) && !/租金|最贵|空置率/.test(text)) field = 'height';
-  const rank = /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二三四五六七八九十]栋/.test(text);
+  if (buildingHeightRankPattern.test(text) && !/租金|最贵|最便宜|空置率/.test(text)) field = 'height';
+  const rank = /最贵|最便宜|最高|最低|排名|排前|前\d+栋|前[二两三四五六七八九十]栋/.test(text);
   const isList = /有哪些|有多少栋|楼宇列表|楼列表|列表|列出|清单|找出|筛出|筛选/.test(text);
   const distribution = /分布|分位数|直方图|箱线图/.test(text);
   if (relation && metricMatches.length !== 2) return clarify('unsupported', '当前关系分析专门比较同季度净有效租金与空置率，不能静默忽略其他指标。可以查询这些指标的分组比较或趋势。');
@@ -505,7 +507,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     if (!cross && (model.operation === 'cross_aggregate' || model.operation === 'cross_trend')) return clarify('invalid_model_intent', '语义服务增加了问题和已确认上下文未要求的交叉维度。');
     if (groupBy && !cross && !rank && !isList && !distribution && !relation && (!['group_aggregate', 'group_trend'].includes(model.operation) || model.groupBy && model.groupBy !== groupBy)) return clarify('invalid_model_intent', '语义服务没有保留已确认的分组维度。');
     if (model.mode && model.mode !== mode) return clarify('invalid_model_intent', '语义服务改变了明确或继承的样本统计口径。');
-    const explicitLimit = /(?:排名前|前)(\d{1,3}|[二三四五六七八九十])/.exec(text);
+    const explicitLimit = rankingCountPattern.exec(text);
     if (explicitLimit && model.limit && model.limit !== countOf(explicitLimit[1])) return clarify('invalid_model_intent', '语义服务改变了明确要求的排名数量。');
     if (model.direction && (/最低|最便宜/.test(text) ? model.direction !== 'asc' : /最高|最贵/.test(text) && model.direction !== 'desc')) return clarify('invalid_model_intent', '语义服务改变了明确要求的排名方向。');
     if (model.operation === 'compare' && requestedPeriods.length < 2 && !/同比|环比/.test(text)) return clarify('invalid_model_intent', '两期比较缺少明确的两个季度。');
@@ -542,6 +544,11 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
     return clarify('period_required', '本次逐楼查询、分布或关系分析需要一个明确季度，不能从上一轮多季度范围中自动挑选首季或末季。请指定本次季度。',
       !absolute.length && !relativeCount ? [{ id: 'context_end_period', label: `查看期末季度（${quarterText(end)}）`, question: `${quarterText(end)}${question}` }] : []);
   }
+  if (!requestedPeriods.length && temporal && rank && field === 'netEffectiveRent' && latest && !context.pending) {
+    requestedPeriods = [latest];
+    periodBasis = '按当前获权范围最新有正式有效样本的季度逐楼排名';
+    notices.push('逐楼净有效租金排名不使用子市场面积加权均值；缺失或冲突的楼宇不冒充有效排名样本。');
+  }
   if (!requestedPeriods.length && temporal) {
     return clarify('period_required', '需要查询哪个季度？可以选择当前获权范围的最新有数据季度。', latest ? [
       { id: 'latest_period', label: `最新季度（${quarterText(latest)}）`, question: `${quarterText(latest)}${question}` },
@@ -559,10 +566,10 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   consume(new RegExp(crossGroupingPattern.source, 'g'));
   consume(/按子市场|按等级|不同等级|各等级|各子市场/g);
   consume(/这两(?:个)?(?:地区|子市场|区域)?|这两个|两者|两地|这些(?:地区|子市场|区域)|上述(?:地区|子市场|区域)|它们/g);
-  consume(/排名前\d{1,3}|前\d{1,3}栋|前[二三四五六七八九十]栋/g);
-  consume(/净有效|最高|最低|最贵|最便宜|建筑|楼宇|写字楼|楼列表|列表|清单|有哪些|有多少栋|是哪栋|是什么|多少|楼|栋|子市场|地区|区域/g);
-  consume(/请你|请|帮我|给我|我想|想看|想知道|可以|能否|分析一下|分析|看一下|查看|看看|再看看|再看|对比一下|比较一下|对比|比较|变化情况|变化|趋势|同比|环比|逐季|分别|按|交叉统计|交叉分析|分组|统计|关系|相关性|相关关系|分布|分位数|直方图|箱线图|列出|找出|筛出|筛选|查询/g);
-  consume(/把|这|那|再|的|是|呢|一下|并且|以及|同时|或者|并|且|或|和|与|及|、|至|到|在|里|内|等|三个|两个|四个|[，,。？?！!；;：:（）()]/g);
+  consume(/排名前\d{1,3}|前\d{1,3}栋|前[二两三四五六七八九十]栋|(?:最高|最低|最贵|最便宜)的?(?:\d{1,3}|[二两三四五六七八九十]{1,3})(?:栋|座|幢)?/g);
+  consume(/所有|全部|净有效|最高|最低|最贵|最便宜|建筑|楼宇|写字楼|楼列表|列表|清单|有哪些|有多少栋|是哪栋|是什么|多少|楼|栋|子市场|地区|区域/g);
+  consume(/请你|请|帮我|给我|我想|想看|想知道|可以|能否|分析一下|分析|看一下|查看|看看|再看看|再看|对比一下|比较一下|对比|比较|变化情况|变化|趋势|同比|环比|逐季|分别|按|交叉统计|交叉分析|分组|统计|关系|相关性|相关关系|分布|分位数|直方图|箱线图|列出来|列出|找出|筛出|筛选|查询/g);
+  consume(/把|这|那|再|的|是|呢|出来|一下|并且|以及|同时|或者|并|且|或|和|与|及|、|至|到|在|里|内|等|三个|两个|四个|[，,。？?！!；;：:（）()]/g);
   // A model's empty unresolvedConditions is not proof that a request has no
   // extra constraints. Only complete, non-constraining inquiry phrases may
   // remain after supported business slots have been consumed. Unknown words
@@ -604,7 +611,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
       case 'relationship': candidate = { ...common, operation: model.operation, period: first }; break;
       case 'distribution': candidate = { ...common, operation: model.operation, measure: metric ?? field, period: temporal ? first : null }; break;
       case 'list': candidate = { ...common, operation: model.operation, fields: model.fields ?? explicitFields, period: temporal ? first : null }; break;
-      case 'rank': { const explicitLimit = /(?:排名前|前)(\d{1,3}|[二三四五六七八九十])/.exec(text); candidate = { ...common, operation: model.operation, field, period: field && ['height', 'floors', 'parking'].includes(field) ? null : first, direction: /最低|最便宜/.test(text) ? 'asc' : model.direction ?? 'desc', limit: explicitLimit ? countOf(explicitLimit[1]) : model.limit ?? 1 }; break; }
+      case 'rank': { const explicitLimit = rankingCountPattern.exec(text); candidate = { ...common, operation: model.operation, field, period: field && ['height', 'floors', 'parking'].includes(field) ? null : first, direction: /最低|最便宜/.test(text) ? 'asc' : model.direction ?? 'desc', limit: explicitLimit ? countOf(explicitLimit[1]) : model.limit ?? 1 }; break; }
     }
     if (scope.submarkets && scope.submarkets.length > 1 && ['aggregate', 'trend'].includes(model.operation) && comparing) return clarify('invalid_model_intent', '多个子市场比较必须保留分组，不能合并成一个总体结果。');
   } else if (metricOnlyFollowup && prior.operation === 'rank') {
@@ -620,7 +627,7 @@ export function resolveSemanticQuestion(input: ResolveSemanticInput): SemanticRe
   } else if (relation) candidate = { ...common, operation: 'relationship', period: first };
   else if (rank) {
     if (!field || field === 'vacantArea' && metric === 'vacancy') return clarify('unsupported', '当前排名需要明确可查询的数值字段；不能用空置面积替代空置率。');
-    const limitMatch = /(?:排名前|前)(\d{1,3}|[二三四五六七八九十])/.exec(text);
+    const limitMatch = rankingCountPattern.exec(text);
     candidate = { ...common, operation: 'rank', field, period: ['height', 'floors', 'parking'].includes(field) ? null : first, direction: /最低|最便宜/.test(text) ? 'asc' : 'desc', limit: limitMatch ? countOf(limitMatch[1]) : 1 };
   } else if (isList) candidate = { ...common, operation: 'list', fields: explicitFields.length ? explicitFields : conditions.fields.length ? conditions.fields : prior?.operation === 'list' ? prior.fields : [], period: temporal ? first : null };
   else if (distribution) {

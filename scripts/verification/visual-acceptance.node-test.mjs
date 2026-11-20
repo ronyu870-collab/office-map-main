@@ -6,6 +6,21 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Colliers AI 5.0 stage 03 PR #233 manual review waiver is one-time and exact', () => {
+  const scope = 'Colliers AI 5.0 stage 03 read-only structured Agent orchestration, result worksets, SSE and authenticated HTTP, PR #233';
+  const reason = 'User explicitly waived manual browser, screenshot and independent visual review for Colliers AI 5.0 stage 03 on 2026-11-20; not performed, and typecheck, CI, authorization, audit and real HTTP remain mandatory';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 233, body, head: { sha: head, ref: 'codex/ai5-p0-agent-orchestration',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 232 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'dev' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'other work') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip all tests') }), /specifically authorized/);
+});
+
 test('Submarket client-ready PR #231 one-time manual review exception is exact and does not waive Verify', () => {
   const scope = 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231';
   const reason = 'User requested immediate main merge of PR #231 on 2026-11-20 after being informed that manual visual acceptance and Vercel preview were unavailable; this one-time release decision does not treat manual review as passed and does not waive code, permission, data or CI checks';
@@ -604,4 +619,20 @@ test('accepts only the explicitly authorized PR #199 homepage AI P0 waiver', () 
   assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...approved, body: body.replace('Homepage Colliers AI P0 conversation and result presentation, PR #199', 'Unrelated scope') }), /specifically authorized/);
+});
+
+
+test('limits PR 234 manual acceptance waiver to its authorized branch and scope', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Xiaoyun Road 33 A/B Stacking Plan visual polish, editable stacked Excel and high-resolution PNG/SVG exports, PR #234',
+    'reason: User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #234 on 2026-11-20 while requesting PRs #232, #233 and #234 merge to main; these reviews were not performed and engineering CI, permission, audit and export checks remain mandatory');
+  const approved = { number: 234, body, head: { sha: head, ref: 'codex/stacking-plan-xiaoyun33-polish-20261120', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 235 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('scope: Xiaoyun Road 33 A/B Stacking Plan visual polish, editable stacked Excel and high-resolution PNG/SVG exports, PR #234', 'scope: Unrelated redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('reason: User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #234 on 2026-11-20 while requesting PRs #232, #233 and #234 merge to main; these reviews were not performed and engineering CI, permission, audit and export checks remain mandatory', 'reason: Skip all CI') }), /specifically authorized/);
 });
