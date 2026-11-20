@@ -418,6 +418,13 @@ export function SubmarketDetailPanel({
                       </div>
                       {loading ? (
                         <div className="flex h-[188px] items-center justify-center text-[12px] text-[#64748b]">正在读取行情…</div>
+                      ) : detail?.trendError || loadError ? (
+                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[12px] text-[#64748b]">
+                          <span>历史行情暂不可用</span>
+                          <button type="button" className={quietButton} onClick={() => setReload(x => x + 1)}>
+                            <RefreshCw size={14} aria-hidden="true" /> 重新加载
+                          </button>
+                        </div>
                       ) : trendReady ? (
                         <TrendChart data={detail?.trends.all ?? []} compact />
                       ) : (
@@ -512,12 +519,12 @@ export function SubmarketDetailPanel({
                       </div>
                     )}
                   </section>
-                  <section aria-label="行情摘要" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+                  {!detail?.trendError && !loadError ? <section aria-label="行情摘要" className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
                     {metric('最新有效季度', latest?.period ?? '—', '', '非连续季度不补齐')}
                     {metric('租金季度变化', rentChange == null ? '—' : (rentChange > 0 ? '+' : '') + number(rentChange), '元/㎡/月', rentChange == null ? '暂无相邻可比季度' : '与相邻季度比较')}
                     {metric('空置率季度变化', vacancyChange == null ? '—' : (vacancyChange > 0 ? '+' : '') + number(vacancyChange), '百分点', vacancyChange == null ? '暂无相邻可比季度' : '与相邻季度比较')}
-                    {metric('最新有效样本', String(latest?.rentSamples ?? 0), '个（租金）', '空置样本 ' + (latest?.vacancySamples ?? 0) + ' 个')}
-                  </section>
+                    {metric('最新有效样本', latest ? String(latest.rentSamples) : '—', '个（租金）', '空置样本 ' + (latest ? latest.vacancySamples : '—') + ' 个')}
+                  </section> : null}
                   <p className="m-0 px-1 text-[11px] leading-5 text-[#64748b]">
                     数据来自正式季度记录，按同季度有效面积加权；缺失不补零。各期样本可能不同，变化不代表同一楼宇的租金变动。
                   </p>
