@@ -179,8 +179,13 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     runTool.mockResolvedValue({ content: JSON.stringify({ status: 'ready', totalMatched: 30 }) });
     const result = await runAgentLoop({ question: '翻页看数据', signal, invoke, runTool });
     expect(runTool).toHaveBeenCalledOnce();
-    expect(JSON.parse(invoke.mock.calls[1][0].at(-1).content)).toMatchObject({
-      status: 'error', code: 'invalid_arguments', remainingRetries: 1 });
+    // invoke receives a mutable messages array: inspect the actual tool entry
+    // rather than assuming the last item still belongs to the earlier round.
+    const messages = invoke.mock.calls[1][0] as Array<{ role: string; content?: string }>;
+    expect(messages.filter(message => message.role === 'tool')
+      .map(message => JSON.parse(String(message.content)))
+      .some(value => value.status === 'error' && value.code === 'invalid_arguments'
+        && value.remainingRetries === 1)).toBe(true);
     expect(result.executionStatus).toBe('completed');
   });
 
