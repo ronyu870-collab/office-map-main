@@ -31,13 +31,19 @@ export function StackingPlanOverview<S extends PlanSpace>({
   towers, floors, spaces, filter, search, onOpen, onOpenTower, onClear,
 }: Props<S>) {
   const filtered = filter !== 'all' || search.trim().length > 0;
+  const matchingCount = filtered
+    ? selectFloorRows(floors, spaces, filter, search).reduce((sum, row) => sum + row.spaces.length, 0)
+    : spaces.length;
   return <section className={styles.overview} aria-label="双楼租赁总览">
     <div className={styles.overviewHeader}>
       <div>
         <h2>楼层租赁总览</h2>
         <p>点击楼层色块查看单元详情；筛选未命中的单元以浅色保留楼宇结构。</p>
       </div>
-      {filtered && <button type="button" className={styles.clearFilter} onClick={onClear}>清除筛选</button>}
+      {filtered && <div className={styles.overviewMatch}>
+        <span role="status">{matchingCount ? `匹配 ${matchingCount} 个单元` : '没有匹配单元'}</span>
+        <button type="button" className={styles.clearFilter} onClick={onClear}>清除筛选</button>
+      </div>}
     </div>
     <div className={styles.overviewGrid}>
       {towers.map(t => {
