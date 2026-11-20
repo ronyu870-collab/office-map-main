@@ -29,9 +29,9 @@ async function periods(options = {}) {
   return (await service('select public.ai_query_available_periods($1,$2,$3,$4,$5,$6,$7,$8) r', values)).rows[0].r;
 }
 async function metric({ building = BUILDINGS[0], year = 2026, quarter = 4, area = 100, rent = 80, vacant = 0, draft = false } = {}) {
-  await db.setup.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft)
-    values($1,$2,$3,$4,$5,$6,$7) on conflict(building_id,record_year,record_quarter)
-    do update set total_area=excluded.total_area,net_effective_rent=excluded.net_effective_rent,vacant_area=excluded.vacant_area,is_draft=excluded.is_draft`,
+  await db.setup.query(`insert into public.building_metrics(building_id,record_year,record_quarter,total_area,net_effective_rent,vacant_area,is_draft,is_locked)
+    values($1,$2,$3,$4,$5,$6,$7,true) on conflict(building_id,record_year,record_quarter)
+    do update set total_area=excluded.total_area,net_effective_rent=excluded.net_effective_rent,vacant_area=excluded.vacant_area,is_draft=excluded.is_draft,is_locked=excluded.is_locked`,
   [building, year, quarter, area, rent, vacant, draft]);
 }
 const keys = result => result.periods.map(period => `${period.year}Q${period.quarter}`);
@@ -56,6 +56,7 @@ try {
   await addSnapshotFixture(db);
   await db.setup.query(await migration('20261113042352_ai_query_result_recovery.sql'));
   await db.setup.query(await migration('20261115103701_ai_query_available_periods.sql'));
+  await db.setup.query(await migration('20261120095500_ai5_quarterly_sources.sql'));
   await db.setup.query("update public.user_roles set role='admin' where user_id=$1", [OWNER]);
   await db.setup.query('update private.ai_query_control set enabled=true');
   await grantQuery(db, OWNER);

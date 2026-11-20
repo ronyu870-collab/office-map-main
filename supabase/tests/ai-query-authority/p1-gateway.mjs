@@ -15,6 +15,7 @@ import { OWNER, ADMIN } from '../lease-change-history/database.mjs';
 import { createAiQueryTestDatabase, grantQuery, SESSION } from './database.mjs';
 import { loadAuditPrerequisites, applyAdminOnly } from '../ai-admin-only/database.mjs';
 import { addSnapshotFixture, BUILDINGS } from './snapshot-fixture.mjs';
+import { installAi5QuarterlyFixture } from './ai5-fixture.mjs';
 
 const db = await createAiQueryTestDatabase(), results = [];
 const root = process.cwd(), temporary = await mkdtemp(path.join(tmpdir(), 'colliers-p1-rpc-'));
@@ -26,6 +27,7 @@ try {
   await loadAuditPrerequisites(db); await applyAdminOnly(db); await addSnapshotFixture(db);
   await db.setup.query(await migration('20261113042352_ai_query_result_recovery.sql'));
   await db.setup.query(await migration('20261115103701_ai_query_available_periods.sql'));
+  await installAi5QuarterlyFixture(db.setup, migration);
   await db.setup.query("update public.user_roles set role='admin' where user_id=$1", [OWNER]);
   await db.setup.query('update private.ai_query_control set enabled=true'); await grantQuery(db, OWNER);
   await db.setup.query("update public.buildings set submarket='金融街' where id=$1", [BUILDINGS[1]]);
@@ -110,7 +112,7 @@ try {
   let first, second, third, fourth;
   await check('T01 实际审计→规划→获权快照，金融街追问继承 CBD 租金及真实最新季度', async () => {
     first = await submit('CBD最新季度的净有效租金是多少');
-    assert.equal(first.outcome.status, 'ready');
+    assert.equal(first.outcome.status, 'ready', JSON.stringify(first.outcome));
     assert.deepEqual(first.outcome.result.parameters.executedPlan.period, { year: 2026, quarter: 3 });
     assert.equal(first.outcome.result.parameters.researchAnalysis.series[0].periods[0].value.numeric, 125);
     second = await submit('金融街呢', first.requestId);

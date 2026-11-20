@@ -42,7 +42,7 @@ export async function verifyRelativeQuarter({db,check,queryAdmin,person,call,rec
       select distinct m.record_year as year,m.record_quarter as quarter
       from public.buildings b join public.building_metrics m on m.building_id=b.id
       where b.submarket='CBD' and b.is_active and b.tracking_scope='tracked' and b.merged_into_id is null
-        and m.is_draft is not true and m.record_year between 1900 and 2200 and m.record_quarter between 1 and 4
+        and m.is_locked is true and m.is_draft is not true and m.record_year between 1900 and 2200 and m.record_quarter between 1 and 4
         and m.total_area>0 and m.total_area<'Infinity'::float8
         and (($1='vacancy' and m.vacant_area>=0 and m.vacant_area<'Infinity'::float8 and m.vacant_area<=m.total_area)
           or ($1='rent' and m.net_effective_rent>0 and m.net_effective_rent<'Infinity'::float8))
