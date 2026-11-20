@@ -44,7 +44,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
     const initial = await screen.findByRole('button', { name: /奥迪/ });
     fireEvent.click(initial);
-    fireEvent.click(screen.getByRole('button', { name: /编辑来源草稿/ }));
+    fireEvent.click(screen.getByRole('button', { name: /编辑信息/ }));
     const tenant = screen.getByLabelText('租户 / 用途') as HTMLInputElement;
     tenant.focus();
     fireEvent.change(tenant, { target: { value: '奥迪中国' } });
@@ -68,7 +68,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
   it('keeps unsaved notes editable during the filter transition and does not rewrite the source snapshot', async () => {
     render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
     fireEvent.click(await screen.findByRole('button', { name: /奥迪/ }));
-    fireEvent.click(screen.getByRole('button', { name: /编辑来源草稿/ }));
+    fireEvent.click(screen.getByRole('button', { name: /编辑信息/ }));
     const notes = screen.getByLabelText('备注 / 待核验事项') as HTMLTextAreaElement;
     notes.focus();
     fireEvent.change(notes, { target: { value: '首次校对' } });
@@ -76,7 +76,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     fireEvent.change(notes, { target: { value: '首次校对—来源日期未确认' } });
     expect(notes.value).toBe('首次校对—来源日期未确认');
     expect(document.activeElement).toBe(notes);
-    expect(screen.getByText(/来源快照 · 截至 2026-11-18/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /霄云路33号/ })).toBeInTheDocument();
     await waitFor(() => expect(mocks.getSessionFast).toHaveBeenCalledTimes(1));
   });
 
@@ -102,12 +102,13 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     expect(search.value).toBe('');
   });
 
-  it('shows the source quality caveat and never infers verified tenant facts from a date-confirmed screenshot', async () => {
+  it('shows a compact floor diagram without redundant source and interaction explanations', async () => {
     render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
-    await screen.findByText(/逐项已核验/);
-    expect(screen.getByText(/来源快照 · 截至 2026-11-18/)).toBeInTheDocument();
-    expect(screen.getByText(/原始文件未归档/)).toBeInTheDocument();
-    expect(screen.getByText(/来源快照 · 截至 2026-11-18/)).toBeInTheDocument();
+    await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' });
+    expect(screen.getByRole('heading', { name: /霄云路33号/ })).toBeInTheDocument();
+    expect(screen.getAllByText('1,716.47㎡').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/BUILDING OVERVIEW|来源快照 · 截至|点击楼层色块|逐项已核验/)).not.toBeInTheDocument();
+    expect(screen.getByText('原始资料')).toBeInTheDocument();
   });
 
   it('opens a dimmed unit without hiding its floor behind the old search', async () => {
@@ -128,7 +129,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     try {
       render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
       fireEvent.click(await screen.findByRole('button', { name: /奥迪/ }));
-      fireEvent.click(screen.getByRole('button', { name: /编辑来源草稿/ }));
+      fireEvent.click(screen.getByRole('button', { name: /编辑信息/ }));
       const notes = screen.getByLabelText('备注 / 待核验事项') as HTMLTextAreaElement;
       fireEvent.change(notes, { target: { value: '请核对原图日期' } });
       fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
@@ -150,7 +151,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     expect(screen.getByLabelText('长图导出楼座')).toHaveValue('A');
     fireEvent.change(screen.getByLabelText('长图导出楼座'), { target: { value: 'B' } });
     expect(screen.getByLabelText('长图导出楼座')).toHaveValue('B');
-    expect(screen.getByText(/PNG · B 座完整长图/)).toBeInTheDocument();
+    expect(screen.getByText(/B 座高清 PNG/)).toBeInTheDocument();
   });
 
   it('closes export menu on Escape or outside pointer and keeps filters visible', async () => {
