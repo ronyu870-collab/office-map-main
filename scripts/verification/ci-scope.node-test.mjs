@@ -64,7 +64,7 @@ test('missing, invalid, unavailable and empty comparison commits fall back to fu
 
 const jobs = ['search-focus', 'engineering', 'ai-query-auth', 'lease-expiry-auth'];
 function results(docsOnly = false) {
-  return { changes: { result: 'success', outputs: { docs_only: String(docsOnly) } },
+  return { quick: { result: 'skipped' }, changes: { result: 'success', outputs: { docs_only: String(docsOnly) } },
     ...Object.fromEntries(jobs.map(job => [job, { result: docsOnly ? 'skipped' : 'success' }])) };
 }
 
@@ -83,4 +83,68 @@ test('required status passes only full success or an explicitly classified docs-
     needs.changes.result = 'failure';
     assert.throws(() => checkResults(needs), /classification/);
   }
+});
+
+const uiPath = 'src/components/home/Title.tsx';
+const client = title => `'use client';\nexport default function Title() { return <h1>${title}</h1>; }\n`;
+function uiFixture(t) {
+  const f = fixture(t);
+  f.write(uiPath, client('Before'));
+  f.base = f.commit();
+  f.write(uiPath, client('After'));
+  return f;
+}
+test('quick mode requires an explicit request and accepts actual client UI with related tests and docs', t => {
+  const f = uiFixture(t);
+  f.write('src/__tests__/title.test.tsx', 'export {};');
+  f.write('README.md', 'UI note');
+  f.commit();
+  assert.equal(getScope(f.base, f).quickOnly, false);
+  assert.equal(getScope(f.base, { ...f, quickRequested: true }).quickOnly, true);
+});
+for (const path of ['src/lib/permissions.ts', 'src/app/api/test/route.ts', 'src/components/ui/Button.tsx', 'src/components/auth/Login.tsx', 'src/app/layout.tsx', 'package.json', '.github/workflows/verify.yml', 'supabase/migrations/example.sql']) {
+  test(`mixed quick request still runs full checks: ${path}`, t => {
+    const f = uiFixture(t);
+    f.write(path, client('Other'));
+    f.commit();
+    assert.equal(getScope(f.base, { ...f, quickRequested: true }).quickOnly, false);
+  });
+}
+for (const content of ['export default function Title() { return <h1>Server</h1>; }', client('{fetch("/api/data")}'), client('{localStorage.getItem("x")}'), client('{permissions.canEdit}'), client('long\n'.repeat(201))]) {
+  test('server, data, permission and oversized edits cannot use quick mode', t => {
+    const f = uiFixture(t);
+    f.write(uiPath, content);
+    f.commit();
+    assert.equal(getScope(f.base, { ...f, quickRequested: true }).quickOnly, false);
+  });
+}
+test('deletion and symlink changes fall back to full even when quick was requested', t => {
+  const f = uiFixture(t);
+  rmSync(join(f.cwd, uiPath));
+  f.commit();
+  assert.equal(getScope(f.base, { ...f, quickRequested: true }).quickOnly, false);
+  symlinkSync('../../runtime.ts', join(f.cwd, uiPath));
+  f.commit();
+  assert.equal(getScope(f.base, { ...f, quickRequested: true }).quickOnly, false);
+});
+test('quick summary requires its checks and rejects any failed, cancelled or missing job', () => {
+  const needs = results(true);
+  needs.changes.outputs = { docs_only: 'false', quick_only: 'true' };
+  needs.quick.result = 'success';
+  needs['search-focus'].result = 'success';
+  assert.match(checkResults(needs), /Quick update/);
+  for (const job of ['quick', ...jobs]) {
+    for (const result of ['failure', 'cancelled', undefined]) {
+      const bad = structuredClone(needs);
+      bad[job].result = result;
+      assert.throws(() => checkResults(bad), new RegExp(job));
+    }
+  }
+  for (const job of ['quick', 'search-focus']) {
+    const bad = structuredClone(needs);
+    bad[job].result = 'skipped';
+    assert.throws(() => checkResults(bad), new RegExp(job));
+  }
+  needs.changes.outputs.docs_only = 'true';
+  assert.throws(() => checkResults(needs), /Conflicting/);
 });
