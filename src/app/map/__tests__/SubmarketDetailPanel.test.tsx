@@ -253,3 +253,23 @@ describe('submarket research workspace', () => {
    fireEvent.compositionEnd(input, { data: '定位' });
    expect(api.save).not.toHaveBeenCalled();
  });
+
+
+it('registers the editorial exit guard for external navigation and retains drafts while suspended', async () => {
+  const register = vi.fn();
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const { rerender, unmount } = render(<SubmarketDetailPanel {...props} onExitGuardChange={register} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: '维护资料' })).toBeInTheDocument());
+  expect(register.mock.lastCall?.[0]()).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
+  fireEvent.change(screen.getByDisplayValue(profile.headline), { target: { value: '尚未保存的区域资料' } });
+  expect(register.mock.lastCall?.[0]()).toBe(false);
+  rerender(<SubmarketDetailPanel {...props} onExitGuardChange={register} suspended />);
+  expect(register.mock.lastCall?.[0]()).toBe(false);
+  rerender(<SubmarketDetailPanel {...props} onExitGuardChange={register} />);
+  expect(screen.getByDisplayValue('尚未保存的区域资料')).toBeInTheDocument();
+  confirm.mockReturnValue(true);
+  expect(register.mock.lastCall?.[0]()).toBe(true);
+  unmount();
+  expect(register.mock.lastCall?.[0]).toBeNull();
+});

@@ -27,6 +27,7 @@ type Props = {
   suspended?: boolean;
   retained?: boolean;
   onRetain?: () => void;
+  onExitGuardChange?: (guard: (() => boolean) | null) => void;
   onClose: () => void;
   onShowAll: () => void;
   onOpenBuilding: (id: string) => void;
@@ -178,7 +179,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 }
 
 export function SubmarketDetailPanel({
-  name, summary, buildings, futureCount, canEdit, suspended = false, retained = false, onRetain, onClose, onShowAll, onOpenBuilding,
+  name, summary, buildings, futureCount, canEdit, suspended = false, retained = false, onRetain, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props) {
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -204,11 +205,15 @@ export function SubmarketDetailPanel({
     return () => { live = false; };
   }, [name, reload]);
 
+  const canExit = React.useCallback(() => !saving && (!editing || window.confirm('当前编辑尚未保存，确定放弃更改并离开子市场介绍吗？')), [editing, saving]);
+  React.useEffect(() => {
+    onExitGuardChange?.(canExit);
+    return () => onExitGuardChange?.(null);
+  }, [canExit, onExitGuardChange]);
   const closePanel = React.useCallback(() => {
-    if (saving) return;
-    if (editing && !window.confirm('当前编辑尚未保存，确定放弃更改并关闭子市场介绍吗？')) return;
-    onClose();
-  }, [editing, saving, onClose]);
+    // The parent uses the same guard for close buttons, toolbar toggles and SDK area changes.
+    if (onExitGuardChange || canExit()) onClose();
+  }, [canExit, onExitGuardChange, onClose]);
 
   React.useEffect(() => {
     if (suspended) return;

@@ -161,16 +161,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const workspaceRef = React.useRef(workspace);
   workspaceRef.current = workspace;
   const isListVisible = workspace.right?.kind === 'list' || workspace.right?.kind === 'compare';
-  const setIsListVisible = React.useCallback((open: boolean) => {
-    if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'list' } }); }
-    else if (workspaceRef.current.right?.kind === 'list' || workspaceRef.current.right?.kind === 'compare') dispatchWorkspace({ type: 'close' });
-  }, []);
   const [, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
   const isSupplyOpen = workspace.right?.kind === 'supply';
-  const setIsSupplyOpen = React.useCallback((open: boolean) => {
-    if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'supply' } }); }
-    else if (workspaceRef.current.right?.kind === 'supply') dispatchWorkspace({ type: 'close' });
-  }, []);
   const isFilterPanelOpen = workspace.leftOpen;
   const setIsFilterPanelOpen = React.useCallback((open: boolean) => dispatchWorkspace({ type: 'left', open }), []);
   const researchView = [workspace.right, ...workspace.history.slice().reverse()].find(view => view?.kind === 'submarket');
@@ -383,7 +375,10 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     return () => window.clearTimeout(timer);
   }, [workspace.right, workspace.focus, allBuildings, controllerRef, mapReady]);
 
+  const researchExitGuard = React.useRef<(() => boolean) | null>(null);
+  const registerResearchExitGuard = React.useCallback((guard: (() => boolean) | null) => { researchExitGuard.current = guard; }, []);
   const closeWorkspace = React.useCallback(() => {
+    if (researchExitGuard.current && !researchExitGuard.current()) return;
     const snapshot = workspaceRef.current.research;
     if (snapshot && !snapshot.retained) {
       restoringResearchRef.current = true;
@@ -399,6 +394,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: null }));
     controllerRef.current?.disposeWorkspaceTrend?.();
   }, [controllerRef, issueFilterCommand]);
+  const setIsListVisible = React.useCallback((open: boolean) => {
+    if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'list' } }); }
+    else if (workspaceRef.current.right?.kind === 'list' || workspaceRef.current.right?.kind === 'compare') closeWorkspace();
+  }, [closeWorkspace]);
+  const setIsSupplyOpen = React.useCallback((open: boolean) => {
+    if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'supply' } }); }
+    else if (workspaceRef.current.right?.kind === 'supply') closeWorkspace();
+  }, [closeWorkspace]);
   React.useEffect(() => {
     if (workspace.right?.kind !== 'building') controllerRef.current?.closeWorkspaceBuilding?.();
   }, [workspace.right?.kind, controllerRef]);
@@ -408,6 +411,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const open = (event: Event) => {
       const name = normalizeMapSubmarket((event as CustomEvent<{ name?: string }>).detail?.name);
       if (!name || name === '其他') return;
+      if (researchExitGuard.current && !researchExitGuard.current()) return;
       cancelPendingBuildingNavigation();
       const map = controllerRef.current?.map;
       const center = map?.getCenter?.();
@@ -806,6 +810,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}
           name={selectedSubmarket} summary={selectedSummary} buildings={allBuildings} futureCount={selectedFutureCount}
           canEdit={userRole === 'admin' && !getImpersonationTargetUserId()} suspended={workspace.right?.kind !== 'submarket' || workspace.focus}
+          onExitGuardChange={registerResearchExitGuard}
           onClose={closeWorkspace} onShowAll={showSubmarketBuildings}
           retained={workspace.research?.retained ?? false} onRetain={() => dispatchWorkspace({ type: 'retain' })}
           onOpenBuilding={id => { const building = allBuildings.find(item => item.id === id); if (building) handleBuildingClick(building); }} /> : null}
@@ -845,7 +850,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         onSupplyOpenChange={setIsSupplyOpen}
         onFilterChange={handleFilterChange}
         onCompareGroupsChange={handleCompareGroupsChange}
-        onKeywordChange={value => { cancelPendingBuildingNavigation(); setSearchInput(value); }}
+        onKeywordChange={value => {
+          cancelPendingBuildingNavigation(); setSearchInput(value);
+          if (!value.trim() && workspaceRef.current.right?.kind === 'search') {
+            if (workspaceRef.current.history.length) dispatchWorkspace({ type: 'back' });
+            else closeWorkspace();
+          }
+        }}
         onSearch={value => { if (workspaceViewRef.current === 'map') handleSearch(value); }}
         onSearchSubmit={value => { if (workspaceViewRef.current === 'map') handleSearchSubmit(value); }}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
@@ -860,6 +871,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         }}
         onExportMapData={handleExportMapData}
         onBuildingClick={handleBuildingClick}
+        onSearchBuildingClick={building => { dispatchWorkspace({ type: 'open', view: { kind: 'search' } }); handleBuildingClick(building); }}
         onBuildingHover={handleBuildingHover}
         searchContextKey={JSON.stringify([workspaceRevision, currentUserId, userRole])}
         isFullListVisible={workspaceView === 'list'}
@@ -869,7 +881,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         fullListBusy={fullListBusy}
         fullListWarning={fullListWarning}
         competitorContext={competitorBuildings !== null}
-        onOpenFullList={() => changeWorkspaceView('list')}
+        onOpenFullList={() => { if (!researchExitGuard.current || researchExitGuard.current()) changeWorkspaceView('list'); }}
         onCloseFullList={() => changeWorkspaceView('map')}
         onFullListBuildingClick={handleFullListBuildingClick}
         onFullListSearch={value => { if (workspaceViewRef.current === 'list') handleSearch(value); }}

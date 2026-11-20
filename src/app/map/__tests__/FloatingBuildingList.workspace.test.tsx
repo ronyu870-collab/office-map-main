@@ -37,3 +37,12 @@ it('keeps list search focus, caret and IME across result updates and restores so
   expect(screen.getByRole('combobox')).toHaveValue('name');
   expect(screen.getByRole('button', { name: /项目甲楼 CBD/ })).toHaveAttribute('aria-current', 'true');
 });
+
+it('claims Escape once so the parent does not repeat an unsaved-edit confirmation', () => {
+  const close = vi.fn();
+  render(<FloatingBuildingList buildings={buildings} onClose={close} />);
+  const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+  window.dispatchEvent(escape);
+  expect(close).toHaveBeenCalledOnce();
+  expect(escape.defaultPrevented).toBe(true);
+});

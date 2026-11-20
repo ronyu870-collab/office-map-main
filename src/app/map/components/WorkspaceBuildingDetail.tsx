@@ -92,7 +92,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
       </div>
       <button type="button" data-map-action="building-ai" hidden>AI 分析</button>
       <div data-map-proposal-slot hidden />
-      {!future ? <div id="info-chart-panel" style={{ display: 'none' }}><h3>近五年趋势追踪</h3><div className="workspace-business-actions"><button type="button" id="chart-btn-rent" data-chart="rent">租金</button><button type="button" id="chart-btn-vac" data-chart="vac">空置率</button></div><div id="info-chart-container" style={{ height: 280 }} /></div> : null}
+      {!future ? <div hidden={tab !== 'market'}><div id="info-chart-panel" style={{ display: 'none' }}><h3>近五年趋势追踪</h3><div className="workspace-business-actions"><button type="button" id="chart-btn-rent" data-chart="rent">租金</button><button type="button" id="chart-btn-vac" data-chart="vac">空置率</button></div><div id="info-chart-container" style={{ height: 280 }} /></div></div> : null}
     </div>
   </section>;
 }

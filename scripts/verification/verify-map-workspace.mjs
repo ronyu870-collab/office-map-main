@@ -65,7 +65,7 @@ try {
         if (url.origin === 'https://example.supabase.co') {
           const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
           if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
-          return route.fulfill({ headers, json: url.pathname === '/rest/v1/user_roles' ? [{ role: 'viewer', session_id: user.id }] : [] });
+          return route.fulfill({ headers, json: url.pathname === '/rest/v1/user_roles' ? [{ role: width === 1024 ? 'admin' : 'viewer', session_id: user.id }] : [] });
         }
         if (url.origin === 'https://webapi.amap.com' && url.pathname === '/maps') return route.fulfill({ contentType: 'application/javascript', body: `(${installSyntheticMap.toString()})();(${instrumentMap.toString()})();` });
         return route.abort();
@@ -124,6 +124,15 @@ try {
       await page.getByRole('tab', { name: '行情', exact: true }).click();
       await page.getByRole('button', { name: '季度趋势', exact: true }).click();
       await page.locator('#info-chart-container canvas').waitFor();
+      if (width === 1536) {
+        await page.getByRole('separator', { name: '调整业务工作区宽度' }).press('End');
+        await page.waitForTimeout(450);
+        const chartSize = await page.locator('#info-chart-container').evaluate(el => ({ host: el.clientWidth, canvas: el.querySelector('canvas').getBoundingClientRect().width }));
+        assert.ok(Math.abs(chartSize.host - chartSize.canvas) <= 2, `chart must resize with workspace: ${JSON.stringify(chartSize)}`);
+      }
+      await page.getByRole('tab', { name: '概览', exact: true }).click();
+      assert.equal(await page.locator('#info-chart-container canvas').isVisible(), false, 'trend belongs only to the market tab');
+      await page.getByRole('tab', { name: '行情', exact: true }).click();
       await page.getByRole('button', { name: '季度趋势', exact: true }).click();
       assert.equal(await page.locator('#info-chart-container canvas').count(), 0);
       await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
@@ -157,6 +166,37 @@ try {
       await page.getByRole('button', { name: '项目列表', exact: true }).click();
       await list.getByRole('button', { name: /^中关村楼/ }).waitFor();
       await page.locator('#map-container [data-building-id="other"]').first().waitFor({ state: 'attached' });
+      await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+      await page.getByRole('region', { name: 'CBD', exact: true }).waitFor();
+      await page.getByRole('button', { name: '未来供应', exact: true }).click();
+      await page.getByRole('button', { name: '未来供应', exact: true }).click();
+      assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
+      await page.getByRole('button', { name: '项目列表', exact: true }).click();
+      await list.getByRole('button', { name: /^中关村楼/ }).waitFor();
+      if (width === 1024) {
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+        await page.getByRole('button', { name: '维护资料', exact: true }).click();
+        await page.getByRole('textbox', { name: '一句话定位', exact: true }).fill('尚未保存的资料');
+        let confirmations = 0;
+        const rejectExit = dialog => { confirmations++; void dialog.dismiss(); };
+        page.on('dialog', rejectExit);
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: '中关村' } })));
+        await page.getByRole('textbox', { name: '一句话定位', exact: true }).waitFor();
+        await page.getByRole('button', { name: '完整列表', exact: true }).click();
+        await page.getByRole('textbox', { name: '一句话定位', exact: true }).waitFor();
+        await page.getByRole('button', { name: '未来供应', exact: true }).click();
+        await page.getByRole('button', { name: '未来供应', exact: true }).click();
+        await page.getByRole('button', { name: '返回子市场研究', exact: true }).click();
+        assert.equal(await page.getByRole('textbox', { name: '一句话定位', exact: true }).inputValue(), '尚未保存的资料');
+        await page.getByRole('button', { name: '项目列表', exact: true }).click();
+        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: '返回子市场研究', exact: true }).click();
+        await page.getByRole('button', { name: '关闭子市场介绍' }).click();
+        assert.equal(confirmations, 5, 'every exit path guards unsaved edits exactly once');
+        page.off('dialog', rejectExit);
+        page.once('dialog', dialog => void dialog.accept());
+        await page.getByRole('button', { name: '关闭子市场介绍' }).click();
+      }
       await page.getByRole('button', { name: '未来供应', exact: true }).click();
       await page.getByRole('button', { name: /CBD未来楼/ }).click();
       await page.getByRole('region', { name: 'CBD未来楼楼宇详情' }).waitFor();
@@ -174,6 +214,16 @@ try {
       await search.press('End');
       assert.equal(await search.evaluate(el => el === document.activeElement), true);
       await page.getByRole('region', { name: '项目搜索候选' }).waitFor();
+      await page.getByRole('region', { name: '项目搜索候选' }).getByRole('button', { name: /^CBD甲楼/ }).click();
+      await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).waitFor();
+      await page.getByRole('button', { name: '返回搜索结果', exact: true }).click();
+      await page.getByRole('region', { name: '项目搜索候选' }).waitFor();
+      assert.equal(await search.inputValue(), 'CBD');
+      await search.fill('');
+      assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true', 'clearing restored search must not leave an empty workspace');
+      await search.fill('CBD');
+      await page.getByRole('button', { name: '收起', exact: true }).click();
+      assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const sdk = await page.evaluate(() => window.__workspaceSDK);
       assert.equal(sdk.created, 1);
       assert.ok(sdk.resized > 0);

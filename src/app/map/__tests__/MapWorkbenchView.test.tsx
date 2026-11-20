@@ -245,3 +245,22 @@ it('shows explicit area navigation instead of stale search results and releases 
   expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();
   expect(screen.getByText('当前区域研究')).toBeVisible();
 });
+
+it('restores reducer-owned search results after returning from building details', () => {
+  const select = vi.fn();
+  const close = vi.fn();
+  const back = vi.fn();
+  const view = renderWorkbench({ keyword: 'CBD', rightKind: 'search', rightView: { kind: 'search' },
+    onSearchBuildingClick: select, onWorkspaceClose: close, onWorkspaceBack: back, backLabel: '项目列表',
+    fullBuildingList: [{ id: 'a', name: 'CBD甲楼' }] });
+  const results = screen.getByRole('region', { name: '项目搜索候选' });
+  fireEvent.click(within(results).getByRole('button', { name: /CBD甲楼/ }));
+  expect(select).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }));
+  expect(screen.getByRole('button', { name: '返回项目列表' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: '返回项目列表' }));
+  expect(back).toHaveBeenCalledOnce();
+  view.update({ keyword: 'CBD', rightKind: 'search', rightView: { kind: 'search' } });
+  expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '收起' }));
+  expect(close).toHaveBeenCalledOnce();
+});

@@ -46,3 +46,18 @@ it('keeps demo identity and ownership masked and removes admin-only access', () 
   fireEvent.click(screen.getByRole('tab', { name: '成交与资料' }));
   expect(screen.queryByRole('link', { name: 'Stacking Plan' })).not.toBeInTheDocument();
 });
+
+it('keeps an opened trend confined to the market tab and restores it on return', () => {
+  render(<WorkspaceBuildingDetail detail={base} {...actions()} />);
+  fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+  fireEvent.click(screen.getByRole('button', { name: '季度趋势' }));
+  const panel = document.getElementById('info-chart-panel')!;
+  // Match the imperative controller opening its stable chart element.
+  panel.style.display = 'block';
+  expect(panel).toBeVisible();
+  fireEvent.click(screen.getByRole('tab', { name: '成交与资料' }));
+  expect(panel).not.toBeVisible();
+  fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+  expect(panel).toBeVisible();
+  expect(screen.getByRole('button', { name: '季度趋势' })).toHaveAttribute('aria-expanded', 'true');
+});

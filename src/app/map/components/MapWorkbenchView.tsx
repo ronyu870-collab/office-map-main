@@ -109,6 +109,7 @@ type MapWorkbenchViewProps = {
   onRetryMap: () => void;
   onExportMapData: () => void | Promise<void>;
   onBuildingClick: (building: any) => void;
+  onSearchBuildingClick?: (building: FullListBuilding) => void;
   onBuildingHover: (buildingId: string | null) => void;
   searchContextKey?: string;
   isFullListVisible?: boolean;
@@ -392,6 +393,7 @@ export function MapWorkbenchView({
   onRetryMap,
   onExportMapData,
   onBuildingClick,
+  onSearchBuildingClick,
   onBuildingHover,
   searchContextKey,
   isFullListVisible = false,
@@ -458,7 +460,7 @@ export function MapWorkbenchView({
     searchTerm,
   ), [fullBuildingList, combinedBuildingList, searchTerm]);
   const hasNarrowedSearch = activeFilterChips.length > 0 || compareGroups.length > 0;
-  const searchChoicesVisible = searchChoicesOpen && Boolean(searchTerm) && !isFullListVisible
+  const searchChoicesVisible = (searchChoicesOpen || rightKind === 'search') && Boolean(searchTerm) && !isFullListVisible
     && !competitorContext && mapReady && !mapError;
   const hasActiveFilters = activeFilterChips.length > 0 || Boolean(searchTerm) || compareGroups.length > 0;
   const showFilterSummary = hasActiveFilters || Boolean(intelligenceContext);
@@ -466,9 +468,11 @@ export function MapWorkbenchView({
   const closeOpenWorkspaces = React.useCallback(() => {
     setSearchChoicesOpen(false);
     if (isFilterPanelOpen) onFilterPanelOpenChange(false);
-    onWorkspaceClose?.();
-    if (isSupplyOpen) onSupplyOpenChange(false);
-    if (isListVisible) onCloseList();
+    if (onWorkspaceClose) onWorkspaceClose();
+    else {
+      if (isSupplyOpen) onSupplyOpenChange(false);
+      if (isListVisible) onCloseList();
+    }
   }, [isFilterPanelOpen, isSupplyOpen, isListVisible, onFilterPanelOpenChange, onSupplyOpenChange, onCloseList, onWorkspaceClose]);
 
   React.useEffect(() => {
@@ -478,6 +482,7 @@ export function MapWorkbenchView({
       if (searchChoicesVisible) {
         event.preventDefault();
         setSearchChoicesOpen(false);
+        if (rightKind === 'search') onWorkspaceClose?.();
         if (event.target instanceof Element && event.target.closest('[aria-label="项目搜索候选"]')) {
           searchInputWrapRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.focus({ preventScroll: true });
         }
@@ -489,7 +494,7 @@ export function MapWorkbenchView({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [closeOpenWorkspaces, closeListMore, listMoreOpen, searchChoicesVisible]);
+  }, [closeOpenWorkspaces, closeListMore, listMoreOpen, searchChoicesVisible, rightKind, onWorkspaceClose]);
 
   const toggleFilterPanel = () => {
     setSearchChoicesOpen(false);
@@ -557,6 +562,7 @@ export function MapWorkbenchView({
   if (effectiveKind === 'list' || effectiveKind === 'compare') listVisited.current = true;
   const closeRight = onWorkspaceClose ?? (() => { onSupplyOpenChange(false); onCloseList(); });
   const rightContent = <>
+    {backLabel && (!searchChoicesVisible || rightKind === 'search') ? <button type="button" className="map-workspace-back" onClick={onWorkspaceBack}>返回{backLabel}</button> : null}
               {searchChoicesVisible ? (
                 <div ref={searchChoicesRef} role="region" aria-label="项目搜索候选"
                   className="map-workspace-search"
@@ -578,7 +584,7 @@ export function MapWorkbenchView({
                     </span>
                     <span className="text-[#64748b]">{hasNarrowedSearch ? '当前筛选范围' : '全部已授权项目'}</span>
                     <button type="button" className="min-h-9 px-2 text-xs text-[#64748b] hover:text-[#003e7e]"
-                      onClick={() => setSearchChoicesOpen(false)}>收起</button>
+                      onClick={() => { setSearchChoicesOpen(false); if (rightKind === 'search') onWorkspaceClose?.(); }}>收起</button>
                   </div>
                   {fullListBusy ? (
                     <div role="status" className="px-3 py-4 text-[13px] text-[#64748b]">正在更新匹配结果…</div>
@@ -588,7 +594,7 @@ export function MapWorkbenchView({
                         <li key={`${building._dataType ?? 'existing'}:${building.id}`}>
                           <button type="button" data-map-search-choice
                             className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[#f3f7fb] focus-visible:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-[#003e7e]"
-                            onClick={() => { setSearchChoicesOpen(false); onBuildingClick(building); }}>
+                            onClick={() => { setSearchChoicesOpen(false); (onSearchBuildingClick ?? onBuildingClick)(building); }}>
                             <span className="min-w-0 truncate text-[13px] font-medium text-[#172033]">{building.name || '未命名项目'}</span>
                             <span className="shrink-0 text-right text-xs text-[#64748b]">
                               <span className="block">{building._dataType === 'future' ? '未来供应 · ' : ''}{building.submarket || building.district || '其他'}</span>
@@ -620,7 +626,6 @@ export function MapWorkbenchView({
                 </div>
               ) : null}
 <div className={searchChoicesVisible ? 'hidden' : 'map-workspace-view'}>
-    {backLabel ? <button type="button" className="map-workspace-back" onClick={onWorkspaceBack}>返回{backLabel}</button> : null}
     <div className={effectiveKind === 'submarket' ? 'map-workspace-view' : 'hidden'}>{submarketDetailPanel}</div>
     <div className={effectiveKind === 'building' ? 'map-workspace-view' : 'hidden'}>{buildingDetailPanel}</div>
     <div className={effectiveKind === 'supply' ? 'map-workspace-view' : 'hidden'}>

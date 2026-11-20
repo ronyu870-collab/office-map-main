@@ -643,6 +643,12 @@ describe('map search P1 candidates and explicit viewport navigation', () => {
     const candidates = screen.getByRole('region', { name: '项目搜索候选' });
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     expect(within(candidates).getAllByRole('button').find(button => button.hasAttribute('data-map-search-choice'))).toHaveFocus();
+    controller.openBuildingInfoWindow.mockImplementationOnce(() => {
+      controller.setWorkspaceDetailHandler.mock.lastCall?.[0]({
+        building: { ...BUILDINGS[1], _dataType: 'existing' }, metric: BUILDINGS[1].metrics[0],
+        photos: [], canEdit: false, isDemo: false, overrides: {},
+      });
+    });
     fireEvent.click(within(candidates).getByRole('button', { name: /项目02/ }));
     expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
     await waitFor(() => expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-2'), { timeout: 1600 });
@@ -726,4 +732,16 @@ describe('map search P2 result scope and competitor continuity', () => {
     expect(controller.clearCompetitorElements.mock.calls.length).toBe(before);
     expect(controller.fitToBuildings).not.toHaveBeenCalled();
   });
+});
+
+
+it('restores temporary research filters when the future supply toolbar closes its workspace', async () => {
+  render(<MapClient initialIntelligenceHandoff={null} />);
+  await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+  fireEvent(window, new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } }));
+  await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(30));
+  fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
+  fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
+  await waitFor(() => expect(controller.renderMarkers.mock.lastCall?.[0]).toHaveLength(44));
+  expect(screen.getByLabelText('地图业务工作区')).toHaveAttribute('aria-hidden', 'true');
 });

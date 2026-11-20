@@ -35,17 +35,20 @@ export function initTrendChart(
   const xAxisData = histData.map((row) =>
     row.label || (row.quarter ? `${row.year}${row.quarter}` : `${row.year}`),
   );
-  const rentData = histData.map((row) =>
-    Number(Number(row.net_effective_rent).toFixed(1)),
-  );
-  const vacancyData = histData.map((row) =>
-    Number((Number(row.vacancy_rate) * 100).toFixed(1)),
-  );
+  const metricValue = (value: TrendChartDatum['net_effective_rent'], factor = 1): number | null => {
+    if (value == null || (typeof value === "string" && !value.trim())) return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Number((numeric * factor).toFixed(1)) : null;
+  };
+  const rentData = histData.map(row => metricValue(row.net_effective_rent));
+  const vacancyData = histData.map(row => metricValue(row.vacancy_rate, 100));
   const lastIndex = rentData.length - 1;
 
-  const calculateAxisRange = (data: number[]) => {
-    const minValue = Math.min(...data);
-    const maxValue = Math.max(...data);
+  const calculateAxisRange = (data: (number | null)[]) => {
+    const observed = data.filter((value): value is number => value !== null);
+    if (!observed.length) return { min: 0, max: 1 };
+    const minValue = Math.min(...observed);
+    const maxValue = Math.max(...observed);
     const range = maxValue - minValue || Math.abs(minValue) * 0.2 || 1;
     return {
       min: minValue - range * 0.35,
@@ -63,7 +66,7 @@ export function initTrendChart(
       tooltip: {
         trigger: "axis",
         valueFormatter: (value: unknown) =>
-          isRent ? `¥${String(value ?? "")}` : `${String(value ?? "")}%`,
+          value == null ? "未提供" : isRent ? `¥${String(value)}` : `${String(value)}%`,
       },
       xAxis: {
         type: "category",
@@ -139,8 +142,26 @@ export function initTrendChart(
     }
   };
 
-  rentButton?.addEventListener("click", () => setActive("rent"));
-  vacancyButton?.addEventListener("click", () => setActive("vac"));
+  const showRent = () => setActive("rent");
+  const showVacancy = () => setActive("vac");
+  rentButton?.addEventListener("click", showRent);
+  vacancyButton?.addEventListener("click", showVacancy);
+  // The workspace can resize without a window resize (dragging, focus mode, tabs).
+  let active = true;
+  const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(entries => {
+    const rect = entries[0]?.contentRect;
+    if (active && rect && rect.width > 0 && rect.height > 0) chart.resize();
+  });
+  observer?.observe(chartDom);
+  const dispose = chart.dispose.bind(chart);
+  chart.dispose = () => {
+    if (!active) return;
+    active = false;
+    observer?.disconnect();
+    rentButton?.removeEventListener("click", showRent);
+    vacancyButton?.removeEventListener("click", showVacancy);
+    dispose();
+  };
 
   return chart;
 }

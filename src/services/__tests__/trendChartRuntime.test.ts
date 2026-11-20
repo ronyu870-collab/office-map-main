@@ -1,0 +1,47 @@
+import { afterEach, expect, it, vi } from 'vitest';
+const runtime = vi.hoisted(() => ({ init: vi.fn(), getInstanceByDom: vi.fn() }));
+vi.mock('echarts/core', () => ({ ...runtime, use: vi.fn() }));
+vi.mock('echarts/charts', () => ({ LineChart: {} }));
+vi.mock('echarts/components', () => ({ GridComponent: {}, TooltipComponent: {} }));
+vi.mock('echarts/renderers', () => ({ CanvasRenderer: {} }));
+import { initTrendChart } from '../map/trendChartRuntime';
+afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); document.body.innerHTML = ''; });
+it('resizes with its physical container and releases resize/button bindings on disposal', () => {
+  document.body.innerHTML = '<button id="chart-btn-rent"></button><button id="chart-btn-vac"></button><div id="chart"></div>';
+  const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+  const disposed = chart.dispose;
+  runtime.init.mockReturnValue(chart);
+  let resize!: ResizeObserverCallback;
+  const disconnect = vi.fn();
+  vi.stubGlobal('ResizeObserver', class { constructor(callback: ResizeObserverCallback) { resize = callback; } observe() {} disconnect = disconnect; });
+  const instance = initTrendChart(document.getElementById('chart')!, [{ year: 2026, net_effective_rent: 200, vacancy_rate: .1 }]);
+  const notify = (width: number) => resize([{ contentRect: { width, height: 280 } } as ResizeObserverEntry], {} as ResizeObserver);
+  notify(500);
+  expect(chart.resize).toHaveBeenCalledOnce();
+  notify(0);
+  expect(chart.resize).toHaveBeenCalledOnce();
+  document.getElementById('chart-btn-vac')!.click();
+  expect(chart.setOption).toHaveBeenCalledTimes(2);
+  instance!.dispose();
+  expect(disconnect).toHaveBeenCalledOnce();
+  expect(disposed).toHaveBeenCalledOnce();
+  notify(500);
+  expect(chart.resize).toHaveBeenCalledOnce();
+  instance!.dispose();
+  expect(disposed).toHaveBeenCalledOnce();
+  document.getElementById('chart-btn-rent')!.click();
+  expect(chart.setOption).toHaveBeenCalledTimes(2);
+});
+
+it('preserves missing trend observations instead of drawing false zeroes', () => {
+  const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+  runtime.init.mockReturnValue(chart);
+  document.body.innerHTML = '<button id="chart-btn-vac"></button><div id="chart"></div>';
+  const values = [null, undefined, '', 'invalid', 0, '200'];
+  const instance = initTrendChart(document.getElementById('chart')!, values.map((value, index) => ({ year: 2021 + index, net_effective_rent: value, vacancy_rate: value })));
+  expect(chart.setOption.mock.calls[0][0].series[0].data).toEqual([null, null, null, null, 0, 200]);
+  expect(chart.setOption.mock.calls[0][0].tooltip.valueFormatter(null)).toBe('未提供');
+  document.getElementById('chart-btn-vac')!.click();
+  expect(chart.setOption.mock.lastCall?.[0].series[0].data).toEqual([null, null, null, null, 0, 20000]);
+  instance!.dispose();
+});
