@@ -4,15 +4,14 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import {
-  ArrowUpRight, BarChart3, BriefcaseBusiness, Building2, ChevronRight,
-  ExternalLink, FileText, Info, Landmark, Lightbulb, MapPin, Pencil,
-  Plus, RefreshCw, Save, TrainFront, Trash2, UsersRound, X,
+  ArrowUpRight, BarChart3, Building2, ChevronRight, ExternalLink,
+  Info, MapPin, Pencil, Plus, RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
 
 import { fetchSubmarketDetailPayload, saveSubmarketProfile, type SubmarketDetailPayload } from '@/src/services/mapDataClient';
 import { normalizeMapSubmarket } from '../model/mapDomain';
 import { mostRecentMarketMetric, officeGrade, type MarketBuilding, type SubmarketSummary } from '../model/submarketOverview';
-import { emptySubmarketProfile, submarketProfileSchema, type SubmarketProfileDraft } from '../model/submarketProfile';
+import { emptySubmarketProfile, readSubmarketProfileRow, submarketProfileSchema, type SubmarketProfileDraft } from '../model/submarketProfile';
 import { summarizeSubmarketTrend } from '../model/submarketTrendDigest';
 
 const TrendChart = dynamic(
@@ -36,29 +35,12 @@ const number = (value: number | null, decimals = 1) => value == null || !Number.
   ? '—' : value.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
 const sectionNames = [
-  ['overview', '总览'], ['trend', '趋势'], ['profile-overview', '概况'], ['industry', '产业'],
-  ['transport', '交通'], ['population', '人口'], ['policies', '政策'],
-  ['insights', '观点'], ['buildings', '项目'],
+  ['overview', '市场概览'], ['trend', '行情趋势'],
+  ['profile', '区域画像'], ['buildings', '代表项目'],
 ] as const;
 
 const quietButton = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[13px] text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
 const outlineButton = 'inline-grid min-h-10 min-w-10 place-items-center rounded-[6px] text-[#667085] hover:bg-[#f1f5f9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
-
-function EmptyCopy({ children = '暂无经核实的资料，待维护。' }: { children?: React.ReactNode }) {
-  return <p className="m-0 text-[13px] leading-6 text-[#667085]">{children}</p>;
-}
-
-function Title({ id, title, description }: { id: string; title: string; description?: string }) {
-  return (
-    <div className="mb-5 flex items-start gap-3">
-      <span aria-hidden="true" className="mt-1 h-6 w-1 shrink-0 rounded-sm bg-[#003e7e]" />
-      <div className="min-w-0">
-        <h3 id={id} className="m-0 scroll-mt-6 text-[16px] font-semibold leading-6 text-[#172033] sm:text-[18px]">{title}</h3>
-        {description ? <p className="mt-1 text-[12px] leading-5 text-[#667085]">{description}</p> : null}
-      </div>
-    </div>
-  );
-}
 
 function Field({ label, value, onChange, multi = false, placeholder }: {
   label: string; value: string; onChange: (value: string) => void; multi?: boolean; placeholder?: string;
@@ -80,7 +62,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
   saving: boolean;
   error: string | null;
   onCancel: () => void;
-  onSave: (value: SubmarketProfileDraft) => void;
+  onSave: (value: SubmarketProfileDraft, publish: boolean) => void;
 }) {
   const [draft, setDraft] = React.useState(value);
   const setText = (field: 'headline' | 'overview' | 'industries' | 'transport', text: string) =>
@@ -109,9 +91,9 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
   );
 
   return (
-    <form className="space-y-5" onSubmit={event => { event.preventDefault(); onSave(draft); }}>
+    <form className="space-y-5" onSubmit={event => { event.preventDefault(); onSave(draft, false); }}>
       <p className="m-0 text-[13px] leading-6 text-[#667085]">
-        正在维护{name}的业务介绍。人口与政策必须填写可核实的范围、日期和来源，禁止把行政区数据冒充子市场数据。
+        正在维护{name}的研究资料。只有在逐条核实事实、日期、来源及对外措辞后，才能发布到客户展示页；保存修改默认撤回此前的发布状态。
       </p>
       <div className="space-y-3">
         <Field label="一句话定位" value={draft.headline} onChange={text => setText('headline', text)} />
@@ -177,9 +159,17 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 
       {error ? <p role="alert" className="text-[13px] text-[#c9362b]">{error}</p> : null}
       <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#e7ebf0] bg-white py-3">
-        <button type="button" className={quietButton} disabled={saving} onClick={onCancel}>取消</button>
-        <button type="submit" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-medium text-white disabled:opacity-50">
-          <Save size={15}/>{saving ? '保存中…' : '保存资料'}
+        <button type="button" className={quietButton} disabled={saving} onClick={() => {
+          if (JSON.stringify(draft) === JSON.stringify(value) || window.confirm('有未保存的修改，确定放弃吗？')) onCancel();
+        }}>取消</button>
+        <button type="submit" disabled={saving} className={quietButton + ' disabled:opacity-50'}>
+          <Save size={15}/>{saving ? '保存中…' : '保存草稿'}
+        </button>
+        <button type="button" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-medium text-white disabled:opacity-50"
+          onClick={() => {
+            if (window.confirm('确认已逐项核实来源、时效、事实与对外表述，并作为正式客户展示资料发布？')) onSave(draft, true);
+          }}>
+          核验并发布
         </button>
       </div>
     </form>
@@ -193,6 +183,7 @@ export function SubmarketDetailPanel({
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [grade, setGrade] = React.useState<'all' | 'a' | 'b'>('all');
+  const [section, setSection] = React.useState<(typeof sectionNames)[number][0]>('overview');
   const [editing, setEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -265,7 +256,8 @@ export function SubmarketDetailPanel({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [suspended, closePanel]);
 
-  const profile = detail?.profile;
+  const profile = detail?.profilePublished ? detail.profile : null;
+  const draftProfile = detail?.draftProfile ?? detail?.profile;
   const series = detail?.trends?.[grade] ?? [];
   const { latest, previous, rentChange, vacancyChange, hasTrend } = summarizeSubmarketTrend(series);
 
@@ -278,19 +270,18 @@ export function SubmarketDetailPanel({
       return area(right) - area(left) || String(left.name ?? '').localeCompare(String(right.name ?? ''), 'zh-CN');
     }).slice(0, 4), [buildings, name]);
 
-  const scrollTo = (id: string) => {
-    const element = scrollRef.current?.querySelector('#submarket-' + id);
-    const reduceMotion = typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    element?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-  };
-  const save = async (draft: SubmarketProfileDraft) => {
+  const save = async (draft: SubmarketProfileDraft, publish: boolean) => {
     const parsed = submarketProfileSchema.safeParse(draft);
     if (!parsed.success) { setSaveError('字段格式有误，请检查长度和来源链接。'); return; }
     setSaving(true); setSaveError(null);
     try {
-      const next = await saveSubmarketProfile(name, parsed.data);
-      setDetail(previous => previous ? { ...previous, profile: next } : previous);
+      const next = await saveSubmarketProfile(name, parsed.data, publish);
+      setDetail(previous => previous ? {
+        ...previous,
+        draftProfile: next.profile,
+        profile: next.profilePublished ? next.profile : readSubmarketProfileRow(null, name),
+        profilePublished: next.profilePublished,
+      } : previous);
       setEditing(false);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : '保存失败');
@@ -298,13 +289,13 @@ export function SubmarketDetailPanel({
   };
 
   const metric = (label: string, value: string, unit: string, note: string) => (
-    <div className="min-w-0 rounded-[8px] border border-[#d9e5f0] bg-white px-4 py-4 sm:px-5">
-      <p className="m-0 text-[12px] font-medium text-[#475569]">{label}</p>
-      <div className="mt-2 flex flex-wrap items-baseline gap-2">
-        <strong className="text-[24px] font-semibold leading-tight tabular-nums text-[#003e7e]">{value}</strong>
-        <span className="text-[12px] text-[#667085]">{unit}</span>
+    <div className="min-w-0 rounded-[8px] border border-[#e3e9f0] bg-white px-3 py-3 sm:px-5 sm:py-4">
+      <p className="m-0 text-[11px] font-medium text-[#667085] sm:text-[12px]">{label}</p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5">
+        <strong className="text-[21px] font-semibold leading-tight tabular-nums tracking-tight text-[#003e7e] sm:text-[27px]">{value}</strong>
+        <span className="text-[10px] text-[#667085] sm:text-[12px]">{unit}</span>
       </div>
-      <p className="mb-0 mt-2 text-[12px] text-[#667085]">{note}</p>
+      <p className="mb-0 mt-2 text-[10px] leading-4 text-[#667085] sm:text-[11px]">{note}</p>
     </div>
   );
 
