@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 228,
+        branch: 'codex/basic-en-language-glossary-20261120',
+        scope: 'Homepage Chinese/English language switch for navigation, login, password settings and 244-term glossary, PR #228',
+        reason: 'User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #228 on 2026-11-20; review was not performed and all engineering, authorization, database and CI checks remain mandatory',
+      },
+      {
         number: 227,
         branch: 'codex/ai-experience-complete-20261120',
         scope: 'Colliers AI 38-item experience improvements: Markdown, history timeline, composer, research reading and responsive sidebars, PR #227',
