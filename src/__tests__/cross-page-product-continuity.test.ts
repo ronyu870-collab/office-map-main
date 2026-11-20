@@ -62,7 +62,7 @@ describe('Cross-page product continuity', () => {
     const settings = source('src/app/settings/page.tsx');
     const adminLayout = source('src/app/admin/layout.tsx');
     const adminSidebar = source('src/components/admin/AdminSidebar.tsx');
-    expect(settings).toContain('title="修改密码"');
+    expect(settings).toContain("title={t('修改密码')}");
     expect(adminLayout).toContain('title="系统管理"');
     expect(adminLayout).not.toContain('>Administration</span>');
     expect(adminSidebar).not.toContain("label: 'Data Management'");

@@ -25,6 +25,7 @@ export const englishUiCopy: Readonly<Record<string, string>> = {
   "业务入口": "Business Modules",
   "仅管理员可见": "Administrators Only",
   "无访问权限": "Access Denied",
+  "当前账号无访问权限": "Your account does not have access",
   "当前角色无权访问": "Your role cannot access this module",
   "企业邮箱": "Corporate Email",
   "显示密码": "Show Password",

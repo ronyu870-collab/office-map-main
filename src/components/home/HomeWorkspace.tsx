@@ -265,6 +265,7 @@ function HomeHeader({
                       onClick={() => {
                         setLanguage(value);
                         setMenuOpen(false);
+                        menuTriggerRef.current?.focus();
                       }}
                       className={`min-h-10 flex-1 rounded-[var(--cd-radius-sm)] px-2 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${language === value
                         ? 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]'
@@ -341,7 +342,7 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       mayPrefetch={canAccess}
       onClick={(event) => onActivate(event, workspace)}
       className={`${styles.workspaceLink} ${canAccess ? '' : styles.unavailable}`}
-      title={canAccess ? undefined : t('无访问权限')}
+      title={canAccess ? undefined : t('当前账号无访问权限')}
       aria-label={workspace.adminOnly || workspace.note ? t(workspace.title) : undefined}
       aria-describedby={workspace.adminOnly ? visibilityNoteId : undefined}
       {...accessibilityProps}
