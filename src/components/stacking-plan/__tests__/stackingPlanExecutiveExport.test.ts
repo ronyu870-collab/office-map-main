@@ -81,6 +81,41 @@ describe('Stacking Plan executive export data fidelity', () => {
     expect(complete).not.toContain('未展示');
   });
 
+  it('rasterizes the executive SVG as a valid 16:9 PNG binary', async () => {
+    const sharp = (await import('sharp')).default;
+    const source = createStackingPresentationSvg({ ...common, onlyMatching: false });
+    const { data, info } = await sharp(Buffer.from(source)).png().toBuffer({ resolveWithObject: true });
+    expect(info.width).toBe(1920);
+    expect(info.height).toBe(1080);
+    expect(info.format).toBe('png');
+    expect(data.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  });
+
+  it('round-trips a real XLSX workbook with independent numeric rent steps', async () => {
+    const XLSX = await import('xlsx');
+    const records = createStackingExcelRecords({ ...common, scope: 'all' });
+    const workbook = XLSX.utils.book_new();
+    for (const [name, data] of [
+      ['楼层汇总', records.floorRecords],
+      ['空间租赁明细', records.spaceRecords],
+      ['租金阶段明细', records.rentRecords],
+    ] as const) {
+      const sheet = XLSX.utils.json_to_sheet(data);
+      sheet['!autofilter'] = { ref: sheet['!ref']! };
+      XLSX.utils.book_append_sheet(workbook, sheet, name);
+    }
+    const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+    const decoded = XLSX.read(bytes, { type: 'buffer' });
+    expect(decoded.SheetNames).toEqual(['楼层汇总', '空间租赁明细', '租金阶段明细']);
+    const steps = XLSX.utils.sheet_to_json<Record<string, string | number>>(
+      decoded.Sheets['租金阶段明细'],
+    );
+    expect(steps.map(step => step['表面租金(元/㎡/月)'])).toEqual([330, 360]);
+    expect(steps.every(step => typeof step['表面租金(元/㎡/月)'] === 'number')).toBe(true);
+    expect(decoded.Sheets['空间租赁明细']['!ref']).toBeTruthy();
+    expect(decoded.Sheets['空间租赁明细']['!autofilter']).toBeTruthy();
+  });
+
   it('escapes tenant names before building SVG markup', () => {
     const result = createStackingPresentationSvg({
       ...common,
