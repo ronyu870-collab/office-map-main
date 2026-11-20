@@ -112,3 +112,56 @@ export function createStackingExcelRecords<S extends ExportableSpace>(input: Exp
   }
   return { floorRecords, spaceRecords, rentRecords };
 }
+
+
+/**
+ * Single workbook constructor used by the actual download path and binary tests.
+ * This keeps filters, source disclosure and spreadsheet structure in one place.
+ */
+export function buildStackingWorkbook<S extends ExportableSpace>(
+  XLSX: typeof import('xlsx'),
+  input: ExportInput<S>,
+) {
+  const records = createStackingExcelRecords(input);
+  const workbook = XLSX.utils.book_new();
+  const addSheet = (
+    rows: Record<string, string | number | null>[],
+    name: string,
+    headers: string[],
+  ) => {
+    const sheet = rows.length ? XLSX.utils.json_to_sheet(rows)
+      : XLSX.utils.aoa_to_sheet([headers]);
+    const columns = rows.length ? Object.keys(rows[0]) : headers;
+    sheet['!cols'] = columns.map(key => ({
+      wch: Math.min(42, Math.max(14, key.length * 1.8)),
+    }));
+    if (rows.length && sheet['!ref']) sheet['!autofilter'] = { ref: sheet['!ref'] };
+    XLSX.utils.book_append_sheet(workbook, sheet, name);
+  };
+  addSheet(records.floorRecords, '楼层汇总', ['项目', '楼座', '楼层', '楼层用途']);
+  addSheet(records.spaceRecords, '空间租赁明细', ['项目', '楼座', '楼层', '单元', '租户 / 用途']);
+  addSheet(records.rentRecords, '租金阶段明细',
+    ['项目', '楼座', '楼层', '单元', '租金阶段', '开始日期', '结束日期',
+      '表面租金(元/㎡/月)', '月总租金(元/月)']);
+  const label = {
+    all: '全部状态', occupied: '已租', vacant: '空置',
+    other: '其他用途', unknown: '待确认',
+  }[input.filter];
+  const scopeDescription = input.scope === 'all' ? '全部已建模单元'
+    : '当前筛选（状态：' + label + '；搜索：' + (input.search.trim() || '无') + '）';
+  const metadata = XLSX.utils.aoa_to_sheet([
+    ['项目说明', '具体内容'],
+    ['项目', protect(input.projectName)],
+    ['楼座', input.towers.map(t => protect(t.display_name)).join('、')],
+    ['来源资料截至日期', input.sourceDate ?? '未知'],
+    ['来源资料标题', protect(input.sourceTitle)],
+    ['导出范围', protect(scopeDescription)],
+    ['核验状态', '数据来自原始水牌快照，租户、租期、状态与面积未完成逐项核验'],
+    ['空置与面积', '标注空置不代表可立即出租；未知面积、楼层差额不得直接推定为空置'],
+    ['租金口径', '原图表面月租金与月总租金分别列示，均不等于净有效租金'],
+    ['原始文件', input.originalArchived ? '已私有归档' : '尚未归档'],
+  ]);
+  metadata['!cols'] = [{ wch: 27 }, { wch: 92 }];
+  XLSX.utils.book_append_sheet(workbook, metadata, '口径与来源');
+  return workbook;
+}
