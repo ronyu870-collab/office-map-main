@@ -405,3 +405,10 @@
   .miniArea {font-size:12px}
   .legendNote {width:100%;margin-left:0}
 }
+
+@media (pointer:coarse) {
+  .miniFloor {min-height:44px}
+  .miniUnits {min-height:44px;touch-action:pan-x}
+  .miniUnit {min-height:44px;min-width:44px}
+  .exportOptions>button,.clearFilter,.towerOverviewHead button {min-height:44px}
+}
