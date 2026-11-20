@@ -55,6 +55,7 @@ export async function queryVerifiedRealEstate(
   const envelope = {
     status: 'ready', operation: view.operation, summary: summaries,
     rowCount: view.table.rows.length, rows,
+    completeResultsInStructuredView: true, displayedPreviewRows: rows.length,
     registeredSources: view.sources.length, dataAsOf: view.createdAt,
     sourceTables: [...new Set(view.sources.map(source => source.table))].slice(0, 8),
     limitations: view.limitations.slice(0, 4),

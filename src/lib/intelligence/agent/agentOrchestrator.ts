@@ -47,6 +47,10 @@ export function agentInstructions(): string {
     '回答首先给结论，再列期间、范围、样本、来源及限制。工具异常时报告真实的失败状态，不能推断已未查询的数据。',
     '今天北京时间：' + new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai',
       year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
+    '当用户询问本平台真实楼宇全集、逐楼建筑高度、逐楼净有效租金排名、季度指标、子市场比较或趋势时：必须调用匹配的可信只读工具；不得直接声称字段无授权，也不得自行猜测数据。楼宇目录不需要租金、面积或季度。',
+    '用户询问「你的数据权限是什么」或当前获权范围时，先调用 get_data_capabilities。其输出为当前真实授权快照，不表示字段一定有值；即使工具注册，也不代表用户已获该工具对应字段授权。',
+    '对于「最高的五栋楼」以真实建筑高度排名，不能以层数代替；对于「租金最高」先区分报价、面价、净有效租金，只有口径确定才能执行逐楼排名；最新季度须使用获权正式有效期间。',
+    'search_buildings和get_building_profile仅可使用已有获权楼宇查询能力；query_quarterly_metrics、compare_market_segments和analyze_market_trends复用同一个可信统计引擎，并非额外数据授权。',
   ].join('\n');
 }
 
@@ -110,7 +114,17 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       providerRequestId: completed.providerRequestId });
     if ((inputTokens ?? 0) + (outputTokens ?? 0) > AGENT_LIMITS.maxTotalTokens)
       throw new Error('AGENT_TOKEN_BUDGET_EXCEEDED');
-    const requested = completed.message.tool_calls ?? [];
+    const requested = [...(completed.message.tool_calls ?? [])];
+    const requiresVerifiedTool = /(?:数据权限|授权范围|获权范围|(?:CBD|金融街|望京).*?(?:所有楼|哪些楼|楼宇|写字楼|租金|高度|最高|最低|排名|前[二三四五六七八九十0-9]+))/i.test(input.question);
+    if (!requested.length && completed.message.content?.trim() && requiresVerifiedTool && toolCalls === 0) {
+      if (round >= AGENT_LIMITS.rounds - 1) throw new Error('AGENT_QUERY_NOT_EXECUTED');
+      // Stage 02's fail-closed fallback uses Stage 03's validation,
+      // permission recheck, phases, bounded recovery and result accounting.
+      const name = /数据权限|授权范围|获权范围/.test(input.question)
+        ? 'get_data_capabilities' : 'query_verified_real_estate';
+      requested.push({ id: 'server_verified_tool_1', type: 'function',
+        function: { name, arguments: JSON.stringify({ question: input.question }) } });
+    }
     if (!requested.length) {
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
       await phase('synthesis');
@@ -133,7 +147,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       throw new Error('AGENT_TOOL_BUDGET_EXCEEDED');
     if (new Set(requested.map(call => call.id)).size !== requested.length) throw new Error('AGENT_DUPLICATE_TOOL_ID');
     await phase('tool_selection', requested.map(call => call.function.name));
-    messages.push(completed.message);
+    messages.push({ ...completed.message, tool_calls: requested });
     for (const call of requested) {
       const name = call.function.name;
       if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');

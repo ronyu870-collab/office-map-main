@@ -68,7 +68,7 @@ export type PresentationToolName = keyof typeof PRESENTATION_TOOL_SCHEMAS;
 export const PRESENTATION_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(PRESENTATION_TOOL_SCHEMAS));
 
 export const LEGACY_TOOL_NAMES: ReadonlySet<string> = new Set([
-  'query_verified_real_estate', ...Object.keys(STRUCTURED_DATA_SCHEMAS),
+  'query_verified_real_estate', 'get_data_capabilities', ...Object.keys(STRUCTURED_DATA_SCHEMAS),
   ...Object.keys(PRESENTATION_TOOL_SCHEMAS),
 ]);
 
@@ -113,6 +113,8 @@ function def(name: string, description: string, properties: Record<string, unkno
 }
 const jsonScope = s;
 export const SPECIALIST_DATA_TOOLS = [
+  def('get_data_capabilities', '实时检查当前登录身份的楼宇、字段、范围、操作和内部导出授权；授权不保证数据覆盖，不得凭推测回答权限。',
+    { question: { type: 'string', minLength: 2, maxLength: 1000 } }, ['question']),
   def('search_buildings', '列出获权楼宇目录，可用名称子串进一步筛选。先使用此工具取得真实楼宇ID，不接受模糊生成的ID。',
     { scope: jsonScope, nameContains: { type: 'string', minLength: 1, maxLength: 100 } }, ['scope']),
   def('get_building_profile', '读取指定已授权楼宇ID的资料。建筑高度/楼层/车位为资料字段；季度字段须提供具体period。',

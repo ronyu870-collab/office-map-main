@@ -65,6 +65,51 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     expect(events.filter(value => value.startsWith('phase_changed:')).length).toBeGreaterThan(0);
   });
 
+
+  it('forces a real capability observation when the model skips a required permission lookup', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce(completion('你有全部数据权限。'))
+      .mockResolvedValueOnce(completion('当前获权字段包括建筑高度。'));
+    const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready","fields":["height"]}' });
+    const answer = await runAgentLoop({ question: '你的数据权限是什么？', signal, invoke, runTool });
+    expect(answer.toolCalls).toBe(1);
+    expect(answer.toolNames).toEqual(['get_data_capabilities']);
+    expect(runTool).toHaveBeenCalledWith('get_data_capabilities', { question: '你的数据权限是什么？' }, signal);
+    expect(invoke.mock.calls[1][0].some((message: { role: string; content: string }) =>
+      message.role === 'tool' && message.content.includes('height'))).toBe(true);
+  });
+
+  it('revalidates permission before the server-forced capability lookup', async () => {
+    const invoke = vi.fn().mockResolvedValue(completion('你有全部数据权限。'));
+    const runTool = vi.fn();
+    const revalidate = vi.fn().mockRejectedValue(new Error('QUERY_DENIED'));
+    await expect(runAgentLoop({ question: '你的数据权限是什么？', signal,
+      invoke, runTool, revalidate })).rejects.toThrow('QUERY_DENIED');
+    expect(revalidate).toHaveBeenCalledOnce();
+    expect(runTool).not.toHaveBeenCalled();
+  });
+
+  it('retains bounded source failure accounting for a server-forced catalog lookup', async () => {
+    const invoke = vi.fn().mockResolvedValue(completion('已查询全部CBD楼宇。'));
+    const runTool = vi.fn().mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
+    const result = await runAgentLoop({ question: 'CBD所有楼宇', signal, invoke, runTool });
+    expect(runTool).toHaveBeenCalledOnce();
+    expect(result.executionStatus).toBe('limited');
+    expect(result.phases).toContain('verification');
+    expect(result.unresolvedFailures).toEqual([
+      { tool: 'query_verified_real_estate', code: 'source_unavailable' },
+    ]);
+    expect(result.answer).toContain('未取得可核验的完整结果');
+  });
+
+  it('forces a verified catalog read before describing CBD buildings', async () => {
+    const invoke = vi.fn().mockResolvedValueOnce(completion('CBD有很多楼。'))
+      .mockResolvedValueOnce(completion('已按正式查询取得完整结构化楼宇列表。'));
+    const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready","rowCount":25}' });
+    const answer = await runAgentLoop({ question: '把CBD所有楼列出来', signal, invoke, runTool });
+    expect(answer.toolNames).toEqual(['query_verified_real_estate']);
+  });
+
   it('rejects an unregistered tool before any executor call', async () => {
     const runTool = vi.fn();
     await expect(runAgentLoop({ question: '删除系统表', signal, runTool,

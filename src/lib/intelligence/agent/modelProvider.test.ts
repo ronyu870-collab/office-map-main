@@ -43,7 +43,7 @@ describe('DeepSeek official native chat completion protocol', () => {
     const sent = JSON.parse(String(init.body));
     expect(sent.model).toBe('deepseek-flash');
     expect(sent.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual([
-      'query_verified_real_estate', 'search_buildings', 'get_building_profile',
+      'query_verified_real_estate', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
       'query_quarterly_metrics', 'rank_buildings', 'compare_market_segments', 'analyze_market_trends',
       'summarize_result', 'read_result_page', 'check_data_coverage', 'compare_result_sets',
       'get_source_evidence', 'prepare_chart', 'prepare_map_selection', 'prepare_research_output',
@@ -104,4 +104,3 @@ describe('DeepSeek official native chat completion protocol', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 });
-
