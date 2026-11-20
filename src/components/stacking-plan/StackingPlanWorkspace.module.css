@@ -412,3 +412,87 @@
   .miniUnit {min-height:44px;min-width:44px}
   .exportOptions>button,.clearFilter,.towerOverviewHead button {min-height:44px}
 }
+
+/* 2026-11-20 · Stacking Plan: quiet, diagram-first presentation.
+   Kept scoped to this workspace; no global dashboard overrides. */
+.page {background:#F5F7F9;--sp-ink:#22384B;--sp-border:#DCE4EC;--sp-blue:#17456F}
+.container {max-width:1640px;padding-top:22px}
+.heading {margin-bottom:15px}
+.heading h1 {font-size:25px;letter-spacing:-.6px;margin:0}
+.heading h1 span {font-size:16px;color:#64788A}
+.topbar {border-bottom-color:#E1E8EF}
+.toolbar {border:1px solid #E1E8EF;background:#fff;border-radius:9px}
+.overview {padding:0;background:transparent;border:0}
+.overviewHeader {margin:0 0 10px}
+.overviewGrid {gap:16px;align-items:start}
+.towerOverview {padding:17px 18px 19px;background:#fff;border:1px solid #DCE4EC;
+  box-shadow:0 5px 24px #223C5710;border-radius:10px}
+.towerOverviewHead {align-items:center;padding:0 0 13px}
+.towerOverviewHead h3 {font-size:19px;font-weight:650;letter-spacing:-.3px}
+.towerOverviewHead p {font-size:12px;margin-top:4px;color:#8A96A4}
+.towerOverviewHead button {color:#54708A;font-size:12px;min-height:34px}
+.miniBuilding {background:#fff;padding:0;border:1px solid #DCE4EC;border-top:3px solid #6383A2;
+  border-radius:4px;overflow:hidden}
+.miniFloor {grid-template-columns:44px minmax(0,1fr) 94px;gap:0;min-height:40px;
+  border-bottom:1px solid #E8EDF2}
+.miniFloor:last-child {border-bottom:0}
+.miniLevel {height:100%;display:flex;align-items:center;justify-content:center;
+  background:#F6F8FA;border-right:1px solid #E4E9EF;font-size:12px;color:#486078}
+.miniArea {height:100%;display:flex;align-items:center;justify-content:flex-end;
+  padding:0 9px;border-left:1px solid #E4E9EF;background:#FBFCFD;
+  color:#607185;font-size:11px}
+.miniUnits {min-height:39px;gap:2px;padding:2px;scrollbar-color:#CBD7E2 transparent}
+.miniUnit {min-width:62px;min-height:35px;padding:3px 5px;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;
+  border:1px solid transparent;border-radius:2px;transition:filter .12s,border-color .12s}
+.miniUnit span {font-size:12px;font-weight:600;line-height:1.2}
+.miniUnit small {display:block;max-width:100%;font-size:11px;line-height:1.2;
+  font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums;opacity:.85}
+.miniUnit:hover,.miniUnit:focus-visible {border-color:#7198BE;filter:brightness(.98);outline-offset:0}
+.miniMuted {opacity:.24}
+.miniRemainder {min-width:12px;border:0;background:#F4F6F8}
+.miniEmpty {display:block;min-height:35px;width:100%;background:#F4F6F8}
+.overviewLegend {margin-top:15px;padding:0 4px;color:#66798B}
+.overviewLegend i {height:11px;width:11px;border-radius:2px}
+.plan {padding:18px;border-radius:10px;box-shadow:0 5px 24px #223C5710}
+.sectionTitle {align-items:center;margin-bottom:16px}
+.sectionTitle h2 {font-size:17px;margin:0}
+.facade {max-width:1120px;padding:0 11px 0 0}
+.roof {background:#EDF1F5;color:#4B657D;border-color:#C7D4DF;border-radius:4px 4px 0 0}
+.tower {background:#fff;border-color:#BFCFDE;border-top-color:#7898B4}
+.tower::after {background:#EBEFF4;border-color:#CFDAE5}
+.floor {min-height:50px}
+.unit {min-height:43px;padding:4px 5px;border-radius:2px}
+.unit span {font-size:13px}
+.unit small {font-size:11px}
+.unallocated {background:#F5F7F9;border-color:#E1E8EF}
+.unallocated span {display:none}
+.plinth {height:12px;min-height:12px;background:#EDF1F5}
+.legend {margin-top:15px}
+.details {border-radius:10px;padding:20px;box-shadow:0 5px 24px #223C5710}
+.detailFacts {grid-template-columns:repeat(2,minmax(0,1fr))}
+.sourceDetails {margin-top:12px;border:1px solid #E7EDF2;background:transparent}
+.sourceDetails summary {font-size:12px;color:#7B8C9C;padding:11px 16px}
+.sourceDetailsBody {background:#fff}
+.exportMenu>details>summary {border-color:#C3D3E3;background:#F1F6FA;color:#19476E}
+.exportOptions {min-width:280px}
+@media(max-width:1023px) {
+  .overviewGrid {grid-template-columns:1fr}
+  .towerOverview {padding:14px}
+}
+@media(max-width:639px) {
+  .container {padding:14px 10px 34px}
+  .heading h1 {font-size:21px}
+  .towerOverview {padding:10px}
+  .miniFloor {grid-template-columns:33px minmax(0,1fr) 69px;min-height:45px}
+  .miniArea {padding:0 3px;font-size:10px}
+  .miniUnits {min-height:44px}
+  .miniUnit {min-height:40px;min-width:60px}
+  .miniUnit small {font-size:10px}
+  .plan {padding:12px 8px}
+}
+@media(pointer:coarse) {
+  .miniFloor,.miniUnits {min-height:46px}
+  .miniUnit {min-height:42px;min-width:62px}
+}

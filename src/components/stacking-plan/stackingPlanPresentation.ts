@@ -1,5 +1,5 @@
 import {
-  areaNumber, selectFloorRows, summarizePlan, unitLayout,
+  areaNumber, selectFloorRows, unitLayout,
   type OccupancyStatus, type PlanFloor, type PlanSpace, type SpaceFilter,
 } from './stackingPlanModel';
 
@@ -15,129 +15,140 @@ export type PresentationInput<F extends PlanFloor = PlanFloor, S extends PlanSpa
   onlyMatching: boolean;
 };
 
-const colors: Record<OccupancyStatus, { fill: string; text: string }> = {
-  occupied: { fill: '#D9E9F6', text: '#194D79' },
-  vacant: { fill: '#E7EBF0', text: '#4E6174' },
-  other: { fill: '#DCE8DE', text: '#3E6853' },
-  unknown: { fill: '#F2E5CD', text: '#815E25' },
+const colors: Record<OccupancyStatus, { fill: string; ink: string }> = {
+  occupied: { fill: '#DCEAF4', ink: '#234E71' },
+  vacant: { fill: '#EEF1F5', ink: '#516475' },
+  other: { fill: '#E6EFE7', ink: '#456750' },
+  unknown: { fill: '#F6EDDB', ink: '#775A32' },
 };
 const xml = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c] ?? c);
-const number = (n: unknown) => typeof n === 'number' && Number.isFinite(n)
-  ? n.toLocaleString('zh-CN', { maximumFractionDigits: 0 }) : '—';
-const rect = (x: number, y: number, w: number, h: number, fill: string, radius = 4) =>
-  '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(0, w).toFixed(1) +
-  '" height="' + Math.max(0, h).toFixed(1) + '" rx="' + radius + '" fill="' + fill + '"/>';
-const text = (x: number, y: number, value: unknown, size: number, color: string, weight = 400, anchor = 'start') =>
-  '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" fill="' + color + '" font-size="' + size +
-  '" font-weight="' + weight + '" text-anchor="' + anchor +
-  '" font-family="Arial, PingFang SC, Microsoft YaHei, sans-serif">' + xml(value) + '</text>';
+const format = (n: unknown) => {
+  const area = areaNumber(n as number | string | null);
+  return area === null ? '' : area.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) + '㎡';
+};
+const rect = (x: number, y: number, w: number, h: number, fill: string, radius = 0, stroke = '') =>
+  '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(0,w).toFixed(1) +
+  '" height="' + Math.max(0,h).toFixed(1) + '" rx="' + radius +
+  '" fill="' + fill + '"' + (stroke ? ' stroke="' + stroke + '"' : '') + '/>';
+const text = (x: number, y: number, value: unknown, size: number, ink: string, weight = 400, anchor = 'start') =>
+  '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + size +
+  '" fill="' + ink + '" font-weight="' + weight + '" text-anchor="' + anchor +
+  '" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif">' + xml(value) + '</text>';
+const label = (space: PlanSpace) => (space.tenant_name?.trim()
+  || (space.occupancy_status === 'vacant' ? '空置'
+    : space.occupancy_status === 'other' ? '其他用途'
+      : space.occupancy_status === 'unknown' ? '待确认' : space.unit_code)) +
+  (format(space.area_sqm) ? ' · ' + format(space.area_sqm) : '');
+
+const WIDTH = 2048;
+const CARD_WIDTH = 968;
+const ROW_HEIGHT = 37;
+const CARD_TOP = 174;
 
 function drawTower<F extends PlanFloor, S extends PlanSpace>(
-  tower: PresentationTower, input: PresentationInput<F, S>, x: number,
+  tower: PresentationTower, input: PresentationInput<F, S>, x: number, height: number,
 ): string {
-  const localFloors = input.floors.filter(f => f.tower_id === tower.id)
+  const floors = input.floors.filter(f => f.tower_id === tower.id)
     .sort((a, b) => b.level_order - a.level_order);
-  const ids = new Set(localFloors.map(f => f.id));
-  const localSpaces = input.spaces.filter(s => ids.has(s.floor_id));
-  const summary = summarizePlan(localFloors, localSpaces);
-  const isSubset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
-  const matchedRows = selectFloorRows(localFloors, localSpaces,
-    isSubset ? input.filter : 'all', isSubset ? input.search : '');
-  const matches = new Map(matchedRows.map(r => [r.floor.id, r.spaces]));
-  const y = 187, width = 884, innerX = x + 78, stripWidth = 665, height = 813;
-  const result = [
-    rect(x, y, width, height, '#FFFFFF', 12),
-    '<rect x="' + x + '" y="' + y + '" width="' + width + '" height="' + height +
-      '" rx="12" fill="none" stroke="#DCE3EB"/>',
-    rect(x + 18, y + 19, 5, 42, '#003E7E', 2),
-    text(x + 39, y + 48, tower.display_name, 27, '#172033', 600),
-    text(x + 183, y + 46, '办公楼层 ' + summary.officeFloors, 17, '#5F6C7D'),
-    text(x + 875, y + 46,
-      '来源已租 ' + number(summary.occupiedArea) + '㎡  /  空置 ' + number(summary.vacantArea) + '㎡',
-      17, '#53657A', 400, 'end'),
-    '<line x1="' + (x + 22) + '" x2="' + (x + 862) + '" y1="' + (y + 75) +
-      '" y2="' + (y + 75) + '" stroke="#E4EAF1"/>',
+  const ids = new Set(floors.map(f => f.id));
+  const spaces = input.spaces.filter(s => ids.has(s.floor_id));
+  const subset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
+  const chosen = selectFloorRows(floors, spaces, subset ? input.filter : 'all',
+    subset ? input.search : '');
+  const matches = new Map(chosen.map(r => [r.floor.id, r.spaces]));
+  const titleY = CARD_TOP + 49;
+  const startY = CARD_TOP + 112;
+  const stripX = x + 79, stripW = 726;
+  const elements = [
+    rect(x, CARD_TOP, CARD_WIDTH, height, '#FFFFFF', 10, '#DCE4EB'),
+    rect(x, CARD_TOP, CARD_WIDTH, 5, '#163E67', 0),
+    text(x + 29, titleY, tower.display_name, 29, '#20354B', 700),
+    text(x + CARD_WIDTH - 28, titleY, floors.length + '层', 17, '#66788A', 400, 'end'),
+    text(x + 53, startY - 21, '楼层', 14, '#718296', 400, 'middle'),
+    text(stripX + 10, startY - 21, '租户 / 单元面积', 14, '#718296'),
+    text(x + CARD_WIDTH - 25, startY - 21, '建筑面积', 14, '#718296', 400, 'end'),
+    '<line x1="' + (x + 21) + '" y1="' + (startY - 9) + '" x2="' +
+      (x + CARD_WIDTH - 21) + '" y2="' + (startY - 9) + '" stroke="#E1E8EE"/>',
   ];
-  const start = y + 92, step = Math.min(25, 664 / Math.max(localFloors.length, 1));
-  for (const [i, floor] of localFloors.entries()) {
-    const fy = start + i * step;
-    const fullUnits = localSpaces.filter(s => s.floor_id === floor.id);
-    const shown = isSubset ? (matches.get(floor.id) ?? []) : fullUnits;
-    const layout = unitLayout(floor, shown, isSubset);
+  for (const [index, floor] of floors.entries()) {
+    const fy = startY + index * ROW_HEIGHT;
+    const all = spaces.filter(s => s.floor_id === floor.id);
+    const shown = subset ? matches.get(floor.id) ?? [] : all;
+    const layout = unitLayout(floor, shown, subset);
     const total = layout.items.reduce((sum, item) => sum + item.weight, 0) + layout.residual;
-    const label = floor.floor_code.startsWith('B') ? floor.floor_code : floor.floor_code + 'F';
-    result.push(text(x + 54, fy + 17, label, 15, '#42576C', 600, 'end'));
-    result.push(rect(innerX, fy + 1, stripWidth, 21, '#F5F7FA', 3));
-    let left = innerX;
+    const code = floor.floor_code.startsWith('B') ? floor.floor_code : floor.floor_code + 'F';
+    elements.push(text(x + 53, fy + 24, code, 16, '#344D65', 600, 'middle'));
+    elements.push(rect(stripX, fy + 3, stripW, ROW_HEIGHT - 6, '#F3F5F7', 3));
+    let cursor = stripX;
     for (const space of shown) {
       const weight = layout.items.find(item => item.id === space.id)?.weight ?? 0;
-      const w = total > 0 ? stripWidth * weight / total : 0;
-      if (w >= 1) {
+      const width = total ? stripW * weight / total : 0;
+      if (width >= 1) {
         const palette = colors[space.occupancy_status];
-        result.push(rect(left + 0.7, fy + 1, Math.max(0, w - 1.4), 21, palette.fill, 2));
-        if (w >= 88) {
-          const name = (space.tenant_name || (space.occupancy_status === 'vacant' ? '空置' :
-            space.occupancy_status === 'unknown' ? '待确认' : space.unit_code)).trim();
-          const limit = Math.max(3, Math.floor((w - 18) / 14));
-          result.push(text(left + w / 2, fy + 16,
-            name.length > limit ? name.slice(0, limit - 1) + '…' : name,
-            13, palette.text, 500, 'middle'));
+        elements.push(rect(cursor + 1, fy + 3, Math.max(0, width - 2),
+          ROW_HEIGHT - 6, palette.fill, 2));
+        if (width > 54) {
+          const raw = label(space);
+          const available = Math.max(2, Math.floor((width - 10) / 13.5));
+          const value = raw.length > available ? raw.slice(0, available - 1) + '…' : raw;
+          elements.push(text(cursor + width / 2, fy + 24, value, 14, palette.ink, 500, 'middle'));
         }
       }
-      left += w;
+      cursor += width;
     }
     if (layout.residual > 0.1 && total > 0) {
-      const remainingWidth = stripWidth * layout.residual / total;
-      result.push(rect(left, fy + 1, remainingWidth, 21, '#F0F2F5', 2));
-      if (isSubset && remainingWidth >= 88) {
-        result.push(text(left + remainingWidth / 2, fy + 16, '未展示', 13, '#748193', 400, 'middle'));
-      }
+      const remainder = stripW * layout.residual / total;
+      elements.push(rect(cursor, fy + 3, remainder, ROW_HEIGHT - 6, '#F3F5F7', 2));
     }
-    const area = areaNumber(floor.floor_area_sqm);
-    result.push(text(x + 865, fy + 17, area === null ? '—' : number(area) + '㎡',
-      14, '#6B7788', 400, 'end'));
+    elements.push(text(x + CARD_WIDTH - 25, fy + 24, format(floor.floor_area_sqm) || '—',
+      14, '#627487', 400, 'end'));
+    elements.push('<line x1="' + (x + 21) + '" y1="' + (fy + ROW_HEIGHT) + '" x2="' +
+      (x + CARD_WIDTH - 21) + '" y2="' + (fy + ROW_HEIGHT) + '" stroke="#EFF2F5"/>');
   }
-  if (!localFloors.length) result.push(text(x + 442, y + 420, '暂无楼层记录', 20, '#667085', 400, 'middle'));
-  result.push(text(x + 23, y + 785,
-    '浅色块为来源记录；空白、未分配面积及状态不明不计为可出租房源',
-    15, '#667085'));
-  return result.join('');
+  if (!floors.length) elements.push(text(x + CARD_WIDTH / 2, startY + 55, '暂无楼层记录',
+    18, '#7A8998', 400, 'middle'));
+  return elements.join('');
 }
 
 /**
- * Presentation export uses the same source-only occupancy projection as the
- * workspace, without inventing tenancy, geometry or real-time vacancy.
- * The 1920×1080 viewBox remains crisp in high-resolution PNG conversions.
+ * Dynamic-height vector master. The PNG path rasterizes this at a bounded
+ * high-density scale. The output height grows with the actual tower floors,
+ * so no rows get squeezed into an arbitrary 1080px report frame.
  */
 export function createStackingPresentationSvg<F extends PlanFloor, S extends PlanSpace>(
   input: PresentationInput<F, S>,
 ): string {
   const towers = input.towers.slice(0, 2);
-  const isSubset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
-  const document = [
-    '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">',
-    rect(0, 0, 1920, 1080, '#F5F7FA', 0),
-    rect(0, 0, 1920, 9, '#003E7E', 0),
-    text(55, 61, 'COLLIERS  /  INTELLIGENCE PLATFORM', 19, '#003E7E', 700),
-    text(55, 119, input.projectName + '  ·  租赁分层总览', 36, '#172033', 600),
-    text(57, 159, '数据截至 ' + (input.sourceDate || '未知') + '  ·  来源快照  ·  逐项未核验' +
-      (isSubset ? '  ·  仅显示筛选单元' : ''), 18, '#6C7481'),
+  const maxFloors = Math.max(1, ...towers.map(tower =>
+    input.floors.filter(f => f.tower_id === tower.id).length));
+  const cardHeight = 131 + ROW_HEIGHT * maxFloors;
+  const height = CARD_TOP + cardHeight + 88;
+  const subset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
+  const result = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="' + WIDTH + '" height="' + height +
+      '" viewBox="0 0 ' + WIDTH + ' ' + height + '">',
+    rect(0, 0, WIDTH, height, '#F7F9FB'),
+    rect(0, 0, WIDTH, 8, '#163E67'),
+    text(52, 67, input.projectName + ' · Stacking Plan', 37, '#1A354F', 700),
+    subset ? text(53, 105, '筛选结果', 15, '#64788A') : '',
   ];
   if (towers.length === 1) {
-    document.push(drawTower(towers[0], input, 517));
+    result.push(drawTower(towers[0], input, (WIDTH - CARD_WIDTH) / 2, cardHeight));
   } else {
-    towers.forEach((tower, index) => document.push(drawTower(tower, input, index ? 979 : 55)));
+    towers.forEach((tower, i) => result.push(drawTower(tower, input, i ? 1044 : 36, cardHeight)));
   }
-  document.push(rect(54, 1018, 14, 14, colors.occupied.fill),
-    text(77, 1031, '已租', 16, '#526478'),
-    rect(172, 1018, 14, 14, colors.vacant.fill),
-    text(195, 1031, '空置', 16, '#526478'),
-    rect(292, 1018, 14, 14, colors.other.fill),
-    text(315, 1031, '其他用途', 16, '#526478'),
-    rect(452, 1018, 14, 14, colors.unknown.fill),
-    text(475, 1031, '待确认', 16, '#526478'),
-    text(1861, 1031, '仅供内部展示 · 不代表正式销控', 16, '#7A6472', 400, 'end'),
-    '</svg>');
-  return document.join('');
+  const foot = CARD_TOP + cardHeight + 37;
+  ([
+    ['已租', colors.occupied.fill], ['空置', colors.vacant.fill],
+    ['其他用途', colors.other.fill], ['待确认', colors.unknown.fill],
+  ] as const).forEach(([name, color], index) => {
+    const start = 53 + index * 150;
+    result.push(rect(start, foot - 14, 16, 16, color, 3));
+    result.push(text(start + 25, foot, name, 15, '#526779'));
+  });
+  if (input.sourceDate) result.push(text(WIDTH - 55, foot, input.sourceDate,
+    14, '#718296', 400, 'end'));
+  result.push('</svg>');
+  return result.join('');
 }
