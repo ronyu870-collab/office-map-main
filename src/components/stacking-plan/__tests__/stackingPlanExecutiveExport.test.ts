@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createStackingExcelRecords, type ExportableSpace } from '../stackingPlanExcel';
+import { buildStackingWorkbook, createStackingExcelRecords, type ExportableSpace } from '../stackingPlanExcel';
 import { createStackingPresentationSvg } from '../stackingPlanPresentation';
 import type { PlanFloor } from '../stackingPlanModel';
 
@@ -91,29 +91,35 @@ describe('Stacking Plan executive export data fidelity', () => {
     expect(data.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
   });
 
-  it('round-trips a real XLSX workbook with independent numeric rent steps', async () => {
+  it('round-trips the production XLSX builder with rent numbers and source scope', async () => {
     const XLSX = await import('xlsx');
-    const records = createStackingExcelRecords({ ...common, scope: 'all' });
-    const workbook = XLSX.utils.book_new();
-    for (const [name, data] of [
-      ['楼层汇总', records.floorRecords],
-      ['空间租赁明细', records.spaceRecords],
-      ['租金阶段明细', records.rentRecords],
-    ] as const) {
-      const sheet = XLSX.utils.json_to_sheet(data);
-      sheet['!autofilter'] = { ref: sheet['!ref']! };
-      XLSX.utils.book_append_sheet(workbook, sheet, name);
-    }
+    const workbook = buildStackingWorkbook(XLSX, { ...common, scope: 'all' });
     const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
     const decoded = XLSX.read(bytes, { type: 'buffer' });
-    expect(decoded.SheetNames).toEqual(['楼层汇总', '空间租赁明细', '租金阶段明细']);
+    expect(decoded.SheetNames).toEqual([
+      '楼层汇总', '空间租赁明细', '租金阶段明细', '口径与来源',
+    ]);
     const steps = XLSX.utils.sheet_to_json<Record<string, string | number>>(
       decoded.Sheets['租金阶段明细'],
     );
     expect(steps.map(step => step['表面租金(元/㎡/月)'])).toEqual([330, 360]);
     expect(steps.every(step => typeof step['表面租金(元/㎡/月)'] === 'number')).toBe(true);
-    expect(decoded.Sheets['空间租赁明细']['!ref']).toBeTruthy();
     expect(decoded.Sheets['空间租赁明细']['!autofilter']).toBeTruthy();
+    const metadata = XLSX.utils.sheet_to_json<string[]>(
+      decoded.Sheets['口径与来源'], { header: 1 },
+    );
+    expect(metadata).toContainEqual(['导出范围', '全部已建模单元']);
+    expect(metadata.some(row => row[0] === '租金口径'
+      && row[1].includes('不等于净有效租金'))).toBe(true);
+
+    const filteredWorkbook = buildStackingWorkbook(XLSX, {
+      ...common, scope: 'visible', filter: 'occupied', search: 'Example',
+    });
+    const filteredNotes = XLSX.utils.sheet_to_json<string[]>(
+      filteredWorkbook.Sheets['口径与来源'], { header: 1 },
+    );
+    expect(filteredNotes.some(row => row[0] === '导出范围'
+      && row[1].includes('当前筛选'))).toBe(true);
   });
 
   it('escapes tenant names before building SVG markup', () => {
