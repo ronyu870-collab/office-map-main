@@ -99,8 +99,8 @@ export function createStackingExcelRecords<S extends ExportableSpace>(input: Exp
           rentRecords.push({
             ...shared,
             '租金阶段': index + 1,
-            '开始日期': step.start,
-            '结束日期': step.end,
+            '开始日期': step.start === null ? null : protect(step.start),
+            '结束日期': step.end === null ? null : protect(step.end),
             '表面租金(元/㎡/月)': num(step.face_rent_monthly),
             '月总租金(元/月)': num(step.monthly_total_rent),
             '阶段面积(㎡)': num(step.area_sqm),
