@@ -469,5 +469,25 @@
       "keeps the map search input focused through list result updates and Chinese composition",
       "keeps selected buildings while switching list modes and filtering without losing unchecked rows"
     ]
+  },
+  {
+    "id": "map-workspace-list-search",
+    "roots": [
+      "src/app/map/components/FloatingBuildingList.tsx"
+    ],
+    "file": "src/app/map/__tests__/FloatingBuildingList.workspace.test.tsx",
+    "cases": [
+      "keeps list search focus, caret and IME across result updates and restores sorting after detail return"
+    ]
+  },
+  {
+    "id": "map-submarket-editor-focus",
+    "roots": [
+      "src/app/map/components/SubmarketDetailPanel.tsx"
+    ],
+    "file": "src/app/map/__tests__/SubmarketDetailPanel.test.tsx",
+    "cases": [
+      "preserves editorial input focus, caret and IME while the workspace summary updates"
+    ]
   }
 ]

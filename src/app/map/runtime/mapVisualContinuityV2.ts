@@ -208,8 +208,6 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
   let selectedId: string | null = null;
-  let suppressMapClearUntil = 0;
-  let navigationToken = 0;
   let futureSignature = '';
 
   const clearSelection = () => {
@@ -220,6 +218,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
 
   const showSelection = (building: any) => {
     clearSelection();
+    if (c.isWorkspaceActive?.()) return;
     if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
     const el = document.createElement('div');
     el.className = 'map-selected-marker';
@@ -227,36 +226,11 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     selectedMarker = new Marker({ position: [building.location_lng, building.location_lat], content: el, anchor: 'center', zIndex: 999999, bubble: true });
     map.add?.(selectedMarker);
     selectedId = String(building.id ?? '');
-    suppressMapClearUntil = performance.now() + 180;
     container.dataset.selectedBuilding = selectedId;
   };
 
   const openAfterZoom = (building: any) => {
-    if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
-    const token = ++navigationToken;
-    const center: [number, number] = [building.location_lng, building.location_lat];
-    showSelection(building);
-    const finish = () => {
-      if (token !== navigationToken) return;
-      requestAnimationFrame(() => {
-        if (token === navigationToken) c.openBuildingInfoWindow?.(building.id);
-      });
-    };
-    const zoom = map.getZoom?.() ?? 14;
-    if (zoom >= 13.55) { finish(); return; }
-    let done = false;
-    let timer: number | null = null;
-    const onProgress = () => {
-      if (done || token !== navigationToken) return;
-      if ((map.getZoom?.() ?? 0) >= 13.35) {
-        done = true; map.off?.('zoomchange', onProgress); map.off?.('zoomend', onEnd);
-        if (timer !== null) window.clearTimeout(timer); finish();
-      }
-    };
-    const onEnd = () => { if (!done) { done = true; map.off?.('zoomchange', onProgress); map.off?.('zoomend', onEnd); if (timer !== null) window.clearTimeout(timer); finish(); } };
-    map.on?.('zoomchange', onProgress); map.on?.('zoomend', onEnd);
-    map.setZoomAndCenter?.(14, center, false, 340);
-    timer = window.setTimeout(onEnd, 620);
+    if (building) c.openBuildingInfoWindow?.(building.id);
   };
 
   const build = (buildings: any[], mode: RenderMode, groups?: any[]): LayerSet => {
@@ -340,7 +314,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     const zoom = map.getZoom?.() ?? 14;
     activeTier = modeFor(zoom, activeTier); c.currentRenderMode = activeTier; container.dataset.markerTier = activeTier;
     setOpacity(current, zoom, 1); setOpacity(outgoing, zoom, 0.12);
-    if (activeTier !== 'building' && zoom < 12.5) { c.infoWindow?.close?.(); clearSelection(); }
+
   };
 
   const swap = (next: LayerSet, sig: string, buildings: any[], mode: RenderMode, groups?: any[]) => {
@@ -400,10 +374,16 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   const onZoomEnd = () => { apply(); requestAnimationFrame(() => container.classList.remove('map-is-zooming')); };
   const onMoveStart = () => container.classList.add('map-is-moving');
   const onMoveEnd = () => requestAnimationFrame(() => container.classList.remove('map-is-moving'));
-  const onMapClick = () => { if (selectedId && performance.now() > suppressMapClearUntil) clearSelection(); };
+  const onMapClick = () => {};
+  const onWorkspaceSelection = (event: Event) => {
+    const building = (event as CustomEvent).detail;
+    if (building) showSelection(building); else clearSelection();
+  };
+  window.addEventListener('map-workspace-selection', onWorkspaceSelection);
   map.on?.('zoomstart', onZoomStart); map.on?.('zoomchange', onZoomChange); map.on?.('zoomend', onZoomEnd); map.on?.('movestart', onMoveStart); map.on?.('moveend', onMoveEnd); map.on?.('click', onMapClick);
 
   return () => {
+    window.removeEventListener('map-workspace-selection', onWorkspaceSelection);
     if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     removeSet(map, outgoing); removeSet(map, current); clearSelection();

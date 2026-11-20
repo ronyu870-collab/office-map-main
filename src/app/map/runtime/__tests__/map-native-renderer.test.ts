@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { installMapInteractionHardening } from '../mapInteractionHardening';
-import { installNativeMarkerRenderer } from '../mapNativeMarkerRenderer';
+import { installFallbackMarkerHardening, installNativeMarkerRenderer } from '../mapNativeMarkerRenderer';
 
 type HandlerMap = Map<string, Set<(event?: any) => void>>;
 
@@ -537,9 +537,25 @@ describe('native map visual hierarchy', () => {
     harness.setZoom(11.8);
     harness.emitMap('zoomend');
     harness.massMarksInstances[0].handlers.emit('click', { data: harness.massMarksInstances[0].data[0] });
-    expect(document.getElementById('map-container')?.dataset.selectedBuilding).toBe('a');
-    expect(harness.setZoomAndCenter).toHaveBeenLastCalledWith(14, [116.46, 39.91], false, 320);
+    expect(open).toHaveBeenLastCalledWith('a');
+    expect(harness.setZoomAndCenter).not.toHaveBeenCalled();
 
     cleanup();
   });
+});
+
+it('remounts replacement DOM markers after filtering within the same zoom tier', async () => {
+  const add = vi.fn();
+  const first = { show: vi.fn(), hide: vi.fn() };
+  const second = { show: vi.fn(), hide: vi.fn() };
+  const controller: any = { map: { getZoom: () => 15, add }, markers: [first], dotMarkers: [], submarketMarkers: [], updateVisibilityByZoom: vi.fn() };
+  const cleanup = installFallbackMarkerHardening(controller, document.getElementById('map-container')!);
+  controller.updateVisibilityByZoom();
+  await flushFrames();
+  expect(add).toHaveBeenLastCalledWith([first]);
+  controller.markers = [second];
+  controller.updateVisibilityByZoom();
+  await flushFrames();
+  expect(add).toHaveBeenLastCalledWith([second]);
+  cleanup();
 });

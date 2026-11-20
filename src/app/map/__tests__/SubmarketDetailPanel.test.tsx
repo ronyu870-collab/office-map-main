@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -98,13 +99,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('submarket research modal', () => {
-  it('opens a centered accessible modal, preserves existing market metrics and separates editorial chapters', async () => {
+describe('submarket research workspace', () => {
+  it('opens a nonmodal workspace with top project action and preserves market metrics and editorial chapters', async () => {
     const { unmount } = render(<SubmarketDetailPanel {...props} />);
-    const dialog = screen.getByRole('dialog', { name: 'CBD' });
-    expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(dialog.className).toContain('max-w-[1140px]');
-    expect(dialog.className).not.toContain('sm:w-[420px]');
+    const dialog = screen.getByRole('region', { name: 'CBD' });
+    expect(dialog).not.toHaveAttribute('aria-modal');
+    expect(screen.getByRole('button', { name: '查看全部项目' }).closest('[data-map-submarket-panel]')).toBe(dialog);
+    expect(document.querySelector('[data-map-submarket-backdrop]')).toBeNull();
     await waitFor(() => expect(screen.getByText('金融总部与国际商务服务集聚区')).toBeInTheDocument());
     expect(screen.getByText('186.8')).toBeInTheDocument();
     expect(screen.getByText('12.5')).toBeInTheDocument();
@@ -152,17 +153,17 @@ describe('submarket research modal', () => {
     expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
   });
 
-  it('supports Escape, explicit close and backdrop dismissal without losing the map click handlers', async () => {
+  it('supports explicit close and Escape while allowing map interactions', async () => {
     const onClose = vi.fn();
     const { unmount } = render(<SubmarketDetailPanel {...props} onClose={onClose} />);
-    fireEvent.pointerDown(screen.getByRole('dialog'));
+    fireEvent.pointerDown(screen.getByRole('region', { name: 'CBD' }));
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.pointerDown(document.querySelector('[data-map-submarket-backdrop]')!);
-    expect(onClose).toHaveBeenCalledTimes(2);
+    fireEvent.pointerDown(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: '关闭子市场介绍' }));
-    expect(onClose).toHaveBeenCalledTimes(3);
+    expect(onClose).toHaveBeenCalledTimes(2);
     unmount();
   });
 
@@ -174,14 +175,14 @@ describe('submarket research modal', () => {
     fireEvent.click(screen.getByRole('button', { name: /测试楼宇/ }));
     expect(onOpenBuilding).toHaveBeenCalledWith('office-a');
     rerender(<SubmarketDetailPanel {...props} onClose={onClose} onOpenBuilding={onOpenBuilding} suspended />);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(document.querySelector('[data-map-submarket-backdrop]')).toHaveClass('hidden');
+    expect(screen.queryByRole('region', { name: 'CBD' })).not.toBeInTheDocument();
+    expect(document.querySelector('.map-submarket-workspace')).toHaveClass('hidden');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).not.toHaveBeenCalled();
     rerender(<SubmarketDetailPanel {...props} onClose={onClose} onOpenBuilding={onOpenBuilding} />);
-    expect(screen.getByRole('dialog', { name: 'CBD' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'CBD' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: '代表项目' }));
-    fireEvent.click(screen.getByRole('button', { name: /地图查看全部项目/ }));
+    fireEvent.click(screen.getByRole('button', { name: '查看全部项目' }));
     expect(props.onShowAll).toHaveBeenCalledOnce();
   });
 
@@ -229,3 +230,26 @@ describe('submarket research modal', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
+
+ it('preserves editorial input focus, caret and IME while the workspace summary updates', async () => {
+   const { rerender } = render(<SubmarketDetailPanel {...props} />);
+   await waitFor(() => expect(screen.getByRole('button', { name: '维护资料' })).toBeInTheDocument());
+   fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
+   const input = screen.getByDisplayValue(profile.headline) as HTMLInputElement;
+   const user = userEvent.setup();
+   await user.click(input);
+   input.setSelectionRange(2, 2);
+   await user.keyboard('总部');
+   const caret = input.selectionStart;
+   rerender(<SubmarketDetailPanel {...props} summary={{ ...summary, officeCount: 3 }} />);
+   expect(screen.getByDisplayValue(input.value)).toBe(input);
+   expect(input).toHaveFocus();
+   expect(input.selectionStart).toBe(caret);
+   fireEvent.compositionStart(input);
+   fireEvent.change(input, { target: { value: '组合输入中的区域定位' } });
+   rerender(<SubmarketDetailPanel {...props} summary={{ ...summary, officeCount: 4 }} />);
+   expect(input).toHaveFocus();
+   expect(input).toHaveValue('组合输入中的区域定位');
+   fireEvent.compositionEnd(input, { data: '定位' });
+   expect(api.save).not.toHaveBeenCalled();
+ });

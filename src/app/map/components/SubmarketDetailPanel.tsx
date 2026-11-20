@@ -2,10 +2,9 @@
 
 import * as React from 'react';
 import dynamic from 'next/dynamic';
-import { createPortal } from 'react-dom';
 import {
-  ArrowUpRight, BarChart3, Building2, ChevronRight, ExternalLink,
-  MapPin, Pencil, Plus, RefreshCw, Save, Trash2, X,
+  BarChart3, Building2, ChevronRight, ExternalLink,
+  Pencil, Plus, RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
 
 import { fetchSubmarketDetailPayload, saveSubmarketProfile, type SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -26,6 +25,8 @@ type Props = {
   futureCount: number;
   canEdit: boolean;
   suspended?: boolean;
+  retained?: boolean;
+  onRetain?: () => void;
   onClose: () => void;
   onShowAll: () => void;
   onOpenBuilding: (id: string) => void;
@@ -177,7 +178,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 }
 
 export function SubmarketDetailPanel({
-  name, summary, buildings, futureCount, canEdit, suspended = false, onClose, onShowAll, onOpenBuilding,
+  name, summary, buildings, futureCount, canEdit, suspended = false, retained = false, onRetain, onClose, onShowAll, onOpenBuilding,
 }: Props) {
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -209,48 +210,11 @@ export function SubmarketDetailPanel({
     onClose();
   }, [editing, saving, onClose]);
 
-  // A representative building suspends this overlay without unmounting its
-  // content: returning to the submarket restores the previous scroll position.
-  React.useEffect(() => {
-    if (suspended) return;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    headingRef.current?.focus({ preventScroll: true });
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
-    };
-  }, [name, suspended]);
-
   React.useEffect(() => {
     if (suspended) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closePanel();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusables = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])',
-      ) ?? []).filter(element => element.getAttribute('aria-hidden') !== 'true');
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (!first || !last) {
-        event.preventDefault();
-        headingRef.current?.focus();
-      } else if (event.shiftKey && (document.activeElement === first || document.activeElement === headingRef.current)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      } else if (!dialogRef.current?.contains(document.activeElement)) {
-        event.preventDefault();
-        first.focus();
-      }
+      if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault(); closePanel();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -307,13 +271,10 @@ export function SubmarketDetailPanel({
 
   // Keep the map mounted, but let the client brief own its interaction layer.
   if (typeof document === 'undefined') return null;
-  return createPortal(
-    <div data-map-submarket-backdrop aria-hidden={suspended ? true : undefined}
-      className={suspended ? 'hidden' : 'fixed inset-0 z-[950] flex items-center justify-center bg-[rgb(15_23_42_/_0.46)] sm:p-5'}
-      onPointerDown={event => { if (event.target === event.currentTarget) closePanel(); }}>
-      <section ref={dialogRef} data-map-submarket-panel role="dialog"
-        aria-modal={!suspended} aria-labelledby="submarket-dialog-heading"
-        className="flex h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none border border-[#e0e6ed] bg-white text-[#172033] shadow-[0_20px_70px_rgba(15,23,42,0.20)] sm:h-[86dvh] sm:max-h-[780px] sm:max-w-[1140px] sm:rounded-[12px]">
+  return (
+    <div aria-hidden={suspended || undefined} className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
+      <section ref={dialogRef} data-map-submarket-panel role="region"
+        aria-labelledby="submarket-dialog-heading" className="map-submarket-workspace-panel">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e9edf2] px-4 py-3 sm:px-7 sm:py-4">
           <div className="min-w-0">
             <p className="m-0 text-[11px] font-medium tracking-wide text-[#64748b]">北京办公楼市场 · 子市场研究</p>
@@ -332,6 +293,10 @@ export function SubmarketDetailPanel({
           </div>
         </header>
 
+        {!editing ? <div className="map-submarket-primary-actions">
+          <button type="button" onClick={onShowAll}>查看全部项目</button>
+          <button type="button" aria-pressed={retained} onClick={onRetain}>{retained ? '已保留区域筛选' : '保留该区域筛选'}</button>
+        </div> : null}
         {!editing ? (
           <nav role="tablist" aria-label="子市场研究内容"
             onKeyDown={event => {
@@ -618,10 +583,7 @@ export function SubmarketDetailPanel({
                   ) : (
                     <p className="mt-4 text-[13px] text-[#64748b]">当前区域暂无可定位项目。</p>
                   )}
-                  <button type="button" onClick={onShowAll}
-                    className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[12px] font-semibold text-white hover:bg-[#002f61] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#003e7e]">
-                    <MapPin size={15} aria-hidden="true" /> 地图查看全部项目 <ArrowUpRight size={14} aria-hidden="true" />
-                  </button>
+
                 </section>
               ) : null}
             </div>
@@ -635,7 +597,6 @@ export function SubmarketDetailPanel({
           </footer>
         ) : null}
       </section>
-    </div>,
-    document.body,
+    </div>
   );
 }

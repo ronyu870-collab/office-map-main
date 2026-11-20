@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runtime = vi.hoisted(() => ({ mounts: 0, cleanups: 0, role: 'viewer', fail: null as ((message: string) => void) | null }));
 const controller = vi.hoisted(() => ({
+  setWorkspaceDetailHandler: vi.fn(),
   fetchMapData: vi.fn(), fetchFutureSupplies: vi.fn(), getDisplayOverridesCache: vi.fn(() => new Map()),
   clearCompetitorElements: vi.fn(), clearDistrictBoundaries: vi.fn(), clearSubwayElements: vi.fn(),
   clearFutureMarkers: vi.fn(), renderMarkers: vi.fn(), renderFutureMarkers: vi.fn(),
@@ -207,13 +208,13 @@ describe('complete list with the existing map workbench', () => {
     expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
   });
 
-  it('retains missing-location records without letting them trigger map details', async () => {
+  it('opens missing-location records without inventing a map position', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList();
     const row = list.querySelector('[data-building-id="b-4"]') as HTMLElement;
-    expect(within(row).getByRole('button', { name: '项目04' })).toBeDisabled();
-    expect(within(row).getByText(/位置待完善/)).toBeInTheDocument();
-    expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+    fireEvent.click(within(row).getByRole('button', { name: '项目04' }));
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-4');
+    expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
   });
 
   it('exposes all three quick filters and keeps the map and advanced panel in sync', async () => {
@@ -350,7 +351,7 @@ describe('complete list with the existing map workbench', () => {
     expect(within(list).queryByText(/2026Q[23]|数据期间按楼宇标注/)).not.toBeInTheDocument();
   });
 
-  it('opens only the last selected building through the unchanged map detail entry', async () => {
+  it('opens each explicit selection immediately and keeps the last selection', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     let list = await openList(); vi.useFakeTimers();
     fireEvent.click(within(list).getByRole('button', { name: '项目01' }));
@@ -359,12 +360,12 @@ describe('complete list with the existing map workbench', () => {
     list = screen.getByRole('region', { name: '完整楼宇列表' });
     fireEvent.click(within(list).getByRole('button', { name: '项目02' }));
     await act(async () => { vi.advanceTimersByTime(650); });
-    expect(controller.openBuildingInfoWindow).toHaveBeenCalledTimes(1);
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledTimes(2);
     expect(controller.openBuildingInfoWindow).toHaveBeenLastCalledWith('b-2');
-    expect(controller.map.setZoomAndCenter).toHaveBeenLastCalledWith(16, [BUILDINGS[1].location_lng, 39.91], false, 500);
+    expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
   });
 
-  it('cancels a delayed detail when the user returns to the list, even after switching to map again', async () => {
+  it('does not repeat a selection after returning to the list and map', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList(); vi.useFakeTimers();
     fireEvent.click(within(list).getByRole('button', { name: '项目01' }));
@@ -372,7 +373,7 @@ describe('complete list with the existing map workbench', () => {
     fireEvent.click(screen.getByRole('button', { name: '完整列表' }));
     fireEvent.click(screen.getByRole('button', { name: '返回地图' }));
     await act(async () => { vi.advanceTimersByTime(1000); });
-    expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledTimes(1);
   });
 
   it('supports browser back and forward without remounting the map', async () => {
@@ -472,14 +473,14 @@ describe('complete list with the existing map workbench', () => {
     expect(screen.getByRole('searchbox')).toHaveValue('');
   });
 
-  it('cancels pending detail work on unmount', async () => {
+  it('does not repeat a selection after unmount', async () => {
     const mounted = render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList(); vi.useFakeTimers();
     fireEvent.click(within(list).getByRole('button', { name: '项目01' }));
     await act(async () => { vi.advanceTimersByTime(20); });
     mounted.unmount();
     await act(async () => { vi.advanceTimersByTime(1000); });
-    expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledTimes(1);
     expect(runtime.cleanups).toBe(1);
   });
 
@@ -526,7 +527,7 @@ describe('asynchronous scope and view boundaries', () => {
     expect(within(reopened).getByRole('checkbox', { name: '玉渊潭' })).not.toBeChecked();
   });
 
-  it('invalidates a delayed detail when popstate restores the list', async () => {
+  it('does not replay detail selection when popstate restores the list', async () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     const list = await openList(); vi.useFakeTimers();
     fireEvent.click(within(list).getByRole('button', { name: '项目01' }));
@@ -537,7 +538,7 @@ describe('asynchronous scope and view boundaries', () => {
     });
     expect(screen.getByRole('region', { name: '完整楼宇列表' })).toBeInTheDocument();
     await act(async () => { vi.advanceTimersByTime(1000); });
-    expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledTimes(1);
   });
 
   it('ignores an older future response and opens the selected future through its existing entry', async () => {
@@ -636,14 +637,14 @@ describe('map search P1 candidates and explicit viewport navigation', () => {
     expect(input).toHaveFocus();
     expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
     await user.keyboard('目0');
-    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 8')).toBeVisible());
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 9')).toBeVisible());
     expect(controller.fitToBuildings).not.toHaveBeenCalled();
     expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
     const candidates = screen.getByRole('region', { name: '项目搜索候选' });
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     expect(within(candidates).getAllByRole('button').find(button => button.hasAttribute('data-map-search-choice'))).toHaveFocus();
     fireEvent.click(within(candidates).getByRole('button', { name: /项目02/ }));
-    await waitFor(() => expect(controller.map.setZoomAndCenter).toHaveBeenCalledWith(16, [BUILDINGS[1].location_lng, 39.91], false, 500));
+    expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
     await waitFor(() => expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-2'), { timeout: 1600 });
     expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();
   });
@@ -658,7 +659,7 @@ describe('map search P1 candidates and explicit viewport navigation', () => {
     render(<MapClient initialIntelligenceHandoff={null} />);
     await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目0' } });
-    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 9')).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByRole('region', { name: '项目搜索候选' })).getByText('匹配项目 · 10')).toBeInTheDocument());
     expect(controller.fitToBuildings).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '搜索' }));
     await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledTimes(1));
@@ -706,9 +707,9 @@ describe('map search P2 result scope and competitor continuity', () => {
     await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '项目04' } });
     const choices = screen.getByRole('region', { name: '项目搜索候选' });
-    await waitFor(() => expect(within(choices).getByText('匹配项目 · 0')).toBeInTheDocument());
-    expect(within(choices).getByText(/有 1 个匹配项目，但缺少坐标/)).toBeVisible();
-    expect(within(choices).getByText(/另有 1 个匹配项目缺少坐标/)).toBeVisible();
+    await waitFor(() => expect(within(choices).getByText('匹配项目 · 1')).toBeInTheDocument());
+    expect(within(choices).getByText(/1 个项目未提供坐标，仍可打开详情/)).toBeVisible();
+    expect(within(choices).getByRole('button', { name: /项目04/ })).toBeEnabled();
     expect(within(choices).getByText('全部已授权项目')).toBeVisible();
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '不存在的项目名称' } });
     await waitFor(() => expect(within(choices).getByText(/当前筛选范围内没有匹配项目/)).toBeInTheDocument());

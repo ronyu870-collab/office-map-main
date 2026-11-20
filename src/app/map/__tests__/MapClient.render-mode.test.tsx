@@ -14,6 +14,7 @@ vi.mock('@/src/app/map/MapQuerySelection', () => ({
 }));
 
 const controller = vi.hoisted(() => ({
+  setWorkspaceDetailHandler: vi.fn(),
   fetchMapData: vi.fn(),
   fetchFutureSupplies: vi.fn(),
   getDisplayOverridesCache: vi.fn(() => new Map()),
@@ -88,12 +89,14 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
   MapWorkbenchView: ({
     queryPanel,
     submarketDetailPanel,
+    buildingDetailPanel, rightKind, backLabel, onWorkspaceBack,
     onRenderModeChange,
     onSearch,
     onFilterChange,
   }: {
     queryPanel?: React.ReactNode;
     submarketDetailPanel?: React.ReactNode;
+    buildingDetailPanel?: React.ReactNode; rightKind?: string; backLabel?: string; onWorkspaceBack?: () => void;
     onRenderModeChange: (mode: 'rent') => void;
     onSearch: (value: string) => void;
     onFilterChange: (state: SidebarFilterState) => void;
@@ -101,6 +104,8 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
     <>
       {queryPanel}
       {submarketDetailPanel}
+      {rightKind === 'building' ? buildingDetailPanel : null}
+      {backLabel ? <button type="button" onClick={onWorkspaceBack}>返回{backLabel}</button> : null}
       <button type="button" onClick={() => onRenderModeChange('rent')}>
         switch-to-rent
       </button>
@@ -148,11 +153,17 @@ describe('MapClient render mode synchronization', () => {
     controller.fetchMapData.mockResolvedValue(BUILDINGS);
     controller.fetchFutureSupplies.mockResolvedValue([]);
     controller.getDisplayOverridesCache.mockReturnValue(new Map());
+    let publish: ((detail: unknown) => void) | null = null;
+    controller.setWorkspaceDetailHandler.mockImplementation(handler => { publish = handler; });
+    controller.openBuildingInfoWindow.mockImplementation(id => {
+      const building = BUILDINGS.find(item => item.id === id);
+      if (building) publish?.({ building, metric: null, photos: [], isDemo: false, canEdit: false, overrides: {} });
+    });
     queryBridge.selection = null; queryBridge.publish = undefined;
   });
 
 
-  it('does not reopen a delayed building popup after returning to the submarket modal', async () => {
+  it('opens details immediately and does not reopen an old selection after returning to research', async () => {
     render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
     await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
     act(() => {
@@ -162,19 +173,20 @@ describe('MapClient render mode synchronization', () => {
     vi.useFakeTimers();
     try {
       fireEvent.click(open);
-      expect(controller.map.setZoomAndCenter).toHaveBeenCalledWith(16, [116.46, 39.91], false, 500);
-      const back = screen.getByRole('button', { name: '返回CBD子市场介绍' });
+      expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('building-1');
+      expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
+      const back = screen.getByRole('button', { name: '返回子市场研究' });
       fireEvent.click(back);
       act(() => { vi.advanceTimersByTime(650); });
-      expect(controller.openBuildingInfoWindow).not.toHaveBeenCalled();
+      expect(controller.openBuildingInfoWindow).toHaveBeenCalledOnce();
       expect(screen.getByRole('button', { name: 'open-submarket-test-building' })).toBeInTheDocument();
-      expect(controller.closeInfoWindow).toHaveBeenCalled();
+      expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('does not hide the submarket modal if building navigation is rejected', async () => {
+  it('allows an authorized building detail even when its location is unavailable', async () => {
     controller.fetchMapData.mockResolvedValueOnce([
       { ...BUILDINGS[0], location_lng: Number.NaN },
     ]);
@@ -185,7 +197,7 @@ describe('MapClient render mode synchronization', () => {
       window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } }));
     });
     fireEvent.click(screen.getByRole('button', { name: 'open-submarket-test-building' }));
-    expect(screen.queryByRole('button', { name: '返回CBD子市场介绍' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '返回子市场研究' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'open-submarket-test-building' })).toBeInTheDocument();
   });
 

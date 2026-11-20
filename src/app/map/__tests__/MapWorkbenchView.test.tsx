@@ -1,6 +1,8 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+beforeEach(() => { Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 }); });
 
 const sidebarProps = vi.hoisted(() => ({ latest: null as Record<string, unknown> | null }));
 
@@ -102,7 +104,7 @@ function renderWorkbench(overrides: Partial<WorkbenchProps> = {}) {
   };
 
   const view = render(<MapWorkbenchView {...props} />);
-  return { ...callbacks, setSupplyOpen: (isSupplyOpen: boolean) => view.rerender(<MapWorkbenchView {...props} isSupplyOpen={isSupplyOpen} />) };
+  return { ...callbacks, update: (next: Partial<WorkbenchProps>) => view.rerender(<MapWorkbenchView {...props} {...next} />), setSupplyOpen: (isSupplyOpen: boolean) => view.rerender(<MapWorkbenchView {...props} isSupplyOpen={isSupplyOpen} />) };
 }
 
 describe('MapWorkbenchView', () => {
@@ -112,7 +114,7 @@ describe('MapWorkbenchView', () => {
     fireEvent.click(screen.getByText('待核实项目（1）'));
     expect(screen.queryByRole('heading', { name: '商业项目' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '裕惠大厦' }));
-    expect(c.onSupplyOpenChange).toHaveBeenCalledWith(false);
+    expect(c.onSupplyOpenChange).not.toHaveBeenCalledWith(false);
     expect(c.onBuildingClick).toHaveBeenCalledWith({ ...pending, _dataType: 'future' });
   });
 
@@ -128,9 +130,9 @@ describe('MapWorkbenchView', () => {
     expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(true);
     callbacks.setSupplyOpen(true);
     expect(screen.getByRole('heading', { name: '商业项目' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '测试办公供应' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '测试办公供应' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '玉渊潭640地块商业项目' }));
-    expect(callbacks.onSupplyOpenChange).toHaveBeenLastCalledWith(false);
+    expect(callbacks.onSupplyOpenChange).toHaveBeenLastCalledWith(true);
     expect(callbacks.onBuildingClick).toHaveBeenCalledWith({ ...supply, _dataType: 'future' });
   });
 
@@ -156,13 +158,13 @@ describe('MapWorkbenchView', () => {
     expect(callbacks.onRenderModeChange).toHaveBeenCalledWith('rent');
   });
 
-  it('keeps filter, supply and list workspaces mutually exclusive through callbacks', () => {
+  it('opens filters independently while keeping the right workspace available', () => {
     const callbacks = renderWorkbench({ isSupplyOpen: true, isListVisible: true });
 
     fireEvent.click(screen.getByRole('button', { name: '筛选' }));
 
-    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
-    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+    expect(callbacks.onSupplyOpenChange).not.toHaveBeenCalled();
+    expect(callbacks.onCloseList).not.toHaveBeenCalled();
     expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(true);
   });
 
@@ -180,7 +182,7 @@ describe('MapWorkbenchView', () => {
   });
 
   it('keeps supply and project-list surfaces in the visual layer', () => {
-    renderWorkbench({ isSupplyOpen: true, isListVisible: true, canOpenList: true });
+    renderWorkbench({ isSupplyOpen: true, isListVisible: true, rightKind: 'list', canOpenList: true });
 
     expect(screen.getByText('已纳入统计 0 个项目')).toBeInTheDocument();
     expect(screen.getByTestId('floating-building-list')).toBeInTheDocument();
@@ -201,7 +203,7 @@ describe('MapWorkbenchView', () => {
     expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
   });
 
-  it('dismisses open workspaces when the user returns to the map canvas', () => {
+  it('preserves the business workspace while the user operates the map canvas', () => {
     const callbacks = renderWorkbench({
       isFilterPanelOpen: true,
       isSupplyOpen: true,
@@ -213,9 +215,9 @@ describe('MapWorkbenchView', () => {
     expect(mapCanvas).not.toBeNull();
     fireEvent.pointerDown(mapCanvas!);
 
-    expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
-    expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(false);
-    expect(callbacks.onCloseList).toHaveBeenCalledTimes(1);
+    expect(callbacks.onFilterPanelOpenChange).not.toHaveBeenCalled();
+    expect(callbacks.onSupplyOpenChange).not.toHaveBeenCalled();
+    expect(callbacks.onCloseList).not.toHaveBeenCalled();
   });
 
 });
@@ -230,4 +232,16 @@ it('respects modal Escape without dismissing the map workspace behind it',async(
 it('respects handled Escape while preserving ordinary workspace Escape behavior',()=>{
  const callbacks=renderWorkbench({isListVisible:true});const event=new KeyboardEvent('keydown',{key:'Escape',cancelable:true,bubbles:true});event.preventDefault();window.dispatchEvent(event);
  expect(callbacks.onCloseList).not.toHaveBeenCalled();fireEvent.keyDown(window,{key:'Escape'});expect(callbacks.onCloseList).toHaveBeenCalledOnce();
+});
+
+it('shows explicit area navigation instead of stale search results and releases the mobile filter drawer', () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const callbacks = renderWorkbench({ keyword: 'CBD', isFilterPanelOpen: true,
+    fullBuildingList: [{ id: 'a', name: 'CBD甲楼' }], submarketDetailPanel: <div>当前区域研究</div> });
+  fireEvent.change(screen.getByRole('textbox', { name: '地图搜索' }), { target: { value: 'CBD甲' } });
+  expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
+  expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
+  callbacks.update({ rightView: { kind: 'submarket', name: 'CBD' }, rightKind: 'submarket', isFilterPanelOpen: false });
+  expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();
+  expect(screen.getByText('当前区域研究')).toBeVisible();
 });

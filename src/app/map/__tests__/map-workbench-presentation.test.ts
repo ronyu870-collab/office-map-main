@@ -21,7 +21,7 @@ describe('Map 2.0 presentation seam', () => {
     const css = read('src/app/map/map-workbench.css');
     expect(css).toContain('.amap-info-content');
     expect(css).toContain('[data-building-id]');
-    expect(css).toContain('body:has(#map-container) aside');
+    expect(css).toContain('body:has(#map-container) .map-workspace-left');
   });
   it('keeps future F markers scoped and circular without changing stock marker styles', () => {
     const css = read('src/app/map/map-workbench.css');

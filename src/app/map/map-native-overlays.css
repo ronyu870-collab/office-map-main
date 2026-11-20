@@ -140,17 +140,18 @@ body:has(#map-container) .map-selected-marker__core {
   position: absolute;
   inset: 14px;
   border-radius: 999px;
-  background: #245b78;
-  border: 2px solid #fff;
+  background: transparent;
+  border: 2px solid #F28C5C;
+  transform: scale(1.2);
   box-shadow: 0 2px 7px rgba(23, 42, 58, 0.2);
 }
 body:has(#map-container) .map-selected-marker__ring {
   position: absolute;
   inset: 4px;
   border-radius: 999px;
-  border: 2px solid rgba(36, 91, 120, 0.52);
-  box-shadow: 0 0 0 4px rgba(36, 91, 120, 0.10);
-  animation: map-selected-pulse 1.5s ease-out infinite;
+  border: 2px solid rgba(242, 140, 92, 0.7);
+  box-shadow: 0 0 0 4px rgba(246, 183, 90, 0.16);
+  animation: map-selected-pulse 700ms ease-out 2;
 }
 @keyframes map-selected-pulse {
   0% { transform: scale(.76); opacity: .95; }
