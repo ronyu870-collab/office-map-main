@@ -5,6 +5,7 @@
 当前用户决定：**所有AI功能仅供admin本人使用**，仍需对应独立查询/数据/导出/审计资格。普通角色或模拟身份不可使用，旧公开预览开关不能扩大范围。以前工作包允许持资格viewer/editor的证据仅是历史行为，已被本包替代。见[admin专用限制与验证](admin-only-access.md)。
 
 | 责任 | 当前入口 |
+| Colliers AI 5.0 P0 季度正式/待核验来源隔离、去重与质量状态 | [季度来源契约及回归](ai5-quarterly-source-contract.md) |
 | --- | --- |
 | AI 38 项体验修复：Markdown、连续历史、复制、侧栏与输入 | [逐项实施与验证](ai-experience-38-fixes.md) |
 | Colliers AI 4.0 DeepSeek-Native Agent 核心首批 | [Agent 交付记录](colliers-ai-4-agent-core.md) |
