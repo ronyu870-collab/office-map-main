@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import {
   ArrowUpRight, BarChart3, Building2, ChevronRight, ExternalLink,
-  Info, MapPin, Pencil, Plus, RefreshCw, Save, Trash2, X,
+  MapPin, Pencil, Plus, RefreshCw, Save, Trash2, X,
 } from 'lucide-react';
 
 import { fetchSubmarketDetailPayload, saveSubmarketProfile, type SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -334,9 +334,22 @@ export function SubmarketDetailPanel({
 
         {!editing ? (
           <nav role="tablist" aria-label="子市场研究内容"
+            onKeyDown={event => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              const index = visibleTabs.findIndex(([id]) => id === currentSection);
+              const next = (index + (event.key === 'ArrowRight' ? 1 : -1) + visibleTabs.length) % visibleTabs.length;
+              const target = visibleTabs[next]?.[0];
+              if (target) {
+                setSection(target);
+                document.getElementById('submarket-tab-' + target)?.focus();
+                if (scrollRef.current) scrollRef.current.scrollTop = 0;
+              }
+            }}
             className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#e9edf2] bg-white px-3 sm:px-6">
             {visibleTabs.map(([id, label]) => (
               <button type="button" role="tab" key={id} id={'submarket-tab-' + id}
+                tabIndex={currentSection === id ? 0 : -1}
                 aria-selected={currentSection === id} aria-controls="submarket-active-panel"
                 onClick={() => { setSection(id); if (scrollRef.current) scrollRef.current.scrollTop = 0; }}
                 className={'relative min-h-11 shrink-0 px-3 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] '
@@ -506,7 +519,7 @@ export function SubmarketDetailPanel({
                     {metric('最新有效样本', String(latest?.rentSamples ?? 0), '个（租金）', '空置样本 ' + (latest?.vacancySamples ?? 0) + ' 个')}
                   </section>
                   <p className="m-0 px-1 text-[11px] leading-5 text-[#64748b]">
-                    数据来自 building_metrics 正式季度记录，按同季度有效面积加权；缺失不补零，草稿不计入。各期样本可能不同，变化不代表同一楼宇的租金变动。
+                    数据来自正式季度记录，按同季度有效面积加权；缺失不补零。各期样本可能不同，变化不代表同一楼宇的租金变动。
                   </p>
                 </div>
               ) : currentSection === 'profile' && profile ? (
