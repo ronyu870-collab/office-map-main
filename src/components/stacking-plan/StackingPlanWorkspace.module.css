@@ -496,3 +496,9 @@
   .miniFloor,.miniUnits {min-height:46px}
   .miniUnit {min-height:42px;min-width:62px}
 }
+
+/* Keep on-screen tenancy states identical to SVG/Excel exports. */
+.occupied {background:#DCEAF4;color:#234E71;border-color:#C5D8E7}
+.vacant {background:#EEF1F5;color:#516475;border-color:#DCE4EB}
+.other {background:#E6EFE7;color:#456750;border-color:#CCDCCE}
+.unknown {background:#F6EDDB;color:#775A32;border-color:#E5D5B9}

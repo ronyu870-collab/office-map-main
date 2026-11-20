@@ -390,7 +390,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
         </div>
 
         {status === 'loading' ? <div className={styles.state}>正在校验管理员身份…</div>
-          : unauthorized ? <div className={styles.state}>仅真实 Admin 账号可访问此功能。<a href="/map">返回地图</a></div>
+          : unauthorized ? <div className={styles.state}>仅管理员账号可访问此功能。<a href="/map">返回地图</a></div>
           : !payload && !error ? <div className={styles.state}>正在读取楼层资料…</div>
           : !payload ? <div className={styles.state}>{error}<button type="button" onClick={() => setRefreshKey(n => n + 1)}>重试</button></div>
           : (
@@ -532,7 +532,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                 onClick={() => { if (!isEditing || window.confirm('编辑内容尚未保存，确定关闭吗？')) { setSelectedId(null); setIsEditing(false); } }}/>}
               <aside className={[styles.details, selected ? styles.drawerActive : styles.detailsHidden].join(' ')}
                 aria-label="租赁单元详情">
-                {selected ? <>
+                {selected && <>
                   <div className={styles.detailHeader}>
                     <span className={styles.sectionKicker}>单元详情</span>
                     <button type="button" aria-label="关闭详情" onClick={() => {
@@ -566,7 +566,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                           : '租金未注明'}</strong>
                       <span>{step.start || '日期未知'} — {step.end || '日期未知'}</span>
                       {step.area_sqm != null && <span>阶段面积 {fmt(step.area_sqm)} ㎡</span>}
-                    </div>) : <p className={styles.none}>原图未提供租金阶段</p>}
+                    </div>) : <p className={styles.none}>暂无租金记录</p>}
 
                   {!isEditing ? <>
                     <button type="button" className={styles.editButton} onClick={() => setIsEditing(true)}>
