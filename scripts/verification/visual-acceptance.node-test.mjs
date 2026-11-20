@@ -1,3 +1,11 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { checkVisualAcceptance } from './visual-acceptance.mjs';
+
+const head = 'a'.repeat(40);
+const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
+const check = body => checkVisualAcceptance({ body, head: { sha: head } });
+
 test('PR #230 Stacking Plan visual-only waiver is exact and does not affect Verify', () => {
   const scope = 'Xiaoyun Road 33 A/B administrator Stacking Plan overview, navigation, PNG/SVG and Excel exports, PR #230';
   const reason = 'User explicitly waived independent visual acceptance and requested PR #230 merge to main on 2026-11-20; independent visual review was not performed and this waiver does not bypass Verify, permissions, audit or export checks';
@@ -14,14 +22,6 @@ test('PR #230 Stacking Plan visual-only waiver is exact and does not affect Veri
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated scope') }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Skip all checks') }), /specifically authorized/);
 });
-
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { checkVisualAcceptance } from './visual-acceptance.mjs';
-
-const head = 'a'.repeat(40);
-const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
-const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
 test('Colliers AI 5.0 P0 PR #229 manual review waiver is exact, scoped and current-head only', () => {
   const scope = 'Colliers AI 5.0 P0 quarterly formal metric and unreviewed submission source isolation, PR #229';
