@@ -1,8 +1,8 @@
 import { emptySubmarketProfile, type SubmarketProfile, type SubmarketProfileDraft } from './submarketProfile';
 
 /**
- * Editorial release gate. Review the underlying evidence before publishing;
- * removing a draft label is not evidence of factual approval.
+ * Customer-facing content hygiene only, not a factual-review or approval workflow.
+ * Automatic publication does not assert that any human reviewed a source.
  */
 const internalMarkers = /(?:草稿|草案|待复核|待审核|待维护|待核查|研究提示|研究初稿|业务团队复核|内部|内参|未经批准|非正式|不作为高力国际|非高力国际|尚未核实|AI(?:公开|基于|依据|整理|生成|撰写)|由AI|人工智能生成)/i;
 
@@ -30,7 +30,7 @@ export function publicBriefReviewErrors(draft: SubmarketProfileDraft): string[] 
 }
 
 export function visibleSubmarketProfile(profile: SubmarketProfile, published: boolean): SubmarketProfile {
-  // Both failure to publish and legacy draft rows must fail closed.
+  // Block unsafe legacy drafts, but display complete auto-published briefs immediately.
   if (published && publicBriefReviewErrors(profile).length === 0) return profile;
   return { ...emptySubmarketProfile(), submarket: profile.submarket, updatedAt: null, updatedBy: null };
 }
