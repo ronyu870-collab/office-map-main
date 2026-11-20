@@ -253,6 +253,15 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
 
   function openOverviewUnit(space: Space, code: string) {
     if (isEditing) return;
+    // Dimmed overview units remain navigable. Clear incompatible filters before
+    // opening detail so the selected floor cannot disappear from its facade.
+    const floor = payload?.floors.find(item => item.id === space.floor_id);
+    const matches = floor && selectFloorRows([floor], [space], filter, search)
+      .some(row => row.spaces.some(unit => unit.id === space.id));
+    if (!matches) {
+      setFilter('all');
+      setSearch('');
+    }
     setTowerCode(code);
     setView('detail');
     selectUnit(space);
@@ -347,8 +356,14 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           originalArchived: Boolean(source?.evidence_storage_path),
           scope, filter, search,
         });
+        // Encode the complete workbook before recording an export intent.
+        // A failed XLSX serialization must not create an audit entry.
+        const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true }) as ArrayBuffer;
+        const file = new Blob([bytes], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
         await authenticatedFetch('POST', { action: 'export', format: 'xlsx' });
-        XLSX.writeFile(workbook, name + '.xlsx', { compression: true });
+        saveBlob(file, name + '.xlsx');
       } else {
         const svg = format === 'report-png'
           ? createStackingPresentationSvg({
