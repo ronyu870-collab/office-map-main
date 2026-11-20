@@ -1,0 +1,54 @@
+/** Limited interface copy for basic English mode. Unknown strings intentionally remain Chinese. */
+export type InterfaceLanguage = 'zh-CN' | 'en-US';
+export const DEFAULT_LANGUAGE: InterfaceLanguage = 'zh-CN';
+export const englishUiCopy: Readonly<Record<string, string>> = {
+  "北京办公楼市场数据平台": "Beijing Office Market Data Platform",
+  "北京办公楼市场地图": "Beijing Office Market Map",
+  "业务智能 Intelligence": "Business Intelligence",
+  "租赁成交填报": "Lease Transaction Entry",
+  "季度数据填报": "Quarterly Data Submission",
+  "研究资料库": "Research Library",
+  "北京写字楼季度研究": "Beijing Office Quarterly Research",
+  "企业选址洞察报告": "Occupier Insights Report",
+  "系统管理": "Administration",
+  "团队动态": "Team Activity",
+  "内部试用": "Internal Preview",
+  "主页": "Home",
+  "修改密码": "Change Password",
+  "修改登录密码": "Change Sign-in Password",
+  "退出登录": "Sign Out",
+  "用户菜单": "User Menu",
+  "账户操作": "Account Actions",
+  "业务入口": "Business Modules",
+  "仅管理员可见": "Administrators Only",
+  "无访问权限": "Access Denied",
+  "当前角色无权访问": "Your role cannot access this module",
+  "企业邮箱": "Corporate Email",
+  "手机号": "Mobile Number",
+  "密码": "Password",
+  "登录": "Sign In",
+  "请输入 11 位手机号": "Enter an 11-digit mobile number",
+  "请输入密码": "Enter your password",
+  "信任此设备 14 天": "Trust this device for 14 days",
+  "密码已修改，请使用新密码重新登录。": "Password updated. Sign in with your new password.",
+  "登录中…": "Signing in…",
+  "高力国际内部系统 · 仅限授权用户访问": "Colliers Internal Platform · Authorized Users Only",
+  "请输入有效的 11 位手机号码": "Please enter a valid 11-digit mobile number",
+  "登录失败，请检查邮箱与密码": "Sign-in failed. Check your email and password.",
+  "正在加载修改密码页面": "Loading password settings…",
+  "首次登录需先修改临时密码。": "You must change your temporary password before continuing.",
+  "新密码": "New Password",
+  "确认新密码": "Confirm New Password",
+  "至少 10 位，包含字母和数字": "At least 10 characters, including letters and numbers",
+  "请再次输入新密码": "Re-enter your new password",
+  "密码长度不能少于 10 位": "Password must be at least 10 characters.",
+  "密码必须同时包含字母和数字": "Password must contain letters and numbers.",
+  "两次输入的密码不一致": "Passwords do not match.",
+  "密码修改失败，请稍后重试": "Unable to update the password. Please try again.",
+  "保存中…": "Saving…",
+  "确认修改": "Update Password"
+};
+
+export function translateUiText(source: string, language: InterfaceLanguage): string {
+  return language === 'en-US' ? (englishUiCopy[source] ?? source) : source;
+}

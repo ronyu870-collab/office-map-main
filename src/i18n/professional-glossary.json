@@ -1,0 +1,1222 @@
+[
+  {
+    "domain": "platform",
+    "zh_cn": "主页",
+    "en_us": "Home"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "北京办公楼市场数据平台",
+    "en_us": "Beijing Office Market Data Platform"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "北京办公楼市场地图",
+    "en_us": "Beijing Office Market Map"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "业务智能",
+    "en_us": "Business Intelligence"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "租赁成交填报",
+    "en_us": "Lease Transaction Entry"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "季度数据填报",
+    "en_us": "Quarterly Data Submission"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "研究资料库",
+    "en_us": "Research Library"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "北京写字楼季度研究",
+    "en_us": "Beijing Office Quarterly Research"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "企业选址洞察报告",
+    "en_us": "Occupier Insights Report"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "系统管理",
+    "en_us": "Administration"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "团队动态",
+    "en_us": "Team Activity"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "设置",
+    "en_us": "Settings"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "修改密码",
+    "en_us": "Change Password"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "退出登录",
+    "en_us": "Sign Out"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "管理员",
+    "en_us": "Administrator"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "业务员",
+    "en_us": "Broker"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "审计日志",
+    "en_us": "Audit Log"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "数据导出",
+    "en_us": "Data Export"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "工作台",
+    "en_us": "Workspace"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "指标卡片",
+    "en_us": "KPI Card"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "账户",
+    "en_us": "Account"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "用户角色",
+    "en_us": "User Role"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "内部试用",
+    "en_us": "Internal Preview"
+  },
+  {
+    "domain": "platform",
+    "zh_cn": "无访问权限",
+    "en_us": "Access Denied"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "北京市",
+    "en_us": "Beijing Municipality"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "行政区",
+    "en_us": "District"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "子市场",
+    "en_us": "Submarket"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "商务区",
+    "en_us": "Business District"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "核心商务区",
+    "en_us": "Central Business District"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "中央商务区",
+    "en_us": "CBD"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "区位",
+    "en_us": "Location"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "区位优势",
+    "en_us": "Location Advantages"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "商圈",
+    "en_us": "Commercial Area"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "区域概况",
+    "en_us": "Area Overview"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "轨道交通",
+    "en_us": "Rail Transit"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "地铁站",
+    "en_us": "Metro Station"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "地铁线路",
+    "en_us": "Metro Line"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "交通可达性",
+    "en_us": "Transport Accessibility"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "周边配套",
+    "en_us": "Nearby Amenities"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "产业集聚",
+    "en_us": "Industry Cluster"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "城市更新",
+    "en_us": "Urban Regeneration"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "产业园区",
+    "en_us": "Industrial Park"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "产业园",
+    "en_us": "Business Park"
+  },
+  {
+    "domain": "geography",
+    "zh_cn": "行政边界",
+    "en_us": "Administrative Boundary"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "项目名称",
+    "en_us": "Property Name"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "楼宇名称",
+    "en_us": "Building Name"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "办公楼",
+    "en_us": "Office Building"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "写字楼",
+    "en_us": "Office Building"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "甲级写字楼",
+    "en_us": "Grade A Office Building"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "乙级写字楼",
+    "en_us": "Grade B Office Building"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "楼宇等级",
+    "en_us": "Building Grade"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "甲级",
+    "en_us": "Grade A"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "乙级",
+    "en_us": "Grade B"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "楼座",
+    "en_us": "Tower"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "楼栋",
+    "en_us": "Building"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "楼层",
+    "en_us": "Floor"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "标准层",
+    "en_us": "Typical Floor"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "标准层高",
+    "en_us": "Typical Floor-to-Floor Height"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "层高",
+    "en_us": "Floor-to-Floor Height"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "净高",
+    "en_us": "Clear Height"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "建成时间",
+    "en_us": "Year of Completion"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "竣工年份",
+    "en_us": "Completion Year"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "开发商",
+    "en_us": "Developer"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "业主",
+    "en_us": "Owner"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "物业公司",
+    "en_us": "Property Management Company"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "物业管理",
+    "en_us": "Property Management"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "物业费",
+    "en_us": "Management Fee"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "产权性质",
+    "en_us": "Ownership Type"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "产权人",
+    "en_us": "Title Holder"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "楼龄",
+    "en_us": "Building Age"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "绿色建筑认证",
+    "en_us": "Green Building Certification"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "LEED认证",
+    "en_us": "LEED Certification"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "能源效率",
+    "en_us": "Energy Efficiency"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "电梯数量",
+    "en_us": "Number of Lifts"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "停车位",
+    "en_us": "Parking Spaces"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "租户结构",
+    "en_us": "Tenant Mix"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "配套设施",
+    "en_us": "Amenities"
+  },
+  {
+    "domain": "building",
+    "zh_cn": "交付标准",
+    "en_us": "Handover Specification"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "建筑面积",
+    "en_us": "Gross Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "总建筑面积",
+    "en_us": "Total Gross Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "办公建筑面积",
+    "en_us": "Office Gross Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "可租赁面积",
+    "en_us": "Leasable Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "可出租面积",
+    "en_us": "Leasable Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "计租面积",
+    "en_us": "Chargeable Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "净使用面积",
+    "en_us": "Net Usable Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "套内面积",
+    "en_us": "Internal Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "标准层面积",
+    "en_us": "Typical Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "空置面积",
+    "en_us": "Vacant Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "已租面积",
+    "en_us": "Occupied Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "剩余面积",
+    "en_us": "Remaining Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "成交面积",
+    "en_us": "Transacted Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "租赁面积",
+    "en_us": "Leased Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "规划面积",
+    "en_us": "Planned Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "面积区间",
+    "en_us": "Area Range"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "面积变化",
+    "en_us": "Change in Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "楼面面积",
+    "en_us": "Floor Area"
+  },
+  {
+    "domain": "area",
+    "zh_cn": "公摊面积",
+    "en_us": "Common Area Allocation"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金",
+    "en_us": "Rent"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金水平",
+    "en_us": "Rental Rate"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "表面租金",
+    "en_us": "Face Rent"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "净有效租金",
+    "en_us": "Net Effective Rent"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "有效租金",
+    "en_us": "Effective Rent"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "挂牌租金",
+    "en_us": "Asking Rent"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "成交租金",
+    "en_us": "Achieved Rent"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金报价",
+    "en_us": "Rent Quotation"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金变化",
+    "en_us": "Rental Change"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金涨幅",
+    "en_us": "Rental Growth"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金降幅",
+    "en_us": "Rental Decline"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "空置率",
+    "en_us": "Vacancy Rate"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "入住率",
+    "en_us": "Occupancy Rate"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "出租率",
+    "en_us": "Occupancy Rate"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "净吸纳量",
+    "en_us": "Net Absorption"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "总吸纳量",
+    "en_us": "Gross Absorption"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "新增供应",
+    "en_us": "New Supply"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "未来供应",
+    "en_us": "Future Supply"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "在建项目",
+    "en_us": "Under-Construction Project"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "待租面积",
+    "en_us": "Available Space"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "可租单元",
+    "en_us": "Available Unit"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租期",
+    "en_us": "Lease Term"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "免租期",
+    "en_us": "Rent-Free Period"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "装修期",
+    "en_us": "Fit-Out Period"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "起租日期",
+    "en_us": "Lease Commencement Date"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "到期日期",
+    "en_us": "Lease Expiry Date"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租赁到期",
+    "en_us": "Lease Expiry"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "续租",
+    "en_us": "Lease Renewal"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "新租",
+    "en_us": "New Lease"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "扩租",
+    "en_us": "Expansion"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "缩租",
+    "en_us": "Contraction"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租赁激励",
+    "en_us": "Leasing Incentives"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金递增",
+    "en_us": "Rent Escalation"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租金支付周期",
+    "en_us": "Rent Payment Frequency"
+  },
+  {
+    "domain": "leasing",
+    "zh_cn": "租约",
+    "en_us": "Lease Agreement"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "租赁成交",
+    "en_us": "Leasing Transaction"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "历史成交",
+    "en_us": "Historical Transactions"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "成交记录",
+    "en_us": "Transaction Record"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "成交日期",
+    "en_us": "Transaction Date"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "成交季度",
+    "en_us": "Transaction Quarter"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "成交年份",
+    "en_us": "Transaction Year"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "企业名称",
+    "en_us": "Company Name"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "租户名称",
+    "en_us": "Tenant Name"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "企业类型",
+    "en_us": "Company Type"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "行业",
+    "en_us": "Industry"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "细分行业",
+    "en_us": "Industry Subsector"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "需求类型",
+    "en_us": "Requirement Type"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "搬迁",
+    "en_us": "Relocation"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "搬迁原址",
+    "en_us": "Previous Address"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "搬迁面积变化",
+    "en_us": "Change in Occupied Area"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "扩张需求",
+    "en_us": "Expansion Requirement"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "自用",
+    "en_us": "Owner-Occupied"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "租赁用途",
+    "en_us": "Lease Purpose"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "数据来源",
+    "en_us": "Data Source"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "成交来源",
+    "en_us": "Transaction Source"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "提交人",
+    "en_us": "Submitted By"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "录入时间",
+    "en_us": "Entry Time"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "更新时间",
+    "en_us": "Last Updated"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "备注",
+    "en_us": "Remarks"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "交易类型",
+    "en_us": "Transaction Type"
+  },
+  {
+    "domain": "transaction",
+    "zh_cn": "交易状态",
+    "en_us": "Transaction Status"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "市场平均租金",
+    "en_us": "Market Average Rent"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "平均租金",
+    "en_us": "Average Rent"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "平均空置率",
+    "en_us": "Average Vacancy Rate"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "租金走势",
+    "en_us": "Rental Trend"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "空置率走势",
+    "en_us": "Vacancy Trend"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "季度变化",
+    "en_us": "Quarter-on-Quarter Change"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "同比变化",
+    "en_us": "Year-on-Year Change"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "环比变化",
+    "en_us": "Quarter-on-Quarter Change"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "季度报告",
+    "en_us": "Quarterly Report"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "市场概况",
+    "en_us": "Market Overview"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "市场研究",
+    "en_us": "Market Research"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "市场展望",
+    "en_us": "Market Outlook"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "供需分析",
+    "en_us": "Supply and Demand Analysis"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "竞争项目",
+    "en_us": "Competing Properties"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "可比楼宇",
+    "en_us": "Comparable Properties"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "选址分析",
+    "en_us": "Location Analysis"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "投资收益率",
+    "en_us": "Investment Yield"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "资本化率",
+    "en_us": "Capitalization Rate"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "资产管理",
+    "en_us": "Asset Management"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "投资回报率",
+    "en_us": "Return on Investment"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "净营业收入",
+    "en_us": "Net Operating Income"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "资产估值",
+    "en_us": "Asset Valuation"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "市场存量",
+    "en_us": "Existing Stock"
+  },
+  {
+    "domain": "market",
+    "zh_cn": "新增入市面积",
+    "en_us": "Newly Delivered Space"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "租赁堆叠图",
+    "en_us": "Stacking Plan"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "楼层堆叠图",
+    "en_us": "Floor Stacking Diagram"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "空间单元",
+    "en_us": "Space Unit"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "租赁单元",
+    "en_us": "Lease Unit"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "整层",
+    "en_us": "Full Floor"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "部分楼层",
+    "en_us": "Partial Floor"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "已租",
+    "en_us": "Occupied"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "空置",
+    "en_us": "Vacant"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "其他用途",
+    "en_us": "Other Uses"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "待确认",
+    "en_us": "Unverified"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "核验状态",
+    "en_us": "Verification Status"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "来源快照",
+    "en_us": "Source Snapshot"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "数据截至",
+    "en_us": "Data As Of"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "租户分布",
+    "en_us": "Tenant Distribution"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "空置分布",
+    "en_us": "Vacancy Distribution"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "面积占比",
+    "en_us": "Share of Area"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "未覆盖楼层",
+    "en_us": "Unmodeled Floors"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "单元编号",
+    "en_us": "Unit Code"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "楼层编号",
+    "en_us": "Floor Code"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "图例",
+    "en_us": "Legend"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "导出图片",
+    "en_us": "Export Image"
+  },
+  {
+    "domain": "stacking_plan",
+    "zh_cn": "导出表格",
+    "en_us": "Export Spreadsheet"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "正式数据",
+    "en_us": "Official Data"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "草稿",
+    "en_us": "Draft"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "正式提交",
+    "en_us": "Formal Submission"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "数据校验",
+    "en_us": "Data Validation"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "数据核验",
+    "en_us": "Data Verification"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "待审核",
+    "en_us": "Pending Review"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "已审核",
+    "en_us": "Reviewed"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "数据缺失",
+    "en_us": "Missing Data"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "数据补齐",
+    "en_us": "Data Enrichment"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "来源证据",
+    "en_us": "Source Evidence"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "数据溯源",
+    "en_us": "Data Lineage"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "变更历史",
+    "en_us": "Change History"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "版本记录",
+    "en_us": "Version History"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "审计追踪",
+    "en_us": "Audit Trail"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "访问控制",
+    "en_us": "Access Control"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "管理员权限",
+    "en_us": "Administrator Access"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "只读",
+    "en_us": "Read-Only"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "可编辑",
+    "en_us": "Editable"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "当前季度",
+    "en_us": "Current Quarter"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "历史季度",
+    "en_us": "Historical Quarter"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "数据口径",
+    "en_us": "Metric Definition"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "统计口径",
+    "en_us": "Statistical Basis"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "来源日期",
+    "en_us": "Source Date"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "人工确认",
+    "en_us": "Manual Confirmation"
+  },
+  {
+    "domain": "governance",
+    "zh_cn": "保存成功",
+    "en_us": "Saved Successfully"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "平方米",
+    "en_us": "Square Meter"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "平方米每月",
+    "en_us": "per Square Meter per Month"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "元每平方米每月",
+    "en_us": "CNY per Square Meter per Month"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "元每平方米每天",
+    "en_us": "CNY per Square Meter per Day"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "百分比",
+    "en_us": "Percentage"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "百分点",
+    "en_us": "Percentage Point"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "月",
+    "en_us": "Month"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "年",
+    "en_us": "Year"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "季度",
+    "en_us": "Quarter"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "平米",
+    "en_us": "Square Meter"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "亿元",
+    "en_us": "CNY 100 Million"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "人民币",
+    "en_us": "Chinese Yuan"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "办公面积",
+    "en_us": "Office Floor Area"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "每月",
+    "en_us": "Per Month"
+  },
+  {
+    "domain": "units",
+    "zh_cn": "租金单位",
+    "en_us": "Rent Unit"
+  }
+]
