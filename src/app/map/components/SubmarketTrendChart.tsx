@@ -9,9 +9,9 @@ import type { SubmarketTrendPoint } from '../model/submarketMarketTrend';
 
 echarts.use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
-type Props = { data: SubmarketTrendPoint[] };
+type Props = { data: SubmarketTrendPoint[]; compact?: boolean };
 
-export function SubmarketTrendChart({ data }: Props) {
+export function SubmarketTrendChart({ data, compact = false }: Props) {
   const host = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -24,8 +24,8 @@ export function SubmarketTrendChart({ data }: Props) {
     chart.setOption({
       animationDuration: 180,
       color: ['#003e7e', '#b77929'],
-      grid: { left: 58, right: 58, top: 58, bottom: 44, containLabel: false },
-      legend: { top: 8, left: 12, itemWidth: 26, itemHeight: 3, itemGap: 20,
+      grid: { left: compact ? 43 : 58, right: compact ? 48 : 58, top: compact ? 42 : 58, bottom: compact ? 32 : 44, containLabel: false },
+      legend: { top: 7, left: compact ? 4 : 12, itemWidth: 23, itemHeight: 3, itemGap: compact ? 12 : 20,
         textStyle: { color: '#334155', fontSize: 12, fontWeight: 500 }, data: ['净有效租金', '空置率'] },
       tooltip: {
         trigger: 'axis', confine: true, appendToBody: false, axisPointer: { type: 'line', lineStyle: { color: '#94a3b8', type: 'dashed' } },
@@ -62,13 +62,13 @@ export function SubmarketTrendChart({ data }: Props) {
       series: [
         {
           name: '净有效租金', type: 'line', yAxisIndex: 0, data: rent,
-          showSymbol: true, symbolSize: 6, connectNulls: false, smooth: false,
-          lineStyle: { width: 3 }, itemStyle: { borderWidth: 2 },
+          showSymbol: !compact, symbolSize: 6, connectNulls: false, smooth: false,
+          lineStyle: { width: compact ? 2.5 : 3 }, itemStyle: { borderWidth: 2 },
         },
         {
           name: '空置率', type: 'line', yAxisIndex: 1, data: vacancy,
-          showSymbol: true, symbolSize: 6, connectNulls: false, smooth: false,
-          lineStyle: { width: 2.5, type: 'dashed' }, itemStyle: { borderWidth: 2 },
+          showSymbol: !compact, symbolSize: 6, connectNulls: false, smooth: false,
+          lineStyle: { width: compact ? 2 : 2.5, type: 'dashed' }, itemStyle: { borderWidth: 2 },
         },
       ],
     });
@@ -82,11 +82,11 @@ export function SubmarketTrendChart({ data }: Props) {
       if (!observer) window.removeEventListener('resize', resize);
       chart.dispose();
     };
-  }, [data]);
+  }, [data, compact]);
 
   return (
     <div>
-      <div ref={host} className="h-[304px] w-full sm:h-[352px] xl:h-[380px]" role="img"
+      <div ref={host} className={compact ? 'h-[188px] w-full sm:h-[208px]' : 'h-[240px] w-full sm:h-[300px]'} role="img"
         aria-label="同一季度时间轴上的净有效租金和空置率双纵轴趋势图" />
       <div className="sr-only">
         {data.map(row => `${row.period}，租金${row.rent?.toFixed(1) ?? '无数据'}，空置率${row.vacancyPct?.toFixed(1) ?? '无数据'}%。`).join(' ')}
