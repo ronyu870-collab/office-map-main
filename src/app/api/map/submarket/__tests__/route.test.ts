@@ -117,20 +117,60 @@ describe('authorized submarket GET', () => {
     expect(mocks.identity).not.toHaveBeenCalled();
   });
 
-  it('never shows a deceptively empty chart on metric read failure', async () => {
+  it('retains the factual snapshot while independently reporting a failed trend read', async () => {
     mocks.metricError = { message: 'disconnected' };
     const response = await GET(new NextRequest(baseUrl));
-    expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: expect.any(String) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      stockCount: 0, trendError: true, trends: { all: [], a: [], b: [] },
+    });
   });
 
-  it('reads a validated editorial profile when migration exists', async () => {
+  it('never exposes populated legacy draft material to a client', async () => {
     mocks.profileAvailable = true;
-    mocks.profileRow = { ...emptySubmarketProfile(), headline: '已核实的定位', submarket: 'CBD', updated_at: '2026-11-01T00:00:00Z' };
+    mocks.profileRow = { ...emptySubmarketProfile(), headline: '待业务团队复核', is_published: false };
     const response = await GET(new NextRequest(baseUrl));
     const body = await response.json();
     expect(body.profileAvailable).toBe(true);
-    expect(body.profile.headline).toBe('已核实的定位');
+    expect(body.profilePublished).toBe(false);
+    expect(body.profile.headline).toBe('');
+    expect(body.draftProfile).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('待业务团队复核');
+  });
+
+  it('lets a real admin edit unpublished material without leaking it into the client brief', async () => {
+    mocks.identity.mockResolvedValue(getIdentity('admin'));
+    mocks.profileAvailable = true;
+    mocks.profileRow = { ...emptySubmarketProfile(), headline: '客户沟通（研究草案）', is_published: false };
+    const body = await (await GET(new NextRequest(baseUrl))).json();
+    expect(body.profile.headline).toBe('');
+    expect(body.draftProfile.headline).toBe('客户沟通（研究草案）');
+  });
+
+  it('shows only explicitly approved content that passes the server release gate', async () => {
+    mocks.profileAvailable = true;
+    mocks.profileRow = { ...emptySubmarketProfile(),
+      headline: '北京商务核心区', overview: '区域有成熟商务载体。',
+      industries: '金融与专业服务。', transport: '轨道交通及道路网络。',
+      is_published: true,
+    };
+    const body = await (await GET(new NextRequest(baseUrl))).json();
+    expect(body.profilePublished).toBe(true);
+    expect(body.profile.headline).toBe('北京商务核心区');
+    expect(body.draftProfile).toBeUndefined();
+  });
+
+  it('blocks a row marked published when its stored text still contains draft markers', async () => {
+    mocks.profileAvailable = true;
+    mocks.profileRow = { ...emptySubmarketProfile(),
+      headline: '北京商务核心区', overview: '区域有成熟商务载体。',
+      industries: '金融与专业服务。', transport: '轨道交通及道路网络。',
+      insights: [{ title: '研究草案', body: '观点', author: '研究部', asOf: '2026' }],
+      is_published: true,
+    };
+    const body = await (await GET(new NextRequest(baseUrl))).json();
+    expect(body.profilePublished).toBe(false);
+    expect(body.profile.insights).toEqual([]);
   });
 });
 
@@ -160,6 +200,31 @@ describe('admin submarket editorial write', () => {
     mocks.identity.mockResolvedValue(getIdentity('admin'));
     expect((await PUT(request(emptySubmarketProfile()))).status).toBe(503);
     expect(mocks.upserts).toHaveLength(0);
+  });
+
+
+  it('rejects external publication when any field contains research-draft language', async () => {
+    mocks.identity.mockResolvedValue(getIdentity('admin'));
+    mocks.profileAvailable = true;
+    const draft = { ...emptySubmarketProfile(), headline: 'CBD',
+      overview: '客户沟通（研究草案）', industries: '金融', transport: '地铁',
+      publicationIntent: 'publish' };
+    const response = await PUT(request(draft));
+    expect(response.status).toBe(422);
+    expect(mocks.upserts).toHaveLength(0);
+  });
+
+  it('requires a complete clean brief and records explicit admin publication', async () => {
+    mocks.identity.mockResolvedValue(getIdentity('admin'));
+    mocks.profileAvailable = true;
+    mocks.profileRow = { ...emptySubmarketProfile(), headline: '旧版本', is_published: false };
+    const draft = { ...emptySubmarketProfile(), headline: '北京商务核心区',
+      overview: '区域有成熟商务载体。', industries: '金融与专业服务。',
+      transport: '轨道交通与道路网络。', publicationIntent: 'publish' };
+    const body = await (await PUT(request(draft))).json();
+    expect(body.profilePublished).toBe(true);
+    expect(mocks.upserts[0]).toMatchObject({ is_published: true, published_by: user.id });
+    expect(mocks.inserts[0].values.details).toMatchObject({ operation: 'publish_submarket_profile' });
   });
 
   it('saves for actual administrator and audits before/after editorial records', async () => {
