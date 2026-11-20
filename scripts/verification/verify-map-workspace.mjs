@@ -224,6 +224,17 @@ try {
       await search.fill('CBD');
       await page.getByRole('button', { name: '收起', exact: true }).click();
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
+      if (width === 1536) {
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: 'CBD' } })));
+        await page.getByRole('button', { name: '保留该区域筛选', exact: true }).click();
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('map-submarket-open', { detail: { name: '中关村' } })));
+        await page.getByRole('region', { name: '中关村', exact: true }).waitFor();
+        await page.getByRole('button', { name: '保留该区域筛选', exact: true }).waitFor();
+        await page.getByRole('button', { name: '关闭子市场介绍' }).click();
+        await page.getByRole('button', { name: '项目列表', exact: true }).click();
+        await list.getByRole('button', { name: /^CBD甲楼/ }).waitFor();
+        assert.equal(await list.getByRole('button', { name: /^中关村楼/ }).count(), 0, 'a later temporary area restores the explicitly retained CBD filter');
+      }
       const sdk = await page.evaluate(() => window.__workspaceSDK);
       assert.equal(sdk.created, 1);
       assert.ok(sdk.resized > 0);

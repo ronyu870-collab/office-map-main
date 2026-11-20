@@ -22,6 +22,17 @@ describe('map workspace navigation and physical canvas budget', () => {
     expect(next.right).toEqual({ kind: 'submarket', name: '金融街' });
     expect(workspaceReducer(next, { type: 'retain' }).research?.retained).toBe(true);
   });
+  it('keeps the retained area as the next research baseline without retaining a different area implicitly', () => {
+    const initial = { filters: createDefaultFilterState(), input: '', retained: false };
+    let state = workspaceReducer(initialWorkspaceState, { type: 'research', name: 'CBD', snapshot: initial });
+    state = workspaceReducer(state, { type: 'retain' });
+    const baseline = { ...initial, filters: { ...initial.filters, submarkets: ['CBD'] } };
+    state = workspaceReducer(state, { type: 'research', name: '中关村', snapshot: baseline });
+    expect(state.research).toBe(baseline);
+    expect(state.research?.retained).toBe(false);
+    state = workspaceReducer(state, { type: 'research', name: '金融街', snapshot: initial });
+    expect(state.research).toBe(baseline);
+  });
   it('never spends the minimum desktop canvas width on panels, even when resizing', () => {
     for (let width = 1000; width <= 2200; width += 10) {
       for (const preferred of [360, 440, 520]) {

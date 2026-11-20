@@ -36,7 +36,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
     }
     case 'back': return { ...state, right: state.history.at(-1) ?? null, history: state.history.slice(0, -1) };
     case 'close': return { ...state, right: null, history: [] };
-    case 'research': return { ...state, focus: false, right: { kind: 'submarket', name: action.name }, history: [], research: state.research ?? action.snapshot };
+    case 'research': return { ...state, focus: false, right: { kind: 'submarket', name: action.name }, history: [], research: state.research?.retained ? action.snapshot : state.research ?? action.snapshot };
     case 'retain': return { ...state, research: state.research ? { ...state.research, retained: true } : null };
     case 'end-research': return { ...state, research: null };
   }
