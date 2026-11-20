@@ -355,5 +355,5 @@ export async function prepareHistoryReplay(context: Context, sourceRequestId: st
   const metadata = { protocol: SEMANTIC_PROTOCOL_VERSION,
     semanticContext: resolution.context, turn: 1, modelStatus: 'not_needed', suggestions,
     interpretation: resolution.interpretation, replayOf: sourceRequestId };
-  return { resolution, availability: undefined, suggestions, metadata };
+  return { resolution, availability: undefined, suggestions, quarterlyCoverage: [], metadata };
 }
