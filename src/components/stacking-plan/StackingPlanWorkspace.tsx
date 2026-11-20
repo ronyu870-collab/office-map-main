@@ -15,6 +15,9 @@ import {
   selectFloorRows, summarizePlan, uncoveredFloorLabels, unitLayout,
   type OccupancyStatus, type PlanFloor, type PlanSpace, type SpaceFilter,
 } from './stackingPlanModel';
+import { createStackingPresentationSvg } from './stackingPlanPresentation';
+import { buildStackingWorkbook } from './stackingPlanExcel';
+import { StackingPlanOverview } from './StackingPlanOverview';
 import styles from './StackingPlanWorkspace.module.css';
 
 type Tower = { id: string; code: string; display_name: string };
@@ -59,10 +62,6 @@ const esc = (value: string) => value.replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
 }[c] ?? c));
 const brief = (value: string, max = 20) => value.length > max ? value.slice(0, max) + '…' : value;
-const excelText = (value: string | null | undefined) => {
-  const safe = value ?? '';
-  return /^[\s]*[=+\-@]/.test(safe) ? "'" + safe : safe;
-};
 const asUnitName = (unit: Space) => unit.tenant_name
   || (unit.occupancy_status === 'vacant' ? '空置' : unit.occupancy_status === 'unknown' ? unit.unit_code + ' · 待确认' : unit.unit_code);
 const isFiltered = (filter: SpaceFilter, search: string) => filter !== 'all' || search.trim().length > 0;
@@ -145,11 +144,13 @@ function makeSvg(
 export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const { session, status } = useAppSession();
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const exportMenu = useRef<HTMLDetailsElement | null>(null);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [towerCode, setTowerCode] = useState('A');
+  const [view, setView] = useState<'overview' | 'detail'>('overview');
   const [filter, setFilter] = useState<SpaceFilter>('all');
   const [search, setSearch] = useState('');
-  const [scope, setScope] = useState<ExportScope>('visible');
+  const [scope, setScope] = useState<ExportScope>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +191,26 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedId, isEditing]);
 
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (exportMenu.current?.open &&
+          !exportMenu.current.contains(event.target as Node)) {
+        exportMenu.current.open = false;
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !exportMenu.current?.open) return;
+      exportMenu.current.open = false;
+      event.stopPropagation();
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
   const tower = payload?.towers.find(t => t.code === towerCode) ?? payload?.towers[0] ?? null;
   const floors = useMemo(() => (payload?.floors ?? []).filter(f => f.tower_id === tower?.id)
     .sort((a,b) => b.level_order - a.level_order), [payload, tower?.id]);
@@ -201,6 +222,8 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const rows = useMemo(() => selectFloorRows(floors, unitList, filter, search),
     [floors, unitList, filter, search]);
   const summary = useMemo(() => summarizePlan(floors, unitList), [floors, unitList]);
+  const allSummary = useMemo(() => summarizePlan(payload?.floors ?? [], payload?.spaces ?? []), [payload]);
+  const currentSummary = view === 'overview' ? allSummary : summary;
   const missingFloorLabels = useMemo(() => uncoveredFloorLabels(floors), [floors]);
   const selected = unitList.find(s => s.id === selectedId) ?? null;
   const selectedFloor = floors.find(f => f.id === selected?.floor_id);
@@ -218,6 +241,37 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
       area_sqm: space.area_sqm === null ? '' : String(space.area_sqm), notes: space.notes ?? '',
     });
     setError(null);
+  }
+
+  function switchView(next: 'overview' | 'detail') {
+    if (view === next) return;
+    if (isEditing && !window.confirm('编辑内容尚未保存，确定切换视图吗？')) return;
+    setIsEditing(false);
+    setSelectedId(null);
+    setView(next);
+  }
+
+  function openOverviewUnit(space: Space, code: string) {
+    if (isEditing) return;
+    // Dimmed overview units remain navigable. Clear incompatible filters before
+    // opening detail so the selected floor cannot disappear from its facade.
+    const floor = payload?.floors.find(item => item.id === space.floor_id);
+    const matches = floor && selectFloorRows([floor], [space], filter, search)
+      .some(row => row.spaces.some(unit => unit.id === space.id));
+    if (!matches) {
+      setFilter('all');
+      setSearch('');
+    }
+    setTowerCode(code);
+    setView('detail');
+    selectUnit(space);
+  }
+
+  function refreshData() {
+    if (isEditing && !window.confirm('当前编辑尚未保存，确定刷新数据吗？')) return;
+    setSelectedId(null);
+    setIsEditing(false);
+    setRefreshKey(n => n + 1);
   }
 
   function selectTower(code: string) {
@@ -268,88 +322,93 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
     finally { setSaving(false); }
   }
 
-  async function exportPlan(format: 'png' | 'svg' | 'xlsx') {
+  async function exportPlan(format: 'png' | 'svg' | 'xlsx' | 'report-png') {
     if (!payload || !tower || busy) return;
-    setBusy(format); setError(null); setFeedback(null);
+    setBusy(format);
+    setError(null);
+    setFeedback(null);
     try {
-      const target = scope === 'all' ? selectFloorRows(floors, unitList, 'all', '') : rows;
-      await authenticatedFetch('POST', { action: 'export', format });
-      const filename = payload.building.name + '-' + tower.display_name + '-StackingPlan-' +
-        (source?.source_as_of ?? 'date-unknown') + '-' + (scope === 'all' ? 'full' : 'filtered') + '-UNVERIFIED';
+      const matching = (targetTowerId: string) => {
+        const localFloors = payload.floors.filter(f => f.tower_id === targetTowerId);
+        const floorIds = new Set(localFloors.map(f => f.id));
+        const localSpaces = payload.spaces.filter(s => floorIds.has(s.floor_id));
+        return selectFloorRows(localFloors, localSpaces,
+          scope === 'all' ? 'all' : filter,
+          scope === 'all' ? '' : search);
+      };
+      const target = matching(tower.id);
+      const towersToExport = format === 'report-png' || (format === 'xlsx' && view === 'overview')
+        ? payload.towers : [tower];
+      if (scope === 'visible' && towersToExport.every(t => matching(t.id).every(r => !r.spaces.length))) {
+        throw new Error('当前筛选没有可导出的单元，请调整筛选或选择“全部单元”。');
+      }
+      const name = payload.building.name + '-' +
+        (towersToExport.length > 1 ? 'AB双楼' : tower.display_name) +
+        '-StackingPlan-' + (source?.source_as_of ?? 'date-unknown') +
+        '-' + (scope === 'all' ? '全部' : '筛选') + '-待核验';
       if (format === 'xlsx') {
         const XLSX = await import('xlsx');
-        const records = target.flatMap(({ floor, spaces }) => {
-          const check = areaCheck(floor, unitList.filter(s => s.floor_id === floor.id));
-          const base = {
-            '项目': excelText(payload.building.name), '楼座': excelText(tower.display_name),
-            '楼层': excelText(floor.floor_code), '原图楼层面积(㎡)': areaNumber(floor.floor_area_sqm),
-            '单元面积合计差额(㎡)': check.reference === null ? null : Number((check.reference - check.recorded).toFixed(2)),
-          };
-          const unitRecords = spaces.length ? spaces : [null];
-          return unitRecords.map(space => ({
-            ...base,
-            '单元': excelText(space?.unit_code ?? '未录入单元'),
-            '租户 / 用途': excelText(space?.tenant_name),
-            '来源标注状态': space ? OCCUPANCY_LABELS[space.occupancy_status] : '未知',
-            '单元面积(㎡)': areaNumber(space?.area_sqm),
-            '原图租金阶段与日期': excelText((space?.lease_steps ?? []).map(step =>
-              (step.start || '日期未知') + ' 至 ' + (step.end || '日期未知') + '：' +
-              (step.face_rent_monthly ?? step.monthly_total_rent ?? '—') + ' ' + (step.unit ?? ''),
-            ).join('；')),
-            '审核状态': space?.verification_status ?? '未录入',
-            '来源数据截至': source?.source_as_of ?? '待确认',
-            '原始文件归档': source?.evidence_storage_path ? '已归档' : '未归档',
-            '来源': excelText(source?.title),
-            '备注': excelText(space?.notes),
-          }));
+        const workbook = buildStackingWorkbook(XLSX, {
+          projectName: payload.building.name,
+          towers: towersToExport, floors: payload.floors, spaces: payload.spaces,
+          sourceDate: source?.source_as_of ?? null,
+          sourceTitle: source?.title ?? '未提供',
+          originalArchived: Boolean(source?.evidence_storage_path),
+          scope, filter, search,
         });
-        const workbook = XLSX.utils.book_new();
-        const sheet = XLSX.utils.json_to_sheet(records);
-        sheet['!cols'] = [22,12,10,21,25,18,25,21,20,50,19,18,20,32,48].map(wch => ({ wch }));
-        XLSX.utils.book_append_sheet(workbook, sheet, '租赁分层明细');
-        const notes = [
-          ['Stacking Plan · 数据口径与使用限制'],
-          ['项目', payload.building.name], ['楼座', tower.display_name],
-          ['业务截至日期', source?.source_as_of ?? '待确认'],
-          ['来源', source?.title ?? '未提供'],
-          ['空间核验', '未核验来源仅供内部研究，不能视为当前正式租赁或销控事实'],
-          ['空置与面积', '状态来自原图；面积差额不是空置；未知/未分配不得作为可租房源'],
-          ['导出范围', scope === 'all' ? '全部已建模单元' : '当前筛选（包含搜索条件）'],
-          ['楼层覆盖疑点', missingFloorLabels.join('、') || '无编号缺口'],
-          ['生成时间', new Date().toISOString()],
-        ];
-        const notesSheet = XLSX.utils.aoa_to_sheet(notes);
-        notesSheet['!cols'] = [{ wch: 25 }, { wch: 100 }];
-        XLSX.utils.book_append_sheet(workbook, notesSheet, '口径与来源');
-        XLSX.writeFile(workbook, filename + '.xlsx');
+        // Encode the complete workbook before recording an export intent.
+        // A failed XLSX serialization must not create an audit entry.
+        const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true }) as ArrayBuffer;
+        const file = new Blob([bytes], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        await authenticatedFetch('POST', { action: 'export', format: 'xlsx' });
+        saveBlob(file, name + '.xlsx');
       } else {
-        const svg = makeSvg(tower, target, payload.building.name, source,
-          scope === 'visible' && filtered, missingFloorLabels);
+        const svg = format === 'report-png'
+          ? createStackingPresentationSvg({
+              projectName: payload.building.name, sourceDate: source?.source_as_of ?? null,
+              towers: payload.towers, floors: payload.floors, spaces: payload.spaces,
+              filter, search, onlyMatching: scope === 'visible',
+            })
+          : makeSvg(tower, target, payload.building.name, source,
+              scope === 'visible' && filtered, missingFloorLabels);
         if (format === 'svg') {
-          saveBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), filename + '.svg');
+          await authenticatedFetch('POST', { action: 'export', format: 'svg' });
+          saveBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), name + '.svg');
         } else {
           const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
           try {
             const img = new window.Image();
             await new Promise<void>((resolve, reject) => {
               img.onload = () => resolve();
-              img.onerror = () => reject(new Error('图片渲染失败'));
+              img.onerror = () => reject(new Error('图片解码失败'));
               img.src = url;
             });
             const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth * 2; canvas.height = img.naturalHeight * 2;
+            canvas.width = img.naturalWidth * 2;
+            canvas.height = img.naturalHeight * 2;
             const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error('无法生成图片');
-            ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+            if (!ctx) throw new Error('无法初始化图片画布');
+            ctx.scale(2, 2);
+            ctx.drawImage(img, 0, 0);
             const blob = await new Promise<Blob>((resolve, reject) =>
               canvas.toBlob(item => item ? resolve(item) : reject(new Error('PNG 编码失败')), 'image/png'));
-            saveBlob(blob, filename + '.png');
-          } finally { URL.revokeObjectURL(url); }
+            await authenticatedFetch('POST', { action: 'export', format: 'png' });
+            saveBlob(blob, name + '.png');
+          } finally {
+            URL.revokeObjectURL(url);
+          }
         }
       }
-      setFeedback(format.toUpperCase() + ' 已生成（来源未逐项核验）。');
-    } catch (e) { setError(e instanceof Error ? e.message : '导出失败'); }
-    finally { setBusy(null); }
+      if (exportMenu.current) exportMenu.current.open = false;
+      setFeedback(format === 'xlsx' ? 'Excel 明细已生成。' :
+        format === 'report-png' ? '双楼汇报版 PNG 已生成。' : '文件已生成。');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '导出失败，请重新尝试');
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function uploadOriginal(file: File) {
@@ -407,9 +466,9 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           <div>
             <p className={styles.eyebrow}><Building2 size={14}/> 资产数据 / 楼宇租赁</p>
             <h1>{payload?.building.name ?? '楼宇租赁堆叠图'} <span>Stacking Plan</span></h1>
-            <p className={styles.headingNote}>楼层占用与租金阶段 · 基于来源快照，不代表实时出租及可租房源</p>
+            <p className={styles.headingNote}>A / B 座 · 楼宇租赁分层展示</p>
           </div>
-          <button type="button" onClick={() => setRefreshKey(n => n + 1)}
+          <button type="button" onClick={refreshData}
             className={styles.lightButton}><RefreshCw size={15}/> 刷新数据</button>
         </div>
 
@@ -420,35 +479,25 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           : (
           <>
             <div className={styles.sourceStrip}>
-              <div className={styles.sourceMain}>
-                <ShieldAlert size={17} aria-hidden="true" />
-                <span><strong>来源快照 · 未逐项核验</strong>　数据截至 {source?.source_as_of ?? '待确认'}；“已租”“空置”为原图标注，不能替代季度空置率或正式销控。</span>
-              </div>
-              <div className={styles.evidenceControls}>
-                <span className={source?.evidence_storage_path ? styles.evidenceArchived : styles.evidenceMissing}>
-                  {source?.evidence_storage_path ? <Check size={14}/> : <AlertTriangle size={14}/>}
-                  原始文件{source?.evidence_storage_path ? '已归档' : '未归档'}
-                </span>
-                <input ref={fileInput} type="file" className={styles.hiddenFile} accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx"
-                  disabled={payload.evidence_storage_ready === false}
-                  aria-label="选择原始资料文件" onChange={event => {
-                    const file = event.target.files?.[0]; if (file) void uploadOriginal(file);
-                  }} />
-                <button type="button" disabled={!!busy || payload.evidence_storage_ready === false}
-                  title={payload.evidence_storage_ready === false ? '数据库原件归档迁移尚未部署' : '选择原始证据文件'}
-                  onClick={() => fileInput.current?.click()}>
-                  <FileUp size={15}/> {source?.evidence_storage_path ? '替换原件' : '上传原件'}
-                </button>
-                {source?.evidence_storage_path && <button type="button" disabled={!!busy}
-                  onClick={() => void downloadOriginal()}><ArrowDownToLine size={15}/> 查看原件</button>}
-              </div>
+              <ShieldAlert size={16} aria-hidden="true"/>
+              <span>来源快照 · 截至 {source?.source_as_of ?? '未知'} · 租赁状态未逐项核验，不代表实时可租房源</span>
             </div>
 
             <section className={styles.toolbar} aria-label="楼宇租赁查询与导出">
-              <div className={styles.tabs} aria-label="楼座">
-                {payload.towers.map(t => <button key={t.id} type="button" aria-pressed={tower?.id === t.id}
-                  className={tower?.id === t.id ? styles.activeTab : ''}
-                  onClick={() => selectTower(t.code)}>{t.display_name}</button>)}
+              <div className={styles.navigationControls}>
+                <div className={styles.viewTabs} role="group" aria-label="视图模式">
+                  <button type="button" aria-pressed={view === 'overview'}
+                    className={view === 'overview' ? styles.activeTab : ''}
+                    onClick={() => switchView('overview')}>双楼总览</button>
+                  <button type="button" aria-pressed={view === 'detail'}
+                    className={view === 'detail' ? styles.activeTab : ''}
+                    onClick={() => switchView('detail')}>分层详情</button>
+                </div>
+                {view === 'detail' && <div className={styles.tabs} aria-label="楼座">
+                  {payload.towers.map(t => <button key={t.id} type="button" aria-pressed={tower?.id === t.id}
+                    className={tower?.id === t.id ? styles.activeTab : ''}
+                    onClick={() => selectTower(t.code)}>{t.display_name}</button>)}
+                </div>}
               </div>
               <div className={styles.controls}>
                 <label className={styles.searchBox}>
@@ -460,35 +509,57 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   onChange={event => setFilter(event.target.value as SpaceFilter)}>
                   {FILTERS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
                 </select>
-                <span className={styles.controlDivider} aria-hidden="true"/>
-                <select aria-label="导出数据范围" value={scope}
-                  onChange={event => setScope(event.target.value as ExportScope)}>
-                  <option value="visible">当前筛选</option><option value="all">全部单元</option>
-                </select>
-                <button type="button" onClick={() => void exportPlan('xlsx')} disabled={!!busy} title="导出结构化明细和来源说明">
-                  <FileSpreadsheet size={16}/> Excel
-                </button>
-                <button type="button" onClick={() => void exportPlan('png')} disabled={!!busy}>
-                  <FileImage size={16}/> PNG
-                </button>
-                <button type="button" onClick={() => void exportPlan('svg')} disabled={!!busy}>
-                  <Download size={16}/> SVG
-                </button>
+                <div className={styles.exportMenu}>
+                  <details ref={exportMenu}>
+                    <summary><Download size={16}/> 导出 <ChevronRight size={14}/></summary>
+                    <div className={styles.exportOptions}>
+                      {view === 'overview' && (
+                        <div className={styles.exportScope}>
+                          <label htmlFor="sp-export-tower">单楼长图楼座</label>
+                          <select id="sp-export-tower" aria-label="长图导出楼座"
+                            value={tower?.code ?? ''}
+                            onChange={event => setTowerCode(event.target.value)}>
+                            {payload.towers.map(item => (
+                              <option key={item.id} value={item.code}>{item.display_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div className={styles.exportScope}>
+                        <label htmlFor="sp-export-scope">导出范围</label>
+                        <select id="sp-export-scope" value={scope}
+                          onChange={event => setScope(event.target.value as ExportScope)}>
+                          <option value="all">全部单元</option>
+                          <option value="visible">当前筛选</option>
+                        </select>
+                      </div>
+                      <button type="button" onClick={() => void exportPlan('report-png')} disabled={!!busy}>
+                        <FileImage size={16}/> PNG · 双楼汇报版</button>
+                      <button type="button" onClick={() => void exportPlan('png')} disabled={!!busy}>
+                        <FileImage size={16}/> PNG · {tower?.display_name}完整长图</button>
+                      <button type="button" onClick={() => void exportPlan('xlsx')} disabled={!!busy}>
+                        <FileSpreadsheet size={16}/> Excel · {view === 'overview' ? '双楼' : tower?.display_name}明细</button>
+                      <button type="button" onClick={() => void exportPlan('svg')} disabled={!!busy}>
+                        <Download size={16}/> SVG · 单楼矢量图</button>
+                      {busy && <span role="status" className={styles.exportProgress}>正在生成{busy === 'xlsx' ? ' Excel' : '图片'}…</span>}
+                    </div>
+                  </details>
+                </div>
               </div>
             </section>
 
             <section className={styles.statGrid} aria-label="来源办公空间摘要">
-              <div><small>已建模办公楼层</small><strong>{summary.officeFloors} <em>层</em></strong></div>
-              <div><small>办公楼层面积合计</small><strong>{fmt(summary.officeArea)} <em>㎡</em></strong></div>
-              <div><small>原图标注已租面积</small><strong>{fmt(summary.occupiedArea)} <em>㎡</em></strong></div>
-              <div><small>原图标注空置面积</small><strong>{fmt(summary.vacantArea)} <em>㎡</em></strong></div>
+              <div><small>已建模办公楼层</small><strong>{currentSummary.officeFloors} <em>层</em></strong></div>
+              <div><small>办公楼层面积合计</small><strong>{fmt(currentSummary.officeArea)} <em>㎡</em></strong></div>
+              <div><small>原图标注已租面积</small><strong>{fmt(currentSummary.occupiedArea)} <em>㎡</em></strong></div>
+              <div><small>原图标注空置面积</small><strong>{fmt(currentSummary.vacantArea)} <em>㎡</em></strong></div>
               <div className={styles.qualityCard}>
-                <small>逐项已核验</small><strong>{summary.verifiedUnits} <em>/ {summary.allUnits} 单元</em></strong>
-                <div className={styles.qualityTrack}><span style={{ width: (summary.allUnits ? summary.verifiedUnits / summary.allUnits * 100 : 0) + '%' }}/></div>
+                <small>逐项已核验</small><strong>{currentSummary.verifiedUnits} <em>/ {currentSummary.allUnits} 单元</em></strong>
+                <div className={styles.qualityTrack}><span style={{ width: (currentSummary.allUnits ? currentSummary.verifiedUnits / currentSummary.allUnits * 100 : 0) + '%' }}/></div>
               </div>
             </section>
 
-            {(missingFloorLabels.length > 0 || summary.areaConflicts > 0 || summary.missingAreaUnits > 0) && (
+            {view === 'detail' && (missingFloorLabels.length > 0 || summary.areaConflicts > 0 || summary.missingAreaUnits > 0) && (
               <div className={styles.qualityNotice}>
                 <Layers3 size={16}/>
                 <span>
@@ -500,7 +571,12 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
               </div>
             )}
 
-            <div className={styles.layout}>
+            {view === 'overview'
+              ? <StackingPlanOverview towers={payload.towers} floors={payload.floors} spaces={payload.spaces}
+                  filter={filter} search={search} onOpen={openOverviewUnit}
+                  onOpenTower={code => { setTowerCode(code); switchView('detail'); }}
+                  onClear={() => { setFilter('all'); setSearch(''); }}/>
+              : <div className={[styles.layout, selected ? '' : styles.layoutSingle].join(' ')}>
               <section className={styles.plan} aria-label="楼宇租赁立面">
                 <div className={styles.sectionTitle}>
                   <div>
@@ -578,7 +654,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
 
               {selected && <button type="button" aria-label="关闭租赁详情" className={styles.drawerBackdrop}
                 onClick={() => { if (!isEditing || window.confirm('编辑内容尚未保存，确定关闭吗？')) { setSelectedId(null); setIsEditing(false); } }}/>}
-              <aside className={[styles.details, selected ? styles.drawerActive : ''].join(' ')}
+              <aside className={[styles.details, selected ? styles.drawerActive : styles.detailsHidden].join(' ')}
                 aria-label="租赁单元详情">
                 {selected ? <>
                   <div className={styles.detailHeader}>
@@ -659,11 +735,30 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   <div className={styles.overviewNotice}>数据来源未逐项核验；不要将标注空置面积直接作为招商供应。</div>
                 </>}
               </aside>
-            </div>
+            </div>}
 
             <details className={styles.sourceDetails}>
               <summary>数据来源与核验说明 <ChevronRight size={15}/></summary>
               <div className={styles.sourceDetailsBody}>
+                <div className={styles.evidenceControls}>
+                  <span className={source?.evidence_storage_path ? styles.evidenceArchived : styles.evidenceMissing}>
+                    {source?.evidence_storage_path ? <Check size={14}/> : <AlertTriangle size={14}/>}
+                    原始文件{source?.evidence_storage_path ? '已归档' : '未归档'}
+                  </span>
+                  <input ref={fileInput} type="file" className={styles.hiddenFile}
+                    accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx"
+                    disabled={payload.evidence_storage_ready === false}
+                    aria-label="选择原始资料文件" onChange={event => {
+                      const file = event.target.files?.[0]; if (file) void uploadOriginal(file);
+                    }} />
+                  <button type="button" disabled={!!busy || payload.evidence_storage_ready === false}
+                    title={payload.evidence_storage_ready === false ? '数据库原件归档迁移尚未部署' : '选择原始证据文件'}
+                    onClick={() => fileInput.current?.click()}>
+                    <FileUp size={15}/> {source?.evidence_storage_path ? '替换原件' : '上传原件'}
+                  </button>
+                  {source?.evidence_storage_path && <button type="button" disabled={!!busy}
+                    onClick={() => void downloadOriginal()}><ArrowDownToLine size={15}/> 下载原件</button>}
+                </div>
                 <p><strong>资料标题：</strong>{source?.title ?? '未提供'}</p>
                 <p><strong>业务截至：</strong>{source?.source_as_of ?? '未确认'}；{source?.review_state === 'date_confirmed' ? '已确认来源日期' : '来源日期未确认'}，不代表空间事实核验通过。</p>
                 <p><strong>原始文件：</strong>{source?.evidence_filename ?? '尚未归档'}{source?.evidence_sha256 ? '；SHA-256：' + source.evidence_sha256 : ''}</p>

@@ -42,6 +42,12 @@ export function checkVisualAcceptance(pr) {
         reason: 'User requested immediate main merge of PR #231 on 2026-11-20 after being informed that manual visual acceptance and Vercel preview were unavailable; this one-time release decision does not treat manual review as passed and does not waive code, permission, data or CI checks',
       },
       {
+        number: 230,
+        branch: 'codex/stacking-plan-executive-demo-20261120',
+        scope: 'Xiaoyun Road 33 A/B administrator Stacking Plan overview, navigation, PNG/SVG and Excel exports, PR #230',
+        reason: 'User explicitly waived independent visual acceptance and requested PR #230 merge to main on 2026-11-20; independent visual review was not performed and this waiver does not bypass Verify, permissions, audit or export checks',
+      },
+      {
         number: 228,
         branch: 'codex/basic-en-language-glossary-20261120',
         scope: 'Homepage Chinese/English language switch for navigation, login, password settings and 244-term glossary, PR #228',
