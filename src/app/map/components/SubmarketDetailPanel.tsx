@@ -478,7 +478,7 @@ export function SubmarketDetailPanel({
                     </section>
                   ) : null}
                   <p className="m-0 px-1 text-[11px] leading-5 text-[#64748b]">
-                    核心指标按各楼宇最新有效季度面积加权；趋势图按相同季度样本计算。项目范围为本平台已收录样本。
+                    核心指标按各楼宇最新有效季度面积加权，趋势图按同季度样本计算；产业园另计 {summary.parkCount} 个，未来供应另计 {futureCount} 个，均不包含在甲乙级样本内。
                   </p>
                 </div>
               ) : currentSection === 'trend' ? (
