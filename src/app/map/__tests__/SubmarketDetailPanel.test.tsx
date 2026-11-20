@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -65,7 +65,10 @@ const payload: SubmarketDetailPayload = {
   submarket: 'CBD',
   stockCount: 2,
   profileAvailable: true,
+  profilePublished: true,
+  trendError: false,
   profile,
+  draftProfile: profile,
   trends: emptyTrend,
   quarterMethod: 'same quarter',
   source: 'building_metrics',
@@ -100,18 +103,19 @@ describe('submarket research modal', () => {
     const { unmount } = render(<SubmarketDetailPanel {...props} />);
     const dialog = screen.getByRole('dialog', { name: 'CBD' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(dialog.className).toContain('max-w-[1400px]');
+    expect(dialog.className).toContain('max-w-[1140px]');
     expect(dialog.className).not.toContain('sm:w-[420px]');
     await waitFor(() => expect(screen.getByText('金融总部与国际商务服务集聚区')).toBeInTheDocument());
     expect(screen.getByText('186.8')).toBeInTheDocument();
     expect(screen.getByText('12.5')).toBeInTheDocument();
     expect(screen.getByText('甲级 1 · 乙级 1')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '交通与通达性' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '人口与就业背景' })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+    expect(screen.queryByText(/AI公开资料研究|研究草案|待业务团队复核/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '区域画像' }));
+    expect(screen.getByRole('heading', { name: '交通与配套' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '人口与就业参考' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '政策与规划' })).toBeInTheDocument();
-    expect(screen.getAllByText(/AI公开资料研究（待业务团队复核）/).length).toBeGreaterThan(0);
-    expect(screen.getByText('暂无足够的季度行情数据')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /查看政策原文/ })).toHaveAttribute('target', '_blank');
+    expect(screen.getByRole('link', { name: /政策原文/ })).toHaveAttribute('target', '_blank');
     expect(api.read).toHaveBeenCalledWith('CBD');
     unmount();
   });
@@ -130,11 +134,22 @@ describe('submarket research modal', () => {
     ];
     api.read.mockResolvedValueOnce({ ...payload, trends: { all: series, a: [], b: [] } });
     render(<SubmarketDetailPanel {...props} />);
-    const digest = within(screen.getByRole('complementary', { name: '季度行情解读' }));
-    await waitFor(() => expect(digest.getByText('2026Q2')).toBeInTheDocument());
-    expect(digest.getByText('-10.0 元/㎡/月')).toBeInTheDocument();
-    expect(digest.getByText('+2.0 个百分点')).toBeInTheDocument();
-    expect(digest.getByText(/基于与 2026Q1 相邻的季度/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    await waitFor(() => expect(screen.getByText('2026Q2')).toBeInTheDocument());
+    expect(screen.getByText('-10.0')).toBeInTheDocument();
+    expect(screen.getByText('+2.0')).toBeInTheDocument();
+    expect(screen.getAllByText(/与相邻季度比较/).length).toBeGreaterThan(0);
+  });
+
+
+  it('distinguishes temporarily unavailable trend data from genuine missing observations', async () => {
+    api.read.mockResolvedValueOnce({ ...payload, trendError: true, trends: emptyTrend });
+    render(<SubmarketDetailPanel {...props} />);
+    await waitFor(() => expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument();
+    expect(screen.queryByText('最新有效样本')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
   });
 
   it('supports Escape, explicit close and backdrop dismissal without losing the map click handlers', async () => {
@@ -165,8 +180,39 @@ describe('submarket research modal', () => {
     expect(onClose).not.toHaveBeenCalled();
     rerender(<SubmarketDetailPanel {...props} onClose={onClose} onOpenBuilding={onOpenBuilding} />);
     expect(screen.getByRole('dialog', { name: 'CBD' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /在地图查看本区域全部项目/ }));
+    fireEvent.click(screen.getByRole('tab', { name: '代表项目' }));
+    fireEvent.click(screen.getByRole('button', { name: /地图查看全部项目/ }));
     expect(props.onShowAll).toHaveBeenCalledOnce();
+  });
+
+
+  it('hides all unreviewed research copy in customer mode but preserves admin editing', async () => {
+    api.read.mockResolvedValueOnce({
+      ...payload,
+      profilePublished: false,
+      profile: { ...emptySubmarketProfile(), submarket: 'CBD', updatedAt: null, updatedBy: null },
+      draftProfile: { ...profile, headline: '客户研究（研究草案）',
+        insights: [{ title: 'AI公开资料研究（待业务团队复核）',
+          body: '只供内部讨论', author: '内部研究', asOf: '2026年' }] },
+    });
+    render(<SubmarketDetailPanel {...props} />);
+    await waitFor(() => expect(screen.getByText('CBD办公市场概览')).toBeInTheDocument());
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    expect(screen.queryByText(/研究草案|待业务团队复核|只供内部讨论/)).not.toBeInTheDocument();
+    expect(screen.getByText('186.8')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
+    expect(screen.getByDisplayValue('客户研究（研究草案）')).toBeInTheDocument();
+  });
+
+  it('publishes only after an explicit admin confirmation', async () => {
+    const approve = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    api.save.mockResolvedValue({ profile, profilePublished: true });
+    render(<SubmarketDetailPanel {...props} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: '维护资料' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '维护资料' }));
+    fireEvent.click(screen.getByRole('button', { name: '核验并发布' }));
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith('CBD', expect.objectContaining({ headline: profile.headline }), true));
+    expect(approve).toHaveBeenCalledOnce();
   });
 
   it('retains the unsaved-edit confirmation when Escape closes the full-screen dialog', async () => {
