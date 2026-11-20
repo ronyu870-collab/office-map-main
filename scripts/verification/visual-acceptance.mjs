@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 231,
+        branch: 'codex/submarket-client-brief-p0-p1-20261120',
+        scope: 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231',
+        reason: 'User requested immediate main merge of PR #231 on 2026-11-20 after being informed that manual visual acceptance and Vercel preview were unavailable; this one-time release decision does not treat manual review as passed and does not waive code, permission, data or CI checks',
+      },
+      {
         number: 229,
         branch: 'codex/ai5-p0-quarterly-data',
         scope: 'Colliers AI 5.0 P0 quarterly formal metric and unreviewed submission source isolation, PR #229',
