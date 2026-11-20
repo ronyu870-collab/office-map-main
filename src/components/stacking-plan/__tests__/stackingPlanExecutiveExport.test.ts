@@ -45,6 +45,19 @@ describe('Stacking Plan executive export data fidelity', () => {
     expect(records.spaceRecords[0]['核验状态']).toBe('未逐项核验');
   });
 
+  it('neutralizes formula-like content in untrusted lease-stage dates', () => {
+    const injected = createStackingExcelRecords({
+      ...common, scope: 'all',
+      spaces: [{ ...spaces[0], lease_steps: [{
+        start: '=HYPERLINK("https://invalid.example")',
+        end: '+SUM(1,2)',
+        face_rent_monthly: 330,
+      }] }, ...spaces.slice(1)],
+    });
+    expect(injected.rentRecords[0]['开始日期']).toMatch(/^'/);
+    expect(injected.rentRecords[0]['结束日期']).toMatch(/^'/);
+  });
+
   it('limits Excel rows to current filters without redefining complete floor area', () => {
     const records = createStackingExcelRecords({
       ...common, scope: 'visible', filter: 'occupied', search: 'Example',
@@ -120,6 +133,18 @@ describe('Stacking Plan executive export data fidelity', () => {
     );
     expect(filteredNotes.some(row => row[0] === '导出范围'
       && row[1].includes('当前筛选'))).toBe(true);
+  });
+
+  it('serializes the same workbook to an ArrayBuffer suitable for browser downloads', async () => {
+    const XLSX = await import('xlsx');
+    const workbook = buildStackingWorkbook(XLSX, { ...common, scope: 'all' });
+    const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true }) as ArrayBuffer;
+    const blob = new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    expect(blob.size).toBeGreaterThan(1000);
+    const parsed = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: 'array' });
+    expect(parsed.SheetNames).toContain('口径与来源');
   });
 
   it('escapes tenant names before building SVG markup', () => {
