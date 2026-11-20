@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 230,
+        branch: 'codex/stacking-plan-executive-demo-20261120',
+        scope: 'Xiaoyun Road 33 A/B administrator Stacking Plan overview, navigation, PNG/SVG and Excel exports, PR #230',
+        reason: 'User explicitly waived independent visual acceptance and requested PR #230 merge to main on 2026-11-20; independent visual review was not performed and this waiver does not bypass Verify, permissions, audit or export checks',
+      },
+      {
         number: 229,
         branch: 'codex/ai5-p0-quarterly-data',
         scope: 'Colliers AI 5.0 P0 quarterly formal metric and unreviewed submission source isolation, PR #229',
