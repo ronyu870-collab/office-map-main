@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       docs_only: ${{ steps.scope.outputs.docs_only }}
+      quick_only: ${{ steps.scope.outputs.quick_only }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,6 +36,7 @@ jobs:
         run: node scripts/verification/ci-scope.mjs
         env:
           CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_QUICK_REQUESTED: ${{ startsWith(github.head_ref, 'codex/quick-') || contains(github.event.head_commit.message, '[quick]') }}
 
   search-focus:
     needs: changes
@@ -65,9 +67,28 @@ jobs:
         env:
           SEARCH_FOCUS_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
 
+  quick:
+    name: Quick UI update
+    needs: changes
+    if: ${{ needs.changes.outputs.quick_only == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:quick
+        env:
+          CI_COMPARISON_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+
   engineering:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' }}
+    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
     name: Engineering regressions
     runs-on: >-
       ${{ github.event_name == 'pull_request'
@@ -427,7 +448,7 @@ jobs:
 
   ai-query-auth:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' }}
+    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
     name: Real Auth trusted query HTTP integration
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -470,7 +491,7 @@ jobs:
 
   lease-expiry-auth:
     needs: changes
-    if: ${{ needs.changes.outputs.docs_only != 'true' }}
+    if: ${{ needs.changes.outputs.docs_only != 'true' && needs.changes.outputs.quick_only != 'true' }}
     name: Real Auth lease expiry integration
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -515,7 +536,7 @@ jobs:
   verify:
     name: Typecheck, lint, test and build
     if: ${{ always() }}
-    needs: [changes, search-focus, engineering, ai-query-auth, lease-expiry-auth]
+    needs: [changes, search-focus, quick, engineering, ai-query-auth, lease-expiry-auth]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
