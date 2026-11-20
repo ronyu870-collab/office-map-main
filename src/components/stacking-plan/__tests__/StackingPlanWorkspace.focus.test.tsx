@@ -109,4 +109,51 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     expect(screen.getByText(/原始文件未归档/)).toBeInTheDocument();
     expect(screen.getByText(/来源快照 · 截至 2026-11-18/)).toBeInTheDocument();
   });
+
+  it('preserves unsaved edit fields when refresh is rejected', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+      fireEvent.click(await screen.findByRole('button', { name: /奥迪/ }));
+      fireEvent.click(screen.getByRole('button', { name: /编辑来源草稿/ }));
+      const notes = screen.getByLabelText('备注 / 待核验事项') as HTMLTextAreaElement;
+      fireEvent.change(notes, { target: { value: '请核对原图日期' } });
+      fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
+      expect(confirm).toHaveBeenCalledTimes(1);
+      expect(notes.value).toBe('请核对原图日期');
+      expect(screen.getByLabelText('备注 / 待核验事项')).toBe(notes);
+      expect(mocks.getSessionFast).toHaveBeenCalledTimes(1);
+      confirm.mockReturnValue(true);
+      fireEvent.click(screen.getByRole('button', { name: /刷新数据/ }));
+      await waitFor(() => expect(mocks.getSessionFast).toHaveBeenCalledTimes(2));
+    } finally {
+      confirm.mockRestore();
+    }
+  });
+
+  it('closes export menu on Escape or outside pointer and keeps filters visible', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' });
+    const summary = screen.getByText('导出');
+    const menu = summary.closest('details') as HTMLDetailsElement;
+    expect(menu).not.toBeNull();
+    menu.open = true;
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(menu.open).toBe(false);
+    menu.open = true;
+    fireEvent.pointerDown(document.body);
+    expect(menu.open).toBe(false);
+    expect(screen.getByRole('searchbox', { name: '搜索租户、楼层或单元' })).toBeInTheDocument();
+  });
+
+  it('reports zero matching units while preserving floor navigation', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    const search = await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' });
+    fireEvent.change(search, { target: { value: '不存在的租户名称' } });
+    expect(screen.getByText('没有匹配单元')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '清除筛选' }));
+    expect((search as HTMLInputElement).value).toBe('');
+  });
+
 });
