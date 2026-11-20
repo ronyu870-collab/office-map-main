@@ -14,7 +14,7 @@ function readLanguage(): InterfaceLanguage {
   if (typeof window === 'undefined') return DEFAULT_LANGUAGE;
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved === 'en-US' ? 'en-US' : saved === 'zh-CN' ? 'zh-CN' : inMemoryLanguage;
+    return saved === 'en-US' ? 'en-US' : 'zh-CN';
   } catch {
     return inMemoryLanguage;
   }
