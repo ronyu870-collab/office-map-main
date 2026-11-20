@@ -439,35 +439,25 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           : (
           <>
             <div className={styles.sourceStrip}>
-              <div className={styles.sourceMain}>
-                <ShieldAlert size={17} aria-hidden="true" />
-                <span><strong>来源快照 · 未逐项核验</strong>　数据截至 {source?.source_as_of ?? '待确认'}；“已租”“空置”为原图标注，不能替代季度空置率或正式销控。</span>
-              </div>
-              <div className={styles.evidenceControls}>
-                <span className={source?.evidence_storage_path ? styles.evidenceArchived : styles.evidenceMissing}>
-                  {source?.evidence_storage_path ? <Check size={14}/> : <AlertTriangle size={14}/>}
-                  原始文件{source?.evidence_storage_path ? '已归档' : '未归档'}
-                </span>
-                <input ref={fileInput} type="file" className={styles.hiddenFile} accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx"
-                  disabled={payload.evidence_storage_ready === false}
-                  aria-label="选择原始资料文件" onChange={event => {
-                    const file = event.target.files?.[0]; if (file) void uploadOriginal(file);
-                  }} />
-                <button type="button" disabled={!!busy || payload.evidence_storage_ready === false}
-                  title={payload.evidence_storage_ready === false ? '数据库原件归档迁移尚未部署' : '选择原始证据文件'}
-                  onClick={() => fileInput.current?.click()}>
-                  <FileUp size={15}/> {source?.evidence_storage_path ? '替换原件' : '上传原件'}
-                </button>
-                {source?.evidence_storage_path && <button type="button" disabled={!!busy}
-                  onClick={() => void downloadOriginal()}><ArrowDownToLine size={15}/> 查看原件</button>}
-              </div>
+              <ShieldAlert size={16} aria-hidden="true"/>
+              <span>来源快照 · 截至 {source?.source_as_of ?? '未知'} · 租赁状态未逐项核验，不代表实时可租房源</span>
             </div>
 
             <section className={styles.toolbar} aria-label="楼宇租赁查询与导出">
-              <div className={styles.tabs} aria-label="楼座">
-                {payload.towers.map(t => <button key={t.id} type="button" aria-pressed={tower?.id === t.id}
-                  className={tower?.id === t.id ? styles.activeTab : ''}
-                  onClick={() => selectTower(t.code)}>{t.display_name}</button>)}
+              <div className={styles.navigationControls}>
+                <div className={styles.viewTabs} role="group" aria-label="视图模式">
+                  <button type="button" aria-pressed={view === 'overview'}
+                    className={view === 'overview' ? styles.activeTab : ''}
+                    onClick={() => switchView('overview')}>双楼总览</button>
+                  <button type="button" aria-pressed={view === 'detail'}
+                    className={view === 'detail' ? styles.activeTab : ''}
+                    onClick={() => switchView('detail')}>分层详情</button>
+                </div>
+                {view === 'detail' && <div className={styles.tabs} aria-label="楼座">
+                  {payload.towers.map(t => <button key={t.id} type="button" aria-pressed={tower?.id === t.id}
+                    className={tower?.id === t.id ? styles.activeTab : ''}
+                    onClick={() => selectTower(t.code)}>{t.display_name}</button>)}
+                </div>}
               </div>
               <div className={styles.controls}>
                 <label className={styles.searchBox}>
@@ -479,20 +469,30 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   onChange={event => setFilter(event.target.value as SpaceFilter)}>
                   {FILTERS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
                 </select>
-                <span className={styles.controlDivider} aria-hidden="true"/>
-                <select aria-label="导出数据范围" value={scope}
-                  onChange={event => setScope(event.target.value as ExportScope)}>
-                  <option value="visible">当前筛选</option><option value="all">全部单元</option>
-                </select>
-                <button type="button" onClick={() => void exportPlan('xlsx')} disabled={!!busy} title="导出结构化明细和来源说明">
-                  <FileSpreadsheet size={16}/> Excel
-                </button>
-                <button type="button" onClick={() => void exportPlan('png')} disabled={!!busy}>
-                  <FileImage size={16}/> PNG
-                </button>
-                <button type="button" onClick={() => void exportPlan('svg')} disabled={!!busy}>
-                  <Download size={16}/> SVG
-                </button>
+                <div className={styles.exportMenu}>
+                  <details>
+                    <summary><Download size={16}/> 导出 <ChevronRight size={14}/></summary>
+                    <div className={styles.exportOptions}>
+                      <div className={styles.exportScope}>
+                        <label htmlFor="sp-export-scope">导出范围</label>
+                        <select id="sp-export-scope" value={scope}
+                          onChange={event => setScope(event.target.value as ExportScope)}>
+                          <option value="all">全部单元</option>
+                          <option value="visible">当前筛选</option>
+                        </select>
+                      </div>
+                      <button type="button" onClick={() => void exportPlan('report-png')} disabled={!!busy}>
+                        <FileImage size={16}/> PNG · 双楼汇报版</button>
+                      <button type="button" onClick={() => void exportPlan('png')} disabled={!!busy}>
+                        <FileImage size={16}/> PNG · {tower?.display_name}完整长图</button>
+                      <button type="button" onClick={() => void exportPlan('xlsx')} disabled={!!busy}>
+                        <FileSpreadsheet size={16}/> Excel · {view === 'overview' ? '双楼' : tower?.display_name}明细</button>
+                      <button type="button" onClick={() => void exportPlan('svg')} disabled={!!busy}>
+                        <Download size={16}/> SVG · 单楼矢量图</button>
+                      {busy && <span role="status" className={styles.exportProgress}>正在生成{busy === 'xlsx' ? ' Excel' : '图片'}…</span>}
+                    </div>
+                  </details>
+                </div>
               </div>
             </section>
 
@@ -683,6 +683,25 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
             <details className={styles.sourceDetails}>
               <summary>数据来源与核验说明 <ChevronRight size={15}/></summary>
               <div className={styles.sourceDetailsBody}>
+                <div className={styles.evidenceControls}>
+                  <span className={source?.evidence_storage_path ? styles.evidenceArchived : styles.evidenceMissing}>
+                    {source?.evidence_storage_path ? <Check size={14}/> : <AlertTriangle size={14}/>}
+                    原始文件{source?.evidence_storage_path ? '已归档' : '未归档'}
+                  </span>
+                  <input ref={fileInput} type="file" className={styles.hiddenFile}
+                    accept=".png,.jpg,.jpeg,.webp,.pdf,.xlsx"
+                    disabled={payload.evidence_storage_ready === false}
+                    aria-label="选择原始资料文件" onChange={event => {
+                      const file = event.target.files?.[0]; if (file) void uploadOriginal(file);
+                    }} />
+                  <button type="button" disabled={!!busy || payload.evidence_storage_ready === false}
+                    title={payload.evidence_storage_ready === false ? '数据库原件归档迁移尚未部署' : '选择原始证据文件'}
+                    onClick={() => fileInput.current?.click()}>
+                    <FileUp size={15}/> {source?.evidence_storage_path ? '替换原件' : '上传原件'}
+                  </button>
+                  {source?.evidence_storage_path && <button type="button" disabled={!!busy}
+                    onClick={() => void downloadOriginal()}><ArrowDownToLine size={15}/> 下载原件</button>}
+                </div>
                 <p><strong>资料标题：</strong>{source?.title ?? '未提供'}</p>
                 <p><strong>业务截至：</strong>{source?.source_as_of ?? '未确认'}；{source?.review_state === 'date_confirmed' ? '已确认来源日期' : '来源日期未确认'}，不代表空间事实核验通过。</p>
                 <p><strong>原始文件：</strong>{source?.evidence_filename ?? '尚未归档'}{source?.evidence_sha256 ? '；SHA-256：' + source.evidence_sha256 : ''}</p>
