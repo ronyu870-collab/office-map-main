@@ -195,7 +195,7 @@ function HomeHeader({
           <Image src="/colliers-logo.png" unoptimized alt="Colliers 高力国际" width={592} height={337} priority className="absolute left-1/2 top-1/2 h-[31px] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
         </div>
         <span className="h-4 w-px bg-[var(--cd-color-border)]" aria-hidden="true" />
-        <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)] sm:text-sm">{t("北京办公楼市场数据平台")}</div>
+        <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)] sm:text-sm">Colliers Beijing</div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
