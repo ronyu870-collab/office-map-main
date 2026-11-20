@@ -364,6 +364,23 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
         addSheet(records.rentRecords, '租金阶段明细',
           ['项目', '楼座', '楼层', '单元', '租金阶段', '开始日期', '结束日期',
             '表面租金(元/㎡/月)', '月总租金(元/月)']);
+        const scopeDescription = scope === 'all' ? '全部已建模单元' :
+          '当前筛选（状态：' + FILTERS.find(item => item.value === filter)?.label +
+          '；搜索：' + (search.trim() || '无') + '）';
+        const metaSheet = XLSX.utils.aoa_to_sheet([
+          ['项目说明', '具体内容'],
+          ['项目', payload.building.name],
+          ['楼座', towersToExport.map(item => item.display_name).join('、')],
+          ['来源资料截至日期', source?.source_as_of ?? '未知'],
+          ['来源资料标题', source?.title ?? '未提供'],
+          ['导出范围', scopeDescription],
+          ['核验状态', '数据来自原始水牌快照，租户、租期、状态与面积未完成逐项核验'],
+          ['空置与面积', '标注空置不代表可立即出租；未知面积、楼层差额不得直接推定为空置'],
+          ['租金口径', '原图表面月租金与月总租金分别列示，均不等于净有效租金'],
+          ['原始文件', source?.evidence_storage_path ? '已私有归档' : '尚未归档'],
+        ]);
+        metaSheet['!cols'] = [{ wch: 27 }, { wch: 92 }];
+        XLSX.utils.book_append_sheet(workbook, metaSheet, '口径与来源');
         await authenticatedFetch('POST', { action: 'export', format: 'xlsx' });
         XLSX.writeFile(workbook, name + '.xlsx', { compression: true });
       } else {
