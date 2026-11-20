@@ -16,6 +16,7 @@ import {
   type OccupancyStatus, type PlanFloor, type PlanSpace, type SpaceFilter,
 } from './stackingPlanModel';
 import { createStackingPresentationSvg } from './stackingPlanPresentation';
+import { StackingPlanOverview } from './StackingPlanOverview';
 import styles from './StackingPlanWorkspace.module.css';
 
 type Tower = { id: string; code: string; display_name: string };
@@ -519,7 +520,12 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
               </div>
             )}
 
-            <div className={[styles.layout, selected ? '' : styles.layoutSingle].join(' ')}>
+            {view === 'overview'
+              ? <StackingPlanOverview towers={payload.towers} floors={payload.floors} spaces={payload.spaces}
+                  filter={filter} search={search} onOpen={openOverviewUnit}
+                  onOpenTower={code => { setTowerCode(code); switchView('detail'); }}
+                  onClear={() => { setFilter('all'); setSearch(''); }}/>
+              : <div className={[styles.layout, selected ? '' : styles.layoutSingle].join(' ')}>
               <section className={styles.plan} aria-label="楼宇租赁立面">
                 <div className={styles.sectionTitle}>
                   <div>
@@ -678,7 +684,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   <div className={styles.overviewNotice}>数据来源未逐项核验；不要将标注空置面积直接作为招商供应。</div>
                 </>}
               </aside>
-            </div>
+            </div>}
 
             <details className={styles.sourceDetails}>
               <summary>数据来源与核验说明 <ChevronRight size={15}/></summary>
