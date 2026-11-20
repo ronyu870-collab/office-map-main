@@ -98,6 +98,10 @@ export type SubmarketDetailPayload = {
   stockCount: number;
   profileAvailable: boolean;
   profile: import('@/src/app/map/model/submarketProfile').SubmarketProfile;
+  /** Accessible only to an actual administrator, never a viewer or impersonator. */
+  draftProfile?: import('@/src/app/map/model/submarketProfile').SubmarketProfile;
+  profilePublished: boolean;
+  trendError: boolean;
   trends: import('@/src/app/map/model/submarketMarketTrend').SubmarketTrendSeries;
   quarterMethod: string;
   source: string;
@@ -117,6 +121,7 @@ export async function fetchSubmarketDetailPayload(name: string): Promise<Submark
 export async function saveSubmarketProfile(
   name: string,
   draft: import('@/src/app/map/model/submarketProfile').SubmarketProfileDraft,
+  publish = false,
 ) {
   const session = await getSessionFast();
   const token = session?.session?.access_token;
@@ -127,9 +132,13 @@ export async function saveSubmarketProfile(
     'Content-Type': 'application/json',
   });
   const response = await fetch(`/api/map/submarket?${new URLSearchParams({ submarket: name })}`, {
-    method: 'PUT', cache: 'no-store', headers, body: JSON.stringify(draft),
+    method: 'PUT', cache: 'no-store', headers,
+    body: JSON.stringify({ ...draft, publicationIntent: publish ? 'publish' : 'draft' }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(String(payload.error ?? '子市场资料保存失败'));
-  return payload.profile as import('@/src/app/map/model/submarketProfile').SubmarketProfile;
+  return {
+    profile: payload.profile as import('@/src/app/map/model/submarketProfile').SubmarketProfile,
+    profilePublished: payload.profilePublished === true,
+  };
 }
