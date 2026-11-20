@@ -84,6 +84,23 @@ function harness() {
     if (name === 'ai_query_available_periods') return result({ version: 'authorized-periods/1', permission_revision: config.revision,
       read_at: '2026-11-15T10:00:00Z', inventory_time: 'current_catalog', fields: args.p_fields, truncated: false,
       periods: config.availableByFields[(args.p_fields as string[]).join(',')] ?? config.available });
+    if (name === 'ai_query_quarterly_coverage') {
+      const year = args.p_year as number, quarter = args.p_quarter as number;
+      const pending = year === 2026 && quarter === 3;
+      const count = pending ? 2 : 0;
+      return result({
+        version: 'quarterly-source-coverage/1', permission_revision: config.revision, year, quarter,
+        fields: args.p_fields, read_at: '2026-11-20T00:00:00Z', database_snapshot: 'fixture-snapshot',
+        catalog_buildings: 2,
+        formal: { source: 'building_metrics', rows: 0, buildings: 0, valid_buildings: 0,
+          unlocked_rows: 0, draft_rows: 0, incomplete_lock_evidence: 0, locked_draft_conflicts: 0,
+          duplicate_metric_rows: 0 },
+        submitted: { source: 'quarterly_submissions', rows: pending ? 3 : 0, buildings: count,
+          latest_rows: count, superseded_rows: pending ? 1 : 0, latest_field_complete: count,
+          zero_area_latest: 0, missing_rent_latest: 0, submitted_outside_calendar_quarter: 0 },
+        overlap: { buildings: 0, conflicting_values: 0 },
+      });
+    }
     if (name === 'ai_query_model_budget') return result({ allowed: config.modelBudget });
     if (name === 'ai_query_snapshot_read') {
       const fields = args.p_fields as string[], periods = args.p_periods as Quarter[];
@@ -356,6 +373,20 @@ describe('P1 actual semantic HTTP and encrypted-context integration', () => {
     expect(next.status).toBe(200); expect(next.body.result.parameters.executedPlan).toMatchObject({ operation: 'aggregate', metric: 'vacancy', period: { year: 2026, quarter: 3 }, scope: { submarkets: ['CBD'] } });
     expect(next.body.result.table.rows[0].cells.value.value.exact).toEqual({ numerator: '1', denominator: '10' });
     expect(h.calls('ai_query_snapshot_read')[1][1].p_fields).toEqual(['totalArea', 'vacantArea']);
+  });
+
+  it('AI5 Q3 explicitly distinguishes zero formal samples from unverified submitted buildings', async () => {
+    const h = harness(); h.config.available = [quarters[2]];
+    const answer = await h.submit(input('2026Q3 CBD净有效租金'));
+    expect(answer.status).toBe(200);
+    expect(answer.body.result.parameters.quarterlyCoverage).toMatchObject([{
+      year: 2026, quarter: 3, formal: { valid_buildings: 0 },
+      submitted: { rows: 3, buildings: 2, superseded_rows: 1 },
+    }]);
+    expect(answer.body.result.limitations.join('')).toContain('季度提交');
+    expect(answer.body.result.limitations.join('')).toContain('最近正式有效季度为 2026Q2');
+    expect(h.calls('ai_query_quarterly_coverage')).toHaveLength(1);
+    expect(h.calls('ai_query_snapshot_read')).toHaveLength(1);
   });
 
   it('T10 preserves an unavailable explicit quarter and returns no invented number', async () => {

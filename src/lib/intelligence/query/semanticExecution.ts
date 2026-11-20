@@ -18,6 +18,7 @@ import { prepareBuildingIntent } from './buildingIntent';
 import type { BuildingSelection } from './buildingNavigation';
 import { mapPresentationQuestion } from './mapPresentationQuestion';
 import { resolveAssistantHelp } from './assistantHelp';
+import { readQuarterlyCoverage, describeQuarterlyCoverage, type QuarterlyCoverage } from './quarterlySources';
 
 type Input = { client: SupabaseClient; keys: AuditKeys; identity: VerifiedQueryIdentity; authority: DataAuthority;
   audit: AuditPort; requestId: string; conversation: QueryConversation; question: string; buildingSelection?: BuildingSelection; receivedAt: Date; signal: AbortSignal };
@@ -46,7 +47,7 @@ export async function prepareSemanticExecution(input: Input) {
   const context = previous?.context;
   const turn = (previous?.turn ?? 0) + 1;
   const help = resolveAssistantHelp(question, context);
-  if (help) return { resolution: help, availability: undefined, suggestions: [],
+  if (help) return { resolution: help, availability: undefined, suggestions: [], quarterlyCoverage: [] as QuarterlyCoverage[],
     metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: help.context, turn,
       modelStatus: 'not_needed', suggestions: [], assistantHelp: true } };
 
@@ -56,7 +57,7 @@ export async function prepareSemanticExecution(input: Input) {
     if (resolution.kind === 'plan') authorizeConversationPlan(resolution.plan, authority);
     const suggestions = resolution.kind === 'plan' ? buildSemanticSuggestions({ plan: resolution.plan, availablePeriods: availability?.periods ?? [], authority })
       .filter(value => { try { authorizeConversationPlan(value.plan, authority); return true; } catch { return false; } }) : [];
-    return { resolution, availability, suggestions, metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: resolution.context,
+    return { resolution, availability, suggestions, quarterlyCoverage: [] as QuarterlyCoverage[], metadata: { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: resolution.context,
       turn, modelStatus: 'not_needed', suggestions, ...(availability ? { availability } : {}),
       ...(resolution.kind === 'plan' ? { interpretation: resolution.interpretation } : {}) } };
   }
@@ -148,25 +149,39 @@ export async function prepareSemanticExecution(input: Input) {
     resolution = { ...resolution, clarification: { ...resolution.clarification, message: `${explanation}${resolution.clarification.message}` } };
     resolution.context = { ...resolution.context, pending: { question, clarification: resolution.clarification } };
   }
+  const quarterlyCoverage: QuarterlyCoverage[] = [];
+  // The coverage RPC is a separately authorized aggregate, never a metric source.
+  if (resolution.kind === 'plan' && availability) {
+    const read = describePlanRead(resolution.plan);
+    const quarterFields = read.fields.filter(field => numericFields[field].temporal === 'quarter');
+    const available = new Set(availability.periods.map(quarterKey));
+    const uncovered = read.periods.filter(period => !available.has(quarterKey(period)));
+    if (quarterFields.length && uncovered.length > 0 && uncovered.length <= 2) {
+      for (const period of uncovered) quarterlyCoverage.push(await readQuarterlyCoverage(
+        client, identity, authority, resolution.plan.scope, quarterFields, period, signal));
+    }
+  }
   const suggestions = resolution.kind === 'plan' ? buildSemanticSuggestions({ plan: resolution.plan, availablePeriods: availability?.periods ?? [], authority,
     allowedSubmarkets }).filter(value => { try { authorizeConversationPlan(value.plan, authority); return true; } catch { return false; } }) : [];
   const metadata = { protocol: SEMANTIC_PROTOCOL_VERSION, semanticContext: resolution.context, turn, modelStatus, suggestions,
     ...(availability ? { availability } : {}), ...(resolution.kind === 'plan' ? { interpretation: resolution.interpretation } : {}) };
-  return { resolution, metadata, availability, suggestions };
+  return { resolution, metadata, availability, suggestions, quarterlyCoverage };
 }
 
 export function attachSemanticExecution(result: QueryResult, prepared: Awaited<ReturnType<typeof prepareSemanticExecution>>): QueryResult {
-  const { resolution, availability, suggestions } = prepared;
+  const { resolution, availability, suggestions, quarterlyCoverage } = prepared;
   if (resolution.kind !== 'plan') throw new Error('SEMANTIC_PLAN_REQUIRED');
   const read = describePlanRead(resolution.plan);
   const tables = [...new Set(['buildings', ...read.fields.map(field => numericFields[field].table)])];
   return assertMultiMetricResultSize({ ...result, parameters: { ...result.parameters, executedPlan: resolution.plan, semanticContext: resolution.context,
     interpretation: resolution.interpretation, ...(availability ? { availablePeriods: availability } : {}),
+    ...(quarterlyCoverage.length ? { quarterlyCoverage } : {}),
     dataPlan: { version: 'approved-source-router/1', tables, fields: read.fields.map(field => ({ field, table: numericFields[field].table,
       column: numericFields[field].column, unit: numericFields[field].unit })), joinKey: 'buildings.id = building_id',
       snapshotMode: 'single_authorized_statement', originalDocuments: 'not_linked' },
     suggestions: suggestions.map(({ id, label, question }) => ({ id, label, question })) },
     limitations: [...new Set([...result.limitations, ...resolution.limitations,
+      ...quarterlyCoverage.map(item => describeQuarterlyCoverage(item, availability?.periods.at(-1) ?? null)),
       ...(availability?.truncated ? ['可用期间索引仅展示最近40个有有效记录的季度；更早明确季度以实际执行快照为准。'] : []),
       ...(resolution.plan.filter ? ['可用季度按地区、楼宇及指标范围定位；附加数值筛选后的有效样本以本次结果为准。'] : [])])] });
 }
