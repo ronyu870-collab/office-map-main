@@ -58,8 +58,11 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       onEvent: async event => { events.push(event.type + ':' + (event.name ?? 'model')); } });
     expect(result.toolNames).toEqual(['compare_market_segments']);
     expect(runTool.mock.calls[0][0]).toBe('compare_market_segments');
-    expect(events).toEqual(['model_finished:model', 'tool_started:compare_market_segments',
-      'tool_finished:compare_market_segments', 'model_finished:model']);
+    expect(events.filter(value => !value.startsWith('phase_changed:'))).toEqual([
+      'model_finished:model', 'tool_started:compare_market_segments',
+      'tool_finished:compare_market_segments', 'model_finished:model',
+    ]);
+    expect(events.filter(value => value.startsWith('phase_changed:')).length).toBeGreaterThan(0);
   });
 
   it('rejects an unregistered tool before any executor call', async () => {
