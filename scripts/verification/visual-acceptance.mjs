@@ -42,6 +42,12 @@ export function checkVisualAcceptance(pr) {
         reason: 'User requested immediate main merge of PR #231 on 2026-11-20 after being informed that manual visual acceptance and Vercel preview were unavailable; this one-time release decision does not treat manual review as passed and does not waive code, permission, data or CI checks',
       },
       {
+        number: 228,
+        branch: 'codex/basic-en-language-glossary-20261120',
+        scope: 'Homepage Chinese/English language switch for navigation, login, password settings and 244-term glossary, PR #228',
+        reason: 'User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #228 on 2026-11-20; review was not performed and all engineering, authorization, database and CI checks remain mandatory',
+      },
+      {
         number: 229,
         branch: 'codex/ai5-p0-quarterly-data',
         scope: 'Colliers AI 5.0 P0 quarterly formal metric and unreviewed submission source isolation, PR #229',
