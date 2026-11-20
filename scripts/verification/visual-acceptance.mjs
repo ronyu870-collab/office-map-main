@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 229,
+        branch: 'codex/ai5-p0-quarterly-data',
+        scope: 'Colliers AI 5.0 P0 quarterly formal metric and unreviewed submission source isolation, PR #229',
+        reason: 'User explicitly waived manual browser, screenshot and independent visual review for Colliers AI 5.0 P0 on 2026-11-20; this PR-specific waiver does not waive typecheck, CI, permission, PG17 or production migration controls',
+      },
+      {
         number: 227,
         branch: 'codex/ai-experience-complete-20261120',
         scope: 'Colliers AI 38-item experience improvements: Markdown, history timeline, composer, research reading and responsive sidebars, PR #227',
