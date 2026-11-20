@@ -6,6 +6,21 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Colliers AI 5.0 stage 03 PR #233 manual review waiver is one-time and exact', () => {
+  const scope = 'Colliers AI 5.0 stage 03 read-only structured Agent orchestration, result worksets, SSE and authenticated HTTP, PR #233';
+  const reason = 'User explicitly waived manual browser, screenshot and independent visual review for Colliers AI 5.0 stage 03 on 2026-11-20; not performed, and typecheck, CI, authorization, audit and real HTTP remain mandatory';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 233, body, head: { sha: head, ref: 'codex/ai5-p0-agent-orchestration',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 232 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'dev' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'other work') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'skip all tests') }), /specifically authorized/);
+});
+
 test('Submarket client-ready PR #231 one-time manual review exception is exact and does not waive Verify', () => {
   const scope = 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231';
   const reason = 'User requested immediate main merge of PR #231 on 2026-11-20 after being informed that manual visual acceptance and Vercel preview were unavailable; this one-time release decision does not treat manual review as passed and does not waive code, permission, data or CI checks';

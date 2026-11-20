@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 233,
+        branch: 'codex/ai5-p0-agent-orchestration',
+        scope: 'Colliers AI 5.0 stage 03 read-only structured Agent orchestration, result worksets, SSE and authenticated HTTP, PR #233',
+        reason: 'User explicitly waived manual browser, screenshot and independent visual review for Colliers AI 5.0 stage 03 on 2026-11-20; not performed, and typecheck, CI, authorization, audit and real HTTP remain mandatory',
+      },
+      {
         number: 231,
         branch: 'codex/submarket-client-brief-p0-p1-20261120',
         scope: 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231',
