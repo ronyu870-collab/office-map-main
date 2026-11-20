@@ -13,6 +13,11 @@ const parameters = {
 } as const;
 
 export const SPECIALIST_DATA_TOOLS = [
+  { type: 'function', function: {
+    name: 'get_data_capabilities',
+    description: '实时检查当前登录身份的楼宇、字段、范围、操作和内部导出授权；说明授权不保证数据覆盖；不得凭推测回答权限。',
+    parameters,
+  } },
   {
     type: 'function', function: {
       name: 'search_buildings',

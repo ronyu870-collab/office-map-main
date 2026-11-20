@@ -60,8 +60,8 @@ describe('complete authorized database snapshot adapter', () => {
     const catalog = parseQueryPlan({ operation: 'list', fields: [], period: null, scope: { inventory: 'tracked' } });
     const input = raw(); input.fields = []; input.rows[0].brochures = [];
     const result = buildListResult(normalizeSnapshot(input, catalog, authority)[0], []);
-    expect(result.table.columns.map(column => column.key)).toEqual(['name']);
-    expect(result.sources).toHaveLength(1);
+    expect(result.table.columns.map(column => column.key)).toEqual(['name', 'submarket', 'grade']);
+    expect(result.sources).toHaveLength(3);
   });
 
   it('requires a period for quarter filters even on a catalog query', () => {

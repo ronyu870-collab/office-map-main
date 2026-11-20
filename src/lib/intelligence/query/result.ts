@@ -50,14 +50,20 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-function collectSources(snapshot: FactSnapshot, fields: readonly NumericField[]): SourceRef[] {
+function collectSources(snapshot: FactSnapshot, fields: readonly NumericField[], includeCatalogDimensions = false): SourceRef[] {
   const sources = new Map<string, SourceRef>();
   const add = (source: SourceRef) => {
     const prior = sources.get(source.id);
     if (prior && JSON.stringify(prior) !== JSON.stringify(source)) throw new Error('SOURCE_ID_COLLISION');
     sources.set(source.id, structuredClone(source));
   };
-  for (const row of snapshot.rows) add(row.nameSource);
+  for (const row of snapshot.rows) {
+    add(row.nameSource);
+    if (includeCatalogDimensions) for (const dimension of ['submarket', 'grade'] as const) {
+      const source = row.dimensions?.[dimension]?.source;
+      if (source) add(source);
+    }
+  }
   for (const row of snapshot.rows) for (const field of fields) for (const source of getFact(row, field).sources) {
     if (source.entityId !== row.id) throw new Error('SOURCE_BINDING_MISMATCH');
     add(source);
@@ -66,7 +72,10 @@ function collectSources(snapshot: FactSnapshot, fields: readonly NumericField[])
 }
 
 function envelope(snapshot: FactSnapshot, content: Pick<QueryResult, 'operation' | 'parameters' | 'table' | 'analysis'>, fields: readonly NumericField[]): QueryResult {
-  const sources = collectSources(snapshot, fields);
+  // Do not widen source ACL requirements for aggregates, ranks or historical
+  // results: only catalog-list columns actually rendered require dimension refs.
+  const sources = collectSources(snapshot, fields, content.operation === 'list'
+    && content.table.columns.some(column => column.key === 'submarket' || column.key === 'grade'));
   return deepFreeze({
     resultId: randomUUID(), createdAt: new Date().toISOString(), snapshotId: snapshot.snapshotId,
     dataVersion: snapshot.dataVersion, scopeFingerprint: snapshot.scopeFingerprint,
@@ -87,12 +96,19 @@ export function buildListResult(snapshot: FactSnapshot, fields: readonly Numeric
   if (fields.length > 6 || new Set(fields).size !== fields.length || fields.some(field => !Object.hasOwn(numericFields, field))) throw new Error('INVALID_QUERY_FIELDS');
   assertFieldContext(snapshot, fields);
   const vacancy = includeVacancy && fields.includes('totalArea') && fields.includes('vacantArea');
+  const hasCatalogDimensions = snapshot.rows.some(row => row.dimensions?.submarket || row.dimensions?.grade);
   return envelope(snapshot, {
     operation: 'list', parameters: { fields: [...fields], period: snapshot.period }, analysis: null,
     table: {
-      id: 'buildings', columns: [{ key: 'name', label: '楼宇', unit: null }, ...fields.map(field => ({ key: field, label: numericFields[field].label, unit: numericFields[field].unit })), ...(vacancy ? [{ key: 'vacancy', label: '楼宇空置率', unit: 'ratio' }] : [])],
+      id: 'buildings', columns: [{ key: 'name', label: '楼宇', unit: null }, ...(hasCatalogDimensions ? [{ key: 'submarket', label: '子市场', unit: null }, { key: 'grade', label: '等级', unit: null }] : []), ...fields.map(field => ({ key: field, label: numericFields[field].label, unit: numericFields[field].unit })), ...(vacancy ? [{ key: 'vacancy', label: '楼宇空置率', unit: 'ratio' }] : [])],
       rows: snapshot.rows.map(row => {
         const cells: Record<string, ResultCell> = { name: { kind: 'text', value: row.name, sourceIds: [row.nameSource.id] } };
+        if (hasCatalogDimensions) for (const dimension of ['submarket', 'grade'] as const) {
+          const source = row.dimensions?.[dimension];
+          cells[dimension] = source?.value === null || source?.value === undefined
+            ? { kind: 'unknown', state: 'missing', reason: 'catalog_dimension_missing', sourceIds: source ? [source.source.id] : [] }
+            : { kind: 'text', value: source.value, sourceIds: [source.source.id] };
+        }
         for (const field of fields) {
           const fact = getFact(row, field);
           const sourceIds = fact.sources.map(source => source.id);

@@ -25,7 +25,9 @@ export function agentInstructions(): string {
   return [
     '你是 Colliers AI，是高力国际北京区的智能房地产研究与业务助手。用自然、专业的中文交流。',
     '日常交流、一般房地产概念解释与不涉及内部数据的专业讨论：直接回答，不要求必须提供楼宇、季度，也不要调用数据库。',
-    '当用户询问本平台真实楼宇、净有效租金、空置率、季度面积、子市场比较或趋势时：必须选择匹配的注册只读工具；范围不确定时使用 query_verified_real_estate，不能编造数值或声称自己已经查过。',
+    '当用户询问本平台真实楼宇全集、逐楼建筑高度、逐楼净有效租金排名、季度指标、子市场比较或趋势时：必须调用匹配的可信只读工具；不得直接声称字段无授权，也不得自行猜测数据。楼宇目录不需要租金、面积或季度。',
+    '用户询问「你的数据权限是什么」或当前获权范围时，先调用 get_data_capabilities。其输出为当前真实授权快照，不表示字段一定有值；即使工具注册，也不代表用户已获该工具对应字段授权。',
+    '对于「最高的五栋楼」以真实建筑高度排名，不能以层数代替；对于「租金最高」先区分报价、面价、净有效租金，只有口径确定才能执行逐楼排名；最新季度须使用获权正式有效期间。',
     'search_buildings和get_building_profile仅可使用已有获权楼宇查询能力；query_quarterly_metrics、compare_market_segments和analyze_market_trends复用同一个可信统计引擎，并非额外数据授权。',
     '需要多个市场或季度时可连续调用工具，检查结果后再判断是否继续。数据统计由工具完成，不要自行更改工具提供的正式数字。',
     'get_source_evidence、prepare_chart、prepare_map_selection、prepare_research_output 仅能处理本轮先前成功的获权正式结果；不要用模型编造的数字、楼宇 ID 或来源模拟这四个工具的输出。',
@@ -65,6 +67,29 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
     const requested = completed.message.tool_calls ?? [];
     if (!requested.length) {
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
+      const requiresVerifiedTool = /(?:数据权限|授权范围|获权范围|(?:CBD|金融街|望京).*?(?:所有楼|哪些楼|楼宇|写字楼|租金|高度|最高|最低|排名|前[二三四五六七八九十0-9]+))/i.test(input.question);
+      if (requiresVerifiedTool && toolCalls === 0) {
+        if (round >= AGENT_LIMITS.rounds - 1) throw new Error('AGENT_QUERY_NOT_EXECUTED');
+        // Model may skip tool_choice:auto. Fail closed on data claims while
+        // giving it a real, freshly authorized observation for the next round.
+        const name = /数据权限|授权范围|获权范围/.test(input.question)
+          ? 'get_data_capabilities' : 'query_verified_real_estate';
+        const args = { question: input.question };
+        const toolId = 'server_verified_tool_1';
+        await input.onEvent?.({ type: 'tool_started', name });
+        const startedAt = Date.now();
+        const observation = await input.runTool(name, args, input.signal);
+        if (observation.content.length > AGENT_LIMITS.maxToolText) throw new Error('AGENT_TOOL_RESULT_TOO_LARGE');
+        if (observation.result !== undefined) result = observation.result;
+        toolCalls++; toolNames.push(name);
+        messages.push({ role: 'assistant', content: null, tool_calls: [{
+          id: toolId, type: 'function', function: { name, arguments: JSON.stringify(args) },
+        }] });
+        messages.push({ role: 'tool', tool_call_id: toolId, content: observation.content });
+        await input.onEvent?.({ type: 'tool_finished', name, reused: false,
+          durationMs: Math.max(0, Date.now() - startedAt), status: observation.result === undefined ? 'limited' : 'ready' });
+        continue;
+      }
       return { answer: completed.message.content.slice(0, 12000), ...(result === undefined ? {} : { result }),
         model, calls, toolCalls, inputTokens, outputTokens, toolNames };
     }

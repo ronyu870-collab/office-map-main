@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 232,
+        branch: 'codex/ai5-p0-query-correctness',
+        scope: 'Colliers AI 5.0 stage 02 permission identification, catalog listing and per-building height/net effective rent ranking, PR #232',
+        reason: 'User explicitly waived manual browser, independent visual and physical-device acceptance for Colliers AI 5.0 stage 02 on 2026-11-20; these reviews were not performed and typecheck, CI, authorization, HTTP and database checks remain mandatory',
+      },
+      {
         number: 231,
         branch: 'codex/submarket-client-brief-p0-p1-20261120',
         scope: 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231',

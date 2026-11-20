@@ -17,6 +17,7 @@ import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
 import { estimateAgentCostRange } from './agentCost';
 import { queryVerifiedRealEstate } from './verifiedDataTool';
+import { queryCapabilityManifest } from '../query/capabilityManifest';
 import { recordHistorySubmission } from '../query/historyStore';
 import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
@@ -204,6 +205,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (!rechecked.grants.includes('query:catalog')
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+          if (name === 'get_data_capabilities') {
+            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked) }) };
+          }
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
             return runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],

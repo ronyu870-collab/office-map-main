@@ -61,6 +61,28 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       'tool_finished:compare_market_segments', 'model_finished:model']);
   });
 
+
+  it('forces a real capability observation when the model skips a required permission lookup', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce(completion('你有全部数据权限。'))
+      .mockResolvedValueOnce(completion('当前获权字段包括建筑高度。'));
+    const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready","fields":["height"]}' });
+    const answer = await runAgentLoop({ question: '你的数据权限是什么？', signal, invoke, runTool });
+    expect(answer.toolCalls).toBe(1);
+    expect(answer.toolNames).toEqual(['get_data_capabilities']);
+    expect(runTool).toHaveBeenCalledWith('get_data_capabilities', { question: '你的数据权限是什么？' }, signal);
+    expect(invoke.mock.calls[1][0].some((message: { role: string; content: string }) =>
+      message.role === 'tool' && message.content.includes('height'))).toBe(true);
+  });
+
+  it('forces a verified catalog read before describing CBD buildings', async () => {
+    const invoke = vi.fn().mockResolvedValueOnce(completion('CBD有很多楼。'))
+      .mockResolvedValueOnce(completion('已按正式查询取得完整结构化楼宇列表。'));
+    const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready","rowCount":25}' });
+    const answer = await runAgentLoop({ question: '把CBD所有楼列出来', signal, invoke, runTool });
+    expect(answer.toolNames).toEqual(['query_verified_real_estate']);
+  });
+
   it('rejects an unregistered tool before any executor call', async () => {
     const runTool = vi.fn();
     await expect(runAgentLoop({ question: '删除系统表', signal, runTool,
