@@ -16,6 +16,7 @@ import {
   type OccupancyStatus, type PlanFloor, type PlanSpace, type SpaceFilter,
 } from './stackingPlanModel';
 import { createStackingPresentationSvg } from './stackingPlanPresentation';
+import { createStackingExcelRecords } from './stackingPlanExcel';
 import { StackingPlanOverview } from './StackingPlanOverview';
 import styles from './StackingPlanWorkspace.module.css';
 
@@ -288,88 +289,103 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
     finally { setSaving(false); }
   }
 
-  async function exportPlan(format: 'png' | 'svg' | 'xlsx') {
+  async function exportPlan(format: 'png' | 'svg' | 'xlsx' | 'report-png') {
     if (!payload || !tower || busy) return;
-    setBusy(format); setError(null); setFeedback(null);
+    setBusy(format);
+    setError(null);
+    setFeedback(null);
     try {
-      const target = scope === 'all' ? selectFloorRows(floors, unitList, 'all', '') : rows;
-      await authenticatedFetch('POST', { action: 'export', format });
-      const filename = payload.building.name + '-' + tower.display_name + '-StackingPlan-' +
-        (source?.source_as_of ?? 'date-unknown') + '-' + (scope === 'all' ? 'full' : 'filtered') + '-UNVERIFIED';
+      const matching = (targetTowerId: string) => {
+        const localFloors = payload.floors.filter(f => f.tower_id === targetTowerId);
+        const floorIds = new Set(localFloors.map(f => f.id));
+        const localSpaces = payload.spaces.filter(s => floorIds.has(s.floor_id));
+        return selectFloorRows(localFloors, localSpaces,
+          scope === 'all' ? 'all' : filter,
+          scope === 'all' ? '' : search);
+      };
+      const target = matching(tower.id);
+      const towersToExport = format === 'report-png' || (format === 'xlsx' && view === 'overview')
+        ? payload.towers : [tower];
+      if (scope === 'visible' && towersToExport.every(t => matching(t.id).every(r => !r.spaces.length))) {
+        throw new Error('当前筛选没有可导出的单元，请调整筛选或选择“全部单元”。');
+      }
+      const name = payload.building.name + '-' +
+        (towersToExport.length > 1 ? 'AB双楼' : tower.display_name) +
+        '-StackingPlan-' + (source?.source_as_of ?? 'date-unknown') +
+        '-' + (scope === 'all' ? '全部' : '筛选') + '-待核验';
       if (format === 'xlsx') {
         const XLSX = await import('xlsx');
-        const records = target.flatMap(({ floor, spaces }) => {
-          const check = areaCheck(floor, unitList.filter(s => s.floor_id === floor.id));
-          const base = {
-            '项目': excelText(payload.building.name), '楼座': excelText(tower.display_name),
-            '楼层': excelText(floor.floor_code), '原图楼层面积(㎡)': areaNumber(floor.floor_area_sqm),
-            '单元面积合计差额(㎡)': check.reference === null ? null : Number((check.reference - check.recorded).toFixed(2)),
-          };
-          const unitRecords = spaces.length ? spaces : [null];
-          return unitRecords.map(space => ({
-            ...base,
-            '单元': excelText(space?.unit_code ?? '未录入单元'),
-            '租户 / 用途': excelText(space?.tenant_name),
-            '来源标注状态': space ? OCCUPANCY_LABELS[space.occupancy_status] : '未知',
-            '单元面积(㎡)': areaNumber(space?.area_sqm),
-            '原图租金阶段与日期': excelText((space?.lease_steps ?? []).map(step =>
-              (step.start || '日期未知') + ' 至 ' + (step.end || '日期未知') + '：' +
-              (step.face_rent_monthly ?? step.monthly_total_rent ?? '—') + ' ' + (step.unit ?? ''),
-            ).join('；')),
-            '审核状态': space?.verification_status ?? '未录入',
-            '来源数据截至': source?.source_as_of ?? '待确认',
-            '原始文件归档': source?.evidence_storage_path ? '已归档' : '未归档',
-            '来源': excelText(source?.title),
-            '备注': excelText(space?.notes),
-          }));
+        const records = createStackingExcelRecords({
+          projectName: payload.building.name,
+          towers: towersToExport, floors: payload.floors, spaces: payload.spaces,
+          sourceDate: source?.source_as_of ?? null,
+          sourceTitle: source?.title ?? '未提供',
+          originalArchived: Boolean(source?.evidence_storage_path),
+          scope, filter, search,
         });
         const workbook = XLSX.utils.book_new();
-        const sheet = XLSX.utils.json_to_sheet(records);
-        sheet['!cols'] = [22,12,10,21,25,18,25,21,20,50,19,18,20,32,48].map(wch => ({ wch }));
-        XLSX.utils.book_append_sheet(workbook, sheet, '租赁分层明细');
-        const notes = [
-          ['Stacking Plan · 数据口径与使用限制'],
-          ['项目', payload.building.name], ['楼座', tower.display_name],
-          ['业务截至日期', source?.source_as_of ?? '待确认'],
-          ['来源', source?.title ?? '未提供'],
-          ['空间核验', '未核验来源仅供内部研究，不能视为当前正式租赁或销控事实'],
-          ['空置与面积', '状态来自原图；面积差额不是空置；未知/未分配不得作为可租房源'],
-          ['导出范围', scope === 'all' ? '全部已建模单元' : '当前筛选（包含搜索条件）'],
-          ['楼层覆盖疑点', missingFloorLabels.join('、') || '无编号缺口'],
-          ['生成时间', new Date().toISOString()],
-        ];
-        const notesSheet = XLSX.utils.aoa_to_sheet(notes);
-        notesSheet['!cols'] = [{ wch: 25 }, { wch: 100 }];
-        XLSX.utils.book_append_sheet(workbook, notesSheet, '口径与来源');
-        XLSX.writeFile(workbook, filename + '.xlsx');
+        const addSheet = (rows: Record<string, string | number | null>[], sheetName: string,
+          emptyHeaders: string[]) => {
+          const sheet = rows.length ? XLSX.utils.json_to_sheet(rows)
+            : XLSX.utils.aoa_to_sheet([emptyHeaders]);
+          const columns = rows.length ? Object.keys(rows[0]) : emptyHeaders;
+          sheet['!cols'] = columns.map(key => ({
+            wch: Math.min(42, Math.max(14, key.length * 1.8)),
+          }));
+          if (rows.length && sheet['!ref']) sheet['!autofilter'] = { ref: sheet['!ref'] };
+          XLSX.utils.book_append_sheet(workbook, sheet, sheetName);
+        };
+        addSheet(records.floorRecords, '楼层汇总', ['项目', '楼座', '楼层', '楼层用途']);
+        addSheet(records.spaceRecords, '空间租赁明细', ['项目', '楼座', '楼层', '单元', '租户 / 用途']);
+        addSheet(records.rentRecords, '租金阶段明细',
+          ['项目', '楼座', '楼层', '单元', '租金阶段', '开始日期', '结束日期',
+            '表面租金(元/㎡/月)', '月总租金(元/月)']);
+        await authenticatedFetch('POST', { action: 'export', format: 'xlsx' });
+        XLSX.writeFile(workbook, name + '.xlsx', { compression: true });
       } else {
-        const svg = makeSvg(tower, target, payload.building.name, source,
-          scope === 'visible' && filtered, missingFloorLabels);
+        const svg = format === 'report-png'
+          ? createStackingPresentationSvg({
+              projectName: payload.building.name, sourceDate: source?.source_as_of ?? null,
+              towers: payload.towers, floors: payload.floors, spaces: payload.spaces,
+              filter, search, onlyMatching: scope === 'visible',
+            })
+          : makeSvg(tower, target, payload.building.name, source,
+              scope === 'visible' && filtered, missingFloorLabels);
         if (format === 'svg') {
-          saveBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), filename + '.svg');
+          await authenticatedFetch('POST', { action: 'export', format: 'svg' });
+          saveBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), name + '.svg');
         } else {
           const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
           try {
             const img = new window.Image();
             await new Promise<void>((resolve, reject) => {
               img.onload = () => resolve();
-              img.onerror = () => reject(new Error('图片渲染失败'));
+              img.onerror = () => reject(new Error('图片解码失败'));
               img.src = url;
             });
             const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth * 2; canvas.height = img.naturalHeight * 2;
+            canvas.width = img.naturalWidth * 2;
+            canvas.height = img.naturalHeight * 2;
             const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error('无法生成图片');
-            ctx.scale(2, 2); ctx.drawImage(img, 0, 0);
+            if (!ctx) throw new Error('无法初始化图片画布');
+            ctx.scale(2, 2);
+            ctx.drawImage(img, 0, 0);
             const blob = await new Promise<Blob>((resolve, reject) =>
               canvas.toBlob(item => item ? resolve(item) : reject(new Error('PNG 编码失败')), 'image/png'));
-            saveBlob(blob, filename + '.png');
-          } finally { URL.revokeObjectURL(url); }
+            await authenticatedFetch('POST', { action: 'export', format: 'png' });
+            saveBlob(blob, name + '.png');
+          } finally {
+            URL.revokeObjectURL(url);
+          }
         }
       }
-      setFeedback(format.toUpperCase() + ' 已生成（来源未逐项核验）。');
-    } catch (e) { setError(e instanceof Error ? e.message : '导出失败'); }
-    finally { setBusy(null); }
+      setFeedback(format === 'xlsx' ? 'Excel 明细已生成。' :
+        format === 'report-png' ? '双楼汇报版 PNG 已生成。' : '文件已生成。');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '导出失败，请重新尝试');
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function uploadOriginal(file: File) {
