@@ -513,6 +513,18 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   <details ref={exportMenu}>
                     <summary><Download size={16}/> 导出 <ChevronRight size={14}/></summary>
                     <div className={styles.exportOptions}>
+                      {view === 'overview' && (
+                        <div className={styles.exportScope}>
+                          <label htmlFor="sp-export-tower">单楼长图楼座</label>
+                          <select id="sp-export-tower" aria-label="长图导出楼座"
+                            value={tower?.code ?? ''}
+                            onChange={event => setTowerCode(event.target.value)}>
+                            {payload.towers.map(item => (
+                              <option key={item.id} value={item.code}>{item.display_name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className={styles.exportScope}>
                         <label htmlFor="sp-export-scope">导出范围</label>
                         <select id="sp-export-scope" value={scope}
