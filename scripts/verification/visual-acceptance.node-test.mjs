@@ -1,3 +1,20 @@
+test('PR #230 Stacking Plan visual-only waiver is exact and does not affect Verify', () => {
+  const scope = 'Xiaoyun Road 33 A/B administrator Stacking Plan overview, navigation, PNG/SVG and Excel exports, PR #230';
+  const reason = 'User explicitly waived independent visual acceptance and requested PR #230 merge to main on 2026-11-20; independent visual review was not performed and this waiver does not bypass Verify, permissions, audit or export checks';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 230, body, head: { sha: head,
+    ref: 'codex/stacking-plan-executive-demo-20261120',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 229 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other-branch' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated scope') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Skip all checks') }), /specifically authorized/);
+});
+
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkVisualAcceptance } from './visual-acceptance.mjs';
