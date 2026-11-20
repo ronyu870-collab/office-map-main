@@ -91,9 +91,9 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
   );
 
   return (
-    <form className="space-y-5" onSubmit={event => { event.preventDefault(); onSave(draft, false); }}>
+    <form className="space-y-5" onSubmit={event => { event.preventDefault(); onSave(draft, true); }}>
       <p className="m-0 text-[13px] leading-6 text-[#667085]">
-        正在维护{name}的研究资料。只有在逐条核实事实、日期、来源及对外措辞后，才能发布到客户展示页；保存修改默认撤回此前的发布状态。
+        正在维护{name}的区域展示资料。保存后自动同步到客户展示页，无需额外审核；请勿填写草稿、内部说明或未经确认的数字。
       </p>
       <div className="space-y-3">
         <Field label="一句话定位" value={draft.headline} onChange={text => setText('headline', text)} />
@@ -162,15 +162,10 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
         <button type="button" className={quietButton} disabled={saving} onClick={() => {
           if (JSON.stringify(draft) === JSON.stringify(value) || window.confirm('有未保存的修改，确定放弃吗？')) onCancel();
         }}>取消</button>
-        <button type="submit" disabled={saving} className={quietButton + ' disabled:opacity-50'}>
-          <Save size={15}/>{saving ? '保存中…' : '保存草稿'}
+        <button type="submit" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-medium text-white disabled:opacity-50">
+          <Save size={15}/>{saving ? '保存中…' : '保存并展示'}
         </button>
-        <button type="button" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-medium text-white disabled:opacity-50"
-          onClick={() => {
-            if (window.confirm('确认已逐项核实来源、时效、事实与对外表述，并作为正式客户展示资料发布？')) onSave(draft, true);
-          }}>
-          核验并发布
-        </button>
+
       </div>
     </form>
   );
@@ -372,7 +367,7 @@ export function SubmarketDetailPanel({
               <div className="mb-5 border-b border-[#e7ebf0] pb-4">
                 <h3 className="m-0 text-[18px] font-semibold">维护区域资料</h3>
                 <p className="mt-1 text-[12px] text-[#64748b]">
-                  现有资料默认仅供维护；核实后主动发布，才会进入客户展示页面。
+                  保存后自动更新客户展示内容，无需另行审核。
                 </p>
               </div>
               <ProfileEditor name={name} key={name} value={draftProfile ? {
