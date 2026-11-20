@@ -5,6 +5,7 @@ import { MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY, normalizeMapSubmarket } from 
 import { computeSubmarketTrends, type TrendMetricRow } from '@/src/app/map/model/submarketMarketTrend';
 import { officeGrade } from '@/src/app/map/model/submarketOverview';
 import { readSubmarketProfileRow, submarketProfileSchema } from '@/src/app/map/model/submarketProfile';
+import { publicBriefReviewErrors, visibleSubmarketProfile } from '@/src/app/map/model/submarketPublication';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -42,13 +43,13 @@ function missingProfileTable(error: { code?: string; message?: string } | null) 
 
 async function readProfile(client: SupabaseClient, name: string) {
   const { data, error } = await client.from('map_submarket_profiles')
-    .select('submarket,headline,overview,industries,transport,demographics,policies,insights,updated_at,updated_by')
+    .select('submarket,headline,overview,industries,transport,demographics,policies,insights,updated_at,updated_by,is_published,published_at,published_by')
     .eq('submarket', name).maybeSingle();
   if (error) {
-    if (missingProfileTable(error)) return { available: false, profile: readSubmarketProfileRow(null, name) };
+    if (missingProfileTable(error)) return { available: false, published: false, profile: readSubmarketProfileRow(null, name) };
     throw new Error('PROFILE_READ_FAILED');
   }
-  return { available: true, profile: readSubmarketProfileRow(data, name) };
+  return { available: true, published: data?.is_published === true, profile: readSubmarketProfileRow(data, name) };
 }
 
 async function readTrend(client: SupabaseClient, name: string, signal: AbortSignal) {
@@ -104,11 +105,31 @@ export async function GET(request: NextRequest) {
     if ('response' in result) return result.response;
     if (!['viewer', 'editor', 'admin'].includes(result.identity.effectiveRole)) return json({ error: '无权读取子市场' }, 403);
 
-    const [profile, trend] = await Promise.all([
+    // Text and time-series are independent: a failure in one must not
+    // suppress the usable, already-authorized part of the client brief.
+    const [profileRead, trendRead] = await Promise.allSettled([
       readProfile(client, name),
       readTrend(client, name, request.signal),
     ]);
-    return json({ submarket: name, ...trend, profile: profile.profile, profileAvailable: profile.available });
+    if (profileRead.status === 'rejected' && trendRead.status === 'rejected') {
+      throw new Error('SUBMARKET_READ_UNAVAILABLE');
+    }
+    const profile = profileRead.status === 'fulfilled'
+      ? profileRead.value
+      : { available: false, published: false, profile: readSubmarketProfileRow(null, name) };
+    const approved = profile.published && publicBriefReviewErrors(profile.profile).length === 0;
+    const canEdit = result.identity.callerRole === 'admin' && result.identity.effectiveRole === 'admin'
+      && !result.identity.isImpersonating;
+    const trend = trendRead.status === 'fulfilled' ? trendRead.value
+      : { trends: { all: [], a: [], b: [] }, stockCount: 0,
+          quarterMethod: 'same_quarter_area_weighted', source: 'building_metrics' };
+    return json({
+      submarket: name, ...trend, trendError: trendRead.status === 'rejected',
+      profile: visibleSubmarketProfile(profile.profile, approved),
+      profileAvailable: profile.available,
+      profilePublished: approved,
+      ...(canEdit ? { draftProfile: profile.profile } : {}),
+    });
   } catch (error) {
     console.error('[api/map/submarket] read failed', error);
     const tooLarge = error instanceof Error && error.message === 'SUBMARKET_TREND_TOO_LARGE';
@@ -134,14 +155,28 @@ export async function PUT(request: NextRequest) {
     const size = Number(request.headers.get('content-length') ?? 0);
     if (size > 80_000) return json({ error: '提交内容过大' }, 413);
     const body = await request.json();
-    const parsed = submarketProfileSchema.safeParse(body);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return json({ error: '资料格式不正确' }, 400);
+    }
+    const { publicationIntent, ...profileInput } = body as Record<string, unknown>;
+    if (publicationIntent !== undefined && publicationIntent !== 'draft' && publicationIntent !== 'publish') {
+      return json({ error: '发布操作不受支持' }, 400);
+    }
+    const parsed = submarketProfileSchema.safeParse(profileInput);
     if (!parsed.success) return json({ error: '资料字段格式不正确，请检查来源链接与字段长度' }, 400);
+    const publish = publicationIntent === 'publish';
+    if (publish) {
+      const problems = publicBriefReviewErrors(parsed.data);
+      if (problems.length) return json({ error: '对外发布校验未通过：' + problems.join('；') }, 422);
+    }
 
     const before = await readProfile(client, name);
     if (!before.available) return json({ error: '子市场资料表尚未部署，请先应用对应数据库迁移' }, 503);
     const updatedAt = new Date().toISOString();
     const { data, error } = await client.from('map_submarket_profiles').upsert({
       submarket: name, ...parsed.data, updated_by: identity.caller.id, updated_at: updatedAt,
+      is_published: publish, published_at: publish ? updatedAt : null,
+      published_by: publish ? identity.caller.id : null,
     }, { onConflict: 'submarket' }).select('*').single();
     if (error) throw new Error('PROFILE_SAVE_FAILED');
 
@@ -152,16 +187,16 @@ export async function PUT(request: NextRequest) {
       target_id: name,
       target_name: name,
       module: 'map',
-      details: { operation: 'update_submarket_profile', submarket: name, updated_at: updatedAt },
-      old_values: before.profile,
-      new_values: readSubmarketProfileRow(data, name),
+      details: { operation: publish ? 'publish_submarket_profile' : 'save_submarket_draft', submarket: name, updated_at: updatedAt },
+      old_values: { ...before.profile, is_published: before.published },
+      new_values: { ...readSubmarketProfileRow(data, name), is_published: publish },
     });
     if (audit.error) {
       console.error('[api/map/submarket] audit write failed', audit.error);
       return json({ error: '资料已保存，但审计记录失败，请联系管理员核查', saved: true,
         profile: readSubmarketProfileRow(data, name) }, 500);
     }
-    return json({ saved: true, profile: readSubmarketProfileRow(data, name) });
+    return json({ saved: true, profile: readSubmarketProfileRow(data, name), profilePublished: publish });
   } catch (error) {
     console.error('[api/map/submarket] update failed', error);
     return json({ error: '子市场资料保存失败，请稍后重试' }, 500);
