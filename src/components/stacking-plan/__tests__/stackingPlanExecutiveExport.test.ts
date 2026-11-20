@@ -67,6 +67,20 @@ describe('Stacking Plan executive export data fidelity', () => {
     expect(result).toContain('不代表正式销控');
   });
 
+  it('labels a filtered PNG without claiming unrecorded area is vacant', () => {
+    const filtered = createStackingPresentationSvg({
+      ...common, onlyMatching: true, filter: 'occupied', search: '',
+    });
+    expect(filtered).toContain('仅显示筛选单元');
+    expect(filtered).toContain('未展示');
+    expect(filtered).toContain('不代表正式销控');
+    const complete = createStackingPresentationSvg({
+      ...common, onlyMatching: true, filter: 'all', search: '',
+    });
+    expect(complete).not.toContain('仅显示筛选单元');
+    expect(complete).not.toContain('未展示');
+  });
+
   it('escapes tenant names before building SVG markup', () => {
     const result = createStackingPresentationSvg({
       ...common,
