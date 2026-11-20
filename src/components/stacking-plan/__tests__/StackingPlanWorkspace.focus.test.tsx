@@ -144,6 +144,15 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     }
   });
 
+  it('allows A/B single-tower long export selection from the combined overview', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' });
+    expect(screen.getByLabelText('长图导出楼座')).toHaveValue('A');
+    fireEvent.change(screen.getByLabelText('长图导出楼座'), { target: { value: 'B' } });
+    expect(screen.getByLabelText('长图导出楼座')).toHaveValue('B');
+    expect(screen.getByText(/PNG · B 座完整长图/)).toBeInTheDocument();
+  });
+
   it('closes export menu on Escape or outside pointer and keeps filters visible', async () => {
     render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
     await screen.findByRole('searchbox', { name: '搜索租户、楼层或单元' });
