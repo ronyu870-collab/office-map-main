@@ -1,5 +1,7 @@
 # 加载性能采集
 
+高样本测量通过 [Performance benchmarks](../../.github/workflows/performance.yml) 手动运行，不再是普通 PR 的合并条件；日常 Verify 保留一次完整真实 Auth／HTTP 和现有浏览器功能回归。下文样本数及预算描述专项工具的诊断契约，不恢复全局门槛。
+
 用同一提交的生产构建、角色、数据与网络比较。工具只准备证据，不改变认证、应用缓存、数据或用户操作。共享 CI 的单次墙钟计时不作阈值，受控验收按 [VERIFY-06](../../docs/standards/05_工程验证与交付规范.md#verify-06)。构建清单也不是实际浏览器瀑布图。
 
 ## 校准与回归
@@ -86,7 +88,7 @@ selector 必须按实际页面校准：目标内容不能在源页已经可见�
 
 多指标结果单独写入 `output/multi-metric-performance.json`（`query-multi-metric-performance/1`），记录每条件期望／实际／失败数量、独立数值核对、指标切换、来源和 DOM 回执确认。两个报告均记录精确版本、运行环境及模型调用计数；这些限定查询必须为零模型调用。P50/P90 使用 nearest-rank，失败保留在分母，缺测或失败不能得到 `budgetsMet=true`。
 
-两组预算均沿用 VERIFY-06：反馈 P90 不超过 100 ms，结果可操作 P90 桌面不超过 2.5 秒、手机模拟不超过 3.5 秒，同页来源重开 P90 不超过 500 ms。指标切换沿用相同设备的 2.5/3.5 秒预算。共享 CI 自动断言采集完整性、真实操作、来源、数值一致性、无 HTTP 失败及零模型调用；上述原有两份脚本保留报告预算的方式，不因单次共享 runner 的墙钟超预算自动退出失败。合并前仍以两份 artifact 的 `budgetsMet=true`、完整样本和零失败作为硬门槛，并核对 A/B 差异；CI 绿色不能代替这一检查。这些记录不代表生产网络、真实手机或生产业务数据的性能验收。
+两组预算均沿用 VERIFY-06：反馈 P90 不超过 100 ms，结果可操作 P90 桌面不超过 2.5 秒、手机模拟不超过 3.5 秒，同页来源重开 P90 不超过 500 ms。指标切换沿用相同设备的 2.5/3.5 秒预算。共享 CI 自动断言采集完整性、真实操作、来源、数值一致性、无 HTTP 失败及零模型调用；上述原有两份脚本保留报告预算的方式，不因单次共享 runner 的墙钟超预算自动退出失败。运行该性能专项时核对两份 artifact 的预算、完整样本和失败；不要求普通 PR 生成或复核这些报告。这些记录不代表生产网络、真实手机或生产业务数据的性能验收。
 
 ## 双维三指标季度趋势
 
@@ -100,4 +102,4 @@ selector 必须按实际页面校准：目标内容不能在源页已经可见�
 
 查询、恢复和图表成功 JSON 在客户端接受时对 ≥16 KiB 正文协商 gzip，原 JSON、来源、归档和交付摘要仍按解压后的完整字节校验，最后实时权限检查在压缩完成后执行。浏览器资源时序分别保留 encoded／decoded 字节，不能把传输压缩当作来源删减，或把解压前到达作为可操作终点。当前全量 HTTP 持续回归验证 gzip／identity 恢复相等及原 SHA-256 交付关系；性能配置、采样数和阈值不变。
 
-Verify 的原 `Real Auth trusted query HTTP integration` 使用 `AI_QUERY_PERFORMANCE_SUITE=regression`，完整保留原 640＋80；新增 `Real Auth cross-trend HTTP and browser integration` 使用 `cross_trend`，在另一 GitHub runner 的独立 Auth/Data API/PostgreSQL/Next 栈执行新增 80。两个 job 都执行全部新旧 HTTP 场景，均保留 40 分钟时限，不在同一机器争用浏览器资源。suite 只接受这两个值，默认 regression，未知值立即失败；日志及全部报告记录 suite、精确 head SHA 和实际测试的 merge SHA。两份 artifact 分别为 `ai-query-real-auth`、`ai-query-cross-trend-auth`，均不含凭据，保留 7 天。合并要求两个 Auth job 和三份性能报告的完整性、来源、零失败、零模型及预算全部通过，总样本应为 800。
+按需 Performance benchmarks 的 `Real Auth trusted query HTTP integration` 使用 `AI_QUERY_PERFORMANCE_SUITE=regression`，完整保留原 640＋80；新增 `Real Auth cross-trend HTTP and browser integration` 使用 `cross_trend`，在另一 GitHub runner 的独立 Auth/Data API/PostgreSQL/Next 栈执行新增 80。两个 job 都执行全部新旧 HTTP 场景，均保留 40 分钟时限，不在同一机器争用浏览器资源。suite 只接受这两个值，默认 regression，未知值立即失败；日志及全部报告记录 suite、精确 head SHA 和实际测试的 merge SHA。两份 artifact 分别为 `ai-query-real-auth`、`ai-query-cross-trend-auth`，均不含凭据，保留 7 天。手动运行这两个套件时，三个性能报告保留完整性、来源、零失败、零模型及预算断言，总样本仍为 800；普通合并不要求执行这些专项。
