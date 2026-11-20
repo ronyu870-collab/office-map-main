@@ -141,6 +141,17 @@ describe('submarket research modal', () => {
     expect(screen.getAllByText(/与相邻季度比较/).length).toBeGreaterThan(0);
   });
 
+
+  it('distinguishes temporarily unavailable trend data from genuine missing observations', async () => {
+    api.read.mockResolvedValueOnce({ ...payload, trendError: true, trends: emptyTrend });
+    render(<SubmarketDetailPanel {...props} />);
+    await waitFor(() => expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: '行情趋势' }));
+    expect(screen.getByText('历史行情暂不可用')).toBeInTheDocument();
+    expect(screen.queryByText('最新有效样本')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument();
+  });
+
   it('supports Escape, explicit close and backdrop dismissal without losing the map click handlers', async () => {
     const onClose = vi.fn();
     const { unmount } = render(<SubmarketDetailPanel {...props} onClose={onClose} />);
