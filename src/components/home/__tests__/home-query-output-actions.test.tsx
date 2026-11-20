@@ -79,4 +79,15 @@ describe('P2 compact research result actions', () => {
     expect(leaveWorkspace).not.toHaveBeenCalled();
     expect(client.copy).not.toHaveBeenCalled();
   });
+  it('returns to the visible action disclosure if the original copy action was closed', async () => {
+    open(); clipboard.mockRejectedValue(new Error('denied'));
+    const more = screen.getByText('更多操作');
+    fireEvent.click(more);
+    const trigger = screen.getByRole('button', { name: '复制关键数字' });
+    fireEvent.click(trigger);
+    await screen.findByRole('textbox', { name: '可手动复制的分析内容' });
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: '关闭复制内容' }));
+    expect(more).toHaveFocus();
+  });
 });

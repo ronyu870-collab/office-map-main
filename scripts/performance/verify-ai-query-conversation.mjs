@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 import { observeQueryConversation, QUERY_PERFORMANCE_PROFILES, QUERY_PERFORMANCE_STEPS, QUERY_PERFORMANCE_CACHE_STATES,
-  summarizeQueryPerformance, queryPerformanceErrorCode, checkpointQueryPerformancePair, queryPerformanceRevision } from './query-conversation-probe.mjs';
+  summarizeQueryPerformance, queryPerformanceErrorCode, checkpointQueryPerformancePair, queryPerformanceRevision, startNewQueryConversation } from './query-conversation-probe.mjs';
 import { observeQueryNetwork } from './query-conversation-network.mjs';
 import { QUERY_PERFORMANCE_BASELINE } from '../verification/query-performance-baseline.mjs';
 import { verifyMultiMetricQueryPerformance } from './verify-query-multi-metric.mjs';
@@ -38,7 +38,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
       : 'No baseline build provided; this run cannot establish A/B regression acceptance',
     workspacePreparation: 'Candidate enters its actual Expanded workspace before query timing so full tables/charts remain the readiness target. The released baseline has no mode control and retains its original full-result UI. This layout precondition differs; no hidden compact summary counts as a usable result. Mode-transition cost is independently measured by Experience P1.',
     cacheDefinition: { new_context_first_dialogue: 'A new browser context; real login and homepage are ready before measurement. First query of this page, then inherited continuation. Server and database are warm; not a cold server/DNS/TLS claim.',
-      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. Both variants start through the real New Conversation button. No reload or prefilled response.' },
+      same_document_second_dialogue: 'Second four-turn dialogue in the same document and authenticated session, retaining browser/app caches. Both variants start through the real visible New Conversation button; the narrow candidate opens its history sidebar to reach that entry. These actions finish before query timing. No reload or prefilled response.' },
     endpoints: { start: 'Actual send-button click captured in the browser', feedback: 'Loading/stop control or real result painted on a subsequent animation frame',
       result: 'Fresh numeric result and an enabled source action painted', usable: 'Fresh result + source action + required same-result chart painted; actual source interaction then verified',
       source: 'Actual numeric-source click -> new database-source panel painted; final trend also reopened',
@@ -110,7 +110,7 @@ export async function verifyQueryConversationPerformance({ db, person, app, befo
             if (!dependencyFailed && cacheState === 'same_document_second_dialogue') {
               setupPhase = 'new_conversation';
               const documentOrigin = await page.evaluate(() => performance.timeOrigin);
-              await page.getByRole('button', { name: '新对话', exact: true }).click();
+              await startNewQueryConversation(page);
               await page.getByRole('region', { name: '查询结果', exact: true }).waitFor({ state: 'detached' });
               assert.equal(await page.evaluate(() => performance.timeOrigin), documentOrigin, 'NEW_CONVERSATION_RELOADED_DOCUMENT');
             }
@@ -194,6 +194,16 @@ export async function login(page, app, owner, recordHttpStatus) {
  * never DOM/state injection, and does not weaken any result/receipt endpoint. */
 export async function prepareFullQueryWorkspace(page, { keepHistory = false } = {}) {
   const mode = await page.locator('#home-query').evaluate(node => node.closest('[data-mode]')?.dataset.mode);
+  const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
+  const historyWasOpen = await history.isVisible();
+  // A narrow history drawer correctly makes the toolbar inert. Close it through
+  // its own control before changing mode, then restore it if the caller needs it.
+  const closeDrawer = mode !== 'expanded' && historyWasOpen && await history.evaluate(node =>
+    node.closest('#query-workspace-history')?.getAttribute('aria-modal') === 'true');
+  if (closeDrawer) {
+    await history.getByRole('button', { name: '关闭历史', exact: true }).click();
+    await history.waitFor({ state: 'hidden' });
+  }
   const expand = page.getByRole('button', { name: mode === 'focus' ? '全屏 Colliers AI 工作空间' : '展开 Colliers AI 工作空间', exact: true });
   if (mode !== 'expanded') {
     if (!await expand.count()) return 'legacy';
@@ -203,8 +213,11 @@ export async function prepareFullQueryWorkspace(page, { keepHistory = false } = 
     const input = document.querySelector('#home-query'), surface = input?.closest('[data-mode]');
     return input && !input.disabled && surface?.dataset.mode === 'expanded' && surface.dataset.transitioning === 'false';
   });
+  if (keepHistory && closeDrawer) {
+    await page.getByRole('button', { name: '历史记录', exact: true }).click();
+    await history.waitFor({ state: 'visible' });
+  }
   if (!keepHistory) {
-    const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
     if (await history.isVisible()) {
       // Finish the initial directory read outside query timing; subsequent real
       // reads/receipts retain their existing network attribution and assertions.

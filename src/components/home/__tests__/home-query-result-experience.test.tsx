@@ -136,8 +136,7 @@ describe('progressive research result in one retained workspace', () => {
   });
   it('offers all source details from a compact preview without generating or querying results again', () => {
     const result = longResult(); render(<HomeQueryResult result={result} presentation="compact" />);
-    fireEvent.click(screen.getByText('来源、口径与结果版本'));
-    fireEvent.click(screen.getByRole('button', { name: '查看全部来源' }));
+    fireEvent.click(within(screen.getByRole('region', { name: '数据来源' })).getByRole('button', { name: /获权来源/ }));
     expect(screen.getByRole('region', { name: '来源详情' })).toHaveTextContent('全部获权候选来源');
     expect(client.chart).not.toHaveBeenCalled(); expect(client.download).not.toHaveBeenCalled();
   });

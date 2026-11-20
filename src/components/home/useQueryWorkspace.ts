@@ -11,7 +11,7 @@ const DURATION = 300;
 function resizeEditor(node: HTMLTextAreaElement | null, mode: QueryWorkspaceMode) {
   if (!node) return;
   node.style.height = 'auto';
-  node.style.height = `${Math.max(mode === 'compact' ? 28 : 56, Math.min(node.scrollHeight, 200))}px`;
+  node.style.height = `${Math.max(mode === 'compact' ? 28 : 44, Math.min(node.scrollHeight, 200))}px`;
 }
 
 function readPosition(node: HTMLDivElement | null): ReadingPosition {
@@ -36,7 +36,7 @@ function visibleControls(surface: HTMLElement): HTMLElement[] {
   return Array.from(surface.querySelectorAll<HTMLElement>(
     ':is(button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex]:not([tabindex="-1"]))',
   )).filter(node => {
-    if (node.closest('[hidden], [inert], details:not([open]) > :not(summary)')) return false;
+    if (node.tabIndex < 0 || node.closest('[hidden], [inert], details:not([open]) > :not(summary)')) return false;
     // Keyboard-sized viewports hide the auxiliary footer with CSS. A child can
     // still report display:list-item inside a display:none ancestor.
     for (let current: HTMLElement | null = node; current; current = current.parentElement) {
@@ -73,6 +73,7 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
   const reading = React.useRef<ReadingPosition | null>(null);
   const surfaceComposition = React.useRef<HTMLElement | null>(null);
   const clearComposition = React.useCallback(() => { surfaceComposition.current = null; }, []);
+  const isComposing = React.useCallback(() => composingRef.current || !!surfaceComposition.current?.isConnected, [composingRef]);
 
   React.useEffect(() => {
     const node = surface.current;
@@ -107,11 +108,12 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
 
   const change = React.useCallback((next: QueryWorkspaceMode) => {
     const node = surface.current, placeholder = anchor.current;
-    if (!node || !placeholder || modeRef.current === next) return;
+    if (!node || !placeholder) return false;
+    if (modeRef.current === next) return true;
     // A sidebar editor would become hidden on collapse. Let its native IME
     // finish before allowing that action; the main composer stays in every mode.
     if (next === 'compact' && surfaceComposition.current?.isConnected
-      && !composer.current?.contains(surfaceComposition.current)) return;
+      && !composer.current?.contains(surfaceComposition.current)) return false;
     // Keyboard panning can change a locked ancestor's programmatic scroll.
     // Restore it BEFORE measuring the return destination, not after the last
     // animation frame (which would otherwise produce a second jump).
@@ -140,6 +142,7 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     reading.current = position;
     modeRef.current = next; floatingRef.current = true;
     setFloating(true); setTransitioning(true); setState({ mode: next, ticket: ticket.current });
+    return true;
   }, [syncViewport]);
   const focus = React.useCallback(() => change('focus'), [change]);
   const expand = React.useCallback(() => change('expanded'), [change]);
@@ -338,7 +341,7 @@ export function useQueryWorkspace(composingRef: React.RefObject<boolean>) {
     if (reading.current) restorePosition(scroller.current, reading.current);
   }, []);
   return { anchor, surface, scroller, toggle, composer, composerSlot, mode, expanded: mode !== 'compact',
-    floating, transitioning, focus, expand, collapse, preserveReading, clearComposition };
+    floating, transitioning, focus, expand, collapse, preserveReading, clearComposition, isComposing };
 }
 
 /** Follow results only while the reader is at the end. Layout-only changes do
@@ -347,31 +350,73 @@ export function useQueryScroll(scrollerRef: React.RefObject<HTMLDivElement | nul
   const following = React.useRef(true);
   const [unseen, setUnseen] = React.useState(false);
   const deferredUpdate = React.useRef(false);
+  const deferredLayout = React.useRef(false);
+  const prependPosition = React.useRef<ReadingPosition | null>(null);
+  const expectedScrollTop = React.useRef<number | null>(null);
   const transitionRef = React.useRef(transitioning);
   React.useLayoutEffect(() => { transitionRef.current = transitioning; }, [transitioning]);
   const toLatest = React.useCallback(() => {
-    following.current = true; setUnseen(false);
+    following.current = true; prependPosition.current = null; setUnseen(false);
     const node = scrollerRef.current;
-    if (node) node.scrollTop = node.scrollHeight;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+      expectedScrollTop.current = node.scrollTop;
+    }
   }, [scrollerRef]);
   const onScroll = React.useCallback(() => {
     if (transitionRef.current) return;
     const node = scrollerRef.current;
     if (!node) return;
+    // Setting scrollTop emits the same event as a reader scroll. Keep an older
+    // turn anchored through subsequent lazy Markdown/layout commits until the
+    // reader actually moves elsewhere or explicitly follows the newest answer.
+    if (expectedScrollTop.current !== null && Math.abs(node.scrollTop - expectedScrollTop.current) < 1) {
+      expectedScrollTop.current = null;
+      return;
+    }
+    expectedScrollTop.current = null; prependPosition.current = null;
     following.current = node.scrollHeight - node.clientHeight - node.scrollTop < 72;
     if (following.current) setUnseen(false);
   }, [scrollerRef]);
+  const applyLayout = React.useCallback(() => {
+    if (transitionRef.current) { deferredLayout.current = true; return; }
+    const node = scrollerRef.current;
+    if (!node) return;
+    if (prependPosition.current) {
+      const previousTop = node.scrollTop;
+      restorePosition(node, prependPosition.current);
+      if (node.scrollTop !== previousTop) expectedScrollTop.current = node.scrollTop;
+    } else if (following.current) toLatest();
+    // A resized table, font or Markdown block is not a new message. Readers who
+    // have scrolled back must not acquire a spurious unread-message indicator.
+  }, [scrollerRef, toLatest]);
+  React.useLayoutEffect(() => {
+    const node = scrollerRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(applyLayout);
+    observer.observe(node);
+    if (node.firstElementChild) observer.observe(node.firstElementChild);
+    return () => observer.disconnect();
+  }, [scrollerRef, applyLayout]);
   React.useLayoutEffect(() => {
     if (transitionRef.current) { deferredUpdate.current = true; return; }
     if (following.current) toLatest();
     else setUnseen(true);
   }, [update, toLatest]);
   React.useLayoutEffect(() => {
-    if (transitioning || !deferredUpdate.current) return;
+    if (transitioning) return;
+    const updated = deferredUpdate.current, resized = deferredLayout.current;
     deferredUpdate.current = false;
-    if (following.current) toLatest();
-    else setUnseen(true);
-  }, [transitioning, toLatest]);
-  const followNext = React.useCallback(() => { following.current = true; setUnseen(false); }, []);
-  return { onScroll, toLatest, followNext, unseen };
+    deferredLayout.current = false;
+    if (updated || resized) applyLayout();
+    if (updated && !following.current) setUnseen(true);
+  }, [transitioning, applyLayout]);
+  const followNext = React.useCallback(() => {
+    following.current = true; prependPosition.current = null; expectedScrollTop.current = null; setUnseen(false);
+  }, []);
+  const preserveBeforePrepend = React.useCallback(() => {
+    prependPosition.current = readPosition(scrollerRef.current);
+    following.current = false; expectedScrollTop.current = null;
+  }, [scrollerRef]);
+  return { onScroll, toLatest, followNext, preserveBeforePrepend, unseen };
 }

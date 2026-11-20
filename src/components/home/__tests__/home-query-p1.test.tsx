@@ -110,7 +110,7 @@ describe('homepage AI P1 structured conversation and request ownership', () => {
       .mockImplementationOnce(async (_scope, input: Submission) => response(input, 2));
     const { input } = await open(); send(input, '2026Q3 CBD租金'); await screen.findByRole('button', { name: action.label });
     send(input, '金融街呢'); await screen.findByRole('region', { name: '查询结果' });
-    fireEvent.click(screen.getByText('Colliers AI · 查看此前回答'));
+    fireEvent.click(screen.getByRole('button', { name: '展开数据与来源' }));
     fireEvent.click(await screen.findByRole('button', { name: action.label }));
     await waitFor(() => expect(client.submit).toHaveBeenCalledTimes(3));
     expect(client.submit.mock.calls[2][1].conversation.parentRequestId).toBe(requestIds[0]);

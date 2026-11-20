@@ -35,6 +35,7 @@ export function summarizeP2WorkspacePerformance(samples) {
     }));
     const complete = rows.length === P2_WORKSPACE_SAMPLES && rows.every(row => row.status === 'success'
       && row.factsVerified && row.boundedRenderingVerified && row.requestsVerified && row.receiptsVerified
+      && (scenario !== 'history_earlier_turns' || row.timelinePresentationVerified === true)
       && row.longTaskObserverSupported && fields.every(field => Number.isFinite(row[field]))
       && (row.browser_validation_and_render_ms === null || Number.isFinite(row.browser_validation_and_render_ms) && row.browser_validation_and_render_ms >= 0));
     const usable = scenario === 'summary_reopen' ? 500 : profile.usableP90Ms;
@@ -54,7 +55,7 @@ export function p2WorkspaceErrorCode(error) {
 /** Runs inside the actual document. It observes DOM, paint, resource timing and
  * Long Tasks only; it cannot change Auth, query data, routes or application state.
  * A busy control is feedback, never the content-ready endpoint. */
-export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expectedCount, expectedTitle, expectedNames = [], expectedMetadata, requiredResponse, timeoutMs = 30000 }) {
+export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expectedCount, expectedTranscriptCount, expectedTitle, expectedNames = [], expectedMetadata, requiredResponse, timeoutMs = 30000 }) {
   window.__colliersP2Workspace?.stop();
   performance.setResourceTimingBufferSize(1000);
   const state = { start: null, status: 'waiting', feedback_ms: null, content_usable_ms: null,
@@ -71,10 +72,13 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
     return box.width > 0 && box.height > 0 && style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
   };
   const panel = () => document.querySelector('aside[aria-label="历史工作记录"]');
-  const result = () => document.querySelector('section[aria-label="查询结果"]');
-  const cards = () => document.querySelector('section[aria-label="查询楼宇信息"]');
+  const result = () => document.querySelector('article[aria-label="本次问答"] section[aria-label="查询结果"]')
+    ?? [...document.querySelectorAll('section[aria-label="查询结果"]')].at(-1);
+  const cards = () => result()?.querySelector('section[aria-label="查询楼宇信息"]')
+    ?? document.querySelector('section[aria-label="查询楼宇信息"]');
+  const transcript = () => [...document.querySelectorAll('article[data-query-turn]')];
   const buttons = (root, prefix) => [...(root?.querySelectorAll('button[aria-label]') ?? [])].filter(node => node.getAttribute('aria-label').startsWith(prefix));
-  const oldResult = result(), oldFirst = panel()?.querySelector('button[aria-label^="打开对话："]')?.getAttribute('aria-label');
+  const oldResult = result(), oldTranscript = transcript(), oldFirst = panel()?.querySelector('button[aria-label^="打开对话："]')?.getAttribute('aria-label');
   const ready = () => {
     // The new page may briefly render archived row names before its directory
     // authorization finishes. DOM plus the completed actual response are both
@@ -91,17 +95,22 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
         && (!expectedTitle || list.some(node => node.getAttribute('aria-label') === `打开对话：${expectedTitle}`));
     }
     if (mode === 'history_snapshot' || mode === 'history_turns') {
-      const current = result(), turns = buttons(panel(), '查看记录：');
+      const current = result(), turns = buttons(panel(), '查看记录：'), timeline = transcript();
       const number = current?.querySelector('section[aria-label="核心指标"] button');
-      return current !== oldResult && visible(current) && visible(number) && !number.disabled
-        && turns.length === expectedCount && turns.every(node => !node.disabled);
+      const prepended = timeline.length - oldTranscript.length;
+      return (mode === 'history_snapshot' ? current !== oldResult : current === oldResult && prepended > 0
+        && oldTranscript.every((node, index) => timeline[index + prepended] === node))
+        && visible(current) && visible(number) && !number.disabled
+        && turns.length === expectedCount && turns.every(node => !node.disabled)
+        && timeline.length === expectedTranscriptCount && timeline.every(node => visible(node)
+          && [...node.querySelectorAll('[data-query-result-disclosure]')].every(button => !button.disabled));
     }
     if (mode === 'summary') {
       const section = document.querySelector('section[aria-label="市场分析摘要"]');
       return visible(section) && Boolean(section.querySelector('pre')?.textContent.trim())
         && [...section.querySelectorAll('button')].some(node => node.textContent === '收起摘要' && !node.disabled);
     }
-    if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')].some(node => visible(node) && node.textContent.startsWith('已复制，'))
+    if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')].some(node => visible(node) && node.textContent.trim() === '已复制结论。')
       && [...document.querySelectorAll('button')].some(node => node.textContent === '复制结论' && !node.disabled);
     if (mode === 'buildings_snapshot' || mode === 'buildings_page') {
       const section = cards(), articles = [...(section?.querySelectorAll('article[aria-label$="楼宇卡片"]') ?? [])];
@@ -117,9 +126,11 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
     if (ready()) return true;
     if (mode.startsWith('history')) return [...document.querySelectorAll('[role="status"]')]
       .some(node => visible(node) && (/正在打开历史记录/.test(node.textContent)
-        || panel()?.contains(node) && node.textContent.includes('正在读取')));
+        || panel()?.contains(node) && node.textContent.includes('正在读取')))
+      || mode === 'history_turns' && [...document.querySelectorAll('button')]
+        .some(node => visible(node) && node.disabled && node.textContent.trim() === '正在加载更早问答…');
     if (mode === 'copy') return [...document.querySelectorAll('[role="status"]')]
-      .some(node => visible(node) && node.textContent.includes('正在核对复制权限'));
+      .some(node => visible(node) && node.textContent.includes('正在复制…'));
     if (mode.startsWith('buildings')) return [...document.querySelectorAll('[role="status"]')]
       .some(node => visible(node) && (/正在读取本人|正在打开楼宇|正在核对楼宇/.test(node.textContent)
         // A building snapshot opens through its history entry before the cards load.
@@ -173,6 +184,7 @@ export function observeP2WorkspaceAction({ mode, triggerText, triggerAria, expec
       long_task_max_ms: Math.max(0, ...measuredTasks.map(task => task.duration)),
       browser_validation_and_render_ms: lastResponse !== null && state.content_usable_ms !== null ? state.content_usable_ms - lastResponse : null,
       mounted: { historyEntries: buttons(panel(), '打开对话：').length, historyTurns: buttons(panel(), '查看记录：').length,
+        transcriptTurns: transcript().length, previousTurnDisclosures: document.querySelectorAll('[data-query-result-disclosure]').length,
         buildingCards: cards()?.querySelectorAll('article[aria-label$="楼宇卡片"]').length ?? 0,
         resultRows: result()?.querySelectorAll('table tbody tr').length ?? 0, results: document.querySelectorAll('section[aria-label="查询结果"]').length,
         domNodes: document.getElementsByTagName('*').length } };
@@ -223,14 +235,18 @@ function observeP2Network(page, sample, dataApiOrigin) {
     listeners.add(poll); poll();
   });
   page.on('request', onRequest); page.on('response', onResponse); page.on('requestfinished', onFinished); page.on('requestfailed', onFailed);
+  const receipt = async (token, phase, surface) => {
+    assert.ok(token, 'P2_RECEIPT_MISSING');
+    await wait(() => [...requests.values()].some(entry => entry.token === token && entry.record.phase === phase
+      && (!surface || entry.record.surface === surface) && entry.record.status === 'finished' && entry.record.httpStatus === 200), 'P2_RECEIPT_INCOMPLETE');
+    sample.receiptConfirmations.push({ phase, surface, httpStatus: 200 });
+  };
   return {
     idle: () => wait(() => ![...requests.values()].some(({ record }) => record.critical && record.status === 'pending'), 'P2_NETWORK_INCOMPLETE'),
     receipt: async (response, phase = 'client_received', surface = null) => {
-      const token = await response.headerValue('x-query-delivery-token'); assert.ok(token, 'P2_RECEIPT_MISSING');
-      await wait(() => [...requests.values()].some(entry => entry.token === token && entry.record.phase === phase
-        && (!surface || entry.record.surface === surface) && entry.record.status === 'finished' && entry.record.httpStatus === 200), 'P2_RECEIPT_INCOMPLETE');
-      sample.receiptConfirmations.push({ phase, surface, httpStatus: 200 });
+      await receipt(await response.headerValue('x-query-delivery-token'), phase, surface);
     },
+    snapshotReceipt: (snapshot, phase = 'client_received', surface = null) => receipt(snapshot.delivery?.deliveryToken, phase, surface),
     stop: () => { stopped = true; notify(); page.off('request', onRequest); page.off('response', onResponse);
       page.off('requestfinished', onFinished); page.off('requestfailed', onFailed); requests.clear(); },
   };
@@ -255,7 +271,7 @@ async function unmeasuredRequest({ page, profile, dataApiOrigin, locator, endpoi
   try {
     const [response] = await Promise.all([responseFor(page, endpoint, action), activate(locator, profile)]);
     const body = await responseBody(response);
-    await verify?.(body); await network.receipt(response); await network.idle();
+    await verify?.(body, network); await network.receipt(response); await network.idle();
     assert.ok(evidence.networkFailures.every(failure => !failure.critical && !failure.httpStatus), 'P2_NETWORK_FAILURE');
     return body;
   } finally { network.stop(); }
@@ -284,6 +300,7 @@ async function measureAction({ page, profile, round, samples, dataApiOrigin, sce
     Object.assign(sample, measured); delete sample.start;
     assert.ok(measured.browser_validation_and_render_ms === null || measured.browser_validation_and_render_ms >= 0, 'P2_CONTENT_PRECEDES_AUTHORIZED_RESPONSE');
     assert.ok(measured.mounted.historyEntries <= 15 && measured.mounted.historyTurns <= 10 && measured.mounted.buildingCards <= 5
+      && measured.mounted.transcriptTurns <= 12 && measured.mounted.previousTurnDisclosures <= 11
       && measured.mounted.resultRows <= 25 && measured.mounted.results === (scenario.startsWith('history_') && ['history_list', 'history_next_page'].includes(scenario) ? 0 : 1), 'P2_UNBOUNDED_RENDER');
     sample.boundedRenderingVerified = true;
     for (const kind of ['submit', 'history', 'buildings', 'artifact', 'recover']) {
@@ -351,18 +368,18 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
   const samples = [], ids = Array.from({ length: 12 }, () => randomUUID()).sort(), modelStart = semanticCalls?.();
   const githubEvent = process.env.GITHUB_EVENT_PATH ? JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) : null;
   const reportPath = path.join(output, 'p2-workspace-performance.json');
-  const report = { version: 'query-p2-workspace-performance/2', suite: 'p2_workspace', ...queryPerformanceRevision(process.env, githubEvent),
+  const report = { version: 'query-p2-workspace-performance/3', suite: 'p2_workspace', ...queryPerformanceRevision(process.env, githubEvent),
     production: false, productionBuild: true, realPhone: false, manualVisualReview: false,
     baseline: 'New P2 workspace paths have no published before equivalent. No before values or improvement percentages are invented. Existing P1 A/B and cross-trend suites remain separate requirements.',
     fixture: { buildings: 12, quarterlyRecords: 12, quarters: ['2026Q3'], conversations: 16, formallySubmittedQueries: 27, longestConversationTurns: 12,
-      visibleHistoryPageLimit: 15, visibleTurnLimit: 10, visibleBuildingLimit: 5, originalAreaWeightedRent: 155, changedSourceAfterSnapshot: true, missingCoordinates: 2, missingHeights: 2, realPhotos: 0 },
+      visibleHistoryPageLimit: 15, visibleTurnLimit: 5, historySnapshotPageLimit: 5, restoredTimelineTurns: 12, visibleBuildingLimit: 5, originalAreaWeightedRent: 155, changedSourceAfterSnapshot: true, missingCoordinates: 2, missingHeights: 2, realPhotos: 0 },
     profiles: QUERY_PERFORMANCE_PROFILES, samplesPerCondition: P2_WORKSPACE_SAMPLES, scenarios: P2_WORKSPACE_SCENARIOS,
     workspacePreparation: 'First history list and page navigation retain their original compact entry. Before opening snapshots the actual Expanded workspace is activated when available; mobile history is explicitly reopened between selections because the workspace returns focus to the answer. Setup is outside each original action timer, whose full content/receipt/numerical budgets are unchanged.',
     cacheDefinition: 'New browser context and real login for each round. First history open and first dynamic building-card module in that document are cold client paths; API/database/Next process are warm. Summary reopen uses the same already loaded result. No server cold-start or physical-device claim.',
     endpoints: { start: 'Actual trusted keyboard/touch click event', feedback: 'Visible actual module-loading/query progress or real content on a following animation frame; the dynamic history loader counts before its aside mounts',
       content: 'Completed actual response plus enabled history controls/original numeric result, complete summary, clipboard success, or five identity-bound cards with their verified current directory metadata painted on a following frame',
       copy: 'Backend authorization and immutable text -> real Clipboard API -> visible success; clipboard read is checked separately',
-      receipts: 'Each real response client_received and selected answer_table DOM acknowledgement completes before changing the view',
+      receipts: 'Each real envelope and every timeline snapshot completes its own client_received receipt. The visible selected table confirms its snapshot-specific DOM receipt. Earlier pages retain the selected answer; a mandatory unmeasured expansion then verifies a prepended snapshot and its own answer_table receipt before switching conversations.',
       longTasks: 'Long Tasks API entries between activation and usable content; P50/P90 count/total/max reported, including zero observations' },
     boundaries: 'Real local GoTrue/PostgreSQL/Data API/Next production build, scoped synthetic admin, real HTTP and DOM receipts. CDP throttles browser network/CPU only. No screenshots, Auth tokens, body contents, question text, source IDs or signed URLs are written to this report.',
     budgets: { feedbackP90Ms: 100, desktopContentUsableP90Ms: 2500, mobileContentUsableP90Ms: 3500, loadedSummaryReopenP90Ms: 500 },
@@ -396,12 +413,25 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
         await login(page, app, fixture.owner, value => { loginHttpStatus = value; });
         const measure = options => measureAction({ page, profile, round, samples, dataApiOrigin, ...options });
         const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
-        const result = page.getByRole('region', { name: '查询结果', exact: true });
-        const historyRequest = async (activateAction, network, action, verify) => {
+        const result = page.getByRole('article', { name: '本次问答', exact: true }).getByRole('region', { name: '查询结果', exact: true });
+        const receiveTimeline = async (body, network) => {
+          const snapshots = new Map((body.opened.timeline ?? []).map(turn => [turn.requestId, turn]));
+          snapshots.set(body.opened.selected.requestId, body.opened.selected);
+          for (const snapshot of snapshots.values()) await network.snapshotReceipt(snapshot);
+        };
+        const verifyTimeline = (body, expected) => {
+          assert.equal(body.opened.turns.length, expected.length, 'P2_HISTORY_TURN_MISMATCH');
+          assert.deepEqual(body.opened.timeline.map(turn => turn.requestId), expected.map(turn => turn.requestId), 'P2_HISTORY_TURN_MISMATCH');
+          for (const [index, snapshot] of body.opened.timeline.entries()) validateOriginal(snapshot.reply.result, expected[index].result, ids);
+        };
+        const historyRequest = async (activateAction, network, action, { waitForTable = true } = {}) => {
           const [response] = await Promise.all([responseFor(page, '/api/intelligence/query/history', action), activateAction()]);
-          const body = await responseBody(response); await verify?.(body);
+          const body = await responseBody(response);
           await network.receipt(response);
-          if (action === 'open') await network.receipt(response, 'client_dom_committed', 'answer_table');
+          if (action === 'open') {
+            await receiveTimeline(body, network);
+            if (waitForTable) await network.snapshotReceipt(body.opened.selected, 'client_dom_committed', 'answer_table');
+          }
           return body;
         };
         await measure({ scenario: 'history_list', locator: page.getByRole('button', { name: '历史记录', exact: true }),
@@ -429,19 +459,30 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           await history.waitFor({ state: 'visible' });
         };
         await history.getByRole('button', { name: `打开对话：${question}`, exact: true }).waitFor();
-        let selectedResult = fixture.turns.at(-1).result;
+        const selectedResult = fixture.turns.at(-1).result;
         await measure({ scenario: 'history_snapshot', locator: history.getByRole('button', { name: `打开对话：${question}`, exact: true }),
-          probe: { mode: 'history_snapshot', triggerAria: `打开对话：${question}`, expectedCount: 10, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
+          probe: { mode: 'history_snapshot', triggerAria: `打开对话：${question}`, expectedCount: 5, expectedTranscriptCount: 5, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
           run: (activateAction, network) => historyRequest(activateAction, network, 'open'),
-          verify: async body => { assert.equal(body.opened.turns.length, 10, 'P2_HISTORY_TURN_MISMATCH'); assert.equal(body.opened.hasMore, true, 'P2_HISTORY_TURN_MISMATCH');
+          verify: async body => { verifyTimeline(body, fixture.turns.slice(-5)); assert.equal(body.opened.hasMore, true, 'P2_HISTORY_TURN_MISMATCH');
             validateOriginal(body.opened.selected.reply.result, selectedResult, ids); assert.match(await result.innerText(), /155/, 'P2_ORIGINAL_SNAPSHOT_CHANGED'); } });
-        await showHistory();
-        await measure({ scenario: 'history_earlier_turns', locator: history.getByRole('button', { name: '查看更早提问', exact: true }),
-          probe: { mode: 'history_turns', triggerText: '查看更早提问', expectedCount: 2, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
-          run: (activateAction, network) => historyRequest(activateAction, network, 'open'),
-          verify: async body => { assert.equal(body.opened.turns.length, 2, 'P2_HISTORY_TURN_MISMATCH'); assert.equal(body.opened.hasMore, false, 'P2_HISTORY_TURN_MISMATCH');
-            const saved = fixture.turns.find(turn => turn.requestId === body.opened.selected.requestId); assert.ok(saved, 'P2_HISTORY_TURN_MISMATCH');
-            selectedResult = saved.result; validateOriginal(body.opened.selected.reply.result, selectedResult, ids); } });
+        let earlierOpened;
+        const earlierSample = await measure({ scenario: 'history_earlier_turns', locator: page.getByRole('button', { name: '加载更早问答', exact: true }),
+          probe: { mode: 'history_turns', triggerText: '加载更早问答', expectedCount: 5, expectedTranscriptCount: 10, requiredResponse: '/api/intelligence/query/history' }, expectedRequests: { history: 1 },
+          run: (activateAction, network) => historyRequest(activateAction, network, 'open', { waitForTable: false }),
+          verify: async body => { verifyTimeline(body, fixture.turns.slice(2, 7)); assert.equal(body.opened.hasMore, true, 'P2_HISTORY_TURN_MISMATCH');
+            earlierOpened = body.opened;
+            assert.equal(await result.getAttribute('data-result-id'), selectedResult.resultId, 'P2_HISTORY_REPLACED_CURRENT_TURN'); } });
+        // The last two saved turns are a functional completeness check outside
+        // the unchanged one-page timing. Paging must preserve the selected turn.
+        await unmeasuredRequest({ page, profile, dataApiOrigin, locator: page.getByRole('button', { name: '加载更早问答', exact: true }),
+          endpoint: '/api/intelligence/query/history', action: 'open', verify: async (body, network) => {
+            verifyTimeline(body, fixture.turns.slice(0, 2)); assert.equal(body.opened.hasMore, false, 'P2_HISTORY_TURN_MISMATCH');
+            await receiveTimeline(body, network);
+            await page.waitForFunction(() => document.querySelectorAll('article[data-query-turn]').length === 12);
+            assert.deepEqual(await page.locator('[data-query-result-disclosure]').evaluateAll(nodes => nodes.map(node => node.dataset.queryResultDisclosure)),
+              fixture.turns.slice(0, -1).map(turn => turn.result.resultId), 'P2_HISTORY_TURN_MISMATCH');
+            assert.equal(await result.getAttribute('data-result-id'), selectedResult.resultId, 'P2_HISTORY_REPLACED_CURRENT_TURN');
+          } });
         const menu = result.locator('details').filter({ has: page.locator('summary', { hasText: '更多操作' }) });
         await activate(menu.locator('summary'), profile);
         for (const scenario of ['summary_open', 'summary_reopen']) {
@@ -467,6 +508,25 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
             assert.match(body.text, /155/, 'P2_COPY_VALUE_MISMATCH'); assert.match(body.text, /元\/㎡\/月/, 'P2_COPY_UNIT_MISSING');
             assert.match(body.text, /有效 12 栋/, 'P2_COPY_SAMPLE_MISSING'); assert.doesNotMatch(body.text, /9999|9,999/, 'P2_COPY_SNAPSHOT_MISMATCH');
             assert.equal(await page.evaluate(() => navigator.clipboard.readText()), body.text, 'P2_CLIPBOARD_MISMATCH'); } });
+        // Collapsed earlier answers have received receipts, not table receipts.
+        // Open a real earlier table after all current-result timing conditions,
+        // and require its own receipt before allowing this round to pass.
+        const presentationEvidence = { networkRequests: [], networkFailures: [], receiptConfirmations: [] };
+        const presentationNetwork = observeP2Network(page, presentationEvidence, dataApiOrigin);
+        try {
+          const snapshot = earlierOpened.selected;
+          await activate(page.locator(`[data-query-result-disclosure="${snapshot.reply.result.resultId}"]`), profile);
+          const earlierResult = page.locator(`section[aria-label="查询结果"][data-result-id="${snapshot.reply.result.resultId}"]`);
+          await earlierResult.getByRole('region', { name: '核心指标', exact: true }).getByRole('button').first().waitFor();
+          assert.match(await earlierResult.innerText(), /155/, 'P2_ORIGINAL_SNAPSHOT_CHANGED');
+          assert.equal(await result.getAttribute('data-result-id'), selectedResult.resultId, 'P2_HISTORY_REPLACED_CURRENT_TURN');
+          await presentationNetwork.snapshotReceipt(snapshot, 'client_dom_committed', 'answer_table');
+          await presentationNetwork.idle();
+          assert.ok(presentationEvidence.networkRequests.every(request => !['submit', 'history', 'buildings', 'artifact', 'recover'].includes(request.kind)), 'P2_DUPLICATE_OR_UNEXPECTED_REQUEST');
+          assert.ok(presentationEvidence.networkFailures.every(failure => !failure.critical && !failure.httpStatus), 'P2_NETWORK_FAILURE');
+          earlierSample.receiptConfirmations.push(...presentationEvidence.receiptConfirmations);
+          earlierSample.timelinePresentationVerified = true;
+        } finally { presentationNetwork.stop(); }
         const buildingRows = fixture.buildings.result.table.rows;
         const verifyCards = async (body, offset) => {
           assert.equal(body.resultId, fixture.buildings.result.resultId, 'P2_BUILDING_SNAPSHOT_MISMATCH');
@@ -484,6 +544,7 @@ export async function verifyP2WorkspacePerformance({ db, person, app, output, ex
           }
         };
         await showHistory();
+        await activate(history.getByRole('button', { name: '全部对话', exact: true }), profile);
         await measure({ scenario: 'buildings_snapshot', locator: history.getByRole('button', { name: `打开对话：${buildingsQuestion}`, exact: true }),
           probe: { mode: 'buildings_snapshot', triggerAria: `打开对话：${buildingsQuestion}`, expectedCount: 5,
             expectedNames: buildingRows.slice(0, 5).map(row => row.cells.name.value), expectedMetadata: { submarket: 'CBD', grade: 'A' }, requiredResponse: '/api/intelligence/query/buildings' },

@@ -168,7 +168,7 @@ describe('homepage trusted query actual input and result lifecycle', () => {
     const rendered = render(view()); const input = screen.getByRole('textbox'); await waitFor(() => expect(input).toBeEnabled());
     fireEvent.change(input, { target: { value: '未提交草稿' } }); expect(client.submit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '发送问题' })); fireEvent.click(screen.getByRole('button', { name: '停止等待' }));
-    expect(screen.getByText(/不能据此认定服务端已取消/)).toBeInTheDocument();
+    expect(screen.getByText(/回答可能仍在生成/)).toBeInTheDocument();
     rendered.rerender(view('second')); await waitFor(() => expect(screen.getByRole('textbox')).toBeEnabled());
     await act(async () => { pending.resolve({ requestId, status: 'ready', result: buildAggregateResult(fixture(), 'rent') }); });
     expect(screen.queryByRole('region', { name: '查询结果' })).not.toBeInTheDocument(); expect(screen.getByRole('textbox')).toHaveValue('');

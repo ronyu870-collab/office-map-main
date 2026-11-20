@@ -42,7 +42,7 @@ describe('P2 query failure, empty results and recovery lifecycle', () => {
     client.submit.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ requestId, status: 'clarification', message: '请补充第二次查询的季度' });
     render(<HomeQuery scope={scope} />); await submit();
     fireEvent.click(screen.getByRole('button', { name: '停止等待' }));
-    expect(screen.getByRole('status')).toHaveTextContent('服务端可能仍在处理');
+    expect(screen.getByRole('status')).toHaveTextContent('回答可能仍在生成');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '金融街季度租金' } });
     fireEvent.click(screen.getByRole('button', { name: '发送问题' }));
     expect(await screen.findByText('请补充第二次查询的季度')).toBeInTheDocument();

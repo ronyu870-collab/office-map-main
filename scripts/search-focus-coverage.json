@@ -434,7 +434,8 @@
     "file": "src/components/home/__tests__/home-query-history.test.tsx",
     "cases": [
       "keeps history search focus and caret through pending results, Chinese composition and empty pages",
-      "keeps rename editable during IME and preserves the title when save fails"
+      "keeps rename editable during IME and preserves the title when save fails",
+      "keeps the search node mounted while archive tabs change with keyboard and clear returns focus"
     ]
   },
   {

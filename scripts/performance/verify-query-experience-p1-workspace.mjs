@@ -203,16 +203,18 @@ function observeRequests(page, app) {
   page.on('request', request); page.on('requestfinished', done); page.on('requestfailed', failed); page.on('response', response); page.on('pageerror', pageError);
   return { entries, errors, count: endpoint => entries.filter(entry => entry.endpoint === endpoint && entry.method === 'POST').length,
     cursor: () => entries.length,
-    receipt: async (delivered, { surface, sourceCount = 'any', after = 0 }) => {
+    receipt: async (delivered, { surface, sourceCount = 'any', after = 0, snapshot }) => {
       // Wait for the actual successful DOM delivery acknowledgement, identified
       // in memory by its response digest. network.idle alone can run before the
       // component's two animation frames have even dispatched that request.
-      const digest = delivered.headers()['x-query-body-sha256'];
+      const digest = snapshot ? snapshot.delivery?.bodySha256 : delivered.headers()['x-query-body-sha256'];
+      const token = snapshot ? snapshot.delivery?.deliveryToken : delivered.headers()['x-query-delivery-token'];
       assert.match(digest ?? '', /^[a-f0-9]{64}$/, 'EXPERIENCE_DELIVERY_DIGEST_MISSING');
+      assert.ok(token, 'EXPERIENCE_DELIVERY_TOKEN_MISSING');
       await until(() => entries.slice(after).some(entry => {
         if (entry.endpoint !== '/api/intelligence/query/receipt' || entry.method !== 'POST' || !entry.finished || entry.status !== 200) return false;
         const body = entry.request.postDataJSON();
-        return body.bodySha256 === digest && body.phase === 'client_dom_committed' && body.view?.surface === surface
+        return body.bodySha256 === digest && body.deliveryToken === token && body.phase === 'client_dom_committed' && body.view?.surface === surface
           && (sourceCount === 'any' || sourceCount === 'empty' && body.view.sourceIds?.length === 0
             || sourceCount === 'present' && body.view.sourceIds?.length > 0);
       }), 'EXPERIENCE_DOM_RECEIPT_UNCONFIRMED');
@@ -315,33 +317,40 @@ async function modeWithoutNetworkIdle(page, expanded) {
 async function resizeOpenPanels({ page, network, height }) {
   const history = page.getByRole('complementary', { name: '历史工作记录', exact: true });
   const research = page.getByRole('complementary', { name: '研究资料与口径', exact: true });
-  const resize = async width => {
+  const resize = async (width, layout) => {
     await page.setViewportSize({ width, height });
-    await page.waitForFunction(() => {
-      const bounds = document.querySelector('#home-query')?.closest('[data-mode]')?.getBoundingClientRect();
-      return bounds && Math.abs(bounds.width - (visualViewport?.width ?? innerWidth)) <= 2
+    await page.waitForFunction(expected => {
+      const surface = document.querySelector('#home-query')?.closest('[data-mode]');
+      const bounds = surface?.getBoundingClientRect();
+      return bounds && surface.dataset.panels === expected && Math.abs(bounds.width - (visualViewport?.width ?? innerWidth)) <= 2
         && Math.abs(bounds.height - (visualViewport?.height ?? innerHeight)) <= 2;
-    });
+    }, layout);
   };
+  // Panel capacity follows the workspace container: 1440 can show both;
+  // 1280 keeps a single panel, and 320 uses a modal drawer.
+  await resize(1440, 'both');
+  if (!await history.isVisible()) await page.getByRole('button', { name: '历史记录', exact: true }).click();
   await history.waitFor(); await research.waitFor(); await network.idle();
   const before = network.count('/api/intelligence/query');
   const input = textarea(page), inputNode = await input.elementHandle();
   await input.focus();
   const draft = await draftSnapshot(page);
   await input.dispatchEvent('compositionstart', { data: '中' });
-  await resize(320);
-  await history.waitFor({ state: 'hidden' }); await research.waitFor();
+  await resize(320, 'drawer');
+  await history.waitFor({ state: 'hidden' }); await research.waitFor({ state: 'hidden' });
   assert.deepEqual(await draftSnapshot(page), draft, 'EXPERIENCE_RESIZE_CLEARED_DRAFT');
   assert.equal(await inputNode.evaluate(node => node === document.activeElement && node === document.querySelector('#home-query')), true,
     'EXPERIENCE_RESIZE_BLURRED_COMPOSER');
   await input.dispatchEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 229, isComposing: true, bubbles: true });
   await input.dispatchEvent('keydown', { key: 'Escape', code: 'Escape', isComposing: true, bubbles: true });
   await assertLayout(page, true);
-  await resize(1280);
-  await history.waitFor({ state: 'hidden' }); await research.waitFor();
+  await resize(1280, 'single');
+  await history.waitFor({ state: 'hidden' }); await research.waitFor({ state: 'hidden' });
   await input.dispatchEvent('compositionend', { data: '中' });
   assert.equal(await inputNode.evaluate(node => node === document.activeElement), true, 'EXPERIENCE_RESIZE_BLURRED_COMPOSER');
 
+  await resize(1440, 'both');
+  await page.getByRole('button', { name: '研究资料', exact: true }).click();
   await page.getByRole('button', { name: '历史记录', exact: true }).click();
   await history.waitFor(); await research.waitFor();
   const search = history.getByRole('searchbox', { name: '搜索标题或最近问题', exact: true });
@@ -353,7 +362,7 @@ async function resizeOpenPanels({ page, network, height }) {
   const searchNode = await search.elementHandle();
   const searchDraft = await search.evaluate(node => ({ value: node.value, start: node.selectionStart, end: node.selectionEnd }));
   await search.dispatchEvent('compositionstart', { data: '研究' });
-  await resize(320);
+  await resize(320, 'drawer');
   await history.waitFor(); await research.waitFor({ state: 'hidden' });
   assert.equal(await searchNode.evaluate(node => node === document.activeElement), true, 'EXPERIENCE_RESIZE_BLURRED_HISTORY_SEARCH');
   assert.deepEqual(await search.evaluate(node => ({ value: node.value, start: node.selectionStart, end: node.selectionEnd })), searchDraft,
@@ -361,13 +370,18 @@ async function resizeOpenPanels({ page, network, height }) {
   assert.deepEqual(await draftSnapshot(page), draft, 'EXPERIENCE_RESIZE_CLEARED_DRAFT');
   await search.dispatchEvent('keydown', { key: 'Escape', code: 'Escape', isComposing: true, bubbles: true });
   await assertLayout(page, true);
-  await resize(1280);
+  await resize(1280, 'single');
   await history.waitFor(); await research.waitFor({ state: 'hidden' });
   assert.equal(await searchNode.evaluate(node => node === document.activeElement), true, 'EXPERIENCE_RESIZE_BLURRED_HISTORY_SEARCH');
   await search.dispatchEvent('compositionend', { data: '研究' });
   const cleared = searched(''); await search.fill(''); await cleared; await network.idle();
   await page.getByRole('button', { name: '研究资料', exact: true }).click();
+  await research.waitFor(); await history.waitFor({ state: 'hidden' }); await assertLayout(page, true);
+  await resize(1440, 'both');
+  await page.getByRole('button', { name: '历史记录', exact: true }).click();
   await research.waitFor(); await history.waitFor(); await assertLayout(page, true);
+  await resize(1280, 'single');
+  await history.waitFor({ state: 'hidden' }); await research.waitFor();
   assert.equal(network.count('/api/intelligence/query'), before, 'EXPERIENCE_RESIZE_REEXECUTED_QUERY');
   await inputNode.dispose(); await searchNode.dispose();
 }
@@ -422,7 +436,7 @@ async function pendingAndStop({ page, db, blocker, userId, ids, network }) {
     }, 'EXPERIENCE_PENDING_AUDIT_MISSING');
     await textarea(page).pressSequentially('keep after stop', { delay: 10 });
     await page.getByRole('button', { name: '停止等待', exact: true }).click();
-    await page.getByText('已停止等待，服务端可能仍在处理。', { exact: false }).waitFor();
+    await page.getByText('已停止等待，回答可能仍在生成。可以检查状态并恢复结果。', { exact: true }).waitFor();
     assert.equal(await textarea(page).inputValue(), 'keep after stop', 'EXPERIENCE_STOP_CLEARED_DRAFT');
   } finally { await blocker.query('rollback'); }
   let terminalState;
@@ -579,7 +593,6 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         assert.match(await research.getByRole('region', { name: '当前分析范围', exact: true }).textContent(), /CBD/, 'EXPERIENCE_RESEARCH_SCOPE_MISSING');
         await assertLayout(page, true);
         if (width === 1280) {
-          await page.getByRole('button', { name: '历史记录', exact: true }).click();
           await resizeOpenPanels({ page, network, height: profile.height });
         }
         await page.getByRole('button', { name: '关闭研究资料', exact: true }).click();
@@ -609,12 +622,13 @@ export async function verifyExperienceP1Workspace({ previewFile, statusFile, out
         assert.equal(opened.selected.requestId, answer.requestId, 'EXPERIENCE_HISTORY_WRONG_TURN');
         assert.equal(opened.selected.reply.result.resultId, answer.result.resultId, 'EXPERIENCE_HISTORY_CHANGED_SNAPSHOT');
         await currentResult(page).getByRole('button', { name: /^查看来源：/ }).first().waitFor();
-        await network.receipt(openedResponse, { surface: 'answer_table', sourceCount: 'empty' });
+        await network.receipt(openedResponse, { surface: 'answer_table', sourceCount: 'empty', snapshot: opened.selected });
         assert.equal(network.count('/api/intelligence/query'), beforeHistory, 'EXPERIENCE_HISTORY_REEXECUTED');
         // Opening a saved turn auto-closes history on narrow viewports. Avoid
         // racing that close animation with a click on a now-hidden control.
         // Verify the actual closed state rather than weakening the behavior check.
-        if (width >= 1024) {
+        const historyIsDrawer = await textarea(page).evaluate(node => node.closest('[data-mode]')?.dataset.panels === 'drawer');
+        if (!historyIsDrawer) {
           await history.getByRole('button', { name: '关闭历史', exact: true }).click();
           await history.waitFor({ state: 'hidden' });
         } else {

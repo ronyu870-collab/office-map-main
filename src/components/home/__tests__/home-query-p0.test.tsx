@@ -21,7 +21,7 @@ describe('homepage AI P0 behavior', () => {
     expect(screen.getByRole('button', { name: '问题3' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '问题4' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '问题5' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('能力与范围'));
+    fireEvent.click(screen.getByRole('button', { name: '能力与范围' }));
     expect(await screen.findByRole('button', { name: '问题5' })).toBeVisible();
   });
   it('submits Enter but not Shift+Enter, IME Enter or legacy composition keyCode 229', async () => {

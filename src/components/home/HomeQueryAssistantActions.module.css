@@ -1,0 +1,8 @@
+.root { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 12px; min-width: 0; }
+.copy { min-height: 44px; padding-inline: 8px; }
+.status { margin: 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.fallback { flex-basis: 100%; min-width: 0; display: grid; gap: 8px; font-size: var(--cd-font-size-sm); }
+.fallback textarea { width: 100%; resize: vertical; min-height: 120px; padding: 12px; color: var(--cd-color-text-primary); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-lg); background: var(--cd-color-surface); }
+.fallback textarea:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.actions button { min-height: 44px; }

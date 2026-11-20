@@ -6,6 +6,22 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Colliers AI 38-item PR #227 manual review waiver is exact, scoped and current-head only', () => {
+  const scope = 'Colliers AI 38-item experience improvements: Markdown, history timeline, composer, research reading and responsive sidebars, PR #227';
+  const reason = 'User explicitly requested all 38 improvements in one batch and waived browser and visual review on 2026-11-20; this waiver applies only to PR #227 and does not waive engineering, permission, audit or build checks';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = { number: 227, body, head: { sha: head, ref: 'codex/ai-experience-complete-20261120',
+    repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 226 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other-feature' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'Unrelated work') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'Waive all CI') }), /specifically authorized/);
+});
+
 test('Colliers AI 4.0 P1 result tools PR #223 waiver is precisely bounded', () => {
   const scope = 'Colliers AI 4.0 P1 source evidence deterministic charts authorized map and research tools, PR #223';
   const reason = 'User explicitly waived independent visual review, manual browser walkthrough, screenshots and physical-phone testing for Colliers AI 4.0 on 2026-11-19; only PR #223 is covered and CI, permission, security and build checks remain mandatory';

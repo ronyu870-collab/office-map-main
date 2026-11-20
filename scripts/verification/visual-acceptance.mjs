@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 227,
+        branch: 'codex/ai-experience-complete-20261120',
+        scope: 'Colliers AI 38-item experience improvements: Markdown, history timeline, composer, research reading and responsive sidebars, PR #227',
+        reason: 'User explicitly requested all 38 improvements in one batch and waived browser and visual review on 2026-11-20; this waiver applies only to PR #227 and does not waive engineering, permission, audit or build checks',
+      },
+      {
         number: 226,
         branch: 'codex/fix-submarket-modal-regressions-20261119',
         scope: 'Submarket full-screen modal regression fixes: building return race, valid-quarter trend digest and pointer backdrop, PR #226',

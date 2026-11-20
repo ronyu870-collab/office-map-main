@@ -1,13 +1,16 @@
-.root { min-width: 0; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--cd-space-1); }
-.toolbar button { color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); font-weight: 400; min-height: var(--cd-control-height-md); border-radius: var(--cd-radius-md); }
+.root { min-width: 0; container-type: inline-size; }
+.toolbar { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--cd-space-1); padding-block: var(--cd-space-2); }
+.toolbar button { color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); font-weight: 400; min-height: 40px; height: auto; border-radius: var(--cd-radius-md); }
 .toolbar button:hover:not(:disabled) { color: var(--cd-color-brand); }
-.menu { min-width: 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); }
-.menu > summary, .toolbar > details > summary { min-height: var(--cd-control-height-md); width: fit-content; padding: var(--cd-space-2) var(--cd-space-3); cursor: pointer; border-radius: var(--cd-radius-md); font-size: var(--cd-font-size-sm); line-height: var(--cd-line-height-normal); }
+.menu, .toolbar > details { position: relative; min-width: 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); }
+.menu > summary, .toolbar > details > summary { display: flex; align-items: center; gap: var(--cd-space-2); min-height: 40px; width: fit-content; padding: var(--cd-space-2) var(--cd-space-3); cursor: pointer; border-radius: var(--cd-radius-md); font-size: var(--cd-font-size-sm); line-height: var(--cd-line-height-normal); list-style: none; }
+.menu > summary::-webkit-details-marker, .toolbar > details > summary::-webkit-details-marker { display: none; }
+.toolbar > details[open] > summary { background: var(--cd-color-surface-alt); color: var(--cd-color-text-primary); }
 .menu > summary:hover, .toolbar > details > summary:hover { background: var(--cd-color-surface-alt); color: var(--cd-color-text-primary); }
 .menu > summary:focus-visible, .toolbar > details > summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
-.menuBody { display: flex; flex-direction: column; align-items: stretch; gap: var(--cd-space-1); margin-top: var(--cd-space-1); padding: var(--cd-space-1); background: var(--cd-color-surface-alt); border-radius: var(--cd-radius-md); }
+.menuBody, .toolbar > details > div { position: absolute; inset-block-end: calc(100% + var(--cd-space-1)); inset-inline-start: 0; z-index: 2; display: flex; flex-direction: column; align-items: stretch; width: max-content; min-width: 176px; max-width: min(280px, calc(100vw - 48px)); gap: var(--cd-space-1); margin: 0; padding: var(--cd-space-1); background: var(--cd-color-surface); border: 1px solid var(--cd-color-border); box-shadow: var(--cd-shadow-overlay); border-radius: var(--cd-radius-lg); }
 .menuBody button { justify-content: flex-start; text-align: left; }
+.menuBody button, .toolbar > details > div button { min-height: 44px; white-space: normal; justify-content: flex-start; }
 .message { margin: var(--cd-space-2) 0; color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-xs); line-height: var(--cd-line-height-relaxed); overflow-wrap: anywhere; }
 .summary { margin-top: var(--cd-space-5); padding-block: var(--cd-space-4); border-block: 1px solid var(--cd-color-border); }
 .summary:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
@@ -18,6 +21,10 @@
 .fallback label { display: block; font-size: var(--cd-font-size-sm); margin-bottom: var(--cd-space-2); }
 .fallback textarea { display: block; resize: vertical; width: 100%; min-height: 120px; padding: var(--cd-space-3); border: 1px solid var(--cd-color-border); border-radius: var(--cd-radius-md); background: var(--cd-color-surface); font: inherit; font-size: var(--cd-font-size-md); }
 .fallback textarea:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+@container (max-width: 440px) {
+  .menu, .toolbar > details { position: static; }
+  .menuBody, .toolbar > details > div { max-width: 100%; }
+}
 @media (max-width: 639px), (pointer: coarse) {
   .root button, .menu > summary, .toolbar > details > summary { min-height: 44px; min-width: 44px; }
   .fallback textarea { font-size: 16px; }

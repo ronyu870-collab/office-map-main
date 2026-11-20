@@ -443,7 +443,7 @@ try {
     await page.getByRole('complementary', { name: '研究资料与口径', exact: true }).waitFor();
     await page.getByRole('region', { name: '来源概览', exact: true }).waitFor();
     await capture(session, 'research-open');
-    await page.getByRole('button', { name: '研究资料', exact: true }).click();
+    await page.getByRole('button', { name: '关闭研究资料', exact: true }).click();
     await page.getByRole('region', { name: '对话记录', exact: true }).evaluate(node => { node.scrollTop = 0; });
     await capture(session, 'expanded-multiturn');
     await expanded(page, false);
