@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Lock, CheckCircle, AlertCircle } from 'lucide-react';
 
 import { useAppSession } from '@/src/components/SessionProvider';
+import { useLanguage } from '@/src/i18n/useLanguage';
 import { completePasswordChange, discardPasswordChangeSession, PasswordChangedSessionError } from '@/src/services/passwordChange';
 import { AppHeader, Button, Input, LoadingState, Panel } from '@/src/components/ui';
 
 export default function SettingsPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const { session: appSession, status, refreshSession } = useAppSession();
   const userEmail = appSession?.user.email ?? '';
@@ -27,12 +29,12 @@ export default function SettingsPage() {
   async function handleUpdatePassword(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
-    if (newPassword.length < 10) { setMessage({ type: 'error', text: '密码长度不能少于 10 位' }); return; }
+    if (newPassword.length < 10) { setMessage({ type: 'error', text: t('密码长度不能少于 10 位') }); return; }
     if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
-      setMessage({ type: 'error', text: '密码必须同时包含字母和数字' });
+      setMessage({ type: 'error', text: t('密码必须同时包含字母和数字') });
       return;
     }
-    if (newPassword !== confirmPassword) { setMessage({ type: 'error', text: '两次输入的密码不一致' }); return; }
+    if (newPassword !== confirmPassword) { setMessage({ type: 'error', text: t('两次输入的密码不一致') }); return; }
     setSubmitting(true);
     try {
       const nextSession = await completePasswordChange(newPassword);
@@ -51,7 +53,7 @@ export default function SettingsPage() {
         router.replace('/login');
         return;
       }
-      const errorMessage = err instanceof Error ? err.message : '密码修改失败，请稍后重试';
+      const errorMessage = err instanceof Error ? err.message : t('密码修改失败，请稍后重试');
       setMessage({ type: 'error', text: errorMessage });
     } finally {
       setSubmitting(false);
@@ -62,12 +64,12 @@ export default function SettingsPage() {
     <div className="flex h-dvh flex-col overflow-hidden bg-[var(--cd-color-canvas)] text-[var(--cd-color-text-primary)]">
       <header className="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="mx-auto w-full max-w-3xl">
-          <AppHeader title="修改密码" homeHref={passwordChangeRequired ? undefined : '/'} />
+          <AppHeader title={t('修改密码')} homeLabel={t('主页')} homeHref={passwordChangeRequired ? undefined : '/'} />
         </div>
       </header>
       <main className="mx-auto w-full max-w-md flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         {isLoadingUser ? (
-          <Panel><LoadingState label="正在加载修改密码页面" /></Panel>
+          <Panel><LoadingState label={t('正在加载修改密码页面')} /></Panel>
         ) : (
           <Panel className="p-6">
             <div className="mb-6 flex items-center gap-3">
@@ -75,29 +77,29 @@ export default function SettingsPage() {
                 <Lock size={16} strokeWidth={1.5} className="text-[var(--cd-color-text-secondary)]" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-[var(--cd-color-text-primary)]">修改登录密码</h2>
+                <h2 className="text-sm font-semibold text-[var(--cd-color-text-primary)]">{t('修改登录密码')}</h2>
                 <p className="text-xs text-[var(--cd-color-text-muted)]">{displayName || userEmail}</p>
               </div>
             </div>
             {passwordChangeRequired && (
               <div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-700">
-                首次登录需先修改临时密码。
+                {t('首次登录需先修改临时密码。')}
               </div>
             )}
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div>
-                <label htmlFor="new-password" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">新密码</label>
+                <label htmlFor="new-password" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">{t('新密码')}</label>
                 <Input id="new-password"
                   type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="至少 10 位，包含字母和数字"
+                  placeholder={t('至少 10 位，包含字母和数字')}
                   required
                 />
               </div>
               <div>
-                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">确认新密码</label>
+                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-medium text-[var(--cd-color-text-secondary)]">{t('确认新密码')}</label>
                 <Input id="confirm-password"
                   type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="请再次输入新密码"
+                  placeholder={t('请再次输入新密码')}
                   required
                 />
               </div>
@@ -115,7 +117,7 @@ export default function SettingsPage() {
                 type="submit" disabled={submitting}
                 className="w-full"
               >
-                {submitting ? '保存中…' : '确认修改'}
+                {submitting ? t('保存中…') : t('确认修改')}
               </Button>
             </form>
           </Panel>
