@@ -6,6 +6,31 @@ const head = 'a'.repeat(40);
 const record = (...lines) => ['```visual-acceptance', ...lines, '```'].join('\n');
 const check = body => checkVisualAcceptance({ body, head: { sha: head } });
 
+test('Basic English localization PR #228 user waiver remains single-PR and limited to manual review', () => {
+  const scope = 'Homepage Chinese/English language switch for navigation, login, password settings and 244-term glossary, PR #228';
+  const reason = 'User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #228 on 2026-11-20; review was not performed and all engineering, authorization, database and CI checks remain mandatory';
+  const body = record('result: waived', 'head: ' + head, 'scope: ' + scope, 'reason: ' + reason);
+  const candidate = {
+    number: 228,
+    body,
+    head: {
+      sha: head,
+      ref: 'codex/basic-en-language-glossary-20261120',
+      repo: { full_name: 'ronyu870-collab/office-map-main' },
+    },
+    base: { ref: 'main' },
+  };
+  assert.equal(checkVisualAcceptance(candidate), null);
+  assert.match(checkVisualAcceptance({ ...candidate, number: 227 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, ref: 'other' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, repo: { full_name: 'other/repo' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, head: { ...candidate.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(scope, 'unrelated page') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace(reason, 'waive all CI checks') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...candidate, body: body.replace('result: waived', 'result: pending') }), /Visual acceptance is pending/);
+});
+
 test('Colliers AI 5.0 P0 PR #229 manual review waiver is exact, scoped and current-head only', () => {
   const scope = 'Colliers AI 5.0 P0 quarterly formal metric and unreviewed submission source isolation, PR #229';
   const reason = 'User explicitly waived manual browser, screenshot and independent visual review for Colliers AI 5.0 P0 on 2026-11-20; this PR-specific waiver does not waive typecheck, CI, permission, PG17 or production migration controls';

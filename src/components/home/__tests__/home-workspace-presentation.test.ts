@@ -39,8 +39,8 @@ describe('Home workspace presentation contract', () => {
     expect(home).toContain("title: '系统管理'");
     expect(home).toContain('内部试用');
     expect(home).not.toContain('>常用工作<');
-    expect(home).toContain('>团队动态<');
-    expect(home).toContain('aria-label="用户菜单"');
+    expect(home).toContain('{t("团队动态")}');
+    expect(home).toContain('aria-label={t("用户菜单")}');
 
     // Product names are sufficient navigation labels. Do not restore one-line
     // explanations that merely repeat what each workspace already says it is.
