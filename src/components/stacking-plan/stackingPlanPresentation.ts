@@ -41,8 +41,9 @@ function drawTower<F extends PlanFloor, S extends PlanSpace>(
   const ids = new Set(localFloors.map(f => f.id));
   const localSpaces = input.spaces.filter(s => ids.has(s.floor_id));
   const summary = summarizePlan(localFloors, localSpaces);
+  const isSubset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
   const matchedRows = selectFloorRows(localFloors, localSpaces,
-    input.onlyMatching ? input.filter : 'all', input.onlyMatching ? input.search : '');
+    isSubset ? input.filter : 'all', isSubset ? input.search : '');
   const matches = new Map(matchedRows.map(r => [r.floor.id, r.spaces]));
   const y = 187, width = 884, innerX = x + 78, stripWidth = 665, height = 813;
   const result = [
@@ -62,8 +63,8 @@ function drawTower<F extends PlanFloor, S extends PlanSpace>(
   for (const [i, floor] of localFloors.entries()) {
     const fy = start + i * step;
     const fullUnits = localSpaces.filter(s => s.floor_id === floor.id);
-    const shown = input.onlyMatching ? (matches.get(floor.id) ?? []) : fullUnits;
-    const layout = unitLayout(floor, shown, input.onlyMatching);
+    const shown = isSubset ? (matches.get(floor.id) ?? []) : fullUnits;
+    const layout = unitLayout(floor, shown, isSubset);
     const total = layout.items.reduce((sum, item) => sum + item.weight, 0) + layout.residual;
     const label = floor.floor_code.startsWith('B') ? floor.floor_code : floor.floor_code + 'F';
     result.push(text(x + 54, fy + 17, label, 15, '#42576C', 600, 'end'));
@@ -87,7 +88,11 @@ function drawTower<F extends PlanFloor, S extends PlanSpace>(
       left += w;
     }
     if (layout.residual > 0.1 && total > 0) {
-      result.push(rect(left, fy + 1, stripWidth * layout.residual / total, 21, '#F0F2F5', 2));
+      const remainingWidth = stripWidth * layout.residual / total;
+      result.push(rect(left, fy + 1, remainingWidth, 21, '#F0F2F5', 2));
+      if (isSubset && remainingWidth >= 88) {
+        result.push(text(left + remainingWidth / 2, fy + 16, '未展示', 13, '#748193', 400, 'middle'));
+      }
     }
     const area = areaNumber(floor.floor_area_sqm);
     result.push(text(x + 865, fy + 17, area === null ? '—' : number(area) + '㎡',
@@ -109,14 +114,15 @@ export function createStackingPresentationSvg<F extends PlanFloor, S extends Pla
   input: PresentationInput<F, S>,
 ): string {
   const towers = input.towers.slice(0, 2);
+  const isSubset = input.onlyMatching && (input.filter !== 'all' || input.search.trim().length > 0);
   const document = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">',
     rect(0, 0, 1920, 1080, '#F5F7FA', 0),
     rect(0, 0, 1920, 9, '#003E7E', 0),
     text(55, 61, 'COLLIERS  /  INTELLIGENCE PLATFORM', 19, '#003E7E', 700),
     text(55, 119, input.projectName + '  ·  租赁分层总览', 36, '#172033', 600),
-    text(57, 159, '数据截至 ' + (input.sourceDate || '未知') + '  ·  来源快照  ·  逐项未核验',
-      18, '#6C7481'),
+    text(57, 159, '数据截至 ' + (input.sourceDate || '未知') + '  ·  来源快照  ·  逐项未核验' +
+      (isSubset ? '  ·  仅显示筛选单元' : ''), 18, '#6C7481'),
   ];
   if (towers.length === 1) {
     document.push(drawTower(towers[0], input, 517));
