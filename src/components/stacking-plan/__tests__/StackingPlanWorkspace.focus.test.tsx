@@ -76,7 +76,7 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     fireEvent.change(notes, { target: { value: '首次校对—来源日期未确认' } });
     expect(notes.value).toBe('首次校对—来源日期未确认');
     expect(document.activeElement).toBe(notes);
-    expect(screen.getByText(/截至 2026-11-18/)).toBeInTheDocument();
+    expect(screen.getByText(/来源快照 · 截至 2026-11-18/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.getSessionFast).toHaveBeenCalledTimes(1));
   });
 
