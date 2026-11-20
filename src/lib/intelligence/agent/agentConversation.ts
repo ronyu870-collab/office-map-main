@@ -7,6 +7,8 @@ import { unsealHistoryToken } from '../query/historyToken';
 import { readOwnResult, recoverOwnResult } from '../query/recovery';
 import { resultViewSchema } from '../query/presentation';
 import type { QueryConversation } from '../query/conversationProtocol';
+import { parseQueryPlan, type QueryPlan } from '../query/plan';
+import { authorizeConversationPlan } from '../query/conversationStore';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
 const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().positive(),
@@ -14,7 +16,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema>;
+export type AgentHistory = z.infer<typeof historySchema> & { contextPlan?: QueryPlan };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -61,7 +63,15 @@ export async function readAgentHistory(
     && event.content?.protocol === 'agent-answer/1')?.content;
   if (!prior || prior.permissionRevision !== authority.permissionRevision
     || data.state !== 'succeeded') throw new Error('AGENT_CONTEXT_UNAVAILABLE');
-  return historySchema.parse(prior.history);
+  const history: AgentHistory = historySchema.parse(prior.history);
+  // Only an encrypted, owner-checked prior execution plan is inheritable.
+  // An older result or source is never imported into the new request's workset.
+  if (prior.plan) {
+    const plan = parseQueryPlan(prior.plan);
+    authorizeConversationPlan(plan, authority);
+    history.contextPlan = plan;
+  }
+  return history;
 }
 
 export function trimAgentHistory(history: AgentHistory, question: string, answer: string): AgentHistory {

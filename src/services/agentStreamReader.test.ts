@@ -21,6 +21,8 @@ describe('signed Agent SSE browser reader', () => {
     const progress = vi.fn();
     const result = await readAgentEventStream(frames([
       { type: 'run_started', requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+      { type: 'phase_changed', phase: 'understanding' },
+      { type: 'phase_changed', phase: 'tool_selection', tools: ['query_quarterly_metrics'] },
       { type: 'tool_started', name: 'query_quarterly_metrics' },
       { type: 'tool_completed', name: 'query_quarterly_metrics', status: 'ready' },
       { type: 'message_delta', delta: '北京' },
@@ -29,7 +31,7 @@ describe('signed Agent SSE browser reader', () => {
         receipt: { deliveryToken: 'signed-not-used-as-a-real-token', bodySha256: hash } },
     ]), new AbortController().signal, progress);
     expect(progress.mock.calls.map(call => call[0].type)).toEqual([
-      'run_started', 'tool_started', 'tool_completed', 'message_delta', 'message_delta',
+      'run_started', 'phase_changed', 'phase_changed', 'tool_started', 'tool_completed', 'message_delta', 'message_delta',
     ]);
     expect(result.reply).toEqual({ status: 'assistant', message: '北京市场' });
     expect(result.receipt.bodySha256).toBe(hash);

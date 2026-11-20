@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runAgentLoop } from './agentOrchestrator';
+import { randomUUID } from 'node:crypto';
 import { DATA_TOOL, type ModelCompletion } from './modelProvider';
 
 const signal = new AbortController().signal;
@@ -88,9 +89,9 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       .mockResolvedValueOnce(completion(null, [{ id: 'chart-b', name: 'prepare_chart', question: '展示该季度图表' }]))
       .mockResolvedValueOnce(completion('两期数据均已核验。'));
     let current = 'none';
-    const runTool = vi.fn().mockImplementation(async (name: string, args: { question: string }) => {
+    const runTool = vi.fn().mockImplementation(async (name: string, args: Record<string, unknown>) => {
       if (name === 'query_quarterly_metrics') {
-        current = args.question.includes('Q1') ? 'Q1' : 'Q2';
+        current = String(args.question).includes('Q1') ? 'Q1' : 'Q2';
         return { content: JSON.stringify({ status: 'ready', period: current }),
           result: { resultId: current } };
       }
@@ -116,7 +117,7 @@ describe('Colliers AI 4.0 native Agent loop', () => {
 
   it('bounds tool calls and fails closed instead of pretending to finish', async () => {
     const runTool = vi.fn();
-    const many = Array.from({ length: 7 }, (_, i) => ({ id: String(i), question: '查询项目 ' + i }));
+    const many = Array.from({ length: 13 }, (_, i) => ({ id: String(i), question: '查询项目 ' + i }));
     await expect(runAgentLoop({ question: '多条件查询', signal, runTool,
       invoke: vi.fn().mockResolvedValue(completion(null, many)) }))
       .rejects.toThrow('AGENT_TOOL_BUDGET_EXCEEDED');
@@ -133,5 +134,87 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       'CBD净有效租金如何', '上一轮研究了CBD净有效租金。', '那金融街呢？',
     ]);
   });
-});
+  it('executes two structured queries and a page read without losing the first result reference', async () => {
+    const a = randomUUID(), b = randomUUID();
+    const call = (id: string, name: string, args: object) => ({ id, type: 'function' as const,
+      function: { name, arguments: JSON.stringify(args) } });
+    const scope = { inventory: 'tracked', submarkets: ['CBD'] };
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
+        tool_calls: [call('q1', 'query_quarterly_metrics',
+          { scope, period: { year: 2026, quarter: 1 }, metric: 'rent' })] } })
+      .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
+        tool_calls: [call('q2', 'query_quarterly_metrics',
+          { scope, period: { year: 2026, quarter: 2 }, metric: 'rent' })] } })
+      .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
+        tool_calls: [call('page1', 'read_result_page', { resultId: a, offset: 8, limit: 10 })] } })
+      .mockResolvedValueOnce(completion('已核验两期全部数据，以下是比较结果。'));
+    const runTool = vi.fn().mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'read_result_page') return { content: JSON.stringify({ status: 'ready', resultId: args.resultId,
+        totalMatched: 22, offset: args.offset, returnedRows: 10 }) };
+      return { content: JSON.stringify({ status: 'ready', resultId: args.period
+        && (args.period as { quarter: number }).quarter === 1 ? a : b, rowCount: 22 }),
+        result: { resultId: args.period && (args.period as { quarter: number }).quarter === 1 ? a : b } };
+    });
+    const response = await runAgentLoop({ question: '比较CBD两个季度租金并翻页', signal, invoke, runTool });
+    expect(response.toolNames).toEqual(['query_quarterly_metrics', 'query_quarterly_metrics', 'read_result_page']);
+    expect(response.result).toEqual({ resultId: b });
+    expect(response.executionStatus).toBe('completed');
+    expect(runTool.mock.calls[2][1]).toMatchObject({ resultId: a, offset: 8, limit: 10 });
+    expect(invoke.mock.calls[3][0].filter((m: { role: string }) => m.role === 'tool')).toHaveLength(3);
+  });
 
+  it('returns bounded structured errors, corrects arguments, and never fabricates tool success', async () => {
+    const call = (id: string, args: object) => ({ id, type: 'function' as const,
+      function: { name: 'read_result_page', arguments: JSON.stringify(args) } });
+    const id = randomUUID(), runTool = vi.fn();
+    const invoke = vi.fn().mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant',
+      content: null, tool_calls: [call('bad', { resultId: 'not-a-uuid' })] } })
+      .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
+        tool_calls: [call('good', { resultId: id, offset: 0, limit: 4 })] } })
+      .mockResolvedValueOnce(completion('已经读取这一页。'));
+    runTool.mockResolvedValue({ content: JSON.stringify({ status: 'ready', totalMatched: 30 }) });
+    const result = await runAgentLoop({ question: '翻页看数据', signal, invoke, runTool });
+    expect(runTool).toHaveBeenCalledOnce();
+    expect(JSON.parse(invoke.mock.calls[1][0].at(-1).content)).toMatchObject({
+      status: 'error', code: 'invalid_arguments', remainingRetries: 1 });
+    expect(result.executionStatus).toBe('completed');
+  });
+
+  it('rechecks revoked permission even when an identical tool result is deduplicated', async () => {
+    const tool = { id: 'one', question: 'CBD 2026Q1' }, again = { id: 'two', question: 'CBD 2026Q1' };
+    const invoke = vi.fn()
+      .mockResolvedValueOnce(completion(null, [tool]))
+      .mockResolvedValueOnce(completion(null, [again]));
+    const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready"}' });
+    const revalidate = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('QUERY_DENIED'));
+    await expect(runAgentLoop({ question: '两次查询', signal, invoke, runTool, revalidate }))
+      .rejects.toThrow('QUERY_DENIED');
+    expect(runTool).toHaveBeenCalledOnce();
+  });
+
+  it('does not mark a failed source query as successful merely because the model replied', async () => {
+    const invoke = vi.fn()
+      .mockResolvedValueOnce(completion(null, [{ id: 'failed', question: '查CBD' }]))
+      .mockResolvedValueOnce(completion('已查询所有项目。'));
+    const runTool = vi.fn().mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
+    const result = await runAgentLoop({ question: '查询CBD所有楼宇', signal, invoke, runTool });
+    expect(result.executionStatus).toBe('limited');
+    expect(result.unresolvedFailures).toEqual([{ tool: 'query_verified_real_estate', code: 'source_unavailable' }]);
+    expect(result.answer).toContain('未取得可核验的完整结果');
+  });
+
+  it('fails closed after repeated invalid requests, never unbounded retries', async () => {
+    const calls = Array.from({ length: 3 }, (_, i) => completion(null, [
+      { id: 'bad-' + i, name: 'query_quarterly_metrics', question: '查询' }]));
+    const invoke = vi.fn().mockResolvedValueOnce(calls[0]).mockResolvedValueOnce(calls[1])
+      .mockResolvedValueOnce(calls[2]);
+    // Legacy question remains valid; a failing authoritative backend still has
+    // a capped recovery budget and cannot be reinterpreted as success.
+    const runTool = vi.fn().mockRejectedValue(new Error('QUERY_READ_UNAVAILABLE'));
+    await expect(runAgentLoop({ question: '查询CBD', signal, invoke, runTool }))
+      .rejects.toThrow('AGENT_TOOL_RECOVERY_EXHAUSTED');
+    expect(runTool).toHaveBeenCalledTimes(3);
+  });
+
+});

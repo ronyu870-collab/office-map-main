@@ -39,7 +39,23 @@ import { queryActionSchema, queryClarificationReasonSchema, queryConversationSch
 
 const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional(), agentStreamEnabled: z.boolean().optional() });
 export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(), isNativeAgent: z.boolean().optional(),
-  conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional() });
+  conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional(),
+  agent: z.object({
+    model: z.string().max(120), modelCalls: z.number().int().nonnegative(),
+    toolCalls: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative().nullable(),
+    outputTokens: z.number().int().nonnegative().nullable(),
+    executionStatus: z.enum(['completed', 'partial', 'limited']).optional(),
+    phases: z.array(z.enum(['understanding', 'tool_selection', 'executing',
+      'verification', 'synthesis', 'completed'])).max(120).optional(),
+    workset: z.array(z.object({ requestId: z.uuid(), resultId: z.uuid(),
+      operation: z.string(), rowCount: z.number().int().nonnegative(),
+      columnCount: z.number().int().nonnegative(), sourceCount: z.number().int().nonnegative(),
+      snapshotId: z.string(), dataVersion: z.string(), scopeFingerprint: z.string(),
+      createdAt: z.string() })).max(8).optional(),
+    unresolvedFailures: z.array(z.object({ tool: z.string().max(100),
+      code: z.string().max(100) })).max(12).optional(),
+  }).optional() });
 const replySchema = queryReplySchema;
 export type QueryReply = z.infer<typeof replySchema>;
 function decodeQueryReply(value: unknown): QueryReply {

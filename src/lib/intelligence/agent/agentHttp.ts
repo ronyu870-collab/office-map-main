@@ -16,11 +16,11 @@ import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
 import { estimateAgentCostRange } from './agentCost';
-import { queryVerifiedRealEstate } from './verifiedDataTool';
+import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { recordHistorySubmission } from '../query/historyStore';
-import { REGISTERED_AGENT_TOOL_NAMES } from './toolRegistry';
+import { REGISTERED_AGENT_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, WORKSET_TOOL_NAMES, type StructuredDataToolName } from './toolRegistry';
+import { AuthorizedResultWorkset, type WorksetOwner } from './resultWorkset';
 import { PRESENTATION_TOOL_NAMES, runResultPresentationTool } from './resultTools';
-import type { QueryResult } from '../query/result';
 import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from './agentConversation';
 
 const inputSchema = z.strictObject({
@@ -30,6 +30,7 @@ const inputSchema = z.strictObject({
 type Dependencies = { client: SupabaseClient; keys: AuditKeys; enabled: boolean };
 export type AgentStreamObserver = (event:
   | { type: 'run_started'; requestId: string }
+  | { type: 'phase_changed'; phase: import('./agentOrchestrator').AgentPhase; tools?: string[] }
   | { type: 'tool_started'; name: string }
   | { type: 'tool_completed'; name: string; status: 'ready' | 'limited' }
   | { type: 'message_delta'; delta: string }) => Promise<void>;
@@ -61,6 +62,11 @@ function providerMessage(error: unknown): string {
   if (error instanceof Error && error.message === 'AGENT_RESUME_NOT_SUPPORTED') return '旧会话暂不能以 Agent 模式直接续接，请开始新对话。';
   if (error instanceof Error && error.message === 'AGENT_TOKEN_BUDGET_EXCEEDED') return '本轮研究超过模型 token 安全预算，未执行后续工具或生成新的结论。';
   if (error instanceof Error && error.message === 'AGENT_TOOL_BUDGET_EXCEEDED') return '本次研究超过安全工具执行上限，未将部分过程误报为完成。';
+  if (error instanceof Error && error.message === 'AGENT_TOOL_RECOVERY_EXHAUSTED') return '工具连续失败或参数无效，已达到受控修正上限，本轮未将失败任务认定为完成。';
+  if (error instanceof Error && error.message === 'AGENT_WORKSET_LIMIT') return '本轮已达到可信结果工作集容量上限，请缩小任务范围后重新查询。';
+  if (error instanceof Error && error.message === 'AGENT_TOOL_RESULT_TOO_LARGE') return '工具返回内容超过安全上限，须使用分页或缩小范围。';
+  if (error instanceof Error && error.message === 'QUERY_READ_UNAVAILABLE') return '授权数据源读取失败，本轮未能取得可核验的正式结果。';
+  if (error instanceof Error && error.message === 'QUERY_AUTHORITY_UNAVAILABLE') return '权限复核服务暂不可用，已停止查询与结果交付。';
   if (error instanceof Error && error.message === 'QUERY_DENIED') return '查询权限已变化或当前没有该数据的访问资格。';
   return '本次 AI 执行未完成，请查看执行状态或重新发起请求。';
 }
@@ -121,6 +127,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         error: '同一请求已记录。请勿重复提交；此请求不会再次调用 DeepSeek。' }, 202);
     }
     const authority = await fresh();
+    const worksetOwner: WorksetOwner = { requestId, actorId: actor.actorId,
+      effectiveUserId: actor.effectiveUserId, sessionId: actor.sessionId,
+      permissionRevision: authority.permissionRevision, policyVersion: authority.policyVersion };
+    const workset = new AuthorizedResultWorkset(worksetOwner);
     await audit.append(requestId, 'running', { phase: 'agent_planning', provider: 'deepseek',
       permissionRevision: authority.permissionRevision, policyVersion: authority.policyVersion });
     const budget = await client.rpc('ai_query_model_budget', {
@@ -143,6 +153,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     let completedModels = 0, reportedInput: number | null = 0, reportedOutput: number | null = 0;
     let reportedModel: string | null = null;
     const providerRequestIds: string[] = [];
+    const toolTrace: Array<{ name: string; status: 'ready' | 'limited'; reused: boolean;
+      durationMs: number | null; errorCode?: string }> = [];
     const onEvent = async (event: AgentEvent) => {
       if (event.type === 'model_finished') {
         completedModels++;
@@ -152,32 +164,39 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           ? null : reportedInput + event.inputTokens;
         reportedOutput = reportedOutput === null || event.outputTokens === null || event.outputTokens === undefined
           ? null : reportedOutput + event.outputTokens;
+      } else if (event.type === 'phase_changed') {
+        if (event.phase) await observer?.({ type: 'phase_changed', phase: event.phase,
+          ...(event.tools ? { tools: event.tools } : {}) });
       } else if (event.type === 'tool_started') {
-        await audit!.append(requestId, 'tool_started', { tool: event.name,
-          provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
         if (event.name) await observer?.({ type: 'tool_started', name: event.name });
       } else if (event.type === 'tool_finished') {
-        await audit!.append(requestId, 'tool_finished', {
-          tool: event.name, status: event.status, reused: event.reused === true,
-          durationMs: event.durationMs ?? null,
-          provider: 'trusted_query_engine', permissionRevision: authority.permissionRevision });
+        if (event.name) toolTrace.push({ name: event.name, status: event.status ?? 'limited',
+          reused: event.reused === true, durationMs: event.durationMs ?? null,
+          ...(event.errorCode ? { errorCode: event.errorCode } : {}) });
         if (event.name) await observer?.({ type: 'tool_completed', name: event.name,
           status: event.status ?? 'limited' });
       }
     };
-    // Only server-created, scope-checked results may seed a presentation tool.
-    let latestVerifiedResult: QueryResult | undefined;
+    // All results live only in this authenticated request, never in process globals.
+    // A revocation invalidates every reference, including cached/deduplicated reads.
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
         history,
+        contextPlan: history.contextPlan,
+        revalidate: async currentSignal => {
+          const rechecked = await loadDataAuthority(client, actor, currentSignal);
+          if (!rechecked.grants.includes('query:catalog')
+            || rechecked.permissionRevision !== authority.permissionRevision
+            || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+        },
         invoke: async (messages, currentSignal) => {
           if (!observer) return completeWithDeepSeek(messages, currentSignal);
           // Bound provisional updates; never make a DB authorization RPC for
           // every individual supplier token. Every visible batch must pass a
           // live permission-revision check before it reaches the browser.
-          let pending = '', lastFlush = 0;
+          let pending = '';
           const flush = async () => {
             while (pending.length) {
               const delta = pending.slice(0, 3500);
@@ -186,14 +205,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               if (current.permissionRevision !== authority.permissionRevision
                 || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
               await observer({ type: 'message_delta', delta });
-              lastFlush = Date.now();
             }
           };
+          // Provisional model tokens may include unfinished tool calls. Never
+          // send those to the UI as if they were a verified final answer.
           const result = await completeWithDeepSeek(messages, currentSignal, async delta => {
             pending += delta;
-            if (!lastFlush || pending.length >= 96 || Date.now() - lastFlush >= 250) await flush();
+            if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
-          await flush();
+          if (!(result.message.tool_calls?.length)) await flush();
           return result;
         },
         signal, onEvent,
@@ -206,12 +226,46 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
-            return runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],
-              requestId, latestVerifiedResult);
+            const id = typeof args.resultId === 'string' ? args.resultId : workset.latestId();
+            const chosen = id ? workset.read(id, worksetOwner) : undefined;
+            // Existing map navigation points to the final archived result,
+            // not any arbitrary earlier result of this multi-step task.
+            if (name === 'prepare_map_selection' && id !== workset.latestId())
+              return { content: JSON.stringify({ status: 'unsupported',
+                reason: '地图当前仅能跳转到本轮最后一项正式结果；不能把较早结果冒充为最终快照。' }) };
+            const presentation = runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],
+              requestId, chosen);
+            // Source/chart of an earlier result must not change which formal
+            // QueryResult is archived as this request's final result.
+            return id === workset.latestId() ? presentation : { content: presentation.content };
           }
-          const observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!, requestId,
-            authority, signal: toolSignal }, args.question);
-          if (observation.result) latestVerifiedResult = observation.result;
+          if (WORKSET_TOOL_NAMES.has(name)) {
+            const id = args.resultId as string;
+            const payload = name === 'summarize_result' ? workset.summary(id, worksetOwner)
+              : name === 'check_data_coverage' ? workset.coverage(id, worksetOwner)
+              : name === 'compare_result_sets' ? workset.compare(args.resultIds as string[], worksetOwner)
+              : workset.page({ resultId: id, offset: args.offset as number,
+                limit: args.limit as number,
+                ...(args.sort ? { sort: args.sort as { field: string; direction: 'asc' | 'desc' } } : {}),
+                ...(args.filter ? { filter: args.filter as { field: string;
+                  operator: 'eq' | 'contains' | 'gte' | 'lte'; value: string | number } } : {}) }, worksetOwner);
+            return { content: JSON.stringify(payload) };
+          }
+          let observation: Awaited<ReturnType<typeof queryVerifiedRealEstate>>;
+          if (typeof args.question === 'string') {
+            // Bounded migration for previous native Tool Calling clients.
+            observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!,
+              requestId, authority, signal: toolSignal }, args.question);
+          } else if (STRUCTURED_DATA_TOOL_NAMES.has(name)) {
+            observation = await executeStructuredDataTool({ client, keys, identity: actor, audit: audit!,
+              requestId, authority, signal: toolSignal }, name as StructuredDataToolName, args);
+          } else throw new Error('AGENT_UNREGISTERED_TOOL');
+          if (observation.result) {
+            const manifest = workset.register(observation.result, worksetOwner);
+            const original = JSON.parse(observation.content) as Record<string, unknown>;
+            observation = { ...observation, content: JSON.stringify({ ...original,
+              resultId: manifest.resultId, workset: manifest }) };
+          }
           return observation;
         },
       });
@@ -224,8 +278,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
       throw error;
     }
-    await audit.append(requestId, 'accounting', { provider: 'deepseek', status: 'completed',
+    await audit.append(requestId, 'accounting', { provider: 'deepseek', status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
+      toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
       inputTokens: execution.inputTokens, outputTokens: execution.outputTokens,
       cost: null, costStatus: 'planning_range_not_invoice',
@@ -239,6 +294,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       protocol: 'agent-answer/1', provider: 'deepseek', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
+      toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
+      executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       status: 'answer_prepared',
     });
@@ -246,7 +303,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       version: 'agent-message/1', text: execution.answer, model: execution.model,
     } });
     await audit.append(requestId, 'succeeded', { delivery: 'not_yet_sent',
-      provider: 'deepseek', model: execution.model, toolCalls: execution.toolCalls });
+      provider: 'deepseek', model: execution.model, toolCalls: execution.toolCalls,
+      executionStatus: execution.executionStatus, worksetCount: workset.manifest(worksetOwner).length });
     completed = true;
     // History indexing is optional until the owner-only RPC is deployed.
     const historySaved = await recordHistorySubmission(client, keys, actor, valid.conversation.id, requestId);
@@ -255,7 +313,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       conversation: valid.conversation, historySaved,
       agent: { model: execution.model, modelCalls: execution.calls,
         toolCalls: execution.toolCalls, inputTokens: execution.inputTokens,
-        outputTokens: execution.outputTokens } };
+        outputTokens: execution.outputTokens, executionStatus: execution.executionStatus,
+        phases: execution.phases, workset: workset.manifest(worksetOwner),
+        unresolvedFailures: execution.unresolvedFailures } };
     const deliveryHeaders = await prepareDelivery(audit, keys, actor, {
       requestId, kind: execution.result ? 'result' : 'status',
       resultId: execution.result?.resultId ?? null,
