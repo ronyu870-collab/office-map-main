@@ -143,7 +143,7 @@ describe('Stacking Plan executive export data fidelity', () => {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     expect(blob.size).toBeGreaterThan(1000);
-    const parsed = XLSX.read(new Uint8Array(await blob.arrayBuffer()), { type: 'array' });
+    const parsed = XLSX.read(new Uint8Array(bytes), { type: 'array' });
     expect(parsed.SheetNames).toContain('口径与来源');
   });
 
