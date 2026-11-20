@@ -37,6 +37,7 @@ import { verifyCrossQuarter } from './ai-query-cross-scenarios.mjs';
 import { verifyGroupedQuarter } from './ai-query-group-scenarios.mjs';
 import { verifyAuditConsole } from './ai-audit-console-scenarios.mjs';
 import { addSnapshotFixture, BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixture.mjs';
+import { installAi5QuarterlyFixture } from '../../supabase/tests/ai-query-authority/ai5-fixture.mjs';
 
 assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL,'disposable');
 const suite = queryPerformanceSuite(process.env.AI_QUERY_PERFORMANCE_SUITE);
@@ -118,6 +119,7 @@ try{
     await db.query(await load('20261115103701_ai_query_available_periods.sql'));
   }
   await setupP2Buildings(db, load);
+  await installAi5QuarterlyFixture(db, load);
   if (!(await db.query("select to_regclass('private.ai_query_history_threads') r")).rows[0].r) {
     await db.query(await load('20261115173338_ai_query_own_history.sql'));
   }
