@@ -13,7 +13,7 @@ describe('Home collaboration structural contract', () => {
     const home = read('src/components/home/HomeWorkspace.tsx');
     const communication = read('src/components/CommunicationBoard.tsx');
 
-    expect(home).toContain('aria-label="团队动态"');
+    expect(home).toContain('aria-label={t("团队动态")}');
     expect(communication).toContain('const MAX_MESSAGES = 50');
     expect(communication).toContain('.limit(MAX_MESSAGES)');
     expect(communication).toContain('.slice(-MAX_MESSAGES)');

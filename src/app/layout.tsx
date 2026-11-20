@@ -9,6 +9,7 @@ import { ImpersonationProvider } from "@/src/contexts/ImpersonationContext";
 import { ImpersonationBanner } from "@/src/components/ImpersonationBanner";
 import { PageViewTracker } from "@/src/components/PageViewTracker";
 import { PerformanceReporter } from "@/src/components/PerformanceReporter";
+import { HtmlLanguage } from "@/src/i18n/useLanguage";
 
 export const metadata: Metadata = {
   title: "北京办公楼市场数据平台",
@@ -30,6 +31,7 @@ export default function RootLayout({
     <html lang="zh-CN" className="h-full antialiased">
       <body className="h-full flex flex-col">
         <RootErrorBoundary>
+          <HtmlLanguage />
           <NavigationProgress />
           <PerformanceReporter />
           <SWRConfig

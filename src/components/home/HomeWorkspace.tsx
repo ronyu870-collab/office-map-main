@@ -1,11 +1,13 @@
 'use client';
 
 import { BrokerSearchLink } from '@/src/components/BrokerSearchLink';
+import { useLanguage } from '@/src/i18n/useLanguage';
 import * as React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
+  Languages,
   ChevronDown,
   ClipboardList,
   Database,
@@ -119,14 +121,15 @@ function HomeHeader({
   onLogout: () => void;
   onAdminActivate: (event: React.MouseEvent<HTMLAnchorElement>) => void;
 }) {
+  const { language, setLanguage, t } = useLanguage();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const menuTriggerRef = React.useRef<HTMLButtonElement>(null);
   const focusFirstOnOpenRef = React.useRef(false);
-  const roleLabel = getUserRoleLabel(role);
+  const roleLabel = t(getUserRoleLabel(role));
 
   const focusFirstMenuItem = React.useCallback(() => {
-    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')?.focus();
   }, []);
 
   React.useEffect(() => {
@@ -163,7 +166,7 @@ function HomeHeader({
     }
 
     const items = Array.from(
-      event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'),
+      event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]'),
     );
     if (items.length === 0) return;
 
@@ -192,7 +195,7 @@ function HomeHeader({
           <Image src="/colliers-logo.png" unoptimized alt="Colliers 高力国际" width={592} height={337} priority className="absolute left-1/2 top-1/2 h-[31px] w-auto max-w-none -translate-x-1/2 -translate-y-1/2" />
         </div>
         <span className="h-4 w-px bg-[var(--cd-color-border)]" aria-hidden="true" />
-        <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)] sm:text-sm">北京办公楼市场数据平台</div>
+        <div className="truncate text-sm font-medium text-[var(--cd-color-text-primary)] sm:text-sm">{t("北京办公楼市场数据平台")}</div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -224,7 +227,7 @@ function HomeHeader({
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             aria-controls="home-user-menu"
-            aria-label="用户菜单"
+            aria-label={t("用户菜单")}
           >
             <UserRound size={16} strokeWidth={1.55} className="sm:hidden" aria-hidden="true" />
             <span className="hidden max-w-36 truncate sm:inline" title={displayName}>{displayName}</span>
@@ -235,7 +238,7 @@ function HomeHeader({
             <div
               id="home-user-menu"
               role="menu"
-              aria-label="账户操作"
+              aria-label={t("账户操作")}
               onKeyDown={handleMenuKeyDown}
               className="absolute right-0 top-full z-[var(--cd-z-dropdown)] mt-2 w-52 overflow-hidden rounded-[var(--cd-radius-md)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] shadow-[var(--cd-shadow-popover)]"
             >
@@ -244,6 +247,36 @@ function HomeHeader({
                 <div className="mt-0.5 text-sm text-[var(--cd-color-text-muted)]">{roleLabel}</div>
               </div>
 
+              <div className="border-b border-[var(--cd-color-border)] px-3 py-2.5">
+                <div className="mb-1.5 flex items-center gap-1.5 text-xs text-[var(--cd-color-text-muted)]">
+                  <Languages size={13} strokeWidth={1.55} aria-hidden="true" />
+                  语言 / Language
+                </div>
+                <div role="group" aria-label="语言 / Language" className="flex gap-1">
+                  {([
+                    ['zh-CN', '中文'],
+                    ['en-US', 'English'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={language === value}
+                      onClick={() => {
+                        setLanguage(value);
+                        setMenuOpen(false);
+                        menuTriggerRef.current?.focus();
+                      }}
+                      className={`min-h-10 flex-1 rounded-[var(--cd-radius-sm)] px-2 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--cd-color-brand)] ${language === value
+                        ? 'bg-[var(--cd-color-brand-soft)] text-[var(--cd-color-brand)]'
+                        : 'text-[var(--cd-color-text-secondary)] hover:bg-[var(--cd-color-surface-alt)]'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
               <div className="p-1.5">
                 <HomeIntentLink
                   href="/settings"
@@ -253,7 +286,7 @@ function HomeHeader({
                   className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                 >
                   <Lock size={14} strokeWidth={1.55} aria-hidden="true" />
-                  修改密码
+                  {t("修改密码")}
                 </HomeIntentLink>
 
                 {canSeeAdminWorkspace ? (
@@ -268,7 +301,7 @@ function HomeHeader({
                     className="flex min-h-10 items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                   >
                     <Database size={14} strokeWidth={1.55} aria-hidden="true" />
-                    <span>系统管理</span>
+                    <span>{t("系统管理")}</span>
                   </HomeIntentLink>
                 ) : null}
               </div>
@@ -284,7 +317,7 @@ function HomeHeader({
                   className="flex min-h-10 w-full items-center gap-2 rounded-[var(--cd-radius-sm)] px-2.5 text-left text-sm text-[var(--cd-color-text-secondary)] transition-colors hover:bg-[var(--cd-color-surface-alt)] hover:text-[var(--cd-color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cd-color-brand)]/20"
                 >
                   <LogOut size={14} strokeWidth={1.55} aria-hidden="true" />
-                  退出登录
+                  {t("退出登录")}
                 </button>
               </div>
             </div>
@@ -296,10 +329,12 @@ function HomeHeader({
 }
 
 function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceModule; role: UserRole; onActivate: (event: React.MouseEvent<HTMLAnchorElement>, workspace: WorkspaceModule) => void }) {
+  const { t } = useLanguage();
   const Icon = workspace.icon;
   const visibilityNoteId = React.useId();
   const canAccess = canAccessModule(workspace.module, role);
-  const accessibilityProps = getAccessibilityProps(workspace.module, workspace.title, role);
+  const accessibilityProps = getAccessibilityProps(workspace.module, t(workspace.title), role);
+  if (!canAccess) accessibilityProps['aria-label'] = `${t(workspace.title)} - ${t('当前角色无权访问')}`;
 
   return (
     <HomeIntentLink
@@ -307,19 +342,19 @@ function WorkspaceCard({ workspace, role, onActivate }: { workspace: WorkspaceMo
       mayPrefetch={canAccess}
       onClick={(event) => onActivate(event, workspace)}
       className={`${styles.workspaceLink} ${canAccess ? '' : styles.unavailable}`}
-      title={canAccess ? undefined : '当前账号无访问权限'}
-      aria-label={workspace.adminOnly || workspace.note ? workspace.title : undefined}
+      title={canAccess ? undefined : t('当前账号无访问权限')}
+      aria-label={workspace.adminOnly || workspace.note ? t(workspace.title) : undefined}
       aria-describedby={workspace.adminOnly ? visibilityNoteId : undefined}
       {...accessibilityProps}
     >
       <span className={styles.workspaceIcon}><Icon size={20} strokeWidth={1.5} aria-hidden="true" /></span>
       <div className={styles.workspaceText}>
-        <h3>{workspace.title}</h3>
-        {workspace.adminOnly && <p id={visibilityNoteId} className={styles.workspaceNote}>仅管理员可见</p>}
-        {workspace.note && <p className={styles.workspaceNote}>{workspace.note}</p>}
+        <h3>{t(workspace.title)}</h3>
+        {workspace.adminOnly && <p id={visibilityNoteId} className={styles.workspaceNote}>{t('仅管理员可见')}</p>}
+        {workspace.note && <p className={styles.workspaceNote}>{t(workspace.note ?? '')}</p>}
       </div>
       {canAccess ? <ArrowRight size={16} strokeWidth={1.5} className={styles.linkArrow} aria-hidden="true" />
-        : <span>无访问权限</span>}
+        : <span>{t('无访问权限')}</span>}
     </HomeIntentLink>
   );
 }
@@ -361,6 +396,7 @@ function DeferredHomeActivity(props: HomeTeamActivityProps) {
 }
 
 export function HomeWorkspace() {
+  const { t } = useLanguage();
   const router = useRouter();
   const { session: ctx, status } = useAppSession();
   const { isImpersonating, targetUserId } = useImpersonation();
@@ -417,7 +453,7 @@ export function HomeWorkspace() {
   }
 
   const MapIcon = MAP_WORKSPACE.icon;
-  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, MAP_WORKSPACE.title, activeRole);
+  const mapAccessibilityProps = getAccessibilityProps(MAP_WORKSPACE.module, t(MAP_WORKSPACE.title), activeRole);
 
   return (
     <WorkspaceShell
@@ -435,24 +471,24 @@ export function HomeWorkspace() {
       <div className={styles.scrollArea}>
         <div className={styles.page}>
           <section aria-labelledby="home-title" className={styles.primary}>
-            <h1 id="home-title" className="sr-only">主页</h1>
+            <h1 id="home-title" className="sr-only">{t("主页")}</h1>
             <div className={styles.workSurface}>
               {(canSeeIntelligence || !activeSession) && <div className={styles.queryArea}>
                 {activeSession ? <HomeQuery key={queryScopeKey(queryScope)} scope={queryScope} displayName={activeSession.displayName} />
                   : <div className={styles.querySkeleton} aria-hidden="true" />}
               </div>}
-              <nav className={styles.navigation} aria-label="业务入口">
+              <nav className={styles.navigation} aria-label={t("业务入口")}>
                 {canStartMap ? <HomeIntentLink
                   href={MAP_WORKSPACE.href}
                   mayPrefetch={Boolean(activeSession) && canAccessModule(MAP_WORKSPACE.module, activeRole)}
                   onClick={activeSession ? (event) => handleWorkspaceActivation(event, MAP_WORKSPACE) : undefined}
                   className={styles.mapLink}
-                  aria-label={MAP_WORKSPACE.title}
+                  aria-label={t(MAP_WORKSPACE.title)}
                   {...mapAccessibilityProps}
                 >
                   <span className={styles.mapIcon}><MapIcon size={32} strokeWidth={1.5} aria-hidden="true" /></span>
                   <div className={styles.mapTitle}>
-                    <h2 id="home-heading">{MAP_WORKSPACE.title}</h2>
+                    <h2 id="home-heading">{t(MAP_WORKSPACE.title)}</h2>
                     <ArrowRight size={18} strokeWidth={1.5} aria-hidden="true" />
                   </div>
                 </HomeIntentLink> : <div className={styles.mapSkeleton} aria-hidden="true" />}
@@ -464,8 +500,8 @@ export function HomeWorkspace() {
               </nav>
             </div>
           </section>
-          {activeSession ? <aside className={styles.activity} aria-label="团队动态">
-            <h2 className={styles.activityHeading}>团队动态</h2>
+          {activeSession ? <aside className={styles.activity} aria-label={t("团队动态")}>
+            <h2 className={styles.activityHeading}>{t("团队动态")}</h2>
             <DeferredHomeActivity
               key={activeSession.user.id}
               userId={activeSession.user.id}

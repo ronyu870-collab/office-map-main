@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Eye, EyeOff, Lock, Mail, Phone } from 'lucide-react';
 
 import { signInWithPassword } from '@/src/services/Auth';
+import { useLanguage } from '@/src/i18n/useLanguage';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { logActionImmediate } from '@/src/utils/audit';
 import { perfStart, perfEnd, perfMark } from '@/src/utils/performanceLogger';
@@ -14,6 +15,7 @@ import { hasPasswordChangeNotice, setPasswordChangeNotice, subscribeToPasswordCh
 import { Button, IconButton, Input } from '@/src/components/ui';
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const { session } = useAppSession();
   const [email, setEmail] = React.useState('');
@@ -37,7 +39,7 @@ export default function LoginPage() {
     if (submitting) return;
     setError(null);
     if (!/^\d{11}$/.test(phone.trim())) {
-      setError('请输入有效的 11 位手机号码');
+      setError(t('请输入有效的 11 位手机号码'));
       return;
     }
 
@@ -58,7 +60,7 @@ export default function LoginPage() {
       perfEnd('登录-总耗时');
     } catch (err) {
       perfEnd('登录-总耗时');
-      setError(err instanceof Error ? err.message : '登录失败，请检查邮箱与密码');
+      setError(err instanceof Error ? err.message : t('登录失败，请检查邮箱与密码'));
       void logActionImmediate(email.trim(), 'LOGIN_FAILED', { error: err instanceof Error ? err.message : '未知错误' });
     } finally {
       setSubmitting(false);
@@ -79,15 +81,15 @@ export default function LoginPage() {
             className="h-auto w-[104px] shrink-0"
           />
           <div className="border-l border-[var(--cd-color-border)] pl-4">
-            <p className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">北京办公楼市场数据平台</p>
-            <h1 className="mt-1 text-[var(--cd-font-size-xl)] font-semibold text-[var(--cd-color-text-primary)]">登录</h1>
+            <p className="text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">{t('北京办公楼市场数据平台')}</p>
+            <h1 className="mt-1 text-[var(--cd-font-size-xl)] font-semibold text-[var(--cd-color-text-primary)]">{t('登录')}</h1>
           </div>
         </div>
 
         <div className="rounded-[var(--cd-radius-lg)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-6 shadow-[var(--cd-shadow-sm)] sm:p-7">
           <form className="space-y-4" onSubmit={handleSubmit} aria-busy={submitting}>
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">企业邮箱</label>
+              <label htmlFor="email" className="mb-1.5 block text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">{t('企业邮箱')}</label>
               <div className="relative">
                 <Mail size={15} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]" aria-hidden="true" />
                 <Input
@@ -105,7 +107,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="phone" className="mb-1.5 block text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">手机号</label>
+              <label htmlFor="phone" className="mb-1.5 block text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">{t('手机号')}</label>
               <div className="relative">
                 <Phone size={15} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]" aria-hidden="true" />
                 <Input
@@ -114,7 +116,7 @@ export default function LoginPage() {
                   type="tel"
                   inputMode="numeric"
                   autoComplete="tel"
-                  placeholder="请输入 11 位手机号"
+                  placeholder={t('请输入 11 位手机号')}
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
                   className="pl-9"
@@ -124,7 +126,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">密码</label>
+              <label htmlFor="password" className="mb-1.5 block text-[var(--cd-font-size-sm)] font-medium text-[var(--cd-color-text-secondary)]">{t('密码')}</label>
               <div className="relative">
                 <Lock size={15} strokeWidth={1.5} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]" aria-hidden="true" />
                 <Input
@@ -132,7 +134,7 @@ export default function LoginPage() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-                  placeholder="请输入密码"
+                  placeholder={t('请输入密码')}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="pl-9 pr-10"
@@ -140,7 +142,7 @@ export default function LoginPage() {
                 />
                 <IconButton
                   onClick={() => setShowPassword(prev => !prev)}
-                  label={showPassword ? '隐藏密码' : '显示密码'}
+                  label={showPassword ? t('隐藏密码') : t('显示密码')}
                   variant="ghost"
                   size="sm"
                   className="absolute right-0.5 top-1/2 -translate-y-1/2"
@@ -159,12 +161,12 @@ export default function LoginPage() {
                 onChange={event => setTrustDevice(event.target.checked)}
                 className="h-3.5 w-3.5 rounded border-[var(--cd-color-border-strong)] accent-[var(--cd-color-brand)] focus:ring-[var(--cd-color-focus)]"
               />
-              <label htmlFor="trust-device" className="cursor-pointer text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">信任此设备 14 天</label>
+              <label htmlFor="trust-device" className="cursor-pointer text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-secondary)]">{t('信任此设备 14 天')}</label>
             </div>
 
             {passwordChanged && (
               <p role="status" className="text-[var(--cd-font-size-sm)] text-[var(--cd-color-text-secondary)]">
-                密码已修改，请使用新密码重新登录。
+                {t('密码已修改，请使用新密码重新登录。')}
               </p>
             )}
 
@@ -179,12 +181,12 @@ export default function LoginPage() {
               disabled={submitting}
               className="mt-1 w-full"
             >
-              {submitting ? '登录中…' : <>登录 <ArrowRight size={15} strokeWidth={1.5} /></>}
+              {submitting ? t('登录中…') : <>{t('登录')} <ArrowRight size={15} strokeWidth={1.5} /></>}
             </Button>
           </form>
         </div>
 
-        <p className="mt-4 text-center text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-muted)]">高力国际内部系统 · 仅限授权用户访问</p>
+        <p className="mt-4 text-center text-[var(--cd-font-size-xs)] text-[var(--cd-color-text-muted)]">{t('高力国际内部系统 · 仅限授权用户访问')}</p>
       </div>
     </main>
   );

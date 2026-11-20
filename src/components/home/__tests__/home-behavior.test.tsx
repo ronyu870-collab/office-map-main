@@ -130,16 +130,39 @@ describe('Home workspace behavior', () => {
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
 
     const menu = await screen.findByRole('menu', { name: '账户操作' });
+    const zhOption = screen.getByRole('menuitemradio', { name: '中文' });
+    const enOption = screen.getByRole('menuitemradio', { name: 'English' });
     const settings = screen.getByRole('menuitem', { name: '修改密码' });
     const admin = screen.getByRole('menuitem', { name: '系统管理' });
 
-    await waitFor(() => expect(settings).toHaveFocus());
+    await waitFor(() => expect(zhOption).toHaveFocus());
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(enOption).toHaveFocus();
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(settings).toHaveFocus();
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
     expect(admin).toHaveFocus();
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('menu', { name: '账户操作' })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it('switches the actual Home menu to English and back without losing keyboard access', async () => {
+    render(<HomeWorkspace />);
+    const trigger = screen.getByRole('button', { name: '用户菜单' });
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'English' }));
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Beijing Office Market Map' })).toBeInTheDocument());
+    expect(window.localStorage.getItem('colliers.interface-language.v1')).toBe('en-US');
+    const englishTrigger = screen.getByRole('button', { name: 'User Menu' });
+    expect(englishTrigger).toHaveFocus();
+    fireEvent.click(englishTrigger);
+    expect(screen.getByRole('menuitem', { name: 'Change Password' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'English' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '中文' }));
+    expect(screen.getByRole('link', { name: '北京办公楼市场地图' })).toBeInTheDocument();
+    expect(window.localStorage.getItem('colliers.interface-language.v1')).toBe('zh-CN');
   });
 
   it('lets a viewer enter the same business read workspaces as an editor', () => {
