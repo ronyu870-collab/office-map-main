@@ -331,8 +331,6 @@ export function installMapVisualHierarchyV3(
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
   let selectedId: string | null = null;
-  let suppressMapClearUntil = 0;
-  let navigationToken = 0;
   let futureArgs: { supplies: any[]; mode: RenderMode } | null = null;
   let futureRevision = 0;
   let hoverHideTimer: number | null = null;
@@ -370,6 +368,7 @@ export function installMapVisualHierarchyV3(
 
   const showSelection = (building: any) => {
     clearSelection();
+    if (c.isWorkspaceActive?.()) return;
     if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
     const element = document.createElement('div');
     element.className = 'map-selected-marker';
@@ -383,46 +382,11 @@ export function installMapVisualHierarchyV3(
     });
     map.add?.(selectedMarker);
     selectedId = String(building.id ?? '');
-    suppressMapClearUntil = performance.now() + 180;
     container.dataset.selectedBuilding = selectedId;
   };
 
   const openAfterZoom = (building: any) => {
-    if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
-    const token = ++navigationToken;
-    const center: [number, number] = [building.location_lng, building.location_lat];
-    showSelection(building);
-
-    const finish = () => {
-      if (token !== navigationToken) return;
-      requestAnimationFrame(() => {
-        if (token === navigationToken) c.openBuildingInfoWindow?.(building.id);
-      });
-    };
-
-    if ((map.getZoom?.() ?? 14) >= BREAKPOINTS.dotToBuilding + 0.15) {
-      finish();
-      return;
-    }
-
-    let done = false;
-    let timer: number | null = null;
-    const finishOnce = () => {
-      if (done) return;
-      done = true;
-      map.off?.('zoomchange', onProgress);
-      map.off?.('zoomend', finishOnce);
-      if (timer !== null) window.clearTimeout(timer);
-      finish();
-    };
-    const onProgress = () => {
-      if ((map.getZoom?.() ?? 0) >= BREAKPOINTS.dotToBuilding + 0.08) finishOnce();
-    };
-
-    map.on?.('zoomchange', onProgress);
-    map.on?.('zoomend', finishOnce);
-    map.setZoomAndCenter?.(14, center, false, 320);
-    timer = window.setTimeout(finishOnce, 600);
+    if (building) c.openBuildingInfoWindow?.(building.id);
   };
 
 
@@ -754,10 +718,7 @@ export function installMapVisualHierarchyV3(
     applyOpacity(current, state, 1);
     applyOpacity(outgoing, state, 0);
 
-    if (currentTier !== 'building' && !zooming) {
-      c.infoWindow?.close?.();
-      clearSelection();
-    }
+
   };
 
   const swap = (next: LayerSet, signature: string, buildings: any[], mode: RenderMode, groups: any[] | undefined, showAreaPlaceholders: boolean, overviewBuildings?: any[]) => {
@@ -893,11 +854,13 @@ export function installMapVisualHierarchyV3(
   };
   const onMoveStart = () => { dismissHover(); container.classList.add('map-is-moving'); };
   const onMoveEnd = () => requestAnimationFrame(() => container.classList.remove('map-is-moving'));
-  const onMapClick = () => {
-    if (performance.now() < suppressMapClearUntil) return;
-    if (selectedId) clearSelection();
-  };
+  const onMapClick = () => {};
 
+  const onWorkspaceSelection = (event: Event) => {
+    const building = (event as CustomEvent).detail;
+    if (building) showSelection(building); else clearSelection();
+  };
+  window.addEventListener('map-workspace-selection', onWorkspaceSelection);
   map.on?.('zoomstart', onZoomStart);
   map.on?.('zoomchange', onZoomChange);
   map.on?.('zoomend', onZoomEnd);
@@ -906,6 +869,7 @@ export function installMapVisualHierarchyV3(
   map.on?.('click', onMapClick);
 
   return () => {
+    window.removeEventListener('map-workspace-selection', onWorkspaceSelection);
     if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     removeLayerSet(map, outgoing);

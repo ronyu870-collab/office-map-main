@@ -39,13 +39,12 @@ export function rankMapSearchCandidates(
   const normalized = normalize(query);
   if (!normalized) return { total: 0, matchedCount: 0, missingCoordinates: 0, items: [] };
   const positioned = buildings
-    .filter(hasBuildingLocation)
     .map((building, index) => ({ building, index, score: relevance(building, normalized) }))
     .sort((a, b) => a.score - b.score || a.index - b.index);
   return {
     total: positioned.length,
     matchedCount: buildings.length,
-    missingCoordinates: buildings.length - positioned.length,
+    missingCoordinates: buildings.filter(building => !hasBuildingLocation(building)).length,
     items: positioned.slice(0, Math.max(0, limit)).map(item => item.building),
   };
 }

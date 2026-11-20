@@ -48,7 +48,7 @@ async function checkWorkspaceLayout(page, width) {
   });
 
   await check('map modes beside a stock popup', async () => {
-    const modes = page.getByRole('group', { name: width < 640 ? '移动端地图显示模式' : '地图显示模式', exact: true });
+    const modes = page.getByRole('group', { name: '地图显示模式', exact: true });
     await page.locator(`#map-container [data-building-id="${tower.id}"]`).first().click();
     const popup = page.locator('.building-popup');
     await popup.waitFor();
@@ -185,7 +185,7 @@ try {
         await futureLink.waitFor();
         assert.ok((await futureLink.getAttribute('href'))?.includes('future=' + future.id));
         await futureLink.click();
-        await page.locator('.amap-info').getByText(future.name, { exact: true }).waitFor();
+        await page.getByRole('region', { name: `${future.name}楼宇详情`, exact: true }).waitFor();
         await page.getByRole('link', { name: '返回来源' }).click();
         await input.waitFor();
         assert.equal(await input.inputValue(), '待入市');
@@ -208,7 +208,9 @@ try {
         await page.getByRole('link', { name: '楼书与资料' }).click();
         await page.getByText('暂无项目资料').waitFor();
         await page.getByRole('button', { name: '关闭销控' }).click();
+        await page.getByRole('tab', { name: '行情', exact: true }).click();
         await page.getByRole('button', { name: '季度趋势' }).waitFor();
+        await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
         await page.getByRole('button', { name: '关联成交', exact: true }).click();
         await page.getByRole('link', { name: '在成交库查看' }).click();
         await page.getByRole('textbox', { name: '搜索楼宇名称' }).waitFor();
@@ -238,6 +240,7 @@ try {
         }
         await page.getByRole('link', { name: '返回来源' }).click();
         await detail.getByRole('link', { name: '打开地图楼宇' }).click();
+        await page.getByRole('tab', { name: '行情', exact: true }).click();
         await page.getByRole('button', { name: '季度趋势' }).waitFor();
         await page.getByRole('link', { name: '返回来源' }).click();
         await detail.waitFor();

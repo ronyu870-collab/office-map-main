@@ -182,8 +182,14 @@ try {
         else {
           if (mobile) {
             const link = await openProposal.boundingBox();
-            const modes = await page.getByRole('group', { name: '移动端地图显示模式' }).boundingBox();
-            assert.ok(link?.height >= 44 && modes && link.y + link.height <= modes.y, 'the proposal link must not cover the map modes');
+            const modes = await page.getByRole('group', { name: /^(移动端)?地图显示模式$/ }).boundingBox();
+            const separated = link && modes && (link.y + link.height <= modes.y || modes.y + modes.height <= link.y
+              || link.x + link.width <= modes.x || modes.x + modes.width <= link.x);
+            assert.ok(link?.height >= 44 && separated, `the proposal link must not cover the map modes: ${JSON.stringify({ link, modes })}`);
+            assert.equal(await openProposal.evaluate(element => {
+              const rect = element.getBoundingClientRect();
+              return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+            }), true, 'the proposal link must remain reachable');
           }
           await openProposal.click();
         }

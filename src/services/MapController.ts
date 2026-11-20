@@ -3,6 +3,7 @@
  */
 
 "use client";
+import type { WorkspaceBuildingDetail, WorkspaceBuilding } from '@/src/app/map/workspace/buildingDetail';
 import { resolveBuildingId } from './buildingIdentity';
 
 import { supabase } from "./supabaseClient";
@@ -334,6 +335,57 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private map: any | null = null;
   private initialTilesReady = false;
   private infoWindow: any | null = null;
+  private workspaceDetailHandler: ((detail: WorkspaceBuildingDetail) => void) | null = null;
+  private workspaceBuilding: WorkspaceBuilding | null = null;
+  private workspaceSelectionMarker: any | null = null;
+  private workspaceSubmarket: string | null = null;
+
+  setWorkspaceSubmarket(name: string | null): void { this.workspaceSubmarket = name; }
+  isWorkspaceActive(): boolean { return Boolean(this.workspaceDetailHandler); }
+  setWorkspaceSelection(building: WorkspaceBuilding | null): void {
+    if (this.workspaceSelectionMarker) this.map?.remove?.(this.workspaceSelectionMarker);
+    this.workspaceSelectionMarker = null;
+    if (!building || !Number.isFinite(building.location_lng) || !Number.isFinite(building.location_lat) || !this.AMap?.Marker) return;
+    const content = document.createElement('div');
+    content.className = 'map-selected-marker';
+    content.innerHTML = '<span class="map-selected-marker__core"></span><span class="map-selected-marker__ring"></span>';
+    this.workspaceSelectionMarker = new this.AMap.Marker({ position: [building.location_lng, building.location_lat], content, anchor: 'center', zIndex: 999999, bubble: true });
+    this.map.add(this.workspaceSelectionMarker);
+  }
+
+  /** React owns detail rendering; the controller retains existing authorized data/actions. */
+  setWorkspaceDetailHandler(handler: ((detail: WorkspaceBuildingDetail) => void) | null): void {
+    this.workspaceDetailHandler = handler;
+  }
+
+  getWorkspaceBuildingDetail(building: WorkspaceBuilding): WorkspaceBuildingDetail {
+    const future = building._dataType === 'future';
+    return { building, metric: future ? null : pickLatestMetric(building.metrics ?? []),
+      photos: this.getPhotoSet(future ? building.building_id ?? undefined : building.id, building.photos)?.photos ?? [],
+      isDemo: this._isDemo, canEdit: this._isAdmin && !this._isDemo,
+      overrides: Object.fromEntries(this._displayOverridesCache.get(building.id) ?? []) };
+  }
+
+  runWorkspaceBuildingAction(action: 'nearby' | 'contact' | 'trend' | 'edit', building: WorkspaceBuilding): void {
+    if (action === 'edit') { if (this._isAdmin && !this._isDemo) this._onEditBuildingMetrics?.(building.id, building.name ?? ''); }
+    if (action === 'nearby' && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)) {
+      (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
+    }
+    if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '');
+    if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id);
+  }
+
+  disposeWorkspaceTrend(): void { this.clearBuildingPopupTrend(); }
+  closeWorkspaceBuilding(): void { this.workspaceBuilding = null; this.setWorkspaceSelection(null); this.clearBuildingPopupTrend(); }
+
+  private publishWorkspaceBuilding(building: WorkspaceBuilding): boolean {
+    if (!this.workspaceDetailHandler) return false;
+    this.hideHoverTooltip();
+    this.workspaceBuilding = building;
+    this.setWorkspaceSelection(building);
+    this.workspaceDetailHandler(this.getWorkspaceBuildingDetail(building));
+    return true;
+  }
   private buildingPopupBinding: ReturnType<typeof bindBuildingPopup> | null = null;
   private futurePhotoCleanup: (() => void) | null = null;
 
@@ -820,6 +872,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
       // 🌟 CL-008: 点击地图空白区域自动关闭 InfoWindow（不退出周边项目对比模式）
       this.map.on("click", (event?: { originEvent?: Event }) => {
+        if (this.workspaceDetailHandler) return;
         const target = event?.originEvent?.target;
         if (target instanceof Element && target.closest(".building-popup")) return;
         if (this.infoWindow) {
@@ -890,6 +943,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     const hasConds = this._compFilterConds.length > 0;
 
     const competitors = this._allBuildingsCache.filter((b) => {
+      if (this.workspaceSubmarket && normalizeMapSubmarket(b.submarket) !== this.workspaceSubmarket) return false;
       if (b.id === buildingId) return false;
       if (b.location_lng == null || b.location_lat == null) return false;
       const dist = this.calculateDistance(
@@ -1926,6 +1980,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   openFutureSupplyInfoWindow(supply: any): void {
     if (!this.map || !this.AMap || !supply) return;
+    if (this.publishWorkspaceBuilding({ ...supply, _dataType: 'future' })) return;
     const lng = toNullableFiniteNumber(supply.location_lng);
     const lat = toNullableFiniteNumber(supply.location_lat);
     if (lng === null || lat === null) return;
@@ -2353,6 +2408,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
       // 点击放大到 Level 4 并显示 InfoWindow
       dotMarker.on("click", () => {
+        if (this.workspaceDetailHandler) { this.showBuildingPopup(building, latestMetric); return; }
         this.map.setZoomAndCenter(14, [lng, lat]);
         // 延迟显示 InfoWindow，等待缩放动画完成
         setTimeout(() => {
@@ -2594,6 +2650,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
 
   private showBuildingPopup(building: BuildingWithMetrics, metric: BuildingMetric | null) {
     if (!this.map || !this.AMap || this._destroyed) return;
+    if (this.publishWorkspaceBuilding({ ...building, _dataType: 'existing' })) return;
     this.hideHoverTooltip();
     // Replacing the card must not clear an active nearby comparison.
     this._isClearingCompetitor = true;
@@ -2699,6 +2756,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       return;
     }
 
+    if (this.workspaceDetailHandler) { this.showBuildingPopup(building, pickLatestMetric(building.metrics)); return; }
     const lng = building.location_lng;
     const lat = building.location_lat;
 
@@ -2772,6 +2830,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       // 使全局缓存失效（下次 fetchMapData 会重新查询）
       this._cachedMapDataPromise = null;
 
+      if (this.workspaceBuilding?.id === buildingId && this.workspaceBuilding._dataType !== 'future') {
+        this.publishWorkspaceBuilding({ ...building, _dataType: 'existing' });
+      }
       // 更新 InfoWindow（如果当前打开的是这个楼宇）。AMap 当前传入的是 DOM 容器而非字符串。
       if (this.infoWindow && this.infoWindow.getVisible()) {
         const content = this.infoWindow.getContent();
@@ -2864,6 +2925,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     } catch {}
     this.map = null;
     this.infoWindow = null;
+    this.setWorkspaceSelection(null);
+    this.workspaceDetailHandler = null;
+    this.workspaceBuilding = null;
     this.AMap = null;
   }
 }

@@ -136,7 +136,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                 const year = future ? building.launch_year : building.completion_year;
                 return <article className={styles.row} key={`${building._dataType ?? 'existing'}:${building.id}`} data-building-id={building.id} aria-current={targetBuildingId === building.id ? 'true' : undefined}>
                   <div className={styles.identity}>
-                    <button className={styles.name} title="在地图中查看详情" disabled={loading || !locationAvailable} onClick={() => {
+                    <button className={styles.name} title="在地图中查看详情" disabled={loading} onClick={() => {
                       if (scrollRef.current) savedScroll.current = scrollRef.current.scrollTop;
                       onBuildingClick(building);
                     }}><MaskedText>{building.name || '未命名项目'}</MaskedText></button>
@@ -153,7 +153,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
                     <div><dt>净有效租金</dt><dd>{format(values.rent, 2, '元/㎡/月')}</dd></div>
                     <div><dt>空置率</dt><dd>{vacancy === null ? '—' : `${vacancy.toFixed(1)}%`}</dd></div>
                   </dl>
-                  {!locationAvailable ? <p className={styles.locationNote}>位置待完善，暂无法在地图中查看详情</p> : null}
+                  {!locationAvailable ? <p className={styles.locationNote}>位置待完善，可查看项目资料</p> : null}
                 </article>;
               })}
               {!loading && !buildings.length ? <div className={styles.status}><h2>未找到符合条件的楼宇</h2><p>减少筛选条件或换一个关键词继续查找。</p><Button variant="secondary" onClick={onResetFilters}>清空条件</Button></div> : null}

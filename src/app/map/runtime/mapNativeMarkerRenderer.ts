@@ -75,6 +75,7 @@ export type ControllerInternals = {
   clearMarkers: () => void;
   renderFutureMarkers?: (...args: any[]) => void;
   clearFutureMarkers?: () => void;
+  isWorkspaceActive?: () => boolean;
   openBuildingInfoWindow?: (buildingId: string) => void;
   bounceMarker?: (buildingId: string) => void;
   stopBounceMarker?: (buildingId: string) => void;
@@ -419,7 +420,7 @@ export function installFallbackMarkerHardening(
   if (!map || typeof map.getZoom !== 'function') return () => {};
 
   const originalUpdate = controller.updateVisibilityByZoom?.bind(controller);
-  const mounted = new Set<MarkerMode>();
+  const mounted = new Map<MarkerMode, MarkerLike[]>();
   let active: MarkerMode | null = null;
   let frame: number | null = null;
 
@@ -450,14 +451,14 @@ export function installFallbackMarkerHardening(
   const apply = () => {
     frame = null;
     const next = choose();
-    if (next === active && mounted.has(next)) return;
+    if (next === active && mounted.get(next) === markersFor(next)) return;
 
     container.classList.add('map-marker-switching');
     if (active && active !== next) visibility(active, false);
-    if (!mounted.has(next)) {
+    if (mounted.get(next) !== markersFor(next)) {
       const markers = markersFor(next);
       if (markers.length > 0) map.add?.(markers as unknown[]);
-      mounted.add(next);
+      mounted.set(next, markers);
     }
     visibility(next, true);
     if (next !== 'building') controller.infoWindow?.close?.();
@@ -702,6 +703,7 @@ export function installNativeMarkerRenderer(
   };
 
   const openAfterZoom = (building: any) => {
+    if (controller.isWorkspaceActive?.()) { controller.openBuildingInfoWindow?.(building?.id); return; }
     if (
       !building ||
       !isFiniteCoordinate(building.location_lng) ||

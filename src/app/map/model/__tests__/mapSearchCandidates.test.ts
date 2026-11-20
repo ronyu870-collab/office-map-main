@@ -13,8 +13,8 @@ const buildings = [
 describe('map search choices and viewport targets', () => {
   it('orders exact, prefix, former-name and ancillary matches without changing filter permissions', () => {
     const result = rankMapSearchCandidates(buildings, '国贸', 3);
-    expect(result.total).toBe(5);
-    expect(result.items.map(item => item.id)).toEqual(['exact', 'partial', 'future']);
+    expect(result.total).toBe(6);
+    expect(result.items.map(item => item.id)).toEqual(['exact', 'partial', 'missing']);
     expect(rankMapSearchCandidates(buildings, '  ').items).toEqual([]);
   });
   it('prefers one exact project when broader matches include an owner or future project', () => {
@@ -43,7 +43,7 @@ describe('consistent search explanations and unlocatable counts', () => {
       { id: 'missing', name: '国贸大厦', location_lng: null, location_lat: null },
     ];
     const ranked = rankMapSearchCandidates(values, '国贸');
-    expect(ranked.items.map(v => v.id)).toEqual(['exact', 'submarket', 'district', 'owner', 'property']);
+    expect(ranked.items.map(v => v.id)).toEqual(['exact', 'missing', 'submarket', 'district', 'owner', 'property']);
     expect(ranked.matchedCount).toBe(6);
     expect(ranked.missingCoordinates).toBe(1);
     expect(describeMapSearchMatch(values[1], '国贸')).toBe('物业公司');

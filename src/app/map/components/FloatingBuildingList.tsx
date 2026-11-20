@@ -6,6 +6,7 @@ import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { MaskedText, useIsDemo } from '@/src/components/demo';
 import { logAction } from '@/src/utils/audit';
+import { sortFullList, type FullListSort } from '../model/fullBuildingList';
 import type { ComparisonLayout } from './buildingComparisonExport';
 
 interface DisplayOverride {
@@ -15,6 +16,7 @@ interface DisplayOverride {
 
 interface FloatingBuildingListProps {
   buildings: any[];
+  active?: boolean;
   displayOverrides?: Map<string, Map<string, DisplayOverride>>;
   onClose: () => void;
   onBuildingClick?: (building: any) => void;
@@ -27,7 +29,11 @@ interface FloatingBuildingListProps {
 const INITIAL_LOAD_COUNT = 50;
 const LOAD_MORE_COUNT = 50;
 
-export default function FloatingBuildingList({ buildings, displayOverrides, onClose, onBuildingClick, targetBuildingId, onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
+export default function FloatingBuildingList({ buildings, active = true, displayOverrides, onClose, onBuildingClick, targetBuildingId, onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
+  const [query, setQuery] = React.useState('');
+  const [sort, setSort] = React.useState<FullListSort>('default');
+  const results: any[] = React.useMemo(() => sortFullList(buildings.filter(building =>
+    [building.name, building.submarket, building.owner, building.property_management].some(value => String(value ?? '').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))), sort), [buildings, query, sort]);
   const [visibleCount, setVisibleCount] = React.useState(INITIAL_LOAD_COUNT);
   const [viewMode, setViewMode] = React.useState<'cards' | 'compact'>('compact');
   const loadMoreTriggerRef = React.useRef<HTMLDivElement>(null);
@@ -74,37 +80,45 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
     }
   };
 
-  const existingCount = React.useMemo(() => buildings.filter(b => b._dataType !== 'future').length, [buildings]);
-  const futureCount = React.useMemo(() => buildings.filter(b => b._dataType === 'future').length, [buildings]);
+  const existingCount = React.useMemo(() => results.filter(b => b._dataType !== 'future').length, [results]);
+  const futureCount = React.useMemo(() => results.filter(b => b._dataType === 'future').length, [results]);
 
   React.useEffect(() => {
+    if (!active) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || (event.target instanceof Element && event.target.closest('[role="dialog"][aria-modal="true"]'))) return;
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [active, onClose]);
 
   React.useEffect(() => {
     const trigger = loadMoreTriggerRef.current;
     if (!trigger) return;
     const observer = new IntersectionObserver(entries => {
-      if (entries[0]?.isIntersecting && visibleCount < buildings.length) {
-        setVisibleCount(previous => Math.min(previous + LOAD_MORE_COUNT, buildings.length));
+      if (entries[0]?.isIntersecting && visibleCount < results.length) {
+        setVisibleCount(previous => Math.min(previous + LOAD_MORE_COUNT, results.length));
       }
     }, { root: listContainerRef.current, rootMargin: '100px', threshold: 0.1 });
     observer.observe(trigger);
     return () => observer.disconnect();
-  }, [visibleCount, buildings.length]);
+  }, [visibleCount, results.length]);
 
   React.useEffect(() => {
     setVisibleCount(INITIAL_LOAD_COUNT);
     if (listContainerRef.current) listContainerRef.current.scrollTop = 0;
-  }, [buildings]);
+  }, [results]);
 
-  const visibleBuildings = buildings.slice(0, visibleCount);
-  const hasMore = visibleCount < buildings.length;
+  React.useEffect(() => {
+    if (!active || !targetBuildingId) return;
+    const index = results.findIndex(building => building.id === targetBuildingId);
+    if (index >= visibleCount) setVisibleCount(index + 1);
+    const frame = requestAnimationFrame(() => listContainerRef.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest' }));
+    return () => cancelAnimationFrame(frame);
+  }, [active, targetBuildingId, results, visibleCount]);
+  const visibleBuildings = results.slice(0, visibleCount);
+  const hasMore = visibleCount < results.length;
 
   const materialAction = (building: any) => {
     if (building._dataType === 'future' && isPendingFutureSupply(building)) return null;
@@ -135,6 +149,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         {selectionMode ? selectionCheckbox(building) : null}
       <div
         role="button"
+        aria-current={isTarget || undefined}
         tabIndex={0}
         onClick={() => onBuildingClick?.(building)}
         onKeyDown={event => {
@@ -170,7 +185,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-[12px] font-semibold text-[#172033]">项目列表</h2>
-            <span className="rounded-[3px] border border-[#d9e0e8] bg-white px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[#667085]">{buildings.length}</span>
+            <span className="rounded-[3px] border border-[#d9e0e8] bg-white px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[#667085]">{results.length}</span>
           </div>
           <p className="mt-0.5 truncate text-[10px] text-[#8a94a6]">
             {existingCount > 0 && futureCount > 0 ? `现有 ${existingCount} · 未来供应 ${futureCount}` : futureCount > 0 ? `未来供应 ${futureCount}` : `现有项目 ${existingCount}`}
@@ -181,6 +196,12 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
         </button>
       </div>
 
+      <div className="workspace-list-query">
+        <label><span className="sr-only">搜索当前项目列表</span><input type="search" value={query} onChange={event => setQuery(event.currentTarget.value)} placeholder="搜索当前项目列表" /></label>
+        <select aria-label="项目列表排序" value={sort} onChange={event => setSort(event.currentTarget.value as FullListSort)}>
+          <option value="default">默认顺序</option><option value="name">项目名称</option><option value="area">面积从大到小</option><option value="rent">租金从低到高</option><option value="rent-desc">租金从高到低</option><option value="vacancy">空置率从低到高</option>
+        </select>
+      </div>
       <div className="flex shrink-0 items-center justify-between border-b border-[#e7ebf0] px-3 py-1.5">
         <span className="text-[10px] font-medium text-[#8a94a6]">市场项目</span>
         <div className="flex items-center gap-2">
@@ -201,8 +222,8 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
           <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] font-medium text-[#172033]">已选 {selectedComparisonBuildings.length} 栋</span>
             <div className="flex items-center gap-2">
-              <button type="button" className="min-h-8 text-[12px] text-[#003e7e]" disabled={!buildings.length}
-                onClick={() => onComparisonSelectionChange(buildings, true)}>全选当前结果</button>
+              <button type="button" className="min-h-8 text-[12px] text-[#003e7e]" disabled={!results.length}
+                onClick={() => onComparisonSelectionChange(results, true)}>全选当前结果</button>
               <button type="button" className="min-h-8 text-[12px] text-[#667085]" disabled={!selectedComparisonBuildings.length}
                 onClick={() => onComparisonSelectionChange(selectedComparisonBuildings, false)}>清空</button>
             </div>
@@ -224,7 +245,7 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
       ) : null}
 
       <div ref={listContainerRef} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#c3ccd8 transparent' }}>
-        {buildings.length === 0 ? (
+        {results.length === 0 ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center">
             <div className="text-[12px] font-semibold text-[#667085]">未找到符合条件的楼宇</div>
             <div className="mt-1 text-[10px] text-[#8a94a6]">调整筛选或搜索条件后重试</div>
@@ -249,8 +270,8 @@ export default function FloatingBuildingList({ buildings, displayOverrides, onCl
 
         {hasMore ? (
           <div ref={loadMoreTriggerRef} className="flex items-center justify-center border-t border-[#e7ebf0] py-3 text-[10px] text-[#8a94a6]">继续加载…</div>
-        ) : buildings.length > INITIAL_LOAD_COUNT ? (
-          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[10px] text-[#8a94a6]">已加载全部 {buildings.length} 个项目</div>
+        ) : results.length > INITIAL_LOAD_COUNT ? (
+          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[10px] text-[#8a94a6]">已加载全部 {results.length} 个项目</div>
         ) : null}
       </div>
       {exportOpen ? (

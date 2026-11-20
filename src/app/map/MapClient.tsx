@@ -1,5 +1,9 @@
 'use client';
 
+import { workspaceReducer, initialWorkspaceState } from './workspace/workspaceState';
+import type { WorkspaceBuildingDetail } from './workspace/buildingDetail';
+import { observeMapCanvas } from './runtime/observeMapCanvas';
+import { WorkspaceBuildingDetail as BuildingDetailView } from './components/WorkspaceBuildingDetail';
 import { MapQuerySelection } from './MapQuerySelection';
 import type { QueryMapContext } from '@/src/lib/intelligence/query/buildingNavigation';
 import type { BuildingContext } from '@/src/lib/intelligence/query/buildingCards';
@@ -38,7 +42,6 @@ import { recordMapStartup } from '@/src/utils/mapStartupProbe';
 import { useMapWorkspaceView } from './runtime/useMapWorkspaceView';
 import { hasBuildingLocation, type FullListBuilding } from './model/fullBuildingList';
 import { searchViewportTargets } from './model/mapSearchCandidates';
-import { panMapFocusIntoAvailableArea } from './runtime/mapFocusViewport';
 import { MapWorkbenchView } from './components/MapWorkbenchView';
 import { MapLoadingShell } from './components/MapLoadingShell';
 import type { IntelligenceMapRouteState } from './model/intelligenceMapHandoff';
@@ -142,7 +145,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     if (competitorBuildings) {
       return competitorBuildings.map(b => ({ ...b, _dataType: 'existing' }));
     }
-    const existingWithType = filteredBuildings.filter(b => Number.isFinite(b.location_lng) && Number.isFinite(b.location_lat)).map(b => ({ ...b, _dataType: 'existing' }));
+    const existingWithType = filteredBuildings.map(b => ({ ...b, _dataType: 'existing' }));
     const futureWithType = filteredFutureSupplies.map(f => ({ ...f, _dataType: 'future' }));
     return [...existingWithType, ...futureWithType];
   }, [filteredBuildings, filteredFutureSupplies, competitorBuildings]);
@@ -152,25 +155,18 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, [competitorBuildings]);
 
   // 🌟 Phase 1: 悬浮列表可见性控制
-  const [isListVisible, setIsListVisible] = React.useState(false);
-  const [userHasInteracted, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
-  const [isSupplyOpen, setIsSupplyOpen] = React.useState(false);
-  const [isFilterPanelOpen, setIsFilterPanelOpen] = React.useState(false);
-  const [selectedSubmarket, setSelectedSubmarket] = React.useState<string | null>(null);
-  const [areaProjectOpen, setAreaProjectOpen] = React.useState(false);
-  React.useEffect(() => {
-    const open = (event: Event) => {
-      const name = normalizeMapSubmarket((event as CustomEvent<{ name?: string }>).detail?.name);
-      if (!name || name === '其他') return;
-      setSelectedSubmarket(name);
-      setAreaProjectOpen(false);
-      setIsFilterPanelOpen(false);
-      setIsSupplyOpen(false);
-      setIsListVisible(false);
-    };
-    window.addEventListener('map-submarket-open', open);
-    return () => window.removeEventListener('map-submarket-open', open);
-  }, []);
+  const [workspace, dispatchWorkspace] = React.useReducer(workspaceReducer, initialWorkspaceState);
+  const [buildingDetail, setBuildingDetail] = React.useState<WorkspaceBuildingDetail | null>(null);
+  const restoringResearchRef = React.useRef(false);
+  const workspaceRef = React.useRef(workspace);
+  workspaceRef.current = workspace;
+  const isListVisible = workspace.right?.kind === 'list' || workspace.right?.kind === 'compare';
+  const [, setUserHasInteracted] = React.useState(Boolean(initialIntelligenceHandoff));
+  const isSupplyOpen = workspace.right?.kind === 'supply';
+  const isFilterPanelOpen = workspace.leftOpen;
+  const setIsFilterPanelOpen = React.useCallback((open: boolean) => dispatchWorkspace({ type: 'left', open }), []);
+  const researchView = [workspace.right, ...workspace.history.slice().reverse()].find(view => view?.kind === 'submarket');
+  const selectedSubmarket = researchView?.kind === 'submarket' ? researchView.name : null;
 
   const selectedSummary = React.useMemo(() => selectedSubmarket
     ? submarketSummary(allBuildings, selectedSubmarket) : null, [allBuildings, selectedSubmarket]);
@@ -182,6 +178,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const activeFilterChips = React.useMemo(() => buildActiveFilterChips(filterState), [filterState]);
 
   const issueFilterCommand = React.useCallback((type: SidebarFilterCommand['type'], patch?: Partial<SidebarFilterState>) => {
+    setFilterState(previous => type === 'reset' ? createDefaultFilterState() : { ...(previous ?? createDefaultFilterState()), ...patch });
+    if (type === 'reset') setCompareGroups([]);
     setFilterCommand(previous => ({ id: (previous?.id ?? 0) + 1, type, patch }));
   }, []);
   
@@ -334,6 +332,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       setEditingBuilding({ id: buildingId, name: buildingName });
     },
     onReady: async (controller, isCancelled) => {
+      controller.setWorkspaceDetailHandler(detail => {
+        if (isCancelled()) return;
+        cancelPendingBuildingNavigation();
+        if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false });
+        setBuildingDetail(detail);
+        dispatchWorkspace({ type: 'open', view: { kind: 'building', building: detail.building } });
+        window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: detail.building }));
+      });
       // Both reads are independent; future supply must not delay stock startup.
       const [_, future] = await Promise.allSettled([
         loadMapData(controller, isCancelled),
@@ -347,6 +353,87 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   });
 
   React.useEffect(() => {
+    const controller = controllerRef.current;
+    const container = document.getElementById('map-container');
+    if (!mapReady || !controller || !container) return;
+    return observeMapCanvas(container, controller.map);
+  }, [controllerRef, mapReady]);
+
+  // All entry points focus after the physical canvas transition; latest selection wins.
+  React.useEffect(() => {
+    const view = workspace.right;
+    const controller = controllerRef.current;
+    if (!mapReady || !controller || !view || workspace.focus) return;
+    const timer = window.setTimeout(() => {
+      if (view.kind === 'building' && hasBuildingLocation(view.building)) {
+        controller.map.setCenter?.([view.building.location_lng, view.building.location_lat], false, 240);
+      } else if (view.kind === 'submarket') {
+        const matches = allBuildings.filter(building => normalizeMapSubmarket(building.submarket) === view.name && hasBuildingLocation(building));
+        if (matches.length) controller.fitToBuildings(matches);
+      }
+    }, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 260);
+    return () => window.clearTimeout(timer);
+  }, [workspace.right, workspace.focus, allBuildings, controllerRef, mapReady]);
+
+  const researchExitGuard = React.useRef<(() => boolean) | null>(null);
+  const registerResearchExitGuard = React.useCallback((guard: (() => boolean) | null) => { researchExitGuard.current = guard; }, []);
+  const closeWorkspace = React.useCallback(() => {
+    if (researchExitGuard.current && !researchExitGuard.current()) return;
+    const snapshot = workspaceRef.current.research;
+    if (snapshot && !snapshot.retained) {
+      restoringResearchRef.current = true;
+      setSearchInput(snapshot.input);
+      setFilterState(snapshot.filters);
+      issueFilterCommand('patch', snapshot.filters);
+      const map = controllerRef.current?.map;
+      if (snapshot.center && snapshot.zoom !== undefined) map?.setZoomAndCenter?.(snapshot.zoom, snapshot.center, true);
+    }
+    controllerRef.current?.closeWorkspaceBuilding?.();
+    dispatchWorkspace({ type: 'close' });
+    dispatchWorkspace({ type: 'end-research' });
+    window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: null }));
+    controllerRef.current?.disposeWorkspaceTrend?.();
+  }, [controllerRef, issueFilterCommand]);
+  const setIsListVisible = React.useCallback((open: boolean) => {
+    if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'list' } }); }
+    else if (workspaceRef.current.right?.kind === 'list' || workspaceRef.current.right?.kind === 'compare') closeWorkspace();
+  }, [closeWorkspace]);
+  const setIsSupplyOpen = React.useCallback((open: boolean) => {
+    if (open) { if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false }); dispatchWorkspace({ type: 'open', view: { kind: 'supply' } }); }
+    else if (workspaceRef.current.right?.kind === 'supply') closeWorkspace();
+  }, [closeWorkspace]);
+  React.useEffect(() => {
+    if (workspace.right?.kind !== 'building') controllerRef.current?.closeWorkspaceBuilding?.();
+  }, [workspace.right?.kind, controllerRef]);
+  const disposeDetailTrend = React.useCallback(() => controllerRef.current?.disposeWorkspaceTrend?.(), [controllerRef]);
+
+  React.useEffect(() => {
+    const open = (event: Event) => {
+      const name = normalizeMapSubmarket((event as CustomEvent<{ name?: string }>).detail?.name);
+      if (!name || name === '其他') return;
+      if (researchExitGuard.current && !researchExitGuard.current()) return;
+      cancelPendingBuildingNavigation();
+      const map = controllerRef.current?.map;
+      const center = map?.getCenter?.();
+      if (window.innerWidth < 1000) dispatchWorkspace({ type: 'left', open: false });
+      dispatchWorkspace({ type: 'research', name, snapshot: {
+        filters: filterState ?? createDefaultFilterState(), input: searchInput,
+        center: center ? [center.getLng?.() ?? center.lng, center.getLat?.() ?? center.lat] : undefined,
+        zoom: map?.getZoom?.(), retained: false,
+      } });
+      controllerRef.current?.closeWorkspaceBuilding?.();
+      const next = { ...(filterState ?? createDefaultFilterState()), submarkets: [name] };
+      setFilterState(next);
+      issueFilterCommand('patch', next);
+      setUserHasInteracted(true);
+      controllerRef.current?.clearCompetitorElements?.();
+      window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: null }));
+    };
+    window.addEventListener('map-submarket-open', open);
+    return () => window.removeEventListener('map-submarket-open', open);
+  }, [controllerRef, filterState, searchInput, issueFilterCommand, cancelPendingBuildingNavigation]);
+
+  React.useEffect(() => {
     return () => filterFrameSchedulerRef.current?.cancel();
   }, []);
 
@@ -354,7 +441,12 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   
   const districtLeedStats = React.useMemo(() => buildDistrictLeedStats(allBuildings), [allBuildings]);
   
-  const futureSupplyCalendar = React.useMemo(() => buildFutureSupplyCalendar(futureSupplies), [futureSupplies]);
+  const scopedFutureSupplies = React.useMemo(() => filterState?.submarkets.length === 1
+    ? futureSupplies.filter(supply => normalizeMapSubmarket(supply.submarket) === filterState.submarkets[0]) : futureSupplies, [filterState, futureSupplies]);
+  const futureSupplyCalendar = React.useMemo(() => buildFutureSupplyCalendar(scopedFutureSupplies), [scopedFutureSupplies]);
+  React.useEffect(() => {
+    if (mapReady) controllerRef.current?.setWorkspaceSubmarket?.(filterState?.submarkets.length === 1 ? filterState.submarkets[0] : null);
+  }, [controllerRef, mapReady, filterState]);
   
   // 新增：地图标记渲染模式状态
   const [renderMode, setRenderMode] = React.useState<RenderMode>('default');
@@ -436,7 +528,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       keyword,
       role: userRoleRef.current,
       calculateDistance: (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
-    })).filter(building => !queryContext || queryIds.has(building.id)
+    })).filter(building => activeFilterState.submarkets.length !== 1 || activeFilterState.submarkets.includes(normalizeMapSubmarket(building.submarket)))
+      .filter(building => !queryContext || queryIds.has(building.id)
       && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)
       && Math.abs(building.location_lng) <= 180 && Math.abs(building.location_lat) <= 90);
 
@@ -490,7 +583,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
             activeFilterState,
             keyword,
             (buildingPoint, stationPoint) => ctrl.calculateDistance(buildingPoint, stationPoint),
-          );
+          ).filter(supply => activeFilterState.submarkets.length !== 1 || activeFilterState.submarkets.includes(normalizeMapSubmarket(supply.submarket)));
 
           if (futureSupplyRequestToken !== futureSupplyRequestTokenRef.current) return;
           setFilteredFutureSupplies(filteredSupplies);
@@ -520,10 +613,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     // 筛选只改变显示内容，不应移动用户正在查看的地图视野。
     // 当用户从任意筛选状态恢复为默认条件时，才回到初始大气泡总览。
     const hasActiveFilters = !isDefaultStockFilterState(activeFilterState);
-    if (!hasActiveFilters && hadActiveFiltersRef.current && !keyword) {
+    if (!restoringResearchRef.current && !hasActiveFilters && hadActiveFiltersRef.current && !keyword) {
       ctrl.resetToDefaultView?.();
     }
     hadActiveFiltersRef.current = hasActiveFilters;
+    restoringResearchRef.current = false;
 
     if (!loadFuture) fitSubmittedSearch(filtered);
     previousSearchSubmitRef.current = searchSubmitRevision;
@@ -577,26 +671,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     if (!controllerRef.current || !mapReady) return false;
     
     const ctrl = controllerRef.current;
-    const lng = building.location_lng;
-    const lat = building.location_lat;
-    
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
-      console.warn('[MapClient] Invalid building coordinates:', building.name);
-      return false;
-    }
-    
-    // 地图平滑移动到楼宇位置并放大。连续点击时只允许最后一次导航打开弹窗。
-    const navigationToken = ++listNavigationTokenRef.current;
-    ctrl.map.setZoomAndCenter(16, [lng, lat], false, 500);
-    
-    pendingNavigationTimerRef.current = setTimeout(() => {
-      pendingNavigationTimerRef.current = null;
-      if (navigationToken !== listNavigationTokenRef.current || controllerRef.current !== ctrl || workspaceViewRef.current !== 'map') return;
-      // Correct for currently visible workbench overlays before opening the InfoWindow.
-      panMapFocusIntoAvailableArea(ctrl.map);
-      if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
-      else ctrl.openBuildingInfoWindow(building.id);
-    }, 600);
+    if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
+    else ctrl.openBuildingInfoWindow(building.id);
 
     logAction(appSession?.user?.email || '未知用户', 'VIEW_BUILDING', {
       buildingId: building.id,
@@ -608,16 +684,11 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
 
   const fullListBusy = mapDataLoading || !mapReady || settledFullListFilterKey !== fullListFilterKey;
   const handleFullListBuildingClick = React.useCallback((building: FullListBuilding) => {
-    if (workspaceViewRef.current !== 'list' || fullListBusy || !hasBuildingLocation(building)) return;
+    if (workspaceViewRef.current !== 'list' || fullListBusy) return;
     cancelPendingBuildingNavigation();
     changeWorkspaceView('map');
-    const controller = controllerRef.current;
-    const token = ++listNavigationTokenRef.current;
-    pendingNavigationFrameRef.current = window.requestAnimationFrame(() => {
-      pendingNavigationFrameRef.current = null;
-      if (token !== listNavigationTokenRef.current || workspaceViewRef.current !== 'map' || controllerRef.current !== controller) return;
-      handleBuildingClick(building);
-    });
+    dispatchWorkspace({ type: 'open', view: { kind: 'full-list' } });
+    handleBuildingClick(building);
   }, [fullListBusy, cancelPendingBuildingNavigation, changeWorkspaceView, controllerRef, workspaceViewRef, handleBuildingClick]);
 
   const [focusStatus, setFocusStatus] = React.useState<{ key: string; found: boolean }>();
@@ -635,19 +706,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       if (!item) { setFocusStatus({ key: focusKey, found: false }); return; }
       openedFocus.current = focusKey;
       changeWorkspaceView('map');
-      const located = hasBuildingLocation(item);
-      if (located) {
-        ctrl.map.setZoomAndCenter(16, [item.location_lng, item.location_lat], true);
-        panMapFocusIntoAvailableArea(ctrl.map);
-        if (buildingFocus.future) ctrl.openFutureSupplyInfoWindow(item);
-        else ctrl.openBuildingInfoWindow(item.id);
-      }
+      if (buildingFocus.future) ctrl.openFutureSupplyInfoWindow(item);
+      else ctrl.openBuildingInfoWindow(item.id);
       if (!buildingFocus.future && buildingFocus.section) {
         window.dispatchEvent(new CustomEvent('broker:building-section', {
           detail: { id: item.id, name: item.name, section: buildingFocus.section },
         }));
       }
-      setFocusStatus({ key: focusKey, found: located });
+      setFocusStatus({ key: focusKey, found: true });
     };
     void open().catch(() => { if (!cancelled) setFocusStatus({ key: focusKey, found: false }); });
     return () => { cancelled = true; };
@@ -710,24 +776,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
 
   const showSubmarketBuildings = () => {
     if (!selectedSubmarket) return;
-    const name = selectedSubmarket;
-    cancelPendingBuildingNavigation();
-    setSelectedSubmarket(null);
-    setAreaProjectOpen(false);
-    setSearchInput('');
-    issueFilterCommand('patch', {
-      ...createDefaultFilterState(),
-      submarkets: [name],
-      projectTypes: ['甲级写字楼', '乙级写字楼'],
-      showFutureSupply: false,
-    });
-    setUserHasInteracted(true);
-    setIsListVisible(true);
-    const matches = allBuildings.filter(building => normalizeMapSubmarket(building.submarket) === name
-      && (/A|P|B/i.test(String(building.grade ?? '')) && !String(building.grade ?? '').toUpperCase().includes('BP')));
-    if (matches.some(building => Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat))) {
-      controllerRef.current?.fitToBuildings(matches);
-    }
+    dispatchWorkspace({ type: 'open', view: { kind: 'list' } });
   };
 
   if (!allowed) return <MapLoadingShell />;
@@ -735,42 +784,41 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   return (
     <>
       <MapWorkbenchView
-        submarketDetailPanel={selectedSubmarket && selectedSummary && workspaceView === 'map' ? (
-          <>
-            {/* Keep the same panel mounted while presenting a representative building.
-                On mobile the panel covers the map; hiding, rather than unmounting,
-                preserves the narrative scroll and permits an explicit return. */}
-            <div className={areaProjectOpen ? 'hidden' : 'contents'}>
-              <SubmarketDetailPanel key={selectedSubmarket} name={selectedSubmarket} summary={selectedSummary}
-                buildings={allBuildings} futureCount={selectedFutureCount} canEdit={userRole === 'admin' && !getImpersonationTargetUserId()} suspended={areaProjectOpen}
-                onClose={() => { setSelectedSubmarket(null); setAreaProjectOpen(false); }}
-                onShowAll={showSubmarketBuildings}
-                onOpenBuilding={id => {
-                  const building = allBuildings.find(item => item.id === id);
-                  // Suspend the research modal only if navigation was actually accepted.
-                  // Otherwise keep the modal visible instead of stranding the user.
-                  if (building && handleBuildingClick(building)) setAreaProjectOpen(true);
-                }} />
-            </div>
-            {areaProjectOpen ? (
-              <button type="button" onClick={() => {
-                  // The building popup opens after a 600ms map movement. Cancel
-                  // that timer before returning, or it reappears over the modal.
-                  cancelPendingBuildingNavigation();
-                  controllerRef.current?.closeInfoWindow?.();
-                  setAreaProjectOpen(false);
-                }}
-                className="pointer-events-auto absolute left-3 top-[64px] z-[435] inline-flex min-h-11 max-w-[calc(100vw-24px)] items-center gap-2 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[13px] font-semibold text-[#003e7e] shadow-[0_4px_14px_rgba(23,32,51,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] sm:left-4">
-                返回{selectedSubmarket}子市场介绍
-              </button>
-            ) : null}
-          </>
-        ) : null}
+        rightView={workspace.right}
+        rightKind={workspace.right?.kind}
+        rightWidth={workspace.width}
+        focusMode={workspace.focus}
+        onWorkspaceWidth={width => dispatchWorkspace({ type: 'width', width })}
+        onFocusModeChange={() => dispatchWorkspace({ type: 'focus' })}
+        onWorkspaceClose={closeWorkspace}
+        backLabel={workspace.history.length ? ({ submarket: '子市场研究', list: '项目列表', supply: '未来供应', search: '搜索结果', compare: '楼宇比较', building: '楼宇详情', 'full-list': '完整列表' })[workspace.history.at(-1)!.kind] : null}
+        onWorkspaceBack={() => {
+          disposeDetailTrend();
+          if (workspace.history.at(-1)?.kind === 'full-list') { changeWorkspaceView('list'); dispatchWorkspace({ type: 'close' }); }
+          else {
+            const previous = workspace.history.at(-1);
+            dispatchWorkspace({ type: 'back' });
+            if (previous?.kind === 'building') handleBuildingClick(previous.building);
+            else controllerRef.current?.closeWorkspaceBuilding?.();
+          }
+          window.dispatchEvent(new CustomEvent('map-workspace-selection', { detail: workspace.history.at(-1)?.kind === 'building' ? (workspace.history.at(-1) as { kind: 'building'; building: FullListBuilding }).building : null }));
+        }}
+        buildingDetailPanel={buildingDetail && workspace.right?.kind === 'building' ? <BuildingDetailView
+          key={`${buildingDetail.building._dataType}:${buildingDetail.building.id}`} detail={{ ...buildingDetail, canEdit: buildingDetail.canEdit && !getImpersonationTargetUserId() }}
+          onClose={closeWorkspace} onDisposeTrend={disposeDetailTrend}
+          onAction={action => controllerRef.current?.runWorkspaceBuildingAction(action, buildingDetail.building)} /> : null}
+        submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}
+          name={selectedSubmarket} summary={selectedSummary} buildings={allBuildings} futureCount={selectedFutureCount}
+          canEdit={userRole === 'admin' && !getImpersonationTargetUserId()} suspended={workspace.right?.kind !== 'submarket' || workspace.focus}
+          onExitGuardChange={registerResearchExitGuard}
+          onClose={closeWorkspace} onShowAll={showSubmarketBuildings}
+          retained={workspace.research?.retained ?? false} onRetain={() => dispatchWorkspace({ type: 'retain' })}
+          onOpenBuilding={id => { const building = allBuildings.find(item => item.id === id); if (building) handleBuildingClick(building); }} /> : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}
-        futureSuppliesCount={futureSupplies.filter(supply => !isPendingFutureSupply(supply)).length}
-        futureSupplies={futureSupplies}
+        futureSuppliesCount={scopedFutureSupplies.filter(supply => !isPendingFutureSupply(supply)).length}
+        futureSupplies={scopedFutureSupplies}
         activeFilterChips={activeFilterChips}
         keyword={searchInput}
         filterState={filterState}
@@ -779,7 +827,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         isFilterPanelOpen={isFilterPanelOpen}
         isSupplyOpen={isSupplyOpen}
         isListVisible={isListVisible}
-        canOpenList={Boolean(queryContext) || userHasInteracted || Boolean(keyword) || activeCompareGroups.length > 0}
+        canOpenList={mapReady}
         currentSubwayStations={currentSubwayStations}
         filterCommand={filterCommand}
         mapReady={mapReady}
@@ -789,7 +837,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         isExporting={isExporting}
         combinedBuildingList={combinedBuildingList}
         displayOverrides={displayOverrides}
-        targetBuildingId={targetBuildingId}
+        targetBuildingId={workspace.right?.kind === 'building' ? workspace.right.building.id : competitorBuildings ? targetBuildingId : buildingDetail?.building.id ?? null}
         brokerContext={buildingFocus ? {
           back: buildingFocus.back,
           unavailable: focusStatus?.key === focusKey && !focusStatus.found,
@@ -802,7 +850,13 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         onSupplyOpenChange={setIsSupplyOpen}
         onFilterChange={handleFilterChange}
         onCompareGroupsChange={handleCompareGroupsChange}
-        onKeywordChange={value => { cancelPendingBuildingNavigation(); setSearchInput(value); }}
+        onKeywordChange={value => {
+          cancelPendingBuildingNavigation(); setSearchInput(value);
+          if (!value.trim() && workspaceRef.current.right?.kind === 'search') {
+            if (workspaceRef.current.history.length) dispatchWorkspace({ type: 'back' });
+            else closeWorkspace();
+          }
+        }}
         onSearch={value => { if (workspaceViewRef.current === 'map') handleSearch(value); }}
         onSearchSubmit={value => { if (workspaceViewRef.current === 'map') handleSearchSubmit(value); }}
         onRemoveFilterChip={patch => issueFilterCommand('patch', patch)}
@@ -817,6 +871,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         }}
         onExportMapData={handleExportMapData}
         onBuildingClick={handleBuildingClick}
+        onSearchBuildingClick={building => { dispatchWorkspace({ type: 'open', view: { kind: 'search' } }); handleBuildingClick(building); }}
         onBuildingHover={handleBuildingHover}
         searchContextKey={JSON.stringify([workspaceRevision, currentUserId, userRole])}
         isFullListVisible={workspaceView === 'list'}
@@ -826,7 +881,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         fullListBusy={fullListBusy}
         fullListWarning={fullListWarning}
         competitorContext={competitorBuildings !== null}
-        onOpenFullList={() => changeWorkspaceView('list')}
+        onOpenFullList={() => { if (!researchExitGuard.current || researchExitGuard.current()) changeWorkspaceView('list'); }}
         onCloseFullList={() => changeWorkspaceView('map')}
         onFullListBuildingClick={handleFullListBuildingClick}
         onFullListSearch={value => { if (workspaceViewRef.current === 'list') handleSearch(value); }}
