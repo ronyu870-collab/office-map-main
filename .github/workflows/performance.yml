@@ -1,0 +1,217 @@
+name: Performance benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Controlled benchmark suite (not a daily merge requirement)
+        type: choice
+        default: all
+        options: [all, regression, cross_trend, p2_workspace]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ai-query-auth:
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'regression' }}
+    name: Real Auth trusted query HTTP integration
+    runs-on: ubuntu-24.04
+    # Real Auth regression, released-P1/current A/B and retained multi-metric measurements.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start dedicated disposable query Auth stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-query-auth-integration/supabase"
+          cp supabase/tests/ai-query-authority/auth-config.toml "$RUNNER_TEMP/ai-query-auth-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/ai-query-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-auth-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/ai-query-auth-integration" -o json > "$RUNNER_TEMP/ai-query-auth-status.json"
+          chmod 600 "$RUNNER_TEMP/ai-query-auth-status.json"
+      - name: Verify real login, HTTP audit, query and revocation
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ai-query-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=regression AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-auth-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
+      - name: Stop only the disposable query Auth stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/ai-query-auth-integration" --no-backup
+      - name: Retain credential-free query results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-real-auth
+          path: |
+            verification/ai-query-auth/results.json
+            verification/ai-query-auth/performance.json
+            verification/ai-query-auth/multi-metric-performance.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ai-query-cross-trend-auth:
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'cross_trend' }}
+    name: Real Auth cross-trend HTTP and browser integration
+    runs-on: ubuntu-24.04
+    # Separate runner: same guarded local ports, no contention with the original
+    # 640+80 benchmark. Both jobs execute the full Auth/HTTP regression matrix.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start dedicated disposable cross-trend Auth stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-query-cross-trend-integration/supabase"
+          cp supabase/tests/ai-query-authority/auth-config.toml "$RUNNER_TEMP/ai-query-cross-trend-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/ai-query-cross-trend-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-cross-trend-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/ai-query-cross-trend-integration" -o json > "$RUNNER_TEMP/ai-query-cross-trend-status.json"
+          chmod 600 "$RUNNER_TEMP/ai-query-cross-trend-status.json"
+      - name: Verify real cross-trend HTTP, sources and 80 browser samples
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ai-query-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=cross_trend AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-cross-trend-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs
+      - name: Stop only the disposable cross-trend Auth stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/ai-query-cross-trend-integration" --no-backup
+      - name: Retain credential-free cross-trend evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-cross-trend-auth
+          path: |
+            verification/ai-query-auth/results.json
+            verification/ai-query-auth/cross-trend-performance.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ai-query-p2-workspace-auth:
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'p2_workspace' }}
+    name: Real Auth P2 workspace HTTP and browser integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.95.4
+      - name: Start dedicated disposable P2 Auth stack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ai-query-p2-integration/supabase"
+          cp supabase/tests/ai-query-authority/auth-config.toml "$RUNNER_TEMP/ai-query-p2-integration/supabase/config.toml"
+          supabase start --workdir "$RUNNER_TEMP/ai-query-p2-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-p2-start.log" 2>&1
+          supabase status --workdir "$RUNNER_TEMP/ai-query-p2-integration" -o json > "$RUNNER_TEMP/ai-query-p2-status.json"
+          chmod 600 "$RUNNER_TEMP/ai-query-p2-status.json"
+      - name: Verify real P2 HTTP and forty browser interaction sets
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ai-query-browser" --no-save --ignore-scripts playwright-core@1.58.2
+          node "$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core/cli.js" install --with-deps chromium
+          PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-conversation-collector.mjs
+          PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-p2-workspace-calibration.mjs
+          node scripts/performance/verify-query-experience-p1-workspace.mjs --self-test
+          # The existing runner writes this restricted file ONLY after all real
+          # Auth/HTTP/P2 checks finish successfully, and holds its actual Next
+          # production process open. No duplicate server or fabricated session.
+          experience_preview="/tmp/colliers-query-preview-experience-p1-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          experience_runner_pid=''
+          signal_experience_runner() {
+            kill -TERM "$experience_runner_pid" 2>/dev/null || true
+            if ! timeout 45s tail --pid="$experience_runner_pid" -f /dev/null; then
+              echo 'The original P2 runner did not finish its cleanup within 45 seconds.' >&2
+              kill -KILL "$experience_runner_pid" 2>/dev/null || true
+            fi
+          }
+          cleanup_experience() {
+            if [ -n "$experience_runner_pid" ]; then
+              signal_experience_runner
+              wait "$experience_runner_pid" 2>/dev/null || true
+            fi
+            rm -f "$experience_preview"
+          }
+          trap cleanup_experience EXIT
+          AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_PERFORMANCE=1 AI_QUERY_PERFORMANCE_SUITE=p2_workspace AI_QUERY_AUTH_PREVIEW_FILE="$experience_preview" AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-p2-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/verification/verify-ai-query-auth.mjs &
+          experience_runner_pid=$!
+          experience_started=$SECONDS
+          until [ -s "$experience_preview" ]; do
+            if ! kill -0 "$experience_runner_pid" 2>/dev/null; then
+              if wait "$experience_runner_pid"; then
+                echo 'The original P2 runner exited before its verified hold-open point.' >&2
+                exit 1
+              else
+                exit $?
+              fi
+            fi
+            if [ "$((SECONDS - experience_started))" -ge 2100 ]; then
+              echo 'The original P2 runner did not reach its verified hold-open point in time.' >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          experience_status=0
+          if AI_QUERY_AUTH_ALLOW_LOCAL=disposable AI_QUERY_AUTH_PREVIEW_FILE="$experience_preview" AI_QUERY_AUTH_STATUS="$RUNNER_TEMP/ai-query-p2-status.json" PERF_PLAYWRIGHT_MODULE="$RUNNER_TEMP/ai-query-browser/node_modules/playwright-core" PERF_BROWSER_CHANNEL=chromium node scripts/performance/verify-query-experience-p1-workspace.mjs; then
+            :
+          else
+            experience_status=$?
+          fi
+          signal_experience_runner
+          experience_runner_status=0
+          if wait "$experience_runner_pid"; then
+            :
+          else
+            experience_runner_status=$?
+          fi
+          experience_runner_pid=''
+          if [ "$experience_runner_status" -ne 0 ]; then exit "$experience_runner_status"; fi
+          exit "$experience_status"
+      - name: Stop only the disposable P2 Auth stack
+        if: always()
+        run: supabase stop --workdir "$RUNNER_TEMP/ai-query-p2-integration" --no-backup
+      - name: Retain credential-free P2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-query-p2-workspace-auth
+          path: |
+            verification/ai-query-auth/results.json
+            verification/ai-query-auth/p2-workspace-performance.json
+            verification/ai-query-auth/experience-p1-workspace.json
+          if-no-files-found: ignore
+          retention-days: 7
+

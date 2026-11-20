@@ -14,7 +14,7 @@ This document defines the measurement contract for Data 2.0 and records the 2026
 | INP | < 200 ms |
 | CLS | As close to 0 as practical |
 
-These are the historical product targets. New or changed loading paths follow the [VERIFY-06 delivery gate](standards/05_工程验证与交付规范.md#verify-06) and the applicable [scenario budgets](../scripts/performance/budgets.json).
+These are the historical product targets. Use [VERIFY-06](standards/05_工程验证与交付规范.md#verify-06) for task-specific measurements. The existing [scenario budgets](../scripts/performance/budgets.json) remain diagnostic defaults, not universal merge conditions.
 
 ## Performance Hardening — 2026-08-25
 
