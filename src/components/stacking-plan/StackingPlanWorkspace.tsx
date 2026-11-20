@@ -144,6 +144,7 @@ function makeSvg(
 export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const { session, status } = useAppSession();
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const exportMenu = useRef<HTMLDetailsElement | null>(null);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [towerCode, setTowerCode] = useState('A');
   const [view, setView] = useState<'overview' | 'detail'>('overview');
@@ -190,6 +191,26 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedId, isEditing]);
 
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (exportMenu.current?.open &&
+          !exportMenu.current.contains(event.target as Node)) {
+        exportMenu.current.open = false;
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !exportMenu.current?.open) return;
+      exportMenu.current.open = false;
+      event.stopPropagation();
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
   const tower = payload?.towers.find(t => t.code === towerCode) ?? payload?.towers[0] ?? null;
   const floors = useMemo(() => (payload?.floors ?? []).filter(f => f.tower_id === tower?.id)
     .sort((a,b) => b.level_order - a.level_order), [payload, tower?.id]);
@@ -235,6 +256,13 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
     setTowerCode(code);
     setView('detail');
     selectUnit(space);
+  }
+
+  function refreshData() {
+    if (isEditing && !window.confirm('当前编辑尚未保存，确定刷新数据吗？')) return;
+    setSelectedId(null);
+    setIsEditing(false);
+    setRefreshKey(n => n + 1);
   }
 
   function selectTower(code: string) {
@@ -375,6 +403,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           }
         }
       }
+      if (exportMenu.current) exportMenu.current.open = false;
       setFeedback(format === 'xlsx' ? 'Excel 明细已生成。' :
         format === 'report-png' ? '双楼汇报版 PNG 已生成。' : '文件已生成。');
     } catch (e) {
@@ -441,7 +470,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
             <h1>{payload?.building.name ?? '楼宇租赁堆叠图'} <span>Stacking Plan</span></h1>
             <p className={styles.headingNote}>A / B 座 · 楼宇租赁分层展示</p>
           </div>
-          <button type="button" onClick={() => setRefreshKey(n => n + 1)}
+          <button type="button" onClick={refreshData}
             className={styles.lightButton}><RefreshCw size={15}/> 刷新数据</button>
         </div>
 
@@ -483,7 +512,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                   {FILTERS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}
                 </select>
                 <div className={styles.exportMenu}>
-                  <details>
+                  <details ref={exportMenu}>
                     <summary><Download size={16}/> 导出 <ChevronRight size={14}/></summary>
                     <div className={styles.exportOptions}>
                       <div className={styles.exportScope}>
