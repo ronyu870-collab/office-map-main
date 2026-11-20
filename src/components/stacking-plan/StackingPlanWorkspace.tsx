@@ -15,6 +15,7 @@ import {
   selectFloorRows, summarizePlan, uncoveredFloorLabels, unitLayout,
   type OccupancyStatus, type PlanFloor, type PlanSpace, type SpaceFilter,
 } from './stackingPlanModel';
+import { createStackingPresentationSvg } from './stackingPlanPresentation';
 import styles from './StackingPlanWorkspace.module.css';
 
 type Tower = { id: string; code: string; display_name: string };
@@ -147,9 +148,10 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [towerCode, setTowerCode] = useState('A');
+  const [view, setView] = useState<'overview' | 'detail'>('overview');
   const [filter, setFilter] = useState<SpaceFilter>('all');
   const [search, setSearch] = useState('');
-  const [scope, setScope] = useState<ExportScope>('visible');
+  const [scope, setScope] = useState<ExportScope>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +203,8 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const rows = useMemo(() => selectFloorRows(floors, unitList, filter, search),
     [floors, unitList, filter, search]);
   const summary = useMemo(() => summarizePlan(floors, unitList), [floors, unitList]);
+  const allSummary = useMemo(() => summarizePlan(payload?.floors ?? [], payload?.spaces ?? []), [payload]);
+  const currentSummary = view === 'overview' ? allSummary : summary;
   const missingFloorLabels = useMemo(() => uncoveredFloorLabels(floors), [floors]);
   const selected = unitList.find(s => s.id === selectedId) ?? null;
   const selectedFloor = floors.find(f => f.id === selected?.floor_id);
@@ -218,6 +222,21 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
       area_sqm: space.area_sqm === null ? '' : String(space.area_sqm), notes: space.notes ?? '',
     });
     setError(null);
+  }
+
+  function switchView(next: 'overview' | 'detail') {
+    if (view === next) return;
+    if (isEditing && !window.confirm('编辑内容尚未保存，确定切换视图吗？')) return;
+    setIsEditing(false);
+    setSelectedId(null);
+    setView(next);
+  }
+
+  function openOverviewUnit(space: Space, code: string) {
+    if (isEditing) return;
+    setTowerCode(code);
+    setView('detail');
+    selectUnit(space);
   }
 
   function selectTower(code: string) {
@@ -407,7 +426,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
           <div>
             <p className={styles.eyebrow}><Building2 size={14}/> 资产数据 / 楼宇租赁</p>
             <h1>{payload?.building.name ?? '楼宇租赁堆叠图'} <span>Stacking Plan</span></h1>
-            <p className={styles.headingNote}>楼层占用与租金阶段 · 基于来源快照，不代表实时出租及可租房源</p>
+            <p className={styles.headingNote}>A / B 座 · 楼宇租赁分层展示</p>
           </div>
           <button type="button" onClick={() => setRefreshKey(n => n + 1)}
             className={styles.lightButton}><RefreshCw size={15}/> 刷新数据</button>
@@ -478,17 +497,17 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
             </section>
 
             <section className={styles.statGrid} aria-label="来源办公空间摘要">
-              <div><small>已建模办公楼层</small><strong>{summary.officeFloors} <em>层</em></strong></div>
-              <div><small>办公楼层面积合计</small><strong>{fmt(summary.officeArea)} <em>㎡</em></strong></div>
-              <div><small>原图标注已租面积</small><strong>{fmt(summary.occupiedArea)} <em>㎡</em></strong></div>
-              <div><small>原图标注空置面积</small><strong>{fmt(summary.vacantArea)} <em>㎡</em></strong></div>
+              <div><small>已建模办公楼层</small><strong>{currentSummary.officeFloors} <em>层</em></strong></div>
+              <div><small>办公楼层面积合计</small><strong>{fmt(currentSummary.officeArea)} <em>㎡</em></strong></div>
+              <div><small>原图标注已租面积</small><strong>{fmt(currentSummary.occupiedArea)} <em>㎡</em></strong></div>
+              <div><small>原图标注空置面积</small><strong>{fmt(currentSummary.vacantArea)} <em>㎡</em></strong></div>
               <div className={styles.qualityCard}>
-                <small>逐项已核验</small><strong>{summary.verifiedUnits} <em>/ {summary.allUnits} 单元</em></strong>
-                <div className={styles.qualityTrack}><span style={{ width: (summary.allUnits ? summary.verifiedUnits / summary.allUnits * 100 : 0) + '%' }}/></div>
+                <small>逐项已核验</small><strong>{currentSummary.verifiedUnits} <em>/ {currentSummary.allUnits} 单元</em></strong>
+                <div className={styles.qualityTrack}><span style={{ width: (currentSummary.allUnits ? currentSummary.verifiedUnits / currentSummary.allUnits * 100 : 0) + '%' }}/></div>
               </div>
             </section>
 
-            {(missingFloorLabels.length > 0 || summary.areaConflicts > 0 || summary.missingAreaUnits > 0) && (
+            {view === 'detail' && (missingFloorLabels.length > 0 || summary.areaConflicts > 0 || summary.missingAreaUnits > 0) && (
               <div className={styles.qualityNotice}>
                 <Layers3 size={16}/>
                 <span>
@@ -500,7 +519,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
               </div>
             )}
 
-            <div className={styles.layout}>
+            <div className={[styles.layout, selected ? '' : styles.layoutSingle].join(' ')}>
               <section className={styles.plan} aria-label="楼宇租赁立面">
                 <div className={styles.sectionTitle}>
                   <div>
@@ -578,7 +597,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
 
               {selected && <button type="button" aria-label="关闭租赁详情" className={styles.drawerBackdrop}
                 onClick={() => { if (!isEditing || window.confirm('编辑内容尚未保存，确定关闭吗？')) { setSelectedId(null); setIsEditing(false); } }}/>}
-              <aside className={[styles.details, selected ? styles.drawerActive : ''].join(' ')}
+              <aside className={[styles.details, selected ? styles.drawerActive : styles.detailsHidden].join(' ')}
                 aria-label="租赁单元详情">
                 {selected ? <>
                   <div className={styles.detailHeader}>
