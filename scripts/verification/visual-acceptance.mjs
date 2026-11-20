@@ -36,6 +36,12 @@ export function checkVisualAcceptance(pr) {
   if (result === 'waived') {
     const authorizedWaivers = [
       {
+        number: 234,
+        branch: 'codex/stacking-plan-xiaoyun33-polish-20261120',
+        scope: 'Xiaoyun Road 33 A/B Stacking Plan visual polish, editable stacked Excel and high-resolution PNG/SVG exports, PR #234',
+        reason: 'User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #234 on 2026-11-20 while requesting PRs #232, #233 and #234 merge to main; these reviews were not performed and engineering CI, permission, audit and export checks remain mandatory',
+      },
+      {
         number: 231,
         branch: 'codex/submarket-client-brief-p0-p1-20261120',
         scope: 'Submarket client-ready brief P0/P1: compact four-tab map modal, approved research release gate and 16-area copy candidates, PR #231',

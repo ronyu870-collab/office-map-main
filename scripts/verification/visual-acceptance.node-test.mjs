@@ -605,3 +605,19 @@ test('accepts only the explicitly authorized PR #199 homepage AI P0 waiver', () 
   assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
   assert.match(checkVisualAcceptance({ ...approved, body: body.replace('Homepage Colliers AI P0 conversation and result presentation, PR #199', 'Unrelated scope') }), /specifically authorized/);
 });
+
+
+test('limits PR 234 manual acceptance waiver to its authorized branch and scope', () => {
+  const body = record('result: waived', 'head: ' + head,
+    'scope: Xiaoyun Road 33 A/B Stacking Plan visual polish, editable stacked Excel and high-resolution PNG/SVG exports, PR #234',
+    'reason: User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #234 on 2026-11-20 while requesting PRs #232, #233 and #234 merge to main; these reviews were not performed and engineering CI, permission, audit and export checks remain mandatory');
+  const approved = { number: 234, body, head: { sha: head, ref: 'codex/stacking-plan-xiaoyun33-polish-20261120', repo: { full_name: 'ronyu870-collab/office-map-main' } }, base: { ref: 'main' } };
+  assert.equal(checkVisualAcceptance(approved), null);
+  assert.match(checkVisualAcceptance({ ...approved, number: 235 }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, ref: 'unrelated' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, repo: { full_name: 'other/repository' } } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, head: { ...approved.head, sha: 'b'.repeat(40) } }), /current PR head/);
+  assert.match(checkVisualAcceptance({ ...approved, base: { ref: 'develop' } }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('scope: Xiaoyun Road 33 A/B Stacking Plan visual polish, editable stacked Excel and high-resolution PNG/SVG exports, PR #234', 'scope: Unrelated redesign') }), /specifically authorized/);
+  assert.match(checkVisualAcceptance({ ...approved, body: body.replace('reason: User explicitly granted a one-time waiver of independent visual and physical-device manual acceptance for PR #234 on 2026-11-20 while requesting PRs #232, #233 and #234 merge to main; these reviews were not performed and engineering CI, permission, audit and export checks remain mandatory', 'reason: Skip all CI') }), /specifically authorized/);
+});
