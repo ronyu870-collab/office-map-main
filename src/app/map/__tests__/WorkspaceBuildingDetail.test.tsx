@@ -101,3 +101,17 @@ it('shows missing text for empty and whitespace-only facts instead of blank rows
   expect(facts.length).toBeGreaterThan(0);
   expect(facts.every(cell => Boolean(cell.textContent?.trim()))).toBe(true);
 });
+
+it('lets the reader reveal the complete long project name and resets expansion for another project', () => {
+  const title = '中关村项目及楼座信息'.repeat(6);
+  const callbacks = actions();
+  const { rerender } = render(<WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building, name: title } }} {...callbacks} />);
+  const toggle = screen.getByRole('button', { name: title });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('heading', { name: title })).toBeVisible();
+  const next = title + '第二项目';
+  rerender(<WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building, name: next } }} {...callbacks} />);
+  expect(screen.getByRole('button', { name: next })).toHaveAttribute('aria-expanded', 'false');
+});

@@ -33,7 +33,6 @@ body:has(#map-container) .map-submarket-bubble {
   contain: layout paint style;
   transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(1);
   transform-origin: center;
-  will-change: transform, opacity, filter;
   transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease-out, filter 180ms ease-out, opacity 160ms ease-out;
 }
 
@@ -80,8 +79,8 @@ body:has(#map-container) .map-submarket-bubble__name {
   text-align: center;
   overflow-wrap: anywhere;
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 600;
   line-height: 1.18;
   letter-spacing: -0.01em;
   color: var(--sm-foreground, #ffffff);
@@ -97,8 +96,8 @@ body:has(#map-container) .map-submarket-bubble__metrics {
   overflow: visible;
   white-space: nowrap;
   font-family: Arial, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.1;
   color: var(--sm-foreground, #ffffff);
   font-variant-numeric: tabular-nums;
@@ -107,21 +106,21 @@ body:has(#map-container) .map-submarket-bubble__metrics {
 body:has(#map-container) .map-submarket-bubble__primary {
   flex: 0 0 auto;
   color: var(--sm-foreground, #ffffff);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 600;
 }
 body:has(#map-container) .map-submarket-bubble__secondary { flex: 0 0 auto; }
-body:has(#map-container) .map-submarket-bubble__sep { flex: 0 0 auto; color: rgba(255, 255, 255, 0.5); }
+body:has(#map-container) .map-submarket-bubble__sep { flex: 0 0 auto; color: inherit; }
 body:has(#map-container) .map-submarket-bubble__count {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 400;
   line-height: 1.2;
   white-space: nowrap;
   color: var(--sm-foreground, #ffffff);
   font-variant-numeric: tabular-nums;
 }
 body:has(#map-container) .map-submarket-bubble__context {
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1;
   color: var(--sm-foreground, #ffffff);
 }
@@ -209,9 +208,7 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map
 @media (max-width: 640px) {
   body:has(#map-container) .map-submarket-bubble { --sm-render-size: 100px; padding: 8px 5px; gap: 3px; }
   body:has(#map-container) .map-submarket-bubble__name { width: calc(var(--sm-render-size) - 18px); max-height: 29px; font-size: 12px; }
-  body:has(#map-container) .map-submarket-bubble__metrics { max-width: calc(var(--sm-render-size) - 12px); font-size: 10px; gap: 2px; }
-  body:has(#map-container) .map-submarket-bubble__count { font-size: 10px; }
-  body:has(#map-container) .map-submarket-bubble__primary { font-size: 10px; }
+  body:has(#map-container) .map-submarket-bubble__metrics { max-width: calc(var(--sm-render-size) - 12px); gap: 2px; }
   body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map-action] { min-height: 34px; font-size: 11px !important; }
 }
 

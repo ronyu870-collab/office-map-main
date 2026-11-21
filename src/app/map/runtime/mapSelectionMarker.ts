@@ -8,7 +8,7 @@ export function markerBadgeImage(visual: Visual, future = false, dashed = false)
   const circles = future
     ? `<circle cx="17" cy="17" r="12" fill="${visual.background}" stroke="${visual.border}" stroke-width="2"${dashed ? ' stroke-dasharray="3 2"' : ''}/>`
     : `<circle cx="17" cy="17" r="16" fill="#ffffff" fill-opacity=".97"/><circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">${circles}<text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="800" fill="${markerTextColor(visual.background, visual.textColor)}">${text}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">${circles}<text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="600" fill="${markerTextColor(visual.background, visual.textColor)}">${text}</text></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
