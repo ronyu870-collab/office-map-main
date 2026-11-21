@@ -158,6 +158,12 @@ async function startApp(directory) {
     '@/src/services/impersonationHeaders': 'src/services/impersonationHeaders.ts',
     gallery: 'src/services/map/buildingPhotoGallery.ts',
   };
+  // Old baselines predate reading observations; include the real new modules when present.
+  for (const file of ['src/utils/readingAuditContext.ts', 'src/utils/businessReadingAudit.ts', 'src/lib/sales-materials/building-media-pilot.ts']) {
+    try { await fs.access(path.join(directory, file)); }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    files['@/' + file.replace(/\.ts$/, '')] = file;
+  }
   const modules = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([key, file]) => [
     key, ts.transpileModule(await fs.readFile(path.join(directory, file), 'utf8'), {
       compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
@@ -166,10 +172,13 @@ async function startApp(directory) {
   const script = `
     const sources = ${JSON.stringify(modules)}, cache = {};
     function require(name) {
+      if (name === './readingAuditContext') name = '@/src/utils/readingAuditContext';
+      if (name === './audit') return {logAction: () => {}}; // Queue cost is measured by verify-audit-browser-budget.
       if (name === '@/src/services/Auth') return {getSessionFast: async () => ({session:{access_token:'synthetic-photo-viewer'}})};
       if (!cache[name]) {
+        if (!sources[name]) throw new Error('Unexpected photo benchmark import: ' + name);
         const mod = {exports:{}}; cache[name] = mod;
-        new Function('require','module','exports',sources[name])(require,mod,mod.exports);
+        new Function('require','module','exports','process',sources[name])(require,mod,mod.exports,{env:{NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT:'1'}});
       }
       return cache[name].exports;
     }

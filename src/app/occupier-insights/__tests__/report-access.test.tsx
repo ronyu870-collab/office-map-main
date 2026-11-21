@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OccupierInsightsReport } from '../OccupierInsightsReport';
 import { surveyPlots, sourceNotes } from '../reportContent';
 
+const readingAudit=vi.hoisted(()=>vi.fn());
+vi.mock('@/src/utils/audit',()=>({logAction:readingAudit}));
 const app = vi.hoisted(() => ({
   status: 'authenticated' as 'authenticated' | 'unauthenticated' | 'loading',
   session: { user: { id: 'test-viewer' } } as { user: { id: string } } | null,
@@ -13,6 +15,7 @@ vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ({ sta
 
 describe('occupier insights extended public research', () => {
   beforeEach(() => {
+    readingAudit.mockClear();
     app.status = 'authenticated';
     app.session = { user: { id: 'test-viewer' } };
     app.replace.mockReset();
@@ -72,4 +75,13 @@ describe('occupier insights extended public research', () => {
     }
     expect(new Set(Array.from(container.querySelectorAll('[data-plot]')).map(el=>el.getAttribute('data-plot'))).size).toBe(5);
   });
+});
+
+it('records authenticated chapter selection but not public anonymous reading',()=>{
+ const view=render(<OccupierInsightsReport/>);
+ expect(readingAudit).toHaveBeenCalledWith(undefined,'VIEW_RESEARCH_REPORT',expect.objectContaining({edition:'2026-11'}));
+ fireEvent.click(screen.getByRole('link',{name:'决策与行动'}));
+ expect(readingAudit).toHaveBeenLastCalledWith(undefined,'VIEW_RESEARCH_SECTION',expect.objectContaining({section:'options'}));
+ readingAudit.mockClear();app.status='unauthenticated';app.session=null;view.rerender(<OccupierInsightsReport/>);
+ fireEvent.click(screen.getByRole('link',{name:'决策与行动'}));expect(readingAudit).not.toHaveBeenCalled();
 });

@@ -1,0 +1,38 @@
+{
+  "baseline": "8969beae4904a7efd0bd13fd90ef7259c0c81295",
+  "baseline_failed": 14,
+  "baseline_defects": [
+    "records the displayed edition and trusted chapter messages, ignoring foreign frames",
+    "records the completed comparison selection after data is ready without search keystrokes",
+    "reports only rendered pages, ignores zoom redraws and distinguishes a load failure",
+    "observes displayed research sections and suppresses hidden retained views",
+    "observes actual image display and failure, and never embeds an eager download href",
+    "observes the initial and selected Excel sheet without observing zoom or renders",
+    "records authenticated chapter selection but not public anonymous reading",
+    "finds all canonical downloads, photos and content observations in files and correlates their stages",
+    "records completed queries and selected detail, never count-only refreshes or unfinished typing",
+    "requires a durable, completed download receipt before returning a new short-lived link",
+    "withholds the download on audit_operation_receipts outage",
+    "withholds the download on audit_complete_operation outage",
+    "withholds the original link when reliable audit completion fails",
+    "Stacking Plan identity and read/write boundary returns original bytes only after a reliable receipt and withholds them on audit outage"
+  ],
+  "method": "Temporarily execute the same behavioral regressions against unchanged main implementation; restore all working files in finally. The mandatory CI reruns the fixed implementation.",
+  "fixed_passed": 156,
+  "fixed_failed": 0,
+  "cross_entry_regression": {
+    "baseline": "b48ead066d4d367fc161b45714a25097d0e9d971",
+    "baseline_failed": 1,
+    "fixed_policy_tests_passed": 6,
+    "fixed_browser_viewports": [
+      1536,
+      1280,
+      1024,
+      768,
+      390,
+      320
+    ],
+    "case": "same building opened by list then map marker keeps one observation inside 10 seconds; different building and expiry still record",
+    "affected_browser_scripts_passed": 13
+  }
+}

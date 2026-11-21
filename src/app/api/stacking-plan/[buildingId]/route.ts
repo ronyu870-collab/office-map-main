@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { createHash } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { IMPERSONATION_REQUEST_HEADER, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
@@ -56,15 +57,6 @@ async function writeAuditStackingSpace(client: SupabaseClient, input: {
   });
 }
 
-/** Export is an explicit audited action; no export is authorized before this insert. */
-async function writeAuditStackingExport(client: SupabaseClient, input: {
-  buildingId: string; actorId: string; format: string;
-}) {
-  return client.from('stacking_plan_export_events').insert({
-    building_id: input.buildingId, actor_id: input.actorId, export_format: input.format,
-  });
-}
-
 async function findBuilding(client: SupabaseClient, id: string) {
   return client.from('buildings').select('id,name').eq('id', id).maybeSingle();
 }
@@ -83,13 +75,22 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!id) return reply({ error: '无效的楼宇 ID' }, 400);
     const auth = await authorize(request);
     if ('response' in auth) return auth.response;
-    const { client, guard } = auth;
+    const { client, guard, actorId } = auth;
     // Original bytes are never exposed by a public or signed Storage URL.
     const originalSourceId = new URL(request.url).searchParams.get('original');
+    if(new URL(request.url).searchParams.get('export_history')==='1'){
+      const cursor=new URL(request.url).searchParams.get('before');
+      if(cursor && !/^\d{1,20}$/.test(cursor))return reply({error:'分页标识无效'},400);
+      let query=client.from('stacking_plan_export_events').select('id,building_id,actor_id,export_format,recorded_at').eq('building_id',id).order('id',{ascending:false}).limit(51);
+      if(cursor)query=query.lt('id',cursor);
+      const {data,error}=await query.abortSignal(AbortSignal.any([request.signal,AbortSignal.timeout(10000)]));if(error)return databaseUnavailable(error);
+      await guard();
+      return reply({records:(data ?? []).slice(0,50),has_next:(data ?? []).length>50});
+    }
     if (originalSourceId !== null) {
       if (!/^[a-zA-Z0-9_-]{2,100}$/.test(originalSourceId)) return reply({ error: '原件来源标识无效' }, 400);
       const { data: source, error: sourceError } = await client.from('stacking_plan_sources')
-        .select('id,evidence_storage_path,evidence_filename,evidence_mime')
+        .select('id,evidence_storage_path,evidence_filename,evidence_mime,evidence_sha256,evidence_uploaded_at')
         .eq('building_id', id).eq('id', originalSourceId).maybeSingle();
       if (sourceError) return databaseUnavailable(sourceError);
       if (!source?.evidence_storage_path) return reply({ error: '尚未归档原始文件' }, 404);
@@ -99,11 +100,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       if (fileError || !file) return databaseUnavailable(fileError ?? new Error('Missing original'));
       await guard();
       const extension = ORIGINAL_MIMES[source.evidence_mime as string] ?? 'bin';
-      return new NextResponse(await file.arrayBuffer(), { headers: {
+      return withCriticalAudit(client,{user_id:actorId,action_type:'STACKING_PLAN_ORIGINAL_DOWNLOAD',module:'stacking-plan',target_table:'stacking_plan_sources',target_id:source.id,details:{entry:'stacking_plan',building_id:id,source_id:source.id,source_sha256:source.evidence_sha256,version_recorded_at:source.evidence_uploaded_at,phase:'download_requested'}},'stacking-plan/original',async record=>{ await guard();record({phase:'download_response_prepared',byte_count:file.size}); return new NextResponse(await file.arrayBuffer(), { headers: {
         ...HEADERS, 'Content-Type': 'application/octet-stream',
         'Content-Disposition': 'attachment; filename="stacking-original.' + extension + '"',
         'X-Content-Type-Options': 'nosniff',
-      } });
+      } }); },true);
     }
     const { data: building, error: buildingError } = await findBuilding(client, id);
     if (buildingError) return databaseUnavailable(buildingError);
@@ -304,12 +305,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const { data: building, error: buildingError } = await findBuilding(client, id);
     if (buildingError || !building) return reply({ error: '楼宇不存在或不可读取' }, 404);
     await guard();
-    const { error } = await writeAuditStackingExport(client, {
-      buildingId: id, actorId, format: String(body.format),
-    });
-    if (error) return databaseUnavailable(error);
-    await guard();
-    return reply({ ok: true });
+    return withCriticalAudit(client,{user_id:actorId,action_type:'STACKING_PLAN_EXPORT',module:'stacking-plan',target_table:'buildings',target_id:id,
+      details:{entry:'stacking_plan',building_id:id,format:String(body.format),phase:'export_requested'}},'stacking-plan/export',async record=>{await guard();record({phase:'export_authorized',target_name:building.name});return reply({ok:true});},true);
   } catch (error) {
     return databaseUnavailable(error);
   }

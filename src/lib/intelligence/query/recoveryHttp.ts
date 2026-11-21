@@ -82,7 +82,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       const { GET: loadPhoto } = await import('@/src/app/api/map/building-photos/route');
       const photoUrl = new URL('/api/map/building-photos', request.url);
       photoUrl.searchParams.set('building_id', input.buildingId); photoUrl.searchParams.set('photo_id', input.photoId); photoUrl.searchParams.set('preview', '1');
-      const headers = new Headers(request.headers); headers.delete('content-type'); headers.delete('accept');
+      const headers = new Headers(request.headers); headers.delete('content-type'); headers.delete('accept');headers.set('x-reading-entry','ai_query');headers.set('x-reading-id',attemptId);headers.set('x-reading-origin-id',input.requestId);
       const photoResponse = await loadPhoto(new Request(photoUrl, { headers, signal }));
       if (!photoResponse.ok) throw new Error('QUERY_READ_UNAVAILABLE');
       buildingContext.photoAccess = await photoResponse.json();

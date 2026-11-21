@@ -30,6 +30,7 @@ it('unifies marker, list/search/return and future detail opens without merging d
   expect(observed.events.map(event => [event.action, event.details.building_id, event.details.target_table])).toEqual([
     ['VIEW_BUILDING', 'stock-a', 'buildings'], ['VIEW_BUILDING', 'future-a', 'future_supplies'], ['VIEW_BUILDING', 'stock-b', 'buildings'],
   ]);
+  expect(observed.events[0].details).toMatchObject({entry:'map_marker',correlation_id:expect.stringMatching(/^[0-9a-f-]{36}$/i)});
   expect(value.workspaceDetailHandler).toHaveBeenCalledTimes(5);
 });
 
@@ -49,9 +50,9 @@ it('records rendered contacts through both presenters, without copying phone or 
   value.runWorkspaceBuildingAction('contact', building);
   expect(document.getElementById('__colliers_contact_modal_overlay')).toBeTruthy();
   (window as any).__colliers_showContactModal(building.name, building.contact_phone, building.id);
-  expect(observed.events).toEqual([{ action: 'VIEW_BUILDING_CONTACT', details: {
+  expect(observed.events).toEqual([{ action: 'VIEW_BUILDING_CONTACT', details: expect.objectContaining({
     module: 'map', target_table: 'buildings', building_id: 'stock-a', building_name: '甲楼', data_type: 'existing',
-  } }]);
+  }) }]);
   expect(JSON.stringify(observed.events)).not.toContain(building.contact_phone);
 });
 

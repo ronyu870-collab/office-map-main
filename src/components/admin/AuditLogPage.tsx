@@ -1,4 +1,6 @@
 'use client';
+import {StackingExportHistory} from './StackingExportHistory';
+import { AUDIT_EVENT_REGISTRY } from '@/src/utils/auditRegistry';
 import { AuditQuarterlyEvidence } from './AuditQuarterlyEvidence';
 
 import * as React from 'react';
@@ -38,7 +40,7 @@ const EXCLUSION_BUTTON = 'rounded-md border px-2.5 py-1.5 text-[13px] transition
 function exclusionClass(active: boolean) {
   return `${EXCLUSION_BUTTON} ${active ? 'border-[#24478f] bg-blue-50 text-[#24478f]' : 'border-zinc-200 text-zinc-600'}`;
 }
-const MODULE_NAMES: Record<string, string> = { map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'修改密码' };
+const MODULE_NAMES: Record<string, string> = { 'stacking-plan':'Stacking Plan','quarterly-research':'季度研究','occupier-insights':'企业选址洞察',map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'修改密码' };
 
 const AUTH_ACTIONS = ['LOGIN','LOGIN_FAILED','LOGOUT'];
 const HIGH_RISK_SET = new Set(HIGH_RISK_ACTIONS);
@@ -48,7 +50,7 @@ const BUSINESS_EXCLUDED_ACTIONS = Array.from(new Set([
   ...TRAIL_ACTIONS,
   ...AUTH_ACTIONS,
 ]));
-const ACTION_TYPES = [
+const ACTION_TYPES = [...new Set([...Object.keys(AUDIT_EVENT_REGISTRY).filter(action=>AUDIT_EVENT_REGISTRY[action].tier!=='C'),
   'ACCESS_DENIED','CHANGE_PASSWORD','CONFIG_CHANGE','SALES_MATERIAL_IMPORT','SALES_MATERIAL_ACCESS',
   'SUBMIT_QUARTERLY_DATA','SUBMIT_LEASE_TRANSACTION','TRANSFER_SUBMISSION',
   'POST_MESSAGE','UPDATE_NOTICE','DELETE_NOTICE',
@@ -63,15 +65,16 @@ const ACTION_TYPES = [
   'CHANGELOG_CREATE','CHANGELOG_UPDATE','CHANGELOG_DELETE',
   'NOTIFICATION_RULE_CREATE','NOTIFICATION_RULE_UPDATE','NOTIFICATION_SEND',
   'PAGE_VIEW','ENTER_MODULE','SEARCH','MAP_FILTER','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_BUILDING','VIEW_BUILDING_CONTACT','VIEW_BUILDING_TREND','VIEW_BUILDING_SECTION','VIEW_BUILDING_MATERIALS','VIEW_MATERIAL_ORIGINAL','VIEW_BI_CHART','OPEN_LEASE_FORM',
-];
+])];
 
 const DETAIL_LABELS: Record<string,string> = {
+  origin_request_id:'来源 AI 请求',entry:'业务入口', correlation_id:'浏览关联编号', phase:'证据阶段', observation:'查看结果', sheet:'工作表',page:'PDF 页码',read_id:'成交读取 ID',record_source:'成交来源',control:'报告视图',source_id:'来源凭据 ID',access_mode:'访问方式',source_kind:'资料来源类型',filters:'已完成查询条件',scope:'授权读取范围',effective_user_id:'有效身份 ID',is_impersonating:'身份模拟', edition:'报告版本', section:'章节', source_sha256:'原件校验值', version_recorded_at:'版本记录时间', byte_count:'响应字节数',
   file_name:'文件', filename:'文件', display_name:'资料名', file_type:'文件类型', folder:'目录',
   record_count:'记录数', count:'数量', table:'数据表', table_label:'业务对象', export_type:'导出类型',
   export_mode:'视图', view_mode:'视图', year:'年份', quarter:'季度', session_index:'提交批次',
   subject_user_name:'数据所属人', subject_user_id:'数据所属人 ID', company:'企业', building:'楼宇',
   config_area:'配置区域', config_name:'配置项',
-  metric:'趋势指标', section:'楼宇分区', material_id:'资料 ID', material_ids:'资料 ID', version_recorded_at:'资料版本入库时间', observation:'观察阶段',
+  metric:'趋势指标', material_id:'资料 ID', material_ids:'资料 ID',
   building_name:'楼宇', module:'模块', reason:'原因', category:'分类', next_status:'状态', status:'状态',
   model:'模型', candidate_count:'候选数', operation:'操作', access_method:'访问方式', source:'入口',
   report_name:'报告', report_type:'报告类型', export_method:'导出方式', outcome:'结果', authority:'审计来源',
@@ -296,6 +299,7 @@ export function AuditLogPage() {
       </div><p className="mt-2 text-zinc-500">时间线只包含已记录的关联事件；历史缺失不表示未发生。导出仅含业务审计摘要，AI 受限内容需独立授权。</p></details>}
       {logTab!=='auth'&&logTab!=='health'&&<div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 py-3"><select value={filterUser} onChange={e=>setFilterUser(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部人员</option>{userOptions.map(o=><option key={o.id} value={o.id}>{o.name}{['admin','super_admin'].includes(String(o.role||'').toLowerCase())?'（管理员）':''}</option>)}</select><button type="button" onClick={()=>setExcludeAdmins(v=>!v)} disabled={filterUser!=='ALL'} aria-pressed={Boolean(excludedAuditIds)} title={filterUser!=='ALL'?'已指定人员时无需排除管理员':'从当前审计视图中排除所有管理员账号'} className={exclusionClass(Boolean(excludedAuditIds))}>排除管理员</button><button type="button" onClick={()=>setExcludeCodex(v=>!v)} disabled={filterUser!=='ALL'} aria-pressed={codexExcluded} title={filterUser!=='ALL'?'已指定人员时无需排除 Codex':'从当前审计视图中排除由 Codex 工具署名的日志'} className={exclusionClass(codexExcluded)}>排除 Codex</button><select value={filterAction} onChange={e=>setFilterAction(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部操作</option>{actionOptions.map(action=><option key={action} value={action}>{getLogBadgeStyle(action).label}</option>)}</select><select value={filterModule} onChange={e=>setFilterModule(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部模块</option>{Object.entries(MODULE_NAMES).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><input {...textInput('object')} placeholder="搜索对象 / 文件名" className="w-40 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><select value={deviceType} onChange={e=>setDeviceType(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部设备</option><option value="desktop">Desktop</option><option value="mobile">Mobile</option><option value="tablet">Tablet</option><option value="unknown">Unknown</option></select><input {...textInput('ip')} placeholder="搜索 IP" className="w-32 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><input {...textInput('device')} placeholder="Device ID" className="w-36 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><input {...textInput('session')} placeholder="完整 Session UUID" className="w-44 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><div className="flex rounded-md border border-zinc-200 p-0.5">{[{key:'today',label:'今日'},{key:'week',label:'近 7 天'},{key:'month',label:'本月'},{key:'all',label:'全部'}].map(r=><button key={r.key} type="button" onClick={()=>setTimeRange(r.key)} className={`rounded px-2 py-1 text-[13px] ${timeRange===r.key?'bg-zinc-100 font-medium':'text-zinc-500'}`}>{r.label}</button>)}</div><button type="button" onClick={()=>setHighRiskOnly(v=>!v)} className={`rounded-md border px-2.5 py-1.5 text-[13px] ${highRiskOnly?'border-amber-300 bg-amber-50 text-amber-800':'border-zinc-200 text-zinc-600'}`}>仅高风险</button>{hasFilters&&<button type="button" onClick={resetFilters} className="text-[13px] text-zinc-500">清除筛选</button>}<span className="ml-auto text-[13px] text-zinc-500">{textPending ? <span role="status">正在更新筛选…</span> : `${totalCount}${hasNext?'+':''} 条`}</span></div>}
     </header>
+    {logTab==='files'&&<StackingExportHistory/>}
     {exportStatus&&<p role="status" className="px-5 py-2 text-[13px]">{exportStatus}</p>}
     {textFilters.targetTable==='buildings'&&/^[0-9a-f-]{36}$/i.test(textFilters.targetId)&&logTab!=='auth'&&logTab!=='health'&&<AuditQuarterlyEvidence key={textFilters.targetId} buildingId={textFilters.targetId}/>}
     {directoryError && <p role="alert" className="px-5 py-3 text-[13px] text-amber-800">用户目录暂时无法加载，历史身份快照仍保留；请刷新后重试。</p>}

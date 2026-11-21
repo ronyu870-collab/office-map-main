@@ -1,4 +1,5 @@
 'use client';
+import {createReadingContext,readingHeaders} from '@/src/utils/readingAuditContext';
 
 import * as React from 'react';
 import {
@@ -343,7 +344,7 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
         const headers = await authHeaders();
         const response = await fetch('/api/oss?action=access', {
           method: 'POST',
-          headers: { ...headers, 'Content-Type': 'application/json' },
+          headers: { ...headers, ...readingHeaders(createReadingContext('library')), 'Content-Type': 'application/json' },
           body: JSON.stringify({
             file_name: item.name,
             display_name: itemDisplayName(item),

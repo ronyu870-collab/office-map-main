@@ -1,6 +1,7 @@
 'use client';
+import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Check, ChevronDown, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 
@@ -241,6 +242,13 @@ function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
     return detail ? { ...row, brochure: detail.brochure, metrics: detail.metrics, metricPeriod: detail.metricPeriod } : row;
   }), [orderedRows, selected, detailById]);
   const missingDetails = selectedRows.some(row => !detailById.has(row.id));
+  const lastReading=useRef('');
+  useEffect(()=>{
+    if(loading || detail.loading || missingDetails || error || authorizationError || !selectionIds)return;
+    const key=JSON.stringify([identity,selectionIds,targetId]);if(lastReading.current===key)return;
+    const timer=window.setTimeout(()=>{lastReading.current=key;observeBusinessReading('VIEW_BUILDING_COMPARISON','compare',{target_table:'buildings',target_id:targetId ?? undefined,building_ids:selectionIds.split(',').slice(0,30),building_count:selectionIds.split(',').length,observation:'comparison_displayed'},'compare');},300);
+    return()=>window.clearTimeout(timer);
+  },[selectionIds,targetId,loading,detail.loading,missingDetails,error,authorizationError,identity]);
   const targetSelected = Boolean(targetId && selected.has(targetId));
   const competitorCount = selectedRows.length - (targetSelected ? 1 : 0);
 

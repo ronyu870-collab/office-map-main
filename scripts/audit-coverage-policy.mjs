@@ -1,9 +1,10 @@
-const SERVER_AUDIT_CALL = /\b(?:withCriticalAudit|writeAuditBestEffort|writeAuditStackingSpace|writeAuditStackingExport)\s*\(/gi;
+const SERVER_AUDIT_CALL = /\b(?:withCriticalAudit|writeAuditBestEffort|writeAuditStackingSpace)\s*\(/gi;
 export const RELIABLE_ROUTES = new Map([
+  ...['map/building-photos','map/sales-materials'].map(route=>[`src/app/api/${route}/route.ts`,['withCriticalAudit(']]),
   ...['admin/create-user','admin/reset-password','admin/transfer-submission','admin/users','auth/complete-password-change','oss','map/submarket','admin/audit/export','lease-submission/export','audit-events/critical'].map(route=>[`src/app/api/${route}/route.ts`,['withCriticalAudit(']]),
   ['src/app/api/admin/impersonate/route.ts',[".from('audit_logs')","if (insertError)"]],
   ['src/app/api/communication/route.ts',[".rpc('post_market_message'"]],
-  ['src/app/api/stacking-plan/[buildingId]/route.ts',[".rpc('stacking_plan_space_save'",".rpc('stacking_plan_source_attach'",".from('stacking_plan_export_events')"]],
+  ['src/app/api/stacking-plan/[buildingId]/route.ts',[".rpc('stacking_plan_space_save'",".rpc('stacking_plan_source_attach'",'withCriticalAudit(',"action_type:'STACKING_PLAN_EXPORT'","action_type:'STACKING_PLAN_ORIGINAL_DOWNLOAD'"]],
 ]);
 export function unawaitedServerAuditCalls(text) {
   const violations = [];

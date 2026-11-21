@@ -33,3 +33,23 @@ describe('audit policy', () => {
     expect(isNoisyAuditAction('DB_UPDATE')).toBe(false);
   });
 });
+
+it('ignores browsing correlation IDs while retaining actual content and entry changes',()=>{
+ const gate=new AuditPolicyGate();
+ expect(gate.shouldRecord('VIEW_MATERIAL_CONTENT',{target_id:'doc',page:1,correlation_id:'a'},0)).toBe(true);
+ expect(gate.shouldRecord('VIEW_MATERIAL_CONTENT',{target_id:'doc',page:1,correlation_id:'b'},1)).toBe(false);
+ expect(gate.shouldRecord('VIEW_MATERIAL_CONTENT',{target_id:'doc',page:2,correlation_id:'b'},2)).toBe(true);
+ expect(gate.shouldRecord('VIEW_MATERIAL_CONTENT',{target_id:'doc',page:2,entry:'search'},3)).toBe(true);
+ for(let i=0;i<200;i++)gate.shouldRecord('VIEW_MATERIAL_CONTENT',{target_id:'doc',page:i},4+i);
+ expect(gate.shouldRecord('VIEW_MATERIAL_CONTENT',{target_id:'other'},1000)).toBe(false);
+ expect(gate.shouldRecord('BUILDING_PHOTO_DOWNLOAD',{target_id:'photo'},1001)).toBe(true);
+});
+
+it('keeps repeated building openings deduplicated across navigation entries',()=>{
+ const gate=new AuditPolicyGate();
+ const building={building_id:'building-a',data_type:'existing'};
+ expect(gate.shouldRecord('VIEW_BUILDING',{...building,entry:'map_list',correlation_id:'first'},0)).toBe(true);
+ expect(gate.shouldRecord('VIEW_BUILDING',{...building,entry:'map_marker',correlation_id:'second'},500)).toBe(false);
+ expect(gate.shouldRecord('VIEW_BUILDING',{...building,building_id:'building-b',entry:'map_marker'},501)).toBe(true);
+ expect(gate.shouldRecord('VIEW_BUILDING',{...building,entry:'map_marker'},10_000)).toBe(true);
+});

@@ -1,10 +1,11 @@
+import { READING_FILE_ACTIONS, READING_TRAIL_ACTIONS } from '@/src/utils/auditRegistry';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 type AuditQuery=ReturnType<ReturnType<SupabaseClient['from']>['select']>;
 import { AUDIT_EVENT_REGISTRY } from '@/src/utils/auditRegistry';
-export const TRAIL_ACTIONS=['PAGE_VIEW','ENTER_MODULE','MAP_FILTER','SEARCH','VIEW_BUILDING','VIEW_BUILDING_CONTACT','VIEW_BUILDING_TREND','VIEW_BUILDING_SECTION','VIEW_BUILDING_MATERIALS','VIEW_MATERIAL_ORIGINAL','VIEW_BI_CHART','OPEN_LEASE_FORM','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_USER_SUBMISSION','CLIENT_MUTATION_OBSERVED'];
+export const TRAIL_ACTIONS=[...READING_TRAIL_ACTIONS,'PAGE_VIEW','ENTER_MODULE','MAP_FILTER','SEARCH','VIEW_BUILDING','VIEW_BUILDING_CONTACT','VIEW_BUILDING_TREND','VIEW_BUILDING_SECTION','VIEW_BUILDING_MATERIALS','VIEW_MATERIAL_ORIGINAL','VIEW_BI_CHART','OPEN_LEASE_FORM','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_USER_SUBMISSION','CLIENT_MUTATION_OBSERVED'];
 export const DATABASE_ACTIONS=['ADMIN_FIELD_CHANGE','QUARTERLY_RECORD_INSERT','QUARTERLY_RECORD_UPDATE','QUARTERLY_RECORD_DELETE','DB_INSERT','DB_UPDATE','DB_DELETE','LEASE_TRANSACTION_UPDATE','LEASE_TRANSACTION_INSERT','LEASE_TRANSACTION_DELETE','METRICS_INSERT','METRICS_UPDATE','METRICS_DELETE','LEASE_EXPIRY_REVIEW_SAVE','BUILDING_INSERT','BUILDING_UPDATE','BUILDING_DELETE'];
-export const FILE_ACTIONS=['VIEW_BUILDING_MATERIALS','VIEW_MATERIAL_ORIGINAL','OSS_FILE_ACCESS','OSS_FILE_DOWNLOAD','OSS_UPLOAD','OSS_DELETE','OSS_BATCH_DELETE','OSS_CREATE_FOLDER','OSS_MOVE','EXPORT_DATA','EXPORT_LEASE_TRANSACTIONS','EXPORT_BACKUP','EXPORT_MAP_DATA','EXPORT_REPORT','EXPORT_TABLE','EXPORT_CHART','UPLOAD_FILE','DELETE_FILE','IMPORT_DATA','SALES_MATERIAL_IMPORT','SALES_MATERIAL_ACCESS','SALES_MATERIAL_DOWNLOAD','EXPORT_BUILDING_COMPARISON','AUDIT_EXPORT'];
+export const FILE_ACTIONS=[...new Set([...READING_FILE_ACTIONS,'VIEW_BUILDING_MATERIALS','VIEW_MATERIAL_ORIGINAL','OSS_FILE_ACCESS','OSS_FILE_DOWNLOAD','OSS_UPLOAD','OSS_DELETE','OSS_BATCH_DELETE','OSS_CREATE_FOLDER','OSS_MOVE','EXPORT_DATA','EXPORT_LEASE_TRANSACTIONS','EXPORT_BACKUP','EXPORT_MAP_DATA','EXPORT_REPORT','EXPORT_TABLE','EXPORT_CHART','UPLOAD_FILE','DELETE_FILE','IMPORT_DATA','SALES_MATERIAL_IMPORT','SALES_MATERIAL_ACCESS','SALES_MATERIAL_DOWNLOAD','EXPORT_BUILDING_COMPARISON','AUDIT_EXPORT'])];
 export const PEOPLE_ACTIONS=['CREATE_USER','DELETE_USER','UPDATE_USER','USER_PERMISSION_CHANGE','CHANGE_PASSWORD','IMPERSONATE_START','IMPERSONATE_END','impersonate_start','impersonate_end','AUDIT_ACCESS_CHANGE'];
 export const HIGH_RISK_ACTIONS=[...PEOPLE_ACTIONS,'DELETE_PROJECT','DB_DELETE','BUILDING_DELETE','LEASE_TRANSACTION_DELETE','OSS_DELETE','OSS_BATCH_DELETE','ACCESS_DENIED','EXPORT_BACKUP','AUDIT_EXPORT','EXPORT_LEASE_TRANSACTIONS'];
 export const HIGH_RISK_FILTER=`action_type.in.(${HIGH_RISK_ACTIONS.join(',')}),error_message.not.is.null,actor_kind.eq.unknown`;
@@ -38,7 +39,7 @@ export function applyAuditFilters(query:AuditQuery,f:AuditFilters):AuditQuery {
  for(const [column,value] of [['target_name',f.object],['ip_address',f.ip],['client_device_id',f.device]])if(value.trim())query=query.ilike(column,`%${value.trim().replaceAll('\\','\\\\').replaceAll('%','\\%').replaceAll('_','\\_')}%`);
  if(f.targetTable==='buildings'&&/^[0-9a-f-]{36}$/i.test(f.targetId)){query=query.or(`and(target_table.eq.buildings,target_id.eq.${f.targetId}),details->>building_id.eq.${f.targetId}`);}
  else {if(f.targetTable)query=query.eq('target_table',f.targetTable);if(f.targetId)query=query.eq('target_id',f.targetId);}
- if(f.operationId)query=query.or(`details->>operation_id.eq.${f.operationId},details->>request_id.eq.${f.operationId},details->>event_group.eq.${f.operationId},event_id.eq.${f.operationId}`);
+ if(f.operationId)query=query.or(`details->>operation_id.eq.${f.operationId},details->>request_id.eq.${f.operationId},details->>correlation_id.eq.${f.operationId},details->>event_group.eq.${f.operationId},event_id.eq.${f.operationId}`);
  if(f.outcome==='observed')query=query.eq('request_source','frontend');
  else if(f.outcome) {
   query=query.neq('request_source','frontend');

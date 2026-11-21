@@ -33,7 +33,7 @@ it('uses server-side current filters and exports only explicit sanitized summary
  const result=await response.json();expect(result.count).toBe(1);expect(result.records[0].business_outcome).toBe('partial');expect(result.records[0].error_message).toBe('Bearer [REDACTED]');
  expect(JSON.stringify(result)).not.toMatch(/restricted AI original|private-token|password/);
  expect(fixture.calls).toContainEqual(['audit_logs','eq','target_id','object-id']);
- expect(fixture.calls).toContainEqual(['audit_logs','or','details->>operation_id.eq.request-id,details->>request_id.eq.request-id,details->>event_group.eq.request-id,event_id.eq.request-id']);
+ expect(fixture.calls).toContainEqual(['audit_logs','or','details->>operation_id.eq.request-id,details->>request_id.eq.request-id,details->>correlation_id.eq.request-id,details->>event_group.eq.request-id,event_id.eq.request-id']);
  expect(fixture.calls.find(c=>c[0]==='audit_logs'&&c[1]==='select')?.[2]).not.toContain('*');
  expect(fixture.complete).toHaveBeenCalledWith('audit_complete_operation',expect.objectContaining({p_state:'success'}));
 });

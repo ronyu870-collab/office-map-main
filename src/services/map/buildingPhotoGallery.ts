@@ -1,4 +1,6 @@
-import type { PilotPhoto } from '@/src/lib/sales-materials/building-media-pilot';
+import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
+import { buildingReadingContext } from '@/src/utils/readingAuditContext';
+import { getBuildingMediaPilot,type PilotPhoto } from '@/src/lib/sales-materials/building-media-pilot';
 import { publicPhotoUrl, type BuildingPhotoSummary } from '@/src/lib/building-photos/model';
 
 export type GalleryPhoto = BuildingPhotoSummary | (PilotPhoto & { pilotIndex?: number });
@@ -84,6 +86,11 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     || !downloadButton || !downloadLabel || !originalLink || !downloadStatus
     || !status || !caption || !retry || !images.length || images.length !== photos.length) return null;
 
+  const context={...buildingReadingContext(buildingId)};
+  const observe=(observation:string,selected:number)=>{
+    const photo=photos[selected];
+    observeBusinessReading('VIEW_BUILDING_PHOTO','map',{building_id:buildingId,target_table:'id' in photo?'building_photos':'building_sales_materials',target_id:'id' in photo?photo.id:getBuildingMediaPilot(buildingId)?.materialId,photo_id:'id' in photo?photo.id:photo.file,photo_index:selected,observation},context);
+  };
   const listeners = new AbortController();
   const eventOptions = { signal: listeners.signal };
   const loaded = new Set<number>();
@@ -158,7 +165,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     status.hidden = loaded.has(selected);
     enlarge.hidden = !loaded.has(selected);
     showViewerAction();
-    if (loaded.has(selected)) { fitViewer(image); return; }
+    if (loaded.has(selected)) { fitViewer(image);observe('displayed',selected); return; }
 
     const controller = new AbortController();
     pending = { controller, image };
@@ -168,14 +175,14 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     const fail = () => {
       if (!isCurrent()) return;
       cancel();
-      status.textContent = '图片加载失败';
+      status.textContent = '图片加载失败';observe('failed',selected);
       retry.hidden = false;
     };
     image.onload = () => {
       if (!isCurrent()) return;
       pending = null;
       image.onload = image.onerror = null;
-      loaded.add(selected);
+      loaded.add(selected);observe('displayed',selected);
       fitViewer(image);
       status.hidden = true;
       image.hidden = false;
@@ -187,7 +194,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     if ('id' in photo) {
       void import('../buildingPhotosClient').then(async ({ loadStoredBuildingPhoto }) => {
         if (!isCurrent()) return;
-        const access = await loadStoredBuildingPhoto(buildingId, photo.id, controller.signal);
+        const access = await loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'preview',context);
         if (!isCurrent()) return;
         const sourceUrl = publicPhotoUrl(access.source_url, true);
         const licenseUrl = publicPhotoUrl(access.license_url);
@@ -207,7 +214,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
           // Retry the same scoped photo once as an original, under the same cancellation guard.
           image.onerror = fail;
           releaseObjectUrl(image);
-          void loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'original').then(original => {
+          void loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'original',context).then(original => {
             if (isCurrent()) image.src = original.url;
           }).catch(fail);
         };
@@ -220,7 +227,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     } else {
       void import('../salesMaterialsClient').then(({ loadBuildingPhoto }) => {
         if (!isCurrent()) return;
-        return loadBuildingPhoto(buildingId, photo.pilotIndex ?? selected, controller.signal).then(url => {
+        return loadBuildingPhoto(buildingId, photo.pilotIndex ?? selected, controller.signal,false,context).then(url => {
           if (isCurrent()) image.src = url;
         });
       }).catch(fail);
@@ -272,7 +279,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     // Keep the map popup's layout and reuse the current image, caption and navigation in the top layer.
     gallery.style.minHeight = `${figure.offsetHeight}px`;
     viewerContent.insertBefore(figure, downloadStatus);
-    viewer.showModal();
+    viewer.showModal();observe('enlarged',index);
     viewer.scrollTop = 0;
   };
   // Some touch browsers report click as a MouseEvent. Keep the pointer type from the same tap.
@@ -303,9 +310,9 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
     try {
       const url = 'id' in photo
         ? await import('../buildingPhotosClient').then(async ({ loadStoredBuildingPhoto }) =>
-          (await loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'download')).url)
+          (await loadStoredBuildingPhoto(buildingId, photo.id, controller.signal, 'download',context)).url)
         : await import('../salesMaterialsClient').then(({ loadBuildingPhoto }) =>
-          loadBuildingPhoto(buildingId, photo.pilotIndex ?? selected, controller.signal, true));
+          loadBuildingPhoto(buildingId, photo.pilotIndex ?? selected, controller.signal, true,context));
       if (!isCurrent()) return;
       // The freshly signed Storage URL serves an attachment without fetching the bytes into JS.
       const link = document.createElement('a');
@@ -325,6 +332,7 @@ export function bindBuildingPhotoGallery(root: HTMLElement, buildingId: string, 
       }
     }
   }, eventOptions);
+  originalLink.addEventListener('click',()=>observe('external_original_open_requested',index),eventOptions);
   viewer.addEventListener('click', event => {
     event.stopPropagation();
     if (event.target === viewer || viewerClose.contains(event.target as Node)) closeViewer();

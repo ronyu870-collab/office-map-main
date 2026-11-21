@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { Button } from '@/src/components/ui/Button';
 
-export default function SalesPdfViewer({ url, title }: {url:string; title:string}) {
+export default function SalesPdfViewer({ url, title, onObservation }: {url:string; title:string;onObservation?:(observation:string,page:number)=>void}) {
+  const observer=useRef(onObservation);observer.current=onObservation;
+  const lastObservation=useRef('');
+  const observe=(status:string,currentPage:number)=>{
+    const key=`${status}:${currentPage}`;
+    if(lastObservation.current!==key){lastObservation.current=key;observer.current?.(status,currentPage);}
+  };
   const initialPage = Number(url.match(/#page=(\d+)/)?.[1]) || 1;
   const [page,setPage] = useState(initialPage);
   const [zoom,setZoom] = useState(100);
@@ -35,7 +41,7 @@ export default function SalesPdfViewer({ url, title }: {url:string; title:string
       task=pdf.getDocument({url:source,cMapUrl:`${assets}cmaps/`,cMapPacked:true,standardFontDataUrl:`${assets}standard_fonts/`,wasmUrl:`${assets}wasm/`,enableXfa:false,
         disableStream:retry===0,disableAutoFetch:retry===0,disableRange:retry>0});
       return task.promise;
-    }).then(pdf=>{if(pdf&&!cancelled)setDocument(pdf);}).catch(()=>{if(!cancelled){setError('PDF 原件加载失败');setLoading(false);}});
+    }).then(pdf=>{if(pdf&&!cancelled)setDocument(pdf);}).catch(()=>{if(!cancelled){setError('PDF 原件加载失败');setLoading(false);observe('failed',initialPage);}});
     return()=>{cancelled=true;void task?.destroy();};
   },[source,retry]);
 
@@ -53,7 +59,7 @@ export default function SalesPdfViewer({ url, title }: {url:string; title:string
       target.style.width=`${viewport.width}px`;target.style.height=`${viewport.height}px`;
       render=pdfPage.render({canvas:target,viewport,transform:pixelRatio===1?undefined:[pixelRatio,0,0,pixelRatio,0,0]});
       return render.promise;
-    }).then(()=>{if(!cancelled)setLoading(false);}).catch(()=>{if(!cancelled){setError('PDF 页面加载失败');setLoading(false);}});
+    }).then(()=>{if(!cancelled){setLoading(false);observe('displayed',Math.min(page,document.numPages));}}).catch(()=>{if(!cancelled){setError('PDF 页面加载失败');setLoading(false);observe('failed',Math.min(page,document.numPages));}});
     return()=>{cancelled=true;render?.cancel();};
   },[document,page,width,zoom]);
 

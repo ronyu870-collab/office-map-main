@@ -1,4 +1,6 @@
 'use client';
+import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
+
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -192,6 +194,18 @@ export function OccupierInsightsReport() {
   const { status, session } = useAppSession();
   const canNavigateInternally = status === 'authenticated' && session !== null;
   const reportRef = useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(!canNavigateInternally || !reportRef.current)return;
+    const root=reportRef.current;
+    observeBusinessReading('VIEW_RESEARCH_REPORT','occupier-insights',{target_table:'research_reports',target_id:'occupier-insights-2026-11',edition:'2026-11',observation:'report_displayed'},'occupier_insights');
+    const click=(event:MouseEvent)=>{
+      const link=(event.target as Element).closest<HTMLAnchorElement>('a[href^="#"]');
+      const id=link?.getAttribute('href')?.slice(1);
+      if(!id || !root.querySelector(`[id="${CSS.escape(id)}"]`))return;
+      observeBusinessReading('VIEW_RESEARCH_SECTION','occupier-insights',{target_table:'research_reports',target_id:'occupier-insights-2026-11',edition:'2026-11',section:id,observation:'chapter_requested'},'occupier_insights');
+    };
+    root.addEventListener('click',click);return()=>root.removeEventListener('click',click);
+  },[canNavigateInternally]);
   useEffect(() => { if (reportRef.current) return mountReportNavigation(reportRef.current); }, []);
   return <div className={styles.report} ref={reportRef}>
     <a className={styles.skipLink} href="#factors">跳至研究内容</a>

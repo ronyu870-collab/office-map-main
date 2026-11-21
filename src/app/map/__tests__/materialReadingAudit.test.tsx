@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
+import SalesMaterialViewer from '../components/sales-materials/SalesMaterialViewer';
 import SalesMaterialsPanel from '../components/sales-materials/SalesMaterialsPanel';
 import type { MaterialAccess, SalesMaterial } from '@/src/lib/sales-materials/model';
 
@@ -37,4 +38,21 @@ it('records a newly selected version but never reports a failed access as a disp
   fireEvent.change(screen.getByRole('combobox', { name: '资料版本' }), { target: { value: 'material-a' } });
   await screen.findByRole('alert');
   expect(audit).not.toHaveBeenCalled();
+});
+
+it('observes actual image display and failure, and never embeds an eager download href',()=>{
+ render(<SalesMaterialViewer buildingId="building-a" material={material} access={access} onRetry={vi.fn()}/>);
+ const image=screen.getByRole('img');expect(audit).not.toHaveBeenCalled();
+ fireEvent.load(image);expect(audit).toHaveBeenLastCalledWith(undefined,'VIEW_MATERIAL_CONTENT',expect.objectContaining({observation:'displayed'}));
+ expect(screen.getByRole('button',{name:'下载原件'})).not.toHaveAttribute('href');
+ fireEvent.error(image);expect(audit).toHaveBeenLastCalledWith(undefined,'VIEW_MATERIAL_CONTENT',expect.objectContaining({observation:'failed'}));
+ expect(JSON.stringify(audit.mock.calls)).not.toContain('signature');
+});
+it('observes the initial and selected Excel sheet without observing zoom or renders',async()=>{
+ const excel:SalesMaterial={...material,mime_type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};
+ render(<SalesMaterialViewer buildingId="building-a" material={excel} access={{...access,workbook_preview:{sheets:[{name:'甲',rows:[['1']]},{name:'乙',rows:[['2']]}]}}} onRetry={vi.fn()}/>);
+ await waitFor(()=>expect(audit).toHaveBeenCalledWith(undefined,'VIEW_MATERIAL_CONTENT',expect.objectContaining({sheet:1,observation:'displayed'})));
+ fireEvent.change(screen.getByRole('combobox',{name:'工作表'}),{target:{value:'1'}});
+ expect(screen.getByRole('cell')).toHaveTextContent('2');
+ expect(audit).toHaveBeenLastCalledWith(undefined,'VIEW_MATERIAL_CONTENT',expect.objectContaining({sheet:2,observation:'displayed'}));
 });

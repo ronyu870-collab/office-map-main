@@ -1,5 +1,6 @@
 import { auditDefinition } from './auditRegistry';
 const NOISY_WINDOWS_MS: Record<string, number> = {
+  VIEW_BUILDING_PHOTO:10_000, VIEW_MATERIAL_CONTENT:10_000, LEASE_HISTORY_QUERY:5_000, VIEW_LEASE_TRANSACTION:5_000, VIEW_RESEARCH_REPORT:10_000, VIEW_RESEARCH_SECTION:5_000, VIEW_BUILDING_COMPARISON:5_000, VIEW_SUBMARKET:5_000,
   PAGE_VIEW: 15_000,
   ENTER_MODULE: 5_000,
   SEARCH: 3_000,
@@ -38,7 +39,10 @@ function normalizedValue(value: unknown, depth = 0): unknown {
 }
 
 function fingerprint(actionType: string, details: Record<string, unknown>): string {
-  const serialized = JSON.stringify(normalizedValue(details));
+  const business={...details};delete business.correlation_id;delete business.origin_request_id;
+  // A list/marker switch must not turn the same short-window building read into two reads.
+  if(actionType==='VIEW_BUILDING')delete business.entry;
+  const serialized = JSON.stringify(normalizedValue(business));
   return `${actionType}:${serialized.slice(0, 1200)}`;
 }
 

@@ -28,3 +28,13 @@ describe('PDF原件阅读',()=>{
     expect(pdf.getDocument).toHaveBeenCalledTimes(2);expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
+
+it('reports only rendered pages, ignores zoom redraws and distinguishes a load failure',async()=>{
+ const observe=vi.fn();render(<SalesPdfViewer title="合成原件" url="/private-original#page=2" onObservation={observe}/>);
+ await waitFor(()=>expect(observe).toHaveBeenCalledExactlyOnceWith('displayed',2));
+ fireEvent.click(screen.getByRole('button',{name:'放大PDF'}));await waitFor(()=>expect(pdf.getPage).toHaveBeenCalledTimes(2));expect(observe).toHaveBeenCalledTimes(1);
+ fireEvent.click(screen.getByRole('button',{name:'下一页'}));await waitFor(()=>expect(observe).toHaveBeenLastCalledWith('displayed',3));
+ pdf.getPage.mockRejectedValueOnce(new Error('page unavailable'));
+ fireEvent.click(screen.getByRole('button',{name:'下一页'}));await screen.findByRole('alert');expect(observe).toHaveBeenLastCalledWith('failed',4);
+ expect(observe.mock.calls).not.toContainEqual(['displayed',4]);
+});

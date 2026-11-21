@@ -18,6 +18,7 @@ const MODULE_LABELS: Record<string, string> = {
   home: '首页',
   map: '楼宇地图',
   compare: '楼宇对比',
+  'stacking-plan':'Stacking Plan','quarterly-research':'季度研究','occupier-insights':'企业选址洞察',
   update: '季度填报',
   'lease-submission': '租赁成交',
   oss: '研究资料库',

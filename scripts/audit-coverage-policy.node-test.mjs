@@ -16,5 +16,5 @@ test('managed ordinary summaries need no awaited network write while reliable ef
 test('transactional stacking contracts include both mutations and export evidence',()=>{
  const path='src/app/api/stacking-plan/[buildingId]/route.ts';
  assert.ok(reliableSourceGaps(path,"await client.rpc('stacking_plan_space_save',payload)").length);
- assert.deepEqual(reliableSourceGaps(path,"client.rpc('stacking_plan_space_save',p);client.rpc('stacking_plan_source_attach',p);client.from('stacking_plan_export_events').insert(p)"),[]);
+ assert.deepEqual(reliableSourceGaps(path,"client.rpc('stacking_plan_space_save',p);client.rpc('stacking_plan_source_attach',p);withCriticalAudit(c,{action_type:'STACKING_PLAN_EXPORT'},x,r);withCriticalAudit(c,{action_type:'STACKING_PLAN_ORIGINAL_DOWNLOAD'},x,r)"),[]);
 });
