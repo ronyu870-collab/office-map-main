@@ -121,7 +121,7 @@ try {
       await page.evaluate(() => history.pushState(null, '', '?buildingId=other&name=Other+Plaza'));
       await page.waitForFunction(() => document.querySelectorAll('thead th')[1]?.textContent?.startsWith('Other Plaza'));
       assert.deepEqual(requests, { catalog: 1, selected: 1, all: 1 }, 'changing only the target must not re-read the same data');
-      await page.getByRole('button', { name: '返回地图' }).click();
+      await page.getByRole('link', { name: '返回地图' }).click();
       await page.waitForURL('**/map');
       await page.goBack();
       await page.getByRole('cell', { name: developer }).waitFor();
