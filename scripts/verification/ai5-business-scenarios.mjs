@@ -11,6 +11,8 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
  const handle=await loadAgentHandler(output);let scenario;
  let who=await person('admin','ai5-business');
  const other=await person('admin','ai5-business-other');
+ await grantQuery({setup:db},other.id,{capabilities:exportCaps,fields:['height','floors','parking','totalArea','netEffectiveRent','vacantArea']});
+ await grantBusiness(db,other.id);
  const seeded=await seedBusiness(db,buildingIds,who.id);
  const plan={buildingIds:[buildingIds[0]],fields:['district','address','completionYear','completionDate','leasableArea','gfaTotal','floors','parking','availablePeriods']};
  const tool=(name,args)=>({id:randomUUID(),type:'function',function:{name,arguments:JSON.stringify(args)}});
@@ -92,7 +94,8 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    assert.ok((await events(file.headers.get('x-audit-attempt-id'))).map(decrypt).some(e=>e.content?.result?.artifact?.kind==='download'));assert.equal((await download(exported,other)).status,403);
   });
   await check('AI5业务 / 导出资格撤销、业务撤权、历史及跨用户恢复均拒绝',async()=>{
-   await db.query('update private.ai_business_research_grants set allow_export=false where user_id=$1',[who.id]);assert.equal((await download(exported)).status,403);await grant();
+   await db.query('update private.ai_business_research_grants set allow_export=false where user_id=$1',[who.id]);assert.equal((await download(exported)).status,403);
+   const queryOnly=await submit();assert.equal(queryOnly.status,200);assert.equal((await download(queryOnly)).status,403);await grant();
    const fresh=await submit();assert.equal(fresh.status,200);await db.query('update private.ai_business_research_grants set enabled=false where user_id=any($1::uuid[])',[[who.id,dossier.actor.id]]);
    assert.equal((await recover(who,fresh.body.requestId)).status,403);assert.equal((await recover(history.actor,history.body.requestId)).status,403);assert.equal((await buildings(dossier)).status,403);assert.equal((await recover(other,dossier.body.requestId)).status,403);
   });

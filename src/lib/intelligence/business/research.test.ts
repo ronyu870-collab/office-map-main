@@ -81,5 +81,8 @@ describe('controlled business research',()=>{
   const client={rpc:()=>({abortSignal:async()=>({data:s,error:null})})} as unknown as SupabaseClient;
   await recheckBusinessResults(client,identity,new AbortController().signal,[r],true);
   s.export=false;await expect(recheckBusinessResults(client,identity,new AbortController().signal,[r],true)).rejects.toThrow('QUERY_DENIED');
+  const queryOnly=buildBusinessResult(s,plan);
+  await recheckBusinessResults(client,identity,new AbortController().signal,[queryOnly]);
+  await expect(recheckBusinessResults(client,identity,new AbortController().signal,[queryOnly],true)).rejects.toThrow('QUERY_DENIED');
  });
 });
