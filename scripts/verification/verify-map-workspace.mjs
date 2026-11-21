@@ -158,6 +158,7 @@ try {
         await page.mouse.move(edge.x + 3, edge.y + 100);
         await page.mouse.down();
         await page.mouse.move(edge.x - 77, edge.y + 100);
+        assert.equal(await page.locator('.map-workspace-right').evaluate(el => el.getAnimations().some(animation => animation.playState === 'running' || animation.pending)), false, 'dragging follows the pointer without a competing pane transition');
         await page.mouse.up();
         await page.waitForTimeout(300);
         assert.equal(await separator.getAttribute('aria-valuenow'), '380');
@@ -412,7 +413,27 @@ try {
         await page.waitForTimeout(300);
         assert.ok((await longDetail.locator('.workspace-scroll').boundingBox()).height >= 80, 'a long title cannot consume the detail reading area');
         assert.equal(await longDetail.getByRole('heading').innerText(), stock[2].name, 'the complete project name remains readable');
+        const nameToggle = longDetail.getByTitle('展开完整名称', { exact: true });
+        assert.ok((await longDetail.locator('.workspace-panel-header').boundingBox()).height < 100, 'long name and reading controls must not monopolize the short sheet');
+        await nameToggle.click();
+        assert.equal(await longDetail.getByTitle('收起完整名称', { exact: true }).getAttribute('aria-expanded'), 'true');
+        await longDetail.getByTitle('收起完整名称', { exact: true }).click();
+        assert.equal(await nameToggle.getAttribute('aria-expanded'), 'false');
+        await page.setViewportSize({ width, height: 560 }); await page.waitForTimeout(350);
+        const valueBox = await longDetail.locator('.workspace-building-metrics dd').first().boundingBox();
+        const readingBox = await longDetail.locator('.workspace-scroll').boundingBox();
+        assert.ok(valueBox.y + valueBox.height <= readingBox.y + readingBox.height + 1, 'a short phone still shows the metric values below a long project title');
+        await page.setViewportSize({ width, height }); await page.waitForTimeout(250);
       }
+      await search.fill('');
+      if (await page.locator('.map-workspace-right').getAttribute('data-open')) {
+        await page.keyboard.press('Escape');
+      }
+      const listOpener = page.getByRole('button', { name: '项目列表', exact: true });
+      await listOpener.focus(); await listOpener.press('Enter'); await list.waitFor();
+      const listClose = list.getByRole('button', { name: '关闭列表', exact: true });
+      await listClose.focus(); await listClose.press('Enter');
+      assert.ok(await listOpener.evaluate(el => el === document.activeElement), 'keyboard closure returns to the panel opener');
       const sdk = await page.evaluate(() => window.__workspaceSDK);
       assert.equal(sdk.created, 1);
       assert.ok(sdk.resized > 0);

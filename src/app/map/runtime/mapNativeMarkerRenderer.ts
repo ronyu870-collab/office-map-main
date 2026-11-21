@@ -251,7 +251,7 @@ function buildingVisual(
     if (grade.includes('BP')) {
       background = PALETTE.gradeBP;
       text = 'BP';
-      fontSize = 9;
+      fontSize = 12;
     } else if (grade.includes('A') || grade.includes('P')) {
       background = PALETTE.gradeA;
       text = 'A';
@@ -267,14 +267,14 @@ function buildingVisual(
     const hasRent = Number.isFinite(rent) && rent > 0;
     text = hasRent ? String(Math.round(rent)) : '–';
     background = scaleColor(rent, hasRent);
-    fontSize = text.length >= 3 ? 9.5 : 10.5;
+    fontSize = text.length > 4 ? 10.5 : 12;
   } else if (mode === 'vacancy') {
     const vacancy = mapOptionalNumber(metric?.vacancy_rate);
     const hasVacancy = Number.isFinite(vacancy);
     const pct = hasVacancy ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
     text = hasVacancy ? `${Math.round(pct)}%` : '–';
     background = vacancyColor(pct, hasVacancy);
-    fontSize = text.length >= 3 ? 9 : 10;
+    fontSize = text.length > 3 ? 10.5 : 12;
   } else {
     const leed = String(building?.leed_certification ?? '').toUpperCase();
     if (leed.includes('PLATINUM')) {
@@ -347,7 +347,7 @@ function detailBubbleImage(visual: BuildingVisual): string {
       `<circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/>` +
       `<text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" ` +
       `font-family="Arial, PingFang SC, Microsoft YaHei, sans-serif" font-size="${visual.fontSize}" ` +
-      `font-weight="800" fill="${visual.textColor}">${safeText}</text>` +
+      `font-weight="600" fill="${visual.textColor}">${safeText}</text>` +
       '</svg>',
   );
 }

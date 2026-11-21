@@ -87,5 +87,6 @@ export type SheetMode = 'compact' | 'reading' | 'full';
 export function workspaceSheetHeight(available: number, summary: number, mode: SheetMode) {
   if (mode === 'full') return available;
   const limit = Math.max(0, available - Math.min(240, available * .4));
-  return Math.max(0, Math.min(limit, mode === 'reading' ? available * .65 : Math.min(available * .55, Math.max(128, summary))));
+  const compactRatio = available < 360 ? .6 : .55;
+  return Math.max(0, Math.min(limit, mode === 'reading' ? available * .65 : Math.min(available * compactRatio, Math.max(128, summary))));
 }
