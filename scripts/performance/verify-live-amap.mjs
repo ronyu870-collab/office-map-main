@@ -1,0 +1,202 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import { user, session, stock, project, stacking } from './fixtures/workspace-data.mjs';
+import { installLiveAmapProbe } from './fixtures/live-amap-probe.mjs';
+
+// Real SDK + real provider tiles. Business/auth responses remain isolated fixtures.
+// Run only against a local production build with valid NEXT_PUBLIC_AMAP_* config.
+const [url, output] = process.argv.slice(2);
+if (!url || !output) throw new Error('Usage: verify-live-amap.mjs http://127.0.0.1:3211 /tmp/result.json');
+const base = new URL(url);
+assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'local fixture server required');
+const { chromium } = createRequire(import.meta.url)(process.env.PERF_PLAYWRIGHT_MODULE || 'playwright-core');
+const browser = await chromium.launch({ ...(process.env.PERF_BROWSER_CHANNEL === 'chromium' ? {} : { channel: 'chrome' }), headless: true });
+const provider = host => /(^|\.)(amap\.com|amap\.cn|autonavi\.com|autonavi\.cn|gaode\.com)$/.test(host);
+// Spread 601 located projects over Beijing, retaining the two primary focus targets.
+const buildings = [...stock, ...Array.from({ length: 598 }, (_, i) => ({
+  ...stock[0], id: `load-${i}`, name: `性能样本${String(i).padStart(3, '0')}`, submarket: '其他',
+  location_lng: 116.22 + (i % 30) * .012, location_lat: 39.78 + Math.floor(i / 30) * .012,
+}))];
+const results = { schema: 1, environment: 'production React + real AMap 2.0/tiles + isolated business/auth fixtures',
+  collectedAt: new Date().toISOString(), applicationCommit: process.env.PERF_COMMIT ?? 'unrecorded',
+  browser: await browser.version(), locatedProjects: 601, scenarios: [], limitations: [
+    'Mobile is a desktop Chrome viewport, not an iOS/Android device.',
+    'No production authentication, database, business records or writes are exercised.',
+    'Frame intervals describe this machine/sample; CPU paint trace time is not GPU execution time.',
+    'Each route transition creates its own map; panel transitions must retain that route map.',
+  ] };
+let phase = 'gpu-configuration';
+try {
+  const system = await (await browser.newBrowserCDPSession()).send('SystemInfo.getInfo');
+  results.gpu = { renderer: system.gpu.auxAttributes?.glRenderer, features: system.gpu.featureStatus };
+  for (const [width, height, reduced] of [[1536,900,false], [390,560,false], [390,560,true]]) {
+    phase = `${width}/${reduced ? 'reduced' : 'motion'}/startup`;
+    const context = await browser.newContext({ viewport: { width, height }, reducedMotion: reduced ? 'reduce' : 'no-preference', serviceWorkers: 'block' });
+    const network = { sdkOK: 0, tileOK: 0, providerHTTPFailures: 0, failedRequests: 0, abortedRequests: 0, blockedHosts: [] };
+    const errors = [];
+    await context.routeWebSocket(/.*/, socket => socket.close());
+    await context.route('**/*', async route => {
+      const target = new URL(route.request().url());
+      if (target.origin === base.origin) {
+        if (target.pathname === '/api/map/data') return route.fulfill({ json: { buildings, display_overrides: [] } });
+        if (target.pathname === `/api/stacking-plan/${project}`) return route.fulfill({ json: stacking });
+        if (target.pathname.startsWith('/api/')) return route.fulfill({ status: 204 });
+        return route.continue();
+      }
+      if (target.origin === 'https://example.supabase.co') return route.fulfill({ headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, OPTIONS' }, json: target.pathname === '/rest/v1/user_roles' ? [{ role: 'admin', session_id: user.id }] : [] });
+      if (provider(target.hostname)) return route.continue();
+      if (!network.blockedHosts.includes(target.hostname)) network.blockedHosts.push(target.hostname);
+      return route.abort();
+    });
+    await context.addInitScript(({ origin, session }) => {
+      if (location.origin !== origin) return;
+      localStorage.setItem('colliers_trusted_device_until', String(Date.now() + 86400000));
+      localStorage.setItem('sb-example-auth-token', JSON.stringify(session));
+    }, { origin: base.origin, session });
+    await context.addInitScript(installLiveAmapProbe);
+    const page = await context.newPage();
+    page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(10000);
+    // Error classes only: SDK errors may contain credentials or query strings.
+    page.on('pageerror', error => errors.push(error.name));
+    page.on('response', response => {
+      const target = new URL(response.url());
+      if (!provider(target.hostname)) return;
+      if (response.status() >= 400) network.providerHTTPFailures++;
+      if (response.ok() && target.hostname === 'webapi.amap.com' && target.pathname === '/maps') network.sdkOK++;
+      if (response.ok() && /\/tile\/|\/get_tile$/.test(target.pathname)) network.tileOK++;
+    });
+    page.on('requestfailed', request => {
+      if (!provider(new URL(request.url()).hostname)) return;
+      if (request.failure()?.errorText === 'net::ERR_ABORTED') network.abortedRequests++;
+      else network.failedRequests++;
+    });
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Performance.enable');
+    const trace = [];
+    cdp.on('Tracing.dataCollected', event => trace.push(...event.value));
+    const detail = page.getByRole('region', { name: 'CBD甲楼楼宇详情' });
+    const list = page.getByRole('region', { name: '项目列表', exact: true });
+    const camera = () => page.evaluate(() => { const m = window.__workspaceMap, c = m.getCenter(); return { zoom: m.getZoom(), center: [c.lng, c.lat] }; });
+    const focus = async (center = [116.46, 39.91]) => {
+      await page.waitForFunction(target => { const m = window.__workspaceMap, c = m?.getCenter(); return c && m.getZoom() >= 13.99 && Math.abs(c.lng - target[0]) < .00001 && Math.abs(c.lat - target[1]) < .00001; }, center);
+    };
+    const measure = async (name, action) => {
+      phase = `${width}/${reduced ? 'reduced' : 'motion'}/${name}`;
+      const before = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
+      await page.evaluate(() => {
+        const p = window.__liveAmapProbe;
+        p.sample = { start: performance.now(), intervals: [], activeIntervals: [], longTasks: [], calls: p.calls.length, events: p.events.length, created: p.created };
+        p.sample.observer = new PerformanceObserver(list => p.sample.longTasks.push(...list.getEntries().map(x => x.duration)));
+        p.sample.observer.observe({ type: 'longtask' });
+        let previous;
+        const frame = now => {
+          if (previous !== undefined) {
+            p.sample.intervals.push(now - previous);
+            if (now - p.sample.start <= 1000) p.sample.activeIntervals.push(now - previous);
+          }
+          previous = now; if (!p.sample.done) requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      });
+      trace.length = 0;
+      await cdp.send('Tracing.start', { categories: 'devtools.timeline', transferMode: 'ReportEvents' });
+      await action();
+      await page.waitForTimeout(1200);
+      const sample = await page.evaluate(() => {
+        const p = window.__liveAmapProbe, s = p.sample; s.done = true; s.observer.disconnect();
+        const frames = s.intervals.sort((a,b) => a-b), active = s.activeIntervals.sort((a,b)=>a-b);
+        const calls = p.calls.slice(s.calls), events = p.events.slice(s.events);
+        const command = calls.filter(x=>['setCenter','setZoomAndCenter','setBounds'].includes(x.name)).at(-1);
+        const end = events.filter(x=>['moveend','zoomend'].includes(x.name)).at(-1);
+        return { elapsedMs: performance.now()-s.start, frames: frames.length, frameP95Ms: frames[Math.floor(frames.length*.95)] ?? null,
+          firstSecondFrameP95Ms: active[Math.floor(active.length*.95)] ?? null,
+          intervalsOver33Ms: frames.filter(x=>x>33.4).length, longestFrameMs: frames.at(-1) ?? null, longTasksMs: s.longTasks,
+          resizeCalls: calls.filter(x=>x.name==='resize').length, newMapInstances: p.created-s.created,
+          cameraEndMs: end ? end.at-s.start : null,
+          cameraAfterLastCommandMs: end && command && end.at >= command.at ? end.at-command.at : null };
+      });
+      const complete = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
+      await cdp.send('Tracing.end'); await complete;
+      const after = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
+      sample.cpuMs = Object.fromEntries(['LayoutDuration','RecalcStyleDuration','ScriptDuration','TaskDuration'].map(name=>[name,(after[name]-before[name])*1000]));
+      sample.paintTraceMs = trace.filter(x=>x.name==='Paint' && x.ph==='X').reduce((sum,x)=>sum+(x.dur??0)/1000,0);
+      sample.camera = await camera();
+      results.scenarios.push({ width, height, reduced, name, ...sample });
+      console.log(`completed ${width}/${reduced ? 'reduced' : 'motion'} ${name}`);
+      return sample;
+    };
+    await page.goto(new URL(`/map?building=${project}`, base).href);
+    await detail.waitFor(); await focus();
+    await page.waitForFunction(() => window.__liveAmapProbe.events.some(e=>e.name==='complete'));
+    assert.ok(network.tileOK > 0 && network.sdkOK > 0, 'real provider SDK and tile responses required');
+    const startup = await page.evaluate(() => window.__liveAmapProbe.stages);
+    await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
+    if (width === 390) await detail.getByRole('button', { name: '阅读', exact: true }).click();
+    const link = page.getByRole('link', { name: 'Stacking Plan', exact: true });
+    await link.scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
+    const top = await detail.locator('.workspace-scroll').evaluate(e => e.scrollTop);
+    const beforeCamera = await camera();
+    for (let round = 0; round < 3; round++) {
+      await link.click(); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
+      await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
+      await measure(`stack-return-${round}`, async () => {
+        await page.getByRole('link', { name: '返回项目详情', exact: true }).click(); await detail.waitFor(); await focus();
+        assert.equal(await page.getByRole('tab', { name: '成交与资料', exact: true }).getAttribute('aria-selected'), 'true');
+        await page.waitForFunction(top => Math.abs(document.querySelector('.workspace-building-scroll')?.scrollTop - top) < 2, top);
+        assert.equal(await page.locator('.map-selected-marker').count(), 1);
+      });
+      const afterCamera = await camera();
+      assert.ok(Math.abs(afterCamera.zoom - beforeCamera.zoom) < .01);
+      assert.ok(afterCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001));
+    }
+    await link.click(); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
+      await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
+    await page.goBack({waitUntil:'commit'}); await detail.waitFor(); await focus();
+    await page.goForward({waitUntil:'commit'}); await page.waitForURL(u => u.pathname === `/stacking-plan/${project}`);
+    await page.getByRole('button', { name: /A 座 60层 连续性租户599/ }).waitFor();
+    await measure('history-return', async () => { await page.goBack({waitUntil:'commit'}); await detail.waitFor(); await focus(); });
+    for (let round = 0; round < 3; round++) {
+      const filter = await measure(`filter-toggle-${round}`, async () => {
+        await page.getByRole('button', { name: '筛选', exact: true }).click();
+        await page.waitForTimeout(70);
+        await page.getByRole('button', { name: '筛选', exact: true }).click();
+      });
+      assert.equal(filter.newMapInstances, 0, 'filter reversal must retain map');
+      const close = await measure(`panel-close-${round}`, async () => { await page.getByRole('button', { name: '关闭楼宇详情' }).click(); });
+      assert.equal(close.newMapInstances, 0, 'panel close must retain map');
+      assert.ok(close.resizeCalls <= 2, `coalesced resize expected, got ${close.resizeCalls}`);
+      const open = await measure(`panel-open-${round}`, async () => {
+        await page.getByRole('button', { name: '项目列表', exact: true }).click(); await list.waitFor();
+        await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
+      });
+      assert.equal(open.newMapInstances, 0, 'panel open must retain map');
+      await measure(`rapid-switch-${round}`, async () => {
+        await page.getByRole('button', { name: '项目列表', exact: true }).click(); await list.waitFor();
+        await list.getByRole('button', { name: /^CBD乙楼/ }).click();
+        await page.getByRole('button', { name: '关闭楼宇详情' }).click();
+        await page.getByRole('button', { name: '项目列表', exact: true }).click();
+        await list.getByRole('button', { name: /^CBD甲楼/ }).click(); await detail.waitFor(); await focus();
+      });
+      await focus(); assert.equal(await page.locator('.map-selected-marker').count(),1);
+    }
+    results.scenarios.push({width,height,reduced,name:'startup-and-network',startup,network,errors,readingScroll:top});
+    assert.deepEqual(errors, []);
+    assert.equal(network.providerHTTPFailures, 0);
+    assert.equal(network.failedRequests, 0);
+    await context.close();
+  }
+  results.status = 'passed';
+} catch (error) {
+  results.status = 'failed'; results.failure = { name: error.name, phase, code: error.code ?? null };
+  const page=browser.contexts().at(-1)?.pages().at(-1);
+  if(page){
+    results.failure.state=await page.evaluate(()=>({path:location.pathname})).catch(()=>null);
+  }
+  // Do not emit raw browser/SDK error messages with URLs/configuration values.
+  console.error(`Live AMap validation failed: ${error.name}; see sanitized result and scenario logs.`);
+  process.exitCode = 1;
+} finally {
+  fs.writeFileSync(output, JSON.stringify(results, null, 2)+'\n', {mode:0o600});
+  await browser.close();
+}
