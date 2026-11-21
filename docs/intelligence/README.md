@@ -71,3 +71,5 @@ P1 在既有楼宇／季度授权范围内接入结构化多轮追问、可点�
 - [AI 5.0 阶段 04：自然语言 Excel／CSV 导出](ai5-intelligent-export.md)：工具、完整文件、授权恢复与持续回归契约。
 
 - [AI 5.0 阶段 05：专业图表工作区](ai5-chart-workspace.md)：结构化建图／改图、坐标、真实 PNG／SVG 和授权来源回归。
+
+- [AI 5.0 阶段 08：楼宇、地图与业务模块联动](ai5-business-integration.md)：固定资料口径、独立资格、管理员 Stacking、子市场发布、未来供应及原地图双向交互。

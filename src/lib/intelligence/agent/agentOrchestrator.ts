@@ -1,5 +1,6 @@
 import { type ModelCompletion, type ModelMessage } from './modelProvider';
 import { REGISTERED_AGENT_TOOL_NAMES, PRESENTATION_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, parseAgentToolArguments } from './toolRegistry';
+import { BUSINESS_TOOL_NAMES } from '../business/protocol';
 import type { QueryPlan } from '../query/plan';
 
 export const AGENT_LIMITS = { rounds: 9, tools: 12, maxToolText: 12000,
@@ -22,6 +23,7 @@ export type AgentDependencies<T> = {
   /** Server-validated prior plan only. Never accepts a browser-claimed result. */
   contextPlan?: QueryPlan;
   leaseResults?: readonly Record<string, unknown>[];
+  businessResults?: readonly Record<string,unknown>[];
   reportResults?: readonly Record<string, unknown>[];
   reportHistoryLimited?: boolean;
   contextChart?: import('./agentConversation').AgentHistory['contextChart'];
@@ -38,6 +40,7 @@ export function agentInstructions(): string {
     '你是 Colliers AI，高力国际北京区的智能研究与业务助手。自然、专业地回答普通交流和概念问题，不要求用户先提供地区和季度。',
     '对于真实内部楼宇、季度、排序、子市场和面积指标必须调用注册只读工具；工具未成功不得声称已查询、已制作图表或已完成交付。',
     '优先调用结构化工具：search_buildings、get_building_profile、query_quarterly_metrics、rank_buildings、compare_market_segments、analyze_market_trends。',
+    '完整楼宇介绍用query_building_dossier；子市场介绍用query_submarket_profile；未来供应用query_future_supply；Stacking Plan用query_stacking_plan。每项需要独立资格，先search_buildings取得已获权楼座ID；不得将GFA/可租/季度面积混用，不把草稿或未审核状态当实时事实。地图任务必须prepare_map_selection，选择结果内ID与focus/select/only，不能只介绍地图入口；服务器导入的businessResults可以复用。',
     '结构化参数须明确 scope.inventory、合法子市场或已查询得到的 buildingIds、period 年/季度、metric 和 limit；严禁自行猜测楼宇ID、授权字段或数据。',
     '用户询问最新有数据的季度或复杂指代无法结构化时，可临时使用 query_verified_real_estate 旧版兼容查询；其他工具不要发送 question 参数。',
     '使用工具完整结果返回的 resultId 区分本轮各个结果；使用 summarize_result、read_result_page、check_data_coverage、compare_result_sets 检查行数/分页/字段覆盖率。前几行预览不等于总行数。',
@@ -67,6 +70,8 @@ export function agentInstructions(): string {
 function classifyToolError(error: unknown): string {
   if (error instanceof Error) {
     if (error.message === 'QUERY_PERIOD_REQUIRED' || error.message === 'QUARTER_REQUIRED') return 'period_required';
+    if (error.message === 'BUSINESS_SCOPE_TOO_LARGE') return 'scope_too_large';
+    if (error.message === 'BUSINESS_PDF_UNSUPPORTED') return 'unsupported';
     if (error.message === 'LEASE_TOOL_REQUIRED') return 'lease_tool_required';
     if (error.message === 'LEASE_SNAPSHOT_LIMIT') return 'lease_scope_too_large';
     if (error.message === 'LEASE_PDF_UNSUPPORTED') return 'unsupported';
@@ -111,6 +116,7 @@ const errorHint: Record<string, string> = {
 
 export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<AgentLoopResult<T>> {
   const messages: ModelMessage[] = [{ role: 'system', content: agentInstructions() }];
+  if (input.businessResults?.length) messages.push({role:'system',content:'以下业务正式结果已由服务器重新授权并导入，可用于资料续问、地图和文件工具；不能读取未获权字段：'+JSON.stringify(input.businessResults)});
   if (input.leaseResults?.length) messages.push({ role: 'system', content: '本轮服务器已重新授权并导入的成交正式结果（可用于Excel/CSV及图表；不读取原始明细）：' + JSON.stringify(input.leaseResults) });
   if (input.contextPlan) messages.push({ role: 'system',
     content: '服务器已验证的上一轮查询条件（仅供指代继承，不代表本轮授权或已查结果；每次重新执行）：'
@@ -163,7 +169,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
       await phase('synthesis');
       const attemptedData = toolNames.some(name => name === 'query_verified_real_estate'
-        || STRUCTURED_DATA_TOOL_NAMES.has(name));
+        || STRUCTURED_DATA_TOOL_NAMES.has(name) || BUSINESS_TOOL_NAMES.has(name));
       if (attemptedData && result === undefined && !unresolved.size)
         unresolved.set('verified_data', 'no_verified_result');
       if (/(?:Excel|CSV|xlsx|表格)/i.test(input.question)

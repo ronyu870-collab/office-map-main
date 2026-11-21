@@ -24,6 +24,7 @@ export function resultOutputDescriptor(result: QueryResultView): { object: strin
     const periods = [...new Set((bindings ?? []).flatMap(b => b.plan?.from && b.plan?.to ? [b.plan.from + '至' + b.plan.to] : []))];
     return { object: '获权租赁成交', metric: '成交研究', period: periods.join('与') || '见来源期间' };
   }
+  if(result.parameters.dataDomain==='business-research/1')return {object:'获权业务资料',metric:({'query_building_dossier':'楼宇参数','query_submarket_profile':'子市场简介','query_future_supply':'未来供应','query_stacking_plan':'Stacking Plan'} as Record<string,string>)[String(result.parameters.businessTool)]??'业务研究',period:'各字段见来源，非统一统计季度'};
   const scope = scopeSchema.safeParse(result.parameters.scope).data;
   const ids = scope?.buildingIds ?? [];
   const requested = new Set(ids);
