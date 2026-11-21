@@ -108,6 +108,15 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
         area: !snapshot.details && valid < snapshot.minGroupSize ? unknown('disclosure_threshold') : valid ? { kind: 'number' as const, value: { exact: sum.exact(), numeric: sum.toNumber() }, sourceIds: [] } : unknown('no_valid_sample'), areaValidCount: number(valid) } }];
     });
   }
+  if (plan.mode === 'aggregate' && plan.groupBy === 'quarter') {
+    const present = new Set(resultRows.map(row => row.entityId));
+    const ordinal = (date: string) => Number(date.slice(0, 4)) * 4 + Math.floor((Number(date.slice(5, 7)) - 1) / 3);
+    for (let q = ordinal(plan.from); q <= ordinal(plan.to); q++) {
+      const label = Math.floor(q / 4) + '-Q' + (q % 4 + 1), entityId = hash(label);
+      if (!present.has(entityId)) resultRows.push({ entityId, cells: { group: text(label),
+        count: unknown('no_valid_sample'), area: unknown('no_valid_sample'), areaValidCount: unknown('no_valid_sample') } });
+    }
+  }
   const key = plan.sort === 'period' ? (plan.mode === 'details' ? 'period' : 'group') : plan.sort;
   if (!fields.includes(key)) throw new Error('LEASE_SORT_FIELD_NOT_SELECTED');
   resultRows.sort((a, b) => {
@@ -147,6 +156,7 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
       `未知期间排除 ${uncertainDates} 条，跨筛选边界的低精度期间排除 ${boundaryDates} 条；年份精度不能强分配到季度。`,
       `季度分组另排除 ${uncertainQuarter} 条不足以确定季度的记录，不将其绘制到时间轴；年度总计仍可在完整年度范围查询。`,
       'project/unmapped 保留不确定身份，项目面积不分摊到各楼座；限定单楼授权仅允许可靠 exact/reference 匹配。',
+      '季度范围内没有可交付统计的期间保留未知，不当成零；时间轴保留这些期间，不跨缺期插值连线。',
       '缺失面积不当成零，面积合计仅含有效面积，成交笔数同时列出有效面积样本数。',
       '两表租金分别保留原始面价和有效租金口径；历史有效租金未认定为净有效租金，原始租金和物业费单位待核验，不跨表计算平均租金，不推算普通或净有效租金。',
       ...(!snapshot.details ? [`聚合专用资格：少于 ${snapshot.minGroupSize} 条的分组不交付；面积有效样本不足该阈值时面积值不交付，共抑制 ${suppressed} 组；不提供原始明细。该抑制不构成差分隐私保证。`] : []),

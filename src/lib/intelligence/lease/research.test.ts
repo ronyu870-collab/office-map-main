@@ -80,7 +80,11 @@ describe('controlled lease research deterministic facts and real files', () => {
     const quarters = buildLeaseResult(f, { ...plan, groupBy: 'quarter', sort: 'period', direction: 'asc' });
     const q1 = quarters.table.rows.findIndex(r => r.cells.group.kind === 'text' && r.cells.group.value === '2026-Q1');
     expect(num(quarters, q1, 'area')).toBe(100); expect(num(quarters, q1, 'count')).toBe(2);
-    expect(quarters.table.rows).toHaveLength(2);
+    expect(quarters.table.rows).toHaveLength(4);
+    expect(quarters.table.rows.filter(r => r.cells.count.kind === 'unknown')).toHaveLength(2);
+    const chart = buildResultChart(resultViewSchema.parse(quarters), { kind: 'plot', type: 'line', x: 'group', y: ['area'] });
+    expect(chart.points.map(point => point.y)).toEqual([100, 250, null, null]);
+    expect(chart.connectNulls).toBe(false);
     expect(quarters.parameters.leaseCoverage).toMatchObject({ uncertainQuarter: 1 });
     const partial = buildLeaseResult(f, { ...plan, from: '2026-02-01' });
     expect(num(partial, 0, 'area')).toBe(250);
@@ -103,7 +107,8 @@ describe('controlled lease research deterministic facts and real files', () => {
   it('suppresses small aggregate-only groups and never gives detail rows to the model', () => {
     const f = fixture(); f.details = false;
     const r = buildLeaseResult(f, { ...plan, groupBy: 'quarter' });
-    expect(r.table.rows).toHaveLength(0);
+    expect(r.table.rows).toHaveLength(4);
+    expect(r.table.rows.every(row => row.cells.area.kind === 'unknown')).toBe(true);
     expect(() => buildLeaseResult(f, { ...plan, mode: 'details' })).toThrow('QUERY_DENIED');
     f.rows.forEach(r => { r.area = null; }); f.rows[0].area = '100';
     expect(buildLeaseResult(f, plan).table.rows[0].cells.area).toMatchObject({ kind: 'unknown', reason: 'disclosure_threshold' });
@@ -113,7 +118,8 @@ describe('controlled lease research deterministic facts and real files', () => {
     expect(observation).not.toContain('合成楼宇甲'); expect(observation).not.toContain('旧称甲座');
     expect(JSON.stringify(leaseModelObservation(buildLeaseResult(f, { ...plan, groupBy: 'building' })))).not.toContain('合成双楼项目');
     f.details = false; const total = buildLeaseResult(f, { ...plan, groupBy: 'quarter' });
-    expect(total.table.rows).toHaveLength(0);
+    expect(total.table.rows).toHaveLength(4);
+    expect(total.table.rows.every(row => row.cells.area.kind === 'unknown')).toBe(true);
     expect(d.sources[0].rawValue).toBeNull(); expect(JSON.stringify(d.parameters)).not.toContain('旧称甲座');
   });
   it('round-trips full Chinese XLSX/CSV, numeric zeros, missing values, selective fields and safe source manifests', async () => {

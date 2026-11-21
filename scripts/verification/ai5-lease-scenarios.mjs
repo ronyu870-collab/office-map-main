@@ -84,7 +84,7 @@ export async function verifyAi5Leases({ db, service, keys, output, check, person
     });
     await check('AI5成交 / 聚合专用资格抑制小样本，明细和财务分别拒绝',async()=>{
       await nextActor('fields'); await grant({details:false});
-      const aggregate=await submit({...base,groupBy:'quarter'});assert.equal(aggregate.status,200);assert.equal(aggregate.body.result.table.rows.length,1);
+      const aggregate=await submit({...base,groupBy:'quarter'});assert.equal(aggregate.status,200);assert.equal(aggregate.body.result.table.rows.length,4);assert.equal(aggregate.body.result.table.rows.filter(row=>row.cells.count.kind==='number').length,1);
       assert.equal((await submit({...base,mode:'details'})).status,403);
       await grant(); assert.equal((await submit({...base,mode:'details',fields:['area','liveEffectiveRent']})).status,403);
     });
