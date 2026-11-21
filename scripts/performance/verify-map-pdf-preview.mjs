@@ -88,6 +88,7 @@ try {
       const url = `${assetOrigin}/${mode}?signed=fixture`;
       const file = mode === 'desktop' || mode === 'mobile' ? large : short;
       const reads = [];
+      const authorizations = [];
       const records = () => rows.filter(row => row.mode === mode);
       const transferred = () => records().reduce((bytes, row) => bytes + row.bytesWritten, 0);
       await context.routeWebSocket(/.*/, ws => ws.close());
@@ -96,6 +97,13 @@ try {
         const target = new URL(request.url());
         if (target.origin === assetOrigin) return route.continue();
         if (target.origin === base.origin) {
+          if (target.pathname === '/api/audit-events/critical') {
+            assert.equal(request.headers().authorization, `Bearer ${token}`);
+            const input = request.postDataJSON();
+            assert.deepEqual(input, { action: 'SALES_MATERIAL_DOWNLOAD', scope: materialId, count: 1, format: 'original' });
+            authorizations.push(input);
+            return route.fulfill({ json: { authorized: true } });
+          }
           if (target.pathname === '/api/map/data') {
             return route.fulfill({ json: { display_overrides: [], future_supplies: [], buildings: target.searchParams.get('mode') === 'future' ? [] : [{
               id: buildingId, name: '隔离楼宇', grade: 'A', district: '朝阳区', submarket: '其他', location_lng: 116.46, location_lat: 39.91, building_metrics: [],
@@ -159,12 +167,14 @@ try {
       await waitPixel(last, 2);
       const downloadLink = page.getByRole('link', { name: '下载原件' });
       assert.equal(await downloadLink.getAttribute('href'), `${url}&download=1`);
+      assert.equal(authorizations.length, 0, 'preview must not request a critical download authorization');
       if (mode === 'fallback') {
         const [download] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), downloadLink.click()]);
         assert.equal(download.suggestedFilename(), 'fixture.pdf');
         const received = [];
         for await (const bytes of await download.createReadStream()) received.push(bytes);
         assert.ok(Buffer.concat(received).equals(file), 'download must preserve the complete original bytes');
+        if (!baseline) assert.equal(authorizations.length, 1, 'original download requires explicit authorization');
       }
       await page.getByRole('button', { name: '返回房源' }).click();
       await page.getByText('暂无可租房源').waitFor();
