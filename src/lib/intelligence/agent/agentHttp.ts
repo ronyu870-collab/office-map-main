@@ -1,3 +1,5 @@
+import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
+import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
 import { queryLeaseResearch, leaseModelObservation } from '../lease/tool';
 import { recheckLeaseResult, recheckLeaseResults } from '../lease/research';
@@ -203,11 +205,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
+    const businessResults = new Map<string,QueryResult>();
+    if(history.contextResult?.parameters.businessBindings) businessResults.set(history.contextResult.resultId,history.contextResult);
     const leaseResults = new Map<string, QueryResult>();
     if (history.contextResult?.parameters.leaseBindings) leaseResults.set(history.contextResult.resultId, history.contextResult);
     const recheckLeases = async (exporting = false) => {
       await recheckLeaseResults(client, actor, signal, [...leaseResults.values()], exporting);
+      await recheckBusinessResults(client,actor,signal,[...businessResults.values()],exporting);
     };
+    let preparedMap: QueryResult | undefined;
     let preparedExport: QueryResult | undefined;
     let preparedReport: QueryResult | undefined;
     let reportFile: Record<string, unknown> | undefined;
@@ -222,6 +228,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
+        ...(history.contextResult && isBusinessResult(history.contextResult) ? { businessResults:workset.manifest(worksetOwner) } : {}),
         ...(history.contextResult && isLeaseResult(history.contextResult) ? { leaseResults: workset.manifest(worksetOwner) } : {}),
         ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
         revalidate: async currentSignal => {
@@ -268,6 +275,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if(BUSINESS_TOOL_NAMES.has(name)) {
+            const observed=await queryBusinessResearch(client,actor,toolSignal,name as BusinessToolName,args);
+            businessResults.set(observed.result.resultId,observed.result);
+            const manifest=workset.register(observed.result,worksetOwner);
+            return {...observed,content:JSON.stringify({...JSON.parse(observed.content),workset:manifest})};
+          }
           if (name === 'query_lease_transactions') {
             const observed = await queryLeaseResearch(client, actor, toolSignal, args);
             if (!observed.result) return observed;
@@ -276,7 +289,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), workset: manifest }) };
           }
           if (name === 'get_data_capabilities') {
-            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked) }) };
+            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), business:await businessCapabilities(client,actor,toolSignal) }) };
           }
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
@@ -291,6 +304,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               const format = args.format as 'png_zip' | 'svg_zip';
               const next: QueryResult = { ...chosen, parameters: { ...chosen.parameters,
                 agentChart: { version: 'chart-workspace/1', request: chart, format } } };
+              await recheckBusinessResults(client,actor,toolSignal,[next],true);
               if (isLeaseResult(next)) await recheckLeaseResult(client, actor, toolSignal, next, true);
               const file = await buildResultArtifact(next, { requestId, resultId: next.resultId, action: 'export', format, chart });
               if (file.type !== 'download') throw new Error('AGENT_EXPORT_NOT_GENERATED');
@@ -309,17 +323,21 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
                 reason: '地图当前仅能跳转到本轮最后一项正式结果；不能把较早结果冒充为最终快照。' }) };
             const presentation = runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],
               requestId, chosen, args as { chart?: ChartRequest });
+            if(name==='prepare_map_selection' && presentation.result) preparedMap=presentation.result;
             if (['prepare_chart', 'create_chart', 'modify_chart'].includes(name) && presentation.result) {
               preparedChart = presentation.result; chartFile = undefined;
+              if(isBusinessResult(presentation.result)) return {...presentation,content:JSON.stringify(businessModelObservation(presentation.result))};
               if (isLeaseResult(presentation.result)) return { ...presentation, content: JSON.stringify(leaseModelObservation(presentation.result)) };
               return presentation;
             }
             // Source/chart of an earlier result must not change which formal
             // QueryResult is archived as this request's final result.
+            if(chosen && isBusinessResult(chosen) && name!=='prepare_map_selection') return {content:JSON.stringify(businessModelObservation(chosen))};
             if (chosen && isLeaseResult(chosen)) return { content: JSON.stringify(leaseModelObservation(chosen)) };
             return id === workset.latestId() ? presentation : { content: presentation.content };
           }
           if (name === 'generate_pdf_report') {
+            if ((args.resultIds as string[]).some(id => isBusinessResult(workset.read(id,worksetOwner)))) throw new Error('BUSINESS_PDF_UNSUPPORTED');
             if ((args.resultIds as string[]).some(id => isLeaseResult(workset.read(id, worksetOwner)))) throw new Error('LEASE_PDF_UNSUPPORTED');
             const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants, preparedChart);
             await history.contextRecheck?.();
@@ -332,6 +350,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (name === 'export_table') {
             for (const id of args.resultIds as string[]) {
               const result = workset.read(id, worksetOwner);
+              await recheckBusinessResults(client,actor,toolSignal,[result],true);
               if (isLeaseResult(result)) await recheckLeaseResult(client, actor, toolSignal, result, true);
             }
             const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants);
@@ -348,6 +367,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
             const ids = name === 'compare_result_sets' ? args.resultIds as string[] : [args.resultId as string];
+            const businesses=ids.map(id=>workset.read(id,worksetOwner)).filter(isBusinessResult);
+            if(businesses.length) return {content:JSON.stringify({status:'ready',results:businesses.map(businessModelObservation)})};
             const leases = ids.map(id => workset.read(id, worksetOwner)).filter(isLeaseResult);
             if (leases.length) return { content: JSON.stringify({ status: 'ready', results: leases.map(leaseModelObservation) }) };
             const id = args.resultId as string;
@@ -417,6 +438,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       execution.answer = '本轮未生成图片文件。' + (preparedChart ? '同源图表仍可查看。' : '')
         + '请核对导出资格、字段与图表规格后重试。';
     }
+    if(!preparedMap && !preparedChart && !preparedExport && !preparedReport && execution.toolNames.includes('prepare_map_selection')) {
+      execution.answer='本轮未准备地图操作。当前结果缺少可操作的楼宇身份，或选择范围未通过校验；未打开地图或生成点位。';
+    }
+    if(preparedMap && !preparedChart && !preparedExport && !preparedReport) {
+      execution.result=preparedMap;
+      execution.answer='已准备获权楼宇的地图操作，可通过本条回答打开地图；尚未打开地图或改变当前地图选择。';
+      if(execution.unresolvedFailures.length) execution.answer+='部分步骤未完成，请查看执行限制。';
+    }
     if (preparedReport) {
       execution.result = preparedReport;
       execution.answer = '服务器已生成内部研究 PDF 报告，可通过本条回答下载；尚未发起浏览器下载，未确认本机保存。对客发布须另行授权。';
@@ -441,20 +470,28 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (execution.result && !isLeaseResult(execution.result)) execution.result = { ...execution.result,
         parameters: { ...execution.result.parameters, leaseBindings: [...leaseResults.values()].flatMap(r => r.parameters.leaseBindings as unknown[]) } };
     }
+    if(businessResults.size) {
+      execution.result ??= [...businessResults.values()].at(-1);
+      if(execution.result) execution.result={...execution.result,parameters:{...execution.result.parameters,
+        businessBindings:[...businessResults.values()].flatMap(r=>r.parameters.businessBindings as unknown[])}};
+    }
+    const businessAnswer=execution.result && isBusinessResult(execution.result);
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
-    const answerPlan = execution.result && !leaseAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const answerPlan = execution.result && !leaseAnswer && !businessAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     await audit.append(requestId, 'tool_finished', {
       protocol: 'agent-answer/1', provider: 'deepseek', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
+      ...(businessResults.size ? {businessContext:true} : {}),
+      ...(businessAnswer ? {resolution:{protocol:'business-research/1'}} : {}),
       ...(leaseResults.size ? { leaseContext: true } : {}),
       ...(leaseAnswer ? { resolution: { protocol: 'lease-research/1' } } : {}),
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
       ...(!preparedReport && preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
-      ...(preparedExport && !isLeaseResult(preparedExport) ? { exportFiles, exportContext: {
+      ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),

@@ -1,3 +1,5 @@
+import { verifyAi5Business } from './ai5-business-scenarios.mjs';
+import { installBusinessFixture } from '../../supabase/tests/ai-business-research/fixture.mjs';
 import { verifyAi5Leases } from './ai5-lease-scenarios.mjs';
 import { installLeaseResearchFixture } from '../../supabase/tests/ai-lease-research/fixture.mjs';
 import { verifyAi5Reports } from './ai5-pdf-scenarios.mjs';
@@ -129,6 +131,7 @@ try{
     await db.query(await load('20261115173338_ai_query_own_history.sql'));
   }
   await installLeaseResearchFixture(db);
+  await installBusinessFixture(db);
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -599,6 +602,7 @@ try{
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Leases({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
+  await verifyAi5Business({db,app,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     if (suite === 'regression') {
       performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});

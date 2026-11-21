@@ -1,5 +1,6 @@
 import { leasePlanSchema } from '../lease/protocol';
 import { z } from 'zod';
+import { BUSINESS_TOOL_NAMES, BUSINESS_TOOL_SCHEMAS, type BusinessToolName } from '../business/protocol';
 import { reportRequestSchema } from '../query/reportProtocol';
 import { distributionMeasureSchema } from '../query/distribution';
 import { chartRequestSchema } from '../query/chartSpec';
@@ -89,7 +90,7 @@ export const PRESENTATION_TOOL_SCHEMAS = {
   create_chart: z.strictObject({ resultId: z.uuid(), chart: chartRequestSchema }),
   modify_chart: z.strictObject({ resultId: z.uuid().optional(), chart: chartRequestSchema }),
   export_chart: z.strictObject({ resultId: z.uuid().optional(), chart: chartRequestSchema.optional(), format: z.enum(['png_zip', 'svg_zip']) }),
-  prepare_map_selection: optionalResultRef,
+  prepare_map_selection: z.strictObject({ resultId:z.uuid().optional(), buildingIds:z.array(z.uuid()).min(1).max(500).optional(), intent:z.enum(['focus','select','only']).default('select') }),
   prepare_research_output: optionalResultRef,
 } as const;
 export type PresentationToolName = keyof typeof PRESENTATION_TOOL_SCHEMAS;
@@ -103,6 +104,7 @@ export const LEGACY_TOOL_NAMES: ReadonlySet<string> = new Set([
 /** For a bounded migration, accept previously issued {question} calls at the
  * runtime boundary, but do not advertise that obsolete contract to the model. */
 export function parseAgentToolArguments(name: string, input: unknown): Record<string, unknown> {
+  if (BUSINESS_TOOL_NAMES.has(name)) return BUSINESS_TOOL_SCHEMAS[name as BusinessToolName].parse(input);
   if (name === 'query_lease_transactions') return leasePlanSchema.parse(input);
   if (name === 'query_verified_real_estate') return legacy.parse(input);
   if (LEGACY_TOOL_NAMES.has(name) && typeof input === 'object' && input !== null
@@ -141,7 +143,14 @@ function def(name: string, description: string, properties: Record<string, unkno
     parameters: { type: 'object', properties, required, additionalProperties: false } } };
 }
 const jsonScope = s;
+const businessDescriptions: Record<BusinessToolName,string> = {
+ query_building_dossier: '完整楼宇资料卡片，指定已获权真实buildingIds及fields。先search_buildings取得楼座ID，不用项目/别名猜ID。每字段独立正式授权，默认字段不等于全获权；可先get_data_capabilities。地址/竣工日/GFA/办公建筑面积/标准层面积/高度/层数/停车/地铁/绿色认证/物业/交付/客梯/空调/通信来自楼书；行政区/等级/建成年份/可租面积来自目录，绝不互相补齐。全部楼书候选保留冲突；不宣称当前现实已核验。availablePeriods只列非草稿记录季度，需季度资格，不代表指标有效。',
+ query_submarket_profile: '读取已获权且已通过现有发布校验的子市场静态简介。指定submarkets，不把内部草稿、简介文字当成交或季度统计，不自动对客发布。',
+ query_future_supply: '获权子市场未来供应研究，source=catalog目录预测；submitted_quarter需明确period；latest_submitted按每项目最新所属季度，不按上传日期。提交不等于正式季度统计，同期冲突保留，目录面积不称GFA；与楼宇只按显式关联，不按同名合并。',
+ query_stacking_plan: '真实管理员本人会话、获权buildingIds及独立stacking资格内只读楼座/楼层/单元/来源租赁状态。不给模型单元明细/租户/合同/备注，获权表格可查看。未知日期/未审核不是实时可租；不能编辑或新增，编辑仍在原Stacking Plan模块。',
+};
 export const SPECIALIST_DATA_TOOLS = [
+  ...Object.entries(BUSINESS_TOOL_SCHEMAS).map(([name,schema]) => def(name,businessDescriptions[name as BusinessToolName],z.toJSONSchema(schema).properties as Record<string,unknown>, name==='query_submarket_profile'||name==='query_future_supply'?['submarkets']:['buildingIds'])),
   def('query_lease_transactions', '独立租赁成交研究，只读取当前用户获权数据，绝不使用季度租金引擎回答成交。source=live|history|combined；明确from/to日期（含首尾），mode=aggregate|details。aggregate按total|quarter|building|industry|submarket汇总成交记录数和面积，可sort=area|count|period与topN；industry按已存精确值过滤；industries可按用户明确的多个分类组合（两者不能并用）。TMT单标签条件先澄清：仅按原标签可明确传industries=[TMT]，或先按industry分组后确认组合范围，不自动映射为科技/媒体/通信。buildingName精确匹配治理后的规范名或原别名，buildingIds须来自已授权目录。details需要独立资格，默认仅脱敏字段，模型不可读取原始明细；可交付Excel。公司/经纪人/提交人/备注一律不可查询。租金原值分live/history独立列，未经核验不称净有效，不跨表算租金均值。两表仅按经核验且版本未变化的身份关联去重，其他相似记录保留并注明可能重叠；年份精度不强分配季度。完整获权池超过20000行明确失败，不静默截断。', z.toJSONSchema(leasePlanSchema).properties as Record<string, unknown>, ['source', 'from', 'to']),
   def('query_report_market', 'PDF研究报告的相对期间查询。用户未指定明确起止、说最近四季度时，报告默认最近4个已结束的北京时间日历季度；由服务器计算起止，缺期保留未知，不回退到最近有数季度。metric=rent|vacancy|totalArea，可分别执行后组合PDF。已指定起止或含本季度时应使用analyze_market_trends，不改写用户期间。', z.toJSONSchema(STRUCTURED_DATA_SCHEMAS.query_report_market).properties as Record<string, unknown>, ['scope', 'metric']),
   def('analyze_rent_vacancy', '查询同季度获权楼宇的净有效租金与空置率联合样本，用于散点；返回rent与vacancy列，空置率正式比例来自授权面积，不自行估算。', { scope: s, period: q }, ['scope', 'period']),
@@ -198,7 +207,7 @@ export const PRESENTATION_TOOLS = [
       : '使用指定获权完整结果创建或修改图表。chart.kind=plot时type=bar|horizontal_bar|line|scatter，x为现有横轴列key，y为1至6个同单位数值列key，groupBy可用现有分类列。横向条形仍传x分类/y数值，仅改变方向。支持sort、title、legend、periods和xAxis/yAxis的min/max/ticks/unit；ratio坐标按0至100%，percentage_point不再乘100。其它kind复用time_series/grouped_time_series/heatmap/histogram/box_plot。修改须保留未变的规格，数值绝不由模型提供。',
     z.toJSONSchema(PRESENTATION_TOOL_SCHEMAS[name]).properties as Record<string, unknown>,
     name === 'create_chart' ? ['resultId', 'chart'] : name === 'modify_chart' ? ['chart'] : name === 'export_chart' ? ['format'] : [])),
-  def('prepare_map_selection', '由指定完整结果的已获权楼宇ID构造需要再次鉴权的地图跳转。', optionalRef.properties),
+  def('prepare_map_selection', '将正式结果定位或多选到现有地图。resultId引用完整获权结果；可选buildingIds必须是结果内真实楼座ID，focus仅1栋，only仅查看选中楼宇。最多500栋，超限拒绝不截断；不接受坐标。地图打开重新鉴权，未可靠定位的楼不造点。', z.toJSONSchema(PRESENTATION_TOOL_SCHEMAS.prepare_map_selection).properties as Record<string,unknown>),
   def('prepare_research_output', '基于指定正式结果构造有来源及限制的研究摘要，不表示已导出PDF或Excel。', optionalRef.properties),
 ] as const;
 export const REGISTERED_AGENT_TOOL_NAMES = new Set<string>([

@@ -35,7 +35,7 @@ function BuildingResults({ result, requestId, scope, buildings, onSource }: { re
   }, [scopeKey, requestId, result.resultId, page, revision]);
   return <section className={styles.section} aria-label="查询楼宇信息">
     <div className={styles.heading}><h3>{buildings.length === 1 ? '楼宇信息' : `本次结果 · ${buildings.length} 栋楼宇`}</h3>
-      <Link className={styles.link} href={queryMapHref(requestId)} prefetch={false}>在地图中查看{buildings.length > 1 ? '全部项目' : ''}</Link></div>
+      <Link className={styles.link} href={queryMapHref(requestId)} prefetch={false}>{result.parameters.agentMap ? '打开已准备的地图选择' : `在地图中查看${buildings.length > 1 ? '全部项目' : ''}`}</Link></div>
     <p className={styles.note}>{resultScopeText(result)}。指标保留本次结果期间；子市场、等级和照片按当前目录读取。</p>
     {error ? <div role="alert"><p>{error}</p><Button variant="ghost" onClick={() => setRevision(value => value + 1)}>重试楼宇信息</Button></div>
       : !pageContext ? <p role="status" className={styles.note}>正在核对楼宇访问权限与当前目录…</p>
@@ -84,6 +84,7 @@ function BuildingCard({ building, metadata, result, requestId, scope, single, on
     })}</dl>
     {columns.length === 0 && <p className={styles.note}>本次结果未提供可单独展示的楼宇指标，期间和指标请见原分析结果。</p>}
     <div className={styles.actions}>
+      {result.parameters.businessTool==='query_stacking_plan' && <Link className={styles.link} href={`/stacking-plan/${building.id}`} prefetch={false}>查看 Stacking Plan</Link>}
       {metadata?.located && <Link className={styles.link} href={queryMapHref(requestId, building.id, true)} prefetch={false}>查看楼宇详情</Link>}
       <Link className={styles.link} href={queryMapHref(requestId, building.id)} prefetch={false}>在地图中查看</Link>
       {columns.length > 2 && !single && <button type="button" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? '收起参数' : '展开全部参数'}</button>}

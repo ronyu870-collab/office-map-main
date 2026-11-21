@@ -1,12 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { resultViewSchema } from './presentation';
-import { resultBuildingRows, type BuildingContext, buildingContextInputSchema } from './buildingCards';
+import { resultBuildingRows, type BuildingContext, buildingContextInputSchema, mapResultSelectionSchema } from './buildingCards';
 
 export async function readBuildingContext(client: SupabaseClient, archived: unknown, input: z.infer<typeof buildingContextInputSchema>, signal: AbortSignal): Promise<BuildingContext> {
   const result = resultViewSchema.parse(archived);
   if (input.resultId && input.resultId !== result.resultId) throw new Error('QUERY_DENIED');
-  const all = resultBuildingRows(result);
+  let all = resultBuildingRows(result);
+  if(input.mapSelection && !input.buildingId && result.parameters.agentMap) {
+    const selection=mapResultSelectionSchema.parse(result.parameters.agentMap);
+    if(selection.buildingIds.some(id=>!all.some(r=>r.id===id)))throw new Error('QUERY_DENIED');
+    all=all.filter(row=>selection.buildingIds.includes(row.id));
+  }
   if (input.buildingId && !all.some(row => row.id === input.buildingId)) throw new Error('QUERY_DENIED');
   const selected = input.buildingId ? all.filter(row => row.id === input.buildingId) : all;
   const page = selected.slice(input.offset, input.offset + input.limit), ids = page.map(row => row.id);

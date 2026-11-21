@@ -165,7 +165,7 @@ async function callOnce(path: string, scope: QueryClientScope, signal: AbortSign
   return value;
 }
 export const trustedQueryClient = {
-  buildings: async (scope: QueryClientScope, input: { requestId: string; resultId?: string; buildingId?: string; photoId?: string; offset?: number; limit?: number }, signal: AbortSignal): Promise<BuildingContext> => {
+  buildings: async (scope: QueryClientScope, input: { requestId: string; resultId?: string; buildingId?: string; photoId?: string; mapSelection?: boolean; offset?: number; limit?: number }, signal: AbortSignal): Promise<BuildingContext> => {
     const raw = await call('/buildings', scope, signal, { ...input, action: 'buildings' });
     const envelope = z.object({ status: z.string() }).safeParse(raw);
     if (!envelope.success || envelope.data.status !== 'ready') throw new Error(envelope.success && envelope.data.status === 'denied'
