@@ -68,3 +68,5 @@ P1 在既有楼宇／季度授权范围内接入结构化多轮追问、可点�
 - [企业名称 AI 匹配 admin 权限补漏](lease-company-admin.md)：旧成交入口不再允许 editor 发起模型或读取 AI 缓存；后台各边界实时核对 admin/会话，普通企业检索保留。此包不是 Q15 完成，旧路径统一审计和模型费用治理仍待建设。
 
 - [AI 5.0 阶段 04：自然语言 Excel／CSV 导出](ai5-intelligent-export.md)：工具、完整文件、授权恢复与持续回归契约。
+
+- [AI 5.0 阶段 05：专业图表工作区](ai5-chart-workspace.md)：结构化建图／改图、坐标、真实 PNG／SVG 和授权来源回归。

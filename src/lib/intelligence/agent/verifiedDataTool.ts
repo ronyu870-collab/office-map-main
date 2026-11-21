@@ -79,6 +79,14 @@ export async function executeStructuredDataTool(
   let planInput: unknown;
   let nameContains: string | undefined;
   switch (name) {
+    case 'analyze_rent_vacancy': {
+      const args = STRUCTURED_DATA_SCHEMAS.analyze_rent_vacancy.parse(input);
+      planInput = { operation: 'relationship', ...args }; break;
+    }
+    case 'analyze_distribution': {
+      const args = STRUCTURED_DATA_SCHEMAS.analyze_distribution.parse(input);
+      planInput = { operation: 'distribution', ...args }; break;
+    }
     case 'list_buildings': {
       const args = STRUCTURED_DATA_SCHEMAS.list_buildings.parse(input);
       planInput = { operation: 'list', scope: args.scope, fields: args.fields, period: args.period,

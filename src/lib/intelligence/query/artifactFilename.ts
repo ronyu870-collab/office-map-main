@@ -5,7 +5,7 @@ function part(value: string, max = 24): string {
   return Array.from(value.normalize('NFKC').replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^[-.]+|[-.]+$/g, '')).slice(0, max).join('') || '未知';
 }
 
-export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 'csv_zip' | 'svg_zip'): string {
+export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 'csv_zip' | 'svg_zip' | 'png_zip'): string {
   const { object, metric, period } = resultOutputDescriptor(result);
   const extension = format === 'xlsx' ? 'xlsx' : 'zip';
   return `ColliersAI_${part(object, 20)}_${part(metric, 20)}_${part(period, 40)}_${format}_${result.resultId.slice(0, 8)}.${extension}`;
