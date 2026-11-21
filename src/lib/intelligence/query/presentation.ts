@@ -128,7 +128,7 @@ export function resultSummary(result: QueryResultView): string[] {
 }
 export function resultScopeText(result: QueryResultView): string {
   if (reportDescriptorSchema.safeParse(result.parameters.agentReport).success)
-    return '由多个获权正式快照组合；各部分的范围、期间、来源和统计口径见报告及研究索引，不重算跨结果指标。';
+    return '由获权正式快照组合；各部分的范围、期间、来源和统计口径见报告及研究索引，不重算跨结果指标。';
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   if (exported && Array.isArray(result.parameters.exportPlans) && result.parameters.exportPlans.length > 1)
     return '合并多个获权正式结果；各项期间、范围及原始统计口径见文件来源与快照，不重新计算跨结果均值。';
