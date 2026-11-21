@@ -117,6 +117,7 @@ try {
   for (const [width, role] of layoutWidths) {
     const context = await browser.newContext({ viewport: { width, height: 844 }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block', acceptDownloads: true });
     const calls = [];
+    const authorizations = [];
     const errors = [];
     try {
       await context.addInitScript(({ origin, session }) => {
@@ -130,6 +131,14 @@ try {
         const url = new URL(request.url());
         const params = url.searchParams;
         if (url.origin === base.origin) {
+          if (url.pathname === '/api/audit-events/critical') {
+            assert.equal(role, 'admin');
+            assert.equal(request.headers().authorization, `Bearer ${token}`);
+            const input = request.postDataJSON();
+            assert.deepEqual(input, { action: 'EXPORT_LEASE_TRANSACTIONS', scope: 'lease_history', count: 2, format: 'xlsx' });
+            authorizations.push(input);
+            return route.fulfill({ json: { authorized: true } });
+          }
           if (url.pathname === '/api/lease-transactions/read' || url.pathname === '/api/map/data' || url.pathname === '/api/map/sales-materials' || url.pathname === '/api/lease-submission/export') {
             assert.equal(request.headers().authorization, `Bearer ${token}`);
           }
@@ -238,6 +247,7 @@ try {
           const downloadPromise = page.waitForEvent('download');
           await review.getByRole('button', { name: '下载 Excel' }).click();
           const download = await downloadPromise;
+          assert.equal(authorizations.length, 1, 'filtered Excel requires explicit export authorization');
           const path = await download.path();
           const book = XLSX.readFile(path);
           assert.equal(book.Sheets['筛选成交'].O2.v, 123.456789);
