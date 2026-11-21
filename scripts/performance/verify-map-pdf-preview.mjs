@@ -89,6 +89,7 @@ try {
       const file = mode === 'desktop' || mode === 'mobile' ? large : short;
       const reads = [];
       const authorizations = [];
+      const downloadRequests = [];
       const records = () => rows.filter(row => row.mode === mode);
       const transferred = () => records().reduce((bytes, row) => bytes + row.bytesWritten, 0);
       await context.routeWebSocket(/.*/, ws => ws.close());
@@ -98,6 +99,7 @@ try {
         if (target.origin === assetOrigin) return route.continue();
         if (target.origin === base.origin) {
           if (target.pathname === '/api/audit-events/critical') {
+            assert.ok(baseline, 'the new download service must not duplicate its reliable receipt with client authorization');
             assert.equal(request.headers().authorization, `Bearer ${token}`);
             const input = request.postDataJSON();
             assert.deepEqual(input, { action: 'SALES_MATERIAL_DOWNLOAD', scope: materialId, count: 1, format: 'original' });
@@ -113,10 +115,17 @@ try {
             assert.equal(request.headers().authorization, `Bearer ${token}`);
             assert.equal(target.searchParams.get('building_id'), buildingId);
             const id = target.searchParams.get('material_id');
+            if (target.searchParams.get('download') === '1') {
+              assert.equal(id, materialId);
+              assert.equal(request.headers()['x-reading-entry'], 'map_marker');
+              assert.match(request.headers()['x-reading-id'], /^[0-9a-f-]{36}$/i);
+              downloadRequests.push(id);
+              return route.fulfill({ json: { url: `${url}&download=1` } });
+            }
             reads.push(id ?? 'list');
             if (!id) return route.fulfill({ json: { count: 1, records: [{ id: materialId, title: '隔离资料', document_date: null, source: '合成来源', original_name: 'fixture.pdf', mime_type: 'application/pdf', file_size: file.length, created_at: '2026-11-10T00:00:00Z' }] } });
             assert.equal(id, materialId);
-            return route.fulfill({ json: { preview_url: url, download_url: `${url}&download=1`, details: [], provenance: {} } });
+            return route.fulfill({ json: { preview_url: url, download_url: baseline ? `${url}&download=1` : null, can_download: true, details: [], provenance: {} } });
           }
           return target.pathname.startsWith('/api/') ? route.fulfill({ status: 204 }) : route.continue();
         }
@@ -165,21 +174,28 @@ try {
       await page.getByRole('button', { name: '放大PDF' }).click();
       await page.waitForFunction(before => document.querySelector('canvas[aria-label^="隔离资料 第"]')?.getAttribute('width') !== before, beforeZoom);
       await waitPixel(last, 2);
-      const downloadLink = page.getByRole('link', { name: '下载原件' });
-      assert.equal(await downloadLink.getAttribute('href'), `${url}&download=1`);
+      const downloadLink = page.getByRole(baseline ? 'link' : 'button', { name: '下载原件' });
+      assert.equal(await downloadLink.getAttribute('href'), baseline ? `${url}&download=1` : null);
       assert.equal(authorizations.length, 0, 'preview must not request a critical download authorization');
+      assert.equal(downloadRequests.length, 0, 'preview must not issue a download link');
       if (mode === 'fallback') {
         const [download] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), downloadLink.click()]);
         assert.equal(download.suggestedFilename(), 'fixture.pdf');
         const received = [];
         for await (const bytes of await download.createReadStream()) received.push(bytes);
         assert.ok(Buffer.concat(received).equals(file), 'download must preserve the complete original bytes');
-        if (!baseline) assert.equal(authorizations.length, 1, 'original download requires explicit authorization');
+        if (!baseline) {
+          assert.equal(downloadRequests.length, 1, 'one button click uses the authenticated download service once');
+          assert.equal(authorizations.length, 0, 'the server download service owns its receipt');
+        }
       }
       await page.getByRole('button', { name: '返回房源' }).click();
       await page.getByText('暂无可租房源').waitFor();
       assert.deepEqual(reads, ['list', materialId, materialId, materialId]);
       results.push({ mode, width, fileBytes: file.length, firstPaintMs, idleBytes, afterFlipBytes, rangeRequests: records().filter(row => row.status === 206).length });
+    } catch (error) {
+      console.error('PDF fixture failed:', mode, await context.pages()[0]?.locator('body').innerText());
+      throw error;
     } finally { await context.close(); }
   }
   console.log(JSON.stringify({ baseline, browser: await browser.version(), results }, null, 2));
