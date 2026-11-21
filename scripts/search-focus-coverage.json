@@ -489,5 +489,15 @@
     "cases": [
       "preserves editorial input focus, caret and IME while the workspace summary updates"
     ]
+  },
+  {
+    "id": "home-query-chart-workspace",
+    "roots": [
+      "src/components/home/HomeQueryChartWorkspace.tsx"
+    ],
+    "cases": [
+      "keeps inputs stable and applies field, orientation, sort and legitimate range without altering the source table"
+    ],
+    "file": "src/components/home/__tests__/home-query-chart-workspace.test.tsx"
   }
 ]
