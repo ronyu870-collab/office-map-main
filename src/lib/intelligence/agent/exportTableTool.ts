@@ -96,7 +96,11 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   if (outputColumns.length > 30) throw new Error('AGENT_EXPORT_COLUMN_LIMIT');
   const result: QueryResult = { ...base, resultId: randomUUID(), operation: 'list', analysis: null,
     dataVersion: createHash('sha256').update(JSON.stringify(results.map(item => item.dataVersion))).digest('hex'),
-    parameters: { ...base.parameters, fields, exportPlans,
+    // The derived table has its own shape. Original analytics and research
+    // metadata stay in lineage; reusing them would mislabel filtered rows or
+    // make the multi-metric renderer reject this list result.
+    parameters: { ...Object.fromEntries(Object.entries(base.parameters).filter(([key]) =>
+      ['scope', 'period', 'executedPlan', 'relativeQuarterContext'].includes(key))), fields, exportPlans,
       agentExport: { version: 'agent-export/1', format: args.format, singleSheet: args.singleSheet,
         matchedRows, exportedRows: rows.length, selection: args, lineage } },
     table: { id: 'export', columns: outputColumns, rows: rows.map(row => ({ ...row,

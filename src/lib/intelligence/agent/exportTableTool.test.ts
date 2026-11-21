@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
-import { buildListResult } from '../query/result';
+import { combineMetricResults } from '../query/multiMetric';
+import { resultMetrics } from '../query/multiMetricView';
+import { buildListResult, buildAggregateResult } from '../query/result';
 import { fixture, nameSource, source } from '../query/__tests__/fixtures';
 import { resolveNumericFact } from '../query/facts';
 import { parseAgentToolArguments } from './toolRegistry';
@@ -105,6 +107,21 @@ describe('authorized Agent table exports read real final XLSX/CSV bytes', () => 
     expect(rows[1][1]).toContain('"quarter":2'); expect(rows[138][1]).toContain('"quarter":3');
     expect(out.parameters.exportPlans).toHaveLength(2);
     expect(rows).toHaveLength(275);
+  });
+
+  it('exports combined metric summaries without retaining incompatible renderer metadata or stale research findings', async () => {
+    const combined = combineMetricResults(['rent', 'vacancy'].map(metric => ({ metric: metric as 'rent' | 'vacancy',
+      result: buildAggregateResult(fixture(), metric as 'rent' | 'vacancy') })));
+    const base = { ...combined, parameters: { ...combined.parameters,
+      executedPlan: { operation: 'aggregate', scope: plan.scope, metric: 'rent', metrics: ['rent', 'vacancy'], period: plan.period },
+      researchAnalysis: { stale: true } } };
+    const result = prepareExportResult([base], { resultIds: [base.resultId], format: 'xlsx' });
+    expect(resultMetrics(result)).toEqual([]);
+    expect(result.parameters.researchAnalysis).toBeUndefined();
+    const book = XLSX.read((await fileFor(result)).bytes, { type: 'array' });
+    expect(book.Sheets['数据'].A2).toMatchObject({ t: 'n', v: 170 });
+    expect(book.Sheets['数据'].E2).toMatchObject({ t: 'n', v: .175 });
+    expect(JSON.stringify(result.parameters.agentExport)).toContain('multi-metric/1');
   });
 
   it('refuses missing export qualification, foreign owner, invented columns/data/paths and oversized exports', async () => {
