@@ -248,12 +248,14 @@ function MetricStrip({ stats, scope, period, active }: { stats: MapStatsState; s
   ];
 
   return (
-    <MapDisclosure active={active} className="map-market-overview" label="市场概览">
-      <h2>市场概览</h2><p className="workspace-note">{scope}</p>
-      <dl className="map-workspace-kpis">{metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value} <span>{metric.unit}</span></dd></div>)}</dl>
-      <p className="workspace-note">{period}。租金与空置率按有效面积加权；有坐标项目按筛选结果统计，不随地图移动变化。</p>
-      <p className="workspace-note">来源：平台已授权存量项目与正式季度记录；未来供应另计。</p>
-    </MapDisclosure>
+    <section className="map-live-stats" aria-label="市场实时指标">
+      <dl className="map-workspace-kpis" aria-live="polite" aria-atomic="true">{metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value} <span>{metric.unit}</span></dd></div>)}</dl>
+      <MapDisclosure active={active} className="map-market-overview" label={<><Info size={16} aria-hidden="true" /><span className="sr-only">统计口径</span></>}>
+        <h2>统计口径</h2><p className="workspace-note">{scope}</p>
+        <p className="workspace-note">{period}。租金与空置率按有效面积加权；有坐标项目按筛选结果统计，不随地图移动变化。</p>
+        <p className="workspace-note">来源：平台已授权存量项目与正式季度记录；未来供应另计。</p>
+      </MapDisclosure>
+    </section>
   );
 }
 
