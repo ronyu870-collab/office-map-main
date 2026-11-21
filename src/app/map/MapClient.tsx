@@ -343,6 +343,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     containerId: 'map-container',
     userRole,
     currentUserId,
+    initialCamera: returnState?.camera,
     onEditBuildingMetrics: (buildingId, buildingName) => {
       setEditingBuilding({ id: buildingId, name: buildingName });
     },

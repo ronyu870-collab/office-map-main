@@ -1,7 +1,7 @@
 // Observe the actual SDK without replacing camera/rendering behavior. Install
 // before the remote SDK assigns its namespace (Map may be assigned later).
 export function installLiveAmapProbe() {
-  const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [] };
+  const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [], initialCameras: [] };
   window.__colliersNavigationProbe = {
     recordMapStage(stage) { probe.stages.push({ stage, at: performance.now() }); },
   };
@@ -10,6 +10,8 @@ export function installLiveAmapProbe() {
     Object.defineProperty(namespace, '__probe', { value: true });
     const wrap = Constructor => typeof Constructor !== 'function' ? Constructor : new Proxy(Constructor, {
       construct(target, args, newTarget) {
+        const options = args[1];
+        probe.initialCameras.push({ zoom: options?.zoom, center: Array.isArray(options?.center) ? [...options.center] : null });
         const map = Reflect.construct(target, args, newTarget);
         probe.map = window.__workspaceMap = map;
         probe.created++;

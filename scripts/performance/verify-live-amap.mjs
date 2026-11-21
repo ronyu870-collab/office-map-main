@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { user, session, stock, project, stacking } from './fixtures/workspace-data.mjs';
 import { installLiveAmapProbe } from './fixtures/live-amap-probe.mjs';
+import { summarizeLongTasks } from './fixtures/long-task-profile.mjs';
+
+const profileCPU = process.env.PERF_PROFILE_CPU === '1';
 
 // Real SDK + real provider tiles. Business/auth responses remain isolated fixtures.
 // Run only against a local production build with valid NEXT_PUBLIC_AMAP_* config.
@@ -18,7 +21,7 @@ const buildings = [...stock, ...Array.from({ length: 598 }, (_, i) => ({
   ...stock[0], id: `load-${i}`, name: `性能样本${String(i).padStart(3, '0')}`, submarket: '其他',
   location_lng: 116.22 + (i % 30) * .012, location_lat: 39.78 + Math.floor(i / 30) * .012,
 }))];
-const results = { schema: 1, environment: 'production React + real AMap 2.0/tiles + isolated business/auth fixtures',
+const results = { cpuProfilingEnabled: profileCPU, timingScope: profileCPU ? 'diagnostic sampling; not comparable to unprofiled benchmark' : 'unprofiled benchmark', schema: 1, environment: 'production React + real AMap 2.0/tiles + isolated business/auth fixtures',
   collectedAt: new Date().toISOString(), applicationCommit: process.env.PERF_COMMIT ?? 'unrecorded',
   browser: await browser.version(), locatedProjects: 601, scenarios: [], limitations: [
     'Mobile is a desktop Chrome viewport, not an iOS/Android device.',
@@ -73,6 +76,10 @@ try {
     });
     const cdp = await context.newCDPSession(page);
     await cdp.send('Performance.enable');
+    if (profileCPU) {
+      await cdp.send('Profiler.enable');
+      await cdp.send('Profiler.setSamplingInterval', { interval: 1000 });
+    }
     const trace = [];
     cdp.on('Tracing.dataCollected', event => trace.push(...event.value));
     const detail = page.getByRole('region', { name: 'CBD甲楼楼宇详情' });
@@ -87,7 +94,7 @@ try {
       await page.evaluate(() => {
         const p = window.__liveAmapProbe;
         p.sample = { start: performance.now(), intervals: [], activeIntervals: [], longTasks: [], calls: p.calls.length, events: p.events.length, created: p.created };
-        p.sample.observer = new PerformanceObserver(list => p.sample.longTasks.push(...list.getEntries().map(x => x.duration)));
+        p.sample.observer = new PerformanceObserver(list => p.sample.longTasks.push(...list.getEntries().map(x => ({ startTime: x.startTime, duration: x.duration }))));
         p.sample.observer.observe({ type: 'longtask' });
         let previous;
         const frame = now => {
@@ -100,7 +107,8 @@ try {
         requestAnimationFrame(frame);
       });
       trace.length = 0;
-      await cdp.send('Tracing.start', { categories: 'devtools.timeline', transferMode: 'ReportEvents' });
+      if (profileCPU) await cdp.send('Profiler.start');
+      await cdp.send('Tracing.start', { categories: profileCPU ? 'devtools.timeline,v8,disabled-by-default-v8.gc' : 'devtools.timeline', transferMode: 'ReportEvents' });
       await action();
       await page.waitForTimeout(1200);
       const sample = await page.evaluate(() => {
@@ -118,6 +126,9 @@ try {
       });
       const complete = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
       await cdp.send('Tracing.end'); await complete;
+      const profile = profileCPU ? (await cdp.send('Profiler.stop')).profile : null;
+      if (profile) sample.longTaskDetails = summarizeLongTasks({ tasks: sample.longTasksMs, profile, trace, navigationStart: before.NavigationStart, origin: base.origin });
+      sample.longTasksMs = sample.longTasksMs.map(task => task.duration);
       const after = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
       sample.cpuMs = Object.fromEntries(['LayoutDuration','RecalcStyleDuration','ScriptDuration','TaskDuration'].map(name=>[name,(after[name]-before[name])*1000]));
       sample.paintTraceMs = trace.filter(x=>x.name==='Paint' && x.ph==='X').reduce((sum,x)=>sum+(x.dur??0)/1000,0);
@@ -147,6 +158,9 @@ try {
         assert.equal(await page.locator('.map-selected-marker').count(), 1);
       });
       const afterCamera = await camera();
+      const initialCamera = await page.evaluate(() => window.__liveAmapProbe.initialCameras.at(-1));
+      assert.ok(Math.abs(initialCamera.zoom - beforeCamera.zoom) < .01, 'return must construct at saved zoom');
+      assert.ok(initialCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001), 'return must construct at saved center');
       assert.ok(Math.abs(afterCamera.zoom - beforeCamera.zoom) < .01);
       assert.ok(afterCamera.center.every((v,i)=>Math.abs(v-beforeCamera.center[i])<.00001));
     }

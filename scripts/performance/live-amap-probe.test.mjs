@@ -16,7 +16,7 @@ it('observes late SDK assignment while preserving real construction, method argu
     destroy() { throw new TypeError('SDK failure'); }
   }
   window.AMap.Map = SDKMap;
-  const options = { zoom: 10 };
+  const options = { zoom: 10, center: [116.46, 39.91] };
   const map = new window.AMap.Map('host', options);
   const center = [116.46,39.91];
   expect(map).toBeInstanceOf(SDKMap);
@@ -30,5 +30,7 @@ it('observes late SDK assignment while preserving real construction, method argu
   map.listeners.get('complete')();
   expect(window.__workspaceMap).toBe(map);
   expect(window.__liveAmapProbe.created).toBe(1);
+  expect(window.__liveAmapProbe.initialCameras).toEqual([{ zoom: 10, center: [116.46, 39.91] }]);
+  expect(map.options).toBe(options);
   expect(window.__liveAmapProbe.events.map(x=>x.name)).toEqual(['complete']);
 });
