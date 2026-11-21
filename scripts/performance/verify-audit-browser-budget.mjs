@@ -23,12 +23,12 @@ try{
    await writeFile(join(folder,'next.config.mjs'),`export default {typescript:{ignoreBuildErrors:true},webpack(c){c.resolve.alias={...c.resolve.alias,...${JSON.stringify(aliases)}};return c;}}`);
    await writeFile(join(folder,'backend.js'),`export const supabase={auth:{getSession:async()=>{window.__sessionReads=(window.__sessionReads||0)+1;return{data:{session:{user:{id:'11111111-1111-4111-8111-111111111111'},access_token:'e30.eyJzZXNzaW9uX2lkIjoiYWFhYWFhYWEtYWFhYS00YWFhLThhYWEtYWFhYWFhYWFhYWFhIn0.fixture'}}}}}};`);
    await writeFile(join(folder,'app/layout.tsx'),`import React from 'react';export default function Layout({children}){return <html><body>{children}</body></html>}`);
-   await writeFile(join(folder,'app/page.tsx'),`'use client';import React,{useEffect} from 'react';import * as audit from ${JSON.stringify(join(sourceRoot,'src/utils/audit'))};export default function Page(){useEffect(()=>{audit.setAuditSessionContext({userId:'11111111-1111-4111-8111-111111111111',authSessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'});window.__audit=audit;},[]);return <p>Isolated audit budget</p>}`);
+   await writeFile(join(folder,'app/page.tsx'),`'use client';import React,{useEffect} from 'react';import * as audit from ${JSON.stringify(join(sourceRoot,'src/utils/audit'))};${variant==='after'?`import {auditBuildingReading} from ${JSON.stringify(join(sourceRoot,'src/utils/buildingReadingAudit'))};`:''}export default function Page(){useEffect(()=>{audit.setAuditSessionContext({userId:'11111111-1111-4111-8111-111111111111',authSessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'});window.__audit=audit;${variant==='after'?'window.__reading=auditBuildingReading;':''}},[]);return <p>Isolated audit budget</p>}`);
    const next=require.resolve('next/dist/bin/next');
-   let output='';const build=spawn(process.execPath,[next,'build',folder,'--webpack'],{cwd:folder,stdio:['ignore','pipe','pipe']});
+   let output='';const build=spawn(process.execPath,[next,'build',folder,'--webpack'],{cwd:folder,env:{...process.env,NEXT_TELEMETRY_DISABLED:'1'},stdio:['ignore','pipe','pipe']});
    for(const stream of [build.stdout,build.stderr])stream.on('data',data=>{output=(output+data).slice(-12000);});
    const result=await new Promise(resolve=>build.on('exit',resolve));assert.equal(result,0,output);
-   child=spawn(process.execPath,[next,'start',folder,'-H','127.0.0.1','-p','3244'],{cwd:folder,stdio:['ignore','pipe','pipe']});output='';
+   child=spawn(process.execPath,[next,'start',folder,'-H','127.0.0.1','-p','3244'],{cwd:folder,env:{...process.env,NEXT_TELEMETRY_DISABLED:'1'},stdio:['ignore','pipe','pipe']});output='';
    for(const stream of [child.stdout,child.stderr])stream.on('data',data=>{output=(output+data).slice(-12000);});
    for(let i=0;i<100&&!output.includes('Ready');i++){assert.equal(child.exitCode,null,output);await delay(50);}assert.ok(output.includes('Ready'),output);
    for(const [width,cpu] of [[1280,1],[390,4]])for(let round=0;round<5;round++){
@@ -43,7 +43,7 @@ try{
       IDBObjectStore.prototype.put=function(...args){puts++;return put.apply(this,args);};
       const longTasks=[];const observer=new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(row=>row.duration)));observer.observe({type:'longtask'});
       const samples=[];const started=performance.now();
-      for(let i=0;i<120;i++){const before=performance.now();const pending=window.__audit.logAuditEvent({action_type:'VIEW_BUILDING',details:{id:i}});samples.push(performance.now()-before);pending?.catch?.(()=>{});}
+      for(let i=0;i<120;i++){const before=performance.now();const pending=(window.__reading ? window.__reading('VIEW_BUILDING',{id:String(i),name:'测试楼宇'}) : window.__audit.logAuditEvent({action_type:'VIEW_BUILDING',details:{id:i}}));samples.push(performance.now()-before);pending?.catch?.(()=>{});}
       for(let i=0;i<100&&puts<120;i++)await new Promise(resolve=>setTimeout(resolve,10));
       await new Promise(resolve=>setTimeout(resolve,50));observer.disconnect();samples.sort((a,b)=>a-b);
       return{samples:samples.length,syncP95Ms:samples[113],syncMaxMs:samples.at(-1),counts,puts,sessionReads:window.__sessionReads||0,longTasks,windowMs:performance.now()-started};
@@ -55,6 +55,6 @@ try{
   }finally{if(child&&child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}await rm(folder,{recursive:true,force:true});}
  }
  await mkdir('verification/audit-2',{recursive:true});
- const report={browser:browser.version(),environment:'Actual Chrome + native IndexedDB; production Next/webpack fixture importing actual audit module; synthetic Auth only; 120 distinct events per burst, five rounds per width; no live backend or map SDK',rows};
+ const report={browser:browser.version(),environment:'Actual Chrome + native IndexedDB; production Next/webpack fixture importing actual audit module; synthetic Auth only; 120 distinct business-reading events per burst through the actual shared helper (baseline uses raw audit), five rounds per width; no live backend or map SDK',rows};
  await writeFile('verification/audit-2/browser-budget.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:'pass',...report}));
 }finally{await browser.close();}

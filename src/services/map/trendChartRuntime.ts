@@ -25,6 +25,7 @@ export interface TrendChartDatum {
 export function initTrendChart(
   chartDom: HTMLElement,
   histData: TrendChartDatum[],
+  onMetricView?: (metric: "rent" | "vac") => void,
 ): echarts.ECharts | null {
   if (!chartDom || !histData?.length) return null;
 
@@ -122,12 +123,17 @@ export function initTrendChart(
   };
 
   chart.setOption(buildOption("rent"));
+  let currentMetric: "rent" | "vac" = "rent";
+  onMetricView?.("rent");
 
   const rentButton = document.getElementById("chart-btn-rent");
   const vacancyButton = document.getElementById("chart-btn-vac");
 
   const setActive = (active: "rent" | "vac") => {
+    if (active === currentMetric) return;
     chart.setOption(buildOption(active), true);
+    currentMetric = active;
+    onMetricView?.(active);
 
     if (rentButton) {
       rentButton.style.background = active === "rent" ? "#003e7e" : "#fff";

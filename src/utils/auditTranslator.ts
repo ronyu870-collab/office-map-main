@@ -155,6 +155,16 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
       return `尝试访问无权限板块：「${p.module ?? "未知模块"}」`;
     case "VIEW_BUILDING":
       return `查看了楼宇详情：「${p.buildingName ?? p.building_name ?? p.buildingId ?? p.building_id ?? "未知楼宇"}」`;
+    case "VIEW_BUILDING_CONTACT":
+      return `查看了楼宇联系方式：「${p.building_name ?? p.building_id ?? '未知楼宇'}」`;
+    case "VIEW_BUILDING_TREND":
+      return `查看了楼宇${p.metric === 'vac' ? '空置率' : '租金'}趋势：「${p.building_name ?? p.building_id ?? '未知楼宇'}」`;
+    case "VIEW_BUILDING_SECTION":
+      return `切换了楼宇详情分区：「${p.building_name ?? p.building_id ?? '未知楼宇'}」· ${{overview:'概览',market:'行情',materials:'成交与资料'}[String(p.section)] ?? p.section ?? ''}`;
+    case "VIEW_BUILDING_MATERIALS":
+      return `查看了楼宇资料：「${p.building_name ?? p.building_id ?? '未知楼宇'}」· ${{availability:'房源',commission:'佣金政策',brochure:'项目资料'}[String(p.category)] ?? p.category ?? ''}`;
+    case "VIEW_MATERIAL_ORIGINAL":
+      return `打开了项目资料原件：「${p.target_name ?? p.material_id ?? '未知资料'}」${p.building_name ? ` · ${p.building_name}` : ''}`;
     case "EXPORT_MAP_DATA":
       return `导出了地图数据${p.file_name ? ` · ${p.file_name}` : ''}`;
     case "EXPORT_BUILDING_COMPARISON":
@@ -377,6 +387,11 @@ const BADGE_MAP: Record<string, BadgeStyle> = {
   FILTER:       { variant: "blue",   label: "筛选",   className: "bg-blue-50 text-blue-700 ring-blue-100" },
   VIEW_PROJECT: { variant: "blue",   label: "查看",   className: "bg-blue-50 text-blue-700 ring-blue-100" },
   VIEW_BUILDING:{ variant: "blue",   label: "查看楼宇", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  VIEW_BUILDING_CONTACT:{ variant: "blue", label: "查看联系人", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  VIEW_BUILDING_TREND:{ variant: "blue", label: "查看趋势", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  VIEW_BUILDING_SECTION:{ variant: "blue", label: "切换楼宇分区", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  VIEW_BUILDING_MATERIALS:{ variant: "blue", label: "查看资料分区", className: "bg-blue-50 text-blue-700 ring-blue-100" },
+  VIEW_MATERIAL_ORIGINAL:{ variant: "blue", label: "打开资料原件", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   MAP_FILTER:   { variant: "blue",   label: "地图筛选", className: "bg-blue-50 text-blue-700 ring-blue-100" },
   PAGE_VIEW:    { variant: "zinc",   label: "页面访问", className: "bg-zinc-100 text-zinc-700 ring-zinc-200" },
   EXPORT_MAP_DATA:{ variant: "purple", label: "导出地图", className: "bg-purple-50 text-purple-700 ring-purple-100" },

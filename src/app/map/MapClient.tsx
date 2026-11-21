@@ -700,13 +700,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
     else ctrl.openBuildingInfoWindow(building.id);
 
-    logAction(appSession?.user?.email || '未知用户', 'VIEW_BUILDING', {
-      buildingId: building.id,
-      buildingName: building.name,
-      dataType: building._dataType || 'existing',
-    });
     return true;
-  }, [appSession?.user?.email, mapReady, cancelPendingBuildingNavigation, workspaceViewRef]);
+  }, [mapReady, cancelPendingBuildingNavigation, workspaceViewRef]);
 
   const fullListBusy = mapDataLoading || !mapReady || settledFullListFilterKey !== fullListFilterKey;
   const handleFullListBuildingClick = React.useCallback((building: FullListBuilding) => {

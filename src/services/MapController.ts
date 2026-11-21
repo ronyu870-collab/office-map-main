@@ -4,6 +4,7 @@
 
 "use client";
 import type { WorkspaceBuildingDetail, WorkspaceBuilding } from '@/src/app/map/workspace/buildingDetail';
+import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
 import { resolveBuildingId } from './buildingIdentity';
 
 import { supabase } from "./supabaseClient";
@@ -371,7 +372,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     if (action === 'nearby' && Number.isFinite(building.location_lng) && Number.isFinite(building.location_lat)) {
       (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, Number(pickLatestMetric(building.metrics ?? [])?.net_effective_rent ?? 0));
     }
-    if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '');
+    if (action === 'contact') (window as any).__colliers_showContactModal?.(this._isDemo ? '***' : building.name, this._isDemo ? '***' : building.contact_phone || '', building.id);
     if (action === 'trend') (window as any).__colliers_toggleTrend?.(building.id);
   }
 
@@ -384,6 +385,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.workspaceBuilding = building;
     this.setWorkspaceSelection(building);
     this.workspaceDetailHandler(this.getWorkspaceBuildingDetail(building));
+    auditBuildingReading('VIEW_BUILDING', building, undefined, this._isDemo);
     return true;
   }
   private buildingPopupBinding: ReturnType<typeof bindBuildingPopup> | null = null;
@@ -514,14 +516,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       (window as any).__colliers_showContactModal = (
         buildingName: string,
         contactPhone: string,
+        buildingId?: string,
       ) => {
         try {
-          console.log("[Action Module] 联系方式 clicked", {
-            buildingName,
-            contactPhone,
-            timestamp: new Date().toISOString(),
-          });
-
           // 创建遮罩层
           const overlay = document.createElement("div");
           overlay.id = "__colliers_contact_modal_overlay";
@@ -668,6 +665,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           });
 
           document.body.appendChild(overlay);
+          if (buildingId) auditBuildingReading('VIEW_BUILDING_CONTACT', { id: buildingId, name: buildingName }, undefined, this._isDemo);
         } catch (error) {
           console.error("[Action Module] Failed to show contact modal", error);
           alert("联系方式弹窗加载失败，请稍后再试。");
@@ -771,7 +769,10 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
                   }
 
                   chartDom.innerHTML = "";
-                  const chart = initTrendChart(chartDom, chartData);
+                  const building = this.workspaceBuilding?.id === buildingId ? this.workspaceBuilding : this._allBuildingsCache.find(item => item.id === buildingId);
+                  const chart = initTrendChart(chartDom, chartData, metric => {
+                    auditBuildingReading('VIEW_BUILDING_TREND', { id: buildingId, name: building?.name }, { metric }, this._isDemo);
+                  });
                   if (chart) trend.chart = chart;
                 });
               })
@@ -2009,6 +2010,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       });
     }
     info.open(this.map, [lng, lat]);
+    auditBuildingReading('VIEW_BUILDING', { ...supply, _dataType: 'future' }, undefined, this._isDemo);
   }
 
   private buildFutureSupplyInfoWindow(supply: any): string {
@@ -2621,7 +2623,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
           (window as any).__colliers_analyzeCompetitors?.(building.id, building.location_lng, building.location_lat, metric ? Number(metric.net_effective_rent) : 0);
           break;
         case "contact":
-          (window as any).__colliers_showContactModal?.(this._isDemo ? "***" : building.name, this._isDemo ? "***" : building.contact_phone || "");
+          (window as any).__colliers_showContactModal?.(this._isDemo ? "***" : building.name, this._isDemo ? "***" : building.contact_phone || "", building.id);
           break;
         case "trend": {
           (window as any).__colliers_toggleTrend?.(building.id);
@@ -2672,6 +2674,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       this.releaseBuildingPopup();
     });
     info.open(this.map, [building.location_lng, building.location_lat]);
+    auditBuildingReading('VIEW_BUILDING', building, undefined, this._isDemo);
   }
 
   private releaseBuildingPopup() {
