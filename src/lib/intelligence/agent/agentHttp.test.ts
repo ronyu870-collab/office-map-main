@@ -73,6 +73,14 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it('never presents model-authored Office success or a download URL when no research file was generated', async () => {
+    state.provider.mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: 'Word已保存桌面 https://fake.invalid/report.docx' } });
+    const { request } = fakeRequest('生成 Word 研究报告。');
+    const response = await handleAgentSubmission(request, deps()); const body = await response.json();
+    expect(response.status).toBe(200); expect(body.message).toContain('未生成研究文件');
+    expect(body.message).not.toMatch(/已保存|fake.invalid/); expect(body.result?.parameters?.researchDeliverables).toBeUndefined();
+  });
   it('answers through provider after budget and audited admission', async () => {
     const { request, input } = fakeRequest();
     const response = await handleAgentSubmission(request, deps());

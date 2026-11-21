@@ -559,6 +559,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         ?'公开搜索已返回来源与摘要。请核对来源 URL、检索时间及资料时间；摘要尚未核验原网页。'
         :'内部资料证据已在结果表格交付，可按文档和页码／位置对照核查。私有正文未发送外部模型；文档陈述不等于已核验的当前事实。';
     }
+    const researchRequested = execution.toolNames.some(name => RESEARCH_TOOL_NAMES.has(name))
+      || /(?:Word|PPT|PowerPoint|docx|pptx)/i.test(valid.question) && /(?:生成|导出|制作|输出|报告|下载)/.test(valid.question);
+    const researchFailures = execution.unresolvedFailures.filter(f => RESEARCH_TOOL_NAMES.has(f.tool)).map(f => {
+      if (f.code === 'research_step_limit') return '本次范围超过八个数据步骤，请减少指标或模块，未截断结果。';
+      if (/^(?:report_|research_archive_limit|artifact_size_limit)/.test(f.code)) return '成果超过当前行数、页数、文件或可读排版容量，未裁剪数据；请缩小范围或分批生成。';
+      if (f.code === 'invalid_arguments') return '研究规格不符合受控范围：最多两个子市场、八个季度；请明确期间和业务口径。';
+      return '成果步骤未通过校验，请核对研究进度、当前授权和生成要求。';
+    });
+    if (researchRequested && !preparedResearch) execution.answer = '本轮未生成研究文件。' + [...new Set(researchFailures)].join('');
     if (researchTouched && research.task) {
       execution.result = preparedResearch ?? research.checkpoint()!;
       const descriptor = researchObservation(execution.result);
@@ -568,6 +577,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         : descriptor.state === 'reviewed' ? '研究步骤已完成并审查，正式结果、同源图表规格及来源保留在研究工作集中；本轮尚未生成成果文件。'
         : '研究进度已记录，尚有步骤未完成；可在当前对话继续，不能将部分结果视为完整研究。';
       if (descriptor.issues.length) execution.answer += '\n研究限制：' + [...new Set(descriptor.issues.map(i => reviewIssueText(i.code)))].join('');
+      if (researchFailures.length) execution.answer += '\n' + [...new Set(researchFailures)].join('');
       if (descriptor.state !== 'reviewed' || execution.unresolvedFailures.length) execution.executionStatus = 'partial';
     }
     const knowledgeAnswer=execution.result && isKnowledgeResult(execution.result);

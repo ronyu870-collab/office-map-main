@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { writeFile } from 'node:fs/promises';
@@ -30,9 +30,18 @@ describe('native Office research files and shared evidence model', () => {
     const run = await completedResearch(['rent', 'vacancy', 'totalArea']), before = run.results.map(resultDigest);
     const generated = await generateResearchDeliverable(run.checkpoint()!, { taskId: run.task!.id, formats: ['docx', 'pptx', 'xlsx'] }, crypto.randomUUID());
     expect(JSON.parse(generated.content).state).toBe('server_generated');
+    const generatedFiles = JSON.parse(generated.content).files as Array<{ format: string; sha256: string }>;
     for (const kind of ['docx', 'pptx'] as const) {
       const file = await buildResultArtifact(generated.result, { requestId: crypto.randomUUID(), resultId: generated.result.resultId, action: 'export', format: kind });
       if (file.type !== 'download') throw Error('expected file');
+      expect(file.sha256).toBe(generatedFiles.find(f => f.format === kind)!.sha256);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
+        const later = await buildResultArtifact(generated.result, { requestId: crypto.randomUUID(), resultId: generated.result.resultId, action: 'export', format: kind });
+        if (later.type !== 'download') throw Error('expected file');
+        expect(later.sha256).toBe(file.sha256);
+      } finally { vi.useRealTimers(); }
       expect(file.filename.endsWith('.' + kind)).toBe(true); expect(file.bytes.slice(0, 2)).toEqual(new Uint8Array([80, 75]));
       const opened = await openOffice(file.bytes, kind), text = [...opened.parts].filter(([name]) => kind === 'docx' ? name === 'word/document.xml' : /^ppt\/slides\/slide\d+\.xml$/.test(name)).map(([, doc]) => allText(doc, kind === 'docx' ? 'w:t' : 'a:t')).join('');
       for (const label of ['高力国际', 'CBD', '净有效租金', '空置率', '季度总面积', '155.71', '17.5', '2026Q1', '2026Q4', '未知', '来源与限制', '内部研究']) expect(text).toContain(label);
@@ -71,7 +80,7 @@ describe('native Office research files and shared evidence model', () => {
     const raw = structuredClone(buildListResult(fixture(), ['height']));
     const list = { ...raw, parameters: { ...raw.parameters, executedPlan: parseQueryPlan({ operation: 'list', fields: ['height'], period: null, scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
     list.table.rows = Array.from({ length: 61 }, (_, i) => ({ ...raw.table.rows[0], entityId: String(i), cells: { ...raw.table.rows[0].cells,
-      name: { kind: 'text', value: `合成楼宇${String(i).padStart(3, '0')}` + (i === 60 ? '<script>https://evil.invalid</script>' : ''), sourceIds: [] } } }));
+      name: { kind: 'text', value: `合成楼宇${String(i).padStart(3, '0')}` + (i === 60 ? '<script>https://evil.invalid</script>\u202e\uffff' : ''), sourceIds: [] } } }));
     const report = prepareReportResult([list], { resultIds: [list.resultId] });
     for (const kind of ['docx', 'pptx'] as const) {
       const file = await buildResultArtifact(report, { requestId: crypto.randomUUID(), resultId: report.resultId, action: 'export', format: kind }); if (file.type !== 'download') throw Error();
@@ -79,6 +88,7 @@ describe('native Office research files and shared evidence model', () => {
       const text = [...opened.parts].filter(([n]) => kind === 'docx' ? n === 'word/document.xml' : /^ppt\/slides\/slide\d+\.xml$/.test(n)).map(([, d]) => allText(d, kind === 'docx' ? 'w:t' : 'a:t')).join('');
       for (let i = 0; i < 61; i++) expect(text).toContain(`合成楼宇${String(i).padStart(3, '0')}`);
       expect(text).toContain('<script>'); expect(opened.manifest.sections[0].table.rows.length).toBe(61);
+      expect(opened.manifest.sections[0].table).toEqual(list.table);
     }
     const run = await completedResearch();
     const workspace = run.checkpoint()!;

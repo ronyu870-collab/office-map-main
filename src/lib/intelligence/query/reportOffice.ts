@@ -7,7 +7,7 @@ import { REPORT_LIMITS } from './reportProtocol';
 import type { QueryResult } from './result';
 
 const font = 'Microsoft YaHei', ink = '172033', blue = '25408F', pale = 'F5F7FA';
-const clean = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069]/g, ' ');
+const clean = (s: string) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069\uFFFE\uFFFF]/g, ' ');
 const xml = (s: string) => clean(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 const generated = (stamp: string) => new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp)) + '（北京时间）';
 type Model = ReturnType<typeof readReportModel>;
@@ -18,10 +18,20 @@ async function attachManifest(bytes: Uint8Array, manifest: Model['manifest'], ki
   const { default: JSZip } = await import('jszip');
   const zip = await JSZip.loadAsync(bytes), relPath = kind === 'word' ? 'word/_rels/document.xml.rels' : 'ppt/_rels/presentation.xml.rels';
   const rels = await zip.file(relPath)!.async('string');
-  zip.file('customXml/colliers-research.xml', `<?xml version="1.0" encoding="UTF-8"?><research xmlns="urn:colliers:research:1">${xml(JSON.stringify(manifest))}</research>`);
+  // Escape non-XML/bidi characters in JSON, preserving exact original evidence
+  // even when the visible Office text needs safe display substitutions.
+  const json = JSON.stringify(manifest).replace(/[\u007F\u202A-\u202E\u2066-\u2069\uFFFE\uFFFF]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  zip.file('customXml/colliers-research.xml', `<?xml version="1.0" encoding="UTF-8"?><research xmlns="urn:colliers:research:1">${xml(json)}</research>`);
   zip.file(relPath, rels.replace('</Relationships>', '<Relationship Id="rIdColliersResearch" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/colliers-research.xml"/></Relationships>'));
   const types = await zip.file('[Content_Types].xml')!.async('string');
   zip.file('[Content_Types].xml', types.replace('</Types>', '<Override PartName="/customXml/colliers-research.xml" ContentType="application/xml"/></Types>'));
+  // Downloads are rebuilt from the authorized snapshot. Wall-clock metadata
+  // must not change the file digest recorded when that snapshot was generated.
+  const core = zip.file('docProps/core.xml');
+  if (core) zip.file('docProps/core.xml', (await core.async('string')).replace(
+    /(<dcterms:(?:created|modified)\b[^>]*>)[^<]*(<\/dcterms:(?:created|modified)>)/g,
+    `$1${manifest.generatedAt}$2`));
+  for (const entry of Object.values(zip.files)) entry.date = new Date('2000-01-01T00:00:00Z');
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 }
 
@@ -78,7 +88,7 @@ export async function renderResearchDocx(raw: QueryResult) {
       const w = 650, h = w * image.height / image.width;
       if (h > 750) throw new Error('REPORT_CHART_SIZE_LIMIT');
       children.push(p('同源图表', true), new Paragraph({ children: [new ImageRun({ type: 'png', data: image.bytes,
-        transformation: { width: w, height: h }, altText: { title: d.metric, description: d.period, name: '正式结果图表' } })] }));
+        transformation: { width: w, height: h }, altText: { id: String(i + 1), title: d.metric, description: d.period, name: '正式结果图表' } })] }));
     }
     for (const [band, cols] of bands(section).entries()) {
       children.push(p('数据明细' + (section.result.table.columns.length > 6 ? ` · 字段组 ${band + 1}` : ''), true));
