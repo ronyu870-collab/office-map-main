@@ -5,13 +5,13 @@ function part(value: string, max = 24): string {
   return Array.from(value.normalize('NFKC').replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^[-.]+|[-.]+$/g, '')).slice(0, max).join('') || '未知';
 }
 
-export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 'csv_zip' | 'svg_zip' | 'png_zip' | 'pdf'): string {
+export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 'csv_zip' | 'svg_zip' | 'png_zip' | 'pdf' | 'docx' | 'pptx'): string {
   let { object, metric, period } = resultOutputDescriptor(result);
-  if (format === 'pdf' && result.parameters.agentReport) {
+  if (['pdf', 'docx', 'pptx', 'xlsx'].includes(format) && result.parameters.agentReport) {
     const labels = (key: string) => [...new Set(result.table.rows.flatMap(row => row.cells[key]?.kind === 'text' ? [row.cells[key].value] : []))].join('与');
     object = labels('name') || object; metric = labels('metric') || metric; period = labels('period') || period;
   }
-  const extension = format === 'xlsx' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'zip';
+  const extension = ['xlsx', 'pdf', 'docx', 'pptx'].includes(format) ? format : 'zip';
   return `ColliersAI_${part(object, 20)}_${part(metric, 20)}_${part(period, 40)}_${format}_${result.resultId.slice(0, 8)}.${extension}`;
 }
 

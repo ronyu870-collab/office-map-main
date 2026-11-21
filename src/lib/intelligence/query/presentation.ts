@@ -4,6 +4,7 @@ import { agentExportDescriptorSchema } from './exportProtocol';
 import { distributionAnalysisSchema } from './distribution';
 import { quarterSchema } from './contracts';
 import { metricLabels, resultMetrics, selectResultMetric } from './multiMetricView';
+import { researchTaskSchema } from '../research/protocol';
 
 const text = z.string().max(10000);
 const exact = z.object({ numerator: z.string().regex(/^-?\d{1,400}$/), denominator: z.string().regex(/^[1-9]\d{0,399}$/) });
@@ -60,8 +61,13 @@ function coverageText(input: unknown): string | null {
   return `获权样本 ${c.total} 栋，有效 ${c.valid} 栋；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}。`;
 }
 export function resultSummary(result: QueryResultView): string[] {
+  if (result.parameters.dataDomain === 'deep-research/1') {
+    const task = researchTaskSchema.parse(result.parameters.researchTask);
+    const data = task.steps.filter(s => s.id !== 'review');
+    return [`研究工作集已完成 ${data.filter(s => s.state === 'complete').length}/${data.length} 个数据步骤；${task.state === 'reviewed' ? '已执行成果审查。' : '尚未完成研究，可继续当前任务。'}`];
+  }
   const report = reportDescriptorSchema.safeParse(result.parameters.agentReport).data;
-  if (report) return [`本次内部 PDF 包含 ${report.sectionCount} 个研究部分，保留 ${report.rowCount} 条原表记录；各部分独立统计，记录数不等于楼宇总数。`];
+  if (report) return [`本次内部 ${report.format.toUpperCase()} 包含 ${report.sectionCount} 个研究部分，保留 ${report.rowCount} 条原表记录；各部分独立统计，记录数不等于楼宇总数。`];
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   if (exported) return [`本次导出 ${exported.exportedRows} 条记录，筛选后共 ${exported.matchedRows} 条；文件使用完整正式结果，不受界面分页限制。`];
   if (result.parameters.dataDomain === 'lease-research/1') return [`获权成交研究结果共 ${result.table.rows.length} 行；成交记录数按有效身份关联去重，未经核验的跨表重叠仍可能存在。`, '成交面积与有效面积样本数分别列示，不代表净吸纳量或市场全集。'];
@@ -130,6 +136,7 @@ export function resultSummary(result: QueryResultView): string[] {
   })];
 }
 export function resultScopeText(result: QueryResultView): string {
+  if (result.parameters.dataDomain === 'deep-research/1') return '多个获权正式结果组成的内部研究；各部分保留独立期间、有效样本及来源，不将成交面积解释为净吸纳量。';
   if(result.parameters.dataDomain==='business-research/1')return '获权业务资料；目录、楼书、静态简介、供应提交及单元来源口径分别标注。';
   if (result.parameters.dataDomain === 'lease-research/1') return '获权成交记录研究；来源、日期精度、身份匹配和去重覆盖见口径及限制。';
   if (reportDescriptorSchema.safeParse(result.parameters.agentReport).success)

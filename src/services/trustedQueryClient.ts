@@ -138,11 +138,15 @@ async function callOnce(path: string, scope: QueryClientScope, signal: AbortSign
     const filename = parseArtifactFilename(response.headers.get('content-disposition'));
     const mime = response.headers.get('content-type') ?? '';
     if (response.headers.get('x-query-result-id') !== downloadResultId || !filename
-      || !['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf', ...(path==='/document'?['application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.presentationml.presentation']:[])].includes(mime)) throw new Error('下载结果与当前查询不一致。');
+      || !['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.presentationml.presentation'].includes(mime)) throw new Error('下载结果与当前查询不一致。');
+    const officeFormat = (body as { format?: string } | undefined)?.format;
+    const officeMimes: Record<string, string> = { docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+    if (officeFormat && officeMimes[officeFormat] && (mime !== officeMimes[officeFormat] || !filename.endsWith('.' + officeFormat))) throw new Error('研究文件下载格式不正确。');
     if ((body as { format?: string } | undefined)?.format === 'pdf' && (mime !== 'application/pdf' || !filename.endsWith('.pdf'))) throw new Error('PDF 下载格式不正确。');
     const bytes = await response.arrayBuffer();
     if (bytes.byteLength > 32 * 1024 * 1024) throw new Error('下载文件超过当前支持的大小。');
     if (mime === 'application/pdf' && new TextDecoder('ascii').decode(new Uint8Array(bytes, 0, Math.min(5, bytes.byteLength))) !== '%PDF-') throw new Error('PDF 文件内容无效。');
+    if (officeFormat && officeMimes[officeFormat] && (bytes.byteLength < 4 || new Uint8Array(bytes)[0] !== 0x50 || new Uint8Array(bytes)[1] !== 0x4b)) throw new Error('研究文件内容无效。');
     const digest = await sha256(new Uint8Array(bytes));
     if (digest !== response.headers.get('x-artifact-sha256')) throw new Error('下载校验失败，请重试。');
     await currentSession();

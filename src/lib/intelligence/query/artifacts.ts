@@ -10,7 +10,7 @@ import { renderResultCopy, resultCopyFormatSchema } from './resultOutput';
 const common = { requestId: z.uuid(), resultId: z.uuid() };
 export const artifactInputSchema = z.discriminatedUnion('action', [
   z.strictObject({ ...common, action: z.literal('chart'), chart: chartRequestSchema }),
-  z.strictObject({ ...common, action: z.literal('export'), format: z.enum(['csv_zip', 'xlsx', 'svg_zip', 'png_zip', 'pdf']), chart: chartRequestSchema.optional() }),
+  z.strictObject({ ...common, action: z.literal('export'), format: z.enum(['csv_zip', 'xlsx', 'svg_zip', 'png_zip', 'pdf', 'docx', 'pptx']), chart: chartRequestSchema.optional() }),
   z.strictObject({ ...common, action: z.literal('copy'), format: resultCopyFormatSchema }),
 ]);
 export type ArtifactInput = z.infer<typeof artifactInputSchema>;
@@ -29,9 +29,16 @@ export async function buildResultArtifact(rawResult: unknown, input: ArtifactInp
   }
   if (input.action === 'copy') return { type: 'copy' as const, text: renderResultCopy(view, input.format), format: input.format,
     resultId: result.resultId, resultDigest: resultDigest(result) };
+  if (view.parameters.dataDomain === 'deep-research/1' && (!Array.isArray(view.parameters.researchDeliverables)
+    || !view.parameters.researchDeliverables.includes(input.format) || !view.parameters.agentReport)) throw new Error('RESEARCH_DELIVERABLE_NOT_GENERATED');
   if ((input.format === 'svg_zip' || input.format === 'png_zip') !== Boolean(input.chart)) throw new Error('ARTIFACT_CHART_FORMAT_MISMATCH');
   let bytes: Uint8Array, contentType: string;
-  if (input.format === 'pdf') {
+  if (input.format === 'docx' || input.format === 'pptx' || input.format === 'xlsx' && result.parameters.agentReport && result.parameters.researchTask) {
+    const { renderResearchDocx, renderResearchPptx, renderResearchXlsx } = await import('./reportOffice');
+    bytes = input.format === 'docx' ? await renderResearchDocx(result) : input.format === 'pptx' ? await renderResearchPptx(result) : await renderResearchXlsx(result);
+    contentType = input.format === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : input.format === 'pptx' ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  } else if (input.format === 'pdf') {
     const { renderResearchPdf } = await import('./reportPdf');
     bytes = (await renderResearchPdf(result)).bytes; contentType = 'application/pdf';
   } else if (input.format === 'xlsx') {
