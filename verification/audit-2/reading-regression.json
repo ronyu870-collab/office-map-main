@@ -19,5 +19,20 @@
   ],
   "method": "Temporarily execute the same behavioral regressions against unchanged main implementation; restore all working files in finally. The mandatory CI reruns the fixed implementation.",
   "fixed_passed": 156,
-  "fixed_failed": 0
+  "fixed_failed": 0,
+  "cross_entry_regression": {
+    "baseline": "b48ead066d4d367fc161b45714a25097d0e9d971",
+    "baseline_failed": 1,
+    "fixed_policy_tests_passed": 6,
+    "fixed_browser_viewports": [
+      1536,
+      1280,
+      1024,
+      768,
+      390,
+      320
+    ],
+    "case": "same building opened by list then map marker keeps one observation inside 10 seconds; different building and expiry still record",
+    "affected_browser_scripts_passed": 13
+  }
 }

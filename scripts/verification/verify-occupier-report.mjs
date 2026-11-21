@@ -31,7 +31,16 @@ function inlineImage(src) {
   assert.ok(src === '/colliers-logo.png' || /^\/occupier-insights\/[a-z-]+\.(?:webp|avif)$/.test(src), `Unexpected fixture image: ${src}`);
   return `data:image/${src.split('.').at(-1)};base64,${fs.readFileSync(path.join(cwd, 'public', src)).toString('base64')}`;
 }
+// Static layout rendering does not mount React effects. Load the real reading helpers
+// with an isolated transport; authenticated chapter observations have mounted React regressions.
+const readingContext = load(path.join(cwd, 'src/utils/readingAuditContext.ts'));
+const readingAudit = load(path.join(cwd, 'src/utils/businessReadingAudit.ts'), name => {
+  if (name === './readingAuditContext') return readingContext;
+  if (name === './audit') return { logAction() {} };
+  return nodeRequire(name);
+});
 const report = load(path.join(directory, 'OccupierInsightsReport.tsx'), name => {
+  if (name === '@/src/utils/businessReadingAudit') return readingAudit;
   if (name === 'next/image') return { __esModule: true, default: ({ src, fill, ...input }) => {
     const props = { ...input };
     delete props.unoptimized;

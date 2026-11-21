@@ -40,6 +40,8 @@ function normalizedValue(value: unknown, depth = 0): unknown {
 
 function fingerprint(actionType: string, details: Record<string, unknown>): string {
   const business={...details};delete business.correlation_id;delete business.origin_request_id;
+  // A list/marker switch must not turn the same short-window building read into two reads.
+  if(actionType==='VIEW_BUILDING')delete business.entry;
   const serialized = JSON.stringify(normalizedValue(business));
   return `${actionType}:${serialized.slice(0, 1200)}`;
 }
