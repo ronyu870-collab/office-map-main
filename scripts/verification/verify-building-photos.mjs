@@ -14,6 +14,9 @@ const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS },
 }).outputText;
 const modules = {
+  '@/src/utils/readingAuditContext': compile('src/utils/readingAuditContext.ts'),
+  '@/src/utils/businessReadingAudit': compile('src/utils/businessReadingAudit.ts'),
+  '@/src/lib/sales-materials/building-media-pilot': compile('src/lib/sales-materials/building-media-pilot.ts'),
   '@/src/lib/building-photos/model': compile('src/lib/building-photos/model.ts'),
   '../buildingPhotosClient': compile('src/services/buildingPhotosClient.ts'),
   '../salesMaterialsClient': compile('src/services/salesMaterialsClient.ts'),
@@ -23,12 +26,15 @@ const modules = {
 const bootstrap = `
 const modules = ${JSON.stringify(modules)};
 const cache = {};
+window.__readingObservations = [];
 function require(name) {
+  if (name === './readingAuditContext') name = '@/src/utils/readingAuditContext';
+  if (name === './audit') return {logAction: (_actor, action, details) => window.__readingObservations.push({action, ...details})};
   if (name === '@/src/services/Auth') return {getSessionFast: async () => ({session:{access_token:'synthetic-browser-token'}})};
   if (!cache[name]) {
     if (!modules[name]) throw new Error('Unexpected fixture import: ' + name);
     const module = {exports:{}}; cache[name] = module;
-    new Function('require','module','exports',modules[name])(require,module,module.exports);
+    new Function('require','module','exports','process',modules[name])(require,module,module.exports,{env:{NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT:'1'}});
   }
   return cache[name].exports;
 }
@@ -43,7 +49,9 @@ const photos = previewFallback ? [{id:'55555555-5555-4555-8555-555555555555',cap
 const root = document.querySelector('[data-fixture]');
 const title = '用于验证窄屏的超长楼宇名称与真实图片来源说明';
 root.innerHTML = '<div class="building-pilot-title-row"><h2 class="building-pilot-name">'+title+'</h2>'+gallery.buildPhotoTrigger('photos')+'</div>'+gallery.buildPhotoGallery('photos',title,photos);
-gallery.bindBuildingPhotoGallery(root,'11111111-1111-4111-8111-111111111111',photos);
+const buildingId = pilot ? 'b99a801e-5dfd-4849-8aef-c55de594a48f' : '11111111-1111-4111-8111-111111111111';
+require('@/src/utils/readingAuditContext').beginBuildingReading(buildingId,'map_gallery');
+gallery.bindBuildingPhotoGallery(root,buildingId,photos);
 `;
 const css = fs.readFileSync('src/app/map/map-building-popup.css', 'utf8');
 const tokens = fs.readFileSync('src/styles/tokens.css', 'utf8');
@@ -76,6 +84,8 @@ const server = http.createServer((request, response) => {
   if (url.pathname === '/image.svg') { imageReads++; response.setHeader('Content-Type', 'image/svg+xml'); return response.end(assetFor(url.searchParams.get('id'))); }
   if (['/api/map/building-photos', '/api/map/sales-materials'].includes(url.pathname)) {
     assert.equal(request.headers.authorization, 'Bearer synthetic-browser-token');
+    assert.equal(request.headers['x-reading-entry'], 'map_gallery');
+    assert.match(request.headers['x-reading-id'], /^[0-9a-f-]{36}$/i);
     const pilot = url.pathname.endsWith('sales-materials');
     if (pilot) { assert.equal(url.searchParams.get('cover'), '1'); assert.equal(url.searchParams.get('photo'), '1'); }
     const id = pilot ? 'pilot' : url.searchParams.get('photo_id');
@@ -130,6 +140,7 @@ try {
     reads = []; imageReads = 0; failSecond = true; downloadReads = [];
     await page.context().route(externalUrl, route => route.fulfill({ contentType: 'image/svg+xml', body: svg }));
     await page.goto(`http://127.0.0.1:${server.address().port}`, { waitUntil: 'load' });
+    assert.deepEqual(errors, [], 'The actual gallery module graph must initialize before interaction');
     assert.equal(reads.length, 0);
     const trigger = page.getByRole('button', { name: '看图' });
     if (mobile) { const box = await trigger.boundingBox(); assert.ok(box.width >= 44 && box.height >= 44); await trigger.tap(); }
@@ -260,6 +271,11 @@ try {
     assert.equal(lateDownloads, 0);
     assert.ok(await viewer.isVisible());
     await closeViewer.click();
+    const observations = await page.evaluate(() => window.__readingObservations);
+    for (const observation of ['displayed','enlarged','failed','external_original_open_requested']) {
+      assert.ok(observations.some(row => row.action === 'VIEW_BUILDING_PHOTO' && row.observation === observation), observation);
+    }
+    assert.ok(observations.every(row => row.entry === 'map_gallery' && row.correlation_id === observations[0].correlation_id));
 
     await page.goto(`http://127.0.0.1:${server.address().port}/?preview-fallback`);
     fallbackReads = [];
@@ -276,6 +292,7 @@ try {
     assert.equal(await viewer.getByRole('navigation').count(), 0);
     await verifyDownload(downloadButton, '试点室内照片.svg', svg);
     assert.equal(downloadReads.at(-1), 'pilot');
+    assert.ok(await page.evaluate(() => window.__readingObservations.some(row => row.target_id === '55c9ff8b-9596-459a-aa00-6e8cc034a630' && row.photo_id === 'interior.webp')));
     assert.deepEqual(errors, []);
     results.push({ width, height, touch: mobile, idleRequests: 0, lazyReadRetryAndReuse: true, captionOnlyWithoutLicense: true, enlargedViewReusesImage: true, enlargedViewRestoresPhotoAndFocus: true, attributionAndLicense: true, escapeReturnsFocus: true, centeredAfterGlobalReset: true, downloadedExactOriginalBytes: true, externalFallback: true, horizontalOverflow: false });
     await page.close();
