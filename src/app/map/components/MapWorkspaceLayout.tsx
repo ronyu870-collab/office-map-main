@@ -141,7 +141,10 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
     <WorkspacePanelContext.Provider value={columns.compact ? { compact: true, mode: modes.filters ?? 'compact', setMode, restore: restoreMode } : null}>
       <aside ref={leftRef} className="map-workspace-left" data-open={accessibleLeft || undefined}
         onFocusCapture={() => { panelFocused.current.left = true; }} onBlurCapture={event => blurPanel('left', event)}
-        data-exiting={leftPresence.exiting || undefined} inert={!accessibleLeft || undefined} aria-hidden={!accessibleLeft}>{leftPresence.children}</aside>
+        data-exiting={leftPresence.exiting || undefined} inert={!accessibleLeft || undefined} aria-hidden={!accessibleLeft}>
+        {/* Keep hidden filters live; an exit-only copy must not retain stale local state on return. */}
+        {left == null && leftPresence.exiting ? <React.Fragment key="filter-exit">{leftPresence.children}</React.Fragment> : left}
+      </aside>
     </WorkspacePanelContext.Provider>
     {React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<{ inert?: boolean; 'aria-hidden'?: boolean }>, { inert: expanded || undefined, 'aria-hidden': expanded || undefined }) : children}
     <WorkspacePanelContext.Provider value={{ compact: columns.compact, mode, setMode, restore: restoreMode, backLabel, onBack }}>

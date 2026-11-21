@@ -20,3 +20,25 @@ it('returns keyboard focus to the panel opener when the panel closes', () => {
     expect(opener).toHaveFocus();
   } finally { bounds.mockRestore(); }
 });
+
+it('keeps hidden filters current and restores fresh state during a rapid full-list round trip', () => {
+  const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 1536, height: 800, top: 0, left: 0 } as DOMRect);
+  Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: vi.fn() });
+  function Filter({ initial }: { initial: string }) {
+    const [value] = React.useState(initial);
+    return <span>{value}</span>;
+  }
+  const layout = (left: React.ReactNode, open: boolean) => <MapWorkspaceLayout left={left} right={null}
+    leftOpen={open} rightOpen={false} focus={false} width={320} onWidthChange={() => {}}><main /></MapWorkspaceLayout>;
+  try {
+    const view = render(layout(<Filter initial="旧筛选" />, true));
+    view.rerender(layout(null, false));
+    view.rerender(layout(<Filter initial="当前筛选" />, true));
+    expect(screen.getByText('当前筛选')).toBeInTheDocument();
+    view.rerender(layout(<span>关闭后更新</span>, false));
+    expect(screen.getByText('关闭后更新')).toBeInTheDocument();
+  } finally {
+    bounds.mockRestore();
+    Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+  }
+});
