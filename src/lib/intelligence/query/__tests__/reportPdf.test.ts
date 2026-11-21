@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument, PDFName, PDFDict } from 'pdf-lib';
 import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { prepareReportResult } from '../../agent/reportTool';
 import { reportRequestSchema, reportPeriodRange } from '../reportProtocol';
 import { buildResultArtifact } from '../artifacts';
@@ -64,7 +66,7 @@ describe('real research PDFs from authorized formal results', () => {
       const embedded = parsed.context.enumerateIndirectObjects().map(([, v]) => v).filter(v => v instanceof PDFDict && v.get(PDFName.of('FontDescriptor')));
       expect(embedded.length).toBeGreaterThan(0);
       expect((await opened.pages[2].page.getOperatorList()).fnArray.length).toBeGreaterThan(10);
-      await writeFile('/private/tmp/ai5-pdf-research-fixture.pdf', file.bytes);
+      await writeFile(join(tmpdir(), 'ai5-pdf-research-fixture.pdf'), file.bytes);
       const again = await buildResultArtifact(report, { requestId: crypto.randomUUID(), resultId: report.resultId, action: 'export', format: 'pdf' });
       if (again.type !== 'download') throw new Error();
       expect(again.sha256).toBe(file.sha256);
