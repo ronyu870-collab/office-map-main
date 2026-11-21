@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: mocks.useAppSession }));
 vi.mock('@/src/services/Auth', () => ({ getSessionFast: mocks.getSessionFast }));
-vi.mock('@/src/services/impersonationHeaders', () => ({ withImpersonationHeaders: mocks.withImpersonationHeaders }));
+vi.mock('@/src/services/impersonationHeaders', () => ({ withImpersonationHeaders: mocks.withImpersonationHeaders, getImpersonationTargetUserId: () => null }));
 
 const BUILDING_ID = '9ee3e3ff-4845-41a1-a78f-390c11b1917a';
 const floorA = '00000000-0000-4000-8000-000000000001';
@@ -177,6 +177,39 @@ describe('Stacking Plan actual workspace focus continuity', () => {
     expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '清除筛选' }));
     expect((search as HTMLInputElement).value).toBe('');
+  });
+
+  it('uses a validated project return link and defaults direct entry to the same project', async () => {
+    const view = render(<StackingPlanWorkspace buildingId={BUILDING_ID} backHref={`/map?building=${BUILDING_ID}&resume=return-token`} />);
+    expect(screen.getByRole('link', { name: '返回项目详情' })).toHaveAttribute('href', `/map?building=${BUILDING_ID}&resume=return-token`);
+    view.rerender(<StackingPlanWorkspace buildingId={BUILDING_ID} backHref="https://untrusted.test/" />);
+    expect(screen.getByRole('link', { name: '返回项目详情' })).toHaveAttribute('href', `/map?building=${BUILDING_ID}`);
+    await screen.findByRole('button', { name: /奥迪/ });
+  });
+
+  it('retains loaded floors while a refresh is pending or fails', async () => {
+    render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    await screen.findByRole('button', { name: /奥迪/ });
+    let reject!: (error: Error) => void;
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+    fireEvent.click(screen.getByRole('button', { name: '刷新数据' }));
+    await screen.findByText('正在刷新，保留上次结果…');
+    expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
+    await waitFor(() => expect(reject).toBeDefined());
+    reject(new Error('隔离刷新失败'));
+    await screen.findByText('隔离刷新失败');
+    expect(screen.getByRole('button', { name: /奥迪/ })).toBeInTheDocument();
+  });
+
+  it('clears the previous account payload while the new identity request is pending', async () => {
+    mocks.useAppSession.mockReturnValue({ status: 'authenticated', session: { role: 'admin', user: { id: 'account-a' }, sessionId: 'login-a' } });
+    const view = render(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    await screen.findByRole('button', { name: /奥迪/ });
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise(() => {}));
+    mocks.useAppSession.mockReturnValue({ status: 'authenticated', session: { role: 'admin', user: { id: 'account-b' }, sessionId: 'login-b' } });
+    view.rerender(<StackingPlanWorkspace buildingId={BUILDING_ID} />);
+    expect(screen.queryByRole('button', { name: /奥迪/ })).not.toBeInTheDocument();
+    await screen.findByText('正在读取楼层资料…');
   });
 
 });

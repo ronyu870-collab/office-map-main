@@ -2,12 +2,18 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
+import { animateWorkspace, useSurfacePresence } from '../runtime/workspaceMotion';
 
 /** Nonmodal, viewport-bounded disclosure shared by map statistics, legends and list options. */
 export function MapDisclosure({ label, children, className = '', active = true }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean }) {
   const root = React.useRef<HTMLDetailsElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
+  const presence = useSurfacePresence(open, children);
+  React.useLayoutEffect(() => {
+    const animation = animateWorkspace(content.current, open ? [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'translateY(0)' }] : [{ opacity: 1 }, { opacity: 0 }]);
+    return () => animation?.cancel();
+  }, [open]);
   const id = React.useId();
   React.useEffect(() => { if (!active) root.current?.removeAttribute('open'); }, [active]);
   React.useLayoutEffect(() => {
@@ -55,6 +61,6 @@ export function MapDisclosure({ label, children, className = '', active = true }
       if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });
       setOpen(next);
     }}>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
-    {open ? createPortal(<div ref={content} id={id} className="map-disclosure-content">{children}</div>, document.body) : null}
+    {presence.present ? createPortal(<div ref={content} id={id} className="map-disclosure-content" inert={!open || undefined} aria-hidden={!open || undefined}>{presence.children}</div>, document.body) : null}
   </details>;
 }

@@ -31,6 +31,7 @@ export const initialWorkspaceState: WorkspaceState = {
   leftOpen: false, right: null, history: [], width: 320, widths: {}, focus: false, research: null,
 };
 export type WorkspaceAction =
+  | { type: 'restore'; state: WorkspaceState }
   | { type: 'left'; open: boolean }
   | { type: 'open'; view: WorkspaceView; replace?: boolean }
   | { type: 'close' | 'back' | 'focus' | 'retain' }
@@ -39,6 +40,7 @@ export type WorkspaceAction =
   | { type: 'end-research' };
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   switch (action.type) {
+    case 'restore': return action.state;
     case 'left': return { ...state, leftOpen: action.open, focus: false };
     case 'width': {
       if (!Number.isFinite(action.width)) return state;

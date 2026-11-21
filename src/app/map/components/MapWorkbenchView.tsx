@@ -14,6 +14,8 @@ import type { WorkspaceView } from '../workspace/workspaceState';
 import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
+import { animateWorkspace, WORKSPACE_MOTION } from '../runtime/workspaceMotion';
+import { MapReadingContext } from '../workspace/continuity';
 import { panelWidth, type PanelWidths, type WorkspaceKind } from '../workspace/workspaceState';
 import { Maximize2, Minimize2, Info, MoreHorizontal, Home, List } from 'lucide-react';
 import { FullBuildingList } from './FullBuildingList';
@@ -73,6 +75,8 @@ type MapWorkbenchViewProps = {
   onWorkspaceWidth?: (width: number, kind?: WorkspaceKind) => void;
   onFocusModeChange?: () => void;
   stats: MapStatsState;
+  restoredComparisonBuildings?: FullListBuilding[];
+  comparisonIdentityKey?: string;
   futureSupplyCalendar: Record<SupplyCalendarCategory, SupplyCalendarBucket>;
   futureSuppliesCount: number;
   futureSupplies: FullListBuilding[];
@@ -95,7 +99,7 @@ type MapWorkbenchViewProps = {
   combinedBuildingList: any[];
   displayOverrides: Map<string, Map<string, DisplayOverride>>;
   targetBuildingId: string | null;
-  brokerContext?: { back?: string; unavailable: boolean } | null;
+  brokerContext?: { back?: string; unavailable: boolean; filtered?: boolean } | null;
   intelligenceContext?: {
     candidateCount: number | null;
     appliedCapabilities: string[];
@@ -246,9 +250,18 @@ function MetricStrip({ stats }: { stats: MapStatsState }) {
     { label: '总体量', value: stats.totalArea, unit: '㎡' },
   ];
 
+  const host = React.useRef<HTMLElement>(null);
+  const signature = metrics.map(metric => metric.value).join('|');
+  const previous = React.useRef(signature);
+  React.useEffect(() => {
+    if (previous.current === signature) return;
+    previous.current = signature;
+    const animation = animateWorkspace(host.current, [{ opacity: .7 }, { opacity: 1 }], WORKSPACE_MOTION.feedback);
+    return () => animation?.cancel();
+  }, [signature]);
   return (
-    <section className="map-live-stats" aria-label="市场实时指标">
-      <dl className="map-workspace-kpis" aria-live="polite" aria-atomic="true">{metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value} <span>{metric.unit}</span></dd></div>)}</dl>
+    <section ref={host} className="map-live-stats" aria-label="市场实时指标">
+      <dl className="map-workspace-kpis" aria-live="polite" aria-atomic="true">{metrics.map((metric, index) => <div key={metric.label}><dt>{metric.label}</dt><dd><b className="map-metric-number" style={{ minWidth: `${[5, 4, 4, 10][index]}ch` }}>{metric.value}</b><span>{metric.unit}</span></dd></div>)}</dl>
     </section>
   );
 }
@@ -377,17 +390,28 @@ export function MapWorkbenchView({
   onOpenFullList,
   onCloseFullList,
   onFullListBuildingClick,
+  restoredComparisonBuildings = [],
+  comparisonIdentityKey,
 }: MapWorkbenchViewProps) {
 
+  const reading = React.useContext(MapReadingContext);
   const [listMoreContext, setListMoreContext] = React.useState<{ key: string | undefined } | null>(null);
   const [searchChoicesOpen, setSearchChoicesOpen] = React.useState(false);
   // Explicit business navigation wins over an earlier search result view.
   React.useEffect(() => setSearchChoicesOpen(false), [rightView]);
   // Keep selections through filtering and sidebar closure, not across account or impersonation changes.
-  const comparisonScope = JSON.stringify([searchContextKey, getImpersonationTargetUserId()]);
+  const comparisonScope = JSON.stringify([comparisonIdentityKey ?? searchContextKey, getImpersonationTargetUserId()]);
   const [comparisonSelection, setComparisonSelection] = React.useState<{
     scope: string; items: Map<string, FullListBuilding>;
   }>({ scope: comparisonScope, items: new Map() });
+  const restoredComparisonScopes = React.useRef(new Set<string>());
+  React.useEffect(() => {
+    if (!restoredComparisonBuildings.length || restoredComparisonScopes.current.has(comparisonScope)) return;
+    restoredComparisonScopes.current.add(comparisonScope);
+    setComparisonSelection({ scope: comparisonScope, items: new Map(restoredComparisonBuildings.map(building => [
+      `${building._dataType === 'future' ? 'future' : 'existing'}:${building.id}`, building,
+    ])) });
+  }, [comparisonScope, restoredComparisonBuildings]);
   const selectedComparisonBuildings = comparisonSelection.scope === comparisonScope
     ? Array.from(comparisonSelection.items.values()) : [];
   const handleComparisonSelectionChange = React.useCallback((rows: FullListBuilding[], selected: boolean) => {
@@ -399,9 +423,10 @@ export function MapWorkbenchView({
         if (selected) next.set(key, building);
         else next.delete(key);
       }
+      if (reading) reading.comparisonIds = Array.from(next.keys());
       return { scope: comparisonScope, items: next };
     });
-  }, [comparisonScope]);
+  }, [comparisonScope, reading]);
   const searchInputWrapRef = React.useRef<HTMLDivElement>(null);
   const searchChoicesRef = React.useRef<HTMLDivElement>(null);
   const moreFiltersTriggerId = React.useId();
@@ -633,9 +658,10 @@ export function MapWorkbenchView({
             <button type="button" className="workspace-header-link" aria-label="完整列表" onClick={() => onOpenFullList?.()}><List size={16} aria-hidden="true" />完整列表</button>
           </MapDisclosure></div>
         </div>
-        {(brokerContext?.back || brokerContext?.unavailable) && <div className="flex flex-wrap items-center gap-x-3 px-4 text-sm">
+        {(brokerContext?.back || brokerContext?.unavailable || brokerContext?.filtered) && <div className="flex flex-wrap items-center gap-x-3 px-4 text-sm">
           {brokerContext.back && <a className="inline-flex min-h-11 items-center text-[var(--cd-color-brand)] underline" href={brokerContext.back}>返回来源</a>}
-          {brokerContext.unavailable && <span role="status">未找到可定位的楼宇或项目。</span>}
+          {brokerContext.filtered && <span role="status">原项目不在当前筛选结果中，已保留筛选并单独打开详情。</span>}
+          {brokerContext.unavailable && <span role="status">项目不存在或当前身份无权访问。</span>}
         </div>}
         {queryPanel}
       </header>

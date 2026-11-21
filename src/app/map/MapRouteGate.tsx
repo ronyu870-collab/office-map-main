@@ -19,9 +19,11 @@ const MapClient = dynamic(() => import('./MapClient').then(module => module.defa
 export function MapRouteGate({
   initialIntelligenceHandoff = null,
   buildingFocus,
+  resume,
   queryContext = null,
 }: {
   buildingFocus?: BuildingFocus | null;
+  resume?: string | null;
   queryContext?: QueryMapContext | null;
   initialIntelligenceHandoff?: IntelligenceMapRouteState | null;
 }) {
@@ -37,5 +39,5 @@ export function MapRouteGate({
   // never mounted until the shared root session has resolved as authenticated.
   if (status !== 'authenticated') return <MapLoadingShell />;
 
-  return <MapClient key={JSON.stringify([session?.user.id, session?.role, targetUserId, queryContext])} initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />;
+  return <MapClient key={JSON.stringify([session?.user.id, session?.role, session?.sessionId, targetUserId, queryContext])} resume={resume} initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />;
 }

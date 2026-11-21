@@ -23,7 +23,7 @@ describe('map comparison interaction contracts', () => {
     expect(bridge).toContain("const REQUEST_EVENT = 'map-building-compare-request'");
     expect(bridge).toContain("readBuildingPopupContext(button)");
     expect(bridge).toContain("new CustomEvent<CompareRequestDetail>(REQUEST_EVENT");
-    expect(bridge).toContain("new URLSearchParams({ buildingId: detail.buildingId })");
+    expect(bridge).toContain("new URLSearchParams({ buildingId: detail.buildingId, back: currentMapReturnHref(detail.buildingId) })");
     expect(bridge).toContain("params.set('name', detail.buildingName)");
     expect(bridge).toContain('navigatingRef.current');
     expect(bridge).toContain('router.push(`/compare?${params.toString()}`)');

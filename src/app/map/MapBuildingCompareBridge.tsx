@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { currentMapReturnHref } from './workspace/continuity';
 import { useRouter } from 'next/navigation';
 
 import { readBuildingPopupContext } from '@/src/services/map/buildingPopup';
@@ -37,7 +38,7 @@ export function MapBuildingCompareBridge() {
       const detail = (event as CustomEvent<CompareRequestDetail>).detail;
       if (!detail?.buildingId || navigatingRef.current) return;
 
-      const params = new URLSearchParams({ buildingId: detail.buildingId });
+      const params = new URLSearchParams({ buildingId: detail.buildingId, back: currentMapReturnHref(detail.buildingId) });
       if (detail.buildingName) params.set('name', detail.buildingName);
       navigatingRef.current = true;
       router.push(`/compare?${params.toString()}`);

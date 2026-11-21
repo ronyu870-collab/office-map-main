@@ -1,10 +1,13 @@
 'use client';
 import * as React from 'react';
+import Link from 'next/link';
 import { WorkspacePanelHeader, WorkspacePanelContext } from './WorkspacePanelHeader';
 import { bindBuildingPhotoGallery, buildPhotoGallery, buildPhotoTrigger } from '@/src/services/map/buildingPhotoGallery';
 import { displayListGrade, hasBuildingLocation, listVacancyPercent, finiteMetric } from '../model/fullBuildingList';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { futureSupplyDisplayLabel } from '../model/mapDomain';
+import { animateWorkspace } from '../runtime/workspaceMotion';
+import { useMapReadingScroll } from '../workspace/continuity';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
 
 type Action = 'nearby' | 'contact' | 'trend' | 'edit';
@@ -26,15 +29,19 @@ const number = (value: unknown, suffix = '') => {
   const numeric = finiteMetric(value);
   return numeric === null ? '未提供' : numeric.toLocaleString('zh-CN', { maximumFractionDigits: 1 }) + suffix;
 };
-export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTrend, readingState, onReadingChange }: {
+export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTrend, readingState, onReadingChange, stackingBack }: {
   detail: Detail; onClose: () => void; onAction: (action: Action) => void; onDisposeTrend: () => void;
   readingState?: BuildingReadingState; onReadingChange?: (state: BuildingReadingState) => void;
+  stackingBack?: string;
 }) {
   const { building, metric, isDemo, canEdit, overrides } = detail;
   const workspace = React.useContext(WorkspacePanelContext);
   const [tab, updateTab] = React.useState(readingState?.tab ?? 'overview');
   const scroll = React.useRef<HTMLDivElement>(null);
   const [initialScroll] = React.useState(readingState?.scrollTop ?? 0);
+  useMapReadingScroll(scroll, `detail:${detail.building._dataType}:${detail.building.id}`, true, initialScroll);
+  const panel = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => { const animation = animateWorkspace(panel.current, [{ opacity: .7 }, { opacity: 1 }], 120); return () => animation?.cancel(); }, [tab, building.id]);
   const setTab = (next: string) => { updateTab(next); if (scroll.current) scroll.current.scrollTop = 0; onReadingChange?.({ tab: next, scrollTop: 0 }); };
   React.useLayoutEffect(() => { if (scroll.current) scroll.current.scrollTop = initialScroll; }, [initialScroll]);
   const [trendOpen, setTrendOpen] = React.useState(false);
@@ -76,7 +83,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
           <button type="button" key={id} role="tab" id={`workspace-building-tab-${id}`} aria-selected={tab === id}
             aria-controls={`workspace-building-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
-      <div role="tabpanel" id={`workspace-building-panel-${tab}`} aria-labelledby={`workspace-building-tab-${tab}`}>
+      <div ref={panel} role="tabpanel" id={`workspace-building-panel-${tab}`} aria-labelledby={`workspace-building-tab-${tab}`}>
         {tab === 'overview' ? <><dl className="workspace-building-facts">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><Photos detail={detail} /></> : null}
         {tab === 'market' ? <>
           <dl className="workspace-building-facts"><div><dt>表面租金 · 元/㎡/月</dt><dd>{number(metric?.face_rent)}</dd></div><div><dt>物业费 · 元/㎡/月</dt><dd>{number(metric?.management_fee)}</dd></div></dl>
@@ -93,7 +100,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
             <button type="button" className="workspace-business-action" data-map-action="building-sales-control" data-building-id={materialId} data-building-name={name} data-category="availability">销控与佣金</button>
             <button type="button" className="workspace-business-action" data-map-action="building-sales-control" data-building-id={materialId} data-building-name={name} data-category="brochure">楼书与资料</button>
           </> : null}
-          {canEdit && building.id === '9ee3e3ff-4845-41a1-a78f-390c11b1917a' ? <a href={`/stacking-plan/${building.id}`} className="workspace-business-action">Stacking Plan</a> : null}
+          {canEdit && building.id === '9ee3e3ff-4845-41a1-a78f-390c11b1917a' ? <Link href={`/stacking-plan/${building.id}${stackingBack ? `?back=${encodeURIComponent(stackingBack)}` : ''}`} prefetch={false} className="workspace-business-action">Stacking Plan</Link> : null}
         </div> : null}
       </div>
       <button type="button" data-map-action="building-ai" hidden>AI 分析</button>
