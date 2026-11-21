@@ -352,6 +352,7 @@ try {
         await page.waitForTimeout(350);
       }
       if (width === 320) {
+        await search.fill('');
         if (!await list.isVisible()) await page.getByRole('button', { name: '项目列表', exact: true }).click();
         await list.getByRole('button', { name: /^中关村楼/ }).click();
         const longDetail = page.getByRole('region', { name: stock[2].name + '楼宇详情', exact: true });
