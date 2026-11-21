@@ -381,3 +381,65 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     expect(state.append.mock.calls.some(x => x[1] === 'denied')).toBe(true);
   });
 });
+
+
+describe('AI5 chart creation, same-snapshot modification and image delivery', () => {
+  const call = (name: string, args: unknown) => ({ id: randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
+  const completed = (tool_calls?: ReturnType<typeof call>[]) => ({ model: 'deepseek-flash', inputTokens: 20, outputTokens: 20,
+    message: { role: 'assistant', content: tool_calls ? null : '图片已经保存在桌面：https://fake.invalid/chart.png', ...(tool_calls ? { tool_calls } : {}) } });
+  function result() {
+    const r = buildListResult(fixture(), ['height', 'netEffectiveRent']);
+    return { ...r, parameters: { ...r.parameters, executedPlan: parseQueryPlan({ operation: 'list', fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 }, scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
+  }
+  it('applies a full chart specification and delivers actual PNG bytes via the existing artifact engine', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['netEffectiveRent'], sort: { field: 'netEffectiveRent', direction: 'desc' as const } };
+    state.structured.mockResolvedValue({ content: JSON.stringify({ status: 'ready', resultId: formal.resultId }), result: formal });
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('list_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] }, fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 } })]))
+      .mockResolvedValueOnce(completed([call('create_chart', { resultId: formal.resultId, chart: spec })]))
+      .mockResolvedValueOnce(completed([call('export_chart', { resultId: formal.resultId, format: 'png_zip' })]))
+      .mockResolvedValueOnce(completed());
+    const response = await handleAgentSubmission(fakeRequest('CBD 楼宇租金横向柱状图，导出 PNG').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
+    expect(body.result.parameters.agentChart).toMatchObject({ request: spec, format: 'png_zip' });
+    expect(body.result.table).toEqual(formal.table); expect(body.result.dataVersion).toBe(formal.dataVersion);
+    expect(body.message).toContain('服务器已生成 PNG'); expect(body.message).not.toContain('fake.invalid'); expect(body.message).not.toContain('已经保存在桌面');
+    const event = state.append.mock.calls.find(c => c[1] === 'tool_finished' && c[2]?.protocol === 'agent-answer/1')?.[2];
+    expect(event.chartFile).toMatchObject({ state: 'server_generated', format: 'png_zip', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    const { buildResultArtifact } = await import('../query/artifacts');
+    const artifact = await buildResultArtifact(body.result, { requestId: body.requestId, resultId: body.result.resultId, action: 'export', format: 'png_zip', chart: spec });
+    if (artifact.type !== 'download') throw new Error();
+    expect(artifact.sha256).toBe(event.chartFile.sha256);
+  });
+  it('uses a reauthorized prior chart result in the new workset without requerying or changing data', async () => {
+    const formal = result(), chart = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
+    const recheck = vi.fn().mockResolvedValue(undefined);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextChart: { resultId: formal.resultId, chart }, contextRecheck: recheck }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: { ...chart, type: 'horizontal_bar', y: ['netEffectiveRent'], sort: { field: 'netEffectiveRent', direction: 'desc' } } })]))
+      .mockResolvedValueOnce(completed());
+    const response = await handleAgentSubmission(fakeRequest('改成横向柱状图，按租金从高到低排列').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.result.resultId).toBe(formal.resultId);
+    expect(body.result.table).toEqual(formal.table); expect(body.result.sources).toEqual(formal.sources);
+    expect(body.result.dataVersion).toBe(formal.dataVersion); expect(body.result.snapshotId).toBe(formal.snapshotId);
+    expect(state.tool).not.toHaveBeenCalled(); expect(state.structured).not.toHaveBeenCalled(); expect(recheck.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+  it('refuses unavailable fields, export without independent grant and source revocation before delivery', async () => {
+    const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['private_phone'] };
+    state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextRecheck: vi.fn().mockResolvedValue(undefined) }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('create_chart', { resultId: formal.resultId, chart: spec })])).mockResolvedValueOnce(completed());
+    const denied = await handleAgentSubmission(fakeRequest('图表').request, deps());
+    expect((await denied.json()).result).toBeUndefined();
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('export_chart', { resultId: formal.resultId, chart: { ...spec, y: ['height'] }, format: 'png_zip' })])).mockResolvedValueOnce(completed());
+    const noExport = await handleAgentSubmission(fakeRequest('导出 PNG').request, deps());
+    const noExportBody = await noExport.json();
+    expect(noExportBody.message).toContain('未生成图片'); expect(noExportBody.agent.unresolvedFailures).toContainEqual({ tool: 'export_chart', code: 'export_not_authorized' });
+    const recheck = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error('QUERY_DENIED'));
+    state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextRecheck: recheck }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: { ...spec, y: ['height'] } })])).mockResolvedValueOnce(completed());
+    const revoked = await handleAgentSubmission(fakeRequest('改为横向柱状图').request, deps());
+    expect(revoked.status).toBe(403); expect((await revoked.json()).result).toBeUndefined();
+    expect(state.append.mock.calls.some(c => c[1] === 'correction' && c[2]?.delivery === 'not_sent')).toBe(true);
+  });
+});

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { encryptAuditContent } from '../query/auditCrypto';
+import { buildListResult } from '../query/result';
+import { fixture } from '../query/__tests__/fixtures';
 import { sealHistoryToken } from '../query/historyToken';
 const stubs = vi.hoisted(() => ({ read: vi.fn(), recover: vi.fn(), load: vi.fn() }));
 vi.mock('../query/recovery', () => ({ readOwnResult: stubs.read, recoverOwnResult: stubs.recover }));
@@ -157,3 +159,26 @@ describe('owner-bound Agent multi-turn context from existing encrypted audit RPC
   });
 });
 
+
+
+it('imports a chart snapshot only after owner/session/encrypted context and live source recovery checks', async () => {
+  const requestId = randomUUID(), conversationId = randomUUID(), result = buildListResult(fixture(), ['height']);
+  const chart = { kind: 'plot', type: 'horizontal_bar', x: 'name', y: ['height'] };
+  const history = [{ user: '创建高度图表', assistant: '已生成同源图表。' }];
+  const events = [
+    event(requestId, 'received', { sessionId: identity.sessionId,
+      authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId }, metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId } } }, 1),
+    event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision,
+      history, chartContext: { resultId: result.resultId, chart } }, 2),
+    event(requestId, 'response_generated', { result }, 3),
+  ];
+  const rpc = vi.fn().mockReturnValue({ abortSignal: vi.fn().mockResolvedValue({ data: { allowed: true, permission_revision: authority.permissionRevision, state: 'succeeded', events }, error: null }) });
+  const read = { state: 'succeeded', permission_revision: authority.permissionRevision, head_hash: 'f'.repeat(64), head_sequence: 3, events };
+  stubs.read.mockResolvedValue(read);
+  const recheck = vi.fn().mockResolvedValue(undefined); stubs.recover.mockResolvedValue({ result, recheck });
+  const restored = await readAgentHistory({ rpc } as unknown as SupabaseClient, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, new AbortController().signal);
+  expect(restored.contextResult).toEqual(result); expect(restored.contextChart).toEqual({ resultId: result.resultId, chart });
+  expect(recheck).toHaveBeenCalled(); expect(stubs.recover).toHaveBeenCalled();
+  recheck.mockRejectedValue(new Error('QUERY_DENIED'));
+  await expect(readAgentHistory({ rpc } as unknown as SupabaseClient, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
+});

@@ -7,10 +7,10 @@ import type { QueryResult } from '../query/result';
 import type { AgentToolObservation } from './agentOrchestrator';
 
 export const PRESENTATION_TOOL_NAMES = new Set<string>([
-  'get_source_evidence', 'prepare_chart', 'prepare_map_selection', 'prepare_research_output',
+  'get_source_evidence', 'prepare_chart', 'create_chart', 'modify_chart', 'export_chart', 'prepare_map_selection', 'prepare_research_output',
 ]);
 
-type ResultToolName = 'get_source_evidence' | 'prepare_chart' | 'prepare_map_selection' | 'prepare_research_output';
+type ResultToolName = 'get_source_evidence' | 'prepare_chart' | 'create_chart' | 'modify_chart' | 'prepare_map_selection' | 'prepare_research_output';
 const uuid = z.uuid();
 const limited = (reason: string): AgentToolObservation<QueryResult> => ({
   content: JSON.stringify({ status: 'requires_verified_result', reason,
@@ -37,7 +37,7 @@ export function preferredChartRequest(view: QueryResultView): ChartRequest | nul
  * numeric values, JSON charts or original source documents. Their sole input
  * is the currently authenticated, already-executed formal QueryResult. */
 export function runResultPresentationTool(
-  name: ResultToolName, requestId: string, result: QueryResult | undefined,
+  name: ResultToolName, requestId: string, result: QueryResult | undefined, args: { chart?: ChartRequest } = {},
 ): AgentToolObservation<QueryResult> {
   if (!PRESENTATION_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
   if (!result) return limited('本轮还没有完成可引用的获权房地产查询。');
@@ -54,8 +54,8 @@ export function runResultPresentationTool(
       limitations: view.limitations.slice(0, 3),
       note: '仅返回已有正式结果的来源标识和核验状态；不提供未经获权的原文、租户和原始合同。' }), result };
   }
-  if (name === 'prepare_chart') {
-    const request = preferredChartRequest(view);
+  if (name === 'prepare_chart' || name === 'create_chart' || name === 'modify_chart') {
+    const request = args.chart ?? preferredChartRequest(view);
     if (!request) return { content: JSON.stringify({ status: 'unsupported', resultId: view.resultId,
       reason: '当前正式结果没有适合的图表形态。请勿凭想象生成图表数值。' }) };
     try {
@@ -69,9 +69,10 @@ export function runResultPresentationTool(
         xLabel: chart.xLabel, yLabel: chart.yLabel, xUnit: chart.xUnit, yUnit: chart.yUnit,
         points, visiblePoints: points.length, totalPoints: chart.points.length,
         unknownCount: chart.unknownCount, limitations: chart.limitations.slice(0, 3),
-        note: '所有值均由已有正式结果的确定性图表代码产生。完整版通过当前结果图表入口查看；不得声称已经导出图片。' }), result };
-    } catch {
-      return { content: JSON.stringify({ status: 'unsupported', resultId: view.resultId,
+        note: '所有值均来自完整正式结果。规格已应用，回答中直接显示同源图表；图片导出须调用export_chart，不能声称本机已保存。' }),
+        result: { ...result, parameters: { ...result.parameters, agentChart: { version: 'chart-workspace/1', request } } } };
+    } catch (error) {
+      return { content: JSON.stringify({ status: 'unsupported', resultId: view.resultId, code: error instanceof Error ? error.message : 'CHART_UNSUPPORTED',
         reason: '现有正式结果无法生成符合来源绑定的图表；未执行任何虚构计算。' }) };
     }
   }

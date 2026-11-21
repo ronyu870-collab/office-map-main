@@ -11,12 +11,20 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { grantQuery } from '../../supabase/tests/ai-query-authority/database.mjs';
 
-export async function verifyAi5Exports({ db, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps, buildingIds }) {
+const handlers = new Map();
+export async function loadAgentHandler(output) {
+  if (handlers.has(output)) return handlers.get(output);
   const root = process.cwd(), bundled = path.join(output, 'agent-export-handler.cjs');
   const bundle = await rolldown({ input: path.join(root, 'src/lib/intelligence/agent/agentHttp.ts'),
-    platform: 'node', resolve: { alias: { '@': root } }, external: ['next', 'next/server', 'next/headers', '@supabase/supabase-js'] });
+    platform: 'node', resolve: { alias: { '@': root } }, external: ['next', 'next/server', 'next/headers', '@supabase/supabase-js', '@resvg/resvg-js'] });
   try { await bundle.write({ file: bundled, format: 'cjs', codeSplitting: false }); } finally { await bundle.close(); }
   const { handleAgentSubmission } = createRequire(import.meta.url)(bundled);
+  handlers.set(output, handleAgentSubmission);
+  return handleAgentSubmission;
+}
+
+export async function verifyAi5Exports({ db, service, keys, output, check, person, artifact, recover, events, decrypt, exportCaps, buildingIds }) {
+  const handleAgentSubmission = await loadAgentHandler(output);
   let scenario, round;
   const completion = tool_calls => ({ model: 'deepseek-flash', inputTokens: 20, outputTokens: 20,
     message: { role: 'assistant', content: tool_calls ? null : '文件已由服务器生成，请使用下载操作。', ...(tool_calls ? { tool_calls } : {}) } });

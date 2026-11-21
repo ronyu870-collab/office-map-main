@@ -13,6 +13,7 @@ import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
 import { HomeQueryExportDownload } from './HomeQueryExportDownload';
+import { HomeQueryChartWorkspace } from './HomeQueryChartWorkspace';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
 import styles from './HomeQuery.module.css';
@@ -121,6 +122,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
     </div>
     {requestId && scope && <HomeQueryExportDownload descriptor={result.parameters.agentExport}
       requestId={requestId} resultId={result.resultId} scope={scope} internalExport={internalExport} />}
+    {requestId && scope && result.parameters.agentChart != null && <HomeQueryChartWorkspace result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} />}
     {condensed && <div className={experienceStyles.preview}>
       <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
       <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>

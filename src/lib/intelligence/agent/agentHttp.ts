@@ -15,6 +15,9 @@ import { queryConversationSchema } from '../query/conversationProtocol';
 import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
+import { buildResultArtifact } from '../query/artifacts';
+import { chartRequestSchema, type ChartRequest } from '../query/chartSpec';
+import { agentChartDescriptorSchema } from '../query/chartProtocol';
 import { exportAuthorizedTable } from './exportTableTool';
 import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
@@ -149,6 +152,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         : 'DeepSeek 调用预算校验未通过，本轮没有调用模型。' }, 503);
     }
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
+    if (history.contextResult) workset.register(history.contextResult, worksetOwner);
     await observer?.({ type: 'run_started', requestId });
     await audit.append(requestId, 'tool_started', { tool: 'deepseek_chat', provider: 'deepseek',
       operation: 'native_tool_calling', historyTurns: history.length });
@@ -183,6 +187,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     let preparedExport: QueryResult | undefined;
+    let preparedChart: QueryResult | undefined;
+    let chartFile: Record<string, unknown> | undefined;
     const exportFiles: Array<Record<string, unknown>> = [];
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
@@ -191,7 +197,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         history,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
+        contextChart: history.contextChart,
         revalidate: async currentSignal => {
+          await history.contextRecheck?.();
           const rechecked = await loadDataAuthority(client, actor, currentSignal);
           if (!rechecked.grants.includes('query:catalog')
             || rechecked.permissionRevision !== authority.permissionRevision
@@ -221,7 +229,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           });
           // File delivery state comes from the server, never model prose.
           if (!(result.message.tool_calls?.length) && !preparedExport
-            && !/(?:导出|下载|Excel|CSV|xlsx)/i.test(valid.question)) await flush();
+            && !preparedChart && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|图)/i.test(valid.question)) await flush();
           return result;
         },
         signal, onEvent,
@@ -238,14 +246,36 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
             const id = typeof args.resultId === 'string' ? args.resultId : workset.latestId();
-            const chosen = id ? workset.read(id, worksetOwner) : undefined;
+            let chosen = id ? workset.read(id, worksetOwner) : undefined;
+            if (chosen && preparedChart?.resultId === chosen.resultId) chosen = preparedChart;
+            if (name === 'export_chart') {
+              if (!chosen) throw new Error('AGENT_RESULT_NOT_FOUND');
+              if (!rechecked.grants.includes('export:internal')) throw new Error('AGENT_EXPORT_DENIED');
+              const prior = agentChartDescriptorSchema.safeParse(chosen.parameters.agentChart).data;
+              const chart = chartRequestSchema.parse(args.chart ?? prior?.request);
+              const format = args.format as 'png_zip' | 'svg_zip';
+              const next: QueryResult = { ...chosen, parameters: { ...chosen.parameters,
+                agentChart: { version: 'chart-workspace/1', request: chart, format } } };
+              const file = await buildResultArtifact(next, { requestId, resultId: next.resultId, action: 'export', format, chart });
+              if (file.type !== 'download') throw new Error('AGENT_EXPORT_NOT_GENERATED');
+              await history.contextRecheck?.();
+              const current = await fresh();
+              if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
+              preparedChart = next;
+              chartFile = { status: 'ready', state: 'server_generated', format, filename: file.filename, bytes: file.bytes.length, sha256: file.sha256 };
+              return { content: JSON.stringify({ ...chartFile, resultId: next.resultId, note: '服务器已生成真实图片及来源包；回答提供下载操作，尚未发起浏览器下载，不能声称本机已保存。' }), result: next };
+            }
             // Existing map navigation points to the final archived result,
             // not any arbitrary earlier result of this multi-step task.
             if (name === 'prepare_map_selection' && id !== workset.latestId())
               return { content: JSON.stringify({ status: 'unsupported',
                 reason: '地图当前仅能跳转到本轮最后一项正式结果；不能把较早结果冒充为最终快照。' }) };
             const presentation = runResultPresentationTool(name as Parameters<typeof runResultPresentationTool>[0],
-              requestId, chosen);
+              requestId, chosen, args as { chart?: ChartRequest });
+            if (['prepare_chart', 'create_chart', 'modify_chart'].includes(name) && presentation.result) {
+              preparedChart = presentation.result; chartFile = undefined;
+              return presentation;
+            }
             // Source/chart of an earlier result must not change which formal
             // QueryResult is archived as this request's final result.
             return id === workset.latestId() ? presentation : { content: presentation.content };
@@ -301,7 +331,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
       throw error;
     }
-    if (preparedExport) {
+    if (!preparedChart && (execution.toolNames.some(name => ['prepare_chart', 'create_chart', 'modify_chart'].includes(name))
+      || execution.unresolvedFailures.some(item => ['create_chart', 'modify_chart'].includes(item.tool)))) execution.answer = '本轮未生成图表。请核对获权字段、单位、范围及图表规格后重试。';
+    if (preparedChart) {
+      execution.result = preparedChart;
+      execution.answer = chartFile ? '服务器已生成 ' + (chartFile.format === 'png_zip' ? 'PNG' : 'SVG') + ' 图片与来源包，可通过本条回答下载；尚未发起浏览器下载，未确认本机保存。'
+        : '已使用本次获权结果生成同源图表，图表与来源见本条回答；图表修改不改变正式数值。';
+      if (execution.unresolvedFailures.length) execution.answer += '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
+    }
+    if (preparedExport && !preparedChart) {
       execution.result = preparedExport;
       execution.answer = '服务器已生成 ' + preparedExport.table.rows.length
         + ' 行' + ((preparedExport.parameters.agentExport as { format: string }).format === 'xlsx' ? ' Excel 文件' : ' CSV 与来源包')
@@ -315,6 +353,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         + (execution.unresolvedFailures.some(item => item.code === 'export_not_authorized')
           ? '当前身份没有独立的内部导出资格。' : '导出步骤未通过，请调整范围、字段或规格后重试。')
         + '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
+    }
+    if (!chartFile && (execution.toolNames.includes('export_chart') || execution.unresolvedFailures.some(item => item.tool === 'export_chart'))) {
+      execution.answer = '本轮未生成图片文件。' + (preparedChart ? '同源图表仍可查看。' : '')
+        + '请核对导出资格、字段与图表规格后重试。';
     }
     await audit.append(requestId, 'accounting', { provider: 'deepseek', status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
@@ -335,6 +377,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
+      ...(preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
       ...(preparedExport ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
@@ -366,6 +409,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex'),
     }, { httpStatus: 200, provider: 'deepseek' });
     const response = await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
+    try { await history.contextRecheck?.(); } catch (error) {
+      await audit.append(requestId, 'correction', { reason: 'chart_sources_changed_before_response', delivery: 'not_sent' });
+      throw error;
+    }
     const finalAuthority = await fresh();
     if (finalAuthority.permissionRevision !== authority.permissionRevision
       || finalAuthority.policyVersion !== authority.policyVersion) {

@@ -5,18 +5,9 @@ import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
 import { metricLabels, metricSchema, resultMetricColumns, resultMetrics, selectResultMetric } from './multiMetricView';
 
-/** The caller chooses bindings, never numbers, labels, units or source records. */
-export const chartRequestSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('bar'), field: z.string().min(1).max(80), metric: metricSchema.optional() }),
-  z.strictObject({ kind: z.literal('scatter'), x: z.string().min(1).max(80), y: z.string().min(1).max(80) }),
-  z.strictObject({ kind: z.literal('period_comparison'), metric: metricSchema.optional() }),
-  z.strictObject({ kind: z.literal('time_series'), metric: metricSchema.optional() }),
-  z.strictObject({ kind: z.literal('grouped_time_series'), metric: metricSchema.optional() }),
-  z.strictObject({ kind: z.literal('heatmap'), metric: metricSchema.optional() }),
-  z.strictObject({ kind: z.literal('histogram') }),
-  z.strictObject({ kind: z.literal('box_plot') }),
-]);
-export type ChartRequest = z.infer<typeof chartRequestSchema>;
+export { chartRequestSchema, type ChartRequest } from './chartSpec';
+import { chartRequestSchema, type ChartRequest } from './chartSpec';
+import { buildCartesianChart, configureChart, renderCartesianSvg } from './chartWorkspace';
 type CellBinding = { entityId: string; key: string; sourceIds: readonly string[]; analysisPath?: readonly (string|number)[] };
 export type ChartPoint = { label: string; x: number | string | null; y: number | null; xText: string; yText: string;
   xCell: CellBinding | null; yCell: CellBinding; state: 'valid' | 'unknown'; sampleCount?: number; outlier?: boolean | null };
@@ -26,6 +17,8 @@ export type ResultChart = { version: 'result-chart/1'; resultId: string; tableId
   facets?: { key: string; label: string; points: ChartPoint[] }[];
   distribution?: { stats: DistributionAnalysis['stats']; unit:string; label:string; validCount:number; excludedCount:number; outlierCount:number; assessment:DistributionAnalysis['outlierAssessment']; sourceIds:readonly string[] };
   grid?: { rows: { key: string; label: string }[]; columns: { key: string; label: string }[] };
+  series?: { key: string; label: string; points: ChartPoint[] }[];
+  orientation?: 'vertical' | 'horizontal';
   connectNulls: false; zeroBaseline: true };
 
 const projected = (cell: DisplayCell, unit: string | null) => {
@@ -35,8 +28,12 @@ const projected = (cell: DisplayCell, unit: string | null) => {
   return n;
 };
 
-export function buildResultChart(result: QueryResultView, request: ChartRequest): ResultChart {
-  request = chartRequestSchema.parse(request);
+export function buildResultChart(result: QueryResultView, raw: ChartRequest): ResultChart {
+  const request = chartRequestSchema.parse(raw);
+  return configureChart(result, request.kind === 'plot' ? buildCartesianChart(result, request) : buildLegacyChart(result, request));
+}
+
+function buildLegacyChart(result: QueryResultView, request: Exclude<ChartRequest, {kind: 'plot'}>): ResultChart {
   const metrics = resultMetrics(result), selectedMetric = 'metric' in request ? request.metric : undefined;
   if (selectedMetric && !metrics.includes(selectedMetric)) throw new Error('RESULT_METRIC_NOT_AVAILABLE');
   if (metrics.length > 1) {
@@ -210,16 +207,18 @@ export function distributionGeometry(chart: ResultChart) {
 }
 
 export function chartBounds(chart: ResultChart, axis: 'x' | 'y'): [number, number] {
-  if ((axis === 'x' ? chart.xUnit : chart.yUnit) === 'ratio') return [0, 100];
-  return chart.points.reduce<[number, number]>(([min, max], point) => typeof point[axis] === 'number'
+  const config = axis === 'x' ? chart.request.xAxis : chart.request.yAxis;
+  const ratio = (axis === 'x' ? chart.xUnit : chart.yUnit) === 'ratio';
+  const bounds = ratio ? [0, 100] as [number, number] : chart.points.reduce<[number, number]>(([min, max], point) => typeof point[axis] === 'number'
     ? [Math.min(min, point[axis]), Math.max(max, point[axis])] : [min, max], [0, 0]);
+  return [config?.min ?? bounds[0], config?.max ?? bounds[1]];
 }
 
 /** Shared chronological layout. Never join points across a null quarter. */
 export function lineGeometry(chart: ResultChart, width=Math.max(640,chart.points.length*76+110), height=380, sharedBounds?: [number, number]) {
-  if(chart.kind!=='line' || chart.points.length<2 || chart.points.length>40)throw new Error('CHART_TREND_REQUIRED');
+  if(chart.kind!=='line' || chart.points.length<1 || chart.points.length>40)throw new Error('CHART_TREND_REQUIRED');
   const [min,max]=sharedBounds??chartBounds(chart,'y'),top=30,bottom=height-70,left=70,right=width-30;
-  const points=chart.points.map((p,i)=>({point:p,x:left+i/(chart.points.length-1)*(right-left),y:p.y===null?null:bottom-(p.y-min)/(max-min||1)*(bottom-top)}));
+  const points=chart.points.map((p,i)=>({point:p,x:left+(chart.points.length === 1 ? .5 : i/(chart.points.length-1))*(right-left),y:p.y===null?null:bottom-(p.y-min)/(max-min||1)*(bottom-top)}));
   const segments:string[]=[];let run:string[]=[];
   const flush=()=>{if(run.length>1)segments.push(run.join(' '));run=[];};
   for(const p of points){if(p.y===null)flush();else run.push(`${p.x},${p.y}`);}flush();
@@ -242,6 +241,7 @@ const wrap = (value: string, size: number): string[] => {
 /** Standalone export retains scope, coverage, limitations and exact cell/source
  * bindings. Large plots fail explicitly rather than silently dropping rows. */
 export function renderChartSvg(chart: ResultChart): string {
+  if (chart.request.kind === 'plot') return renderCartesianSvg(chart);
   if (chart.points.length > (chart.kind === 'bar' ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
   const width = chart.kind === 'heatmap' ? Math.max(960, 260 + (chart.grid?.columns.length ?? 0) * 160) : 960, left = 300, right = 780, top = 36;
   const elements: string[] = [];
