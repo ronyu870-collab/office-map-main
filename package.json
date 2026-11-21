@@ -19,7 +19,8 @@
     "verify:quick": "node scripts/verification/quick-update.mjs",
     "sales:import": "node --experimental-strip-types scripts/sales-materials/ingest.mjs",
     "sales:pdf-assets": "node scripts/sales-materials/pdf-assets.mjs",
-    "prebuild": "npm run sales:pdf-assets"
+    "prebuild": "npm run sales:pdf-assets",
+    "perf:map:live": "node scripts/performance/verify-live-amap.mjs"
   },
   "dependencies": {
     "@amap/amap-jsapi-loader": "^1.0.1",

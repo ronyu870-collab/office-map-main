@@ -1,0 +1,1600 @@
+{
+  "schema": 1,
+  "environment": "production React + real AMap 2.0/tiles + isolated business/auth fixtures",
+  "browser": "158.0.8127.36",
+  "locatedProjects": 601,
+  "scenarios": [
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "stack-return-0",
+      "elapsedMs": 1659.2,
+      "frames": 94,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 1,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 1,
+      "cameraEndMs": 529.4,
+      "cpuMs": {
+        "LayoutDuration": 4.049,
+        "RecalcStyleDuration": 33.436,
+        "ScriptDuration": 378.007,
+        "TaskDuration": 626.994
+      },
+      "paintTraceMs": 6.272,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "stack-return-1",
+      "elapsedMs": 1631.6,
+      "frames": 94,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 1,
+      "cameraEndMs": 501.8,
+      "cpuMs": {
+        "LayoutDuration": 3.691,
+        "RecalcStyleDuration": 32.03,
+        "ScriptDuration": 423.24,
+        "TaskDuration": 678.229
+      },
+      "paintTraceMs": 6.388,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "stack-return-2",
+      "elapsedMs": 1637.2,
+      "frames": 94,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 1,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": 507.3,
+      "cpuMs": {
+        "LayoutDuration": 3.708,
+        "RecalcStyleDuration": 34.039,
+        "ScriptDuration": 355.825,
+        "TaskDuration": 597.623
+      },
+      "paintTraceMs": 6.315,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "history-return",
+      "elapsedMs": 1561.6,
+      "frames": 89,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 1,
+      "cameraEndMs": 436.6,
+      "cpuMs": {
+        "LayoutDuration": 3.758,
+        "RecalcStyleDuration": 29.858,
+        "ScriptDuration": 340.148,
+        "TaskDuration": 569.368
+      },
+      "paintTraceMs": 2.957,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "filter-toggle-0",
+      "elapsedMs": 1389.8,
+      "frames": 83,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.7,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.128,
+        "RecalcStyleDuration": 14.067,
+        "ScriptDuration": 134.858,
+        "TaskDuration": 192.528
+      },
+      "paintTraceMs": 3.163,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-close-0",
+      "elapsedMs": 1255.6,
+      "frames": 75,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.485,
+        "RecalcStyleDuration": 3.785,
+        "ScriptDuration": 77.942,
+        "TaskDuration": 115.777
+      },
+      "paintTraceMs": 0.147,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-open-0",
+      "elapsedMs": 1720.1,
+      "frames": 104,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 6.969,
+        "RecalcStyleDuration": 39.954,
+        "ScriptDuration": 173.401,
+        "TaskDuration": 344.566
+      },
+      "paintTraceMs": 5.493,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "rapid-switch-0",
+      "elapsedMs": 2475.4,
+      "frames": 146,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.3,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1346.5,
+      "cpuMs": {
+        "LayoutDuration": 12.401,
+        "RecalcStyleDuration": 54.797,
+        "ScriptDuration": 603.679,
+        "TaskDuration": 884.9
+      },
+      "paintTraceMs": 11.926,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "filter-toggle-1",
+      "elapsedMs": 1361.2,
+      "frames": 81,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.771,
+        "RecalcStyleDuration": 11.636,
+        "ScriptDuration": 131.055,
+        "TaskDuration": 204.92
+      },
+      "paintTraceMs": 2.846,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-close-1",
+      "elapsedMs": 1291.4,
+      "frames": 77,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.633,
+        "RecalcStyleDuration": 3.465,
+        "ScriptDuration": 73.186,
+        "TaskDuration": 114.282
+      },
+      "paintTraceMs": 0.165,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-open-1",
+      "elapsedMs": 1667.3,
+      "frames": 99,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.3,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 6.028,
+        "RecalcStyleDuration": 31.918,
+        "ScriptDuration": 174.321,
+        "TaskDuration": 328.991
+      },
+      "paintTraceMs": 6.036,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "rapid-switch-1",
+      "elapsedMs": 2519,
+      "frames": 150,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1393.1,
+      "cpuMs": {
+        "LayoutDuration": 12.748,
+        "RecalcStyleDuration": 45.387,
+        "ScriptDuration": 521.694,
+        "TaskDuration": 723.92
+      },
+      "paintTraceMs": 11.867,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "filter-toggle-2",
+      "elapsedMs": 1354.9,
+      "frames": 81,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.766,
+        "RecalcStyleDuration": 10.146,
+        "ScriptDuration": 137.957,
+        "TaskDuration": 192.317
+      },
+      "paintTraceMs": 2.936,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-close-2",
+      "elapsedMs": 1291.7,
+      "frames": 78,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.54,
+        "RecalcStyleDuration": 3.015,
+        "ScriptDuration": 72.508,
+        "TaskDuration": 103.139
+      },
+      "paintTraceMs": 0.158,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "panel-open-2",
+      "elapsedMs": 1642.6,
+      "frames": 98,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 4.866,
+        "RecalcStyleDuration": 23.755,
+        "ScriptDuration": 165.329,
+        "TaskDuration": 313.555
+      },
+      "paintTraceMs": 5.706,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "rapid-switch-2",
+      "elapsedMs": 2522.3,
+      "frames": 150,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 1,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1385.5,
+      "cpuMs": {
+        "LayoutDuration": 12.173,
+        "RecalcStyleDuration": 58.076,
+        "ScriptDuration": 546.719,
+        "TaskDuration": 799.296
+      },
+      "paintTraceMs": 12.215,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 1536,
+      "height": 900,
+      "reduced": false,
+      "name": "startup-and-network",
+      "startup": [
+        {
+          "stage": "authorized",
+          "at": 439.5
+        },
+        {
+          "stage": "controller_ready",
+          "at": 461.6
+        },
+        {
+          "stage": "stock_read_start",
+          "at": 461.7
+        },
+        {
+          "stage": "sdk_start",
+          "at": 462.1
+        },
+        {
+          "stage": "stock_data_ready",
+          "at": 479.8
+        },
+        {
+          "stage": "sdk_ready",
+          "at": 811.2
+        },
+        {
+          "stage": "tiles_complete",
+          "at": 950.1
+        },
+        {
+          "stage": "visual_ready",
+          "at": 987.4
+        },
+        {
+          "stage": "stock_render_start",
+          "at": 1007.5
+        },
+        {
+          "stage": "stock_render_returned",
+          "at": 1008.3
+        }
+      ],
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 240,
+        "providerHTTPFailures": 0,
+        "failedRequests": 0,
+        "abortedRequests": 135,
+        "blockedHosts": []
+      },
+      "errors": [],
+      "readingScroll": 0
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "stack-return-0",
+      "elapsedMs": 1631.8,
+      "frames": 95,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 1,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 4,
+      "newMapInstances": 1,
+      "cameraEndMs": 503.3,
+      "cpuMs": {
+        "LayoutDuration": 3.898,
+        "RecalcStyleDuration": 31.507,
+        "ScriptDuration": 290.611,
+        "TaskDuration": 519.608
+      },
+      "paintTraceMs": 10.771,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "stack-return-1",
+      "elapsedMs": 1652.2,
+      "frames": 96,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": 521.1,
+      "cpuMs": {
+        "LayoutDuration": 3.507,
+        "RecalcStyleDuration": 29.16,
+        "ScriptDuration": 297.076,
+        "TaskDuration": 508.265
+      },
+      "paintTraceMs": 10.087,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "stack-return-2",
+      "elapsedMs": 1635.7,
+      "frames": 96,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.3,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": 507.5,
+      "cpuMs": {
+        "LayoutDuration": 3.299,
+        "RecalcStyleDuration": 25.534,
+        "ScriptDuration": 264.556,
+        "TaskDuration": 450.351
+      },
+      "paintTraceMs": 8.378,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "history-return",
+      "elapsedMs": 1561.1,
+      "frames": 92,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.2,
+      "longTasksMs": [],
+      "resizeCalls": 4,
+      "newMapInstances": 1,
+      "cameraEndMs": 434,
+      "cpuMs": {
+        "LayoutDuration": 3.54,
+        "RecalcStyleDuration": 22.945,
+        "ScriptDuration": 284.353,
+        "TaskDuration": 475.499
+      },
+      "paintTraceMs": 3.202,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "filter-toggle-0",
+      "elapsedMs": 1374.1,
+      "frames": 83,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.199,
+        "RecalcStyleDuration": 7.683,
+        "ScriptDuration": 98.007,
+        "TaskDuration": 148.945
+      },
+      "paintTraceMs": 3.422,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-close-0",
+      "elapsedMs": 1263.9,
+      "frames": 75,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.335,
+        "RecalcStyleDuration": 3.247,
+        "ScriptDuration": 145.587,
+        "TaskDuration": 201.583
+      },
+      "paintTraceMs": 0.313,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-open-0",
+      "elapsedMs": 2176.8,
+      "frames": 130,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 6.964,
+        "RecalcStyleDuration": 33.263,
+        "ScriptDuration": 195.987,
+        "TaskDuration": 368.793
+      },
+      "paintTraceMs": 2.906,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "rapid-switch-0",
+      "elapsedMs": 2401.4,
+      "frames": 143,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1275.8,
+      "cpuMs": {
+        "LayoutDuration": 11.954,
+        "RecalcStyleDuration": 45.064,
+        "ScriptDuration": 387.526,
+        "TaskDuration": 624.069
+      },
+      "paintTraceMs": 7.891,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "filter-toggle-1",
+      "elapsedMs": 1374.4,
+      "frames": 83,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 2.081,
+        "RecalcStyleDuration": 7.072,
+        "ScriptDuration": 96.491,
+        "TaskDuration": 163.95
+      },
+      "paintTraceMs": 3.559,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-close-1",
+      "elapsedMs": 1243.6,
+      "frames": 73,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.413,
+        "RecalcStyleDuration": 2.887,
+        "ScriptDuration": 59.874,
+        "TaskDuration": 106.61
+      },
+      "paintTraceMs": 0.339,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-open-1",
+      "elapsedMs": 1625.1,
+      "frames": 97,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 6.246,
+        "RecalcStyleDuration": 26.596,
+        "ScriptDuration": 130.468,
+        "TaskDuration": 279.359
+      },
+      "paintTraceMs": 3.553,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "rapid-switch-1",
+      "elapsedMs": 2417.6,
+      "frames": 144,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1293.4,
+      "cpuMs": {
+        "LayoutDuration": 12.888,
+        "RecalcStyleDuration": 47.326,
+        "ScriptDuration": 388.399,
+        "TaskDuration": 625.18
+      },
+      "paintTraceMs": 7.819,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "filter-toggle-2",
+      "elapsedMs": 1372.8,
+      "frames": 82,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.313,
+        "RecalcStyleDuration": 7.17,
+        "ScriptDuration": 93.819,
+        "TaskDuration": 153.492
+      },
+      "paintTraceMs": 3.575,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-close-2",
+      "elapsedMs": 1341.6,
+      "frames": 81,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.54,
+        "RecalcStyleDuration": 4.196,
+        "ScriptDuration": 92.848,
+        "TaskDuration": 137.23
+      },
+      "paintTraceMs": 0.526,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "panel-open-2",
+      "elapsedMs": 1621.1,
+      "frames": 98,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 6.304,
+        "RecalcStyleDuration": 26.993,
+        "ScriptDuration": 130.073,
+        "TaskDuration": 282.581
+      },
+      "paintTraceMs": 3.691,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "rapid-switch-2",
+      "elapsedMs": 2403.4,
+      "frames": 143,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 1277.3,
+      "cpuMs": {
+        "LayoutDuration": 12.706,
+        "RecalcStyleDuration": 38.54,
+        "ScriptDuration": 352.32,
+        "TaskDuration": 541.894
+      },
+      "paintTraceMs": 7.43,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": false,
+      "name": "startup-and-network",
+      "startup": [
+        {
+          "stage": "authorized",
+          "at": 430.3
+        },
+        {
+          "stage": "controller_ready",
+          "at": 450.4
+        },
+        {
+          "stage": "stock_read_start",
+          "at": 450.5
+        },
+        {
+          "stage": "sdk_start",
+          "at": 451
+        },
+        {
+          "stage": "stock_data_ready",
+          "at": 469
+        },
+        {
+          "stage": "sdk_ready",
+          "at": 841.9
+        },
+        {
+          "stage": "tiles_complete",
+          "at": 967.6
+        },
+        {
+          "stage": "visual_ready",
+          "at": 1002.9
+        },
+        {
+          "stage": "stock_render_start",
+          "at": 1021
+        },
+        {
+          "stage": "stock_render_returned",
+          "at": 1021.9
+        }
+      ],
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 120,
+        "providerHTTPFailures": 0,
+        "failedRequests": 0,
+        "abortedRequests": 19,
+        "blockedHosts": []
+      },
+      "errors": [],
+      "readingScroll": 233
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "stack-return-0",
+      "elapsedMs": 1426.4,
+      "frames": 79,
+      "frameP95Ms": 33.3,
+      "intervalsOver33Ms": 3,
+      "longestFrameMs": 50.1,
+      "longTasksMs": [],
+      "resizeCalls": 4,
+      "newMapInstances": 1,
+      "cameraEndMs": 266,
+      "cpuMs": {
+        "LayoutDuration": 2.097,
+        "RecalcStyleDuration": 19.006,
+        "ScriptDuration": 231.27,
+        "TaskDuration": 431.966
+      },
+      "paintTraceMs": 7.794,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "stack-return-1",
+      "elapsedMs": 1488.4,
+      "frames": 86,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 1,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 4,
+      "newMapInstances": 1,
+      "cameraEndMs": 240.5,
+      "cpuMs": {
+        "LayoutDuration": 2.228,
+        "RecalcStyleDuration": 18.79,
+        "ScriptDuration": 216.413,
+        "TaskDuration": 391.422
+      },
+      "paintTraceMs": 7.438,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "stack-return-2",
+      "elapsedMs": 1494.7,
+      "frames": 88,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.4,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 1,
+      "cameraEndMs": 271,
+      "cpuMs": {
+        "LayoutDuration": 1.751,
+        "RecalcStyleDuration": 17.85,
+        "ScriptDuration": 238.682,
+        "TaskDuration": 414.209
+      },
+      "paintTraceMs": 8.368,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "history-return",
+      "elapsedMs": 1342,
+      "frames": 78,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 33.3,
+      "longTasksMs": [],
+      "resizeCalls": 4,
+      "newMapInstances": 1,
+      "cameraEndMs": 194.6,
+      "cpuMs": {
+        "LayoutDuration": 2.1,
+        "RecalcStyleDuration": 14.062,
+        "ScriptDuration": 241.359,
+        "TaskDuration": 386.553
+      },
+      "paintTraceMs": 1.78,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "filter-toggle-0",
+      "elapsedMs": 1365,
+      "frames": 81,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.23,
+        "RecalcStyleDuration": 6.462,
+        "ScriptDuration": 100.434,
+        "TaskDuration": 137.762
+      },
+      "paintTraceMs": 2.547,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-close-0",
+      "elapsedMs": 1244.4,
+      "frames": 74,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.273,
+        "RecalcStyleDuration": 2.066,
+        "ScriptDuration": 154.558,
+        "TaskDuration": 209.576
+      },
+      "paintTraceMs": 0.183,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-open-0",
+      "elapsedMs": 1678.4,
+      "frames": 99,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 3,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 6.381,
+        "RecalcStyleDuration": 21.004,
+        "ScriptDuration": 178.397,
+        "TaskDuration": 265.015
+      },
+      "paintTraceMs": 2.221,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "rapid-switch-0",
+      "elapsedMs": 1622.2,
+      "frames": 98,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 470.4,
+      "cpuMs": {
+        "LayoutDuration": 6.649,
+        "RecalcStyleDuration": 20.281,
+        "ScriptDuration": 233.905,
+        "TaskDuration": 347.199
+      },
+      "paintTraceMs": 2.388,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "filter-toggle-1",
+      "elapsedMs": 1358.9,
+      "frames": 81,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.182,
+        "RecalcStyleDuration": 5.801,
+        "ScriptDuration": 96.629,
+        "TaskDuration": 141.272
+      },
+      "paintTraceMs": 2.414,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-close-1",
+      "elapsedMs": 1260,
+      "frames": 76,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.254,
+        "RecalcStyleDuration": 1.282,
+        "ScriptDuration": 61.973,
+        "TaskDuration": 85.268
+      },
+      "paintTraceMs": 0.193,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-open-1",
+      "elapsedMs": 1456.5,
+      "frames": 87,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 3.76,
+        "RecalcStyleDuration": 7.843,
+        "ScriptDuration": 143.596,
+        "TaskDuration": 200.693
+      },
+      "paintTraceMs": 1.421,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "rapid-switch-1",
+      "elapsedMs": 1800.5,
+      "frames": 108,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 618.4,
+      "cpuMs": {
+        "LayoutDuration": 7.007,
+        "RecalcStyleDuration": 19.997,
+        "ScriptDuration": 262.325,
+        "TaskDuration": 373.818
+      },
+      "paintTraceMs": 2.369,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "filter-toggle-2",
+      "elapsedMs": 1402.5,
+      "frames": 84,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 1.587,
+        "RecalcStyleDuration": 7.638,
+        "ScriptDuration": 125.19,
+        "TaskDuration": 176.503
+      },
+      "paintTraceMs": 3.178,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-close-2",
+      "elapsedMs": 1240.4,
+      "frames": 73,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 1,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 0.246,
+        "RecalcStyleDuration": 1.346,
+        "ScriptDuration": 58.972,
+        "TaskDuration": 81.475
+      },
+      "paintTraceMs": 0.16,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "panel-open-2",
+      "elapsedMs": 1343.4,
+      "frames": 80,
+      "frameP95Ms": 16.8,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 2,
+      "newMapInstances": 0,
+      "cameraEndMs": null,
+      "cpuMs": {
+        "LayoutDuration": 3.536,
+        "RecalcStyleDuration": 7.453,
+        "ScriptDuration": 97.547,
+        "TaskDuration": 145.29
+      },
+      "paintTraceMs": 0.925,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "rapid-switch-2",
+      "elapsedMs": 1525.2,
+      "frames": 91,
+      "frameP95Ms": 16.7,
+      "intervalsOver33Ms": 0,
+      "longestFrameMs": 16.8,
+      "longTasksMs": [],
+      "resizeCalls": 5,
+      "newMapInstances": 0,
+      "cameraEndMs": 376.8,
+      "cpuMs": {
+        "LayoutDuration": 7.032,
+        "RecalcStyleDuration": 20.096,
+        "ScriptDuration": 182.304,
+        "TaskDuration": 280.298
+      },
+      "paintTraceMs": 2.384,
+      "camera": {
+        "zoom": 14,
+        "center": [
+          116.46,
+          39.91
+        ]
+      }
+    },
+    {
+      "width": 390,
+      "height": 560,
+      "reduced": true,
+      "name": "startup-and-network",
+      "startup": [
+        {
+          "stage": "authorized",
+          "at": 421.8
+        },
+        {
+          "stage": "controller_ready",
+          "at": 432.6
+        },
+        {
+          "stage": "stock_read_start",
+          "at": 432.7
+        },
+        {
+          "stage": "sdk_start",
+          "at": 433
+        },
+        {
+          "stage": "stock_data_ready",
+          "at": 444.9
+        },
+        {
+          "stage": "sdk_ready",
+          "at": 808.3
+        },
+        {
+          "stage": "tiles_complete",
+          "at": 940.6
+        },
+        {
+          "stage": "visual_ready",
+          "at": 975.6
+        },
+        {
+          "stage": "stock_render_start",
+          "at": 994.1
+        },
+        {
+          "stage": "stock_render_returned",
+          "at": 995.1
+        }
+      ],
+      "network": {
+        "sdkOK": 1,
+        "tileOK": 67,
+        "providerHTTPFailures": 0,
+        "failedRequests": 0,
+        "abortedRequests": 16,
+        "blockedHosts": []
+      },
+      "errors": [],
+      "readingScroll": 233
+    }
+  ],
+  "limitations": [
+    "Mobile is a desktop Chrome viewport, not an iOS/Android device.",
+    "No production authentication, database, business records or writes are exercised.",
+    "Frame intervals describe this machine/sample; CPU paint trace time is not GPU execution time.",
+    "Each route transition creates its own map; panel transitions must retain that route map."
+  ],
+  "gpu": {
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Version 26.3.1 (a) (Build 25D771280a))",
+    "features": {
+      "2d_canvas": "enabled",
+      "direct_rendering_display_compositor": "disabled_off_ok",
+      "gpu_compositing": "enabled",
+      "multiple_raster_threads": "enabled_on",
+      "opengl": "enabled_on",
+      "rasterization": "enabled",
+      "skia_graphite": "enabled_on",
+      "trees_in_viz": "disabled_off",
+      "video_decode": "enabled",
+      "video_encode": "enabled",
+      "webgl": "enabled",
+      "webgpu": "enabled",
+      "webnn": "disabled_off"
+    }
+  },
+  "status": "passed",
+  "applicationCommit": "4288433"
+}
