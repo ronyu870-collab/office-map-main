@@ -2,16 +2,16 @@
 .heading, .actions, .pagination { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cd-space-2) var(--cd-space-4); }
 .heading { justify-content: space-between; }
 .heading h3, .card h4 { font-size: var(--cd-font-size-lg); font-weight: 500; line-height: var(--cd-line-height-normal); margin: 0; overflow-wrap: anywhere; }
-.note, .cardHeading p, .photo figcaption { color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-xs); line-height: var(--cd-line-height-relaxed); margin: var(--cd-space-2) 0; overflow-wrap: anywhere; }
+.note, .cardHeading p, .photo figcaption { color: var(--cd-color-text-secondary); font-size: var(--cd-font-size-sm); line-height: var(--cd-line-height-relaxed); margin: var(--cd-space-2) 0; overflow-wrap: anywhere; }
 .list { margin-top: var(--cd-space-4); }
 .card { padding-block: var(--cd-space-5); }
 .card + .card { border-top: 1px solid var(--cd-color-border); }
 .cardHeading p { margin-bottom: 0; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cd-space-4) var(--cd-space-6); margin: var(--cd-space-4) 0; }
 .fields > div { min-width: 0; }
-.fields dt { font-size: var(--cd-font-size-xs); color: var(--cd-color-text-secondary); line-height: var(--cd-line-height-normal); }
-.fields dd { margin: var(--cd-space-1) 0 0; font-size: var(--cd-font-size-lg); font-variant-numeric: tabular-nums; line-height: var(--cd-line-height-normal); overflow-wrap: anywhere; }
-.fields dd span { font-size: var(--cd-font-size-xs); color: var(--cd-color-text-secondary); }
+.fields dt { font-size: var(--cd-font-size-sm); color: var(--cd-color-text-secondary); line-height: var(--cd-line-height-normal); }
+.fields dd { margin: var(--cd-space-1) 0 0; font-size: var(--cd-font-size-sm); font-variant-numeric: tabular-nums; line-height: var(--cd-line-height-normal); overflow-wrap: anywhere; }
+.fields dd span { font-size: var(--cd-font-size-sm); color: var(--cd-color-text-secondary); }
 .fields button { padding: 0; min-height: var(--cd-control-height-sm); border: 0; background: transparent; text-align: left; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--cd-color-border-strong); text-underline-offset: 4px; }
 .fields button:hover { color: var(--cd-color-brand); }
 .link, .actions button { color: var(--cd-color-brand); font-size: var(--cd-font-size-sm); min-height: var(--cd-control-height-md); display: inline-flex; align-items: center; padding-block: var(--cd-space-1); text-align: left; line-height: var(--cd-line-height-normal); text-decoration: none; overflow-wrap: anywhere; }
@@ -20,7 +20,7 @@
 .section :is(button,a):focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 3px; border-radius: var(--cd-radius-sm); }
 .photo { margin: var(--cd-space-4) 0; max-width: 560px; min-width: 0; }
 .photo img { display: block; width: 100%; aspect-ratio: 4 / 3; max-height: 280px; object-fit: contain; background: var(--cd-color-surface-alt); border-radius: var(--cd-radius-lg); }
-.pagination { margin-top: var(--cd-space-3); font-size: var(--cd-font-size-xs); color: var(--cd-color-text-secondary); }
+.pagination { margin-top: var(--cd-space-3); font-size: var(--cd-font-size-sm); color: var(--cd-color-text-secondary); }
 @media (min-width: 640px) {
   .withPhoto { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: var(--cd-space-6); }
   .withPhoto > * { grid-column: 1 / -1; }

@@ -65,6 +65,7 @@ export function resultSummary(result: QueryResultView): string[] {
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   if (exported) return [`本次导出 ${exported.exportedRows} 条记录，筛选后共 ${exported.matchedRows} 条；文件使用完整正式结果，不受界面分页限制。`];
   if (result.parameters.dataDomain === 'lease-research/1') return [`获权成交研究结果共 ${result.table.rows.length} 行；成交记录数按有效身份关联去重，未经核验的跨表重叠仍可能存在。`, '成交面积与有效面积样本数分别列示，不代表净吸纳量或市场全集。'];
+  if(result.parameters.dataDomain==='business-research/1')return [`本次获权业务资料共 ${result.table.rows.length} 条记录。`,...result.limitations.slice(0,2)];
   const metrics = resultMetrics(result);
   if (metrics.length > 1) return [
     `本次同时分析${metrics.map(metric => metricLabels[metric]).join('、')}；每项分别核算有效样本和分母。`,
@@ -129,6 +130,7 @@ export function resultSummary(result: QueryResultView): string[] {
   })];
 }
 export function resultScopeText(result: QueryResultView): string {
+  if(result.parameters.dataDomain==='business-research/1')return '获权业务资料；目录、楼书、静态简介、供应提交及单元来源口径分别标注。';
   if (result.parameters.dataDomain === 'lease-research/1') return '获权成交记录研究；来源、日期精度、身份匹配和去重覆盖见口径及限制。';
   if (reportDescriptorSchema.safeParse(result.parameters.agentReport).success)
     return '由获权正式快照组合；各部分的范围、期间、来源和统计口径见报告及研究索引，不重算跨结果指标。';

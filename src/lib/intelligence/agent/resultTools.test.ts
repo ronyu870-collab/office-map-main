@@ -63,7 +63,7 @@ describe('read-only Agent presentation tools bound to formal result snapshots', 
     const result = { ...raw, table: { ...raw.table, rows: raw.table.rows.map(row => ({
       ...row, entityId: changed.get(row.entityId)!,
     })) }, sources: raw.sources.map(source => ({ ...source,
-      entityId: changed.get(source.entityId) ?? source.entityId })) };
+      entityId: changed.get(source.entityId) ?? source.entityId, recordId: source.table === 'buildings' ? changed.get(source.entityId) ?? source.recordId : source.recordId })) };
     const map = JSON.parse(runResultPresentationTool('prepare_map_selection', requestId, result).content);
     expect(map.status).toBe('ready');
     expect(map.buildingCount).toBe(4);

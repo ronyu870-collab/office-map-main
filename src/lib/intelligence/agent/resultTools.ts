@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { buildResultChart, type ChartRequest } from '../query/charts';
 import { queryMapHref } from '../query/buildingNavigation';
+import { resultBuildingRows } from '../query/buildingCards';
 import { resultViewSchema, type QueryResultView } from '../query/presentation';
 import { renderResultCopy, resultOutputDescriptor } from '../query/resultOutput';
 import type { QueryResult } from '../query/result';
@@ -42,7 +43,7 @@ export function preferredChartRequest(view: QueryResultView): ChartRequest | nul
  * numeric values, JSON charts or original source documents. Their sole input
  * is the currently authenticated, already-executed formal QueryResult. */
 export function runResultPresentationTool(
-  name: ResultToolName, requestId: string, result: QueryResult | undefined, args: { chart?: ChartRequest } = {},
+  name: ResultToolName, requestId: string, result: QueryResult | undefined, args: { chart?: ChartRequest; buildingIds?:string[]; intent?:'focus'|'select'|'only' } = {},
 ): AgentToolObservation<QueryResult> {
   if (!PRESENTATION_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
   if (!result) return limited('本轮还没有完成可引用的获权房地产查询。');
@@ -82,16 +83,16 @@ export function runResultPresentationTool(
     }
   }
   if (name === 'prepare_map_selection') {
-    const shownIds = new Set(view.table.rows.map(row => row.entityId));
-    const buildingIds = [...new Set(view.sources.filter(source =>
-      source.table === 'buildings' && source.field === 'name' && shownIds.has(source.entityId)
-      && uuid.safeParse(source.entityId).success).map(source => source.entityId))].slice(0, 20);
-    return { content: JSON.stringify({ status: buildingIds.length ? 'ready' : 'unavailable',
-      resultId: view.resultId, buildingCount: buildingIds.length,
-      mapHref: buildingIds.length ? queryMapHref(uuid.parse(requestId)) : null,
-      note: buildingIds.length
-        ? '该链接仅引用本轮已获权正式楼宇结果；地图打开时重新验证本人会话、来源和楼宇权限，本轮审计成功前链接不可使用。'
-        : '当前结果没有绑定到有效 UUID 的明细楼宇，不能凭模型猜测地图标记。' }), ...(buildingIds.length ? { result } : {}) };
+    const authorized=resultBuildingRows(view).map(row=>row.id);
+    const buildingIds=args.buildingIds??authorized;
+    if(!buildingIds.length) return {content:JSON.stringify({status:'unavailable',mapHref:null,reason:'当前正式结果没有可操作的楼宇身份，不生成点位。'})};
+    if(buildingIds.length>500 || new Set(buildingIds).size!==buildingIds.length) throw new Error('BUSINESS_SCOPE_TOO_LARGE');
+    if(buildingIds.some(id=>!authorized.includes(id))) throw new Error('QUERY_DENIED');
+    const intent=args.intent??'select';
+    if(intent==='focus' && buildingIds.length!==1) throw new Error('AGENT_INVALID_TOOL_ARGUMENTS');
+    const next={...result,parameters:{...result.parameters,agentMap:{version:'map-selection/1',buildingIds,intent}}};
+    return {content:JSON.stringify({status:'ready',resultId:view.resultId,buildingCount:buildingIds.length,intent,
+      mapHref:queryMapHref(uuid.parse(requestId)),note:'地图操作已准备。打开时重新验证本人会话、来源、楼宇权限及现有地图坐标；当前回答尚未打开地图，不代表已经定位。'}),result:next};
   }
   const rendered = renderResultCopy(view, 'summary');
   return { content: JSON.stringify({ status: 'ready', resultId: view.resultId,

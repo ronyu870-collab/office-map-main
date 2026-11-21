@@ -13,6 +13,10 @@ export function resultBuildingRows(result: QueryResultView): QueryBuildingRow[] 
       || !name.sourceIds.some(id => names.get(id)?.entityId === row.entityId && names.get(id)?.rawValue === name.value)) return [];
     return [{ id: row.entityId, name: name.value, cells: row.cells }];
   });
+  if(result.parameters.dataDomain==='business-research/1' && result.parameters.businessTool==='query_stacking_plan') {
+    return [...new Map(result.sources.filter(s=>s.table==='buildings' && s.field==='building' && s.recordId===s.entityId && z.uuid().safeParse(s.entityId).success && typeof s.rawValue==='string')
+      .map(s=>[s.entityId,{id:s.entityId,name:s.rawValue as string,cells:{}}])).values()];
+  }
   if (rows.length) return [...new Map(rows.map(row => [row.id, row])).values()];
   const scope = z.object({ scope: z.object({ buildingIds: z.array(z.uuid()).max(20) }) }).safeParse(result.parameters.executedPlan);
   if (!scope.success) return [];
@@ -31,5 +35,6 @@ export const buildingContextSchema = z.object({
   })).max(500),
 });
 export type BuildingContext = z.infer<typeof buildingContextSchema>;
+export const mapResultSelectionSchema=z.strictObject({version:z.literal('map-selection/1'),buildingIds:z.array(z.uuid()).min(1).max(500),intent:z.enum(['focus','select','only'])});
 export const buildingContextInputSchema = z.strictObject({ requestId: z.uuid(), action: z.literal('buildings'),
-  resultId: z.uuid().optional(), buildingId: z.uuid().optional(), photoId: z.uuid().optional(), offset: z.number().int().min(0).max(20000).default(0), limit: z.number().int().min(1).max(500).default(20) });
+  mapSelection:z.boolean().optional(), resultId: z.uuid().optional(), buildingId: z.uuid().optional(), photoId: z.uuid().optional(), offset: z.number().int().min(0).max(20000).default(0), limit: z.number().int().min(1).max(500).default(20) });

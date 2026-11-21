@@ -1,3 +1,4 @@
+import { isBusinessResult, BUSINESS_DOMAIN, businessBindingSchema } from '../business/protocol';
 import { isLeaseResult, LEASE_DOMAIN, leaseBindingSchema } from '../lease/protocol';
 import { createHash, randomUUID } from 'node:crypto';
 import { exportTableSchema } from './toolRegistry';
@@ -26,6 +27,8 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   results.forEach(result => resultViewSchema.parse(result));
   const base = results[0];
   const lease = isLeaseResult(base);
+  const business=isBusinessResult(base);
+  if(results.some(r=>isBusinessResult(r)!==business || business && r.parameters.businessTool!==base.parameters.businessTool)) throw new Error('AGENT_EXPORT_INCOMPATIBLE_DOMAIN');
   if (results.some(result => isLeaseResult(result) !== lease)) throw new Error('AGENT_EXPORT_INCOMPATIBLE_DOMAIN');
   if (results.some(result => JSON.stringify(result.table.columns) !== JSON.stringify(base.table.columns)))
     throw new Error('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
@@ -91,7 +94,8 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     dataVersion: result.dataVersion, scopeFingerprint: result.scopeFingerprint,
     parameters: result.parameters, analysis: result.analysis, rowCount: result.table.rows.length }));
   const leaseBindings = lease ? results.flatMap(result => leaseBindingSchema.array().min(1).max(64).parse(result.parameters.leaseBindings)) : [];
-  const exportPlans = lease ? [] : results.flatMap(result => Array.isArray(result.parameters.exportPlans)
+  const businessBindings=results.flatMap(r=>r.parameters.businessBindings?businessBindingSchema.array().min(1).max(64).parse(r.parameters.businessBindings):[]);
+  const exportPlans = lease || business ? [] : results.flatMap(result => Array.isArray(result.parameters.exportPlans)
     ? result.parameters.exportPlans.map(parseQueryPlan) : [parseQueryPlan(result.parameters.executedPlan)]);
   const outputColumns = [...(results.length > 1 ? [
     { key: 'export_result_id', label: '原结果编号', unit: null },
@@ -105,6 +109,8 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     // make the multi-metric renderer reject this list result.
     parameters: { ...Object.fromEntries(Object.entries(base.parameters).filter(([key]) =>
       ['scope', 'period', 'executedPlan', 'relativeQuarterContext'].includes(key))), fields, exportPlans,
+      ...(businessBindings.length?{businessBindings}:{}),
+      ...(business?{dataDomain:BUSINESS_DOMAIN,businessTool:base.parameters.businessTool}:{}),
       ...(lease ? { dataDomain: LEASE_DOMAIN, leaseBindings, leaseProviderMinGroupSize: Math.max(...results.map(r => typeof r.parameters.leaseProviderMinGroupSize === 'number' ? r.parameters.leaseProviderMinGroupSize : 100)) } : {}),
       agentExport: { version: 'agent-export/1', format: args.format, singleSheet: args.singleSheet,
         matchedRows, exportedRows: rows.length, selection: args, lineage } },
