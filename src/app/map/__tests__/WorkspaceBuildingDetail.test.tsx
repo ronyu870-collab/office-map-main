@@ -61,3 +61,13 @@ it('keeps an opened trend confined to the market tab and restores it on return',
   expect(panel).toBeVisible();
   expect(screen.getByRole('button', { name: '季度趋势' })).toHaveAttribute('aria-expanded', 'true');
 });
+
+it('restores the building reading tab and reports further reading state without changing facts', () => {
+  const change = vi.fn();
+  const { container } = render(<WorkspaceBuildingDetail detail={base} {...actions()} readingState={{ tab: 'materials', scrollTop: 90 }} onReadingChange={change} />);
+  expect(screen.getByRole('tab', { name: '成交与资料' })).toHaveAttribute('aria-selected', 'true');
+  const scroll = container.querySelector('.workspace-scroll') as HTMLElement;
+  expect(scroll.scrollTop).toBe(90);
+  fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+  expect(change).toHaveBeenLastCalledWith({ tab: 'market', scrollTop: 0 });
+});

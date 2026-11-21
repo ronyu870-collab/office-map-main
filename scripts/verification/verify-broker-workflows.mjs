@@ -52,6 +52,15 @@ async function checkWorkspaceLayout(page, width) {
     await page.locator(`#map-container [data-building-id="${tower.id}"]`).first().click();
     const popup = page.locator('.building-popup');
     await popup.waitFor();
+    if (width < 380) {
+      const select = page.getByRole('combobox', { name: '地图显示模式', exact: true });
+      assert.equal(await unobscured(select), true, 'map mode selector is covered by the stock detail');
+      assert.deepEqual(await select.locator('option').allTextContents(), ['项目', '租金', '空置', 'LEED']);
+      await select.selectOption('rent');
+      assert.equal(await select.inputValue(), 'rent');
+      await select.selectOption('default');
+      return;
+    }
     for (const name of ['项目', '租金', '空置', 'LEED']) {
       const mode = modes.getByRole('button', { name, exact: true });
       assert.equal(await unobscured(mode), true, `map mode ${name} is covered by the stock popup`);

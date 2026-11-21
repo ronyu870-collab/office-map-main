@@ -119,7 +119,7 @@ describe('MapWorkbenchView', () => {
   });
 
 
-  it('lists commercial project names directly after opening future supply and lets users locate a project', () => {
+  it('groups future projects by year and type and lets users expand commercial projects to locate one', () => {
     const supply = { id: 'commercial-640', name: '玉渊潭640地块商业项目', type: '商业', location_lng: 116.29817, location_lat: 39.927218, launch_year: 2027, launch_quarter: 'Q1' };
     const office = { ...supply, id: 'office-1', name: '测试办公供应', type: '办公' };
     const callbacks = renderWorkbench({
@@ -129,7 +129,8 @@ describe('MapWorkbenchView', () => {
     fireEvent.click(screen.getByRole('button', { name: '未来供应' }));
     expect(callbacks.onSupplyOpenChange).toHaveBeenCalledWith(true);
     callbacks.setSupplyOpen(true);
-    expect(screen.getByRole('heading', { name: '商业项目' })).toBeInTheDocument();
+    expect(screen.getByText('2027年')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('商业项目 · 1'));
     expect(screen.getByRole('button', { name: '测试办公供应' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '玉渊潭640地块商业项目' }));
     expect(callbacks.onSupplyOpenChange).toHaveBeenLastCalledWith(true);
@@ -142,6 +143,7 @@ describe('MapWorkbenchView', () => {
 
     expect(document.getElementById('map-container')).toBeInTheDocument();
     expect(screen.getByText('北京办公楼市场地图')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '主页' })).toHaveAttribute('href', '/');
     const sidebar = screen.getByTestId('sidebar-filter');
     expect(sidebar).toBeInTheDocument();
     expect(sidebar.closest('[aria-hidden="true"]')).not.toBeNull();
@@ -234,12 +236,12 @@ it('respects handled Escape while preserving ordinary workspace Escape behavior'
  expect(callbacks.onCloseList).not.toHaveBeenCalled();fireEvent.keyDown(window,{key:'Escape'});expect(callbacks.onCloseList).toHaveBeenCalledOnce();
 });
 
-it('shows explicit area navigation instead of stale search results and releases the mobile filter drawer', () => {
+it('shows area navigation instead of stale results and preserves the filter open intent', () => {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
   const callbacks = renderWorkbench({ keyword: 'CBD', isFilterPanelOpen: true,
     fullBuildingList: [{ id: 'a', name: 'CBD甲楼' }], submarketDetailPanel: <div>当前区域研究</div> });
   fireEvent.change(screen.getByRole('textbox', { name: '地图搜索' }), { target: { value: 'CBD甲' } });
-  expect(callbacks.onFilterPanelOpenChange).toHaveBeenCalledWith(false);
+  expect(callbacks.onFilterPanelOpenChange).not.toHaveBeenCalledWith(false);
   expect(screen.getByRole('region', { name: '项目搜索候选' })).toBeInTheDocument();
   callbacks.update({ rightView: { kind: 'submarket', name: 'CBD' }, rightKind: 'submarket', isFilterPanelOpen: false });
   expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();

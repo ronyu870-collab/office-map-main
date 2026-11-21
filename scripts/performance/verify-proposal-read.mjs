@@ -182,7 +182,7 @@ try {
         else {
           if (mobile) {
             const link = await openProposal.boundingBox();
-            const modes = await page.getByRole('group', { name: /^(移动端)?地图显示模式$/ }).boundingBox();
+            const modes = await (width < 380 ? page.getByRole('combobox', { name: '地图显示模式', exact: true }) : page.getByRole('group', { name: /^(移动端)?地图显示模式$/ })).boundingBox();
             const separated = link && modes && (link.y + link.height <= modes.y || modes.y + modes.height <= link.y
               || link.x + link.width <= modes.x || modes.x + modes.width <= link.x);
             assert.ok(link?.height >= 44 && separated, `the proposal link must not cover the map modes: ${JSON.stringify({ link, modes })}`);

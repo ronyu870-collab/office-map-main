@@ -3,7 +3,7 @@
 import { workspaceReducer, initialWorkspaceState } from './workspace/workspaceState';
 import type { WorkspaceBuildingDetail } from './workspace/buildingDetail';
 import { observeMapCanvas } from './runtime/observeMapCanvas';
-import { WorkspaceBuildingDetail as BuildingDetailView } from './components/WorkspaceBuildingDetail';
+import { WorkspaceBuildingDetail as BuildingDetailView, type BuildingReadingState } from './components/WorkspaceBuildingDetail';
 import { MapQuerySelection } from './MapQuerySelection';
 import type { QueryMapContext } from '@/src/lib/intelligence/query/buildingNavigation';
 import type { BuildingContext } from '@/src/lib/intelligence/query/buildingCards';
@@ -67,6 +67,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   const userRole = appSession?.role || 'viewer';
   const currentUserId = appSession?.user?.id || null;
   const userRoleRef = React.useRef(userRole);
+  const readingScope = JSON.stringify([currentUserId, userRole, getImpersonationTargetUserId()]);
+  const buildingReadingStates = React.useMemo(() => new Map<string, BuildingReadingState>(), [readingScope]);
   userRoleRef.current = userRole;
 
   const preferenceKey = currentUserId ? `broker-map:v1:${JSON.stringify([currentUserId, userRole, getImpersonationTargetUserId()])}` : '';
@@ -787,8 +789,9 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         rightView={workspace.right}
         rightKind={workspace.right?.kind}
         rightWidth={workspace.width}
+        rightWidths={workspace.widths}
         focusMode={workspace.focus}
-        onWorkspaceWidth={width => dispatchWorkspace({ type: 'width', width })}
+        onWorkspaceWidth={(width, kind) => dispatchWorkspace({ type: 'width', width, kind })}
         onFocusModeChange={() => dispatchWorkspace({ type: 'focus' })}
         onWorkspaceClose={closeWorkspace}
         backLabel={workspace.history.length ? ({ submarket: '子市场研究', list: '项目列表', supply: '未来供应', search: '搜索结果', compare: '楼宇比较', building: '楼宇详情', 'full-list': '完整列表' })[workspace.history.at(-1)!.kind] : null}
@@ -805,6 +808,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         }}
         buildingDetailPanel={buildingDetail && workspace.right?.kind === 'building' ? <BuildingDetailView
           key={`${buildingDetail.building._dataType}:${buildingDetail.building.id}`} detail={{ ...buildingDetail, canEdit: buildingDetail.canEdit && !getImpersonationTargetUserId() }}
+          readingState={buildingReadingStates.get(`${buildingDetail.building._dataType}:${buildingDetail.building.id}`)}
+          onReadingChange={state => buildingReadingStates.set(`${buildingDetail.building._dataType}:${buildingDetail.building.id}`, state)}
           onClose={closeWorkspace} onDisposeTrend={disposeDetailTrend}
           onAction={action => controllerRef.current?.runWorkspaceBuildingAction(action, buildingDetail.building)} /> : null}
         submarketDetailPanel={selectedSubmarket && selectedSummary ? <SubmarketDetailPanel key={selectedSubmarket}

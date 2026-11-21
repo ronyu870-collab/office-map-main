@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import { WorkspacePanelHeader, WorkspacePanelContext } from './WorkspacePanelHeader';
 import dynamic from 'next/dynamic';
 import {
   BarChart3, Building2, ChevronRight, ExternalLink,
-  Pencil, Plus, RefreshCw, Save, Trash2, X,
+  Pencil, Plus, RefreshCw, Save, Trash2,
 } from 'lucide-react';
 
 import { fetchSubmarketDetailPayload, saveSubmarketProfile, type SubmarketDetailPayload } from '@/src/services/mapDataClient';
@@ -41,15 +42,15 @@ const sectionNames = [
   ['profile', '区域画像'], ['buildings', '代表项目'],
 ] as const;
 
-const quietButton = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[13px] text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
-const outlineButton = 'inline-grid min-h-10 min-w-10 place-items-center rounded-[6px] text-[#667085] hover:bg-[#f1f5f9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
+const quietButton = 'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] border border-[#d9e0e8] bg-white px-3 text-[14px] text-[#334155] hover:bg-[#f8fafc] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]';
+const outlineButton = 'workspace-icon';
 
 function Field({ label, value, onChange, multi = false, placeholder }: {
   label: string; value: string; onChange: (value: string) => void; multi?: boolean; placeholder?: string;
 }) {
-  const common = 'mt-1 w-full rounded-[6px] border border-[#c3ccd8] bg-white px-2.5 py-2 text-[13px] text-[#172033] outline-none focus:border-[#003e7e] focus:ring-1 focus:ring-[#003e7e]';
+  const common = 'mt-1 w-full rounded-[6px] border border-[#c3ccd8] bg-white px-2.5 py-2 text-[14px] text-[#172033] outline-none focus:border-[#003e7e] focus:ring-1 focus:ring-[#003e7e]';
   return (
-    <label className="block min-w-0 text-[12px] font-medium text-[#475569]">
+    <label className="block min-w-0 text-[14px] font-normal text-[#475569]">
       {label}
       {multi
         ? <textarea rows={3} className={common} value={value} placeholder={placeholder} onChange={event => onChange(event.target.value)} />
@@ -94,7 +95,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 
   return (
     <form className="space-y-5" onSubmit={event => { event.preventDefault(); onSave(draft, false); }}>
-      <p className="m-0 text-[13px] leading-6 text-[#667085]">
+      <p className="m-0 text-[14px] leading-6 text-[#667085]">
         正在维护{name}的研究资料。只有在逐条核实事实、日期、来源及对外措辞后，才能发布到客户展示页；保存修改默认撤回此前的发布状态。
       </p>
       <div className="space-y-3">
@@ -159,7 +160,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
         {addButton('insights', '观点', draft.insights.length >= 12)}
       </div>
 
-      {error ? <p role="alert" className="text-[13px] text-[#c9362b]">{error}</p> : null}
+      {error ? <p role="alert" className="text-[14px] text-[#c9362b]">{error}</p> : null}
       <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#e7ebf0] bg-white py-3">
         <button type="button" className={quietButton} disabled={saving} onClick={() => {
           if (JSON.stringify(draft) === JSON.stringify(value) || window.confirm('有未保存的修改，确定放弃吗？')) onCancel();
@@ -167,7 +168,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
         <button type="submit" disabled={saving} className={quietButton + ' disabled:opacity-50'}>
           <Save size={15}/>{saving ? '保存中…' : '保存草稿'}
         </button>
-        <button type="button" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-medium text-white disabled:opacity-50"
+        <button type="button" disabled={saving} className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[#003e7e] px-4 text-[14px] font-normal text-white disabled:opacity-50"
           onClick={() => {
             if (window.confirm('确认已逐项核实来源、时效、事实与对外表述，并作为正式客户展示资料发布？')) onSave(draft, true);
           }}>
@@ -181,6 +182,7 @@ function ProfileEditor({ name, value, saving, error, onCancel, onSave }: {
 export function SubmarketDetailPanel({
   name, summary, buildings, futureCount, canEdit, suspended = false, retained = false, onRetain, onExitGuardChange, onClose, onShowAll, onOpenBuilding,
 }: Props) {
+  const workspace = React.useContext(WorkspacePanelContext);
   const [detail, setDetail] = React.useState<SubmarketDetailPayload | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -259,12 +261,12 @@ export function SubmarketDetailPanel({
 
   const metric = (label: string, value: string, unit: string, note: string) => (
     <div className="min-w-0 rounded-[8px] border border-[#e3e9f0] bg-white px-3 py-3 sm:px-5 sm:py-4">
-      <p className="m-0 text-[11px] font-medium text-[#667085] sm:text-[12px]">{label}</p>
+      <p className="m-0 text-[14px] font-normal text-[#667085] text-[14px]">{label}</p>
       <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5">
-        <strong className="text-[21px] font-semibold leading-tight tabular-nums tracking-tight text-[#003e7e] sm:text-[27px]">{value}</strong>
-        <span className="text-[10px] text-[#667085] sm:text-[12px]">{unit}</span>
+        <strong className="text-[14px] font-semibold leading-tight tabular-nums tracking-tight text-[#003e7e] text-[14px]">{value}</strong>
+        <span className="text-[14px] text-[#667085] text-[14px]">{unit}</span>
       </div>
-      <p className="mb-0 mt-2 text-[10px] leading-4 text-[#667085] sm:text-[11px]">{note}</p>
+      <p className="mb-0 mt-2 text-[14px] leading-4 text-[#667085] text-[14px]">{note}</p>
     </div>
   );
 
@@ -280,23 +282,9 @@ export function SubmarketDetailPanel({
     <div aria-hidden={suspended || undefined} className={suspended ? 'map-submarket-workspace hidden' : 'map-submarket-workspace'}>
       <section ref={dialogRef} data-map-submarket-panel role="region"
         aria-labelledby="submarket-dialog-heading" className="map-submarket-workspace-panel">
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e9edf2] px-4 py-3 sm:px-7 sm:py-4">
-          <div className="min-w-0">
-            <p className="m-0 text-[11px] font-medium tracking-wide text-[#64748b]">北京办公楼市场 · 子市场研究</p>
-            <h2 id="submarket-dialog-heading" ref={headingRef} tabIndex={-1}
-              className="m-0 mt-0.5 truncate text-[21px] font-semibold leading-7 text-[#172033] outline-none sm:text-[25px]">{name}</h2>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {canEdit && detail?.profileAvailable && !editing ? (
-              <button type="button" aria-label="维护资料" title="维护资料" className={outlineButton}
-                onClick={() => { setEditing(true); setSaveError(null); }}>
-                <Pencil size={16} aria-hidden="true" />
-              </button>
-            ) : null}
-            <button type="button" className={outlineButton} onClick={closePanel}
-              aria-label="关闭子市场介绍" title="关闭"><X size={19} aria-hidden="true" /></button>
-          </div>
-        </header>
+        <WorkspacePanelHeader title={name} titleId="submarket-dialog-heading" titleRef={headingRef}
+          onClose={closePanel} closeLabel="关闭子市场介绍" actions={canEdit && detail?.profileAvailable && !editing ? <button type="button" aria-label="维护资料" title="维护资料" className="workspace-icon"
+            onClick={() => { setEditing(true); setSaveError(null); }}><Pencil size={16} aria-hidden="true" /></button> : null} />
 
         {!editing ? <div className="map-submarket-primary-actions">
           <button type="button" onClick={onShowAll}>查看全部项目</button>
@@ -322,7 +310,7 @@ export function SubmarketDetailPanel({
                 tabIndex={currentSection === id ? 0 : -1}
                 aria-selected={currentSection === id} aria-controls="submarket-active-panel"
                 onClick={() => { setSection(id); if (scrollRef.current) scrollRef.current.scrollTop = 0; }}
-                className={'relative min-h-11 shrink-0 px-3 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] '
+                className={'relative min-h-11 shrink-0 px-3 text-[14px] font-normal transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] '
                   + (currentSection === id
                     ? 'text-[#003e7e] after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:bg-[#003e7e]'
                     : 'text-[#64748b] hover:text-[#003e7e]')}>
@@ -336,12 +324,12 @@ export function SubmarketDetailPanel({
           role={editing ? undefined : 'tabpanel'}
           id={editing ? undefined : 'submarket-active-panel'}
           aria-labelledby={editing ? undefined : 'submarket-tab-' + currentSection}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] px-4 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] sm:px-7 sm:py-5 lg:px-9">
+          className="workspace-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f8fafc] px-4 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] sm:px-7 sm:py-5 lg:px-9">
           {editing ? (
             <div className="mx-auto max-w-[880px] rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-7">
               <div className="mb-5 border-b border-[#e7ebf0] pb-4">
-                <h3 className="m-0 text-[18px] font-semibold">维护区域资料</h3>
-                <p className="mt-1 text-[12px] text-[#64748b]">
+                <div className="workspace-chart-heading"><h3 className="m-0 text-[16px] font-semibold">维护区域资料</h3>{workspace ? <button type="button" className={quietButton} onClick={() => workspace.setMode('full')}>展开编辑</button> : null}</div>
+                <p className="mt-1 text-[14px] text-[#64748b]">
                   现有资料默认仅供维护；核实后主动发布，才会进入客户展示页面。
                 </p>
               </div>
@@ -359,21 +347,21 @@ export function SubmarketDetailPanel({
               {currentSection === 'overview' ? (
                 <div className="space-y-4 sm:space-y-5">
                   <section aria-label="区域定位" className="rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-6 sm:py-5">
-                    <h3 className="m-0 text-[18px] font-semibold leading-7 text-[#172033] sm:text-[21px]">
+                    <h3 className="m-0 text-[14px] font-semibold leading-7 text-[#172033] text-[14px]">
                       {profile?.headline || name + '办公市场概览'}
                     </h3>
                     {profile?.overview ? (
-                      <p className="mb-0 mt-2 line-clamp-2 text-[13px] leading-6 text-[#475569]">
+                      <p className="mb-0 mt-2 line-clamp-2 text-[14px] leading-6 text-[#475569]">
                         {profile.overview}
                       </p>
                     ) : (
-                      <p className="mb-0 mt-1.5 text-[12px] leading-5 text-[#64748b]">
+                      <p className="mb-0 mt-1.5 text-[14px] leading-5 text-[#64748b]">
                         聚焦已收录甲乙级写字楼的租金、空置率与楼宇构成。
                       </p>
                     )}
                   </section>
 
-                  <section aria-label="市场核心指标" className="grid grid-cols-3 gap-2 sm:gap-3">
+                  <section data-workspace-summary aria-label="市场核心指标" className="grid grid-cols-3 gap-2 sm:gap-3">
                     {metric('平均净有效租金', number(summary.rent), '元/㎡/月', '有效样本 ' + summary.rentSampleCount + ' 个')}
                     {metric('平均空置率', number(summary.vacancyPct), '%', '有效样本 ' + summary.vacancySampleCount + ' 个')}
                     {metric('甲乙级项目', summary.officeCount.toLocaleString('zh-CN'), '个', '甲级 ' + summary.gradeACount + ' · 乙级 ' + summary.gradeBCount)}
@@ -383,13 +371,13 @@ export function SubmarketDetailPanel({
                     <section aria-label="市场走势速览" className="min-w-0 rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-3 sm:px-5">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="m-0 text-[14px] font-semibold">租金与空置率走势</h3>
-                        <button type="button" className="inline-flex min-h-9 shrink-0 items-center gap-1 text-[12px] font-medium text-[#003e7e] hover:underline"
+                        <button type="button" className="inline-flex min-h-9 shrink-0 items-center gap-1 text-[14px] font-normal text-[#003e7e] hover:underline"
                           onClick={() => setSection('trend')}>查看趋势 <ChevronRight size={14} aria-hidden="true" /></button>
                       </div>
                       {loading ? (
-                        <div className="flex h-[188px] items-center justify-center text-[12px] text-[#64748b]">正在读取行情…</div>
+                        <div className="flex h-[188px] items-center justify-center text-[14px] text-[#64748b]">正在读取行情…</div>
                       ) : detail?.trendError || loadError ? (
-                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[12px] text-[#64748b]">
+                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[14px] text-[#64748b]">
                           <span>历史行情暂不可用</span>
                           <button type="button" className={quietButton} onClick={() => setReload(x => x + 1)}>
                             <RefreshCw size={14} aria-hidden="true" /> 重新加载
@@ -398,7 +386,7 @@ export function SubmarketDetailPanel({
                       ) : trendReady ? (
                         <TrendChart data={detail?.trends.all ?? []} compact />
                       ) : (
-                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[12px] text-[#64748b]">
+                        <div className="flex h-[188px] flex-col items-center justify-center gap-2 text-[14px] text-[#64748b]">
                           <BarChart3 size={23} aria-hidden="true" />
                           <span>近期暂无足够的同季度可比数据</span>
                         </div>
@@ -409,27 +397,27 @@ export function SubmarketDetailPanel({
                       {profileReady ? (
                         <div className="mt-4 space-y-3">
                           {profile?.industries ? <div>
-                            <p className="m-0 text-[11px] text-[#64748b]">产业及办公需求</p>
-                            <p className="mb-0 mt-1 line-clamp-3 text-[13px] leading-6 text-[#334155]">{profile.industries}</p>
+                            <p className="m-0 text-[14px] text-[#64748b]">产业及办公需求</p>
+                            <p className="mb-0 mt-1 line-clamp-3 text-[14px] leading-6 text-[#334155]">{profile.industries}</p>
                           </div> : null}
                           {profile?.transport ? <div>
-                            <p className="m-0 text-[11px] text-[#64748b]">交通及配套</p>
-                            <p className="mb-0 mt-1 line-clamp-3 text-[13px] leading-6 text-[#334155]">{profile.transport}</p>
+                            <p className="m-0 text-[14px] text-[#64748b]">交通及配套</p>
+                            <p className="mb-0 mt-1 line-clamp-3 text-[14px] leading-6 text-[#334155]">{profile.transport}</p>
                           </div> : null}
-                          <button type="button" className="inline-flex min-h-9 items-center gap-1 text-[12px] font-medium text-[#003e7e] hover:underline"
+                          <button type="button" className="inline-flex min-h-9 items-center gap-1 text-[14px] font-normal text-[#003e7e] hover:underline"
                             onClick={() => setSection('profile')}>完整区域画像 <ChevronRight size={14} aria-hidden="true" /></button>
                         </div>
                       ) : (
                         <div className="mt-4 space-y-3">
-                          <div className="flex items-center justify-between text-[13px]"><span className="text-[#475569]">甲级写字楼</span><strong className="tabular-nums">{summary.gradeACount} 个</strong></div>
+                          <div className="flex items-center justify-between text-[14px]"><span className="text-[#475569]">甲级写字楼</span><strong className="tabular-nums">{summary.gradeACount} 个</strong></div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-[#edf1f5]">
                             <div className="h-full rounded-full bg-[#003e7e]" style={{ width: (summary.officeCount ? summary.gradeACount / summary.officeCount * 100 : 0) + '%' }} />
                           </div>
-                          <div className="flex items-center justify-between text-[13px]"><span className="text-[#475569]">乙级写字楼</span><strong className="tabular-nums">{summary.gradeBCount} 个</strong></div>
+                          <div className="flex items-center justify-between text-[14px]"><span className="text-[#475569]">乙级写字楼</span><strong className="tabular-nums">{summary.gradeBCount} 个</strong></div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-[#edf1f5]">
                             <div className="h-full rounded-full bg-[#8fa9c3]" style={{ width: (summary.officeCount ? summary.gradeBCount / summary.officeCount * 100 : 0) + '%' }} />
                           </div>
-                          <p className="mb-0 border-t border-[#edf1f5] pt-3 text-[11px] leading-5 text-[#64748b]">
+                          <p className="mb-0 border-t border-[#edf1f5] pt-3 text-[14px] leading-5 text-[#64748b]">
                             另收录产业园 {summary.parkCount} 个、未来供应 {futureCount} 个，均不计入上述甲乙级统计。
                           </p>
                         </div>
@@ -440,21 +428,21 @@ export function SubmarketDetailPanel({
                     <section aria-label="代表性项目速览" className="rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-3 sm:px-5">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <h3 className="m-0 text-[14px] font-semibold">代表性项目</h3>
-                        <button type="button" className="inline-flex min-h-9 items-center gap-1 text-[12px] font-medium text-[#003e7e] hover:underline"
+                        <button type="button" className="inline-flex min-h-9 items-center gap-1 text-[14px] font-normal text-[#003e7e] hover:underline"
                           onClick={() => setSection('buildings')}>查看项目 <ChevronRight size={14} aria-hidden="true" /></button>
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         {projects.map(project => (
                           <button type="button" key={project.id} onClick={() => project.id && onOpenBuilding(project.id)}
                             className="group flex min-h-12 min-w-0 items-center justify-between gap-2 rounded-[6px] bg-[#f8fafc] px-3 py-2 text-left transition-colors hover:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
-                            <span className="min-w-0 truncate text-[12px] font-medium text-[#334155]">{project.name || '项目'}</span>
+                            <span className="min-w-0 truncate text-[14px] font-normal text-[#334155]">{project.name || '项目'}</span>
                             <ChevronRight size={13} aria-hidden="true" className="shrink-0 text-[#94a3b8] group-hover:text-[#003e7e]" />
                           </button>
                         ))}
                       </div>
                     </section>
                   ) : null}
-                  <p className="m-0 px-1 text-[11px] leading-5 text-[#64748b]">
+                  <p className="m-0 px-1 text-[14px] leading-5 text-[#64748b]">
                     核心指标按各楼宇最新有效季度面积加权，趋势图按同季度样本计算；产业园另计 {summary.parkCount} 个，未来供应另计 {futureCount} 个，均不包含在甲乙级样本内。
                   </p>
                 </div>
@@ -463,28 +451,29 @@ export function SubmarketDetailPanel({
                   <section className="rounded-[9px] border border-[#e0e6ed] bg-white px-4 py-4 sm:px-6 sm:py-5" aria-label="季度行情">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h3 className="m-0 text-[17px] font-semibold">租金与空置率趋势</h3>
-                        <p className="mb-0 mt-1 text-[12px] text-[#64748b]">最近八个季度 · 净有效租金（元/㎡/月）与空置率（%）</p>
+                        <h3 className="m-0 text-[14px] font-semibold">租金与空置率趋势</h3>
+                        <p className="mb-0 mt-1 text-[14px] text-[#64748b]">最近八个季度 · 净有效租金（元/㎡/月）与空置率（%）</p>
                       </div>
+                      {workspace ? <button type="button" className={quietButton} onClick={() => workspace.setMode('full')}>展开图表</button> : null}
                       <div role="group" aria-label="楼宇等级" className="inline-flex rounded-[6px] bg-[#f1f5f9] p-1">
                         {gradeNames.map(([id, label]) => (
                           <button type="button" key={id} aria-pressed={grade === id} onClick={() => setGrade(id)}
-                            className={'min-h-9 rounded-[5px] px-3 text-[12px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] '
+                            className={'min-h-9 rounded-[5px] px-3 text-[14px] font-normal focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e] '
                               + (grade === id ? 'bg-white text-[#003e7e] shadow-sm' : 'text-[#64748b] hover:text-[#003e7e]')}>{label}</button>
                         ))}
                       </div>
                     </div>
                     {loading ? (
-                      <div className="flex h-[260px] items-center justify-center text-[12px] text-[#64748b]">正在读取季度数据…</div>
+                      <div className="flex h-[260px] items-center justify-center text-[14px] text-[#64748b]">正在读取季度数据…</div>
                     ) : detail?.trendError || loadError ? (
-                      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-[13px] text-[#64748b]">
+                      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-[14px] text-[#64748b]">
                         <span>历史行情暂不可用</span>
                         <button type="button" className={quietButton} onClick={() => setReload(x => x + 1)}>
                           <RefreshCw size={14} aria-hidden="true" /> 重新加载
                         </button>
                       </div>
                     ) : trendReady ? <TrendChart data={series} /> : (
-                      <div className="flex min-h-[220px] items-center justify-center text-[13px] text-[#64748b]">
+                      <div className="flex min-h-[220px] items-center justify-center text-[14px] text-[#64748b]">
                         当前等级暂无有效季度走势
                       </div>
                     )}
@@ -495,40 +484,40 @@ export function SubmarketDetailPanel({
                     {metric('空置率季度变化', vacancyChange == null ? '—' : (vacancyChange > 0 ? '+' : '') + number(vacancyChange), '百分点', vacancyChange == null ? '暂无相邻可比季度' : '与相邻季度比较')}
                     {metric('最新有效样本', latest ? String(latest.rentSamples) : '—', '个（租金）', '空置样本 ' + (latest ? latest.vacancySamples : '—') + ' 个')}
                   </section> : null}
-                  <p className="m-0 px-1 text-[11px] leading-5 text-[#64748b]">
+                  <p className="m-0 px-1 text-[14px] leading-5 text-[#64748b]">
                     数据来自正式季度记录，按同季度有效面积加权；缺失不补零。各期样本可能不同，变化不代表同一楼宇的租金变动。
                   </p>
                 </div>
               ) : currentSection === 'profile' && profile ? (
                 <div className="space-y-4">
                   <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-6">
-                    <h3 className="m-0 text-[17px] font-semibold">区域定位</h3>
-                    <p className="mb-0 mt-3 whitespace-pre-line text-[13px] leading-6 text-[#334155]">{profile.overview}</p>
+                    <h3 className="m-0 text-[14px] font-semibold">区域定位</h3>
+                    <p className="mb-0 mt-3 whitespace-pre-line text-[14px] leading-6 text-[#334155]">{profile.overview}</p>
                   </section>
                   <div className="grid gap-3 md:grid-cols-2">
                     {profile.industries ? (
                       <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-5">
-                        <h3 className="m-0 text-[15px] font-semibold">产业及办公需求</h3>
-                        <p className="mb-0 mt-3 whitespace-pre-line text-[13px] leading-6 text-[#475569]">{profile.industries}</p>
+                        <h3 className="m-0 text-[14px] font-semibold">产业及办公需求</h3>
+                        <p className="mb-0 mt-3 whitespace-pre-line text-[14px] leading-6 text-[#475569]">{profile.industries}</p>
                       </section>
                     ) : null}
                     {profile.transport ? (
                       <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-5">
-                        <h3 className="m-0 text-[15px] font-semibold">交通与配套</h3>
-                        <p className="mb-0 mt-3 whitespace-pre-line text-[13px] leading-6 text-[#475569]">{profile.transport}</p>
+                        <h3 className="m-0 text-[14px] font-semibold">交通与配套</h3>
+                        <p className="mb-0 mt-3 whitespace-pre-line text-[14px] leading-6 text-[#475569]">{profile.transport}</p>
                       </section>
                     ) : null}
                   </div>
                   {profile.demographics.length ? (
                     <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-5">
-                      <h3 className="m-0 text-[15px] font-semibold">人口与就业参考</h3>
+                      <h3 className="m-0 text-[14px] font-semibold">人口与就业参考</h3>
                       <div className="mt-3 grid gap-2 md:grid-cols-3">
                         {profile.demographics.map((fact, index) => (
                           <article key={index} className="rounded-[6px] bg-[#f8fafc] p-3">
-                            <p className="m-0 text-[11px] text-[#64748b]">{fact.label}</p>
-                            <p className="mb-0 mt-1 text-[20px] font-semibold">{fact.value} <span className="text-[12px] font-normal">{fact.unit}</span></p>
-                            <p className="mb-0 mt-1 text-[11px] text-[#64748b]">{fact.scope} · {fact.asOf}</p>
-                            <a className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#003e7e] hover:underline"
+                            <p className="m-0 text-[14px] text-[#64748b]">{fact.label}</p>
+                            <p className="mb-0 mt-1 text-[14px] font-semibold">{fact.value} <span className="text-[14px] font-normal">{fact.unit}</span></p>
+                            <p className="mb-0 mt-1 text-[14px] text-[#64748b]">{fact.scope} · {fact.asOf}</p>
+                            <a className="mt-2 inline-flex items-center gap-1 text-[14px] text-[#003e7e] hover:underline"
                               target="_blank" rel="noopener noreferrer" href={fact.sourceUrl}>数据来源 <ExternalLink size={12} aria-hidden="true" /></a>
                           </article>
                         ))}
@@ -537,15 +526,15 @@ export function SubmarketDetailPanel({
                   ) : null}
                   {profile.policies.length ? (
                     <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-5">
-                      <h3 className="m-0 text-[15px] font-semibold">政策与规划</h3>
+                      <h3 className="m-0 text-[14px] font-semibold">政策与规划</h3>
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
                         {profile.policies.map((item, index) => (
                           <article key={index} className="rounded-[6px] bg-[#f8fafc] p-3">
-                            <h4 className="m-0 text-[13px] font-semibold">{item.title}</h4>
-                            <p className="mb-0 mt-1 text-[11px] text-[#64748b]">{item.issuer} · {item.asOf}</p>
-                            <p className="mb-0 mt-2 text-[12px] leading-5 text-[#475569]">{item.summary}</p>
-                            <p className="mb-0 mt-1 text-[11px] leading-5 text-[#64748b]">适用范围：{item.applicability}</p>
-                            <a className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#003e7e] hover:underline"
+                            <h4 className="m-0 text-[14px] font-semibold">{item.title}</h4>
+                            <p className="mb-0 mt-1 text-[14px] text-[#64748b]">{item.issuer} · {item.asOf}</p>
+                            <p className="mb-0 mt-2 text-[14px] leading-5 text-[#475569]">{item.summary}</p>
+                            <p className="mb-0 mt-1 text-[14px] leading-5 text-[#64748b]">适用范围：{item.applicability}</p>
+                            <a className="mt-2 inline-flex items-center gap-1 text-[14px] text-[#003e7e] hover:underline"
                               target="_blank" rel="noopener noreferrer" href={item.sourceUrl}>政策原文 <ExternalLink size={12} aria-hidden="true" /></a>
                           </article>
                         ))}
@@ -554,13 +543,13 @@ export function SubmarketDetailPanel({
                   ) : null}
                   {profile.insights.length ? (
                     <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-5">
-                      <h3 className="m-0 text-[15px] font-semibold">市场观察</h3>
+                      <h3 className="m-0 text-[14px] font-semibold">市场观察</h3>
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
                         {profile.insights.map((item, index) => (
-                          <article key={index} className="rounded-[6px] border-l-[2px] border-[#003e7e] bg-[#f8fafc] p-3">
-                            <h4 className="m-0 text-[13px] font-semibold">{item.title}</h4>
-                            <p className="mb-0 mt-2 text-[12px] leading-5 text-[#475569]">{item.body}</p>
-                            <p className="mb-0 mt-2 text-[11px] text-[#64748b]">{item.author} · {item.asOf}</p>
+                          <article key={index} className="rounded-[6px]  bg-[#f8fafc] p-3">
+                            <h4 className="m-0 text-[14px] font-semibold">{item.title}</h4>
+                            <p className="mb-0 mt-2 text-[14px] leading-5 text-[#475569]">{item.body}</p>
+                            <p className="mb-0 mt-2 text-[14px] text-[#64748b]">{item.author} · {item.asOf}</p>
                           </article>
                         ))}
                       </div>
@@ -569,8 +558,8 @@ export function SubmarketDetailPanel({
                 </div>
               ) : currentSection === 'buildings' ? (
                 <section className="rounded-[9px] border border-[#e0e6ed] bg-white p-4 sm:p-6" aria-label="代表性楼宇">
-                  <h3 className="m-0 text-[17px] font-semibold">代表性项目</h3>
-                  <p className="mb-0 mt-1 text-[12px] text-[#64748b]">按最新可用总面积选取部分可定位的甲乙级项目，不代表项目推荐排名。</p>
+                  <h3 className="m-0 text-[14px] font-semibold">代表性项目</h3>
+                  <p className="mb-0 mt-1 text-[14px] text-[#64748b]">按最新可用总面积选取部分可定位的甲乙级项目，不代表项目推荐排名。</p>
                   {projects.length ? (
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
                       {projects.map(project => (
@@ -578,15 +567,15 @@ export function SubmarketDetailPanel({
                           className="group flex min-h-16 min-w-0 items-center gap-3 rounded-[7px] border border-[#e3e9f0] bg-[#f8fafc] p-3 text-left hover:border-[#b8cddd] hover:bg-[#edf4fb] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#003e7e]">
                           <Building2 size={17} aria-hidden="true" className="shrink-0 text-[#003e7e]" />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-medium">{project.name || '项目'}</span>
-                            <span className="mt-1 block text-[11px] text-[#64748b]">{officeGrade(project.grade) === 'a' ? '甲级写字楼' : '乙级写字楼'}</span>
+                            <span className="block truncate text-[14px] font-normal">{project.name || '项目'}</span>
+                            <span className="mt-1 block text-[14px] text-[#64748b]">{officeGrade(project.grade) === 'a' ? '甲级写字楼' : '乙级写字楼'}</span>
                           </span>
                           <ChevronRight size={16} aria-hidden="true" className="text-[#94a3b8] group-hover:text-[#003e7e]" />
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-4 text-[13px] text-[#64748b]">当前区域暂无可定位项目。</p>
+                    <p className="mt-4 text-[14px] text-[#64748b]">当前区域暂无可定位项目。</p>
                   )}
 
                 </section>
@@ -596,7 +585,7 @@ export function SubmarketDetailPanel({
         </div>
 
         {!editing ? (
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e9edf2] bg-white px-4 py-2 text-[10px] text-[#64748b] sm:px-7 sm:text-[11px]">
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e9edf2] bg-white px-4 py-2 text-[14px] text-[#64748b] sm:px-7 text-[14px]">
             <span>统计基于平台收录的甲乙级存量项目，不代表市场全部库存。</span>
             <span className="shrink-0">Colliers Intelligence</span>
           </footer>

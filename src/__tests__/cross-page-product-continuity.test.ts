@@ -25,7 +25,7 @@ describe('Cross-page product continuity', () => {
     expect(view).not.toContain('COLLIERS DATA');
     expect(view).not.toContain('MAP 2.0');
     expect(view).not.toContain('MAP WORKBENCH');
-    expect(view).toContain('homeHref="/"');
+    expect(view).toContain('<Link href="/"');
   });
 
   it('uses the canonical product and workflow language in Quarterly Update', () => {
