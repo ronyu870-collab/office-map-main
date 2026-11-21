@@ -15,7 +15,6 @@ import { MapWorkspaceLayout } from './MapWorkspaceLayout';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
 import { panelWidth, type PanelWidths, type WorkspaceKind } from '../workspace/workspaceState';
-import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { Maximize2, Minimize2, Info, MoreHorizontal, Home, List } from 'lucide-react';
 import { FullBuildingList } from './FullBuildingList';
 import { type FullListBuilding } from '../model/fullBuildingList';
@@ -239,7 +238,7 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
   );
 }
 
-function MetricStrip({ stats, scope, period, active }: { stats: MapStatsState; scope: string; period: string; active: boolean }) {
+function MetricStrip({ stats }: { stats: MapStatsState }) {
   const metrics = [
     { label: '净有效租金', value: stats.avgRent, unit: '元/㎡/月' },
     { label: '空置率', value: stats.overallVacancyPct, unit: '%' },
@@ -250,11 +249,6 @@ function MetricStrip({ stats, scope, period, active }: { stats: MapStatsState; s
   return (
     <section className="map-live-stats" aria-label="市场实时指标">
       <dl className="map-workspace-kpis" aria-live="polite" aria-atomic="true">{metrics.map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd>{metric.value} <span>{metric.unit}</span></dd></div>)}</dl>
-      <MapDisclosure active={active} className="map-market-overview" label={<><Info size={16} aria-hidden="true" /><span className="sr-only">统计口径</span></>}>
-        <h2>统计口径</h2><p className="workspace-note">{scope}</p>
-        <p className="workspace-note">{period}。租金与空置率按有效面积加权；有坐标项目按筛选结果统计，不随地图移动变化。</p>
-        <p className="workspace-note">来源：平台已授权存量项目与正式季度记录；未来供应另计。</p>
-      </MapDisclosure>
     </section>
   );
 }
@@ -535,9 +529,6 @@ export function MapWorkbenchView({
   const effectiveKind = rightKind ?? (isSupplyOpen ? 'supply' : isListVisible ? 'list' : submarketDetailPanel ? 'submarket' : null);
   const panelKind = (searchChoicesVisible ? 'search' : effectiveKind ?? 'list') as WorkspaceKind;
   const preferredWidth = rightWidths ? panelWidth(panelKind, rightWidths) : rightWidth;
-  const scope = hasNarrowedSearch || searchTerm ? `当前筛选结果${activeFilterChips.length ? '：' + activeFilterChips.map(chip => chip.label).join('、') : ''}${searchTerm ? ' · 搜索：' + searchTerm : ''}` : '当前筛选结果：全部子市场';
-  const periods = Array.from(new Set(combinedBuildingList.filter(building => building._dataType !== 'future').map(building => getLatestMetric(building.metrics ?? [])).filter(Boolean).map(metric => `${metric!.record_year}Q${metric!.record_quarter}`))).sort();
-  const period = periods.length === 1 ? `指标期间：${periods[0]}` : periods.length ? `各项目最新有效季度：${periods[0]}—${periods.at(-1)}，样本期间可能不同` : '暂无有效季度指标';
   const rightOpen = Boolean(effectiveKind || searchChoicesVisible);
   const [listVisited, setListVisited] = React.useState(false);
   if (!listVisited && (effectiveKind === 'list' || effectiveKind === 'compare')) setListVisited(true);
@@ -631,7 +622,7 @@ export function MapWorkbenchView({
       <header className="relative z-[500] shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-surface)]">
         <div className="map-page-header">
           <BrokerSearchLink /><h1 title="北京办公楼市场地图">北京办公楼市场地图</h1>
-          <MetricStrip stats={stats} scope={scope} period={period} active={!isFullListVisible} />
+          <MetricStrip stats={stats} />
           <div className="map-header-navigation">
             <Link href="/" className="workspace-header-link"><Home size={16} aria-hidden="true" />主页</Link>
             <Button variant="secondary" size="sm" onClick={() => onOpenFullList?.()} aria-label="完整列表">完整列表</Button>
