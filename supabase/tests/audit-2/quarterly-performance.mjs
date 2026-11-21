@@ -26,6 +26,14 @@ try{
  const actorSource=await sql('../../migrations/20261102063824_audit_actor_identity.sql');
  await db.setup.query(actorSource.slice(actorSource.indexOf('create function private.snapshot_audit_actor()'),actorSource.indexOf('-- Classify existing rows')));
  const payload=[{building_id:'33333333-3333-4333-8333-333333333333',total_area:1000,vacant_area:100,vacancy_rate:10,asking_rent:100,management_fee:20,face_rent:90,rent_free_period:2}];
+ // Twenty assigned projects exercise a representative multi-row submission,
+ // including actor snapshots for every committed row rather than a single-row proxy.
+ for(let i=1;i<20;i++){
+  const id=`77777777-7777-4777-8777-${String(i).padStart(12,'0')}`;
+  await db.setup.query("insert into public.buildings(id,grade) values($1,'A')",[id]);
+  await db.setup.query("insert into public.building_assignments(building_id,user_id,project_name,user_name) values($1,$2,'Synthetic bulk','Synthetic owner')",[id,OWNER]);
+  payload.push({...payload[0],building_id:id});
+ }
  const measure=async(run)=>{
   const durations=[];
   for(let i=0;i<110;i++){const start=performance.now();await run(i);if(i>=10)durations.push(performance.now()-start);}
@@ -46,8 +54,8 @@ try{
  const after=await benchmark();
  for(const operation of ['draft','submit'])assert.ok(after[operation].p95Ms-before[operation].p95Ms<=Math.max(10,before[operation].p95Ms*.03),operation+' P95 budget');
  const counts=(await db.setup.query('select (select count(*)::int from private.quarterly_submission_requests) requests,(select count(*)::int from public.quarterly_submission_provenance) provenance')).rows[0];
- assert.equal(counts.requests,220);assert.equal(counts.provenance,220);
+ assert.equal(counts.requests,220);assert.equal(counts.provenance,220*payload.length);
  await mkdir('verification/audit-2',{recursive:true});
- const result={environment:'Real PostgreSQL 17; existing quarterly SQL/RPC and synthetic fixture; 10 warmup +100 measured per operation; draft includes revision read; not an HTTP or production CPU measurement',version:db.version,before,after,counts};
+ const result={projectsPerSubmit:payload.length,environment:'Real PostgreSQL 17; existing quarterly SQL/RPC and synthetic fixture; 10 warmup +100 measured per operation; draft includes revision read; not an HTTP or production CPU measurement',version:db.version,before,after,counts};
  await writeFile('verification/audit-2/quarterly-performance.json',JSON.stringify(result,null,2));console.log(JSON.stringify({status:'pass',...result}));
 }finally{await db.close();}
