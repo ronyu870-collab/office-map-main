@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { logAction } from '@/src/utils/audit';
 import { ArrowLeft, FileImage } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { Dialog } from '@/src/components/ui/Dialog';
@@ -68,6 +69,29 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, initialC
   const first=entries[0];
   const error=(catalog?.key===listKey ? catalog.error : '') || (resource?.key===accessKey ? resource.error : '');
   const loading=catalog?.key!==listKey || (targets.length>0 && resource?.key!==accessKey);
+  const lastReadingKey=useRef('');
+
+  useEffect(()=>{
+    // Observe the displayed business view, not each access request / signed-URL refresh.
+    if(loading || error)return;
+    const ids=entries.slice(0,30).map(entry=>entry.material.id);
+    const key=JSON.stringify([buildingId,category,original?.id ?? '',original?.page ?? null,ids]);
+    if(lastReadingKey.current===key)return;
+    lastReadingKey.current=key;
+    if(original && first){
+      logAction(undefined,'VIEW_MATERIAL_ORIGINAL',{
+        module:'map',building_id:buildingId,building_name:buildingName,
+        target_table:'building_sales_materials',target_id:first.material.id,target_name:first.material.title,
+        material_id:first.material.id,version_recorded_at:first.material.created_at,
+        ...(original.page ? {page:original.page} : {}),observation:'viewer_opened',
+      });
+    }else if(!original){
+      logAction(undefined,'VIEW_BUILDING_MATERIALS',{
+        module:'map',target_table:'buildings',building_id:buildingId,building_name:buildingName,
+        category,material_ids:ids,material_count:entries.length,material_ids_truncated:entries.length>ids.length,
+      });
+    }
+  },[loading,error,buildingId,buildingName,category,original,entries,first]);
 
   useEffect(()=>{
     const controller=new AbortController();

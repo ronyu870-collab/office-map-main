@@ -9,6 +9,7 @@ import { futureSupplyDisplayLabel } from '../model/mapDomain';
 import { animateWorkspace } from '../runtime/workspaceMotion';
 import { useMapReadingScroll } from '../workspace/continuity';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
+import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
 
 type Action = 'nearby' | 'contact' | 'trend' | 'edit';
 export type BuildingReadingState = { tab: string; scrollTop: number };
@@ -42,7 +43,11 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
   const resetScroll = useMapReadingScroll(scroll, `detail:${detail.building._dataType}:${detail.building.id}`, true, initialScroll);
   const panel = React.useRef<HTMLDivElement>(null);
   React.useLayoutEffect(() => { const animation = animateWorkspace(panel.current, [{ opacity: .7 }, { opacity: 1 }], 120); return () => animation?.cancel(); }, [tab, building.id]);
-  const setTab = (next: string) => { if (next === tab) return; updateTab(next); resetScroll(); onReadingChange?.({ tab: next, scrollTop: 0 }); };
+  const setTab = (next: string) => {
+    if (next === tab) return;
+    updateTab(next); resetScroll(); onReadingChange?.({ tab: next, scrollTop: 0 });
+    auditBuildingReading('VIEW_BUILDING_SECTION', building, { section: next }, isDemo);
+  };
   const [trendOpen, setTrendOpen] = React.useState(false);
   React.useEffect(() => () => onDisposeTrend(), [onDisposeTrend]);
   const future = building._dataType === 'future';

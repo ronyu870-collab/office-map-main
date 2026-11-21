@@ -56,6 +56,27 @@ test('event origin is captured before asynchronous storage and account switching
   expect(await rows()).toEqual([expect.objectContaining({ origin_user_id: user, origin_auth_session_id: sessionId })]);
 });
 
+test('business reading observations deduplicate by object/state, retain origin and stay asynchronous', async () => {
+  const { auditBuildingReading } = await import('../buildingReadingAudit');
+  const a = { id: 'building-a', name: '甲楼' };
+  auditBuildingReading('VIEW_BUILDING', a);
+  auditBuildingReading('VIEW_BUILDING', a);
+  auditBuildingReading('VIEW_BUILDING_CONTACT', a);
+  auditBuildingReading('VIEW_BUILDING_CONTACT', a);
+  auditBuildingReading('VIEW_BUILDING_TREND', a, { metric: 'rent' });
+  auditBuildingReading('VIEW_BUILDING_TREND', a, { metric: 'vac' });
+  auditBuildingReading('VIEW_BUILDING_TREND', a, { metric: 'vac' });
+  auditBuildingReading('VIEW_BUILDING', { id: 'building-b' });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(fixture.getSession).not.toHaveBeenCalled();
+  queue.setAuditSessionContext({ userId: 'other-user', authSessionId: 'other-session' });
+  await pause();
+  const saved = await rows();
+  expect(saved).toHaveLength(5);
+  expect(saved.every((row: any) => row.origin_user_id === user && row.origin_auth_session_id === sessionId && row.request_source === 'frontend')).toBe(true);
+  expect(saved).toEqual(expect.arrayContaining([expect.objectContaining({ target_table: 'buildings', target_id: 'building-a', target_name: '甲楼' })]));
+});
+
 test('only acknowledgements belonging to the submitted batch remove events', async () => {
   queue.logAuditEvent({ action_type: 'VIEW_BUILDING', details: { id: 1 } });
   await pause();

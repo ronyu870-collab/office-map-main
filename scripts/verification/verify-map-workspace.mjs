@@ -42,12 +42,24 @@ try {
     const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 640, hasTouch: width < 640, serviceWorkers: 'block' });
     const errors = [];
     let stockReads = 0;
+    const auditEvents = new Map();
+    let auditFailures = 0;
     let page;
     try {
       await context.routeWebSocket(/.*/, socket => socket.close());
       await context.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin === base.origin) {
+          if (url.pathname === '/api/audit-events') {
+            if (!auditFailures++) return route.fulfill({status:503,json:{error:'isolated audit outage'}});
+            const { events } = route.request().postDataJSON();
+            for (const event of events) auditEvents.set(event.event_id, event);
+            return route.fulfill({ json: { accepted_event_ids: events.map(event => event.event_id), discarded_event_ids: [] } });
+          }
+          if (url.pathname === '/api/map/sales-materials') {
+            const material = { id:'material-a',title:'测试项目资料',source:'测试业主',notes:'',original_name:'owner.png',mime_type:'image/png',file_size:1,document_date:null,created_at:'2026-11-21T00:00:00Z',content_types:['availability','brochure'] };
+            return route.fulfill({ json: url.searchParams.has('material_id') ? { details:[],project_facts:[],preview_url:'https://synthetic.invalid/original.png?signature=private',download_url:'https://synthetic.invalid/download',provenance:{document_date_evidence:'',received:null,version_recorded_at:material.created_at,source_sha256:'a'.repeat(64)} } : { records:[material],count:1 } });
+          }
           if (url.pathname === '/api/map/data') {
             assert.equal(route.request().headers().authorization, `Bearer ${token}`);
             if (url.searchParams.get('mode') === 'trend') return route.fulfill({ json: { metrics: [2026, 2025].map(year => ({ record_year: year, record_quarter: year === 2026 ? 3 : 4, net_effective_rent: 200, vacancy_rate: .12 })) } });
@@ -63,6 +75,7 @@ try {
           if (url.pathname.startsWith('/api/')) return route.fulfill({ status: 204 });
           return route.continue();
         }
+        if (url.origin === 'https://synthetic.invalid') return route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=','base64')});
         if (url.origin === 'https://example.supabase.co') {
           const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
           if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
@@ -204,9 +217,14 @@ try {
       assert.ok(highlight.color.includes('242, 140, 92'), highlight.color);
       await page.evaluate(() => { window.__workspaceMap.emit('click'); window.__workspaceMap.emit('zoomend'); window.__workspaceMap.emit('moveend'); });
       assert.equal(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).count(), 1);
+      // Repeat the same opening through the actual map marker after the list entry.
+      await page.locator('#map-container [data-building-id="cbd-a"]').first().evaluate(el => el.click());
       await page.getByRole('tab', { name: '行情', exact: true }).click();
       await page.getByRole('button', { name: '季度趋势', exact: true }).click();
       await page.locator('#info-chart-container canvas').waitFor();
+      await page.locator('#chart-btn-vac').click();
+      await page.locator('#chart-btn-vac').click();
+      await page.locator('#chart-btn-rent').click();
       if (width === 1536) {
         await page.getByRole('separator', { name: '调整业务工作区宽度' }).press('End');
         await page.waitForTimeout(450);
@@ -224,6 +242,27 @@ try {
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).count(), 1, 'Escape in a business modal must not close its workspace');
       await page.locator('#__colliers_contact_modal_overlay button').first().click();
+      await page.getByRole('button', { name: '楼书与资料', exact: true }).click();
+      const materials = page.getByRole('dialog');
+      await materials.getByRole('button', { name: '查看原件', exact: true }).click();
+      await materials.getByAltText('测试项目资料', { exact: true }).waitFor();
+      await materials.getByRole('button', { name: '返回项目资料', exact: true }).click();
+      await materials.getByRole('button', { name: '关闭销控', exact: true }).click();
+      await page.waitForFunction(() => !document.querySelector('[data-sales-materials]'));
+      // The existing queue sends a batch later; no synchronous log request is awaited by any UI action.
+      await page.waitForTimeout(3500);
+      const reading = [...auditEvents.values()];
+      const eventsOf = action => reading.filter(event => event.action_type === action);
+      assert.equal(eventsOf('VIEW_BUILDING').filter(event => event.target_id === 'cbd-a').length, 1, 'list and direct marker share one deduplicated observation');
+      assert.equal(eventsOf('VIEW_BUILDING_CONTACT').length, 1);
+      assert.deepEqual(eventsOf('VIEW_BUILDING_TREND').map(event => event.details.metric).sort(), ['rent','vac']);
+      assert.equal(eventsOf('VIEW_BUILDING_MATERIALS').length, 1, 'return from original is deduplicated');
+      assert.equal(eventsOf('VIEW_MATERIAL_ORIGINAL').length, 1);
+      assert.equal(eventsOf('VIEW_MATERIAL_ORIGINAL')[0].target_id, 'material-a');
+      assert.ok(reading.every(event => event.origin_user_id === user.id && event.request_source === 'frontend'));
+      assert.ok(!JSON.stringify(reading).includes('signature=private'));
+      assert.ok(reading.filter(event => event.action_type.startsWith('VIEW_')).every(event => !('contact_phone' in event.details)));
+
       await page.getByRole('button', { name: '返回项目列表', exact: true }).click();
       assert.equal(await list.getByRole('combobox', { name: '项目列表排序' }).inputValue(), 'name');
       if (width === 1536) {

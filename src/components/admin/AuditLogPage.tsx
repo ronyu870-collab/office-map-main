@@ -62,7 +62,7 @@ const ACTION_TYPES = [
   'impersonate_start','impersonate_end',
   'CHANGELOG_CREATE','CHANGELOG_UPDATE','CHANGELOG_DELETE',
   'NOTIFICATION_RULE_CREATE','NOTIFICATION_RULE_UPDATE','NOTIFICATION_SEND',
-  'PAGE_VIEW','ENTER_MODULE','SEARCH','MAP_FILTER','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_BUILDING','VIEW_BI_CHART','OPEN_LEASE_FORM',
+  'PAGE_VIEW','ENTER_MODULE','SEARCH','MAP_FILTER','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_BUILDING','VIEW_BUILDING_CONTACT','VIEW_BUILDING_TREND','VIEW_BUILDING_SECTION','VIEW_BUILDING_MATERIALS','VIEW_MATERIAL_ORIGINAL','VIEW_BI_CHART','OPEN_LEASE_FORM',
 ];
 
 const DETAIL_LABELS: Record<string,string> = {
@@ -71,6 +71,7 @@ const DETAIL_LABELS: Record<string,string> = {
   export_mode:'视图', view_mode:'视图', year:'年份', quarter:'季度', session_index:'提交批次',
   subject_user_name:'数据所属人', subject_user_id:'数据所属人 ID', company:'企业', building:'楼宇',
   config_area:'配置区域', config_name:'配置项',
+  metric:'趋势指标', section:'楼宇分区', material_id:'资料 ID', material_ids:'资料 ID', version_recorded_at:'资料版本入库时间', observation:'观察阶段',
   building_name:'楼宇', module:'模块', reason:'原因', category:'分类', next_status:'状态', status:'状态',
   model:'模型', candidate_count:'候选数', operation:'操作', access_method:'访问方式', source:'入口',
   report_name:'报告', report_type:'报告类型', export_method:'导出方式', outcome:'结果', authority:'审计来源',

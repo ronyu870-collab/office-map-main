@@ -11,10 +11,10 @@ const { chromium } = createRequire(import.meta.url)(process.env.PERF_PLAYWRIGHT_
 const browser = await chromium.launch({ ...(process.env.PERF_BROWSER_CHANNEL === 'chromium' ? {} : { channel: 'chrome' }), headless: true });
 function instrumentMap() {
   const BaseMap = window.AMap.Map;
-  const stats = window.__workspaceSDK = { created: 0, resized: 0, centers: [], nativeOpens: 0 };
+  const stats = window.__workspaceSDK = { created: 0, resized: 0, centers: [], initialCameras: [], nativeOpens: 0 };
   window.AMap.Bounds = class { constructor(southwest, northeast) { this.southwest = southwest; this.northeast = northeast; } };
   window.AMap.Map = class extends BaseMap {
-    constructor(id, options) { super(id, options); stats.created++; this.zoom = 10; window.__workspaceMap = this; this.host = document.getElementById(id); }
+    constructor(id, options) { super(id, options); stats.created++; this.zoom = options.zoom; this.center = options.center; stats.initialCameras.push({ zoom: options.zoom, center: options.center }); window.__workspaceMap = this; this.host = document.getElementById(id); }
     getContainer() { return this.host; }
     setCenter(center) { this.center = Array.isArray(center) ? center : [center.getLng?.() ?? center.lng, center.getLat?.() ?? center.lat]; stats.centers.push(this.center); }
     setBounds(bounds) { this.center = bounds.southwest.map((value, index) => (value + bounds.northeast[index]) / 2); }
@@ -116,6 +116,7 @@ try {
   assert.equal(await page.getByRole('button',{name:'租金',exact:true}).getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('.map-selected-marker').count(),1);
   assert.deepEqual(await page.evaluate(()=>({zoom:window.__workspaceMap.getZoom(),center:window.__workspaceMap.center})),before.camera,'return restores camera');
+  assert.deepEqual(await page.evaluate(()=>window.__workspaceSDK.initialCameras.at(-1)),before.camera,'return constructs at saved camera without rendering a default city view first');
   const box=await page.locator('.map-workspace-right').boundingBox();
   assert.ok(Math.abs(box.width-before.box.width)<2&&Math.abs(box.height-before.box.height)<3,'return restores pane width and mobile reading height');
   await page.getByRole('link',{name:'Stacking Plan',exact:true}).click();
@@ -133,6 +134,7 @@ try {
       const scroller=document.querySelector('.workspace-building-scroll');
       return scroller&&Math.abs(scroller.scrollTop-top)<2&&window.__workspaceMap.getZoom()===camera.zoom&&JSON.stringify(window.__workspaceMap.center)===JSON.stringify(camera.center);
     },{top:readingScroll,camera:before.camera});
+    assert.deepEqual(await page.evaluate(()=>window.__workspaceSDK.initialCameras.at(-1)),before.camera,'history return also initializes at saved camera');
     await page.goForward(); console.log('history forward',round,page.url()); await page.getByRole('heading',{name:/CBD甲楼/}).waitFor();
   }
   await page.goBack(); await detail.waitFor();

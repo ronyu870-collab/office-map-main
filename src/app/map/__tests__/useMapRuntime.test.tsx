@@ -155,6 +155,27 @@ describe('useMapRuntime', () => {
     expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);
   });
 
+  it('constructs the return map at the saved camera and does not rebuild on camera prop updates', async () => {
+    const options = {
+      enabled: true,
+      containerId: 'map-container',
+      userRole: 'viewer',
+      currentUserId: 'user-1',
+      onEditBuildingMetrics: vi.fn(),
+      onReady: vi.fn().mockResolvedValue(undefined),
+      onError: vi.fn(),
+    };
+    const { result, rerender } = renderHook(
+      ({ camera }) => useMapRuntime({ ...options, initialCamera: camera }),
+      { initialProps: { camera: { center: [116.47, 39.92] as [number, number], zoom: 15.5 } } },
+    );
+    await waitFor(() => expect(result.current.mapReady).toBe(true), { timeout: 2000 });
+    expect(controllerMocks.initMap).toHaveBeenCalledWith('map-container', { lng: 116.47, lat: 39.92 }, { zoom: 15.5 });
+    rerender({ camera: { center: [116.2, 40.1], zoom: 12 } });
+    expect(controllerMocks.initMap).toHaveBeenCalledTimes(1);
+    expect(controllerMocks.destroy).not.toHaveBeenCalled();
+  });
+
   it('destroys the owned controller on unmount', async () => {
     const { unmount } = renderHook(() => useMapRuntime({
       enabled: true,
