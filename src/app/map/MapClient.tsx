@@ -928,7 +928,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         targetBuildingId={workspace.right?.kind === 'building' ? workspace.right.building.id : competitorBuildings ? targetBuildingId : buildingDetail?.building.id ?? null}
         brokerContext={buildingFocus ? {
           back: buildingFocus.back,
-          filtered: workspace.right?.kind === 'building' && !combinedBuildingList.some(item => item.id === buildingFocus.id),
+          filtered: workspace.right?.kind === 'building' && workspace.right.building.id === buildingFocus.id && !combinedBuildingList.some(item => item.id === buildingFocus.id),
           unavailable: focusStatus?.key === focusKey && !focusStatus.found,
         } : null}
         intelligenceContext={initialIntelligenceHandoff ? {
