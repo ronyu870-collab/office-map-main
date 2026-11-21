@@ -137,6 +137,23 @@ describe('trusted query client current identity guard', () => {
     await expect(trustedQueryClient.download(scope, request, new AbortController().signal)).rejects.toThrow('PDF 下载格式不正确');
   });
 
+  it.each(['docx', 'pptx'] as const)('checks %s MIME, extension, ZIP signature and digest on the trusted artifact route', async format => {
+    vi.stubGlobal('crypto', webcrypto);
+    const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const mime = format === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    async function response(text = 'PK\u0003\u0004transport fixture', type = mime, filename = 'research.' + format) {
+      const bytes = new TextEncoder().encode(text);
+      const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(b => b.toString(16).padStart(2, '0')).join('');
+      return new Response(bytes, { headers: { 'Content-Type': type, 'Content-Disposition': `attachment; filename="${filename}"`, 'X-Query-Result-Id': id, 'X-Artifact-Sha256': digest } });
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(await response()).mockResolvedValueOnce(await response('<html>'))
+      .mockResolvedValueOnce(await response('PK\u0003\u0004', 'application/zip')).mockResolvedValueOnce(await response('PK\u0003\u0004', mime, 'research.zip')));
+    const input = { requestId: id, resultId: id, action: 'export' as const, format };
+    expect((await trustedQueryClient.download(scope, input, new AbortController().signal)).filename).toBe('research.' + format);
+    await expect(trustedQueryClient.download(scope, input, new AbortController().signal)).rejects.toThrow('研究文件内容无效');
+    await expect(trustedQueryClient.download(scope, input, new AbortController().signal)).rejects.toThrow('研究文件下载格式不正确');
+    await expect(trustedQueryClient.download(scope, input, new AbortController().signal)).rejects.toThrow('研究文件下载格式不正确');
+  });
   it('acknowledges verified bytes and reports DOM separately, without resubmitting a query on receipt failure', async () => {
     vi.stubGlobal('crypto', webcrypto);
     const text = JSON.stringify({ status: 'clarification', message: '请明确季度。' });

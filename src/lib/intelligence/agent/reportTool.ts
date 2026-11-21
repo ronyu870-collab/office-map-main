@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { reportRequestSchema, REPORT_LIMITS } from '../query/reportProtocol';
 import { resultViewSchema } from '../query/presentation';
 import { resultOutputDescriptor } from '../query/resultOutput';
@@ -10,6 +11,7 @@ import { buildResultArtifact } from '../query/artifacts';
 import { sanitizeAuditContent } from '../query/auditStore';
 import type { QueryResult } from '../query/result';
 import type { AuthorizedResultWorkset, WorksetOwner } from './resultWorkset';
+import { isKnowledgeResult } from '../knowledge/protocol';
 
 export function prepareReportResult(results: readonly QueryResult[], raw: unknown): QueryResult {
   const args = reportRequestSchema.parse(raw);
@@ -34,7 +36,7 @@ export function prepareReportResult(results: readonly QueryResult[], raw: unknow
   });
   const sources = new Map<string, QueryResult['sources'][number]>();
   for (const r of results) for (const source of r.sources) {
-    if (sources.has(source.id) && JSON.stringify(sources.get(source.id)) !== JSON.stringify(source)) throw new Error('REPORT_SOURCE_COLLISION');
+    if (sources.has(source.id) && !isDeepStrictEqual(sources.get(source.id), source)) throw new Error('REPORT_SOURCE_COLLISION');
     sources.set(source.id, source);
   }
   const hash = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -44,7 +46,7 @@ export function prepareReportResult(results: readonly QueryResult[], raw: unknow
     dataVersion: hash(results.map(r => r.dataVersion)), sources: [...sources.values()],
     parameters: { executedPlan: parseQueryPlan(results[0].parameters.executedPlan),
       // Reuse the existing multi-plan recovery authorization, not a PDF ACL.
-      exportPlans: results.flatMap(r => Array.isArray(r.parameters.exportPlans) ? r.parameters.exportPlans.map(parseQueryPlan) : [parseQueryPlan(r.parameters.executedPlan)]),
+      exportPlans: results.filter(r => !r.parameters.dataDomain && !isKnowledgeResult(r)).flatMap(r => Array.isArray(r.parameters.exportPlans) ? r.parameters.exportPlans.map(parseQueryPlan) : [parseQueryPlan(r.parameters.executedPlan)]),
       agentReport: { version: 'research-pdf/1', format: 'pdf', purpose: 'internal', generatedAt: new Date().toISOString(), sectionCount: sections.length, rowCount, sections } },
     table: { id: 'report-sections', columns: [{ key: 'name', label: '研究范围', unit: null }, { key: 'metric', label: '研究指标', unit: null }, { key: 'period', label: '数据期间', unit: null }],
       rows: views.map((view, i) => { const d = resultOutputDescriptor(view); return { entityId: String(i), cells: { name: text(d.object), metric: text(d.metric), period: text(d.period) } }; }) },

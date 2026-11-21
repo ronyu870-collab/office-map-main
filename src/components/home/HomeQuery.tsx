@@ -199,6 +199,10 @@ function HomeQuerySession({ scope, displayName }: { scope: QueryClientScope; dis
                 query_quarterly_metrics: '查询季度指标',
                 compare_market_segments: '比较子市场',
                 analyze_market_trends: '分析季度趋势',
+                plan_research_task: '建立研究计划',
+                advance_research_task: '执行研究步骤',
+                review_research_task: '核对范围、来源与统计口径',
+                generate_research_deliverable: '生成内部研究文件',
               };
               if (event.type === 'run_started') setMessage('正在研究你的问题…');
               else if (event.type === 'tool_started') {

@@ -45,6 +45,7 @@ describe('DeepSeek official native chat completion protocol', () => {
     expect(sent.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual([
       'query_verified_real_estate', 'list_knowledge_documents', 'search_internal_documents', 'search_public_building_information', 'query_building_dossier', 'query_submarket_profile', 'query_future_supply', 'query_stacking_plan', 'query_lease_transactions', 'query_report_market', 'analyze_rent_vacancy', 'analyze_distribution', 'list_buildings', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
       'query_quarterly_metrics', 'rank_buildings', 'compare_market_segments', 'analyze_market_trends',
+      'plan_research_task', 'advance_research_task', 'review_research_task', 'generate_research_deliverable',
       'generate_pdf_report', 'export_table', 'summarize_result', 'read_result_page', 'check_data_coverage', 'compare_result_sets',
       'get_source_evidence', 'prepare_chart', 'create_chart', 'modify_chart', 'export_chart', 'prepare_map_selection', 'prepare_research_output',
     ]);

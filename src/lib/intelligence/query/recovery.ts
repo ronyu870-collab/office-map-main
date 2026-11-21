@@ -1,5 +1,8 @@
 import { isKnowledgeResult } from '../knowledge/protocol';
 import { recheckKnowledgeResults } from '../knowledge/research';
+import { isResearchResult } from '../research/workspace';
+import { ResearchExecution } from '../research/execution';
+import { recheckResearchResult } from '../research/authorization';
 import { isBusinessResult } from '../business/protocol';
 import { recheckBusinessResults } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
@@ -55,6 +58,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   const context={requestId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId};
   const receipt=JSON.parse(decryptAuditContent(read.events[0].cipher,{...context,eventId:read.events[0].event_id},new Map([[keys.keyId,keys.encryptionKey]])));
   let knowledgeProtocol=false;
+  let researchProtocol=false;
   let businessProtocol=false;
   let leaseProtocol = false;
   let planInput = receipt?.content?.plan;
@@ -65,12 +69,23 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     const resolvedToolEvents = read.events.filter(event => event.kind === 'tool_finished').map(event =>
       JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content);
     const resolved = (planInput?.resolution === 'server_agent/1' ? resolvedToolEvents.reverse() : resolvedToolEvents)
-      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1' || value?.resolution?.protocol === 'business-research/1' || value?.resolution?.protocol === 'knowledge-research/1');
+      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1' || value?.resolution?.protocol === 'business-research/1' || value?.resolution?.protocol === 'knowledge-research/1' || value?.resolution?.protocol === 'deep-research/1');
     if (!resolved) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     knowledgeProtocol=resolved.resolution.protocol==='knowledge-research/1';
+    researchProtocol=resolved.resolution.protocol==='deep-research/1';
     businessProtocol=resolved.resolution.protocol==='business-research/1';
     leaseProtocol = resolved.resolution.protocol === 'lease-research/1';
     planInput = resolved.plan;
+  }
+  if (researchProtocol) {
+    const archive = decodeGeneratedArchive(read.events.filter(e => e.kind === 'response_generated'), context, new Map([[keys.keyId, keys]]));
+    const result = resultViewSchema.parse(archive.result);
+    if (!isResearchResult(result)) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    new ResearchExecution(result as import('./result').QueryResult);
+    const recheck = () => recheckResearchResult(client, identity, signal, requestId, result, read.permission_revision,
+      { archived: true, exporting: options.exporting });
+    await recheck();
+    return { result: archive.result, resultId: result.resultId, redactionTypes: archive.redactionTypes, recheck };
   }
   if (leaseProtocol || businessProtocol || knowledgeProtocol) {
     const authority = await loadDataAuthority(client, identity, signal);

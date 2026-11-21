@@ -8,8 +8,8 @@ export const reportRequestSchema = z.strictObject({
   purpose: z.enum(['internal', 'client']).default('internal'),
   charts: z.array(z.strictObject({ resultId: z.uuid(), chart: chartRequestSchema })).max(8).default([]),
 });
-export const reportDescriptorSchema = z.object({ version: z.literal('research-pdf/1'),
-  format: z.literal('pdf'), purpose: z.literal('internal'), generatedAt: z.iso.datetime(),
+export const reportDescriptorSchema = z.object({ version: z.enum(['research-pdf/1', 'research-output/1']),
+  format: z.enum(['pdf', 'xlsx', 'docx', 'pptx']), purpose: z.literal('internal'), generatedAt: z.iso.datetime(),
   sectionCount: z.number().int().min(1).max(8), rowCount: z.number().int().nonnegative(),
 });
 export const REPORT_LIMITS = { rows: 4000, pages: 200, archiveBytes: 15 * 1024 * 1024, textCharacters: 800000 } as const;
