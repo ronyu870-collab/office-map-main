@@ -14,7 +14,7 @@ const boundedNumber = (name: string, fallback: number, min: number, max: number)
 };
 export function chooseModelMode(question: string, requested?: ModelMode): ModelMode {
   return requested ?? (/研究|报告|Word|PPT|PDF|多季度|综合|八个季度/i.test(question) ? 'deep'
-    : /比较|趋势|图|导出|Excel|CSV|排名|最高|最低|租金|空置|所有楼|哪些楼|权限|高度|子市场|列出|查询|季度|翻页|楼宇|查/i.test(question) ? 'professional' : 'quick');
+    : /比较|趋势|图|导出|Excel|CSV|排名|最高|最低|租金|空置|所有楼|哪些楼|权限|高度|子市场|列出|查询|季度|翻页|楼宇|查|租赁|成交|行业|租户|TMT|空调|停车|地铁|竣工|认证/i.test(question) ? 'professional' : 'quick');
 }
 function openAIAllowed(actorId: string) {
   return process.env.AI_OPENAI_ENABLED === 'true'
@@ -38,20 +38,20 @@ const retryable = new Set(['not_configured', 'rate_limited', 'timeout', 'provide
 
 /** Avoid sending four copies of the 11KiB chart spec and unrelated domain tools
  * on every round. This is a model capability catalogue, never a data grant. */
-export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[]) {
+export function modelToolCatalogue(question: string, mode: ModelMode, messages: AgentMessage[], hasChartContext = false) {
   const selected = new Set(['query_verified_real_estate', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
     'list_buildings', 'query_quarterly_metrics', 'rank_buildings', 'compare_market_segments', 'analyze_market_trends',
     'analyze_rent_vacancy', 'analyze_distribution', 'export_table', 'summarize_result', 'read_result_page',
     'check_data_coverage', 'compare_result_sets', 'get_source_evidence', 'prepare_map_selection', 'prepare_research_output']);
   if (mode === 'deep') for (const name of ['plan_research_task', 'advance_research_task', 'review_research_task', 'generate_research_deliverable', 'query_report_market']) selected.add(name);
   if (/PDF/i.test(question)) selected.add('generate_pdf_report');
-  if (/成交/.test(question)) selected.add('query_lease_transactions');
-  if (/资料|楼书|参数|介绍|供应|楼层|层数|Stacking|销控|单元/i.test(question))
+  if (/成交|租赁|租户|租在哪|行业|免租|签约|TMT|lease|transaction|tenant|industry/i.test(question)) selected.add('query_lease_transactions');
+  if (/资料|楼书|参数|介绍|供应|楼层|层数|地址|行政区|等级|建成年|竣工|面积|高度|停车|车位|交通|地铁|绿色|认证|物业|设施|空调|客梯|通信|交付|GFA|LEED|Stacking|销控|单元/i.test(question))
     for (const name of ['query_building_dossier', 'query_submarket_profile', 'query_future_supply', 'query_stacking_plan']) selected.add(name);
   if (/文档|楼书|资料|公开|联网|报告.*比较|比较.*报告/.test(question))
     for (const name of ['list_knowledge_documents', 'search_internal_documents', 'search_public_building_information']) selected.add(name);
-  if (/图|PNG|SVG|坐标|横轴|纵轴/i.test(question)) {
-    const modifying = /改|换|调整/.test(question) || messages.some(m => m.calls?.some(c => c.name === 'create_chart'));
+  if (hasChartContext || /图|PNG|SVG|坐标|横轴|纵轴/i.test(question)) {
+    const modifying = hasChartContext || /改|换|调整/.test(question) || messages.some(m => m.calls?.some(c => c.name === 'create_chart'));
     selected.add(modifying ? 'modify_chart' : 'create_chart');
     if (/导出|下载|PNG|SVG/i.test(question)) selected.add('export_chart');
   }
@@ -60,7 +60,7 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
 
 /** Request-local budget and routing; the existing DB receipt admission still
  * enforces the cross-instance per-account minute/day cap. No automatic SDK retries. */
-export function createModelRuntime(input: { actorId: string; question: string; mode?: ModelMode;
+export function createModelRuntime(input: { actorId: string; question: string; mode?: ModelMode; hasChartContext?: boolean;
   revalidate: (signal: AbortSignal) => Promise<void>; onAttempt: (attempt: ModelAttempt) => Promise<void>;
   legacyInvoke?: typeof completeWithDeepSeek; adapters?: Partial<Record<ProviderId, ModelAdapter>> }) {
   const mode = chooseModelMode(input.question, input.mode), configured = process.env[`AI_PROVIDER_${mode.toUpperCase()}`] ?? 'deepseek';
@@ -98,7 +98,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
         settings = { model: 'unconfigured', rates: { input: 0, output: 0, basis: 'request_not_sent' } };
       }
       const { model, rates } = settings;
-      const tools = modelToolCatalogue(input.question, mode, messages);
+      const tools = modelToolCatalogue(input.question, mode, messages, input.hasChartContext);
       // UTF-8 bytes are a conservative preflight token envelope, with framing
       // and native opaque continuation included. No silent context truncation.
       const upperInput = Buffer.byteLength(JSON.stringify(messages)) + Buffer.byteLength(JSON.stringify(tools))

@@ -154,6 +154,13 @@ describe('bounded routing, fallback and model cost governance', () => {
     const names = modelToolCatalogue('CBD研究Word报告', 'deep', messages).map(t => t.name);
     expect(names).toContain('plan_research_task'); expect(names).not.toContain('export_chart');
   });
+  it('keeps existing lease, dossier and chart-follow-up capabilities discoverable without exact domain keywords', () => {
+    const names = (q: string, chart = false) => modelToolCatalogue(q, chooseModelMode(q), messages, chart).map(t => t.name);
+    expect(names('最近一年 TMT 行业主要租在哪些楼？')).toContain('query_lease_transactions');
+    expect(names('国贸的空调系统和绿色认证是什么？')).toContain('query_building_dossier');
+    expect(names('按租金从高到低排列。', true)).toContain('modify_chart');
+    expect(names('按租金从高到低排列。')).not.toContain('modify_chart');
+  });
   it('compresses many turns without model costs or private facts, and separates unknown usage from actual invoice totals', () => {
     let memory; for (let i = 0; i < 24; i++) memory = nextAgentMemory(memory, '比较租金与空置率，生成Word；合成保密租户=987654，API_KEY=synthetic');
     expect(memory!.turns).toBe(24); expect(memory!.preferences.requestedFormats).toContain('docx'); expect(JSON.stringify(memory)).not.toMatch(/987654|保密租户|API_KEY/);

@@ -241,6 +241,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
     };
     const runtime = createModelRuntime({ actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
+      hasChartContext: !!history.contextChart,
       legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel,
       onAttempt: async attempt => { await audit!.append(requestId, 'accounting', attempt); } });
     let preparedMap: QueryResult | undefined;
