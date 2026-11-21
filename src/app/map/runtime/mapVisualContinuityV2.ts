@@ -93,20 +93,20 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
   let fontSize = 12;
   if (mode === 'default') {
     const grade = String(building?.grade ?? '').toUpperCase();
-    if (grade.includes('BP')) { background = PALETTE.gradeBP; text = 'BP'; fontSize = 9; }
+    if (grade.includes('BP')) { background = PALETTE.gradeBP; text = 'BP'; fontSize = 12; }
     else if (grade.includes('A') || grade.includes('P')) { background = PALETTE.gradeA; text = 'A'; }
     else if (grade.includes('B')) { background = PALETTE.gradeB; text = 'B'; }
     else { background = PALETTE.neutral; text = '·'; }
   } else if (mode === 'rent') {
     const rent = Number(metric?.net_effective_rent);
     const has = Number.isFinite(rent) && rent > 0;
-    text = has ? String(Math.round(rent)) : '–'; fontSize = text.length >= 3 ? 9.5 : 10.5;
+    text = has ? String(Math.round(rent)) : '–'; fontSize = text.length > 4 ? 10.5 : 12;
     background = !has ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
   } else if (mode === 'vacancy') {
     const vacancy = Number(metric?.vacancy_rate);
     const has = Number.isFinite(vacancy);
     const pct = has ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
-    text = has ? `${Math.round(pct)}%` : '–'; fontSize = text.length >= 3 ? 9 : 10;
+    text = has ? `${Math.round(pct)}%` : '–'; fontSize = text.length > 3 ? 10.5 : 12;
     background = !has ? PALETTE.neutral : pct >= 30 ? PALETTE.extreme : pct >= 20 ? PALETTE.high : pct >= 10 ? PALETTE.medium : PALETTE.low;
   } else {
     const leed = String(building?.leed_certification ?? '').toUpperCase();
@@ -125,7 +125,7 @@ function dotImage(background: string, border: string): string {
   return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#fff" fill-opacity=".94"/><circle cx="7" cy="7" r="4.8" fill="${background}" stroke="${border}" stroke-width=".8"/></svg>`);
 }
 function detailImage(v: ReturnType<typeof visualFor>): string {
-  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#fff" fill-opacity=".97"/><circle cx="18" cy="18" r="14.6" fill="${v.background}" stroke="${v.border}" stroke-width="1.4"/><text x="18" y="18.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${v.fontSize}" font-weight="800" fill="${v.textColor}">${escapeHtml(v.text)}</text></svg>`);
+  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="17" fill="#fff" fill-opacity=".97"/><circle cx="18" cy="18" r="14.6" fill="${v.background}" stroke="${v.border}" stroke-width="1.4"/><text x="18" y="18.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${v.fontSize}" font-weight="600" fill="${v.textColor}">${escapeHtml(v.text)}</text></svg>`);
 }
 
 function modeFor(zoom: number, active: MarkerMode | null): MarkerMode {

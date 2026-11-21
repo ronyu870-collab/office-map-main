@@ -65,6 +65,9 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
         const header = visible('.workspace-panel-header');
         const scroller = visible('.workspace-scroll');
         const marker = visible('[data-workspace-summary]');
+        // A lazy list's loading placeholder has no reading geometry yet. Keep
+        // the previous sheet rather than shrinking and expanding it in succession.
+        if ((kind === 'list' || kind === 'compare') && !scroller) return;
         const prefix = Math.max(header?.getBoundingClientRect().height ?? 52, scroller ? scroller.getBoundingClientRect().top - aside.getBoundingClientRect().top : 0);
         let height = prefix + Math.min(scroller?.scrollHeight ?? aside.scrollHeight, 240);
         if (marker) height = marker.getBoundingClientRect().bottom - aside.getBoundingClientRect().top + (scroller?.scrollTop ?? 0) + 12;
@@ -90,13 +93,13 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const accessibleLeft = leftVisible && (!expanded || modeKey === 'filters');
   const accessibleRight = rightVisible && (!expanded || modeKey !== 'filters');
   const lastGeometry = React.useRef({ right: width, left: 280, height: sheetHeight });
-  if (accessibleRight) lastGeometry.current.right = displayWidth;
+  if (accessibleRight) lastGeometry.current.right = expanded ? available.width : displayWidth;
   if (accessibleLeft) lastGeometry.current.left = columns.left || 280;
-  if (accessibleLeft || accessibleRight) lastGeometry.current.height = sheetHeight;
+  if (accessibleLeft || accessibleRight) lastGeometry.current.height = expanded ? available.height : sheetHeight;
   const rightPresence = useSurfacePresence(accessibleRight, right);
   const leftPresence = useSurfacePresence(accessibleLeft, left);
-  useSurfaceMotion(rightRef, accessibleRight, columns.compact, `${kind}:${mode}:${displayWidth}`);
-  useSurfaceMotion(leftRef, accessibleLeft, columns.compact, `${mode}:${columns.left}`);
+  useSurfaceMotion(rightRef, accessibleRight, columns.compact, `${kind}:${mode}:${displayWidth}:${columns.compact ? sheetHeight : 0}`, { disabled: dragging });
+  useSurfaceMotion(leftRef, accessibleLeft, columns.compact, `${mode}:${columns.left}:${columns.compact ? sheetHeight : 0}`, { disabled: dragging });
   React.useEffect(() => {
     if (!expanded) return;
     const escape = (event: KeyboardEvent) => {
@@ -106,21 +109,47 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
     window.addEventListener('keydown', escape, true);
     return () => window.removeEventListener('keydown', escape, true);
   }, [expanded, modeKey, setMode]);
-  React.useEffect(() => {
-    if (!leftVisible && leftRef.current?.contains(document.activeElement)) root.current?.querySelector<HTMLButtonElement>('.workspace-restore-filter')?.focus({ preventScroll: true });
-    if (!rightVisible && rightRef.current?.contains(document.activeElement)) root.current?.querySelector<HTMLButtonElement>('.map-workspace-canvas button')?.focus({ preventScroll: true });
-  }, [leftVisible, rightVisible]);
+  const focusState = React.useRef({ left: false, right: false, leftOrigin: null as HTMLElement | null, rightOrigin: null as HTMLElement | null });
+  const panelFocused = React.useRef({ left: false, right: false });
+  React.useLayoutEffect(() => {
+    const state = focusState.current;
+    const active = document.activeElement;
+    const scope = root.current?.closest('.map-workbench') ?? root.current;
+    for (const side of ['left', 'right'] as const) {
+      const open = side === 'left' ? accessibleLeft : accessibleRight;
+      const aside = side === 'left' ? leftRef.current : rightRef.current;
+      const originKey = side === 'left' ? 'leftOrigin' : 'rightOrigin';
+      if (open && !state[side]) state[originKey] = active instanceof HTMLElement && active !== document.body && !aside?.contains(active) ? active : null;
+      if (!open && state[side] && (aside?.contains(active) || panelFocused.current[side] && active === document.body)) {
+        const origin = state[originKey];
+        const fallback = side === 'left' ? '.workspace-restore-filter, [aria-label="筛选"]' : '[aria-label="项目列表"], input[type="search"]';
+        const target = origin?.isConnected && !origin.closest('[inert], [aria-hidden="true"]') ? origin : scope?.querySelector<HTMLElement>(fallback);
+        target?.focus({ preventScroll: true });
+        panelFocused.current[side] = false;
+      }
+      state[side] = open;
+    }
+  }, [accessibleLeft, accessibleRight]);
+  const blurPanel = (side: 'left' | 'right', event: React.FocusEvent<HTMLElement>) => {
+    if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) panelFocused.current[side] = false;
+  };
   const finishDrag = () => { dragRef.current = null; setDragging(false); };
   return <div ref={root} className="map-workspace-layout" data-compact={columns.compact || undefined}
+    data-short-stage={columns.compact && available.height > 0 && available.height < 320 || undefined}
     data-expanded={expanded || undefined} data-dragging={dragging || undefined} data-left-priority={showLeftFirst || undefined}
     style={{ '--workspace-left': `${columns.left}px`, '--workspace-right': `${columns.right}px`, '--workspace-sheet-height': `${sheetHeight}px`, '--workspace-exit-right': `${lastGeometry.current.right}px`, '--workspace-exit-left': `${lastGeometry.current.left}px`, '--workspace-exit-height': `${lastGeometry.current.height}px` } as React.CSSProperties}>
     <WorkspacePanelContext.Provider value={columns.compact ? { compact: true, mode: modes.filters ?? 'compact', setMode, restore: restoreMode } : null}>
       <aside ref={leftRef} className="map-workspace-left" data-open={accessibleLeft || undefined}
-        data-exiting={leftPresence.exiting || undefined} inert={!accessibleLeft || undefined} aria-hidden={!accessibleLeft}>{left}</aside>
+        onFocusCapture={() => { panelFocused.current.left = true; }} onBlurCapture={event => blurPanel('left', event)}
+        data-exiting={leftPresence.exiting || undefined} inert={!accessibleLeft || undefined} aria-hidden={!accessibleLeft}>
+        {/* Keep hidden filters live; an exit-only copy must not retain stale local state on return. */}
+        {left == null && leftPresence.exiting ? <React.Fragment key="filter-exit">{leftPresence.children}</React.Fragment> : left}
+      </aside>
     </WorkspacePanelContext.Provider>
     {React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<{ inert?: boolean; 'aria-hidden'?: boolean }>, { inert: expanded || undefined, 'aria-hidden': expanded || undefined }) : children}
     <WorkspacePanelContext.Provider value={{ compact: columns.compact, mode, setMode, restore: restoreMode, backLabel, onBack }}>
       <aside ref={rightRef} className="map-workspace-right" data-open={accessibleRight || undefined}
+        onFocusCapture={() => { panelFocused.current.right = true; }} onBlurCapture={event => blurPanel('right', event)}
         data-exiting={rightPresence.exiting || undefined}
         inert={!accessibleRight || undefined} aria-hidden={!accessibleRight} aria-label="地图业务工作区">
         <div role="separator" aria-label="调整业务工作区宽度" aria-orientation="vertical" tabIndex={0}

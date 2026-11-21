@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => { Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 }); });
@@ -281,4 +281,16 @@ it('keeps all four metrics visible and updates their values without opening a di
   expect(within(metrics).getByText('146.1')).toBeVisible();
   expect(within(metrics).getByText('601')).toBeVisible();
   expect(within(metrics).queryByText('188.0')).not.toBeInTheDocument();
+});
+
+it('explains the visible LEED aggregate colors instead of showing project certification levels at city zoom', async () => {
+  renderWorkbench({ renderMode: 'leed' });
+  fireEvent.click(screen.getByText('图例'));
+  expect(screen.getByText('LEED 认证')).toBeVisible();
+  document.getElementById('map-container')!.dataset.markerTier = 'submarket';
+  await waitFor(() => expect(screen.getByText('子市场 LEED 认证率')).toBeVisible());
+  expect(screen.queryByText('铂金')).not.toBeInTheDocument();
+  expect(screen.getByText('≥60%')).toBeVisible();
+  document.getElementById('map-container')!.dataset.markerTier = 'building';
+  await waitFor(() => expect(screen.getByText('铂金')).toBeVisible());
 });
