@@ -144,7 +144,8 @@ describe('controlled lease research deterministic facts and real files', () => {
         const zip = await JSZip.loadAsync(file.bytes), csv = await zip.file('data.csv')!.async('string');
         expect(csv).toContain('合成楼宇24'); expect(csv).toContain("'=HYPERLINK");
         const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
-        expect(JSON.stringify(manifest)).not.toContain('submitter'); expect(JSON.stringify(manifest.sources)).not.toContain('300');
+        expect(JSON.stringify(manifest)).not.toContain('submitter'); expect(manifest.sources).toHaveLength(1);
+        expect(manifest.sources[0]).toMatchObject({ table: 'lease_research_snapshot', field: 'authorized_projection', rawValue: null });
       }
     }
   });

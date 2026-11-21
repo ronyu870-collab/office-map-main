@@ -1,3 +1,6 @@
+import { KNOWLEDGE_TOOL_NAMES, isKnowledgeResult, type KnowledgeToolName } from '../knowledge/protocol';
+import { queryKnowledge, knowledgeModelObservation, recheckKnowledgeResults } from '../knowledge/research';
+import { publicSearchConfigured } from '../knowledge/publicSearch';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
@@ -205,11 +208,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
+    const knowledgeResults=new Map<string,QueryResult>();
+    if(history.contextResult?.parameters.knowledgeBindings || history.contextResult?.parameters.publicBindings) knowledgeResults.set(history.contextResult.resultId,history.contextResult);
     const businessResults = new Map<string,QueryResult>();
     if(history.contextResult?.parameters.businessBindings) businessResults.set(history.contextResult.resultId,history.contextResult);
     const leaseResults = new Map<string, QueryResult>();
     if (history.contextResult?.parameters.leaseBindings) leaseResults.set(history.contextResult.resultId, history.contextResult);
     const recheckLeases = async (exporting = false) => {
+      await recheckKnowledgeResults(client,actor,signal,[...knowledgeResults.values()],exporting);
       await recheckLeaseResults(client, actor, signal, [...leaseResults.values()], exporting);
       await recheckBusinessResults(client,actor,signal,[...businessResults.values()],exporting);
     };
@@ -228,7 +234,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
-        ...(history.contextResult && isBusinessResult(history.contextResult) ? { businessResults:workset.manifest(worksetOwner) } : {}),
+        ...(history.contextResult && (isBusinessResult(history.contextResult)||isKnowledgeResult(history.contextResult)) ? { businessResults:workset.manifest(worksetOwner) } : {}),
         ...(history.contextResult && isLeaseResult(history.contextResult) ? { leaseResults: workset.manifest(worksetOwner) } : {}),
         ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
         revalidate: async currentSignal => {
@@ -262,7 +268,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
           // File delivery state comes from the server, never model prose.
-          if (!(result.message.tool_calls?.length) && !leaseResults.size && !preparedExport
+          if (!(result.message.tool_calls?.length) && !leaseResults.size && !knowledgeResults.size && !preparedExport
             && !preparedChart && !preparedReport && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
@@ -275,6 +281,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
           await recheckLeases();
+          if(KNOWLEDGE_TOOL_NAMES.has(name)) {
+            const observed=await queryKnowledge(client,actor,toolSignal,name as KnowledgeToolName,args);
+            knowledgeResults.set(observed.result.resultId,observed.result);workset.register(observed.result,worksetOwner);
+            return observed;
+          }
           if(BUSINESS_TOOL_NAMES.has(name)) {
             const observed=await queryBusinessResearch(client,actor,toolSignal,name as BusinessToolName,args);
             businessResults.set(observed.result.resultId,observed.result);
@@ -289,13 +300,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), workset: manifest }) };
           }
           if (name === 'get_data_capabilities') {
-            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), business:await businessCapabilities(client,actor,toolSignal) }) };
+            return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked), business:await businessCapabilities(client,actor,toolSignal),knowledge:{privateTextSentToModel:false,requiresDocumentGrant:true,publicSearchConfigured:publicSearchConfigured()} }) };
           }
           if (PRESENTATION_TOOL_NAMES.has(name)) {
             toolSignal.throwIfAborted();
             const id = typeof args.resultId === 'string' ? args.resultId : workset.latestId();
             let chosen = id ? workset.read(id, worksetOwner) : undefined;
             if (chosen && preparedChart?.resultId === chosen.resultId) chosen = preparedChart;
+            if(chosen && isKnowledgeResult(chosen)) return {content:JSON.stringify(knowledgeModelObservation(chosen))};
             if (name === 'export_chart') {
               if (!chosen) throw new Error('AGENT_RESULT_NOT_FOUND');
               if (!rechecked.grants.includes('export:internal')) throw new Error('AGENT_EXPORT_DENIED');
@@ -337,6 +349,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return id === workset.latestId() ? presentation : { content: presentation.content };
           }
           if (name === 'generate_pdf_report') {
+            if((args.resultIds as string[]).some(id=>isKnowledgeResult(workset.read(id,worksetOwner))))throw new Error('AGENT_EXPORT_DENIED');
             if ((args.resultIds as string[]).some(id => isBusinessResult(workset.read(id,worksetOwner)))) throw new Error('BUSINESS_PDF_UNSUPPORTED');
             if ((args.resultIds as string[]).some(id => isLeaseResult(workset.read(id, worksetOwner)))) throw new Error('LEASE_PDF_UNSUPPORTED');
             const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants, preparedChart);
@@ -348,6 +361,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return report;
           }
           if (name === 'export_table') {
+            if((args.resultIds as string[]).some(id=>isKnowledgeResult(workset.read(id,worksetOwner))))throw new Error('AGENT_EXPORT_DENIED');
             for (const id of args.resultIds as string[]) {
               const result = workset.read(id, worksetOwner);
               await recheckBusinessResults(client,actor,toolSignal,[result],true);
@@ -367,6 +381,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
             const ids = name === 'compare_result_sets' ? args.resultIds as string[] : [args.resultId as string];
+            const knowledge=ids.map(id=>workset.read(id,worksetOwner)).filter(isKnowledgeResult);
+            if(knowledge.length)return {content:JSON.stringify({status:'ready',results:knowledge.map(knowledgeModelObservation)})};
             const businesses=ids.map(id=>workset.read(id,worksetOwner)).filter(isBusinessResult);
             if(businesses.length) return {content:JSON.stringify({status:'ready',results:businesses.map(businessModelObservation)})};
             const leases = ids.map(id => workset.read(id, worksetOwner)).filter(isLeaseResult);
@@ -410,6 +426,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
       throw error;
     }
+    if(execution.unresolvedFailures.some(item=>item.code==='knowledge_public_search_disabled'))execution.answer='公开搜索服务尚未启用，本轮没有联网或发送外部查询。需由维护者配置正式搜索服务及公开研究授权。';
     if (execution.unresolvedFailures.some(item => item.code === 'lease_scope_too_large')) execution.answer = '获权成交数据池超过20000条，未返回部分结果。请由授权维护者缩小正式研究授权范围后重试；本轮未完成成交查询。';
     if (!preparedChart && (execution.toolNames.some(name => ['prepare_chart', 'create_chart', 'modify_chart'].includes(name))
       || execution.unresolvedFailures.some(item => ['create_chart', 'modify_chart'].includes(item.tool)))) execution.answer = '本轮未生成图表。请核对获权字段、单位、范围及图表规格后重试。';
@@ -475,15 +492,30 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if(execution.result) execution.result={...execution.result,parameters:{...execution.result.parameters,
         businessBindings:[...businessResults.values()].flatMap(r=>r.parameters.businessBindings as unknown[])}};
     }
+    if(knowledgeResults.size){
+      execution.result??=[...knowledgeResults.values()].at(-1);
+      if(execution.result)execution.result={...execution.result,parameters:{...execution.result.parameters,
+        knowledgeBindings:[...knowledgeResults.values()].flatMap(r=>r.parameters.knowledgeBindings as unknown[]??[]),
+        publicBindings:[...knowledgeResults.values()].flatMap(r=>r.parameters.publicBindings as unknown[]??[])}};
+      // Do not feed model-authored claims about unread private text into history.
+      if(execution.result && isKnowledgeResult(execution.result)) execution.answer=execution.result.table.rows.length===0
+        ?'当前获权范围没有检索到匹配证据；未编造原文或研究判断。可调整文档范围和关键词，未命中不代表全文没有该信息。'
+        :execution.result.parameters.evidenceKind==='external_public'
+        ?'公开搜索已返回来源与摘要。请核对来源 URL、检索时间及资料时间；摘要尚未核验原网页。'
+        :'内部资料证据已在结果表格交付，可按文档和页码／位置对照核查。私有正文未发送外部模型；文档陈述不等于已核验的当前事实。';
+    }
+    const knowledgeAnswer=execution.result && isKnowledgeResult(execution.result);
     const businessAnswer=execution.result && isBusinessResult(execution.result);
     const leaseAnswer = execution.result && isLeaseResult(execution.result);
-    const answerPlan = execution.result && !leaseAnswer && !businessAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    const answerPlan = execution.result && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     await audit.append(requestId, 'tool_finished', {
       protocol: 'agent-answer/1', provider: 'deepseek', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
+      ...(knowledgeResults.size ? {knowledgeContext:true}: {}),
+      ...(knowledgeAnswer ? {resolution:{protocol:'knowledge-research/1'}}:{}),
       ...(businessResults.size ? {businessContext:true} : {}),
       ...(businessAnswer ? {resolution:{protocol:'business-research/1'}} : {}),
       ...(leaseResults.size ? { leaseContext: true } : {}),
@@ -491,7 +523,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
       ...(!preparedReport && preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
-      ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) ? { exportFiles, exportContext: {
+      ...(preparedExport && !isLeaseResult(preparedExport) && !isBusinessResult(preparedExport) && !isKnowledgeResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),

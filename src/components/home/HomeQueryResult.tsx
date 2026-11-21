@@ -203,7 +203,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
           <dt>数据库位置</dt><dd>{source.table} / {source.recordId} / {source.field}</dd>
           <dt>原始记录值</dt><dd>{source.rawValue === null || source.rawValue === undefined ? '未填写' : typeof source.rawValue === 'string' ? source.rawValue : JSON.stringify(source.rawValue)}</dd>
           <dt>期间与单位</dt><dd>{source.period ? `${source.period.year} 年第 ${source.period.quarter} 季度` : '不属于季度指标'}；{units[source.unit] ?? source.unit}</dd>
-          <dt>原始资料</dt><dd>{source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
+          <dt>原始资料</dt><dd>{source.original ? `${source.original.documentId}，版本 ${source.original.version}${source.original.location ? `，${source.original.location}` : source.original.page ? `，第 ${source.original.page} 页` : ''}${source.original.sheet ? `，表 ${source.original.sheet}` : ''}${source.original.row ? `，第 ${source.original.row} 行` : ''}` : '尚未关联原件，仅能溯源到数据库记录。'}</dd>
           <dt>核验状态</dt><dd>{{ database_only: '仅数据库记录', verified_original: '已核验原件', unreviewed: '未核验', historical: '历史来源' }[source.verification]}</dd>
           <dt>业务截至</dt><dd>{source.businessAsOf ?? '未知，不能用入库时间替代。'}</dd>
           <dt>记录版本</dt><dd>{source.recordVersion}</dd>

@@ -138,7 +138,7 @@ async function callOnce(path: string, scope: QueryClientScope, signal: AbortSign
     const filename = parseArtifactFilename(response.headers.get('content-disposition'));
     const mime = response.headers.get('content-type') ?? '';
     if (response.headers.get('x-query-result-id') !== downloadResultId || !filename
-      || !['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf'].includes(mime)) throw new Error('下载结果与当前查询不一致。');
+      || !['application/zip', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf', ...(path==='/document'?['application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.openxmlformats-officedocument.presentationml.presentation']:[])].includes(mime)) throw new Error('下载结果与当前查询不一致。');
     if ((body as { format?: string } | undefined)?.format === 'pdf' && (mime !== 'application/pdf' || !filename.endsWith('.pdf'))) throw new Error('PDF 下载格式不正确。');
     const bytes = await response.arrayBuffer();
     if (bytes.byteLength > 32 * 1024 * 1024) throw new Error('下载文件超过当前支持的大小。');
@@ -193,6 +193,8 @@ export const trustedQueryClient = {
   },
   download: async (scope: QueryClientScope, input: Extract<ArtifactInput, { action: 'export' }>, signal: AbortSignal): Promise<{ blob: Blob; filename: string }> =>
     received(scope, null, await call('/artifact', scope, signal, input, input.resultId) as { blob: Blob; filename: string }),
+  originalDocument: async (scope:QueryClientScope,input:{requestId:string;resultId:string;sourceId:string;action:'original'},signal:AbortSignal):Promise<{blob:Blob;filename:string}>=>
+    received(scope,null,await call('/document',scope,signal,input,input.resultId) as {blob:Blob;filename:string}),
   capabilities: async (scope: QueryClientScope, signal: AbortSignal): Promise<QueryAccess> => capabilitiesSchema.parse(await call('/capabilities', scope, signal)),
   submit: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation; buildingSelection?: BuildingSelection; replayRequestId?: string }, signal: AbortSignal): Promise<QueryReply> => {
     const raw = await call('', scope, signal, input), reply = decodeQueryReply(raw);

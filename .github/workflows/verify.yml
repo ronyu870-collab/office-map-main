@@ -238,6 +238,7 @@ jobs:
           node supabase/tests/ai-query-authority/ai5-quarterly.mjs
           node supabase/tests/ai-lease-research/run.mjs
           node supabase/tests/ai-business-research/run.mjs
+          node supabase/tests/ai-knowledge-retrieval/run.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
@@ -490,7 +491,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/ai-query-auth-integration/supabase"
           cp supabase/tests/ai-query-authority/auth-config.toml "$RUNNER_TEMP/ai-query-auth-integration/supabase/config.toml"
-          supabase start --workdir "$RUNNER_TEMP/ai-query-auth-integration" -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-auth-start.log" 2>&1
+          supabase start --workdir "$RUNNER_TEMP/ai-query-auth-integration" -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/ai-query-auth-start.log" 2>&1
           supabase status --workdir "$RUNNER_TEMP/ai-query-auth-integration" -o json > "$RUNNER_TEMP/ai-query-auth-status.json"
           chmod 600 "$RUNNER_TEMP/ai-query-auth-status.json"
       - name: Verify real login, HTTP audit, query and revocation

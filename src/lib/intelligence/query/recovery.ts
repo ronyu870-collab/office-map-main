@@ -1,3 +1,5 @@
+import { isKnowledgeResult } from '../knowledge/protocol';
+import { recheckKnowledgeResults } from '../knowledge/research';
 import { isBusinessResult } from '../business/protocol';
 import { recheckBusinessResults } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
@@ -52,6 +54,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     || read.events[0].kind!=='received')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
   const context={requestId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId};
   const receipt=JSON.parse(decryptAuditContent(read.events[0].cipher,{...context,eventId:read.events[0].event_id},new Map([[keys.keyId,keys.encryptionKey]])));
+  let knowledgeProtocol=false;
   let businessProtocol=false;
   let leaseProtocol = false;
   let planInput = receipt?.content?.plan;
@@ -62,23 +65,25 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     const resolvedToolEvents = read.events.filter(event => event.kind === 'tool_finished').map(event =>
       JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content);
     const resolved = (planInput?.resolution === 'server_agent/1' ? resolvedToolEvents.reverse() : resolvedToolEvents)
-      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1' || value?.resolution?.protocol === 'business-research/1');
+      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1' || value?.resolution?.protocol === 'business-research/1' || value?.resolution?.protocol === 'knowledge-research/1');
     if (!resolved) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    knowledgeProtocol=resolved.resolution.protocol==='knowledge-research/1';
     businessProtocol=resolved.resolution.protocol==='business-research/1';
     leaseProtocol = resolved.resolution.protocol === 'lease-research/1';
     planInput = resolved.plan;
   }
-  if (leaseProtocol || businessProtocol) {
+  if (leaseProtocol || businessProtocol || knowledgeProtocol) {
     const authority = await loadDataAuthority(client, identity, signal);
     if (authority.permissionRevision !== read.permission_revision) throw new Error('QUERY_DENIED');
     const archive = decodeGeneratedArchive(read.events.filter(event => event.kind === 'response_generated'), context, new Map([[keys.keyId, keys]]));
     const result = resultViewSchema.parse(archive.result);
-    if (businessProtocol ? !isBusinessResult(result) : !isLeaseResult(result)) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    if (knowledgeProtocol ? !isKnowledgeResult(result) : businessProtocol ? !isBusinessResult(result) : !isLeaseResult(result)) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     const recheck = async () => {
       const current = await loadDataAuthority(client, identity, signal);
       if (current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
       if(result.parameters.leaseBindings) await recheckLeaseResult(client, identity, signal, result, options.exporting);
       await recheckBusinessResults(client,identity,signal,[result],options.exporting);
+      await recheckKnowledgeResults(client,identity,signal,[result],options.exporting);
     };
     await recheck();
     return { result: archive.result, resultId: result.resultId, redactionTypes: archive.redactionTypes, recheck };
@@ -108,6 +113,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     if(error)throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if ((plan.operation === 'group_aggregate' || plan.operation === 'group_trend' || plan.operation === 'cross_aggregate' || plan.operation === 'cross_trend') && data?.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(data?.allowed!==true || data.permission_revision!==current.permissionRevision)throw new Error('QUERY_DENIED');
+    await recheckKnowledgeResults(client,identity,signal,[{parameters:params??{}}],options.exporting);
     if(params?.businessBindings) await recheckBusinessResults(client,identity,signal,[{parameters:params}],options.exporting);
     if (params?.leaseBindings) await recheckLeaseResult(client, identity, signal, { parameters: params }, options.exporting);
   };
