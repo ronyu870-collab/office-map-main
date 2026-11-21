@@ -91,14 +91,14 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
     submarketDetailPanel,
     buildingDetailPanel, rightKind, backLabel, onWorkspaceBack,
     onRenderModeChange,
-    onSearch,
+    onSearch, onOpenList,
     onFilterChange,
   }: {
     queryPanel?: React.ReactNode;
     submarketDetailPanel?: React.ReactNode;
     buildingDetailPanel?: React.ReactNode; rightKind?: string; backLabel?: string; onWorkspaceBack?: () => void;
     onRenderModeChange: (mode: 'rent') => void;
-    onSearch: (value: string) => void;
+    onSearch: (value: string) => void; onOpenList: () => void;
     onFilterChange: (state: SidebarFilterState) => void;
   }) => (
     <>
@@ -106,6 +106,7 @@ vi.mock('@/src/app/map/components/MapWorkbenchView', () => ({
       {submarketDetailPanel}
       {rightKind === 'building' ? buildingDetailPanel : null}
       {backLabel ? <button type="button" onClick={onWorkspaceBack}>返回{backLabel}</button> : null}
+      <button type="button" onClick={onOpenList}>open-list</button>
       <button type="button" onClick={() => onRenderModeChange('rent')}>
         switch-to-rent
       </button>
@@ -160,6 +161,27 @@ describe('MapClient render mode synchronization', () => {
       if (building) publish?.({ building, metric: null, photos: [], isDemo: false, canEdit: false, overrides: {} });
     });
     queryBridge.selection = null; queryBridge.publish = undefined;
+  });
+
+  it('cancels queued project focus when switching to a list and can refocus the same project later', async () => {
+    const host = document.createElement('div'); host.id = 'map-container'; document.body.append(host);
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect);
+    let frameId = 0;
+    const frames = new Map<number, FrameRequestCallback>();
+    const flush = () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(callback => callback(0)); };
+    try {
+      const { unmount } = render(<MapWorkbenchPage initialIntelligenceHandoff={null} />);
+      await waitFor(() => expect(controller.renderMarkers).toHaveBeenCalled());
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId; });
+      vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+      act(() => controller.openBuildingInfoWindow('building-1'));
+      fireEvent.click(screen.getByRole('button', { name: 'open-list' }));
+      act(flush);
+      expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
+      act(() => controller.openBuildingInfoWindow('building-1')); act(flush);
+      expect(controller.map.setZoomAndCenter).toHaveBeenCalledExactlyOnceWith(14, [116.46, 39.91], false, 240);
+      unmount();
+    } finally { host.remove(); vi.unstubAllGlobals(); }
   });
 
 
