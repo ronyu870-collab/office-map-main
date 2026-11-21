@@ -77,7 +77,7 @@ PERF_COMMIT=4288433 npm run perf:map:live -- http://127.0.0.1:3211 /tmp/live-ama
 
 后续 main `67e8c6a` 的 48 个动作全部功能通过，但手机减少动态效果组出现 3 次 longtask：一次返回 65ms，第一次关闭面板 93ms、65ms。这组结果只有耗时，没有同步 CPU profile，因此不能逐次追溯它们的函数归因，也不能把之前 `4288433` 的零长任务结果当成最新结论。
 
-在后续应用 `637049e` 上新增 CDP CPU 采样，48 个动作中捕获一次同类返回长任务 51ms：约 37.5ms 样本位于 `getImageData → t.Ce → t.Ce → Hn.play → requestAnimationFrame`，来源为实际高德 SDK。检查当次加载的 SDK 函数可确认其清空 32×32 Canvas、绘制文字、读回像素并生成字形；独立透明观察也显示读回对象为离屏 32×32 Canvas。这是底图文字字形生成的同步像素读取，不能据此归因于业务列表或面板 React 渲染。另一次同场景 51 动作重复采样全部通过且无长任务，说明它具有偶发性；未证明原先 3 次与这次都同源。
+在后续应用 `637049e` 上新增 CDP CPU 采样，48 个动作中捕获一次同类返回长任务 51ms：旧摘要曾估计约 37.5ms 样本位于 `getImageData → t.Ce → t.Ce → Hn.play → requestAnimationFrame`（2026-11-22 已发现旧算法未排序 Chrome 乱序采样；该次未保存完整 profile，无法重算精确耗时，旧数值不再作为定量对比依据），来源为实际高德 SDK。检查当次加载的 SDK 函数可确认其清空 32×32 Canvas、绘制文字、读回像素并生成字形；独立透明观察也显示读回对象为离屏 32×32 Canvas。这是底图文字字形生成的同步像素读取，不能据此归因于业务列表或面板 React 渲染。另一次同场景 51 动作重复采样全部通过且无长任务，说明它具有偶发性；未证明原先 3 次与这次都同源。
 
 可修复的应用侧多余工作：已校验的返回快照在初始化前可用，但运行时原先仍以默认全市中心和缩放初始化，完成底图加载后才恢复项目。现在直接把保存的中心和缩放传给 `MapController.initMap`，保留之后的授权数据解析、项目选择、阅读恢复和最终尺寸协调。没有快照时沿用默认初始化，相机属性变化不会重建当前地图。没有修改高德内部函数、全局 Canvas 配置或隐藏底图文字。
 
@@ -92,3 +92,27 @@ PERF_PROFILE_CPU=1 PERF_COMMIT=<被测版本> npm run perf:map:live -- http://12
 ```
 
 修复后真实 SDK 未开启 CPU profiler 的 48 个动作全部通过，返回构造时中心/缩放均与保存视角一致，无页面或提供商网络错误。桌面出现一次 55ms 长任务（下方 JSON 记录动作），手机普通/减少动态效果两组没有长任务；全窗口帧 P95 最大分别为 33.3/16.8/16.8ms，首秒最高 33.3ms，最长帧间隔 50ms。因此只确认冗余初始化已移除，不宣称偶发长任务已清零或总体帧率必然提升。[定位摘要及采样边界](live-amap/long-task-diagnosis.json)。
+
+
+## 55ms 同场景完整抓栈复查（2026-11-22）
+
+应用 main `9b81282`，沿用真实 AMap 2.0、Chrome 158 / Apple M1、601 项目及 600 单元隔离业务数据。桌面、390×560、减少动态效果共 48 个动作通过：桌面返回原项目时捕获 54ms、50ms 两次长任务；手机两组、面板开合及快速切换没有捕获长任务。保存了当次完整脱敏 `.cpuprofile`（含全部节点、调用关系、样本及时间戳）和主线程耗时事件，不再只留前 15 个热点摘要。
+
+两次均为高德 SDK 的 `XHRReadyStateChange → onreadystatechange → parseStyle / decodeStyleList`。按 Chrome DevTools 的时间排序与采样点后区间统计，54/50ms 中分别约 51.49/48.06ms 样本位于高德链路，其中包含样式解析栈的约 40.59/36.62ms；未出现应用函数帧。主线程 MinorGC 约 4.84/4.43ms，属于同一任务内部事件，不能与 CPU 样本耗时相加。这与之前捕获的字形像素读取是不同的 SDK 阻塞来源；此次证明了相同桌面返回流程可复现的样式解析瓶颈，但原始 55ms 没有当次 profile，仍不能逐次回溯定责。[脱敏归因摘要](live-amap/style-parse-diagnosis.json)。
+
+修复抓栈工具两处实际问题：40 层上限会截断调用链；Chrome 的 `timeDeltas` 可能为负，按原顺序计算会重复归因。新算法按官方 DevTools `CPUProfileDataModel` 排序样本/时间戳，并计算从当前采样点到下一点的区间。60 层完整性、负时间差不重复计时等测试在旧实现失败、修复后通过；完整导出同时验证节点/样本保留、URL 查询/身份信息和任意 trace 参数剔除。旧摘要未保存原 profile 的定量估计不再用于精确比较。
+
+对可控优化做了保留外观的公开接口对照：仅在隔离诊断中于销毁前 `layer.setMap(null)`、下次通过 `Map({ layers })` 复用初始底图图层，不缓存业务覆盖物。基线与复用各 31 个动作通过；每组 6 次项目返回及 1 次历史返回的样式解析采样中位数约为 28.323/32.039ms，没有显示收益，因此不将这个方案写入产品。首次对照基线因启动时提供商响应计数断言失败而无有效样本，已保留失败状态，后续有效基线重测通过；工具现在在失败结果中保留脱敏网络计数。
+
+已核对[高德 JSAPI 2.0 官方 API 参考](https://a.amap.com/jsapi/static/doc/20230922/index.html)：公开 mapStyle 为样式字符串，提供 setMapStyle/getMapStyle，未找到已解析样式对象或异步解析控制接口；采样时钟处理参照 [Chrome DevTools CPUProfileDataModel](https://github.com/ChromeDevTools/devtools-frontend/blob/main/front_end/models/cpu_profile/CPUProfileDataModel.ts)。当前没有发现保持既有底图外观、实例销毁和身份隔离契约的低风险应用侧修复。进一步直接拆分或缓存 `decodeStyleList/parseStyle` 需要高德提供**公开的已解析样式复用／异步解析接口，或 SDK 修复**；不依赖私有字段、不更换底图外观，也不为一次偶发阻塞扩大为页面常驻引擎架构重写。本轮合入范围为抓栈准确性、完整证据导出及持续回归，未声称样式解析长任务已根除。
+
+保存完整脱敏采样（只有捕获 longtask 的动作写文件；使用独立新目录，新建目录 0700、新文件 0600）：
+
+```sh
+PERF_PROFILE_CPU=1 PERF_PROFILE_DIR=/tmp/amap-profiles PERF_COMMIT=<被测版本> npm run perf:map:live -- http://127.0.0.1:3211 /tmp/amap-profile-results.json
+```
+
+`.cpuprofile` 可导入 Chrome DevTools 查看全部采样调用树；`.trace.json` 只保留主线程耗时事件及校准信息，剔除网络参数和任意 payload。JSON 中的 profileFile/traceFile 对应输出目录内文件。CPU profiler 的额外开销、采样误差及手机视口边界与上方专项相同。
+
+
+后续桌面复查又捕获 58/56ms，同样为 SDK 样式解析及其中的 MinorGC；该轮在手机启动因 SDK complete 已到、瓦片响应计数仍为 0 而中止，已保留失败状态。采集器现以最多 15 秒等待实际高德成功瓦片响应，继续要求 SDK/瓦片成功及无提供商网络错误，不以 complete 事件替代真实网络证据。相关回归包含早到 complete／晚到瓦片、非提供商/非瓦片/失败响应排除、已观察成功和超时传播。修复后重新运行三组共 48 动作全部通过，页面与提供商网络错误为 0，本轮无长任务；不抹去此前四次完整捕获。完整文件的节点/采样校验及 SHA-256 见定位摘要，本地交付目录为 `outputs/verification/live-amap-full-stack-20261122`。

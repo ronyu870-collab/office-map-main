@@ -1,5 +1,14 @@
 // Observe the actual SDK without replacing camera/rendering behavior. Install
 // before the remote SDK assigns its namespace (Map may be assigned later).
+export async function waitForLiveAmapTiles(page, network) {
+  if (network.tileOK > 0) return;
+  await page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.ok() && /(^|\.)(amap\.com|amap\.cn|autonavi\.com|autonavi\.cn|gaode\.com)$/.test(url.hostname)
+      && /\/tile\/|\/get_tile$/.test(url.pathname);
+  }, { timeout: 15000 });
+}
+
 export function installLiveAmapProbe() {
   const probe = window.__liveAmapProbe = { created: 0, events: [], calls: [], stages: [], initialCameras: [] };
   window.__colliersNavigationProbe = {
