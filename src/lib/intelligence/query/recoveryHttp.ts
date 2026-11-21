@@ -1,5 +1,6 @@
 import { documentMetadata,readDocumentBytes } from '../knowledge/research';
 import { isKnowledgeResult } from '../knowledge/protocol';
+import { isResearchResult } from '../research/workspace';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
@@ -62,7 +63,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover',exporting:mode==='artifact'&&(input.action==='export'||input.action==='copy')}):null;
     let artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
     if(mode==='document'){
-      const p=documentInputSchema.parse(input);if(!restored || !isKnowledgeResult(restored.result as {parameters:Record<string,unknown>}) || restored.resultId!==p.resultId)throw new Error('QUERY_DENIED');
+      const p=documentInputSchema.parse(input);if(!restored || !(isKnowledgeResult(restored.result as {parameters:Record<string,unknown>}) || isResearchResult(restored.result as {parameters:Record<string,unknown>})) || restored.resultId!==p.resultId)throw new Error('QUERY_DENIED');
       const view=restored.result as import('./result').QueryResult;
       const source=view.sources.find(s=>s.id===p.sourceId);if(!source?.original || source.table!=='building_sales_materials')throw new Error('QUERY_DENIED');
       const metadata=await documentMetadata(client,verified,signal,[source.original.documentId]);const doc=metadata.documents[0];

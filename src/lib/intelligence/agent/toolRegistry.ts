@@ -5,6 +5,7 @@ import { BUSINESS_TOOL_NAMES, BUSINESS_TOOL_SCHEMAS, type BusinessToolName } fro
 import { reportRequestSchema } from '../query/reportProtocol';
 import { distributionMeasureSchema } from '../query/distribution';
 import { chartRequestSchema } from '../query/chartSpec';
+import { RESEARCH_TOOL_SCHEMAS, RESEARCH_TOOL_NAMES, type ResearchToolName } from '../research/protocol';
 
 /**
  * The public DeepSeek contract is structured. Only the legacy query adapter
@@ -105,6 +106,7 @@ export const LEGACY_TOOL_NAMES: ReadonlySet<string> = new Set([
 /** For a bounded migration, accept previously issued {question} calls at the
  * runtime boundary, but do not advertise that obsolete contract to the model. */
 export function parseAgentToolArguments(name: string, input: unknown): Record<string, unknown> {
+  if (RESEARCH_TOOL_NAMES.has(name)) return RESEARCH_TOOL_SCHEMAS[name as ResearchToolName].parse(input) as Record<string, unknown>;
   if (KNOWLEDGE_TOOL_NAMES.has(name)) return KNOWLEDGE_TOOL_SCHEMAS[name as KnowledgeToolName].parse(input);
   if (BUSINESS_TOOL_NAMES.has(name)) return BUSINESS_TOOL_SCHEMAS[name as BusinessToolName].parse(input);
   if (name === 'query_lease_transactions') return leasePlanSchema.parse(input);
@@ -188,6 +190,13 @@ export const SPECIALIST_DATA_TOOLS = [
       groupBy: { type: 'string', enum: ['submarket', 'grade'] } }, ['scope', 'start', 'end', 'metric']),
 ] as const;
 export const WORKSET_TOOLS = [
+  ...Object.entries(RESEARCH_TOOL_SCHEMAS).map(([name, schema]) => def(name, ({
+    plan_research_task: '规划多步骤专题研究：明确1至2个子市场、最多8季度、净有效租金/空置率/季度面积、逐期或共同样本；可选成交quarter/industry、未来供应、子市场资料、真实buildingIds资料、末期联合分析/分布、已获权文档/批准公开研究。默认最近4个已结束北京时间季度。服务端生成固定工具依赖图，最多8个数据步骤，超限明确失败。核心租金口径不明确须先澄清。只创建计划，未取得数据；不能自写数字/SQL/流程。',
+    advance_research_task: '继续当前受控研究taskId，每次最多执行两个现有数据工具。afterStep为上次返回的游标，首次null。必须继续到全部数据步骤complete，然后审查。可恢复服务器重新鉴权导入的researchContext，已完成步骤复用原快照。工具失败不代表空数据或完成。',
+    review_research_task: '全部研究数据步骤完成后，审查范围、缺失、单位、来源、确定性结论、同源图表和传播权限。事实与推断分开，不能将相关关系写成因果。没有数据明确保留限制；未经文档导出许可不能把原文编入成果。',
+    generate_research_deliverable: '真实生成当前已审查研究的PDF/Excel/Word/PPT，formats=pdf|xlsx|docx|pptx可多选；只接受taskId和内部用途，不接受正文、数值、URL、路径或来源。复用原结果、图表及独立导出资格；client须另行正式发布流程，本工具拒绝对客发布。成功只表示服务器生成，下载通过回答的可信操作；不能声称已保存本机。',
+  } as Record<string, string>)[name], z.toJSONSchema(schema).properties as Record<string, unknown>,
+    name === 'plan_research_task' ? ['submarkets'] : name === 'generate_research_deliverable' ? ['taskId', 'formats'] : ['taskId'])),
   def('generate_pdf_report', '真实生成内部PDF研究报告。只接受本轮完整获权resultIds（含服务器重新授权导入的当前对话reportResults），允许不同列结构的多个结果组合；租金、空置率、面积应分别查询完整期间后一起提交。正文、KPI、研究结论、同比环比只来自正式结果，禁止模型提供数字或自写分析。可指定现有chart规格，默认复用已准备图表或原确定性图种。purpose=internal；client用途须另行正式发布授权，本工具不发布对客文件。成功仅表示服务器生成，回答提供可信下载，不能声称本机保存。历史未导入的ID须重新查询。',
     z.toJSONSchema(reportRequestSchema).properties as Record<string, unknown>, ['resultIds']),
   def('export_table', '真实生成内部Excel或CSV与来源ZIP。只接受本轮完整正式resultIds，不能提交数值/SQL/路径。可选择现有列、组合筛选、排序、Top N；默认全部行，超限明确失败。多结果按同列结构纵向合并并保留结果ID/期间，禁止重算均值。singleSheet=true明确只生成一个工作表。跨轮“刚才结果”须按历史条件重新查询再导出。先获取合法resultId及列key；本工具成功只表示服务器生成，下载由回答中的真实操作交付，不表示本机已保存。',

@@ -4,6 +4,7 @@ import { cellText, formatExact, resultScopeText, resultSummary, units, type Quer
 import { metricLabels, resultMetrics } from './multiMetricView';
 import { researchAnalysisSchema } from './researchAnalysisView';
 import { numericFields } from './registry';
+import { researchTaskSchema } from '../research/protocol';
 
 export const resultCopyFormatSchema = z.enum(['conclusion', 'figures', 'summary']);
 export type ResultCopyFormat = z.infer<typeof resultCopyFormatSchema>;
@@ -19,6 +20,10 @@ const quarterText = (value: unknown) => { const p = quarterSchema.safeParse(valu
 
 /** Descriptive labels only; neither resolves a new entity nor reads current data. */
 export function resultOutputDescriptor(result: QueryResultView): { object: string; metric: string; period: string } {
+  if (result.parameters.dataDomain === 'deep-research/1') {
+    const task = researchTaskSchema.parse(result.parameters.researchTask);
+    return { object: task.spec.submarkets.join('、'), metric: '写字楼专题研究', period: `${task.start.year}Q${task.start.quarter}至${task.end.year}Q${task.end.quarter}` };
+  }
   if (result.parameters.dataDomain === 'lease-research/1') {
     const bindings = result.parameters.leaseBindings as Array<{ plan?: { from?: string; to?: string } }>;
     const periods = [...new Set((bindings ?? []).flatMap(b => b.plan?.from && b.plan?.to ? [b.plan.from + '至' + b.plan.to] : []))];

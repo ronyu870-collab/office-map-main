@@ -95,17 +95,17 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const span = max - min || 1;
   const position = (value: number) => (value - min) / span * 100;
   const actions = <div hidden={!visible} role="group" aria-label="结果操作与反馈">
-    <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
+    {!result.parameters.researchTask && <HomeQueryResultActions result={result} requestId={requestId} scope={scope} internalExport={internalExport}>
       {internalExport && result.parameters.domain!=='knowledge-research/1' && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
         <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
         {numeric.length > 0 && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
       </div></details>}
-    </HomeQueryResultActions>
+    </HomeQueryResultActions>}
     <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'download' ? message : ''}</p>
   </div>;
   return <div className={styles.artifacts}>
-    {result.parameters.domain==='knowledge-research/1' && <HomeQueryKnowledge result={result} requestId={requestId} scope={scope} visible={visible} />}
+    {(result.parameters.domain==='knowledge-research/1' || result.parameters.dataDomain==='deep-research/1') && <HomeQueryKnowledge result={result} requestId={requestId} scope={scope} visible={visible} />}
     {!result.parameters.agentChart && <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
       {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
         const chosen = metrics.find(item => item === event.target.value);

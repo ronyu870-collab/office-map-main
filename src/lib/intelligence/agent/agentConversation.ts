@@ -79,7 +79,7 @@ export async function readAgentHistory(
     context.plans.forEach(raw => authorizeConversationPlan(parseQueryPlan(raw), authority));
     history.contextExport = context;
   }
-  if (prior.leaseContext === true || prior.businessContext === true || prior.knowledgeContext === true) {
+  if (prior.leaseContext === true || prior.businessContext === true || prior.knowledgeContext === true || prior.researchContext === true) {
     const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
     if (!restored.result) throw new Error('QUERY_DENIED');
     history.contextResult = restored.result as QueryResult;

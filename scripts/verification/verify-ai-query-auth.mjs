@@ -1,4 +1,5 @@
 import { verifyAi5Knowledge } from './ai5-knowledge-scenarios.mjs';
+import { verifyAi5DeepResearch } from './ai5-deep-research-scenarios.mjs';
 import { installKnowledgeFixture } from '../../supabase/tests/ai-knowledge-retrieval/fixture.mjs';
 import { verifyAi5Business } from './ai5-business-scenarios.mjs';
 import { installBusinessFixture } from '../../supabase/tests/ai-business-research/fixture.mjs';
@@ -607,6 +608,7 @@ try{
   await verifyAi5Leases({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Business({db,app,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Knowledge({db,app,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
+  await verifyAi5DeepResearch({db,app,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     if (suite === 'regression') {
       performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});
