@@ -2,6 +2,8 @@ import * as React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const readingAudit=vi.hoisted(()=>vi.fn());
+vi.mock('@/src/utils/audit',()=>({logAction:readingAudit}));
 vi.mock('@/src/services/Auth', () => ({
   getSessionFast: async () => ({ user: { id: 'synthetic-admin' }, role: 'admin', session: { access_token: 'synthetic-token' } }),
 }));
@@ -24,6 +26,7 @@ const records = [
 ];
 
 beforeEach(() => {
+  readingAudit.mockClear();
   window.sessionStorage.clear();
   window.localStorage.clear();
   window.history.replaceState(null, '', '/lease-submission/history');
@@ -99,4 +102,12 @@ it('removes previously loaded records when the count endpoint reports narrower p
   expect(await screen.findByText('读取权限已变化，请重新加载')).toBeInTheDocument();
   expect(screen.queryByText('合成甲企业')).toBeNull();
   expect(screen.queryByText('2 条')).toBeNull();
+});
+
+it('records completed queries and selected detail, never count-only refreshes or unfinished typing',async()=>{
+ render(<LeaseHistoryPage/>);fireEvent.click(await screen.findByText('合成甲企业'));
+ expect(readingAudit).toHaveBeenCalledWith(undefined,'VIEW_LEASE_TRANSACTION',expect.objectContaining({target_id:'syn-1',record_source:'live'}));
+ const queries=()=>readingAudit.mock.calls.filter(call=>call[1]==='LEASE_HISTORY_QUERY');expect(queries()).toHaveLength(1);
+ fireEvent.change(screen.getByRole('textbox',{name:'搜索公司名称'}),{target:{value:'未提交的条件'}});
+ expect(queries()).toHaveLength(1);expect(JSON.stringify(readingAudit.mock.calls)).not.toContain('synthetic-token');
 });

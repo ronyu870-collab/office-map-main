@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
-import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
+import { readingAuditContext } from '@/src/lib/server/readingAudit';
+import { denyImpersonatedMutation } from '@/src/lib/server/impersonationAuth';
+import { scheduleAuditBestEffort, withCriticalAudit } from '@/src/lib/serverAudit';
 import { getBuildingMediaPilot, pilotMediaPath } from '@/src/lib/sales-materials/building-media-pilot';
 import { buildingPhotoDownloadUrl } from '@/src/lib/building-photos/model';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
@@ -51,17 +53,18 @@ function databaseError(error: { code?: string }, fallback: string) {
   return json({ error: fallback }, 500);
 }
 
-async function audit(admin: SupabaseClient, identity: EffectiveRequestIdentity, action: 'ACCESS', buildingId: string, materialId: string, title?: string) {
+async function audit(admin: SupabaseClient, identity: EffectiveRequestIdentity, action: 'ACCESS', buildingId: string, materialId: string, title?: string, request?: Request) {
   scheduleAuditBestEffort(admin, {
-    user_id: identity.caller.email || identity.caller.id,
+    user_id: identity.caller.id,
     action_type: 'SALES_MATERIAL_ACCESS',
     module: 'map', page_url: '/map', target_name: title,
     request_source: 'server',
-    details: { authority: 'server', building_id: buildingId, material_id: materialId },
+    target_table: TABLE, target_id: materialId,
+    details: { authority: 'server', phase:'resource_access_issued', building_id: buildingId, material_id: materialId, ...(request ? readingAuditContext(request,identity,'map_detail') : {}) },
   }, `map/sales-materials/${action.toLowerCase()}`);
 }
 
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(request: Request): Promise<Response> {
   try {
     const auth = await authorize(request);
     if ('response' in auth) return auth.response;
@@ -83,33 +86,41 @@ export async function GET(request: Request): Promise<NextResponse> {
         .eq('building_id', buildingId).eq('id', materialId).eq('status', 'ready').maybeSingle();
       if (error) return databaseError(error, '销控资料读取失败');
       if (!material) return json({ error: '资料不存在或已撤回，请刷新列表' }, 404);
+      const download = params.get('download') === '1';
+      if (download) { const blocked = denyImpersonatedMutation(identity); if (blocked) return blocked; }
       if (photo) {
         if (material.original_location !== 'cloud' || !material.storage_path) {
           return json({ error: '暂无项目图片' }, 404);
         }
         const path = pilotMediaPath(buildingId, materialId, photo.file);
-        const asset = await admin.storage.from(SALES_MATERIAL_BUCKET).createSignedUrl(path, 300);
+        const asset = await admin.storage.from(SALES_MATERIAL_BUCKET).createSignedUrl(path, download ? 60 : 300);
         if (asset.error) return json({ error: '项目图片暂时无法访问，请重试' }, 502);
-        return json({ url: params.get('download') === '1'
-          ? buildingPhotoDownloadUrl(asset.data.signedUrl, scope.building.name, photo.caption, path)
-          : asset.data.signedUrl });
+        const payload={user_id:identity.caller.id, action_type:download?'BUILDING_PHOTO_DOWNLOAD':'BUILDING_PHOTO_ACCESS', module:'map', request_source:'server', target_table:'building_sales_materials',target_id:materialId,
+          details:{...readingAuditContext(request,identity,'map_gallery'),building_id:buildingId,material_id:materialId,photo_id:photo.file,access_mode:download?'download':'view',phase:download?'download_requested':'resource_access_issued',source_kind:'pilot'}};
+        if(download)return withCriticalAudit(admin,payload,'map/pilot-photo/download',async record=>{record({phase:'download_link_issued',target_name:scope.building.name});return json({url:buildingPhotoDownloadUrl(asset.data.signedUrl,scope.building.name,photo.caption,path)});},true);
+        scheduleAuditBestEffort(admin,payload,'map/pilot-photo');
+        return json({url:asset.data.signedUrl});
       }
       let previewUrl: string | null = null;
-      let downloadUrl: string | null = null;
+      const downloadUrl: string | null = null;
       if (material.original_location !== 'local_archive') {
         if (!material.storage_path) return json({ error: '原件路径缺失，请联系管理员核对' }, 502);
         const bucket = admin.storage.from(SALES_MATERIAL_BUCKET);
-        const [preview, download] = await Promise.all([
-          bucket.createSignedUrl(material.storage_path, 300),
-          bucket.createSignedUrl(material.storage_path, 300, { download: material.original_name }),
-        ]);
-        if (preview.error || download.error) return json({ error: '原文件暂时无法访问，请重试' }, 502);
-        previewUrl = preview.data.signedUrl;
-        downloadUrl = download.data.signedUrl;
+        if(download)return withCriticalAudit(admin,{user_id:identity.caller.id,action_type:'SALES_MATERIAL_DOWNLOAD',module:'map',target_table:TABLE,target_id:materialId,
+          details:{...readingAuditContext(request,identity,'map_detail'),building_id:buildingId,material_id:materialId,source_sha256:material.source_sha256,version_recorded_at:material.created_at,phase:'download_requested'}},'map/material/download',async record=>{
+            const signed=await bucket.createSignedUrl(material.storage_path,60,{download:material.original_name});
+            if(signed.error || !signed.data?.signedUrl)return json({error:'原文件暂时无法访问，请重试'},502);
+            record({phase:'download_link_issued',target_name:material.title});
+            return json({url:signed.data.signedUrl});
+          },true);
+        const preview=await bucket.createSignedUrl(material.storage_path,300);
+        if(preview.error)return json({error:'原文件暂时无法访问，请重试'},502);
+        previewUrl=preview.data.signedUrl;
       }
-      await audit(admin, identity, 'ACCESS', buildingId, materialId, material.title);
+      if(download)return json({error:'原件仅本地归档，无法下载'},409);
+      await audit(admin, identity, 'ACCESS', buildingId, materialId, material.title,request);
       return json({
-        preview_url: previewUrl, download_url: downloadUrl,
+        preview_url: previewUrl, download_url: downloadUrl, can_download:Boolean(previewUrl),
         details: material.details, commission_policies: material.commission_policies || [], project_facts: material.project_facts || [], workbook_preview: material.workbook_preview || undefined, provenance: materialProvenance(material),
       });
     }

@@ -3,9 +3,9 @@ import { getLogBadgeStyle, parseAuditLog } from '@/src/utils/auditTranslator';
 import { NextResponse } from 'next/server';
 import * as route from '../route';
 const mocks=vi.hoisted(()=>({identity:vi.fn(),audit:vi.fn(),from:vi.fn(),query:vi.fn(),sign:vi.fn(),calls:[] as {table:string;op:string;args:unknown[]}[]}));
-vi.mock('@/src/lib/server/impersonationAuth',()=>({resolveEffectiveRequestIdentity:mocks.identity}));
-vi.mock('@/src/lib/serverAudit',()=>({scheduleAuditBestEffort:mocks.audit}));
-vi.mock('@supabase/supabase-js',()=>({createClient:()=>({from:mocks.from,storage:{from:()=>({createSignedUrl:mocks.sign})}})}));
+vi.mock('@/src/lib/server/impersonationAuth',async original=>({...await original(),resolveEffectiveRequestIdentity:mocks.identity}));
+vi.mock('@/src/lib/serverAudit',async original=>({...await original(),scheduleAuditBestEffort:mocks.audit}));
+vi.mock('@supabase/supabase-js',()=>({createClient:()=>({from:mocks.from,rpc:(...args:unknown[])=>mocks.query('audit_complete_operation',args),storage:{from:()=>({createSignedUrl:mocks.sign})}})}));
 const building='749e53a6-9d2e-40f0-8d36-e42a6e6ad36d',id='22222222-2222-4222-8222-222222222222';
 const row={id,title:'空置面积表',storage_path:`${building}/${id}/original.png`,original_name:'原件.png',details:[],created_at:'2026-10-23T01:00:00Z',source_sha256:'a'.repeat(64),extraction:{contacts:[{name:'private contact'}],source_timing:{document_date_evidence:'原图页眉',received:{value:'2026-10-22',evidence:'用户提供的原始消息日期'}}}};
 const identity=(role='viewer',isImpersonating=false)=>({caller:{id:'caller',email:'synthetic@invalid.test'},effectiveRole:role,isImpersonating});
@@ -13,8 +13,9 @@ const request=(extra='')=>new Request(`https://synthetic.invalid/api/map/sales-m
 beforeEach(()=>{
   vi.clearAllMocks();mocks.calls.length=0;vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL','https://synthetic.invalid');vi.stubEnv('SUPABASE_SECRET_KEY','synthetic');
   mocks.identity.mockResolvedValue({identity:identity()});mocks.audit.mockResolvedValue(true);
-  mocks.query.mockImplementation((table:string,operations:{op:string;args:unknown[]}[])=>table==='buildings'?{data:{id:building,name:'测试楼宇'},error:null}:operations.some(item=>item.op==='range')?{data:[row],count:1,error:null}:{data:row,error:null});
+  mocks.query.mockImplementation((table:string,operations:{op:string;args:unknown[]}[])=>table==='audit_complete_operation'?{data:true,error:null}:table==='buildings'?{data:{id:building,name:'测试楼宇'},error:null}:operations.some(item=>item.op==='range')?{data:[row],count:1,error:null}:{data:row,error:null});
   mocks.from.mockImplementation((table:string)=>{
+    if(table==='audit_operation_receipts')return {insert:(row:unknown)=>mocks.query(table,[row])};
     const operations:{op:string;args:unknown[]}[]=[];const chain:Record<string,unknown>={};
     for(const op of ['select','eq','or','order','range'])chain[op]=(...args:unknown[])=>{operations.push({op,args});mocks.calls.push({table,op,args});return chain;};
     chain.maybeSingle=()=>mocks.query(table,operations);chain.then=(resolve:(value:unknown)=>void,reject:(error:unknown)=>void)=>Promise.resolve(mocks.query(table,operations)).then(resolve,reject);return chain;
@@ -48,7 +49,7 @@ describe('broker 销控只读 API',()=>{
   it('signs the immutable original selected by both material and building IDs',async()=>{
     const response=await route.GET(request(`&material_id=${id}`));expect(await response.json()).toMatchObject({details:[],preview_url:'https://synthetic.invalid/signed'});
     expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['building_id',building]});expect(mocks.calls).toContainEqual({table:'building_sales_materials',op:'eq',args:['id',id]});
-    expect(mocks.sign).toHaveBeenCalledWith(row.storage_path,300,{download:row.original_name});expect(mocks.audit).toHaveBeenCalled();
+    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(row.storage_path,300);expect((await (await route.GET(request(`&material_id=${id}`))).json()).download_url).toBeNull();expect(mocks.audit).toHaveBeenCalled();
   });
   it('emits a material access action with a specific human-readable description and badge',async()=>{
     const response=await route.GET(request(`&material_id=${id}`));expect(response.status).toBe(200);
@@ -63,7 +64,7 @@ describe('broker 销控只读 API',()=>{
     expect(body).not.toHaveProperty('extraction');expect(body).not.toHaveProperty('storage_path');expect(JSON.stringify(body)).not.toContain('private contact');
   });
   it('does not sign unpublished or absent originals',async()=>{
-    mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:building}:null,error:null}));expect((await route.GET(request(`&material_id=${id}`))).status).toBe(404);expect(mocks.sign).not.toHaveBeenCalled();
+    mocks.query.mockImplementation((table:string)=>table==='audit_complete_operation'?{data:true,error:null}:({data:table==='buildings'?{id:building}:null,error:null}));expect((await route.GET(request(`&material_id=${id}`))).status).toBe(404);expect(mocks.sign).not.toHaveBeenCalled();
   });
   it('reports an unconfigured database without fake data',async()=>{
     mocks.query.mockImplementation((table:string)=>table==='buildings'?{data:{id:building},error:null}:{data:null,error:{code:'42P01'}});expect((await route.GET(request())).status).toBe(503);
@@ -73,13 +74,13 @@ describe('broker 销控只读 API',()=>{
 describe('locally archived originals',()=>{
  it('serves extracted data without calling Storage or leaking archive paths',async()=>{
   const local={...row,storage_path:null,original_location:'local_archive',commission_policies:[{key:'old',summary:'历史参考'}]};
-  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:building}:local,error:null}));
+  mocks.query.mockImplementation((table:string)=>table==='audit_complete_operation'?{data:true,error:null}:({data:table==='buildings'?{id:building}:local,error:null}));
   const response=await route.GET(request(`&material_id=${id}`));expect(response.status).toBe(200);
   const body=await response.json();expect(body.preview_url).toBeNull();expect(body.download_url).toBeNull();expect(body.commission_policies).toEqual(local.commission_policies);
   expect(mocks.sign).not.toHaveBeenCalled();expect(body).not.toHaveProperty('storage_path');expect(mocks.audit).toHaveBeenCalled();
  });
  it('does not silently treat a missing cloud original as a local archive',async()=>{
-  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:building}:{...row,storage_path:null,original_location:'cloud'},error:null}));
+  mocks.query.mockImplementation((table:string)=>table==='audit_complete_operation'?{data:true,error:null}:({data:table==='buildings'?{id:building}:{...row,storage_path:null,original_location:'cloud'},error:null}));
   expect((await route.GET(request(`&material_id=${id}`))).status).toBe(502);expect(mocks.sign).not.toHaveBeenCalled();
  });
 });
@@ -92,7 +93,7 @@ describe('building media pilot', () => {
  const pilotRequest=(extra:string,buildingId=pilotBuilding)=>new Request(`https://synthetic.invalid/api/map/sales-materials?building_id=${buildingId}&${extra}`);
  beforeEach(()=>{
   vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT','1');
-  mocks.query.mockImplementation((table:string)=>({data:table==='buildings'?{id:pilotBuilding,name:'试点楼宇'}:original,error:null}));
+  mocks.query.mockImplementation((table:string)=>table==='audit_complete_operation'?{data:true,error:null}:({data:table==='buildings'?{id:pilotBuilding,name:'试点楼宇'}:original,error:null}));
  });
  it('only signs the associated ready cover; caller-provided paths and material ids are ignored',async()=>{
   const response=await route.GET(pilotRequest('cover=1&material_id='+id+'&path=other.webp'));
@@ -119,7 +120,8 @@ describe('building media pilot', () => {
   const response=await route.GET(pilotRequest('cover=1&photo=1&download=1&path=other.png'));
   expect(response.status).toBe(200);
   expect(new URL((await response.json()).url).searchParams.get('download')).toBe('试点楼宇 - 施工阶段室内照.webp');
-  expect(mocks.sign.mock.calls).toEqual([[prefix+'interior.webp',300]]);
+  expect(mocks.sign.mock.calls).toEqual([[prefix+'interior.webp',60]]);
+  expect(mocks.audit).not.toHaveBeenCalled();
  });
  it.each([
   ['-1',pilotBuilding],['2',pilotBuilding],['1.5',pilotBuilding],
@@ -131,6 +133,25 @@ describe('building media pilot', () => {
  it('keeps the regular materials request tied to the original Word file',async()=>{
   const response=await route.GET(pilotRequest('material_id='+pilotMaterial));
   expect(response.status).toBe(200);
-  expect(mocks.sign.mock.calls).toEqual([[original.storage_path,300],[original.storage_path,300,{download:original.original_name}]]);
+  expect(mocks.sign.mock.calls).toEqual([[original.storage_path,300]]);
  });
 });
+
+ it('requires a durable, completed download receipt before returning a new short-lived link',async()=>{
+  const response=await route.GET(request(`&material_id=${id}&download=1`));expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({url:'https://synthetic.invalid/signed'});
+  expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(row.storage_path,60,{download:row.original_name});
+  expect(mocks.query).toHaveBeenCalledWith('audit_operation_receipts',[expect.objectContaining({actor_id:'caller',action_type:'SALES_MATERIAL_DOWNLOAD',target_id:id,details:expect.objectContaining({phase:'download_requested',source_sha256:row.source_sha256})})]);
+  expect(mocks.query).toHaveBeenCalledWith('audit_complete_operation',expect.arrayContaining([expect.objectContaining({p_state:'success'})]));expect(mocks.audit).not.toHaveBeenCalled();
+ });
+ it.each(['audit_operation_receipts','audit_complete_operation'])('withholds the download on %s outage',async failure=>{
+  const original=mocks.query.getMockImplementation()!;
+  mocks.query.mockImplementation((table,...args)=>table===failure?{error:{code:'offline'}}:original(table,...args));
+  const response=await route.GET(request(`&material_id=${id}&download=1`));expect(response.status).toBe(503);expect(JSON.stringify(await response.json())).not.toContain('/signed');
+  if(failure==='audit_operation_receipts')expect(mocks.sign).not.toHaveBeenCalled();
+ });
+ it('denies downloads during impersonation without signing but preserves allowed viewing',async()=>{
+  mocks.identity.mockResolvedValue({identity:identity('viewer',true)});
+  expect((await route.GET(request(`&material_id=${id}&download=1`))).status).toBe(403);expect(mocks.sign).not.toHaveBeenCalled();
+  expect((await route.GET(request(`&material_id=${id}`))).status).toBe(200);
+ });

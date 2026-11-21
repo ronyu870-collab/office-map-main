@@ -1,6 +1,7 @@
+import { createReadingContext, readingHeaders, type ReadingContext } from '@/src/utils/readingAuditContext';
 import type { BuildingPhotoAccess } from '@/src/lib/building-photos/model';
 
-export async function loadStoredBuildingPhoto(buildingId: string, photoId: string, signal: AbortSignal, mode: 'preview' | 'original' | 'download' = 'preview'): Promise<BuildingPhotoAccess & { previewBlob?: Blob }> {
+export async function loadStoredBuildingPhoto(buildingId: string, photoId: string, signal: AbortSignal, mode: 'preview' | 'original' | 'download' = 'preview', context:ReadingContext=createReadingContext('map_gallery')): Promise<BuildingPhotoAccess & { previewBlob?: Blob }> {
   const [{ getSessionFast }, { withImpersonationHeaders }] = await Promise.all([
     import('@/src/services/Auth'), import('@/src/services/impersonationHeaders'),
   ]);
@@ -11,7 +12,7 @@ export async function loadStoredBuildingPhoto(buildingId: string, photoId: strin
   if (mode !== 'original') params.set(mode, '1');
   const response = await fetch(`/api/map/building-photos?${params}`, {
     headers: withImpersonationHeaders({
-      Authorization: `Bearer ${token}`, ...(mode === 'preview' ? { Accept: 'image/webp' } : {}),
+      Authorization: `Bearer ${token}`, ...readingHeaders(context), ...(mode === 'preview' ? { Accept: 'image/webp' } : {}),
     }), cache: 'no-store', signal,
   });
   if (mode === 'preview' && response.ok && response.headers.get('content-type') === 'image/webp') {
@@ -23,5 +24,6 @@ export async function loadStoredBuildingPhoto(buildingId: string, photoId: strin
   }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || '楼宇图片读取失败');
+  if(mode==='download'){const current=await getSessionFast();if(current?.session?.access_token!==token || current?.user?.id!==session.user?.id)throw new Error('登录状态已变化，请重试');}
   return result as BuildingPhotoAccess;
 }

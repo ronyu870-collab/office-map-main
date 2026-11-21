@@ -213,7 +213,7 @@ describe('complete list with the existing map workbench', () => {
     const list = await openList();
     const row = list.querySelector('[data-building-id="b-4"]') as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: '项目04' }));
-    expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-4');
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-4','map_full_list');
     expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
   });
 
@@ -361,7 +361,7 @@ describe('complete list with the existing map workbench', () => {
     fireEvent.click(within(list).getByRole('button', { name: '项目02' }));
     await act(async () => { vi.advanceTimersByTime(650); });
     expect(controller.openBuildingInfoWindow).toHaveBeenCalledTimes(2);
-    expect(controller.openBuildingInfoWindow).toHaveBeenLastCalledWith('b-2');
+    expect(controller.openBuildingInfoWindow).toHaveBeenLastCalledWith('b-2','map_full_list');
     expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
   });
 
@@ -564,7 +564,7 @@ describe('asynchronous scope and view boundaries', () => {
     const futureButton = within(list).getByRole('button', { name: '远期新项目' });
     await waitFor(() => expect(futureButton).toBeEnabled());
     fireEvent.click(futureButton);
-    await waitFor(() => expect(controller.openFutureSupplyInfoWindow).toHaveBeenCalledWith(expect.objectContaining({id:'future-new',_dataType:'future'})));
+    await waitFor(() => expect(controller.openFutureSupplyInfoWindow).toHaveBeenCalledWith(expect.objectContaining({id:'future-new',_dataType:'future'}),'map_full_list'));
   });
 
   it('labels a partial future failure instead of pretending the result is complete', async () => {
@@ -651,7 +651,7 @@ describe('map search P1 candidates and explicit viewport navigation', () => {
     });
     fireEvent.click(within(candidates).getByRole('button', { name: /项目02/ }));
     expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
-    await waitFor(() => expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-2'), { timeout: 1600 });
+    await waitFor(() => expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('b-2','map_search'), { timeout: 1600 });
     expect(screen.queryByRole('region', { name: '项目搜索候选' })).not.toBeInTheDocument();
   });
 

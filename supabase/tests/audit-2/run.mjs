@@ -212,7 +212,7 @@ try {
    try {await db.setup.query('set local role service_role');const result=await db.setup.query(sql,args);await db.setup.query('commit');return result;}
    catch(error){await db.setup.query('rollback');throw error;}
   };
-  for(const action of ['AUDIT_EXPORT','EXPORT_LEASE_TRANSACTIONS','EXPORT_DATA','EXPORT_BACKUP']){
+  for(const action of ['AUDIT_EXPORT','EXPORT_LEASE_TRANSACTIONS','EXPORT_DATA','EXPORT_BACKUP','STACKING_PLAN_EXPORT','STACKING_PLAN_ORIGINAL_DOWNLOAD','SALES_MATERIAL_DOWNLOAD','BUILDING_PHOTO_DOWNLOAD']){
    const op=crypto.randomUUID();
    await asService('insert into public.audit_operation_receipts(id,actor_id,action_type) values($1,$2,$3)',[op,ADMIN,action]);
    for(let i=0;i<2;i++)assert.equal((await asService("select public.audit_complete_operation($1,'success','{}') as ok",[op])).rows[0].ok,true);

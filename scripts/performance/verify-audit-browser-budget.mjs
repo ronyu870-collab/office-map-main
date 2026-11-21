@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
-import {mkdtemp,mkdir,writeFile,symlink,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,readFile,writeFile,symlink,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {createRequire} from 'node:module';
@@ -9,7 +9,7 @@ const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.PERF_PLAYWRIGHT_MODULE||'playwright-core');
 const variants=process.argv[2]?[['before',resolve(process.argv[2])],['after',process.cwd()]]:[['after',process.cwd()]];
 const browser=await chromium.launch({headless:true,...(process.env.PERF_BROWSER_CHANNEL==='chromium'?{}:{channel:'chrome'})});
-const rows=[];
+const rows=[];const researchInstrumentation=[];
 try{
  for(const [variant,sourceRoot] of variants){
   const folder=await mkdtemp(join(tmpdir(),'audit-budget-'));let child;
@@ -23,7 +23,7 @@ try{
    await writeFile(join(folder,'next.config.mjs'),`export default {typescript:{ignoreBuildErrors:true},webpack(c){c.resolve.alias={...c.resolve.alias,...${JSON.stringify(aliases)}};return c;}}`);
    await writeFile(join(folder,'backend.js'),`export const supabase={auth:{getSession:async()=>{window.__sessionReads=(window.__sessionReads||0)+1;return{data:{session:{user:{id:'11111111-1111-4111-8111-111111111111'},access_token:'e30.eyJzZXNzaW9uX2lkIjoiYWFhYWFhYWEtYWFhYS00YWFhLThhYWEtYWFhYWFhYWFhYWFhIn0.fixture'}}}}}};`);
    await writeFile(join(folder,'app/layout.tsx'),`import React from 'react';export default function Layout({children}){return <html><body>{children}</body></html>}`);
-   await writeFile(join(folder,'app/page.tsx'),`'use client';import React,{useEffect} from 'react';import * as audit from ${JSON.stringify(join(sourceRoot,'src/utils/audit'))};${variant==='after'?`import {auditBuildingReading} from ${JSON.stringify(join(sourceRoot,'src/utils/buildingReadingAudit'))};`:''}export default function Page(){useEffect(()=>{audit.setAuditSessionContext({userId:'11111111-1111-4111-8111-111111111111',authSessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'});window.__audit=audit;${variant==='after'?'window.__reading=auditBuildingReading;':''}},[]);return <p>Isolated audit budget</p>}`);
+   await writeFile(join(folder,'app/page.tsx'),`'use client';import React,{useEffect} from 'react';import * as audit from ${JSON.stringify(join(sourceRoot,'src/utils/audit'))};import {auditBuildingReading} from ${JSON.stringify(join(sourceRoot,'src/utils/buildingReadingAudit'))};${variant==='after'?`import {instrumentResearchHtml} from ${JSON.stringify(join(sourceRoot,'src/app/quarterly-research/readingInstrumentation'))};import {observeBusinessReading} from ${JSON.stringify(join(sourceRoot,'src/utils/businessReadingAudit'))};`:''}export default function Page(){useEffect(()=>{audit.setAuditSessionContext({userId:'11111111-1111-4111-8111-111111111111',authSessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'});window.__audit=audit;window.__reading=auditBuildingReading;window.__business=(action,module,details)=>audit.logAction(undefined,action,{module,...details});${variant==='after'?'window.__instrument=instrumentResearchHtml;window.__business=observeBusinessReading;':''}},[]);return <p>Isolated audit budget</p>}`);
    const next=require.resolve('next/dist/bin/next');
    let output='';const build=spawn(process.execPath,[next,'build',folder,'--webpack'],{cwd:folder,env:{...process.env,NEXT_TELEMETRY_DISABLED:'1'},stdio:['ignore','pipe','pipe']});
    for(const stream of [build.stdout,build.stderr])stream.on('data',data=>{output=(output+data).slice(-12000);});
@@ -43,18 +43,38 @@ try{
       IDBObjectStore.prototype.put=function(...args){puts++;return put.apply(this,args);};
       const longTasks=[];const observer=new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(row=>row.duration)));observer.observe({type:'longtask'});
       const samples=[];const started=performance.now();
-      for(let i=0;i<120;i++){const before=performance.now();const pending=(window.__reading ? window.__reading('VIEW_BUILDING',{id:String(i),name:'测试楼宇'}) : window.__audit.logAuditEvent({action_type:'VIEW_BUILDING',details:{id:i}}));samples.push(performance.now()-before);pending?.catch?.(()=>{});}
+      const actions=['VIEW_MATERIAL_CONTENT','VIEW_BUILDING_PHOTO','VIEW_LEASE_TRANSACTION','VIEW_RESEARCH_SECTION','VIEW_BUILDING_COMPARISON','VIEW_SUBMARKET'];
+      for(let i=0;i<120;i++){
+       const before=performance.now();
+       const pending=i%2===0&&window.__reading?window.__reading('VIEW_BUILDING',{id:String(i),name:'测试楼宇'}):window.__business(actions[i%actions.length],'map',{target_id:String(i),page:i,observation:'displayed'},'map_detail');
+       samples.push(performance.now()-before);pending?.catch?.(()=>{});
+      }
       for(let i=0;i<100&&puts<120;i++)await new Promise(resolve=>setTimeout(resolve,10));
       await new Promise(resolve=>setTimeout(resolve,50));observer.disconnect();samples.sort((a,b)=>a-b);
       return{samples:samples.length,syncP95Ms:samples[113],syncMaxMs:samples.at(-1),counts,puts,sessionReads:window.__sessionReads||0,longTasks,windowMs:performance.now()-started};
      });
      assert.equal(measured.puts,120);if(variant==='after'){assert.ok(measured.syncP95Ms<=1,JSON.stringify(measured));assert.equal(measured.longTasks.length,0);assert.ok(measured.counts<=2);assert.equal(measured.sessionReads,0);}
      rows.push({variant,width,cpu,round,...measured});
+     if(variant==='after'&&width===1280&&round===0){
+      for(const edition of ['2026Q2','2026Q3']){
+       const html=await readFile(join(sourceRoot,'private/quarterly-research',edition+'.html'),'utf8');
+       await page.evaluate(html=>{
+        document.querySelector('[data-research-probe]')?.remove();window.__reportMessages=[];
+        const frame=document.createElement('iframe');frame.dataset.researchProbe='';frame.style.cssText='width:1200px;height:900px';
+        window.addEventListener('message',event=>{if(event.source===frame.contentWindow&&event.data?.type==='research-reading')window.__reportMessages.push(event.data);});
+        frame.srcdoc=window.__instrument(html);document.body.append(frame);
+       },html);
+       const frame=page.frameLocator('[data-research-probe]');await frame.locator('header [data-go="space"]').first().click();
+       await page.waitForFunction(()=>window.__reportMessages.some(row=>row.section==='space'&&row.control==='chapter'));
+       researchInstrumentation.push({edition,status:'pass'});console.log(JSON.stringify({researchInstrumentation:edition,status:'pass'}));
+      }
+     }
+
     }finally{await context.close();}
    }
   }finally{if(child&&child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}await rm(folder,{recursive:true,force:true});}
  }
  await mkdir('verification/audit-2',{recursive:true});
- const report={browser:browser.version(),environment:'Actual Chrome + native IndexedDB; production Next/webpack fixture importing actual audit module; synthetic Auth only; 120 distinct business-reading events per burst through the actual shared helper (baseline uses raw audit), five rounds per width; no live backend or map SDK',rows};
+ const report={browser:browser.version(),researchInstrumentation,environment:'Actual Chrome + native IndexedDB; production Next/webpack fixture importing actual audit module; synthetic Auth only; 120 distinct business-reading events per burst through shared building and new reading helpers (baseline uses existing logAction), five rounds per width; no live backend or map SDK',rows};
  await writeFile('verification/audit-2/browser-budget.json',JSON.stringify(report,null,2));console.log(JSON.stringify({status:'pass',...report}));
 }finally{await browser.close();}

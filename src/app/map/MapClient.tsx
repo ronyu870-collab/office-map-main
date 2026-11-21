@@ -1,4 +1,5 @@
 'use client';
+import {type ReadingEntry} from '@/src/utils/readingAuditContext';
 import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import { MapReadingContext, mapReturnToken, readMapReturn, saveMapReturn, rememberMapEntry, compactView, restoreWorkspace, type Camera, type MapReturnSnapshot } from './workspace/continuity';
@@ -589,7 +590,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       const located = filtered.filter(building => querySelection.buildings.some(row => row.id === building.id && row.located));
       if (located.length) {
         ctrl.fitToBuildings(located);
-        if (queryContext.details && located.length === 1) ctrl.openBuildingInfoWindow(located[0].id);
+        if (queryContext.details && located.length === 1) ctrl.openBuildingInfoWindow(located[0].id,'ai_query');
       }
     }
 
@@ -692,14 +693,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
   }, []);
 
   // 🌟 地图联动：点击列表卡片时，地图自动定位到对应楼宇并打开信息窗口
-  const handleBuildingClick = React.useCallback((building: any): boolean => {
+  const handleBuildingClick = React.useCallback((building: any, entry:ReadingEntry='map_list'): boolean => {
     if (workspaceViewRef.current !== 'map') return false;
     cancelPendingBuildingNavigation();
     if (!controllerRef.current || !mapReady) return false;
     
     const ctrl = controllerRef.current;
-    if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building);
-    else ctrl.openBuildingInfoWindow(building.id);
+    if (building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(building,entry);
+    else ctrl.openBuildingInfoWindow(building.id,entry);
 
     return true;
   }, [mapReady, cancelPendingBuildingNavigation, workspaceViewRef]);
@@ -710,7 +711,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     cancelPendingBuildingNavigation();
     changeWorkspaceView('map');
     dispatchWorkspace({ type: 'open', view: { kind: 'full-list' } });
-    handleBuildingClick(building);
+    handleBuildingClick(building,'map_full_list');
   }, [fullListBusy, cancelPendingBuildingNavigation, changeWorkspaceView, controllerRef, workspaceViewRef, handleBuildingClick]);
 
   React.useEffect(() => {
@@ -720,8 +721,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const state = restoreWorkspace(returnState, allBuildings, futureSupplies);
     if (state.right?.kind === 'building') {
       const ctrl = controllerRef.current;
-      if (state.right.building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(state.right.building);
-      else ctrl.openBuildingInfoWindow(state.right.building.id);
+      if (state.right.building._dataType === 'future') ctrl.openFutureSupplyInfoWindow(state.right.building,'map_return');
+      else ctrl.openBuildingInfoWindow(state.right.building.id,'map_return');
     }
     dispatchWorkspace({ type: 'restore', state });
     if (state.right?.kind !== 'building' && returnState.camera) {
@@ -752,8 +753,8 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
       if (!item) { setFocusStatus({ key: focusKey, found: false }); return; }
       openedFocus.current = focusKey;
       changeWorkspaceView('map');
-      if (buildingFocus.future) ctrl.openFutureSupplyInfoWindow(item);
-      else ctrl.openBuildingInfoWindow(item.id);
+      if (buildingFocus.future) ctrl.openFutureSupplyInfoWindow(item,buildingFocus.back?.startsWith('/search')?'search':'direct_link');
+      else ctrl.openBuildingInfoWindow(item.id,buildingFocus.back?.startsWith('/search')?'search':'direct_link');
       if (!buildingFocus.future && buildingFocus.section) {
         window.dispatchEvent(new CustomEvent('broker:building-section', {
           detail: { id: item.id, name: item.name, section: buildingFocus.section },
@@ -905,7 +906,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
           onExitGuardChange={registerResearchExitGuard}
           onClose={closeWorkspace} onShowAll={showSubmarketBuildings}
           retained={workspace.research?.retained ?? false} onRetain={() => dispatchWorkspace({ type: 'retain' })}
-          onOpenBuilding={id => { const building = allBuildings.find(item => item.id === id); if (building) handleBuildingClick(building); }} /> : null}
+          onOpenBuilding={id => { const building = allBuildings.find(item => item.id === id); if (building) handleBuildingClick(building,'submarket'); }} /> : null}
         queryPanel={<MapQuerySelection context={queryContext} onChange={setQuerySelection} />}
         stats={stats}
         futureSupplyCalendar={futureSupplyCalendar}
@@ -964,7 +965,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
         }}
         onExportMapData={handleExportMapData}
         onBuildingClick={handleBuildingClick}
-        onSearchBuildingClick={building => { dispatchWorkspace({ type: 'open', view: { kind: 'search' } }); handleBuildingClick(building); }}
+        onSearchBuildingClick={building => { dispatchWorkspace({ type: 'open', view: { kind: 'search' } }); handleBuildingClick(building,'map_search'); }}
         onBuildingHover={handleBuildingHover}
         searchContextKey={JSON.stringify([workspaceRevision, currentUserId, userRole])}
         isFullListVisible={workspaceView === 'list'}

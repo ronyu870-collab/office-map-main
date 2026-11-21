@@ -1,3 +1,4 @@
+import {buildingReadingContext} from './readingAuditContext';
 import { logAction } from './audit';
 
 export interface ReadingBuilding {
@@ -15,7 +16,7 @@ export function auditBuildingReading(
 ): void {
   if (isDemo || !building.id) return;
   logAction(undefined, action, {
-    module: 'map', target_table: building._dataType === 'future' ? 'future_supplies' : 'buildings',
+    ...buildingReadingContext(building.id),module: 'map', target_table: building._dataType === 'future' ? 'future_supplies' : 'buildings',
     building_id: building.id, building_name: building.name ?? '', data_type: building._dataType ?? 'existing',
     ...(state?.metric ? { metric: state.metric } : {}),
     ...(state?.section ? { section: state.section } : {}),

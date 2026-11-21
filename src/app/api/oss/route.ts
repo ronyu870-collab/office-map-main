@@ -1,3 +1,4 @@
+import { readingEntry } from '@/src/utils/readingAuditContext';
 import { NextResponse } from 'next/server';
 import OSS from 'ali-oss';
 import crypto from 'crypto';
@@ -14,6 +15,7 @@ type VerifiedUser = {
   role: string;
   admin: SupabaseClient;
   isImpersonating: boolean;
+  effectiveUserId?: string;
 };
 
 type DeleteStats = { total: number; success: number; failed: number };
@@ -81,7 +83,7 @@ async function verifyUser(request: Request, loadRole = true): Promise<VerifiedUs
       user: { id: identity.caller.id, email: identity.caller.email },
       role: identity.effectiveRole || 'viewer',
       admin,
-      isImpersonating: identity.isImpersonating,
+      isImpersonating: identity.isImpersonating,effectiveUserId:identity.effectiveUserId,
     };
   } catch {
     return null;
@@ -347,13 +349,14 @@ export async function POST(request: Request) {
       const url = client.signatureUrl(fileKey, urlOptions);
       timing.finish('sign', signStarted);
 
-      const details = {file_name:fileKey,display_name:displayName,folder,access_method:accessMethod,source,outcome:'success'};
+      const reading={entry:readingEntry(request.headers.get('x-reading-entry') || 'library'),correlation_id:/^[0-9a-f-]{36}$/i.test(request.headers.get('x-reading-id') || '')?request.headers.get('x-reading-id'):undefined,is_impersonating:verified.isImpersonating,effective_user_id:verified.effectiveUserId};
+      const details = {...reading,phase:'download_requested',file_name:fileKey,display_name:displayName,folder,access_method:accessMethod,source,outcome:'success'};
       if (accessMethod === 'download') {
-        return await withCriticalAudit(verified.admin,{user_id:verified.user.id,action_type:'OSS_FILE_DOWNLOAD',module:'oss',target_table:'oss_objects',target_id:fileKey,details},'oss/download',async()=>
-          timing.response(()=>NextResponse.json({status:'success',url})),true);
+        return await withCriticalAudit(verified.admin,{user_id:verified.user.id,action_type:'OSS_FILE_DOWNLOAD',module:'oss',target_table:'oss_objects',target_id:fileKey,details},'oss/download',async record=>{record({phase:'download_link_issued',target_name:displayName});
+          return timing.response(()=>NextResponse.json({status:'success',url}));},true);
       }
       const auditStarted = timing.start();
-      await writeOssAudit(verified, 'OSS_FILE_ACCESS', {
+      await writeOssAudit(verified, 'OSS_FILE_ACCESS', {...reading,phase:'resource_access_issued',
         file_name: fileKey,
         display_name: displayName,
         folder,

@@ -8,10 +8,11 @@ import { emptySubmarketProfile } from '../model/submarketProfile';
 import { SubmarketDetailPanel } from '../components/SubmarketDetailPanel';
 
 const api = vi.hoisted(() => ({
-  read: vi.fn(),
+  audit:vi.fn(),read: vi.fn(),
   save: vi.fn(),
 }));
 
+vi.mock('@/src/utils/audit',()=>({logAction:api.audit}));
 vi.mock('@/src/services/mapDataClient', () => ({
   fetchSubmarketDetailPayload: api.read,
   saveSubmarketProfile: api.save,
@@ -272,4 +273,12 @@ it('registers the editorial exit guard for external navigation and retains draft
   expect(register.mock.lastCall?.[0]()).toBe(true);
   unmount();
   expect(register.mock.lastCall?.[0]).toBeNull();
+});
+
+it('observes displayed research sections and suppresses hidden retained views',async()=>{
+ const view=render(<SubmarketDetailPanel {...props}/>);
+ await waitFor(()=>expect(api.audit).toHaveBeenCalledWith(undefined,'VIEW_SUBMARKET',expect.objectContaining({section:'overview',submarket:'CBD'})));
+ fireEvent.click(screen.getByRole('tab',{name:'行情趋势'}));
+ expect(api.audit).toHaveBeenLastCalledWith(undefined,'VIEW_SUBMARKET',expect.objectContaining({section:'trend'}));
+ api.audit.mockClear();view.rerender(<SubmarketDetailPanel {...props} suspended/>);expect(api.audit).not.toHaveBeenCalled();
 });

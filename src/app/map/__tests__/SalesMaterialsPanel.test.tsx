@@ -100,7 +100,7 @@ describe('极简只读销控',()=>{
     open();await screen.findByRole('region',{name:'可租房源'});fireEvent.click(screen.getByRole('button',{name:'查看原件'}));
     expect(await screen.findByRole('img')).toHaveAttribute('src',access.preview_url);
     fireEvent.click(screen.getByRole('button',{name:'放大原件'}));expect(screen.getByText('125%')).toBeInTheDocument();
-    expect(screen.getByRole('link',{name:'下载原件'})).toHaveAttribute('href',access.download_url);
+    expect(screen.getByRole('button',{name:'下载原件'})).not.toHaveAttribute('href');
     fireEvent.click(screen.getByRole('button',{name:'返回房源'}));expect(screen.getByRole('region',{name:'可租房源'})).toBeInTheDocument();
   });
   it('only offers version selection when another version exists and guards stale data',async()=>{
@@ -121,7 +121,7 @@ describe('极简只读销控',()=>{
   });
   it('renders the stored PDF without extra instructions',async()=>{
     mocks.list.mockResolvedValue({records:[{...row,mime_type:'application/pdf'}],count:1});open();await screen.findByRole('region',{name:'可租房源'});fireEvent.click(screen.getByRole('button',{name:'查看原件'}));
-    expect(await screen.findByLabelText('空置面积表 PDF')).toHaveAttribute('data-url',access.preview_url);expect(screen.getByRole('link',{name:'下载原件'})).toBeInTheDocument();
+    expect(await screen.findByLabelText('空置面积表 PDF')).toHaveAttribute('data-url',access.preview_url);expect(screen.getByRole('button',{name:'下载原件'})).toBeInTheDocument();
   });
 });
 

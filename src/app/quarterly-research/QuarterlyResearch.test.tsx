@@ -10,8 +10,11 @@ const ctx = vi.hoisted(() => ({
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => ctx }));
 vi.mock('@/src/contexts/ImpersonationContext', () => ({ useImpersonation: () => ({ isImpersonating: ctx.impersonating }) }));
 vi.mock('@/src/services/impersonationHeaders', () => ({ withImpersonationHeaders: (headers: Record<string, string>) => headers }));
+const readingAudit=vi.hoisted(()=>vi.fn());
+vi.mock('@/src/utils/audit',()=>({logAction:readingAudit}));
 const fetcher = vi.fn();
 beforeEach(() => {
+  readingAudit.mockClear();
   ctx.status = 'authenticated'; ctx.impersonating = false; ctx.session.role = 'admin'; ctx.session.user.app_metadata.must_change_password = false;
   fetcher.mockReset().mockResolvedValue(new Response('<h1>Synthetic fixture</h1>'));
   vi.stubGlobal('fetch', fetcher);
@@ -72,4 +75,14 @@ describe('private research host lifecycle', () => {
     expect(screen.getByText('访问状态已变化，请重新登录或重试。')).toBeInTheDocument();
     expect(document.querySelector('iframe')?.getAttribute('srcdoc') || '').not.toContain('Synthetic fixture');
   });
+});
+
+it('records the displayed edition and trusted chapter messages, ignoring foreign frames',async()=>{
+ render(<QuarterlyResearch/>);const frame=await screen.findByTitle('2026Q3 北京写字楼交互研究');fireEvent.load(frame);
+ expect(readingAudit).toHaveBeenCalledWith(undefined,'VIEW_RESEARCH_REPORT',expect.objectContaining({edition:'2026Q3',observation:'report_displayed'}));
+ const data={type:'research-reading',section:'space',control:'chapter'};
+ act(()=>window.dispatchEvent(new MessageEvent('message',{source:window,data})));
+ expect(readingAudit.mock.calls.filter(call=>call[1]==='VIEW_RESEARCH_SECTION')).toHaveLength(0);
+ act(()=>window.dispatchEvent(new MessageEvent('message',{source:(frame as HTMLIFrameElement).contentWindow,data})));
+ expect(readingAudit).toHaveBeenCalledWith(undefined,'VIEW_RESEARCH_SECTION',expect.objectContaining({edition:'2026Q3',section:'space'}));
 });

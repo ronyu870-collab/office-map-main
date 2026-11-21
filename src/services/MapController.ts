@@ -3,6 +3,7 @@
  */
 
 "use client";
+import {beginBuildingReading,type ReadingEntry} from '@/src/utils/readingAuditContext';
 import type { WorkspaceBuildingDetail, WorkspaceBuilding } from '@/src/app/map/workspace/buildingDetail';
 import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
 import { resolveBuildingId } from './buildingIdentity';
@@ -1979,8 +1980,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     this.futureMarkers = [];
   }
 
-  openFutureSupplyInfoWindow(supply: any): void {
+  openFutureSupplyInfoWindow(supply: any, entry:ReadingEntry='map_marker'): void {
     if (!this.map || !this.AMap || !supply) return;
+    beginBuildingReading(supply.id,entry,supply.building_id);
     if (this.publishWorkspaceBuilding({ ...supply, _dataType: 'future' })) return;
     const lng = toNullableFiniteNumber(supply.location_lng);
     const lat = toNullableFiniteNumber(supply.location_lat);
@@ -2650,8 +2652,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     return content;
   }
 
-  private showBuildingPopup(building: BuildingWithMetrics, metric: BuildingMetric | null) {
+  private showBuildingPopup(building: BuildingWithMetrics, metric: BuildingMetric | null, entry:ReadingEntry='map_marker') {
     if (!this.map || !this.AMap || this._destroyed) return;
+    beginBuildingReading(building.id,entry);
     if (this.publishWorkspaceBuilding({ ...building, _dataType: 'existing' })) return;
     this.hideHoverTooltip();
     // Replacing the card must not clear an active nearby comparison.
@@ -2749,7 +2752,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   /**
    * 🌟 打开指定楼宇的信息窗口
    */
-  openBuildingInfoWindow(buildingId: string): void {
+  openBuildingInfoWindow(buildingId: string, entry:ReadingEntry='map_list'): void {
     if (!this.map || !this.AMap || !buildingId) return;
 
     // 从缓存中查找楼宇
@@ -2759,7 +2762,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       return;
     }
 
-    if (this.workspaceDetailHandler) { this.showBuildingPopup(building, pickLatestMetric(building.metrics)); return; }
+    if (this.workspaceDetailHandler) { this.showBuildingPopup(building, pickLatestMetric(building.metrics),entry); return; }
     const lng = building.location_lng;
     const lat = building.location_lat;
 
@@ -2771,7 +2774,7 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
       return;
     }
 
-    this.showBuildingPopup(building, pickLatestMetric(building.metrics));
+    this.showBuildingPopup(building, pickLatestMetric(building.metrics),entry);
   }
 
   /**

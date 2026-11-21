@@ -1,0 +1,41 @@
+{
+  "environment": "Actual Next production HTTP routes with isolated synthetic Supabase transport; receipt and completion each inject 25ms. No real remote services or disk completion claims.",
+  "rows": [
+    {
+      "failure": "none",
+      "resource": "project_original",
+      "status": 200,
+      "responseMs": 109.70375000000013
+    },
+    {
+      "failure": "none",
+      "resource": "building_photo",
+      "status": 200,
+      "responseMs": 66.12091599999985
+    },
+    {
+      "failure": "receipt",
+      "resource": "project_original",
+      "status": 503,
+      "responseMs": 45.48695800000041
+    },
+    {
+      "failure": "receipt",
+      "resource": "building_photo",
+      "status": 503,
+      "responseMs": 49.600000000000364
+    },
+    {
+      "failure": "completion",
+      "resource": "project_original",
+      "status": 503,
+      "responseMs": 95.08799999999974
+    },
+    {
+      "failure": "completion",
+      "resource": "building_photo",
+      "status": 503,
+      "responseMs": 78.22050000000036
+    }
+  ]
+}

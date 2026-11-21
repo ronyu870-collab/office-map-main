@@ -1,4 +1,6 @@
 'use client';
+import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
+
 import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import { LeaseExpiryLink } from '@/src/components/lease/LeaseExpiryLink';
@@ -50,6 +52,10 @@ type LeaseReadRecord = {
   agency_person: string | null;
   quality_status: string | null;
 };
+
+function auditRecord(row:LeaseReadRecord){
+  observeBusinessReading('VIEW_LEASE_TRANSACTION','lease-submission',{target_table:'lease_read_model',target_id:row.read_id,read_id:row.read_id,record_source:row.record_source,building_id:row.building_id,observation:'detail_displayed'},'lease_history');
+}
 
 type LeaseReadScope = {
   canReadHistory: boolean;
@@ -180,6 +186,8 @@ export default function LeaseHistoryPage() {
     }
   }, []);
 
+  const openAuditedRecord=(row:LeaseReadRecord)=>{auditRecord(row);setSelectedRecord(row);};
+
   const load = React.useCallback(async (pageIndex: number, queryFilters: FilterState, detail?: string | null) => {
     activeRead.current?.abort();
     const controller = new AbortController();
@@ -217,7 +225,12 @@ export default function LeaseHistoryPage() {
       const scope: LeaseReadScope = body.access;
       setCanReadHistory(body?.access?.canReadHistory === true);
       setRecords(body.records);
-      if (detail) setSelectedRecord(body.records.find((row: LeaseReadRecord) => row.read_id === detail) ?? null);
+      observeBusinessReading('LEASE_HISTORY_QUERY','lease-submission',{filters:Object.fromEntries(filters),offset:pageIndex*PAGE_SIZE,record_count:body.records.length,scope:{canReadHistory:scope.canReadHistory},observation:'results_displayed'},'lease_history');
+      if (detail) {
+        const row=body.records.find((row:LeaseReadRecord)=>row.read_id===detail);
+        if(row)observeBusinessReading('VIEW_LEASE_TRANSACTION','lease-submission',{target_table:'lease_read_model',target_id:row.read_id,read_id:row.read_id,record_source:row.record_source,building_id:row.building_id,observation:'detail_displayed'},'lease_history');
+        setSelectedRecord(row ?? null);
+      }
       const minimumCount = body.records.length === 0 ? 0 : pageIndex * PAGE_SIZE + body.records.length;
       const key = JSON.stringify([session.user.id, session.role, token, headers.get(IMPERSONATION_REQUEST_HEADER), scopeKey(scope), filters.toString()]);
       const previous = pageIndex > 0 && knownCount.current?.key === key ? knownCount.current : null;
@@ -639,11 +652,11 @@ export default function LeaseHistoryPage() {
                       key={row.read_id}
                       tabIndex={0}
                       role="button"
-                      onClick={() => setSelectedRecord(row)}
+                      onClick={() => openAuditedRecord(row)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          setSelectedRecord(row);
+                          openAuditedRecord(row);
                         }
                       }}
                       className="cursor-pointer border-b border-[var(--cd-color-border)]/60 outline-none transition-colors last:border-b-0 hover:bg-[#f8fafc] focus-visible:bg-[var(--cd-color-brand-soft)]"

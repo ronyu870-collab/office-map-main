@@ -34,6 +34,14 @@ export const AUDIT_EVENT_REGISTRY: Readonly<Record<string, AuditDefinition>> = {
   VIEW_BUILDING: ordinary('查看楼宇'), PAGE_VIEW: ordinary('浏览页面'), ENTER_MODULE: ordinary('进入模块'),
   VIEW_BUILDING_CONTACT: ordinary('查看楼宇联系人'), VIEW_BUILDING_TREND: ordinary('查看楼宇趋势'),
   VIEW_BUILDING_SECTION: ordinary('切换楼宇分区'), VIEW_BUILDING_MATERIALS: ordinary('查看楼宇资料分区'),
+  BUILDING_PHOTO_DOWNLOAD: critical('下载楼宇原图'),
+  STACKING_PLAN_EXPORT: critical('导出 Stacking Plan'),
+  STACKING_PLAN_ORIGINAL_DOWNLOAD: critical('下载 Stacking Plan 原件'),
+  VIEW_BUILDING_PHOTO: ordinary('查看楼宇图片内容'),
+  VIEW_MATERIAL_CONTENT: ordinary('查看项目资料内容'),
+  LEASE_HISTORY_QUERY: ordinary('查询历史成交'), VIEW_LEASE_TRANSACTION: ordinary('查看成交详情'),
+  VIEW_RESEARCH_REPORT: ordinary('查看研究报告版本'), VIEW_RESEARCH_SECTION: ordinary('查看研究报告章节'),
+  VIEW_BUILDING_COMPARISON: ordinary('查看楼宇对比'), VIEW_SUBMARKET: ordinary('查看子市场分析'),
   VIEW_MATERIAL_ORIGINAL: ordinary('打开项目资料原件'),
   SEARCH: ordinary('完成搜索'), FILTER: ordinary('完成筛选'), MAP_FILTER: ordinary('完成地图筛选'),
   BUILDING_PHOTO_ACCESS: { tier: 'B', label: '访问楼宇图片', delivery: 'managed-best-effort' },
@@ -57,3 +65,7 @@ export function auditOutcome(event: { request_source?: string; error_message?: s
   if (['success', 'succeeded'].includes(String(details.outcome)) || event.request_source === 'database_trigger') return '已确认';
   return '已记录';
 }
+
+/** File filters and action selectors share the event registry, retaining legacy names. */
+export const READING_FILE_ACTIONS = ['STACKING_PLAN_EXPORT','BUILDING_PHOTO_ACCESS','BUILDING_PHOTO_DOWNLOAD','VIEW_BUILDING_PHOTO','VIEW_MATERIAL_CONTENT','STACKING_PLAN_ORIGINAL_DOWNLOAD','SALES_MATERIAL_DOWNLOAD','OSS_FILE_DOWNLOAD'] as const;
+export const READING_TRAIL_ACTIONS = ['VIEW_BUILDING_PHOTO','VIEW_MATERIAL_CONTENT','LEASE_HISTORY_QUERY','VIEW_LEASE_TRANSACTION','VIEW_RESEARCH_REPORT','VIEW_RESEARCH_SECTION','VIEW_BUILDING_COMPARISON','VIEW_SUBMARKET'] as const;

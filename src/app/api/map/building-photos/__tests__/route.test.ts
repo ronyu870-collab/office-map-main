@@ -7,9 +7,9 @@ const mocks = vi.hoisted(() => ({
   identity: vi.fn(), audit: vi.fn(), from: vi.fn(), query: vi.fn(), sign: vi.fn(), bucket: vi.fn(),
   calls: [] as { table: string; op: string; args: unknown[] }[],
 }));
-vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: mocks.identity }));
-vi.mock('@/src/lib/serverAudit', () => ({ scheduleAuditBestEffort: mocks.audit }));
-vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: mocks.from, storage: { from: mocks.bucket } }) }));
+vi.mock('@/src/lib/server/impersonationAuth', async original => ({...await original(), resolveEffectiveRequestIdentity: mocks.identity }));
+vi.mock('@/src/lib/serverAudit', async original => ({...await original(), scheduleAuditBestEffort: mocks.audit }));
+vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: mocks.from, rpc:(...args:unknown[])=>mocks.query('audit_complete_operation',args), storage: { from: mocks.bucket } }) }));
 const buildingId = '11111111-1111-4111-8111-111111111111';
 const photoId = '22222222-2222-4222-8222-222222222222';
 const path = `building-photos/v1/${buildingId}/${photoId}/exterior.webp`;
@@ -31,8 +31,9 @@ beforeEach(() => {
   vi.stubEnv('BUILDING_PHOTO_INLINE_PREVIEWS_ENABLED', '1');
   mocks.identity.mockResolvedValue({ identity: identity() });
   mocks.audit.mockResolvedValue(true);
-  mocks.query.mockImplementation((table: string) => ({ data: table === 'buildings' ? { id: buildingId, name: '测试楼宇' } : photo, error: null }));
+  mocks.query.mockImplementation((table: string) => table==='audit_complete_operation'?{data:true,error:null}:({ data: table === 'buildings' ? { id: buildingId, name: '测试楼宇' } : photo, error: null }));
   mocks.from.mockImplementation((table: string) => {
+    if(table==='audit_operation_receipts')return {insert:(row:unknown)=>mocks.query(table,row)};
     const chain: Record<string, unknown> = {};
     for (const op of ['select', 'eq']) chain[op] = (...args: unknown[]) => { mocks.calls.push({ table, op, args }); return chain; };
     chain.maybeSingle = () => mocks.query(table);
@@ -139,7 +140,7 @@ describe('楼宇图片授权访问', () => {
     expect((await route.GET(request('&preview=1', true))).status).toBe(404);
     expect((await route.GET(request('&preview=1&download=1', true))).status).toBe(200);
     expect(fetcher).not.toHaveBeenCalled();
-    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 300);
+    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 60);
   });
   it('uses the unmodified image for small originals and when transforms are disabled', async () => {
     mocks.query.mockImplementationOnce(() => ({ data: { id: buildingId, name: '测试楼宇' } }))
@@ -162,8 +163,8 @@ describe('楼宇图片授权访问', () => {
     const link = new URL((await response.json()).url);
     expect(link.searchParams.get('token')).toBe('short-lived');
     expect(link.searchParams.get('download')).toBe('测试楼宇 - 双塔外观.webp');
-    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 300);
-    expect(mocks.audit.mock.calls[0][1].details.access_mode).toBe('download');
+    expect(mocks.sign).toHaveBeenCalledExactlyOnceWith(path, 60);
+    expect(mocks.query).toHaveBeenCalledWith('audit_operation_receipts',expect.objectContaining({action_type:'BUILDING_PHOTO_DOWNLOAD',details:expect.objectContaining({access_mode:'download',phase:'download_requested'})}));expect(mocks.audit).not.toHaveBeenCalled();
   });
   it('rejects anonymous or unknown effective roles before any database read', async () => {
     mocks.identity.mockResolvedValueOnce({ response: NextResponse.json({ error: 'login' }, { status: 401 }) });
@@ -179,7 +180,7 @@ describe('楼宇图片授权访问', () => {
     mocks.identity.mockResolvedValue({ identity: identity('viewer', true) });
     await route.GET(request());
     const event = mocks.audit.mock.calls[0][1];
-    expect(event).toMatchObject({ user_id: 'synthetic@invalid.test', action_type: 'BUILDING_PHOTO_ACCESS', details: { effective_user_id: 'effective-viewer', is_impersonating: true } });
+    expect(event).toMatchObject({ user_id: 'caller', action_type: 'BUILDING_PHOTO_ACCESS', details: { effective_user_id: 'effective-viewer', is_impersonating: true } });
     expect(parseAuditLog(event.action_type, event.details)).toBe('查看了楼宇图片');
     expect(getLogBadgeStyle(event.action_type).label).toBe('查看图片');
     expect(parseAuditLog('BUILDING_PHOTO_IMPORT', { photo_count: 50 })).toBe('导入了楼宇图片（50 张）');
@@ -232,3 +233,12 @@ describe('楼宇图片授权访问', () => {
     expect(mocks.sign).toHaveBeenCalledTimes(1);
   });
 });
+
+ it('withholds the original link when reliable audit completion fails',async()=>{
+  const original=mocks.query.getMockImplementation()!;
+  mocks.query.mockImplementation((table,...args)=>table==='audit_complete_operation'?{error:{code:'offline'}}:original(table,...args));
+  const response=await route.GET(request('&download=1'));expect(response.status).toBe(503);expect(JSON.stringify(await response.json())).not.toContain('/signed');
+ });
+ it('blocks a simulated user download before signing',async()=>{
+  mocks.identity.mockResolvedValue({identity:identity('viewer',true)});expect((await route.GET(request('&download=1'))).status).toBe(403);expect(mocks.sign).not.toHaveBeenCalled();
+ });

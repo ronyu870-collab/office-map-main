@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
-import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
+import { readingAuditContext } from '@/src/lib/server/readingAudit';
+import { denyImpersonatedMutation } from '@/src/lib/server/impersonationAuth';
+import { scheduleAuditBestEffort, withCriticalAudit } from '@/src/lib/serverAudit';
 import { parseUserRole } from '@/src/types/auth';
 import { BUILDING_PHOTO_BUCKET, BUILDING_PHOTO_TABLE, buildingPhotoDownloadUrl, isBuildingPhotoPath, publicPhotoUrl } from '@/src/lib/building-photos/model';
 import { loadInlineBuildingPhoto, PHOTO_PREVIEW_TRANSFORM } from './inlinePreview';
@@ -16,7 +18,7 @@ const json = (body: unknown, status = 200) => NextResponse.json(body, {
 });
 
 /** Asset access uses the same effective identity and building scope as the map. */
-export async function GET(request: Request): Promise<NextResponse> {
+export async function GET(request: Request): Promise<Response> {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const secret = process.env.SUPABASE_SECRET_KEY;
@@ -41,7 +43,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       admin.from('buildings').select('id,name')
         .eq('id', buildingId).eq('is_active', true).eq('tracking_scope', 'tracked').maybeSingle(),
       admin.from(BUILDING_PHOTO_TABLE)
-        .select('id,caption,image_url,storage_path,file_size,sha256,source_url,source_name,attribution_text,license_url')
+        .select('id,caption,image_url,storage_path,file_size,sha256,created_at,source_url,source_name,attribution_text,license_url')
         .eq('building_id', buildingId).eq('id', photoId).eq('status', 'ready').maybeSingle(),
     ]);
     if (buildingError) return json({ error: '楼宇权限校验失败' }, 500);
@@ -54,6 +56,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     const licenseUrl = photo.license_url == null ? null : publicPhotoUrl(photo.license_url);
     if (photo.license_url != null && !licenseUrl) return json({ error: '图片许可信息无效，请联系管理员核对' }, 502);
     const download = params.get('download') === '1';
+    if(download){const blocked=denyImpersonatedMutation(identity);if(blocked)return blocked;}
     const canDownload = photo.storage_path != null;
     if (download && !canDownload) return json({ error: '此照片仅支持打开原图' }, 409);
     const metadata = {
@@ -61,11 +64,11 @@ export async function GET(request: Request): Promise<NextResponse> {
       attribution_text: photo.attribution_text ?? null, license_url: licenseUrl,
     };
     const audit = {
-      user_id: identity.caller.email || identity.caller.id,
-      action_type: 'BUILDING_PHOTO_ACCESS', module: 'map', page_url: '/map',
+      user_id: identity.caller.id,
+      action_type: download ? 'BUILDING_PHOTO_DOWNLOAD' : 'BUILDING_PHOTO_ACCESS', target_table:'building_photos',target_id:photoId, module: 'map', page_url:request.headers.get('x-reading-entry')==='ai_query'?'/':'/map',
       target_name: building.name, request_source: 'server',
       details: {
-        authority: 'server', building_id: buildingId, photo_id: photoId,
+        ...readingAuditContext(request,identity,'map_gallery'), phase:download?'download_requested':'resource_access_issued',source_sha256:photo.sha256,version_recorded_at:photo.created_at,authority: 'server', building_id: buildingId, photo_id: photoId,
         access_mode: download ? 'download' : 'view',
         effective_user_id: identity.effectiveUserId, is_impersonating: identity.isImpersonating,
       },
@@ -100,7 +103,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         assetUrl = previewUrl;
         isPreview = true;
       } else {
-        const signed = await bucket.createSignedUrl(photo.storage_path, 300);
+        const signed = await bucket.createSignedUrl(photo.storage_path, download ? 60 : 300);
         if (signed.error || !signed.data?.signedUrl) return json({ error: '图片暂时无法访问，请重试' }, 502);
         assetUrl = download
           ? buildingPhotoDownloadUrl(signed.data.signedUrl, building.name, photo.caption, photo.storage_path)
@@ -111,6 +114,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
     if (!assetUrl) return json({ error: '图片链接无效，请联系管理员核对' }, 502);
 
+    if(download)return withCriticalAudit(admin,audit,'map/building-photos/download',async record=>{record({phase:'download_link_issued',target_name:building.name});return json({url:assetUrl,is_preview:isPreview,...metadata});},true);
     scheduleAuditBestEffort(admin, audit, 'map/building-photos');
     return json({ url: assetUrl, is_preview: isPreview, ...metadata });
   } catch (error) {

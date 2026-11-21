@@ -3,7 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompareReadSlice } from '@/src/lib/compareReadContract';
 
-const state = vi.hoisted(() => ({ push: vi.fn(), fetch: vi.fn(), search: '', token: '', onLayout: null as null | (() => void) }));
+const state = vi.hoisted(() => ({ audit:vi.fn(),push: vi.fn(), fetch: vi.fn(), search: '', token: '', onLayout: null as null | (() => void) }));
+vi.mock('@/src/utils/audit',()=>({logAction:state.audit}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: state.push }), useSearchParams: () => new URLSearchParams(state.search) }));
 vi.mock('@/src/services/mapDataClient', () => ({ fetchComparePayload: (_identity: unknown, slice?: CompareReadSlice) => state.fetch(slice) }));
 vi.mock('@/src/components/SessionProvider', () => ({ useAppSession: () => state.token
@@ -188,4 +189,12 @@ describe('building comparison mobile selection', () => {
     await act(async () => finishCatalog({ buildings, brochures: [] }));
     expect(await screen.findByRole('columnheader', { name: /Target/ })).toBeInTheDocument();
   });
+});
+
+it('records the completed comparison selection after data is ready without search keystrokes',async()=>{
+ render(<BuildingCompareWorkspace/>);
+ await waitFor(()=>expect(state.audit).toHaveBeenCalledWith(undefined,'VIEW_BUILDING_COMPARISON',expect.objectContaining({building_ids:expect.arrayContaining(['target']),observation:'comparison_displayed'})));
+ state.audit.mockClear();fireEvent.click(screen.getByRole('button',{name:/选择项目与筛选/}));
+ fireEvent.change(screen.getByRole('textbox',{name:'搜索对比项目'}),{target:{value:'未选择项目'}});
+ await new Promise(resolve=>setTimeout(resolve,350));expect(state.audit).not.toHaveBeenCalled();
 });

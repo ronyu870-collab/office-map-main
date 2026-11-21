@@ -19,3 +19,11 @@ it('does not present a durably recorded partial business result as full success'
  expect(auditOutcome({request_source:'server',details:{outcome:'success',business_outcome:'failed'}})).toBe('失败');
  expect(auditOutcome({request_source:'frontend',details:{outcome:'success',business_outcome:'partial'}})).toBe('客户端报告');
 });
+it('finds all canonical downloads, photos and content observations in files and correlates their stages',async()=>{
+ const requests:URL[]=[];
+ const client=createClient('https://example.supabase.co','synthetic',{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:async input=>{requests.push(new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url));return Response.json([]);}}});
+ await applyAuditFilters(client.from('audit_logs').select('id'),auditFiltersSchema.parse({view:'files',excludeCodex:false,operationId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}));
+ const actions=requests[0].searchParams.get('action_type')!;
+ for(const action of ['BUILDING_PHOTO_ACCESS','BUILDING_PHOTO_DOWNLOAD','VIEW_BUILDING_PHOTO','VIEW_MATERIAL_CONTENT','SALES_MATERIAL_DOWNLOAD','OSS_FILE_DOWNLOAD','STACKING_PLAN_EXPORT','STACKING_PLAN_ORIGINAL_DOWNLOAD'])expect(actions).toContain(action);
+ expect(requests[0].searchParams.get('or')).toContain('details->>correlation_id.eq.');
+});

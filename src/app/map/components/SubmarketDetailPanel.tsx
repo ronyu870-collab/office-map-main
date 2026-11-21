@@ -1,4 +1,5 @@
 'use client';
+import { observeBusinessReading } from '@/src/utils/businessReadingAudit';
 
 import * as React from 'react';
 import { WorkspacePanelHeader, WorkspacePanelContext } from './WorkspacePanelHeader';
@@ -273,6 +274,13 @@ export function SubmarketDetailPanel({
   const profileReady = Boolean(profile && (profile.headline || profile.overview || profile.industries || profile.transport));
   const visibleTabs = sectionNames.filter(([id]) => id !== 'profile' || profileReady);
   const currentSection = visibleTabs.some(([id]) => id === section) ? section : 'overview';
+  const lastReading=React.useRef('');
+  React.useEffect(()=>{
+    if(suspended){lastReading.current='';return;}
+    if(loading || loadError)return;
+    const key=JSON.stringify([name,currentSection,grade]);if(lastReading.current===key)return;lastReading.current=key;
+    observeBusinessReading('VIEW_SUBMARKET','map',{target_table:'submarket_profiles',target_id:name,submarket:name,section:currentSection,grade,observation:'view_displayed'},'submarket');
+  },[name,currentSection,grade,suspended,loading,loadError]);
   const trendReady = !detail?.trendError && hasTrend;
   const gradeNames = [['all', '甲乙级'], ['a', '甲级'], ['b', '乙级']] as const;
 

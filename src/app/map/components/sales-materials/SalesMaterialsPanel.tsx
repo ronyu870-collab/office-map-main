@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { buildingReadingContext } from '@/src/utils/readingAuditContext';
 import { logAction } from '@/src/utils/audit';
 import { ArrowLeft, FileImage } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
@@ -48,6 +49,7 @@ function SharedTiming({entry, availability, onViewOriginal}:{entry:Entry;availab
 export default function SalesMaterialsPanel({ buildingId, buildingName, initialCategory, onClose, reader = salesMaterialReader }: {
   buildingId:string;buildingName:string;initialCategory?:MaterialCategory;onClose:()=>void;reader?:SalesMaterialReader;
 }) {
+  const context=useMemo(()=>buildingReadingContext(buildingId),[buildingId]);
   const [reload,setReload]=useState(0);
   const [catalog,setCatalog]=useState<{key:string;records:SalesMaterial[];error:string}|null>(null);
   const [requested,setRequested]=useState<MaterialCategory|null>(initialCategory ?? null);
@@ -80,41 +82,41 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, initialC
     lastReadingKey.current=key;
     if(original && first){
       logAction(undefined,'VIEW_MATERIAL_ORIGINAL',{
-        module:'map',building_id:buildingId,building_name:buildingName,
+        module:'map',...context,building_id:buildingId,building_name:buildingName,
         target_table:'building_sales_materials',target_id:first.material.id,target_name:first.material.title,
         material_id:first.material.id,version_recorded_at:first.material.created_at,
         ...(original.page ? {page:original.page} : {}),observation:'viewer_opened',
       });
     }else if(!original){
       logAction(undefined,'VIEW_BUILDING_MATERIALS',{
-        module:'map',target_table:'buildings',building_id:buildingId,building_name:buildingName,
+        module:'map',...context,target_table:'buildings',building_id:buildingId,building_name:buildingName,
         category,material_ids:ids,material_count:entries.length,material_ids_truncated:entries.length>ids.length,
       });
     }
-  },[loading,error,buildingId,buildingName,category,original,entries,first]);
+  },[loading,error,buildingId,buildingName,category,original,entries,first,context]);
 
   useEffect(()=>{
     const controller=new AbortController();
     void (async()=>{
-      const firstPage=await reader.list(buildingId,0,controller.signal);
+      const firstPage=await reader.list(buildingId,0,controller.signal,context);
       if(firstPage.count>3000)throw new Error('资料版本过多，请联系管理员整理归档');
       const all=[...firstPage.records];
       for(let page=1;page*MATERIAL_PAGE_SIZE<firstPage.count;page++){
-        const next=await reader.list(buildingId,page,controller.signal);all.push(...next.records);
+        const next=await reader.list(buildingId,page,controller.signal,context);all.push(...next.records);
       }
       if(!controller.signal.aborted)setCatalog({key:listKey,records:[...new Map(all.map(item=>[item.id,item])).values()],error:''});
     })().catch(failure=>{if(!controller.signal.aborted)setCatalog({key:listKey,records:[],error:failure instanceof Error?failure.message:'读取失败'});});
     return()=>controller.abort();
-  },[buildingId,listKey,reader]);
+  },[buildingId,listKey,reader,context]);
 
   useEffect(()=>{
     if(!targets.length)return;
     const controller=new AbortController();
-    void Promise.all(targets.map(async material=>({material,access:await reader.access(buildingId,material.id,controller.signal)}))).then(value=>{
+    void Promise.all(targets.map(async material=>({material,access:await reader.access(buildingId,material.id,controller.signal,context)}))).then(value=>{
       if(!controller.signal.aborted)setResource({key:accessKey,entries:value,error:''});
     }).catch(failure=>{if(!controller.signal.aborted)setResource({key:accessKey,entries:[],error:failure instanceof Error?failure.message:'读取失败'});});
     return()=>controller.abort();
-  },[buildingId,accessKey,reader,targets]);
+  },[buildingId,accessKey,reader,targets,context]);
 
   useEffect(()=>{
     const timer=window.setInterval(()=>{if(document.visibilityState==='visible')setRefresh(value=>value+1);},240_000);
@@ -147,7 +149,7 @@ export default function SalesMaterialsPanel({ buildingId, buildingName, initialC
         : loading ? <p role="status" className={styles.empty}>加载中…</p>
         : !records.length ? <p className={styles.empty}>{requested==='brochure'?'暂无项目资料':'暂无销控资料'}</p>
         : !entries.length ? <p className={styles.empty}>{category==='commission'?'暂无佣金政策':category==='brochure'?'暂无项目资料':'暂无房源资料'}</p>
-        : original && first ? <SalesMaterialViewer key={`${first.material.id}:${original.page || 1}`} material={first.material} access={original.page && first.material.mime_type==='application/pdf' && first.access.preview_url?{...first.access,preview_url:`${first.access.preview_url}#page=${original.page}`} : first.access} onRetry={()=>setRefresh(value=>value+1)}/>
+        : original && first ? <SalesMaterialViewer key={`${first.material.id}:${original.page || 1}`} buildingId={buildingId} context={context} material={first.material} access={original.page && first.material.mime_type==='application/pdf' && first.access.preview_url?{...first.access,preview_url:`${first.access.preview_url}#page=${original.page}`} : first.access} onRetry={()=>setRefresh(value=>value+1)}/>
         : entries.map(entry=><section key={entry.material.id} className={styles.materialSection} aria-label={entry.material.scope_label || entry.material.title}>
           {entries.length>1 ? <div className={styles.sectionHeader}><h3>{entry.material.scope_label || entry.material.title}</h3>{headerDate!==dateLabel(entry) ? <span>{dateLabel(entry)}</span> : null}{entry.access.preview_url ? <button type="button" onClick={()=>showOriginal(entry.material)}>查看原件</button> : null}</div> : null}
           {entry.material.historical_context ? <p className={styles.historyNote}>历史参考 · {entry.material.historical_context.period_label}。当前适用条件请向业主确认。</p> : null}

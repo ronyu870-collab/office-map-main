@@ -195,7 +195,7 @@ describe('MapClient render mode synchronization', () => {
     vi.useFakeTimers();
     try {
       fireEvent.click(open);
-      expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('building-1');
+      expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith('building-1','submarket');
       expect(controller.map.setZoomAndCenter).not.toHaveBeenCalled();
       const back = screen.getByRole('button', { name: '返回子市场研究' });
       fireEvent.click(back);
@@ -350,7 +350,7 @@ describe('MapClient render mode synchronization', () => {
       buildings: [{ id: BUILDINGS[0].id, name: BUILDINGS[0].name, located: true, unavailableReason: null, submarket: 'CBD', grade: 'A', photo: null }] };
     render(<MapWorkbenchPage initialIntelligenceHandoff={null} queryContext={{ requestId, details: true }} />);
     await waitFor(() => expect(controller.fitToBuildings).toHaveBeenCalledWith(BUILDINGS));
-    expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith(BUILDINGS[0].id);
+    expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith(BUILDINGS[0].id,'ai_query');
     expect(controller.renderMarkers).toHaveBeenLastCalledWith(BUILDINGS, 'default', expect.anything(), undefined, false);
     expect(controller.fetchFutureSupplies).not.toHaveBeenCalled();
   });

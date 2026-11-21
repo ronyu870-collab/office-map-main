@@ -2,7 +2,8 @@ import { fireEvent, waitFor, within } from '@testing-library/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MapController } from '../MapController';
 
-const mocks = vi.hoisted(() => ({ loadPhoto: vi.fn(), loadStoredPhoto: vi.fn(), from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ audit:vi.fn(), loadPhoto: vi.fn(), loadStoredPhoto: vi.fn(), from: vi.fn() }));
+vi.mock('@/src/utils/audit',()=>({logAction:mocks.audit}));
 vi.mock('../salesMaterialsClient', () => ({ loadBuildingPhoto: mocks.loadPhoto }));
 vi.mock('../buildingPhotosClient', () => ({ loadStoredBuildingPhoto: mocks.loadStoredPhoto }));
 vi.mock('../supabaseClient', () => ({ supabase: { from: mocks.from } }));
@@ -48,6 +49,7 @@ function preview() {
 }
 
 beforeEach(() => {
+  mocks.audit.mockClear();
   vi.stubEnv('NEXT_PUBLIC_MAP_BUILDING_MEDIA_PILOT', '1');
   mocks.loadPhoto.mockReset().mockResolvedValue(coverUrl);
   mocks.loadStoredPhoto.mockReset().mockResolvedValue({ url: coverUrl, source_url: 'https://www.example.com/building', source_name: '项目官网' });
@@ -115,9 +117,11 @@ describe('通用楼宇图片', () => {
     expect(image).not.toHaveAttribute('src');
     fireEvent.click(trigger);
     await waitFor(() => expect(image).toHaveAttribute('src', coverUrl));
-    expect(mocks.loadStoredPhoto).toHaveBeenCalledExactlyOnceWith(collected.id, photo.id, expect.any(AbortSignal));
+    expect(mocks.loadStoredPhoto).toHaveBeenCalledExactlyOnceWith(collected.id, photo.id, expect.any(AbortSignal),'preview',expect.objectContaining({entry:expect.any(String),correlation_id:expect.any(String)}));
     expect(mocks.loadPhoto).not.toHaveBeenCalled();
+    expect(mocks.audit.mock.calls.filter(call=>call[1]==='VIEW_BUILDING_PHOTO')).toHaveLength(0);
     fireEvent.load(image);
+    expect(mocks.audit).toHaveBeenLastCalledWith(undefined,'VIEW_BUILDING_PHOTO',expect.objectContaining({target_id:photo.id,observation:'displayed'}));
     const caption = within(image.closest('figure')!.querySelector('figcaption')!);
     expect(caption.getByText(photo.caption, { exact: true })).toBeVisible();
     expect(caption.queryByRole('link')).not.toBeInTheDocument();
@@ -125,6 +129,7 @@ describe('通用楼宇图片', () => {
     fireEvent.click(trigger);
     fireEvent.click(trigger);
     expect(mocks.loadStoredPhoto).toHaveBeenCalledTimes(1);
+    expect(mocks.audit.mock.calls.filter(call=>call[1]==='VIEW_BUILDING_PHOTO')).toHaveLength(2);
   });
 
   it('escapes database captions and rejects unsafe source URLs even when a license is listed', async () => {
@@ -235,7 +240,7 @@ describe('地图项目预览仅按需加载', () => {
     }
     fireEvent.click(trigger);
     await waitFor(() => expect(image).toHaveAttribute('src', coverUrl));
-    expect(mocks.loadPhoto).toHaveBeenCalledExactlyOnceWith(kind === 'existing' ? existing.id : future.building_id, 0, expect.any(AbortSignal));
+    expect(mocks.loadPhoto).toHaveBeenCalledExactlyOnceWith(kind === 'existing' ? existing.id : future.building_id, 0, expect.any(AbortSignal),false,expect.objectContaining({correlation_id:expect.any(String)}));
     fireEvent.load(image);
 
     fireEvent.click(trigger);
@@ -280,7 +285,7 @@ describe('地图项目预览仅按需加载', () => {
     fireEvent.click(next);
     await waitFor(() => expect(images[1]).toHaveAttribute('src', interiorUrl));
     fireEvent.load(images[1]);
-    expect(mocks.loadPhoto).toHaveBeenLastCalledWith(future.building_id, 1, expect.any(AbortSignal));
+    expect(mocks.loadPhoto).toHaveBeenLastCalledWith(future.building_id, 1, expect.any(AbortSignal),false,expect.objectContaining({correlation_id:expect.any(String)}));
     expect(next).toHaveAttribute('aria-disabled', 'true');
     expect(document.querySelector('[data-building-photo-counter]')).toHaveTextContent('2 / 2');
     fireEvent.click(previous);

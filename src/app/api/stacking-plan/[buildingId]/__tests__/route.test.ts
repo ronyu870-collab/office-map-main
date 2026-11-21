@@ -64,7 +64,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
   const buildings = { select: vi.fn(() => ({ eq: vi.fn(() => ({ maybeSingle: vi.fn(async () => ({ data: { id: ID, name: '霄云路33号' }, error: null })) })) })) };
   const insert = vi.fn(async () => ({ error: null }));
   const exportsTable = { insert };
-  const rpc = vi.fn(async () => ({ data: { id: SPACE, revision: 2, notes: '更新' }, error: null }));
+  const rpc = vi.fn(async (_name:string):Promise<{data:unknown;error:null}> => ({ data: { id: SPACE, revision: 2, notes: '更新' }, error: null }));
   const upload = vi.fn(async () => ({ data: { path: 'private' }, error: null }));
   const download = vi.fn(async () => ({ data: new NodeBlob(['test']), error: null }));
   const getBucket = vi.fn(async () => ({ data: { public: false }, error: null }));
@@ -74,12 +74,18 @@ describe('Stacking Plan identity and read/write boundary', () => {
     if (table === 'buildings') return buildings;
     if (table === 'stacking_plan_sources') return sources;
     if (table === 'stacking_plan_towers') return towers;
-    if (table === 'stacking_plan_export_events') return exportsTable;
+    if (table === 'audit_operation_receipts') return exportsTable;
+    if (table === 'stacking_plan_export_events') {
+      const history:Record<string,unknown>={};
+      for(const method of ['select','eq','order','limit','lt'])history[method]=(..._args:unknown[])=>history;
+      history.then=(resolve:(value:unknown)=>unknown)=>resolve({data:Array.from({length:51},(_,i)=>({id:100-i,building_id:ID,actor_id:'tester',export_format:'xlsx',recorded_at:'2026-11-21T00:00:00Z'})),error:null});return history;
+    }
     throw new Error('Unexpected table ' + table);
   }), rpc };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.clearAllMocks();rpc.mockImplementation(async(name)=>name==='audit_complete_operation'?{data:true,error:null}:{data:{id:SPACE,revision:2,notes:'更新'},error:null});
+    insert.mockResolvedValue({error:null});
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SECRET_KEY = 'test-service-secret';
     mocks.createClient.mockReturnValue(db);
@@ -169,6 +175,18 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect(download).not.toHaveBeenCalled();
   });
 
+  it('returns original bytes only after a reliable receipt and withholds them on audit outage',async()=>{
+    const original={...source,evidence_storage_path:'private/original.png',evidence_mime:'image/png',evidence_sha256:'a'.repeat(64)};
+    const sourceLookup=()=>({eq:()=>({maybeSingle:async()=>({data:original,error:null})})});
+    const request=()=>new NextRequest('http://localhost/api/stacking-plan/'+ID+'?original=src',{headers:{Authorization:'Bearer testing'}});
+    sources.select.mockReturnValueOnce({eq:sourceLookup} as never);
+    let response=await GET(request(),params);expect(response.status).toBe(200);expect(await response.text()).toBe('test');
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({action_type:'STACKING_PLAN_ORIGINAL_DOWNLOAD',target_id:'src',details:expect.objectContaining({phase:'download_requested',source_sha256:'a'.repeat(64)})}));
+    sources.select.mockReturnValueOnce({eq:sourceLookup} as never);
+    rpc.mockResolvedValueOnce({data:false,error:null} as never);
+    response=await GET(request(),params);expect(response.status).toBe(503);expect(await response.text()).not.toBe('test');
+  });
+
   it('accepts a valid administrator original file and binds it to the source with an audited RPC', async () => {
     const pngSignature = new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,0]);
     const request = pngMultipartRequest(pngSignature);
@@ -214,6 +232,12 @@ describe('Stacking Plan identity and read/write boundary', () => {
     expect((await POST(req('POST', { action: 'export', format: 'pdf' }), params)).status).toBe(400);
     expect(insert).not.toHaveBeenCalled();
     expect((await POST(req('POST', { action: 'export', format: 'xlsx' }), params)).status).toBe(200);
-    expect(insert).toHaveBeenCalledWith({ building_id: ID, actor_id: 'tester', export_format: 'xlsx' });
+    expect(insert).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({actor_id:'tester',action_type:'STACKING_PLAN_EXPORT',target_id:ID,details:expect.objectContaining({format:'xlsx',phase:'export_requested'})}));
   });
+  it('offers a bounded in-place historical export query only through the existing administrator boundary',async()=>{
+    const historyRequest=()=>new NextRequest('http://localhost/api/stacking-plan/'+ID+'?export_history=1',{headers:{Authorization:'Bearer testing'}});
+    const response=await GET(historyRequest(),params);expect(response.status).toBe(200);const body=await response.json();expect(body.records).toHaveLength(50);expect(body.has_next).toBe(true);expect(insert).not.toHaveBeenCalled();
+    mocks.resolveIdentity.mockResolvedValue(identity('viewer'));expect((await GET(historyRequest(),params)).status).toBe(403);
+  });
+
 });

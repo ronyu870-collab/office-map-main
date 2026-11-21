@@ -1,6 +1,6 @@
 {
   "browser": "158.0.8127.36",
-  "environment": "Actual Chrome + native IndexedDB; production Next/webpack fixture importing actual audit module; synthetic Auth only; 120 distinct events per burst, five rounds per width; no live backend or map SDK",
+  "environment": "Actual Chrome + native IndexedDB; production Next/webpack fixture importing actual audit module; synthetic Auth only; 120 distinct business-reading events per burst through shared building and new reading helpers (baseline uses existing logAction), five rounds per width; no live backend or map SDK",
   "rows": [
     {
       "variant": "before",
@@ -8,13 +8,13 @@
       "cpu": 1,
       "round": 0,
       "samples": 120,
-      "syncP95Ms": 0,
-      "syncMaxMs": 0.699999988079071,
-      "counts": 120,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 9.100000023841858,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 64.39999997615814
+      "windowMs": 95.5
     },
     {
       "variant": "before",
@@ -22,13 +22,13 @@
       "cpu": 1,
       "round": 1,
       "samples": 120,
-      "syncP95Ms": 0,
-      "syncMaxMs": 0.800000011920929,
-      "counts": 120,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.399999976158142,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 63.90000003576279
+      "windowMs": 81.89999997615814
     },
     {
       "variant": "before",
@@ -36,13 +36,13 @@
       "cpu": 1,
       "round": 2,
       "samples": 120,
-      "syncP95Ms": 0,
-      "syncMaxMs": 0.699999988079071,
-      "counts": 120,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.599999964237213,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 64
+      "windowMs": 91.19999998807907
     },
     {
       "variant": "before",
@@ -50,13 +50,13 @@
       "cpu": 1,
       "round": 3,
       "samples": 120,
-      "syncP95Ms": 0,
-      "syncMaxMs": 0.5999999642372131,
-      "counts": 120,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.799999952316284,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 62.69999998807907
+      "windowMs": 91.5
     },
     {
       "variant": "before",
@@ -64,13 +64,13 @@
       "cpu": 1,
       "round": 4,
       "samples": 120,
-      "syncP95Ms": 0,
-      "syncMaxMs": 0.800000011920929,
-      "counts": 120,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 6.100000023841858,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 63.200000047683716
+      "windowMs": 92.10000002384186
     },
     {
       "variant": "before",
@@ -78,13 +78,13 @@
       "cpu": 4,
       "round": 0,
       "samples": 120,
-      "syncP95Ms": 0.09999996423721313,
-      "syncMaxMs": 3.300000011920929,
-      "counts": 120,
+      "syncP95Ms": 0.5,
+      "syncMaxMs": 23.399999976158142,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 79.30000001192093
+      "windowMs": 103.19999998807907
     },
     {
       "variant": "before",
@@ -92,13 +92,13 @@
       "cpu": 4,
       "round": 1,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 3.299999952316284,
-      "counts": 120,
+      "syncP95Ms": 0.19999998807907104,
+      "syncMaxMs": 23.100000023841858,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 85.5
+      "windowMs": 103
     },
     {
       "variant": "before",
@@ -106,13 +106,13 @@
       "cpu": 4,
       "round": 2,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 4,
-      "counts": 120,
+      "syncP95Ms": 0.40000003576278687,
+      "syncMaxMs": 24.5,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 88.59999996423721
+      "windowMs": 104.30000001192093
     },
     {
       "variant": "before",
@@ -120,13 +120,13 @@
       "cpu": 4,
       "round": 3,
       "samples": 120,
-      "syncP95Ms": 0.09999996423721313,
-      "syncMaxMs": 4.599999964237213,
-      "counts": 120,
+      "syncP95Ms": 0.3999999761581421,
+      "syncMaxMs": 24,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 78.5
+      "windowMs": 104.30000001192093
     },
     {
       "variant": "before",
@@ -134,13 +134,13 @@
       "cpu": 4,
       "round": 4,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 4.199999988079071,
-      "counts": 120,
+      "syncP95Ms": 0.30000001192092896,
+      "syncMaxMs": 23,
+      "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 88.19999998807907
+      "windowMs": 101.70000004768372
     },
     {
       "variant": "after",
@@ -148,13 +148,13 @@
       "cpu": 1,
       "round": 0,
       "samples": 120,
-      "syncP95Ms": 0.09999996423721313,
-      "syncMaxMs": 0.5,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.699999988079071,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 88.40000003576279
+      "windowMs": 82.19999998807907
     },
     {
       "variant": "after",
@@ -162,13 +162,13 @@
       "cpu": 1,
       "round": 1,
       "samples": 120,
-      "syncP95Ms": 0.09999996423721313,
-      "syncMaxMs": 0.5,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.799999952316284,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 85.5
+      "windowMs": 81.09999996423721
     },
     {
       "variant": "after",
@@ -176,13 +176,13 @@
       "cpu": 1,
       "round": 2,
       "samples": 120,
-      "syncP95Ms": 0,
-      "syncMaxMs": 0.6000000238418579,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.699999988079071,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 86.30000001192093
+      "windowMs": 91.59999996423721
     },
     {
       "variant": "after",
@@ -190,13 +190,13 @@
       "cpu": 1,
       "round": 3,
       "samples": 120,
-      "syncP95Ms": 0.09999996423721313,
-      "syncMaxMs": 0.699999988079071,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.599999964237213,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 89.19999998807907
+      "windowMs": 90.89999997615814
     },
     {
       "variant": "after",
@@ -204,13 +204,13 @@
       "cpu": 1,
       "round": 4,
       "samples": 120,
-      "syncP95Ms": 0.09999996423721313,
-      "syncMaxMs": 0.699999988079071,
+      "syncP95Ms": 0.10000002384185791,
+      "syncMaxMs": 5.5,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 87.69999998807907
+      "windowMs": 90.80000001192093
     },
     {
       "variant": "after",
@@ -218,13 +218,13 @@
       "cpu": 4,
       "round": 0,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 3.300000011920929,
+      "syncP95Ms": 0.5999999642372131,
+      "syncMaxMs": 23.100000023841858,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 89.20000004768372
+      "windowMs": 104.80000001192093
     },
     {
       "variant": "after",
@@ -232,13 +232,13 @@
       "cpu": 4,
       "round": 1,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 3.899999976158142,
+      "syncP95Ms": 0.699999988079071,
+      "syncMaxMs": 23.599999964237213,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 91.29999995231628
+      "windowMs": 104.19999998807907
     },
     {
       "variant": "after",
@@ -246,13 +246,13 @@
       "cpu": 4,
       "round": 2,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 2.699999988079071,
+      "syncP95Ms": 0.6000000238418579,
+      "syncMaxMs": 24.100000023841858,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 89.09999996423721
+      "windowMs": 105.10000002384186
     },
     {
       "variant": "after",
@@ -260,13 +260,13 @@
       "cpu": 4,
       "round": 3,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 2.600000023841858,
+      "syncP95Ms": 0.6000000238418579,
+      "syncMaxMs": 26.80000001192093,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 87.19999998807907
+      "windowMs": 109.5
     },
     {
       "variant": "after",
@@ -274,13 +274,23 @@
       "cpu": 4,
       "round": 4,
       "samples": 120,
-      "syncP95Ms": 0.10000002384185791,
-      "syncMaxMs": 3,
+      "syncP95Ms": 0.800000011920929,
+      "syncMaxMs": 25.900000035762787,
       "counts": 1,
       "puts": 120,
       "sessionReads": 0,
       "longTasks": [],
-      "windowMs": 87.80000001192093
+      "windowMs": 110.5
+    }
+  ],
+  "researchInstrumentation": [
+    {
+      "edition": "2026Q2",
+      "status": "pass"
+    },
+    {
+      "edition": "2026Q3",
+      "status": "pass"
     }
   ]
 }
