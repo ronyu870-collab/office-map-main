@@ -1,12 +1,15 @@
 import {expect,it} from 'vitest';
+import {createClient} from '@supabase/supabase-js';
 import {applyAuditFilters,auditFiltersSchema} from '../query';
 import {auditDefinition} from '@/src/utils/auditRegistry';
-it('keeps historical lowercase critical events and conservative fallback in server-side risk filters',()=>{
- const calls:unknown[][]=[];const query:Record<string,unknown>={};
- for(const method of ['or','not','neq'])query[method]=(...args:unknown[])=>{calls.push([method,...args]);return query;};
- applyAuditFilters(query as Parameters<typeof applyAuditFilters>[0],auditFiltersSchema.parse({view:'all',excludeCodex:false,tier:'A'}));
- expect(JSON.stringify(calls)).toContain('impersonate_start');expect(JSON.stringify(calls)).toContain('DB_UPDATE');expect(JSON.stringify(calls)).toContain('action_type.ilike.*DELETE*');
+it('keeps historical lowercase critical events and conservative fallback in the actual SDK filter URL',async()=>{
+ const requests:URL[]=[];
+ const client=createClient('https://example.supabase.co','synthetic',{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:async input=>{
+  requests.push(new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url));return Response.json([]);
+ }}});
+ await applyAuditFilters(client.from('audit_logs').select('id'),auditFiltersSchema.parse({view:'all',excludeCodex:false,tier:'A'}));
+ const critical=requests[0].searchParams.get('or');expect(critical).toContain('impersonate_start');expect(critical).toContain('DB_UPDATE');expect(critical).toContain('action_type.ilike.*DELETE*');
  expect(auditDefinition('impersonate_start').tier).toBe('A');expect(auditDefinition('FUTURE_SENSITIVE_EXPORT').tier).toBe('A');expect(auditDefinition('EXPORT_TEMPLATE').tier).toBe('B');
- calls.length=0;applyAuditFilters(query as Parameters<typeof applyAuditFilters>[0],auditFiltersSchema.parse({view:'all',excludeCodex:false,tier:'B'}));
- expect(JSON.stringify(calls)).toContain('export_template');expect(JSON.stringify(calls)).toContain('action_type.not.ilike.*DELETE*');
+ await applyAuditFilters(client.from('audit_logs').select('id'),auditFiltersSchema.parse({view:'all',excludeCodex:false,tier:'B'}));
+ const ordinary=requests[1].searchParams.get('or');expect(ordinary).toContain('export_template');expect(ordinary).toContain('action_type.not.ilike.*DELETE*');
 });
