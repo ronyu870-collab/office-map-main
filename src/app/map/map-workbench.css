@@ -272,7 +272,7 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
 }
 @media (max-width: 639px) {
   .map-workspace-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .map-workspace-kpis > div { padding: 6px 8px; }
+  .map-workspace-kpis > div { padding: 4px 8px; }
   .map-market-overview summary { width: 44px; }
 }
 .workspace-note { color: #596779; margin: 8px 0; line-height: 1.6; overflow-wrap: anywhere; }
