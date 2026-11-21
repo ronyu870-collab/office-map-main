@@ -464,6 +464,31 @@ describe('native map visual hierarchy', () => {
     }
   });
 
+  it('bounds long map names while retaining the full project and click identity in every renderer', async () => {
+    for (const version of ['v3', 'v2', 'fallback'] as const) {
+      const harness = createNativeHarness();
+      harness.setZoom(14.4);
+      const controller: any = { AMap: harness.AMap, map: harness.map,
+        markers: [], dotMarkers: [], submarketMarkers: [],
+        renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(), openBuildingInfoWindow: vi.fn() };
+      const cleanup = version === 'v3' ? installMapInteractionHardening(controller, 'map-container')
+        : version === 'v2' ? installMapVisualContinuityV2(controller, document.getElementById('map-container')!)
+        : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+      const item = { ...building('long', 'CBD', 116.46, 39.91, 146, .15), name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6) };
+      try {
+        controller.renderMarkers([item], 'default');
+        await flushFrames();
+        const name = harness.labelMarkerInstances.find(marker => marker.options.name === 'long:name');
+        expect(name.options.text.style.fold).toBe(false);
+        expect(Array.from(name.options.text.content).length).toBeLessThanOrEqual(12);
+        expect(name.options.text.content).toMatch(/…$/);
+        name.handlers.emit('click');
+        expect(controller.openBuildingInfoWindow).toHaveBeenCalledWith(item.id);
+        expect(item.name).toContain('超长项目名称及楼座信息'.repeat(6));
+      } finally { cleanup?.(); }
+    }
+  });
+
   it('shares the same hover tooltip between a round building icon and its right-hand name', async () => {
     const harness = createNativeHarness();
     harness.setZoom(14.4);

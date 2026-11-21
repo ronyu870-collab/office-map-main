@@ -1,6 +1,7 @@
 'use client';
 
 import { futureSupplyImage } from './mapSelectionMarker';
+import { mapBuildingLabel } from './mapMarkerLabel';
 import { markerTextColor } from './mapMarkerContrast';
 
 import type { MapController } from '@/src/services/MapController';
@@ -919,7 +920,7 @@ export function installNativeMarkerRenderer(
         zIndex: rank,
         extData: { id: building.id },
         text: {
-          content: buildingName,
+          content: mapBuildingLabel(buildingName),
           direction: 'right',
           offset: [22, 0],
           style: {
@@ -929,7 +930,7 @@ export function installNativeMarkerRenderer(
             strokeColor: '#ffffff',
             strokeWidth: 3,
             padding: '1, 2',
-            fold: true,
+            fold: false,
           },
         },
       });

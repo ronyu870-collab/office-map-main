@@ -1,6 +1,7 @@
 'use client';
 
 import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
+import { mapBuildingLabel } from './mapMarkerLabel';
 import { markerTextColor } from './mapMarkerContrast';
 
 import type { MapController } from '@/src/services/MapController';
@@ -306,7 +307,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       icon.on?.('mouseout', () => { icon.setOpacity?.(1); icon.setzIndex?.(rank); c.hideHoverTooltip?.(); }); icon.on?.('click', () => { showSelection(b); c.openBuildingInfoWindow?.(b.id); });
       detailItems.push(icon); labels.set(String(b.id), icon); baseRanks.set(String(b.id), rank);
       const name = String(b?.name ?? '').trim(); if (!name) continue;
-      const label = new LabelMarker({ name: `${b.id}:name`, position: [b.location_lng, b.location_lat], zooms: [13.55, 20], opacity: 1, rank: Math.max(1, rank - 1), zIndex: rank, extData: { id: b.id }, text: { content: name, direction: 'right', offset: [22, 0], style: { fontSize: 11, fontWeight: '600', fillColor: '#26394d', strokeColor: '#ffffff', strokeWidth: 3, padding: '1, 2', fold: true } } });
+      const label = new LabelMarker({ name: `${b.id}:name`, position: [b.location_lng, b.location_lat], zooms: [13.55, 20], opacity: 1, rank: Math.max(1, rank - 1), zIndex: rank, extData: { id: b.id }, text: { content: mapBuildingLabel(name), direction: 'right', offset: [22, 0], style: { fontSize: 11, fontWeight: '600', fillColor: '#26394d', strokeColor: '#ffffff', strokeWidth: 3, padding: '1, 2', fold: false } } });
       label.on?.('click', () => { showSelection(b); c.openBuildingInfoWindow?.(b.id); }); nameItems.push(label);
     }
     detail.add?.(detailItems); names.add?.(nameItems); map.add?.(detail); map.add?.(names);
