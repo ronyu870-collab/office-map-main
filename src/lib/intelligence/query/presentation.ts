@@ -1,3 +1,4 @@
+import { reportDescriptorSchema } from './reportProtocol';
 import { z } from 'zod';
 import { agentExportDescriptorSchema } from './exportProtocol';
 import { distributionAnalysisSchema } from './distribution';
@@ -58,6 +59,8 @@ function coverageText(input: unknown): string | null {
   return `获权样本 ${c.total} 栋，有效 ${c.valid} 栋；缺失 ${c.missing}、无效 ${c.invalid}、冲突 ${c.conflict}、未核验 ${c.unverified}。`;
 }
 export function resultSummary(result: QueryResultView): string[] {
+  const report = reportDescriptorSchema.safeParse(result.parameters.agentReport).data;
+  if (report) return [`本次内部 PDF 包含 ${report.sectionCount} 个研究部分，保留 ${report.rowCount} 条原表记录；各部分独立统计，记录数不等于楼宇总数。`];
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   if (exported) return [`本次导出 ${exported.exportedRows} 条记录，筛选后共 ${exported.matchedRows} 条；文件使用完整正式结果，不受界面分页限制。`];
   const metrics = resultMetrics(result);
@@ -124,6 +127,8 @@ export function resultSummary(result: QueryResultView): string[] {
   })];
 }
 export function resultScopeText(result: QueryResultView): string {
+  if (reportDescriptorSchema.safeParse(result.parameters.agentReport).success)
+    return '由获权正式快照组合；各部分的范围、期间、来源和统计口径见报告及研究索引，不重算跨结果指标。';
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   if (exported && Array.isArray(result.parameters.exportPlans) && result.parameters.exportPlans.length > 1)
     return '合并多个获权正式结果；各项期间、范围及原始统计口径见文件来源与快照，不重新计算跨结果均值。';

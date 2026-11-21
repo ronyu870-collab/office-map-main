@@ -7,7 +7,7 @@ import { parseQueryPlan } from '../query/plan';
 
 const state = vi.hoisted(() => ({
   receive: vi.fn(), append: vi.fn(), provider: vi.fn(), tool: vi.fn(), structured: vi.fn(),
-  identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(),
+  readArchive: vi.fn(), recoverArchive: vi.fn(), identity: vi.fn(), authority: vi.fn(), intake: vi.fn(), history: vi.fn(), save: vi.fn(),
 }));
 
 vi.mock('../query/serverAuthority', () => ({
@@ -17,6 +17,7 @@ vi.mock('../query/auditStore', async original => ({
   ...(await original<typeof import('../query/auditStore')>()),
   createRpcAuditPort: () => ({ receive: state.receive, append: state.append }),
 }));
+vi.mock('../query/recovery', () => ({ readOwnResult: state.readArchive, recoverOwnResult: state.recoverArchive }));
 vi.mock('../query/intake', () => ({ recordQueryIntake: state.intake }));
 vi.mock('../query/historyStore', () => ({ recordHistorySubmission: state.save }));
 vi.mock('./modelProvider', async original => ({
@@ -66,6 +67,7 @@ beforeEach(() => {
   state.intake.mockResolvedValue(undefined);
   state.history.mockResolvedValue([]);
   state.save.mockResolvedValue(true);
+  state.readArchive.mockResolvedValue({}); state.recoverArchive.mockResolvedValue({});
   state.provider.mockResolvedValue({ model: 'deepseek-v4-flash', inputTokens: 12, outputTokens: 18,
     message: { role: 'assistant', content: '你好，我可以帮你分析北京办公楼市场。' } });
 });
@@ -441,5 +443,35 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     const revoked = await handleAgentSubmission(fakeRequest('改为横向柱状图').request, deps());
     expect(revoked.status).toBe(403); expect((await revoked.json()).result).toBeUndefined();
     expect(state.append.mock.calls.some(c => c[1] === 'correction' && c[2]?.delivery === 'not_sent')).toBe(true);
+  });
+});
+
+
+describe('AI5 controlled PDF report tool', () => {
+  function scripted() {
+    const start = { year: 2026, quarter: 1 }, end = { year: 2026, quarter: 2 };
+    const raw = buildTrendResult([fixture(start), fixture(end)], 'rent', 'per_period');
+    const formal = { ...raw, parameters: { ...raw.parameters, scope: { inventory: 'tracked', submarkets: ['CBD'] }, executedPlan: parseQueryPlan({ operation: 'trend', metric: 'rent', start, end, mode: 'per_period', scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
+    state.structured.mockResolvedValue({ content: '{"status":"ready"}', result: formal });
+    let round = 0;
+    state.provider.mockImplementation(async () => { const step = round++; const calls = step === 0 ? [{ name: 'analyze_market_trends', args: { scope: { inventory: 'tracked', submarkets: ['CBD'] }, start, end, metric: 'rent' } }] : step === 1 ? [{ name: 'generate_pdf_report', args: { resultIds: [formal.resultId] } }] : null;
+      return { model: 'deepseek-flash', inputTokens: 20, outputTokens: 20, message: { role: 'assistant', content: calls ? null : '已保存到桌面 https://fake.invalid/report.pdf', ...(calls ? { tool_calls: calls.map((c, i) => ({ id: `pdf-${step}-${i}`, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) } : {}) } }; });
+  }
+  it('generates a real server PDF, archives its lineage and supplies a genuine delivery descriptor without model save claims', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] }); scripted();
+    const response = await handleAgentSubmission(fakeRequest('CBD季度市场PDF研究报告').request, deps()), body = await response.json();
+    expect(response.status).toBe(200); expect(body.result.parameters.agentReport).toMatchObject({ format: 'pdf', sectionCount: 1, purpose: 'internal' });
+    expect(body.message).toContain('服务器已生成'); expect(body.message).not.toMatch(/已保存到桌面|fake.invalid/);
+    expect(state.recoverArchive).toHaveBeenCalledOnce();
+    const answer = state.append.mock.calls.find(x => x[1] === 'tool_finished' && x[2]?.protocol === 'agent-answer/1');
+    expect(answer?.[2].reportFile).toMatchObject({ state: 'server_generated', format: 'pdf', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  });
+  it('refuses generation without the independent export grant and refuses changed source ACL before the final answer', async () => {
+    scripted(); let response = await handleAgentSubmission(fakeRequest('生成PDF报告').request, deps()), body = await response.json();
+    expect(body.result?.parameters.agentReport).toBeUndefined(); expect(body.message).toContain('未生成 PDF');
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] }); state.recoverArchive.mockRejectedValue(new Error('QUERY_DENIED')); scripted();
+    response = await handleAgentSubmission(fakeRequest('生成PDF报告').request, deps()); body = await response.json();
+    expect(response.status).toBe(403); expect(body.result).toBeUndefined();
+    expect(state.append.mock.calls.some(x => x[1] === 'correction' && x[2]?.delivery === 'not_sent')).toBe(true);
   });
 });

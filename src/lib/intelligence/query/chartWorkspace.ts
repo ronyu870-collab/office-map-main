@@ -155,7 +155,7 @@ export function cartesianGeometry(chart: ResultChart) {
   return { width, height, left, right, top, bottom, horizontal, categories, titleLines, extraTitleHeight, xd, yd, numericX, numericY, category };
 }
 
-export function renderCartesianSvg(chart: ResultChart): string {
+export function renderCartesianSvg(chart: ResultChart, options?: { provenance: 'attachment' }): string {
   const g = cartesianGeometry(chart), elements: string[] = [];
   const text = (x: number, y: number, s: string, extra = '') => elements.push(`<text x="${x}" y="${y}" ${extra}>${xml(s)}</text>`);
   const series = chart.series ?? [{ key: 'value', label: chart.yLabel, points: chart.points }];
@@ -210,6 +210,6 @@ export function renderCartesianSvg(chart: ResultChart): string {
   text(32, g.height - 108, '来源、期间、精确值、样本和计算口径见同包 manifest.json；缺失不按零绘制。');
   const period = chart.summary.find(s => /季度|期间|Q[1-4]/.test(s));
   if (period) text(32, g.height - 76, Array.from(period).slice(0, 65).join(''));
-  text(32, g.height - 44, `结果版本 ${chart.resultId}；仅供内部分析。`);
+  text(32, g.height - 44, options?.provenance === 'attachment' ? '内部研究；完整来源与结果版本见本文件内来源附件。' : `结果版本 ${chart.resultId}；仅供内部分析。`);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}" role="img"><title>${xml(chart.title)}</title><metadata>${xml(JSON.stringify(chart))}</metadata><rect width="100%" height="100%" fill="#f9fafb"/><g font-family="Noto Sans SC, Arial, sans-serif" font-size="14" font-weight="400" fill="#172033">${elements.join('')}</g></svg>`;
 }

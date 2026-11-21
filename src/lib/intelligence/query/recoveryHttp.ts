@@ -109,7 +109,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
   }catch(error){
     const denied=error instanceof Error&&error.message==='QUERY_DENIED';
     const changed=error instanceof Error&&error.message==='QUERY_RESULT_CHANGED';
-    const unsupported=mode==='artifact'&&error instanceof Error&&/^(?:CHART_|ARTIFACT_|XLSX_)/.test(error.message);
+    const unsupported=mode==='artifact'&&error instanceof Error&&/^(?:CHART_|ARTIFACT_|XLSX_|REPORT_)/.test(error.message);
     if(audit&&received){
       try{await audit.append(attemptId,terminal?'correction':denied?'denied':'failed',{delivery:'not_sent',reason:denied?'recovery_not_granted':changed?'recovery_stream_changed':unsupported?'artifact_unsupported':'recovery_unavailable'});}
       catch{return json({attemptId,status:'unavailable',error:'审计服务暂不可用，未交付结果。'},503);}

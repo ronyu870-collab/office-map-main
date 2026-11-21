@@ -5,13 +5,17 @@ function part(value: string, max = 24): string {
   return Array.from(value.normalize('NFKC').replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^[-.]+|[-.]+$/g, '')).slice(0, max).join('') || '未知';
 }
 
-export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 'csv_zip' | 'svg_zip' | 'png_zip'): string {
-  const { object, metric, period } = resultOutputDescriptor(result);
-  const extension = format === 'xlsx' ? 'xlsx' : 'zip';
+export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 'csv_zip' | 'svg_zip' | 'png_zip' | 'pdf'): string {
+  let { object, metric, period } = resultOutputDescriptor(result);
+  if (format === 'pdf' && result.parameters.agentReport) {
+    const labels = (key: string) => [...new Set(result.table.rows.flatMap(row => row.cells[key]?.kind === 'text' ? [row.cells[key].value] : []))].join('与');
+    object = labels('name') || object; metric = labels('metric') || metric; period = labels('period') || period;
+  }
+  const extension = format === 'xlsx' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'zip';
   return `ColliersAI_${part(object, 20)}_${part(metric, 20)}_${part(period, 40)}_${format}_${result.resultId.slice(0, 8)}.${extension}`;
 }
 
-const safeName = (value: string) => value.length <= 180 && !value.startsWith('.') && /^[\p{L}\p{N}._-]+\.(xlsx|zip)$/u.test(value)
+const safeName = (value: string) => value.length <= 180 && !value.startsWith('.') && /^[\p{L}\p{N}._-]+\.(xlsx|zip|pdf)$/u.test(value)
   && new TextEncoder().encode(value).byteLength <= 240;
 
 /** UTF-8 filenames keep Chinese entity/metric labels outside raw HTTP headers. */
