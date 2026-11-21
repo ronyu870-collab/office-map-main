@@ -1,12 +1,15 @@
 'use client';
 
 import * as React from 'react';
+import { createPortal } from 'react-dom';
+import { WorkspacePanelHeader } from './WorkspacePanelHeader';
+import { MapDisclosure } from './MapDisclosure';
 import { BuildingBasicCard } from './BuildingBasicCard';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
 import { MaskedText, useIsDemo } from '@/src/components/demo';
 import { logAction } from '@/src/utils/audit';
-import { sortFullList, type FullListSort } from '../model/fullBuildingList';
+import { finiteMetric, sortFullList, type FullListSort } from '../model/fullBuildingList';
 import type { ComparisonLayout } from './buildingComparisonExport';
 
 interface DisplayOverride {
@@ -49,8 +52,13 @@ export default function FloatingBuildingList({ buildings, active = true, display
   const selectedKeys = new Set(selectedComparisonBuildings.map(comparisonKey));
 
   React.useEffect(() => {
-    if (exportOpen) dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
-  }, [exportOpen]);
+    if (!exportOpen || !active) return;
+    const previous = document.activeElement;
+    dialogRef.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected && !previous.closest('[aria-hidden="true"]')) previous.focus({ preventScroll: true });
+    };
+  }, [exportOpen, active]);
 
   const selectionCheckbox = (building: any) => (
     <label className="flex min-h-11 w-9 shrink-0 items-center justify-center">
@@ -126,20 +134,19 @@ export default function FloatingBuildingList({ buildings, active = true, display
     if (!id) return null;
     return <button type="button" data-map-action="building-sales-control" data-building-id={id}
       data-building-name={building.name || '当前楼宇'} aria-label={`查看${building.name || '当前楼宇'}资料与佣金`}
-      className="min-h-11 w-full border-t border-[#e7ebf0] px-3 py-2 text-left text-sm font-semibold text-[#003e7e] hover:bg-[#edf4fb] focus-visible:outline-2 focus-visible:outline-offset-[-2px]">
+      className="workspace-list-material">
       查看资料与佣金
     </button>;
   };
 
   const renderCompactRow = (building: any) => {
     const metric = getLatestMetric(building.metrics ?? []);
-    const rent = metric?.net_effective_rent !== undefined && metric?.net_effective_rent !== null
-      ? Number(metric.net_effective_rent).toLocaleString('zh-CN', { maximumFractionDigits: 1 })
-      : '—';
-    const vacancy = metric?.vacancy_rate !== undefined && metric?.vacancy_rate !== null
-      ? `${(Number(metric.vacancy_rate) <= 1 ? Number(metric.vacancy_rate) * 100 : Number(metric.vacancy_rate)).toFixed(1)}%`
-      : '—';
-    const area = metric?.total_area ? Number(metric.total_area).toLocaleString('zh-CN', { maximumFractionDigits: 0 }) : '—';
+    const rentValue = finiteMetric(metric?.net_effective_rent);
+    const vacancyValue = finiteMetric(metric?.vacancy_rate);
+    const areaValue = finiteMetric(building._dataType === 'future' ? building.total_area : metric?.total_area);
+    const rent = rentValue === null ? '—' : rentValue.toLocaleString('zh-CN', { maximumFractionDigits: 1 });
+    const vacancy = vacancyValue === null ? '—' : `${(vacancyValue <= 1 ? vacancyValue * 100 : vacancyValue).toFixed(1)}%`;
+    const area = areaValue === null ? '—' : areaValue.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
     const isFuture = building._dataType === 'future';
     const isTarget = targetBuildingId === building.id;
 
@@ -160,18 +167,15 @@ export default function FloatingBuildingList({ buildings, active = true, display
         }}
         onMouseEnter={() => onBuildingHover?.(building.id)}
         onMouseLeave={() => onBuildingHover?.(null)}
-        className={`grid min-w-0 flex-1 cursor-pointer ${selectionMode ? 'grid-cols-[minmax(0,1fr)_64px_54px]' : 'grid-cols-[minmax(0,1fr)_64px_54px_72px]'} items-center gap-2 border-b border-[#e7ebf0] px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#003e7e]/25 ${isTarget ? 'bg-[#edf4fb]' : 'bg-white hover:bg-[#f8fafc]'}`}
+        className={`workspace-list-row ${isTarget ? 'workspace-list-row-selected' : ''}`}
       >
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-[11px] font-semibold text-[#172033]">{building.name || '未命名项目'}</span>
-            {isFuture ? <span className="shrink-0 rounded-[3px] border border-emerald-200 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">{isPendingFutureSupply(building) ? '待核实' : '未来'}</span> : null}
-          </div>
-          <div className="mt-0.5 truncate text-[10px] text-[#8a94a6]">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}</div>
-        </div>
-        <div className="text-right"><div className="text-[10px] text-[#8a94a6]">净租金</div><div className="mt-0.5 text-[10px] font-semibold tabular-nums text-[#003e7e]">{rent}</div></div>
-        <div className="text-right"><div className="text-[10px] text-[#8a94a6]">空置率</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{vacancy}</div></div>
-        {!selectionMode ? <div className="text-right"><div className="text-[10px] text-[#8a94a6]">面积㎡</div><div className="mt-0.5 text-[10px] font-medium tabular-nums text-[#172033]">{area}</div></div> : null}
+        <div className="workspace-list-name">{building.name || '未命名项目'}</div>
+        <div className="workspace-list-meta">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}{isFuture ? ' · ' + (isPendingFutureSupply(building) ? '待核实供应' : '未来供应') : ''}</div>
+        <dl className="workspace-list-metrics">
+          <div><dt>净租金 · 元/㎡/月</dt><dd>{rent}</dd></div>
+          <div><dt>空置率</dt><dd>{vacancy}</dd></div>
+          <div><dt>面积 · ㎡</dt><dd>{area}</dd></div>
+        </dl>
       </div>
       </div>
       {materialAction(building)}
@@ -180,75 +184,54 @@ export default function FloatingBuildingList({ buildings, active = true, display
   };
 
   return (
-    <section className="relative flex h-full w-full flex-col overflow-hidden rounded-[8px] border border-[#d9e0e8] bg-white shadow-[0_10px_28px_rgba(23,32,51,0.12)]" aria-label="项目列表">
-      <div className="flex shrink-0 items-center justify-between border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-2.5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[12px] font-semibold text-[#172033]">项目列表</h2>
-            <span className="rounded-[3px] border border-[#d9e0e8] bg-white px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-[#667085]">{results.length}</span>
-          </div>
-          <p className="mt-0.5 truncate text-[10px] text-[#8a94a6]">
-            {existingCount > 0 && futureCount > 0 ? `现有 ${existingCount} · 未来供应 ${futureCount}` : futureCount > 0 ? `未来供应 ${futureCount}` : `现有项目 ${existingCount}`}
-          </p>
+    <section className="workspace-building-list relative flex h-full w-full flex-col overflow-hidden" aria-label="项目列表">
+      <WorkspacePanelHeader title={<>项目列表 <span className="workspace-title-count">{results.length}</span></>} onClose={onClose} closeLabel="关闭列表" />
+      <div className="workspace-list-tools">
+        <div className="workspace-list-query">
+          <label><span className="sr-only">搜索当前项目列表</span><input type="search" value={query} onChange={event => setQuery(event.currentTarget.value)} placeholder="搜索当前项目列表" /></label>
+          <select aria-label="项目列表排序" value={sort} onChange={event => setSort(event.currentTarget.value as FullListSort)}>
+            <option value="default">默认顺序</option><option value="name">项目名称</option><option value="area">面积从大到小</option><option value="rent">租金从低到高</option><option value="rent-desc">租金从高到低</option><option value="vacancy">空置率从低到高</option>
+          </select>
         </div>
-        <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-[4px] border border-transparent text-[#8a94a6] transition hover:border-[#d9e0e8] hover:bg-white hover:text-[#172033] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20" aria-label="关闭列表" title="关闭列表 (ESC)">
-          <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
-        </button>
-      </div>
-
-      <div className="workspace-list-query">
-        <label><span className="sr-only">搜索当前项目列表</span><input type="search" value={query} onChange={event => setQuery(event.currentTarget.value)} placeholder="搜索当前项目列表" /></label>
-        <select aria-label="项目列表排序" value={sort} onChange={event => setSort(event.currentTarget.value as FullListSort)}>
-          <option value="default">默认顺序</option><option value="name">项目名称</option><option value="area">面积从大到小</option><option value="rent">租金从低到高</option><option value="rent-desc">租金从高到低</option><option value="vacancy">空置率从低到高</option>
-        </select>
-      </div>
-      <div className="flex shrink-0 items-center justify-between border-b border-[#e7ebf0] px-3 py-1.5">
-        <span className="text-[10px] font-medium text-[#8a94a6]">市场项目</span>
-        <div className="flex items-center gap-2">
-          {onComparisonSelectionChange ? <button type="button" aria-pressed={selectionMode}
-            className="min-h-8 text-[12px] font-medium text-[#003e7e]"
-            onClick={() => setSelectionMode(current => !current)}>
-            {selectionMode ? '完成选择' : '选择项目' + (selectedComparisonBuildings.length ? '（' + selectedComparisonBuildings.length + '）' : '')}
-          </button> : null}
-        <div className="flex overflow-hidden rounded-[4px] border border-[#d9e0e8] bg-white" role="group" aria-label="项目列表查看方式">
-          <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => setViewMode('compact')} className={`px-2 py-1 text-[10px] font-medium ${viewMode === 'compact' ? 'bg-[#003e7e] text-white' : 'text-[#667085] hover:bg-[#f8fafc]'}`}>列表</button>
-          <button type="button" aria-pressed={viewMode === 'cards'} onClick={() => setViewMode('cards')} className={`border-l border-[#d9e0e8] px-2 py-1 text-[10px] font-medium ${viewMode === 'cards' ? 'bg-[#003e7e] text-white' : 'text-[#667085] hover:bg-[#f8fafc]'}`}>详情</button>
-        </div>
+        <div className="workspace-list-options">
+          {onComparisonSelectionChange ? <button type="button" aria-pressed={selectionMode} onClick={() => setSelectionMode(current => !current)}>{selectionMode ? '完成选择' : '选择项目' + (selectedComparisonBuildings.length ? '（' + selectedComparisonBuildings.length + '）' : '')}</button> : <span>当前地图范围</span>}
+          <MapDisclosure label="更多" active={active}>
+            <p className="workspace-note">现有 {existingCount} · 未来供应 {futureCount}</p>
+            <div role="group" aria-label="项目列表查看方式" className="workspace-view-options">
+              <button type="button" aria-pressed={viewMode === 'compact'} onClick={() => setViewMode('compact')}>列表</button>
+              <button type="button" aria-pressed={viewMode === 'cards'} onClick={() => setViewMode('cards')}>详情</button>
+            </div>
+            {onComparisonSelectionChange ? <button type="button" className="workspace-business-action" onClick={() => setSelectionMode(true)}>选择楼宇并导出对比图</button> : null}
+          </MapDisclosure>
         </div>
       </div>
 
       {selectionMode && onComparisonSelectionChange ? (
         <div className="shrink-0 space-y-2 border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[12px] font-medium text-[#172033]">已选 {selectedComparisonBuildings.length} 栋</span>
+            <span className="text-[14px] font-normal text-[#172033]">已选 {selectedComparisonBuildings.length} 栋</span>
             <div className="flex items-center gap-2">
-              <button type="button" className="min-h-8 text-[12px] text-[#003e7e]" disabled={!results.length}
+              <button type="button" className="min-h-8 text-[14px] text-[#003e7e]" disabled={!results.length}
                 onClick={() => onComparisonSelectionChange(results, true)}>全选当前结果</button>
-              <button type="button" className="min-h-8 text-[12px] text-[#667085]" disabled={!selectedComparisonBuildings.length}
+              <button type="button" className="min-h-8 text-[14px] text-[#667085]" disabled={!selectedComparisonBuildings.length}
                 onClick={() => onComparisonSelectionChange(selectedComparisonBuildings, false)}>清空</button>
             </div>
           </div>
-          <button type="button" className="min-h-9 w-full rounded-[6px] bg-[#003e7e] px-3 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          <button type="button" className="min-h-9 w-full rounded-[6px] bg-[#003e7e] px-3 text-[14px] font-normal text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!selectedComparisonBuildings.length || isDemo}
             onClick={() => { setExportError(null); setExportOpen(true); }}>
             导出对比图 PNG
           </button>
-          {isDemo ? <p className="text-[12px] text-[#667085]">演示账号不提供未脱敏数据导出。</p> : null}
+          {isDemo ? <p className="text-[14px] text-[#667085]">演示账号不提供未脱敏数据导出。</p> : null}
         </div>
       ) : null}
 
-      {viewMode === 'compact' && buildings.length > 0 ? (
-        <div className={'grid shrink-0 ' + (selectionMode ? 'grid-cols-[32px_minmax(0,1fr)_64px_54px]' : 'grid-cols-[minmax(0,1fr)_64px_54px_72px]') + ' gap-2 border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-1.5 text-[10px] font-medium text-[#8a94a6]'}>
-          {selectionMode ? <span /> : null}
-          <span>项目</span><span className="text-right">元/㎡/月</span><span className="text-right">%</span>{!selectionMode ? <span className="text-right">总面积</span> : null}
-        </div>
-      ) : null}
-
-      <div ref={listContainerRef} className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#c3ccd8 transparent' }}>
+      <div ref={listContainerRef} className="workspace-scroll min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#c3ccd8 transparent' }}>
         {results.length === 0 ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center">
-            <div className="text-[12px] font-semibold text-[#667085]">未找到符合条件的楼宇</div>
-            <div className="mt-1 text-[10px] text-[#8a94a6]">调整筛选或搜索条件后重试</div>
+            <div className="text-[14px] font-semibold text-[#667085]">未找到符合条件的楼宇</div>
+            <div className="mt-1 text-sm text-[#596779]">调整筛选或搜索条件后重试</div>
+            {query ? <button type="button" className="workspace-business-action" onClick={() => setQuery('')}>清除列表搜索</button> : null}
           </div>
         ) : viewMode === 'cards' ? (
           <div className="space-y-2 p-2.5">
@@ -269,13 +252,13 @@ export default function FloatingBuildingList({ buildings, active = true, display
         )}
 
         {hasMore ? (
-          <div ref={loadMoreTriggerRef} className="flex items-center justify-center border-t border-[#e7ebf0] py-3 text-[10px] text-[#8a94a6]">继续加载…</div>
+          <div ref={loadMoreTriggerRef} className="flex items-center justify-center border-t border-[#e7ebf0] py-3 text-[14px] text-[#596779]">继续加载…</div>
         ) : results.length > INITIAL_LOAD_COUNT ? (
-          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[10px] text-[#8a94a6]">已加载全部 {results.length} 个项目</div>
+          <div className="border-t border-[#e7ebf0] py-2.5 text-center text-[14px] text-[#596779]">已加载全部 {results.length} 个项目</div>
         ) : null}
       </div>
-      {exportOpen ? (
-        <div className="pointer-events-auto fixed inset-0 z-[800] flex items-center justify-center bg-[#172033]/40 p-4">
+      {exportOpen && active ? createPortal(
+        <div className="map-workspace-modal pointer-events-auto fixed inset-0 z-[800] flex items-center justify-center bg-[#172033]/40 p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="comparison-export-title"
             className="flex max-h-[88dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-[8px] bg-white shadow-xl"
             onKeyDown={event => {
@@ -292,46 +275,46 @@ export default function FloatingBuildingList({ buildings, active = true, display
             }}>
             <div className="flex items-center justify-between border-b border-[#d9e0e8] px-4 py-3">
               <h2 id="comparison-export-title" className="text-[16px] font-semibold text-[#172033]">导出楼宇参数对比</h2>
-              <button type="button" className="min-h-11 min-w-11 text-[20px] text-[#667085]" aria-label="关闭导出设置"
+              <button type="button" className="min-h-11 min-w-11 text-[14px] text-[#667085]" aria-label="关闭导出设置"
                 disabled={exportBusy} onClick={() => setExportOpen(false)}>×</button>
             </div>
             <div className="min-h-0 space-y-4 overflow-y-auto px-4 py-4">
-              <p className="text-[13px] text-[#667085]">仅导出已勾选的 {selectedComparisonBuildings.length} 栋楼宇，按所选顺序排列。</p>
+              <p className="text-[14px] text-[#667085]">仅导出已勾选的 {selectedComparisonBuildings.length} 栋楼宇，按所选顺序排列。</p>
               <div role="group" aria-label="对比图片布局" className="grid grid-cols-2 gap-2">
                 <button type="button" aria-pressed={layout === 'rows'} onClick={() => setLayout('rows')}
-                  className={'min-h-11 rounded-[6px] border px-3 text-left text-[13px] ' + (layout === 'rows' ? 'border-[#003e7e] bg-[#edf4fb] text-[#003e7e]' : 'border-[#d9e0e8] text-[#172033]')}>
+                  className={'min-h-11 rounded-[6px] border px-3 text-left text-[14px] ' + (layout === 'rows' ? 'border-[#003e7e] bg-[#edf4fb] text-[#003e7e]' : 'border-[#d9e0e8] text-[#172033]')}>
                   A · 每栋楼一行
                 </button>
                 <button type="button" aria-pressed={layout === 'columns'} onClick={() => setLayout('columns')}
-                  className={'min-h-11 rounded-[6px] border px-3 text-left text-[13px] ' + (layout === 'columns' ? 'border-[#003e7e] bg-[#edf4fb] text-[#003e7e]' : 'border-[#d9e0e8] text-[#172033]')}>
+                  className={'min-h-11 rounded-[6px] border px-3 text-left text-[14px] ' + (layout === 'columns' ? 'border-[#003e7e] bg-[#edf4fb] text-[#003e7e]' : 'border-[#d9e0e8] text-[#172033]')}>
                   B · 每栋楼一列
                 </button>
               </div>
-              <p className="text-[12px] text-[#667085]">{layout === 'rows' ? '适合多项目纵向列表，一张长图展示经营指标。' : '适合重点项目逐项比较，超过 5 栋自动纵向分组。'}</p>
+              <p className="text-[14px] text-[#667085]">{layout === 'rows' ? '适合多项目纵向列表，一张长图展示经营指标。' : '适合重点项目逐项比较，超过 5 栋自动纵向分组。'}</p>
               <details className="rounded-[6px] border border-[#d9e0e8] px-3 py-2">
-                <summary className="cursor-pointer py-1 text-[13px] font-medium text-[#172033]">查看已选项目（{selectedComparisonBuildings.length}）</summary>
+                <summary className="cursor-pointer py-1 text-[14px] font-normal text-[#172033]">查看已选项目（{selectedComparisonBuildings.length}）</summary>
                 <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
                   {selectedComparisonBuildings.map(building => (
                     <div key={comparisonKey(building)} className="flex min-h-9 items-center justify-between gap-3 border-t border-[#edf0f4] py-1">
-                      <span className="min-w-0 flex-1 truncate text-[13px] text-[#172033]"><MaskedText>{building.name || '未命名项目'}</MaskedText></span>
-                      <button type="button" className="min-h-9 shrink-0 px-2 text-[12px] text-[#003e7e]"
+                      <span className="min-w-0 flex-1 break-words text-[14px] text-[#172033]"><MaskedText>{building.name || '未命名项目'}</MaskedText></span>
+                      <button type="button" className="min-h-9 shrink-0 px-2 text-[14px] text-[#003e7e]"
                         onClick={() => onComparisonSelectionChange?.([building], false)}>移除</button>
                     </div>
                   ))}
                 </div>
               </details>
-              {exportError ? <p role="alert" className="text-[13px] text-[#c9362b]">{exportError}</p> : null}
+              {exportError ? <p role="alert" className="text-[14px] text-[#c9362b]">{exportError}</p> : null}
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-[#d9e0e8] px-4 py-3">
-              <button type="button" className="min-h-11 rounded-[6px] border border-[#d9e0e8] px-4 text-[13px]"
+              <button type="button" className="min-h-11 rounded-[6px] border border-[#d9e0e8] px-4 text-[14px]"
                 disabled={exportBusy} onClick={() => setExportOpen(false)}>取消</button>
               <button type="button" disabled={exportBusy || !selectedComparisonBuildings.length || isDemo}
-                className="min-h-11 rounded-[6px] bg-[#003e7e] px-4 text-[13px] font-semibold text-white disabled:opacity-50"
+                className="min-h-11 rounded-[6px] bg-[#003e7e] px-4 text-[14px] font-semibold text-white disabled:opacity-50"
                 onClick={() => { void exportPng(); }}>{exportBusy ? '生成中…' : '下载 PNG'}</button>
             </div>
           </div>
         </div>
-      ) : null}
+      , document.body) : null}
     </section>
   );
 }

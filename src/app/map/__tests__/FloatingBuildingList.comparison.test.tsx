@@ -67,12 +67,13 @@ describe('floating map building list comparison', () => {
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
   });
 
-  it('keeps selected buildings while switching list modes and filtering without losing unchecked rows', () => {
+  it('keeps selected buildings while switching list modes and filtering without losing unchecked rows', async () => {
     render(<Fixture />);
     fireEvent.click(screen.getByRole('button', { name: '选择项目' }));
     fireEvent.click(screen.getByRole('checkbox', { name: '选择项目00' }));
     expect(screen.getByText('已选 1 栋')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '详情' }));
+    fireEvent.click(screen.getByText('更多'));
+    fireEvent.click(await screen.findByRole('button', { name: '详情' }));
     expect(screen.getByRole('checkbox', { name: '选择项目00' })).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: '全选当前结果' }));
     expect(screen.getByText('已选 60 栋')).toBeInTheDocument();

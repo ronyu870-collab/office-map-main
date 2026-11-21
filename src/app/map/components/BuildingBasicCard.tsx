@@ -6,6 +6,7 @@ import { attachTitleTooltip } from '@/src/utils/titleTooltip';
 import type { BuildingMetric } from '@/src/types';
 import { futureSupplyDisplayLabel } from '../model/mapDomain';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
+import { finiteMetric } from '../model/fullBuildingList';
 
 interface DisplayOverride {
   display_label: string;
@@ -68,18 +69,19 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
   const owner = building.owner || '暂无';
   const propertyMgmt = building.property_management || '暂无';
 
-  const currentRent = latestMetric ? Number(latestMetric.net_effective_rent) : 0;
-  const rentText = latestMetric ? formatNumber(currentRent) : '-';
-  const faceRentText = latestMetric && latestMetric.face_rent ? formatNumber(Number(latestMetric.face_rent)) : '-';
-  const vacText = latestMetric ? formatVacancyRate(latestMetric.vacancy_rate) : '-';
-  const mgtFeeText = latestMetric && latestMetric.management_fee ? formatNumber(latestMetric.management_fee) : '-';
+  const metricText = (value: unknown) => { const n = finiteMetric(value); return n === null ? '—' : formatNumber(n); };
+  const rentText = metricText(latestMetric?.net_effective_rent);
+  const faceRentText = metricText(latestMetric?.face_rent);
+  const vacancy = finiteMetric(latestMetric?.vacancy_rate);
+  const vacText = vacancy === null ? '—' : formatVacancyRate(vacancy);
+  const mgtFeeText = metricText(latestMetric?.management_fee);
   const latestQuarter = latestMetric ? `${latestMetric.record_year}Q${latestMetric.record_quarter}` : '无数据';
   const hasLeed = leed && leed !== 'NULL' && leed !== '';
 
   const row = (label: string, value: string, emphasized = false, masked = false, titleText?: string) => (
-    <div className="grid grid-cols-[74px_minmax(0,1fr)] items-baseline gap-2 border-b border-[#edf0f4] py-1.5 last:border-b-0">
-      <span className="text-[10px] text-[#8a94a6]">{label}</span>
-      <span title={titleText || value} className={`truncate text-right text-[10px] font-medium tabular-nums ${emphasized ? 'font-semibold text-[#003e7e]' : 'text-[#172033]'}`}>
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-2 border-b border-[#edf0f4] py-1.5 last:border-b-0">
+      <span className="text-[14px] text-[#596779]">{label}</span>
+      <span title={titleText || value} className={`break-words text-right text-[14px] font-normal tabular-nums ${emphasized ? 'font-semibold text-[#003e7e]' : 'text-[#172033]'}`}>
         {masked ? <MaskedText>{value}</MaskedText> : value}
       </span>
     </div>
@@ -89,7 +91,7 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
     <div
       ref={cardRef}
       onClick={onClick}
-      className="group cursor-pointer overflow-hidden rounded-[6px] border border-[#d9e0e8] bg-white transition-colors hover:border-[#aeb9c7] hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
+      className="workspace-basic-card group cursor-pointer overflow-hidden border-b border-[#d9e0e8] bg-[#f8fafc] transition-colors hover:border-[#aeb9c7] hover:bg-[#fbfcfd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003e7e]/20"
       role="button"
       tabIndex={0}
       onKeyDown={event => {
@@ -102,34 +104,34 @@ export const BuildingBasicCard = React.memo<BuildingBasicCardProps>(({ building,
       <div className="border-b border-[#d9e0e8] bg-[#f8fafc] px-3 py-2.5">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 title={name} className="truncate text-[12px] font-semibold leading-5 text-[#172033] transition-colors group-hover:text-[#003e7e]">
+            <h3 title={name} className="break-words text-[14px] font-semibold leading-5 text-[#172033] transition-colors group-hover:text-[#003e7e]">
               <MaskedText>{name}</MaskedText>
             </h3>
-            <div className="mt-0.5 truncate text-[10px] text-[#8a94a6]">{[building.district, submarketValue, gradeValue].filter(value => value && value !== '—').join(' · ') || '项目信息待完善'}</div>
+            <div className="mt-0.5 break-words text-[14px] text-[#596779]">{[building.district, submarketValue, gradeValue].filter(value => value && value !== '—').join(' · ') || '项目信息待完善'}</div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {hasLeed ? <span className="rounded-[3px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">LEED {leed}</span> : null}
-            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[10px] font-medium text-[#003e7e]">{futureSupplyDisplayLabel(building)}</span> : null}
+          <div className="flex max-w-[45%] shrink-0 flex-wrap justify-end gap-1 break-words">
+            {hasLeed ? <span className="rounded-[3px] border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[14px] font-normal text-emerald-700">LEED {leed}</span> : null}
+            {isFutureSupply ? <span className="rounded-[3px] border border-[#b7cadf] bg-[#edf4fb] px-1.5 py-0.5 text-[14px] font-normal text-[#003e7e]">{futureSupplyDisplayLabel(building)}</span> : null}
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-3 border-b border-[#d9e0e8] bg-white">
         <div className="border-r border-[#edf0f4] px-3 py-2">
-          <div className="text-[10px] text-[#8a94a6]">净有效租金</div>
-          <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#003e7e]">{rentText}<span className="ml-0.5 text-[10px] font-normal text-[#8a94a6]">元/㎡/月</span></div>
+          <div className="text-[14px] text-[#596779]">净有效租金</div>
+          <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#003e7e]">{rentText}<span className="ml-0.5 text-[14px] font-normal text-[#596779]">元/㎡/月</span></div>
         </div>
         <div className="border-r border-[#edf0f4] px-3 py-2">
-          <div className="text-[10px] text-[#8a94a6]">空置率</div>
-          <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#172033]">{vacText}</div>
+          <div className="text-[14px] text-[#596779]">空置率</div>
+          <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#172033]">{vacText}</div>
         </div>
         <div className="px-3 py-2">
-          <div className="text-[10px] text-[#8a94a6]">数据期</div>
-          <div className="mt-0.5 text-[11px] font-semibold tabular-nums text-[#172033]">{latestQuarter}</div>
+          <div className="text-[14px] text-[#596779]">数据期</div>
+          <div className="mt-0.5 text-[14px] font-semibold tabular-nums text-[#172033]">{latestQuarter}</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-4 px-3 py-1.5">
+      <div className="workspace-basic-fields grid gap-x-4 px-3 py-1.5">
         <div>
           {row(gradeLabel, gradeValue)}
           {row(submarketLabel, submarketValue, false, false, submarketOverride ? submarketValue : building.submarket)}

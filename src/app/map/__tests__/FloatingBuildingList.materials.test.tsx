@@ -7,10 +7,9 @@ vi.mock('../components/BuildingBasicCard',()=>({BuildingBasicCard:({building,onC
 beforeEach(()=>{vi.stubGlobal('IntersectionObserver',class{observe(){}disconnect(){}});});
 afterEach(()=>{vi.unstubAllGlobals();});
 describe('project-list materials entry',()=>{
- it('opens scoped materials directly from both list views without invoking the map popup',()=>{
-  const select=vi.fn();render(<><FloatingBuildingList buildings={[{id:'master-a',name:'甲楼',metrics:[]}]} onClose={vi.fn()} onBuildingClick={select}/><MapSalesMaterialsBridge/></>);
+ it('opens scoped materials directly from both list views without invoking the map popup',async()=>{  const select=vi.fn();render(<><FloatingBuildingList buildings={[{id:'master-a',name:'甲楼',metrics:[]}]} onClose={vi.fn()} onBuildingClick={select}/><MapSalesMaterialsBridge/></>);
   fireEvent.click(screen.getByRole('button',{name:'查看甲楼资料与佣金'}));expect(screen.getByRole('dialog',{name:'甲楼'})).toHaveAttribute('data-building-id','master-a');expect(select).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByText('关闭资料'));fireEvent.click(screen.getByRole('button',{name:'详情'}));
+  fireEvent.click(screen.getByText('关闭资料'));fireEvent.click(screen.getByText('更多'));fireEvent.click(await screen.findByRole('button',{name:'详情'}));
   fireEvent.click(screen.getByRole('button',{name:'查看甲楼资料与佣金'}));expect(screen.getByRole('dialog',{name:'甲楼'})).toBeInTheDocument();expect(select).not.toHaveBeenCalled();
  });
  it('uses linked building IDs for future supply and leaves unlinked projects without a misleading entry',()=>{

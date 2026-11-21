@@ -1,0 +1,60 @@
+'use client';
+import * as React from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown } from 'lucide-react';
+
+/** Nonmodal, viewport-bounded disclosure shared by map statistics, legends and list options. */
+export function MapDisclosure({ label, children, className = '', active = true }: { label: React.ReactNode; children: React.ReactNode; className?: string; active?: boolean }) {
+  const root = React.useRef<HTMLDetailsElement>(null);
+  const content = React.useRef<HTMLDivElement>(null);
+  const [open, setOpen] = React.useState(false);
+  const id = React.useId();
+  React.useEffect(() => { if (!active) root.current?.removeAttribute('open'); }, [active]);
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const box = root.current?.querySelector('summary')?.getBoundingClientRect();
+      const panel = content.current;
+      if (!box || !panel) return;
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft ?? 0; const top = viewport?.offsetTop ?? 0;
+      const width = viewport?.width ?? window.innerWidth; const height = viewport?.height ?? window.innerHeight;
+      const panelWidth = Math.min(336, width - 24);
+      panel.style.width = `${panelWidth}px`;
+      panel.style.left = `${Math.max(left + 12, Math.min(box.left, left + width - panelWidth - 12))}px`;
+      panel.style.maxHeight = `${Math.max(80, height - 24)}px`;
+      const panelHeight = Math.min(panel.scrollHeight, height - 24);
+      panel.style.top = `${Math.max(top + 12, Math.min(box.bottom + 8, top + height - panelHeight - 12))}px`;
+    };
+    const close = () => { root.current?.removeAttribute('open'); setOpen(false); };
+    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node) && !content.current?.contains(event.target as Node)) close(); };
+    const escape = (event: KeyboardEvent) => {
+      if (!root.current?.open || event.key !== 'Escape' || event.defaultPrevented || document.querySelector('dialog[open], [aria-modal="true"], [data-building-metrics-edit], #__colliers_contact_modal_overlay')) return;
+      event.preventDefault(); event.stopPropagation(); close(); root.current?.querySelector('summary')?.focus({ preventScroll: true });
+    };
+    place();
+    window.addEventListener('resize', place); window.addEventListener('scroll', place, true);
+    window.visualViewport?.addEventListener('resize', place); window.visualViewport?.addEventListener('scroll', place);
+    document.addEventListener('pointerdown', outside); window.addEventListener('keydown', escape, true);
+    return () => {
+      window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true);
+      window.visualViewport?.removeEventListener('resize', place); window.visualViewport?.removeEventListener('scroll', place);
+      document.removeEventListener('pointerdown', outside); window.removeEventListener('keydown', escape, true);
+    };
+  }, [open, children]);
+  return <details ref={root} className={`map-disclosure ${className}`} onToggle={event => {
+    const next = event.currentTarget.open; setOpen(next);
+    if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });
+  }}>
+    <summary aria-controls={id} aria-expanded={open} onClick={event => {
+      // Native toggle events are deferred/coalesced. Commit the active menu in
+      // the click event so an immediate Escape cannot dismiss an older menu.
+      event.preventDefault();
+      const next = !root.current?.open;
+      if (root.current) root.current.open = next;
+      if (next) document.querySelectorAll<HTMLDetailsElement>('.map-disclosure[open]').forEach(el => { if (el !== root.current) el.open = false; });
+      setOpen(next);
+    }}>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
+    {open ? createPortal(<div ref={content} id={id} className="map-disclosure-content">{children}</div>, document.body) : null}
+  </details>;
+}
