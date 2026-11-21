@@ -1,6 +1,5 @@
 import { KNOWLEDGE_TOOL_NAMES } from '../knowledge/protocol';
-import type { ModelCompletion } from './modelProvider';
-import { fromLegacyCompletion, type AgentCompletion, type AgentMessage } from './modelProtocol';
+import type { AgentCompletion, AgentMessage } from './modelProtocol';
 import { REGISTERED_AGENT_TOOL_NAMES, PRESENTATION_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, parseAgentToolArguments } from './toolRegistry';
 import { BUSINESS_TOOL_NAMES } from '../business/protocol';
 import { RESEARCH_TOOL_NAMES } from '../research/protocol';
@@ -34,7 +33,7 @@ export type AgentDependencies<T> = {
   contextExport?: import('./agentConversation').AgentHistory['contextExport'];
   limits?: { rounds: number; tools: number };
   memory?: Record<string, unknown>;
-  invoke(messages: AgentMessage[], signal: AbortSignal): Promise<AgentCompletion | ModelCompletion>;
+  invoke(messages: AgentMessage[], signal: AbortSignal): Promise<AgentCompletion>;
   runTool(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<AgentToolObservation<T>>;
   revalidate?(signal: AbortSignal): Promise<void>;
   signal: AbortSignal;
@@ -173,8 +172,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
   for (let round = 0; round < limits.rounds; round++) {
     input.signal.throwIfAborted();
     await input.revalidate?.(input.signal);
-    const raw = await input.invoke(messages, input.signal);
-    const completed = 'provider' in raw ? raw : fromLegacyCompletion(raw);
+    const completed = await input.invoke(messages, input.signal);
     calls++; model = completed.model;
     inputTokens = inputTokens === null || completed.inputTokens === null ? null : inputTokens + completed.inputTokens;
     outputTokens = outputTokens === null || completed.outputTokens === null ? null : outputTokens + completed.outputTokens;

@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runAgentLoop } from './agentOrchestrator';
 import { randomUUID } from 'node:crypto';
-import { DATA_TOOL, type ModelCompletion } from './modelProvider';
+import { DATA_TOOL } from './modelProvider';
+import type { AgentCompletion } from './modelProtocol';
 
 const signal = new AbortController().signal;
-const completion = (content: string | null, tools?: Array<{ id: string; question: string; name?: string }>): ModelCompletion => ({
+const completion = (content: string | null, tools?: Array<{ id: string; question: string; name?: string }>): AgentCompletion => ({
+  provider: 'deepseek',
   model: 'deepseek-v4-flash', inputTokens: 32, outputTokens: 20,
   message: { role: 'assistant', content,
-    ...(tools ? { tool_calls: tools.map(tool => ({
-      id: tool.id, type: 'function' as const,
-      function: { name: tool.name ?? DATA_TOOL.function.name, arguments: JSON.stringify({ question: tool.question }) },
+    ...(tools ? { calls: tools.map(tool => ({
+      id: tool.id, name: tool.name ?? DATA_TOOL.function.name, arguments: JSON.stringify({ question: tool.question }),
     })) } : {}) },
 });
 
@@ -184,18 +185,17 @@ describe('Colliers AI 4.0 native Agent loop', () => {
   });
   it('executes two structured queries and a page read without losing the first result reference', async () => {
     const a = randomUUID(), b = randomUUID();
-    const call = (id: string, name: string, args: object) => ({ id, type: 'function' as const,
-      function: { name, arguments: JSON.stringify(args) } });
+    const call = (id: string, name: string, args: object) => ({ id, name, arguments: JSON.stringify(args) });
     const scope = { inventory: 'tracked', submarkets: ['CBD'] };
     const invoke = vi.fn()
       .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
-        tool_calls: [call('q1', 'query_quarterly_metrics',
+        calls: [call('q1', 'query_quarterly_metrics',
           { scope, period: { year: 2026, quarter: 1 }, metric: 'rent' })] } })
       .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
-        tool_calls: [call('q2', 'query_quarterly_metrics',
+        calls: [call('q2', 'query_quarterly_metrics',
           { scope, period: { year: 2026, quarter: 2 }, metric: 'rent' })] } })
       .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
-        tool_calls: [call('page1', 'read_result_page', { resultId: a, offset: 8, limit: 10 })] } })
+        calls: [call('page1', 'read_result_page', { resultId: a, offset: 8, limit: 10 })] } })
       .mockResolvedValueOnce(completion('已核验两期全部数据，以下是比较结果。'));
     const runTool = vi.fn().mockImplementation(async (name: string, args: Record<string, unknown>) => {
       if (name === 'read_result_page') return { content: JSON.stringify({ status: 'ready', resultId: args.resultId,
@@ -213,13 +213,12 @@ describe('Colliers AI 4.0 native Agent loop', () => {
   });
 
   it('returns bounded structured errors, corrects arguments, and never fabricates tool success', async () => {
-    const call = (id: string, args: object) => ({ id, type: 'function' as const,
-      function: { name: 'read_result_page', arguments: JSON.stringify(args) } });
+    const call = (id: string, args: object) => ({ id, name: 'read_result_page', arguments: JSON.stringify(args) });
     const id = randomUUID(), runTool = vi.fn();
     const invoke = vi.fn().mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant',
-      content: null, tool_calls: [call('bad', { resultId: 'not-a-uuid' })] } })
+      content: null, calls: [call('bad', { resultId: 'not-a-uuid' })] } })
       .mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
-        tool_calls: [call('good', { resultId: id, offset: 0, limit: 4 })] } })
+        calls: [call('good', { resultId: id, offset: 0, limit: 4 })] } })
       .mockResolvedValueOnce(completion('已经读取这一页。'));
     runTool.mockResolvedValue({ content: JSON.stringify({ status: 'ready', totalMatched: 30 }) });
     const result = await runAgentLoop({ question: '翻页看数据', signal, invoke, runTool });

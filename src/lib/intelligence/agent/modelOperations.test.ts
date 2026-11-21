@@ -123,6 +123,15 @@ describe('bounded routing, fallback and model cost governance', () => {
     expect((await run.invoke(messages, signal())).provider).toBe('deepseek');
     expect(run.records[0]).toMatchObject({ provider: 'openai', state: 'failed', errorCode: 'not_configured', usageStatus: 'not_sent', estimateUsd: 0 });
   });
+  it('discards a failed supplier partial stream before delivering the authorized fallback text', async () => {
+    setup(); const delivered: string[] = [];
+    const deepseek: ModelAdapter = async (_messages, _signal, onDelta) => {
+      await onDelta?.('失败供应商残片'); throw new ModelProviderError('stream_interrupted');
+    };
+    const openai: ModelAdapter = async (_messages, _signal, onDelta) => { await onDelta?.('完整备用回复'); return success('openai'); };
+    const run = runtime({ deepseek, openai }); await run.invoke(messages, signal(), async text => { delivered.push(text); });
+    expect(delivered).toEqual(['完整备用回复']); expect(run.records[0].usageStatus).toBe('unknown_reserved');
+  });
   it('checks token and estimated money caps before any paid call; unknown usage is reserved and cannot become free retries', async () => {
     setup(); const deepseek = vi.fn().mockResolvedValue(success('deepseek'));
     vi.stubEnv('AI_AGENT_MAX_TOKENS', '1000'); await expect(runtime({ deepseek }).invoke(messages, signal())).rejects.toMatchObject({ code: 'budget_exceeded' }); expect(deepseek).not.toHaveBeenCalled();

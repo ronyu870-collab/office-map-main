@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { AGENT_TOOLS, completeWithDeepSeek, deepseekAgentConfigured, ModelProviderError } from './modelProvider';
 import { createOpenAIAdapter } from './openaiAdapter';
-import { fromLegacyCompletion, toLegacyMessages, type AgentMessage, type AgentCompletion, type ModelAdapter, type ProviderId } from './modelProtocol';
+import type { AgentMessage, AgentCompletion, ModelAdapter, ProviderId } from './modelProtocol';
+import { createDeepSeekAdapter } from './deepseekAdapter';
 
 export const modelModeSchema = z.enum(['quick', 'professional', 'deep']);
 export type ModelMode = z.infer<typeof modelModeSchema>;
@@ -72,8 +73,7 @@ export function createModelRuntime(input: { actorId: string; question: string; m
   const timeoutMs = Math.floor(boundedNumber('AI_AGENT_PROVIDER_TIMEOUT_MS', 18000, 1000, 18000));
   const records: ModelAttempt[] = [];
   const openai = createOpenAIAdapter();
-  const deepseek: ModelAdapter = async (messages, signal, onDelta, options) => fromLegacyCompletion(
-    await (input.legacyInvoke ?? completeWithDeepSeek)(toLegacyMessages(messages), signal, onDelta, options));
+  const deepseek = createDeepSeekAdapter(input.legacyInvoke);
   const config = (provider: ProviderId) => {
     if (provider === 'openai') {
       if (!openAIAllowed(input.actorId)) throw new ModelProviderError('disclosure_denied');

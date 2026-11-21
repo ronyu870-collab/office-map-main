@@ -37,6 +37,7 @@ export async function verifyAi5DeepResearch({ db, app, service, keys, output, ch
             leases: scenario.mixed ? 'quarter' : 'none', supply: !!scenario.mixed, profiles: !!scenario.mixed,
             ...(scenario.documents ? { documents: { documentIds: [scenario.documents], terms: ['空调系统'] } } : {}) })]);
           if (scenario.cancel && !cancelled && advanceCount > 0) { cancelled = true; controller.abort(); throw new DOMException('Synthetic interrupted research', 'AbortError'); }
+          if (scenario.failAfterAdvance && advanceCount > 0) throw new Error('Synthetic supplier interruption');
           if (tools.at(-1)?.state === 'server_generated') { await scenario.afterFiles?.(); return completion(); }
           if (task.steps.some(s => s.id !== 'review' && s.state !== 'complete')) {
             if (scenario.stopAfterAdvance && advanceCount > 0) return completion();
@@ -128,6 +129,22 @@ export async function verifyAi5DeepResearch({ db, app, service, keys, output, ch
       const steps = (await events(next.body.requestId)).filter(e => e.kind === 'tool_finished').map(e => decrypt(e).content).filter(c => c.protocol === 'research-step/1'); assert.equal(steps.length, 1);
       const ordinary = await submit(who, { simpleQuery: true, question: '查询CBD楼宇清单。', conversation: { id: conversationId, parentRequestId: next.body.requestId } });
       assert.equal(ordinary.status, 200, JSON.stringify(ordinary.body)); assert.equal(ordinary.body.result.parameters.researchTask, undefined);
+    });
+    await check('AI5模型运营 / 供应商故障保存有界研究检查点，恢复复用正式步骤并保留失败预留', async () => {
+      const who = await actor('provider-resume'), conversationId = randomUUID();
+      const stopped = await submit(who, { failAfterAdvance: true, conversation: { id: conversationId } });
+      assert.equal(stopped.status, 409, JSON.stringify(stopped.body));
+      const restored = await recover(who, stopped.body.requestId); assert.equal(restored.status, 200);
+      const previous = restored.body.result.parameters.researchSections; assert.equal(previous.length, 2);
+      const failures = (await events(stopped.body.requestId)).filter(e => e.kind === 'accounting').map(decrypt)
+        .map(e => e.content).filter(c => c.protocol === 'agent-model-attempt/1' && c.state === 'failed');
+      assert.equal(failures.length, 1); assert.equal(failures[0].usageStatus, 'unknown_reserved'); assert.ok(failures[0].chargedTokens > 0);
+      const resumed = await submit(who, { queryOnly: true, conversation: { id: conversationId, parentRequestId: stopped.body.requestId } });
+      assert.equal(resumed.status, 200, JSON.stringify(resumed.body));
+      assert.equal(resumed.body.result.parameters.researchTask.state, 'reviewed');
+      assert.deepEqual(resumed.body.result.parameters.researchSections.slice(0, 2), previous);
+      const steps = (await events(resumed.body.requestId)).filter(e => e.kind === 'tool_finished').map(decrypt).filter(e => e.content.protocol === 'research-step/1');
+      assert.equal(steps.length, 1);
     });
     await check('AI5专题研究 / 研究恢复与文件下载拒绝跨用户、撤权、查询无导出资格及对客用途', async () => {
       const other = await actor('other'); assert.equal((await recover(other, generated.body.requestId)).status, 403); assert.equal((await download(other, generated, 'pptx')).status, 403);
