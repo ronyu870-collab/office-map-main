@@ -12,6 +12,7 @@ import { auditEntries, auditStates, auditEntryLabels, auditStateLabels, auditFil
 import { aiAuditClient, AuditReadError, type AuditScope } from '@/src/services/aiAuditClient';
 import type { AuditExportTarget } from '@/src/lib/intelligence/query/auditExportView';
 import styles from './AiAuditWorkspace.module.css';
+import { ModelOperationsSummary } from './ModelOperationsSummary';
 
 const localTime = (value: string) => new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
 const dateTimeInput = (time: number) => new Date(time + 8 * 3600000).toISOString().slice(0, 19);
@@ -53,6 +54,7 @@ function RecordDetails({ selected, loadStream, busy, directoryAsOf, exportRecord
     {!stream && <button type="button" onClick={loadStream} disabled={busy}>查看关联回答与来源</button>}
     {stream?.record === null && <p>没有可读取的关联执行记录，无法据此确认是否执行或产生回答。</p>}
     {stream?.record && <>
+      <ModelOperationsSummary documents={stream.record.events.map(e => e.document)} label="本次关联执行" />
       <h2>关联回答与来源</h2>
       <p className={styles.muted}>以下为留存的生成结果，按当前界面展示。不能据此证明当时的显示样式、用户已阅读或文件已保存；交付情况以事件记录为准。</p>
       {parsed.success ? <HomeQueryResult result={parsed.data} />
@@ -78,11 +80,12 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
   const [message, setMessage] = React.useState('请选择时间和条件后检索。每次检索和查看都会留存审计记录。');
   const [busy, setBusy] = React.useState(false);
   const [detailOpen, setDetailOpen] = React.useState(false);
+  const [operations, setOperations] = React.useState<{ documents: unknown[]; count: number } | null>(null);
   const generation = React.useRef(0), controller = React.useRef<AbortController | null>(null), composing = React.useRef(false);
   const detail = React.useRef<HTMLDivElement>(null), activeButton = React.useRef<HTMLButtonElement | null>(null);
   const clear = React.useCallback((reason: string) => {
     generation.current++; controller.current?.abort(); controller.current = null;
-    setBusy(false); setPage(null); setApplied(null); setSelected(null); setDetailOpen(false); setMessage(reason);
+    setBusy(false); setPage(null); setApplied(null); setSelected(null); setDetailOpen(false); setOperations(null); setMessage(reason);
   }, []);
   React.useEffect(() => {
     const hidden = () => { if (document.visibilityState !== 'visible') clear('页面已离开，审计内容已收起。返回后请重新检索以核对权限。'); };
@@ -117,6 +120,7 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
   }
   function valid(signal: AbortSignal) { signal.throwIfAborted(); if (document.visibilityState !== 'visible') throw new AuditReadError('identity'); }
   function search(next: AuditFilter) {
+    setOperations(null);
     setSelected(null); setDetailOpen(false); setPage(null); setMessage('正在核对权限并检索…');
     void run(async signal => { const result = await aiAuditClient.list(scope, next, signal); valid(signal); setPage(result); setApplied(next); setMessage(''); });
   }
@@ -176,6 +180,21 @@ export function AiAuditSearch({ scope }: { scope: AuditScope }) {
       {page.items.length > 0 && <details className={styles.more}><summary>导出审计记录</summary>
         <p className={styles.muted}>需独立审计导出资格。仅导出本页匹配记录及其关联回答、来源和事件，不含后续页或原始附件；文件仅供内部审计。</p>
         <button type="button" disabled={busy} onClick={() => exportRecords(page.items.map(item => ({ kind: item.kind, id: item.id })))}>导出本页 {page.items.length} 条（JSON）</button>
+      </details>}
+      {page.items.length > 0 && <details className={styles.more}><summary>查看模型运营统计</summary>
+        <p className={styles.muted}>按本页顺序读取最多 10 个不同请求的关联事件，每次均重新核对审计资格并记录访问。此为本页抽样，不是所选期间的全量账单。</p>
+        <button type="button" disabled={busy} onClick={() => {
+          const ids = [...new Set(page.items.map(i => i.requestId))].slice(0, 10);
+          void run(async signal => {
+            const documents: unknown[] = [];
+            for (const id of ids) {
+              const stream = await aiAuditClient.stream(scope, id, signal); valid(signal);
+              if (stream.record) documents.push(...stream.record.events.map(e => e.document));
+            }
+            valid(signal); setOperations({ documents, count: ids.length });
+          });
+        }}>读取本页模型运营统计</button>
+        {operations && <ModelOperationsSummary documents={operations.documents} label={`本页 ${operations.count} 个不同请求的抽样`} />}
       </details>}
       {page.totalUnreadable > 0 && <p>累计 {page.totalUnreadable} 条候选正文缺失或无法校验；关键词检索可能遗漏，不能视为完整结果。</p>}
       {!page.items.length && <p>{page.nextCursor ? '本批候选未匹配，仍有后续记录。请继续检查下一批。' : page.searchComplete ? '已检查当前条件的全部候选，没有匹配记录。' : '本页没有匹配记录，但存在无法检索的正文，不能确认完全没有匹配。'}</p>}

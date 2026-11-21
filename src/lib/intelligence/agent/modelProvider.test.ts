@@ -80,7 +80,7 @@ describe('DeepSeek official native chat completion protocol', () => {
     expect(sent.stream_options).toEqual({ include_usage: true });
   });
 
-  it.each([[401, 'unauthorized'], [402, 'payment_required'], [404, 'model_not_found'], [429, 'rate_limited']])(
+  it.each([[401, 'unauthorized'], [403, 'unauthorized'], [402, 'payment_required'], [404, 'model_not_found'], [429, 'rate_limited']])(
     'reports provider HTTP %i accurately', async (status, code) => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status })));
       await expect(completeWithDeepSeek([{ role: 'user', content: '你好' }], new AbortController().signal))

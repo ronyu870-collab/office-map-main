@@ -41,10 +41,10 @@ describe('Colliers AI 4.0 native Agent loop', () => {
     expect(result.result).toEqual({ resultId: 'second' });
     expect(result.answer).toContain('CBD与金融街');
     expect(runTool.mock.calls.map(call => call[1].question)).toEqual(['查CBD最新净有效租金', '查金融街最新净有效租金']);
-    expect(invoke.mock.calls[1][0].some((msg: { role: string; tool_call_id?: string }) =>
-      msg.role === 'tool' && msg.tool_call_id === 'market-1')).toBe(true);
-    expect(invoke.mock.calls[2][0].some((msg: { role: string; tool_call_id?: string }) =>
-      msg.role === 'tool' && msg.tool_call_id === 'market-2')).toBe(true);
+    expect(invoke.mock.calls[1][0].some((msg: { role: string; callId?: string }) =>
+      msg.role === 'tool' && msg.callId === 'market-1')).toBe(true);
+    expect(invoke.mock.calls[2][0].some((msg: { role: string; callId?: string }) =>
+      msg.role === 'tool' && msg.callId === 'market-2')).toBe(true);
   });
 
 
@@ -179,7 +179,7 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       signal, invoke, runTool: vi.fn() });
     const messages = invoke.mock.calls[0][0] as Array<{ role: string; content: string }>;
     expect(messages.slice(-3).map(item => item.content)).toEqual([
-      'CBD净有效租金如何', '上一轮研究了CBD净有效租金。', '那金融街呢？',
+      'CBD净有效租金如何', '历史回复不作为当前事实。涉及正式数值、原件或文件时须复用服务器本轮已重新授权的引用，或重新查询。', '那金融街呢？',
     ]);
   });
   it('executes two structured queries and a page read without losing the first result reference', async () => {
@@ -240,7 +240,7 @@ describe('Colliers AI 4.0 native Agent loop', () => {
       .mockResolvedValueOnce(completion(null, [tool]))
       .mockResolvedValueOnce(completion(null, [again]));
     const runTool = vi.fn().mockResolvedValue({ content: '{"status":"ready"}' });
-    const revalidate = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('QUERY_DENIED'));
+    const revalidate = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('QUERY_DENIED'));
     await expect(runAgentLoop({ question: '两次查询', signal, invoke, runTool, revalidate }))
       .rejects.toThrow('QUERY_DENIED');
     expect(runTool).toHaveBeenCalledOnce();

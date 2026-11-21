@@ -109,7 +109,8 @@ export async function parseDeepSeekStream(
         if (completed) break;
       }
     }
-    if (!completed || !finishReason || !providerRequestId) throw new ModelProviderError('invalid_response');
+    if (!completed) throw new ModelProviderError('stream_interrupted');
+    if (!finishReason || !providerRequestId) throw new ModelProviderError('invalid_response');
     const tools: ModelToolCall[] = Array.from(observedTools).sort((a, b) => a[0] - b[0]).map(([, value]) => {
       if (!value.id || !value.name || !value.arguments) throw new ModelProviderError('invalid_response');
       return { id: value.id, type: 'function', function: { name: value.name, arguments: value.arguments } };

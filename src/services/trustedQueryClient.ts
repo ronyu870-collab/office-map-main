@@ -37,7 +37,7 @@ import type { ChartRequest, ResultChart } from '@/src/lib/intelligence/query/cha
 import { resultViewSchema, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
 import { queryActionSchema, queryClarificationReasonSchema, queryConversationSchema, type QueryConversation } from '@/src/lib/intelligence/query/conversationProtocol';
 
-const capabilitiesSchema = z.object({ enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional(), agentStreamEnabled: z.boolean().optional() });
+const capabilitiesSchema = z.object({ modelModes: z.array(z.enum(['quick', 'professional', 'deep'])).optional(), enabled: z.boolean(), examples: z.array(z.string()).max(20), permissionRevision: z.string().optional(), internalExport: z.boolean().optional(), agentEnabled: z.boolean().optional(), agentStreamEnabled: z.boolean().optional() });
 export const queryReplySchema = z.object({ requestId: z.uuid().optional(), status: z.string(), reason: z.union([queryClarificationReasonSchema, z.enum(['scope_limit', 'history_reopen'])]).optional(), error: z.string().optional(), message: z.string().optional(), result: resultViewSchema.optional(), historySaved: z.boolean().optional(), isNativeAgent: z.boolean().optional(),
   conversation: queryConversationSchema.optional(), options: z.array(queryActionSchema).max(6).optional(),
   agent: z.object({
@@ -206,7 +206,7 @@ export const trustedQueryClient = {
       || reply.conversation.parentRequestId !== input.conversation.parentRequestId)) throw new Error('查询响应与当前对话不一致，请重试原请求。');
     return received(scope, raw, reply);
   },
-  submitAgent: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation }, signal: AbortSignal): Promise<QueryReply> => {
+  submitAgent: async (scope: QueryClientScope, input: { idempotencyKey: string; question: string; conversation?: QueryConversation; mode?: 'quick' | 'professional' | 'deep' }, signal: AbortSignal): Promise<QueryReply> => {
     if (!input.conversation) throw new Error('需要有效的对话标识。');
     const raw = await call('/agent', scope, signal, input), reply = decodeQueryReply(raw);
     if (reply.conversation && (reply.conversation.id !== input.conversation.id
@@ -214,7 +214,7 @@ export const trustedQueryClient = {
     return received(scope, raw, reply);
   },
   submitAgentStream: async (scope: QueryClientScope,
-    input: { idempotencyKey: string; question: string; conversation: QueryConversation },
+    input: { idempotencyKey: string; question: string; conversation: QueryConversation; mode?: 'quick' | 'professional' | 'deep' },
     signal: AbortSignal, onProgress: (event: AgentProgressEvent) => void): Promise<QueryReply> => {
     const raw = await call('/agent/stream', scope, signal, input, undefined, onProgress);
     const reply = decodeQueryReply(raw);
