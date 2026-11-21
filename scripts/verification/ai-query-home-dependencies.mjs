@@ -62,7 +62,7 @@ export async function verifyQueryHomeDependencies({ db, load, check, person, app
   await check('主页依赖旧夹具复现：三个真实Data API读取404，原审计HTTP写入500', async () => {
     const reads = await Promise.all(readQueries());
     for (const read of reads) {
-      assert.equal(read.status, 404); assert.equal(read.error?.code, 'PGRST205');
+      assert.equal(read.status, 404, JSON.stringify({ status: read.status, code: read.error?.code, message: read.error?.message })); assert.equal(read.error?.code, 'PGRST205');
     }
     assert.equal((await auditRequest()).status, 500);
     assert.equal((await db.query('select count(*)::int n from public.audit_logs where event_id=$1', [eventId])).rows[0].n, 0);

@@ -20,7 +20,7 @@ try{
   const r=await snap();assert.equal(r.allowed,true);const data=r.records[0].data;
   assert.equal(data[0].values.leasableArea,'8800');assert.equal(data[0].values.completionYear,'2015');
   assert.equal(data[1].values.gfaTotal,'12345.67');assert.equal(data[1].values.parking,'0');assert.equal(data[1].values.completionDate,'2016-03-01');
-  assert.equal(data[2].values.availablePeriods,'2026Q2、2026Q3');assert.equal(JSON.stringify(r).includes('contact_phone'),false);
+  assert.deepEqual([...new Set(data.slice(2).map(d=>d.values.availablePeriods))],['2026Q2','2026Q3']);assert.ok(data.slice(2).every(d=>d.id!==BUILDINGS[0]&&d.period.year===2026));assert.equal(JSON.stringify(r).includes('contact_phone'),false);
  });
  await check('field restrictions and legacy brochure/quarter grants intersect',async()=>{
   await grantBusiness(db.setup,OWNER,{fields:['address']});assert.equal((await snap()).allowed,false);assert.equal((await snap({...profile,fields:['address']})).allowed,true);

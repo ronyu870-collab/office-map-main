@@ -52,6 +52,11 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    dossier=await submit();assert.equal(dossier.status,200,JSON.stringify(dossier.body));const c=dossier.body.result.table.rows[0].cells;
    assert.equal(c.gfaTotal.value.numeric,12345.67);assert.equal(c.leasableArea.value.numeric,8800);assert.equal(c.completionYear.value,'2015');assert.equal(c.completionDate.value,'2016-03-01');assert.equal(c.floors.value.numeric,36);assert.equal(c.parking.value.numeric,0);
    assert.ok(dossier.body.result.sources.some(s=>s.table==='building_brochure_data'));assert.ok(c.availablePeriods.value.includes('2026Q3'));
+   assert.ok(dossier.body.result.sources.some(s=>s.field==='gfa_total'&&s.table==='building_brochure_data'));
+   const periodRows=(await db.query('select id,record_year,record_quarter from public.building_metrics where building_id=$1 and is_draft is not true',[buildingIds[0]])).rows;
+   const periodSources=dossier.body.result.sources.filter(s=>s.table==='building_metrics');
+   assert.deepEqual(periodSources.map(s=>s.recordId).sort(),periodRows.map(r=>r.id).sort());
+   for(const source of periodSources){const original=periodRows.find(r=>r.id===source.recordId);assert.deepEqual(source.period,{year:original.record_year,quarter:original.record_quarter});}
    history=await submit('query_building_dossier',plan,{textOnly:true},who,{...dossier.body.conversation,parentRequestId:dossier.body.requestId});assert.equal(history.status,200);assert.ok(history.body.result.parameters.businessBindings.length);
   });
   await check('AI5业务 / 楼书多候选不取最新覆盖，冲突明确未知',async()=>{

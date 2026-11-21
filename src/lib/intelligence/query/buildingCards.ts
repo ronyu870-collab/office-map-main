@@ -14,7 +14,7 @@ export function resultBuildingRows(result: QueryResultView): QueryBuildingRow[] 
     return [{ id: row.entityId, name: name.value, cells: row.cells }];
   });
   if(result.parameters.dataDomain==='business-research/1' && result.parameters.businessTool==='query_stacking_plan') {
-    const bound = new Map(result.sources.filter(s => s.table === 'buildings' && s.field === 'building'
+    const bound = new Map(result.sources.filter(s => s.table === 'buildings' && s.field === 'name'
       && s.recordId === s.entityId && z.uuid().safeParse(s.entityId).success && typeof s.rawValue === 'string').map(s => [s.id, s]));
     const buildings = result.table.rows.flatMap(row => {
       const cell = row.cells.building;

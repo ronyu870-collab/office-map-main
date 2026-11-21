@@ -11,6 +11,20 @@ import { readSubmarketProfileRow } from '@/src/app/map/model/submarketProfile';
 import { BUSINESS_DOMAIN, BUSINESS_TOOL_SCHEMAS, businessPlanSchema, businessSnapshotSchema, businessBindingSchema,
   profileFields, type BusinessPlan, type BusinessSnapshot, type BusinessToolName } from './protocol';
 
+// Source panels and manifests use physical columns, never the tool's semantic aliases.
+const sourceColumns: Record<string, Record<string, string>> = {
+  buildings: {name:'name',building:'name',district:'district',submarket:'submarket',grade:'grade',completionYear:'completion_year',leasableArea:'leasable_area'},
+  building_brochure_data: {address:'address',brochureDistrict:'district',completionDate:'completion_date',gfaTotal:'gfa_total',gfaOffice:'gfa_office',standardFloorArea:'standard_floor_area',height:'building_height',floors:'building_floors',floorsAbove:'floors_above',floorsBelow:'floors_below',parking:'parking_total',metro:'metro_access',leed:'leed_certification',well:'well_certification',greenStandard:'green_building_standard',propertyManagement:'property_management',delivery:'delivery_standard',elevators:'elevator_passenger',telecom:'telecom_provider',hvac:'hvac_system'},
+  building_metrics: {availablePeriods:'record_year / record_quarter (non-draft record)'},
+  map_submarket_profiles: {name:'submarket',headline:'headline',overview:'overview',industries:'industries',transport:'transport'},
+  future_supplies: {name:'name',submarket:'submarket',district:'district',grade:'grade',launchYear:'launch_year',launchQuarter:'launch_quarter',catalogArea:'total_area',status:'status',entered:'is_entered_market',linkedBuilding:'building_id'},
+  future_supply_submissions: {submittedArea:'total_area',submissionPeriod:'record_year / record_quarter'},
+  stacking_plan_towers: {tower:'display_name',towerCode:'code'},
+  stacking_plan_floors: {floor:'floor_code',floorArea:'floor_area_sqm',use:'use_type'},
+  stacking_plan_spaces: {unit:'unit_code',status:'occupancy_status',unitArea:'area_sqm',verification:'verification_status'},
+  stacking_plan_sources: {sourceDate:'source_as_of',dateKind:'as_of_kind',review:'review_state',floorSourceDate:'source_as_of',floorDateKind:'as_of_kind',floorReview:'review_state'},
+};
+
 const digest = (v:unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export async function loadBusinessSnapshot(client:SupabaseClient, identity:VerifiedQueryIdentity, signal:AbortSignal, plan:BusinessPlan) {
   if (identity.expiresAt<=Date.now() || identity.actorId!==identity.effectiveUserId) throw new Error('QUERY_DENIED');
@@ -45,15 +59,18 @@ export function buildBusinessResult(snapshot:BusinessSnapshot,rawPlan:BusinessPl
   const rows=records.map(record=>({entityId:record.id,cells:Object.fromEntries(fields.map(([key,,unit,type])=>{
     const candidates=record.data.filter(d=>Object.hasOwn(d.values,key)).map(d=>{
       const value=d.values[key];
+      const column=sourceColumns[d.table]?.[key];
+      if(!column) throw new Error('BUSINESS_SOURCE_FIELD_UNKNOWN');
       const id='business:'+digest([d.table,d.id,d.version,key]);
-      const source:SourceRef={id,table:d.table,recordId:d.id,field:key,entityId:record.buildingId??record.id,recordVersion:d.version,
-        rawValue:value,unit:unit??'text',period:d.period,recordedAt:d.recordedAt,businessAsOf:d.asOf,verification:d.table==='building_brochure_data'?'unreviewed':'database_only',original:null};
+      const source:SourceRef={id,table:d.table,recordId:d.id,field:column,entityId:record.buildingId??record.id,recordVersion:d.version,
+        rawValue:key==='availablePeriods'||key==='submissionPeriod' ? d.period : value,unit:unit??'text',period:d.period,recordedAt:d.recordedAt,businessAsOf:d.asOf,verification:d.table==='building_brochure_data'?'unreviewed':'database_only',original:null};
       if(sources.has(id) && JSON.stringify(sources.get(id))!==JSON.stringify(source))throw new Error('BUSINESS_SOURCE_COLLISION');
       sources.set(id,source);return {value,id};
     });
     const sourceIds=candidates.map(c=>c.id), values=candidates.filter(c=>c.value!==null && c.value.trim()!=='');
     let cell:ResultCell;
     if(!values.length)cell={kind:'unknown',state:'missing',reason:'business_field_missing',sourceIds};
+    else if(key==='availablePeriods')cell={kind:'text',value:[...new Set(values.map(c=>c.value!))].sort().join('、'),sourceIds};
     else {
       const normalized=values.map(c=>type==='number'?Decimal.parse(c.value) ? JSON.stringify(Decimal.parse(c.value)!.exact()) : undefined:c.value);
       if(normalized.some(v=>v===undefined))cell={kind:'unknown',state:'invalid',reason:'business_field_invalid',sourceIds};

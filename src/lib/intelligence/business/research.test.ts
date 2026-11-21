@@ -27,7 +27,18 @@ describe('controlled business research',()=>{
   const r=buildBusinessResult(snap(),plan),c=r.table.rows[0].cells;
   expect(c.gfaTotal).toMatchObject({kind:'number',value:{numeric:12345.67}});expect(c.leasableArea).toMatchObject({kind:'number',value:{numeric:8800}});
   expect(c.parking).toMatchObject({kind:'number',value:{numeric:0}});expect(c.completionYear).toMatchObject({value:'2015'});expect(c.completionDate).toMatchObject({value:'2016-03-01'});
-  expect(resultBuildingRows(resultViewSchema.parse(r))).toMatchObject([{id,name:'合成A座'}]);expect(r.sources.find(s=>s.field==='gfaTotal')?.table).toBe('building_brochure_data');
+  expect(resultBuildingRows(resultViewSchema.parse(r))).toMatchObject([{id,name:'合成A座'}]);expect(r.sources.find(s=>s.field==='gfa_total')?.table).toBe('building_brochure_data');
+ });
+ it('binds periods to actual metric records and physical source columns, not a fabricated building-level metric ID',()=>{
+  const s=snap(),second=randomUUID(),third=randomUUID();
+  s.records[0].data.push({...evidence('building_metrics',{availablePeriods:'2026Q3'},second),period:{year:2026,quarter:3}},
+   {...evidence('building_metrics',{availablePeriods:'2026Q2'},third),period:{year:2026,quarter:2}});
+  const r=buildBusinessResult(s,businessPlanSchema.parse({...plan,fields:['completionYear','gfaTotal','availablePeriods']}));
+  expect(r.table.rows[0].cells.availablePeriods).toMatchObject({kind:'text',value:'2026Q2、2026Q3'});
+  expect(r.sources.find(s=>s.table==='buildings'&&s.field==='completion_year')).toBeDefined();
+  const metrics=r.sources.filter(s=>s.table==='building_metrics');
+  expect(metrics.map(s=>s.recordId).sort()).toEqual([second,third].sort());
+  expect(metrics.every(s=>s.field.includes('record_year')&&s.period?.year===2026&&typeof s.rawValue==='object')).toBe(true);
  });
  it('does not choose newest brochure candidate or confuse missing with zero; decimal equivalence is exact',()=>{
   const s=snap();s.records[0].data.push(evidence('building_brochure_data',{gfaTotal:'12345.67',floors:'38',parking:null},randomUUID()));
