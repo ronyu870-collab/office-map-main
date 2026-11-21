@@ -99,10 +99,12 @@ export class AuthorizedResultWorkset {
     };
     const sort = input.sort ? column(input.sort.field) : undefined;
     const filter = input.filter ? column(input.filter.field) : undefined;
-    let rows = view.table.rows.map((row, index) => ({ row, index }));
+    // Ordinary paging must not allocate/scan the entire 50k-row result on every
+    // page. Only filtering or sorting needs the indexed full-table projection.
+    let rows = sort || filter ? view.table.rows.map((row, index) => ({ row, index })) : undefined;
     if (filter && input.filter) {
       const f = input.filter;
-      rows = rows.filter(({ row }) => {
+      rows = rows!.filter(({ row }) => {
         const cell = row.cells[filter.key];
         if (cell.kind === 'unknown') return false;
         if (f.operator === 'contains') return cell.kind === 'text'
@@ -116,7 +118,7 @@ export class AuthorizedResultWorkset {
     }
     if (sort && input.sort) {
       const direction = input.sort.direction === 'asc' ? 1 : -1;
-      rows.sort((a, b) => {
+      rows!.sort((a, b) => {
         const ca = a.row.cells[sort.key], cb = b.row.cells[sort.key];
         if (ca.kind === 'unknown' || cb.kind === 'unknown')
           return ca.kind === cb.kind ? a.index - b.index : ca.kind === 'unknown' ? 1 : -1;
@@ -131,8 +133,9 @@ export class AuthorizedResultWorkset {
       });
     }
     const offset = input.offset, limit = Math.min(input.limit, WORKSET_LIMITS.pageSize);
-    const rowsForPage = rows.slice(offset, offset + limit);
-    const mapped = rowsForPage.map(({ row }) => ({
+    const totalMatched = rows?.length ?? view.table.rows.length;
+    const rowsForPage = rows ? rows.slice(offset, offset + limit).map(({ row }) => row) : view.table.rows.slice(offset, offset + limit);
+    const mapped = rowsForPage.map(row => ({
       entityId: row.entityId,
       values: Object.fromEntries(view.table.columns.map(col => [col.key, {
         value: cellText(row.cells[col.key], col.unit),
@@ -140,17 +143,25 @@ export class AuthorizedResultWorkset {
       }])),
     }));
     const makeResponse = (count: number) => ({
-      status: 'ready', ...this.describe(view), totalMatched: rows.length,
-      offset, returnedRows: count, hasMore: offset + count < rows.length,
-      nextOffset: offset + count < rows.length ? offset + count : null,
+      status: 'ready', ...this.describe(view), totalMatched,
+      offset, returnedRows: count, hasMore: offset + count < totalMatched,
+      nextOffset: offset + count < totalMatched ? offset + count : null,
       columns: view.table.columns.map(col => ({ key: col.key, label: col.label, unit: col.unit })),
       rows: mapped.slice(0, count),
       note: '返回的是完整工作集的一页。totalMatched 是完整结果或筛选后总数，绝非仅本页行数。',
     });
-    let count = mapped.length;
-    while (count > 1 && JSON.stringify(makeResponse(count)).length > WORKSET_LIMITS.modelBytes) count--;
-    if (JSON.stringify(makeResponse(count)).length > WORKSET_LIMITS.modelBytes) throw new Error('AGENT_TOOL_RESULT_TOO_LARGE');
-    return makeResponse(count);
+    const fits = (count: number) => new TextEncoder().encode(JSON.stringify(makeResponse(count))).byteLength <= WORKSET_LIMITS.modelBytes;
+    if (fits(mapped.length)) return makeResponse(mapped.length);
+    if (!mapped.length || !fits(1)) throw new Error('AGENT_TOOL_RESULT_TOO_LARGE');
+    // Monotone prefix sizes: retain the largest fitting page in O(log(pageSize))
+    // serializations, with exact UTF-8 accounting for Chinese text.
+    let low = 1, high = mapped.length - 1;
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2);
+      if (fits(middle)) low = middle;
+      else high = middle - 1;
+    }
+    return makeResponse(low);
   }
 
   compare(ids: readonly string[], identity: WorksetOwner) {

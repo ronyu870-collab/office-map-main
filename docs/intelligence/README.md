@@ -5,12 +5,13 @@
 当前用户决定：**所有AI功能仅供admin本人使用**，仍需对应独立查询/数据/导出/审计资格。普通角色或模拟身份不可使用，旧公开预览开关不能扩大范围。以前工作包允许持资格viewer/editor的证据仅是历史行为，已被本包替代。见[admin专用限制与验证](admin-only-access.md)。
 
 | 责任 | 当前入口 |
+| --- | --- |
+| Colliers AI 5.0 阶段 12 实际能力矩阵、成果完成判定、分页预算与最终回归 | [最终工程收口](ai5-final-hardening.md) |
 | Colliers AI 5.0 阶段 11 官方 Responses／DeepSeek 统一协议、有界恢复与成本治理 | [模型运行与运营治理](ai5-model-operations.md) |
 | Colliers AI 5.0 阶段 10 受控多步骤研究、可恢复工作集及 Word/PPT/PDF/Excel 共享成果 | [专题研究与综合成果](ai5-deep-research.md) |
 | Colliers AI 5.0 阶段 06 中文内部 PDF、正式结果组合及可信交付 | [PDF 研究报告](ai5-pdf-reports.md) |
 | Colliers AI 5.0 阶段 03 结构化 Agent、授权多结果工作集、分页与执行追踪 | [Agent 5.0 结构化执行协议](ai5-agent-orchestration.md) |
 | Colliers AI 5.0 P0 季度正式/待核验来源隔离、去重与质量状态 | [季度来源契约及回归](ai5-quarterly-source-contract.md) |
-| --- | --- |
 | AI 38 项体验修复：Markdown、连续历史、复制、侧栏与输入 | [逐项实施与验证](ai-experience-38-fixes.md) |
 | Colliers AI 4.0 DeepSeek-Native Agent 核心首批 | [Agent 交付记录](colliers-ai-4-agent-core.md) |
 | Colliers AI 3.0 P2 对话、历史与研究结果视觉精修 | [P2 视觉整合记录](colliers-ai-3-p2-visual-polish.md) |
