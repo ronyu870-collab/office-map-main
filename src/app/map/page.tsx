@@ -47,7 +47,7 @@ export default async function MapPage({ searchParams }: MapPageProps) {
       <MapSalesMaterialsBridge />
       {initialIntelligenceHandoff ? <MapProposalBridge enabled /> : null}
       <MapCompetitorModeGuard />
-      <MapRouteGate initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />
+      <MapRouteGate resume={params.get('resume')} initialIntelligenceHandoff={initialIntelligenceHandoff} buildingFocus={buildingFocus} queryContext={queryContext} />
     </>
   );
 }

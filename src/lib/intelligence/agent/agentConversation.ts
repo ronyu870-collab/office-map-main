@@ -8,6 +8,9 @@ import { readOwnResult, recoverOwnResult } from '../query/recovery';
 import { resultViewSchema } from '../query/presentation';
 import type { QueryConversation } from '../query/conversationProtocol';
 import { parseQueryPlan, type QueryPlan } from '../query/plan';
+import { chartContextSchema } from '../query/chartProtocol';
+import type { QueryResult } from '../query/result';
+import { exportContextSchema } from './toolRegistry';
 import { authorizeConversationPlan } from '../query/conversationStore';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
@@ -16,7 +19,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { contextPlan?: QueryPlan };
+export type AgentHistory = z.infer<typeof historySchema> & { contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -70,6 +73,19 @@ export async function readAgentHistory(
     const plan = parseQueryPlan(prior.plan);
     authorizeConversationPlan(plan, authority);
     history.contextPlan = plan;
+  }
+  if (prior.exportContext) {
+    const context = exportContextSchema.parse(prior.exportContext);
+    context.plans.forEach(raw => authorizeConversationPlan(parseQueryPlan(raw), authority));
+    history.contextExport = context;
+  }
+  if (prior.chartContext) {
+    const context = chartContextSchema.parse(prior.chartContext);
+    const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
+    if (!restored.result || restored.result.resultId !== context.resultId) throw new Error('QUERY_DENIED');
+    history.contextChart = context;
+    history.contextResult = restored.result as QueryResult;
+    history.contextRecheck = restored.recheck;
   }
   return history;
 }

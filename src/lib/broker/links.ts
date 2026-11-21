@@ -16,6 +16,6 @@ export function dealHistoryHref(filter: { company: string } | { id: string; name
 }
 
 export function brokerReturn(value: string | null | undefined): string | undefined {
-  if (!value || value.length > 3000 || !/^\/(map|search|lease-submission\/history)(\?|$)/.test(value) || /[\\\u0000-\u001f]/.test(value)) return;
+  if (typeof value !== 'string' || !value || value.length > 3000 || !/^\/(map|search|lease-submission\/history)(\?|$)/.test(value) || /[\\\u0000-\u001f]/.test(value)) return;
   return value;
 }

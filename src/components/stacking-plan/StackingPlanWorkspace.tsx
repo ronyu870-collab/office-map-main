@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { brokerReturn, mapBuildingHref } from '@/src/lib/broker/links';
+import { useUnsavedNavigation } from '@/src/lib/broker/useUnsavedNavigation';
+import { animateWorkspace } from '@/src/app/map/runtime/workspaceMotion';
 import {
   AlertTriangle, ArrowDownToLine, ArrowLeft, Building2, Check, ChevronRight,
   Download, Edit3, FileImage, FileSpreadsheet, FileUp, Link2,
@@ -9,6 +13,7 @@ import {
 import { useAppSession } from '@/src/components/SessionProvider';
 import { isUserAdmin } from '@/src/utils/accessControl';
 import { getSessionFast } from '@/src/services/Auth';
+import { getImpersonationTargetUserId } from '@/src/services/impersonationHeaders';
 import { withImpersonationHeaders } from '@/src/services/impersonationHeaders';
 import {
   areaNumber, matchingTenant, OCCUPANCY_LABELS,
@@ -65,7 +70,7 @@ function saveBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
+export function StackingPlanWorkspace({ buildingId, backHref }: { buildingId: string; backHref?: string }) {
   const { session, status } = useAppSession();
   const fileInput = useRef<HTMLInputElement | null>(null);
   const exportMenu = useRef<HTMLDetailsElement | null>(null);
@@ -82,38 +87,44 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const content = useRef<HTMLDivElement>(null);
+  const [mobileDrawer, setMobileDrawer] = useState(false);
+  const drawer = useRef<HTMLElement>(null);
+  const unitTrigger = useRef<HTMLElement | null>(null);
+  const closeAnimation = useRef<Animation | null>(null);
+  const [closingUnit, setClosingUnit] = useState(false);
   const [edit, setEdit] = useState({
     tenant_name: '', occupancy_status: 'unknown' as OccupancyStatus, area_sqm: '', notes: '',
   });
   const allowed = status === 'authenticated' && isUserAdmin(session?.role);
   const unauthorized = status === 'unauthenticated' || (status === 'authenticated' && !allowed);
 
+  const identity = JSON.stringify([session?.user?.id, session?.sessionId, session?.role, getImpersonationTargetUserId(), buildingId]);
+  const loadedIdentity = useRef(identity);
   useEffect(() => {
+    if (loadedIdentity.current !== identity) {
+      loadedIdentity.current = identity; setPayload(null); setSelectedId(null); setIsEditing(false);
+      closeAnimation.current?.cancel(); closeAnimation.current = null; setClosingUnit(false);
+    }
     if (!allowed) { setPayload(null); return; }
     let cancelled = false;
+    const abort = new AbortController();
     setError(null);
-    setPayload(null);
+    setRefreshing(true);
     (async () => {
       const current = await getSessionFast();
       const accessToken = current?.session.access_token;
       if (!accessToken) throw new Error('未取得有效登录凭据');
       const headers = withImpersonationHeaders({ Authorization: 'Bearer ' + accessToken });
-      const response = await fetch('/api/stacking-plan/' + buildingId, { headers, cache: 'no-store' });
+      const response = await fetch('/api/stacking-plan/' + buildingId, { headers, cache: 'no-store', signal: abort.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '加载失败');
       if (!cancelled) setPayload(data as Payload);
-    })().catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : '加载失败'); });
-    return () => { cancelled = true; };
-  }, [allowed, buildingId, refreshKey]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isEditing) setSelectedId(null);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedId, isEditing]);
+    })().catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : '加载失败'); })
+      .finally(() => { if (!cancelled) setRefreshing(false); });
+    return () => { cancelled = true; abort.abort(); };
+  }, [allowed, buildingId, refreshKey, identity]);
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
@@ -135,6 +146,17 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
     };
   }, []);
 
+  useEffect(() => {
+    const query = window.matchMedia?.('(max-width: 760px)');
+    if (!query) return;
+    const update = () => setMobileDrawer(query.matches);
+    update(); query.addEventListener?.('change', update);
+    return () => query.removeEventListener?.('change', update);
+  }, []);
+  useEffect(() => {
+    const animation = animateWorkspace(content.current, [{ opacity: .7 }, { opacity: 1 }], 120);
+    return () => animation?.cancel();
+  }, [view, towerCode]);
   const tower = payload?.towers.find(t => t.code === towerCode) ?? payload?.towers[0] ?? null;
   const floors = useMemo(() => (payload?.floors ?? []).filter(f => f.tower_id === tower?.id)
     .sort((a,b) => b.level_order - a.level_order), [payload, tower?.id]);
@@ -146,14 +168,51 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   const rows = useMemo(() => selectFloorRows(floors, unitList, filter, search),
     [floors, unitList, filter, search]);
   const selected = unitList.find(s => s.id === selectedId) ?? null;
+  const dirty = Boolean(isEditing && selected && (edit.tenant_name !== (selected.tenant_name ?? '') || edit.occupancy_status !== selected.occupancy_status || edit.area_sqm !== (selected.area_sqm === null ? '' : String(selected.area_sqm)) || edit.notes !== (selected.notes ?? '')));
+  useUnsavedNavigation(dirty);
+  useEffect(() => {
+    if (!selected) return;
+    const animation = animateWorkspace(drawer.current, [{ opacity: .4, transform: 'translateY(16px)' }, { opacity: 1, transform: 'translateY(0)' }]);
+    return () => animation?.cancel();
+  }, [selectedId]);
+  const closeUnit = () => {
+    if (closingUnit || dirty && !window.confirm('编辑内容尚未保存，确定关闭吗？')) return;
+    const finish = () => { setSelectedId(null); setIsEditing(false); setClosingUnit(false); (unitTrigger.current?.isConnected ? unitTrigger.current : document.querySelector<HTMLElement>(`[data-unit-id="${selectedId}"]`))?.focus({ preventScroll: true }); };
+    const animation = animateWorkspace(drawer.current, [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(16px)' }], 180, 'forwards');
+    if (!animation) { finish(); return; }
+    setClosingUnit(true); closeAnimation.current = animation;
+    void animation.finished.then(() => { if (closeAnimation.current === animation) { closeAnimation.current = null; finish(); } }).catch(() => {});
+  };
+  useEffect(() => {
+    if (!selected) return;
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.key === 'Tab' && mobileDrawer) {
+        const controls = Array.from(drawer.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input,select,textarea,a[href],[tabindex="0"]') ?? []).filter(el => el.getClientRects().length > 0);
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+      if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closeUnit(); }
+    };
+    window.addEventListener('keydown', keyboard);
+    const mobile = mobileDrawer;
+
+    const previous = document.body.style.overflow;
+    if (mobile) document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', keyboard); if (mobile) document.body.style.overflow = previous; };
+  }, [selectedId, dirty, closingUnit, mobileDrawer]);
+  useEffect(() => { if (selectedId && mobileDrawer) drawer.current?.querySelector<HTMLButtonElement>('button')?.focus({ preventScroll: true }); }, [selectedId, mobileDrawer]);
+  useEffect(() => () => closeAnimation.current?.cancel(), []);
   const selectedFloor = floors.find(f => f.id === selected?.floor_id);
   const linked = selected ? unitList.filter(s => matchingTenant(selected, s)) : [];
   const filtered = isFiltered(filter, search);
 
   function selectUnit(space: Space) {
-    if (selectedId !== space.id && isEditing) {
+    if (selectedId !== space.id && dirty) {
       if (!window.confirm('当前编辑尚未保存，确定切换单元吗？')) return;
     }
+    closeAnimation.current?.cancel(); closeAnimation.current = null; setClosingUnit(false);
+    unitTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSelectedId(space.id);
     setIsEditing(false);
     setEdit({
@@ -165,14 +224,14 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
 
   function switchView(next: 'overview' | 'detail') {
     if (view === next) return;
-    if (isEditing && !window.confirm('编辑内容尚未保存，确定切换视图吗？')) return;
+    if (dirty && !window.confirm('编辑内容尚未保存，确定切换视图吗？')) return;
     setIsEditing(false);
     setSelectedId(null);
     setView(next);
   }
 
   function openOverviewUnit(space: Space, code: string) {
-    if (isEditing) return;
+    if (dirty && !window.confirm('编辑内容尚未保存，确定切换单元吗？')) return;
     // Dimmed overview units remain navigable. Clear incompatible filters before
     // opening detail so the selected floor cannot disappear from its facade.
     const floor = payload?.floors.find(item => item.id === space.floor_id);
@@ -188,14 +247,14 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   }
 
   function refreshData() {
-    if (isEditing && !window.confirm('当前编辑尚未保存，确定刷新数据吗？')) return;
+    if (dirty && !window.confirm('当前编辑尚未保存，确定刷新数据吗？')) return;
     setSelectedId(null);
     setIsEditing(false);
     setRefreshKey(n => n + 1);
   }
 
   function selectTower(code: string) {
-    if (isEditing && !window.confirm('当前编辑尚未保存，确定切换楼座吗？')) return;
+    if (dirty && !window.confirm('当前编辑尚未保存，确定切换楼座吗？')) return;
     setTowerCode(code); setSelectedId(null); setFilter('all'); setIsEditing(false); setSearch('');
   }
 
@@ -374,18 +433,19 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
   return (
     <main className={styles.page}>
       <header className={styles.topbar}>
-        <a href={'/map?building=' + encodeURIComponent(buildingId)} className={styles.back}>
-          <ArrowLeft size={16} /> 返回地图
-        </a>
+        <Link href={brokerReturn(backHref) ?? mapBuildingHref(buildingId)} prefetch={false} className={styles.back}>
+          <ArrowLeft size={16} /> 返回项目详情
+        </Link>
         <span className={styles.brand}>Stacking Plan</span>
       </header>
 
-      <div className={styles.container}>
+      <div className={styles.container} aria-busy={refreshing}>
+        {refreshing && payload ? <p role="status" className={styles.refreshStatus}>正在刷新，保留上次结果…</p> : null}
         <div className={styles.heading}>
           <div>
             <h1>{payload?.building.name ?? '楼宇租赁堆叠图'} <span>Stacking Plan</span></h1>
           </div>
-          <button type="button" onClick={refreshData}
+          <button type="button" onClick={refreshData} disabled={refreshing}
             className={styles.lightButton} aria-label="刷新数据"><RefreshCw size={15}/> 刷新</button>
         </div>
 
@@ -461,6 +521,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
               </div>
             </section>
 
+            <div ref={content}>
             {view === 'overview'
               ? <StackingPlanOverview towers={payload.towers} floors={payload.floors} spaces={payload.spaces}
                   filter={filter} search={search} onOpen={openOverviewUnit}
@@ -489,7 +550,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                           {spaces.map(space => {
                             const weight = display.items.find(item => item.id === space.id)?.weight ?? 1;
                             const related = matchingTenant(selected, space);
-                            return <button key={space.id} type="button"
+                            return <button key={space.id} type="button" data-unit-id={space.id}
                               className={[
                                 styles.unit, styles[space.occupancy_status],
                                 selected?.id === space.id ? styles.chosen : '',
@@ -528,17 +589,14 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                 </div>
               </section>
 
-              {selected && <button type="button" aria-label="关闭租赁详情" className={styles.drawerBackdrop}
-                onClick={() => { if (!isEditing || window.confirm('编辑内容尚未保存，确定关闭吗？')) { setSelectedId(null); setIsEditing(false); } }}/>}
-              <aside className={[styles.details, selected ? styles.drawerActive : styles.detailsHidden].join(' ')}
+              {selected && <button type="button" aria-label="关闭租赁详情" className={styles.drawerBackdrop} data-closing={closingUnit || undefined}
+                onClick={closeUnit}/>}
+              <aside role={mobileDrawer ? 'dialog' : undefined} aria-modal={mobileDrawer || undefined} ref={drawer} inert={closingUnit || undefined} aria-hidden={closingUnit || undefined} data-closing={closingUnit || undefined} className={[styles.details, selected ? styles.drawerActive : styles.detailsHidden].join(' ')}
                 aria-label="租赁单元详情">
                 {selected && <>
                   <div className={styles.detailHeader}>
                     <span className={styles.sectionKicker}>单元详情</span>
-                    <button type="button" aria-label="关闭详情" onClick={() => {
-                      if (isEditing && !window.confirm('编辑内容尚未保存，确定关闭吗？')) return;
-                      setSelectedId(null); setIsEditing(false);
-                    }}><X size={18}/></button>
+                    <button type="button" aria-label="关闭详情" onClick={closeUnit}><X size={18}/></button>
                   </div>
                   <h2>{selected.tenant_name || asUnitName(selected)}</h2>
                   <p className={styles.detailHint}>{tower?.display_name} · {selectedFloor?.floor_code?.startsWith('B') ? selectedFloor.floor_code : selectedFloor?.floor_code + 'F'} · {selected.unit_code}</p>
@@ -551,7 +609,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                     <div className={styles.linkedList}>
                       {linked.map(space => {
                         const floor = floors.find(f => f.id === space.floor_id);
-                        return <button key={space.id} type="button" aria-current={selected.id === space.id}
+                        return <button key={space.id} type="button" data-unit-id={space.id} aria-current={selected.id === space.id}
                           onClick={() => selectUnit(space)}>
                           {floor?.floor_code?.startsWith('B') ? floor.floor_code : floor?.floor_code + 'F'} <span>{fmt(space.area_sqm)}㎡</span>
                         </button>;
@@ -596,6 +654,7 @@ export function StackingPlanWorkspace({ buildingId }: { buildingId: string }) {
                 </>}
               </aside>
             </div>}
+            </div>
 
             <details className={styles.sourceDetails}>
               <summary>原始资料 <ChevronRight size={15}/></summary>

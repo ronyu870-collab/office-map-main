@@ -5,6 +5,7 @@ import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { WorkspacePanelHeader } from './WorkspacePanelHeader';
 import { MapDisclosure } from './MapDisclosure';
+import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 import { BuildingBasicCard } from './BuildingBasicCard';
 import { getLatestMetric } from '@/src/utils/filterBuildings';
 import { isPendingFutureSupply } from '@/src/lib/future-supply-status';
@@ -34,14 +35,16 @@ const INITIAL_LOAD_COUNT = 50;
 const LOAD_MORE_COUNT = 50;
 
 export default function FloatingBuildingList({ buildings, active = true, displayOverrides, onClose, onBuildingClick, targetBuildingId, onBuildingHover, selectedComparisonBuildings = [], onComparisonSelectionChange }: FloatingBuildingListProps) {
-  const [query, setQuery] = React.useState('');
-  const [sort, setSort] = React.useState<FullListSort>('default');
+  const reading = React.useContext(MapReadingContext);
+  const [query, setQuery] = useMapReadingState('listQuery', '');
+  const [sort, setSort] = useMapReadingState<FullListSort>('listSort', 'default');
   const results: any[] = React.useMemo(() => sortFullList(buildings.filter(building =>
     [building.name, building.submarket, building.owner, building.property_management].some(value => String(value ?? '').toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))), sort), [buildings, query, sort]);
-  const [visibleCount, setVisibleCount] = React.useState(INITIAL_LOAD_COUNT);
-  const [viewMode, setViewMode] = React.useState<'cards' | 'compact'>('compact');
+  const [visibleCount, setVisibleCount] = useMapReadingState('listCount', INITIAL_LOAD_COUNT);
+  const [viewMode, setViewMode] = useMapReadingState<'cards' | 'compact'>('listViewMode', 'compact');
   const loadMoreTriggerRef = React.useRef<HTMLDivElement>(null);
   const listContainerRef = React.useRef<HTMLDivElement>(null);
+  useMapReadingScroll(listContainerRef, 'listScroll', active);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const isDemo = useIsDemo();
   const [selectionMode, setSelectionMode] = React.useState(false);
@@ -115,18 +118,22 @@ export default function FloatingBuildingList({ buildings, active = true, display
     return () => observer.disconnect();
   }, [visibleCount, results.length]);
 
+  const previousCriteria = React.useRef({ query, sort });
   React.useEffect(() => {
+    if (previousCriteria.current.query === query && previousCriteria.current.sort === sort) return;
+    previousCriteria.current = { query, sort };
     setVisibleCount(INITIAL_LOAD_COUNT);
     if (listContainerRef.current) listContainerRef.current.scrollTop = 0;
-  }, [results]);
+  }, [query, sort, setVisibleCount]);
 
   React.useEffect(() => {
     if (!active || !targetBuildingId) return;
     const index = results.findIndex(building => building.id === targetBuildingId);
     if (index >= visibleCount) setVisibleCount(index + 1);
+    if (typeof reading?.listScroll === 'number') return;
     const frame = requestAnimationFrame(() => listContainerRef.current?.querySelector<HTMLElement>('[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest' }));
     return () => cancelAnimationFrame(frame);
-  }, [active, targetBuildingId, results, visibleCount]);
+  }, [active, targetBuildingId, results, visibleCount, reading]);
   const visibleBuildings = results.slice(0, visibleCount);
   const hasMore = visibleCount < results.length;
 

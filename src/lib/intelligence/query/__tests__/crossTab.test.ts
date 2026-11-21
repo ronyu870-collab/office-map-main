@@ -107,11 +107,12 @@ describe('same-snapshot cross tab and heatmap', () => {
     expect(matrix.find(row => row[0] === '金融街')).toEqual(['金融街', 200, '未知（无有效样本）', '未知（无有效样本）']);
     expect(book.Sheets['交叉样本']).toBeDefined(); expect(book.Sheets['交叉分母']).toBeDefined();
     expect(rows).toHaveLength(10); expect(rows.slice(1).map(row => row[3])).toContain(200); expect(book.Sheets['口径与快照'].B2.v).toBe(r.resultId);
-    for (const format of ['csv_zip', 'svg_zip'] as const) {
-      const file = await buildResultArtifact(r, { ...common, format, ...(format === 'svg_zip' ? { chart: { kind: 'heatmap' as const } } : {}) }); if (file.type !== 'download') throw new Error();
+    for (const format of ['csv_zip', 'svg_zip', 'png_zip'] as const) {
+      const file = await buildResultArtifact(r, { ...common, format, ...(format !== 'csv_zip' ? { chart: { kind: 'heatmap' as const } } : {}) }); if (file.type !== 'download') throw new Error();
       const zip = await JSZip.loadAsync(file.bytes), manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
       expect(manifest.resultId).toBe(r.resultId); expect(manifest.sources).toEqual(r.sources);
-      if (format === 'svg_zip') expect(manifest.chart.grid.columns).toHaveLength(3);
+      if (format !== 'csv_zip') expect(manifest.chart.grid.columns).toHaveLength(3);
+      if (format === 'png_zip') {const png = await zip.file('chart.png')!.async('nodebuffer'); expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])); expect(png.readUInt32BE(16)).toBe(manifest.image.width); expect(png.readUInt32BE(20)).toBe(manifest.image.height);}
     }
   });
 });

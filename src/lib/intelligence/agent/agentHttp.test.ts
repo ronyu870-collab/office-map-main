@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildTrendResult, buildListResult } from '../query/result';
-import { fixture } from '../query/__tests__/fixtures';
+import { fixture, nameSource } from '../query/__tests__/fixtures';
 import { parseQueryPlan } from '../query/plan';
 
 const state = vi.hoisted(() => ({
@@ -307,4 +307,139 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(output.agent.unresolvedFailures[0]).toMatchObject({ code: 'source_unavailable' });
   });
 
+});
+
+describe('AI 5.0 natural-language export through the authenticated Agent handler', () => {
+  const scope = { inventory: 'tracked', submarkets: ['CBD'] };
+  const plan = { operation: 'list', scope, fields: ['height', 'netEffectiveRent', 'totalArea'], period: { year: 2026, quarter: 3 } };
+  const call = (name: string, args: unknown) => ({ id: randomUUID(), type: 'function',
+    function: { name, arguments: JSON.stringify(args) } });
+  const model = (tool_calls?: ReturnType<typeof call>[]) => ({ model: 'deepseek-flash', inputTokens: 10, outputTokens: 10,
+    message: { role: 'assistant', content: tool_calls ? null : '文件已保存到你的桌面：https://fake.invalid/export.xlsx', ...(tool_calls ? { tool_calls } : {}) } });
+  const cases = [
+    { question: '把 CBD 所有楼导出 Excel。', format: 'xlsx' },
+    { question: '把 CBD 净有效租金最高的 10 栋楼导出 Excel。', format: 'xlsx', sort: { field: 'netEffectiveRent', direction: 'desc' }, topN: 10 },
+    { question: '按照建筑高度排序，导出前 20 栋楼。', format: 'xlsx', sort: { field: 'height', direction: 'desc' }, topN: 20 },
+    { question: '把刚才的结果导出 CSV。', format: 'csv_zip' },
+    { question: '只保留楼宇名称、子市场、租金和面积。', format: 'xlsx', fields: ['name', 'submarket', 'netEffectiveRent', 'totalArea'] },
+    { question: '导出全部结果，不只是当前显示的第一页。', format: 'xlsx' },
+  ];
+  for (const scenario of cases) it(scenario.question, async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const snap = fixture();
+    const raw = buildListResult({ ...snap, rows: snap.rows.map(row => ({ ...row, dimensions: {
+      submarket: { value: 'CBD', source: { ...nameSource(row.id, 'CBD'), id: 'market/' + row.id, field: 'submarket' } },
+    } })) }, ['height', 'netEffectiveRent', 'totalArea']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: plan } };
+    const history = Object.assign([{ user: 'CBD楼宇列表', assistant: '已查询。' }], { contextPlan: parseQueryPlan(plan) });
+    state.history.mockResolvedValue(history);
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    const { question, ...options } = scenario;
+    state.provider.mockReset().mockResolvedValueOnce(model([call('list_buildings', { scope, fields: plan.fields, period: plan.period })]))
+      .mockResolvedValueOnce(model([call('export_table', { ...options, resultIds: [result.resultId] })]))
+      .mockResolvedValueOnce(model());
+    const output = await (await handleAgentSubmission(fakeRequest(question).request, deps())).json();
+    expect(output.status).toBe('ready');
+    expect(output.result.parameters.agentExport).toMatchObject({ version: 'agent-export/1', format: scenario.format });
+    expect(output.agent.toolCalls).toBe(2);
+    expect(output.message).toContain('服务器已生成');
+    expect(output.message).toContain('未确认本机保存');
+    expect(output.message).not.toContain('已保存到你的桌面');
+    expect(output.message).not.toContain('fake.invalid');
+    const archived = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
+    expect(archived.resultId).toBe(output.result.resultId);
+    const artifact = await import('../query/artifacts').then(m => m.buildResultArtifact(archived,
+      { requestId: output.requestId, resultId: archived.resultId, action: 'export', format: scenario.format as 'xlsx' | 'csv_zip' }));
+    if (artifact.type !== 'download') throw Error('missing file');
+    if (scenario.format === 'xlsx') {
+      const XLSX = await import('xlsx');
+      const book = XLSX.read(artifact.bytes, { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(book.Sheets['数据'], { header: 1 });
+      expect(rows).toHaveLength(output.result.table.rows.length + 1);
+    } else {
+      const { default: JSZip } = await import('jszip');
+      const zip = await JSZip.loadAsync(artifact.bytes);
+      expect((await zip.file('data.csv')!.async('string')).split('\r\n')).toHaveLength(6);
+      expect(JSON.parse(await zip.file('manifest.json')!.async('string')).resultId).toBe(output.result.resultId);
+    }
+  });
+
+  it('fails closed if export permission is withdrawn after generation and before final delivery', async () => {
+    const raw = buildListResult(fixture(), ['height']);
+    const result = { ...raw, parameters: { ...raw.parameters, executedPlan: { ...plan, fields: ['height'] } } };
+    let revoked = false;
+    state.authority.mockImplementation(async () => ({ ...authority,
+      grants: revoked ? ['query:catalog'] : ['query:catalog', 'export:internal'],
+      permissionRevision: revoked ? 'changed' : authority.permissionRevision }));
+    state.structured.mockResolvedValue({ result, content: JSON.stringify({ status: 'ready', resultId: result.resultId }) });
+    state.provider.mockReset().mockResolvedValueOnce(model([call('list_buildings', { scope })]))
+      .mockResolvedValueOnce(model([call('export_table', { resultIds: [result.resultId], format: 'xlsx' })]))
+      .mockImplementationOnce(async () => { revoked = true; return model(); });
+    const response = await handleAgentSubmission(fakeRequest('导出CBD Excel').request, deps());
+    expect(response.status).toBe(403);
+    expect((await response.json()).result).toBeUndefined();
+    expect(state.append.mock.calls.some(x => x[1] === 'denied')).toBe(true);
+  });
+});
+
+
+describe('AI5 chart creation, same-snapshot modification and image delivery', () => {
+  const call = (name: string, args: unknown) => ({ id: randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
+  const completed = (tool_calls?: ReturnType<typeof call>[]) => ({ model: 'deepseek-flash', inputTokens: 20, outputTokens: 20,
+    message: { role: 'assistant', content: tool_calls ? null : '图片已经保存在桌面：https://fake.invalid/chart.png', ...(tool_calls ? { tool_calls } : {}) } });
+  function result() {
+    const r = buildListResult(fixture(), ['height', 'netEffectiveRent']);
+    return { ...r, parameters: { ...r.parameters, executedPlan: parseQueryPlan({ operation: 'list', fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 }, scope: { inventory: 'tracked', submarkets: ['CBD'] } }) } };
+  }
+  it('applies a full chart specification and delivers actual PNG bytes via the existing artifact engine', async () => {
+    state.authority.mockResolvedValue({ ...authority, grants: ['query:catalog', 'export:internal'] });
+    const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['netEffectiveRent'], sort: { field: 'netEffectiveRent', direction: 'desc' as const } };
+    state.structured.mockResolvedValue({ content: JSON.stringify({ status: 'ready', resultId: formal.resultId }), result: formal });
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('list_buildings', { scope: { inventory: 'tracked', submarkets: ['CBD'] }, fields: ['height', 'netEffectiveRent'], period: { year: 2026, quarter: 3 } })]))
+      .mockResolvedValueOnce(completed([call('create_chart', { resultId: formal.resultId, chart: spec })]))
+      .mockResolvedValueOnce(completed([call('export_chart', { resultId: formal.resultId, format: 'png_zip' })]))
+      .mockResolvedValueOnce(completed());
+    const response = await handleAgentSubmission(fakeRequest('CBD 楼宇租金横向柱状图，导出 PNG').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.agent.executionStatus).toBe('completed');
+    expect(body.result.parameters.agentChart).toMatchObject({ request: spec, format: 'png_zip' });
+    expect(body.result.table).toEqual(formal.table); expect(body.result.dataVersion).toBe(formal.dataVersion);
+    expect(body.message).toContain('服务器已生成 PNG'); expect(body.message).not.toContain('fake.invalid'); expect(body.message).not.toContain('已经保存在桌面');
+    const event = state.append.mock.calls.find(c => c[1] === 'tool_finished' && c[2]?.protocol === 'agent-answer/1')?.[2];
+    expect(event.chartFile).toMatchObject({ state: 'server_generated', format: 'png_zip', bytes: expect.any(Number), sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    const { buildResultArtifact } = await import('../query/artifacts');
+    const artifact = await buildResultArtifact(body.result, { requestId: body.requestId, resultId: body.result.resultId, action: 'export', format: 'png_zip', chart: spec });
+    if (artifact.type !== 'download') throw new Error();
+    expect(artifact.sha256).toBe(event.chartFile.sha256);
+  });
+  it('uses a reauthorized prior chart result in the new workset without requerying or changing data', async () => {
+    const formal = result(), chart = { kind: 'plot' as const, type: 'bar' as const, x: 'name', y: ['height'] };
+    const recheck = vi.fn().mockResolvedValue(undefined);
+    state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextChart: { resultId: formal.resultId, chart }, contextRecheck: recheck }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: { ...chart, type: 'horizontal_bar', y: ['netEffectiveRent'], sort: { field: 'netEffectiveRent', direction: 'desc' } } })]))
+      .mockResolvedValueOnce(completed());
+    const response = await handleAgentSubmission(fakeRequest('改成横向柱状图，按租金从高到低排列').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200); expect(body.result.resultId).toBe(formal.resultId);
+    expect(body.result.table).toEqual(formal.table); expect(body.result.sources).toEqual(formal.sources);
+    expect(body.result.dataVersion).toBe(formal.dataVersion); expect(body.result.snapshotId).toBe(formal.snapshotId);
+    expect(state.tool).not.toHaveBeenCalled(); expect(state.structured).not.toHaveBeenCalled(); expect(recheck.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+  it('refuses unavailable fields, export without independent grant and source revocation before delivery', async () => {
+    const formal = result(), spec = { kind: 'plot' as const, type: 'horizontal_bar' as const, x: 'name', y: ['private_phone'] };
+    state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextRecheck: vi.fn().mockResolvedValue(undefined) }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('create_chart', { resultId: formal.resultId, chart: spec })])).mockResolvedValueOnce(completed());
+    const denied = await handleAgentSubmission(fakeRequest('图表').request, deps());
+    expect((await denied.json()).result).toBeUndefined();
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('export_chart', { resultId: formal.resultId, chart: { ...spec, y: ['height'] }, format: 'png_zip' })])).mockResolvedValueOnce(completed());
+    const noExport = await handleAgentSubmission(fakeRequest('导出 PNG').request, deps());
+    const noExportBody = await noExport.json();
+    expect(noExportBody.message).toContain('未生成图片'); expect(noExportBody.agent.unresolvedFailures).toContainEqual({ tool: 'export_chart', code: 'export_not_authorized' });
+    const recheck = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error('QUERY_DENIED'));
+    state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextRecheck: recheck }));
+    state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: { ...spec, y: ['height'] } })])).mockResolvedValueOnce(completed());
+    const revoked = await handleAgentSubmission(fakeRequest('改为横向柱状图').request, deps());
+    expect(revoked.status).toBe(403); expect((await revoked.json()).result).toBeUndefined();
+    expect(state.append.mock.calls.some(c => c[1] === 'correction' && c[2]?.delivery === 'not_sent')).toBe(true);
+  });
 });

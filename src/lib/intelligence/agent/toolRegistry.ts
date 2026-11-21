@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { distributionMeasureSchema } from '../query/distribution';
+import { chartRequestSchema } from '../query/chartSpec';
 
 /**
  * The public DeepSeek contract is structured. Only the legacy query adapter
@@ -26,6 +28,10 @@ const rowFilter = z.strictObject({ field: z.string().min(1).max(50),
   operator: z.enum(['eq', 'contains', 'gte', 'lte']), value: z.union([z.string().max(160), z.number().finite()]) });
 
 export const STRUCTURED_DATA_SCHEMAS = {
+  analyze_rent_vacancy: z.strictObject({ scope, period: quarter }),
+  analyze_distribution: z.strictObject({ scope, period: quarter.nullable(), measure: distributionMeasureSchema }),
+  list_buildings: z.strictObject({ scope, fields: z.array(field).max(6).default([]),
+    period: quarter.nullable().default(null), filter: predicate.optional() }),
   search_buildings: z.strictObject({ scope, nameContains: z.string().trim().min(1).max(100).optional() }),
   get_building_profile: z.strictObject({
     buildingIds: z.array(z.uuid()).min(1).max(100), fields: z.array(field).max(6).optional(),
@@ -48,7 +54,22 @@ export const STRUCTURED_DATA_SCHEMAS = {
 export type StructuredDataToolName = keyof typeof STRUCTURED_DATA_SCHEMAS;
 export const STRUCTURED_DATA_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(STRUCTURED_DATA_SCHEMAS));
 
+export const exportTableSchema = z.strictObject({
+  resultIds: z.array(z.uuid()).min(1).max(8),
+  format: z.enum(['xlsx', 'csv_zip']),
+  fields: z.array(z.string().min(1).max(50)).min(1).max(30).optional(),
+  sort: rowSort.optional(), filters: z.array(rowFilter).max(10).default([]),
+  topN: z.number().int().min(1).max(50000).optional(),
+  singleSheet: z.boolean().default(false),
+});
+
+export const exportContextSchema = z.strictObject({
+  plans: z.array(z.unknown()).min(1).max(8),
+  selection: exportTableSchema.omit({ resultIds: true }),
+});
+
 export const WORKSET_TOOL_SCHEMAS = {
+  export_table: exportTableSchema,
   summarize_result: resultRef,
   read_result_page: z.strictObject({ resultId: z.uuid(), offset: z.number().int().min(0).max(100000).default(0),
     limit: z.number().int().min(1).max(100).default(30), sort: rowSort.optional(), filter: rowFilter.optional() }),
@@ -60,7 +81,10 @@ export const WORKSET_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(WORKS
 
 export const PRESENTATION_TOOL_SCHEMAS = {
   get_source_evidence: optionalResultRef,
-  prepare_chart: optionalResultRef,
+  prepare_chart: z.strictObject({ resultId: z.uuid().optional(), chart: chartRequestSchema.optional() }),
+  create_chart: z.strictObject({ resultId: z.uuid(), chart: chartRequestSchema }),
+  modify_chart: z.strictObject({ resultId: z.uuid().optional(), chart: chartRequestSchema }),
+  export_chart: z.strictObject({ resultId: z.uuid().optional(), chart: chartRequestSchema.optional(), format: z.enum(['png_zip', 'svg_zip']) }),
   prepare_map_selection: optionalResultRef,
   prepare_research_output: optionalResultRef,
 } as const;
@@ -69,7 +93,7 @@ export const PRESENTATION_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(
 
 export const LEGACY_TOOL_NAMES: ReadonlySet<string> = new Set([
   'query_verified_real_estate', 'get_data_capabilities', ...Object.keys(STRUCTURED_DATA_SCHEMAS),
-  ...Object.keys(PRESENTATION_TOOL_SCHEMAS),
+  'get_source_evidence', 'prepare_chart', 'prepare_map_selection', 'prepare_research_output',
 ]);
 
 /** For a bounded migration, accept previously issued {question} calls at the
@@ -86,7 +110,7 @@ export function parseAgentToolArguments(name: string, input: unknown): Record<st
     const schema = WORKSET_TOOL_SCHEMAS[name as WorksetToolName];
     return schema.parse(input) as Record<string, unknown>;
   }
-  if (PRESENTATION_TOOL_NAMES.has(name)) return optionalResultRef.parse(input);
+  if (PRESENTATION_TOOL_NAMES.has(name)) return PRESENTATION_TOOL_SCHEMAS[name as PresentationToolName].parse(input);
   throw new Error('AGENT_UNREGISTERED_TOOL');
 }
 
@@ -113,6 +137,10 @@ function def(name: string, description: string, properties: Record<string, unkno
 }
 const jsonScope = s;
 export const SPECIALIST_DATA_TOOLS = [
+  def('analyze_rent_vacancy', '查询同季度获权楼宇的净有效租金与空置率联合样本，用于散点；返回rent与vacancy列，空置率正式比例来自授权面积，不自行估算。', { scope: s, period: q }, ['scope', 'period']),
+  def('analyze_distribution', '复用正式分布统计生成直方图或箱线图所需的完整获权结果；不由模型计算分箱和分位数。', z.toJSONSchema(STRUCTURED_DATA_SCHEMAS.analyze_distribution).properties as Record<string, unknown>, ['scope', 'period', 'measure']),
+  def('list_buildings', '查询完整获权楼宇列表及最多6个组合数值字段；无季度只能查询目录/资料字段，季度数值须明确period。可供全量导出，绝不以预览行替代全表。',
+    { scope: s, fields: { type: 'array', items: f, maxItems: 6 }, period: { anyOf: [q, { type: 'null' }] }, filter: p }, ['scope']),
   def('get_data_capabilities', '实时检查当前登录身份的楼宇、字段、范围、操作和内部导出授权；授权不保证数据覆盖，不得凭推测回答权限。',
     { question: { type: 'string', minLength: 2, maxLength: 1000 } }, ['question']),
   def('search_buildings', '列出获权楼宇目录，可用名称子串进一步筛选。先使用此工具取得真实楼宇ID，不接受模糊生成的ID。',
@@ -136,6 +164,8 @@ export const SPECIALIST_DATA_TOOLS = [
       groupBy: { type: 'string', enum: ['submarket', 'grade'] } }, ['scope', 'start', 'end', 'metric']),
 ] as const;
 export const WORKSET_TOOLS = [
+  def('export_table', '真实生成内部Excel或CSV与来源ZIP。只接受本轮完整正式resultIds，不能提交数值/SQL/路径。可选择现有列、组合筛选、排序、Top N；默认全部行，超限明确失败。多结果按同列结构纵向合并并保留结果ID/期间，禁止重算均值。singleSheet=true明确只生成一个工作表。跨轮“刚才结果”须按历史条件重新查询再导出。先获取合法resultId及列key；本工具成功只表示服务器生成，下载由回答中的真实操作交付，不表示本机已保存。',
+    z.toJSONSchema(exportTableSchema).properties as Record<string, unknown>, ['resultIds', 'format']),
   def('summarize_result', '汇总本次请求中某一完整可信结果的总行数、正式结论、列有效样本数，非前8行。',
     { resultId: ref.properties.resultId }, ['resultId']),
   def('read_result_page', '对本次获权工作集结果分页、按已存在列排序或筛选，返回真实总行数及分页，不能访问不属于本次会话的结果。',
@@ -154,7 +184,11 @@ export const WORKSET_TOOLS = [
 ] as const;
 export const PRESENTATION_TOOLS = [
   def('get_source_evidence', '读取本轮指定已获权结果的来源、期间、核验状态；不返回未获权原文。', optionalRef.properties),
-  def('prepare_chart', '由指定可信完整结果的确定性图表程序准备规格，不凭模型绘制数据点。', optionalRef.properties),
+  ...(['prepare_chart', 'create_chart', 'modify_chart', 'export_chart'] as const).map(name => def(name,
+    name === 'export_chart' ? '真实生成PNG或SVG及来源ZIP；须独立导出资格，只能使用完整获权结果。format=png_zip|svg_zip。成功仅表示服务器生成，下载入口在回答中，不能声称已保存。'
+      : '使用指定获权完整结果创建或修改图表。chart.kind=plot时type=bar|horizontal_bar|line|scatter，x为现有横轴列key，y为1至6个同单位数值列key，groupBy可用现有分类列。横向条形仍传x分类/y数值，仅改变方向。支持sort、title、legend、periods和xAxis/yAxis的min/max/ticks/unit；ratio坐标按0至100%，percentage_point不再乘100。其它kind复用time_series/grouped_time_series/heatmap/histogram/box_plot。修改须保留未变的规格，数值绝不由模型提供。',
+    z.toJSONSchema(PRESENTATION_TOOL_SCHEMAS[name]).properties as Record<string, unknown>,
+    name === 'create_chart' ? ['resultId', 'chart'] : name === 'modify_chart' ? ['chart'] : name === 'export_chart' ? ['format'] : [])),
   def('prepare_map_selection', '由指定完整结果的已获权楼宇ID构造需要再次鉴权的地图跳转。', optionalRef.properties),
   def('prepare_research_output', '基于指定正式结果构造有来源及限制的研究摘要，不表示已导出PDF或Excel。', optionalRef.properties),
 ] as const;

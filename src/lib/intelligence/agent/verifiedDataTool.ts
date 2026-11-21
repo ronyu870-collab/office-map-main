@@ -67,8 +67,6 @@ export async function queryVerifiedRealEstate(
     summary: summaries.slice(0, 3), limitations: view.limitations.slice(0, 2) }), result };
 }
 
-
-
 /** Validated structured tool -> existing QueryPlan -> authorize -> snapshot -> deterministic
  * result. No natural-language parsing, direct SQL, alternate RPC or additional grants.
  * Historic {question} calls continue using queryVerifiedRealEstate above. */
@@ -81,6 +79,20 @@ export async function executeStructuredDataTool(
   let planInput: unknown;
   let nameContains: string | undefined;
   switch (name) {
+    case 'analyze_rent_vacancy': {
+      const args = STRUCTURED_DATA_SCHEMAS.analyze_rent_vacancy.parse(input);
+      planInput = { operation: 'relationship', ...args }; break;
+    }
+    case 'analyze_distribution': {
+      const args = STRUCTURED_DATA_SCHEMAS.analyze_distribution.parse(input);
+      planInput = { operation: 'distribution', ...args }; break;
+    }
+    case 'list_buildings': {
+      const args = STRUCTURED_DATA_SCHEMAS.list_buildings.parse(input);
+      planInput = { operation: 'list', scope: args.scope, fields: args.fields, period: args.period,
+        ...(args.filter ? { filter: args.filter } : {}) };
+      break;
+    }
     case 'search_buildings': {
       const args = STRUCTURED_DATA_SCHEMAS.search_buildings.parse(input);
       planInput = { operation: 'list', scope: args.scope, period: null, fields: [] };
@@ -157,7 +169,7 @@ export async function executeStructuredDataTool(
   }));
   return { result, content: JSON.stringify({
     status: 'ready', operation: view.operation, resultId: view.resultId,
-    rowCount: view.table.rows.length, sourceCount: view.sources.length,
+    columns: view.table.columns, rowCount: view.table.rows.length, sourceCount: view.sources.length,
     dataVersion: view.dataVersion, snapshotId: view.snapshotId,
     summary: resultSummary(view).slice(0, 5), preview,
     previewRows: preview.length, completeResultAvailable: true,

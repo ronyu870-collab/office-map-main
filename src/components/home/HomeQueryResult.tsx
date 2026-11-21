@@ -12,6 +12,8 @@ import { resultAvailability } from '@/src/lib/intelligence/query/resultAvailabil
 import { resultBuildingRows } from '@/src/lib/intelligence/query/buildingCards';
 import type { QueryClientScope } from '@/src/services/trustedQueryClient';
 import { useQueryPresentationReceipt } from './useQueryPresentationReceipt';
+import { HomeQueryExportDownload } from './HomeQueryExportDownload';
+import { HomeQueryChartWorkspace } from './HomeQueryChartWorkspace';
 import { HomeQueryArtifacts } from './HomeQueryArtifacts';
 import { HomeQueryInsights } from './HomeQueryInsights';
 import styles from './HomeQuery.module.css';
@@ -118,6 +120,9 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       </div>}
       <SourceOverview result={result} research={research} onSource={showSources} />
     </div>
+    {requestId && scope && <HomeQueryExportDownload descriptor={result.parameters.agentExport}
+      requestId={requestId} resultId={result.resultId} scope={scope} internalExport={internalExport} />}
+    {requestId && scope && result.parameters.agentChart != null && <HomeQueryChartWorkspace result={result} requestId={requestId} scope={scope} internalExport={internalExport} onSource={showSources} visible={visible} />}
     {condensed && <div className={experienceStyles.preview}>
       <p>完整分析包含 {result.table.rows.length} 条结果，可查看图表、项目明细及逐项来源。</p>
       <Button variant="secondary" data-result-expand onClick={() => { if (onExpand) onExpand(); else setInlineExpanded(true); }}>{onExpand ? '在全屏中查看完整分析' : '展开完整分析'}</Button>
@@ -140,7 +145,7 @@ export const HomeQueryResult = React.memo(function HomeQueryResult({ result, req
       <div className={`${styles.tableScroll} ${experienceStyles.table}`} tabIndex={0} aria-label="查询结果表，可横向滚动">
         <table><caption className="sr-only">本次结果的完整表格，分页不改变统计范围</caption><thead><tr>{result.table.columns.map(column =>
           <th key={column.key} scope="col" className={column.unit ? styles.number : undefined}>{column.label}{column.unit ? `（${units[column.unit] ?? column.unit}）` : ''}</th>)}</tr></thead>
-          <tbody>{rows.map(row => <tr key={row.entityId}>{result.table.columns.map(column => {
+          <tbody>{rows.map((row, index) => <tr key={`${page}:${row.entityId}:${index}`}>{result.table.columns.map(column => {
             const cell = row.cells[column.key];
             const value = cellText(cell, column.unit);
             return <td key={column.key} className={cell.kind === 'number' ? styles.number : undefined}>

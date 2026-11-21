@@ -1,0 +1,11 @@
+.workspace { display: grid; gap: var(--cd-space-3, 12px); margin-block: 16px; font-size: 14px; }
+.figure { margin: 0; display: grid; gap: 12px; }
+.figure figcaption { font-size: 16px; font-weight: 500; }
+.canvas { max-width: 100%; overflow: auto; max-height: 720px; border: 1px solid var(--cd-color-border); border-radius: 6px; }
+.canvas svg { display: block; min-width: 640px; max-width: none; }
+.controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-block: 16px; }
+.controls label { display: grid; gap: 4px; align-content: start; }
+.controls input, .controls select { min-height: 44px; width: 100%; padding: 8px; border: 1px solid var(--cd-color-border); border-radius: 6px; font: inherit; background: var(--cd-color-surface); color: inherit; }
+.controls input[type="checkbox"] { width: 24px; }
+.controls input:focus-visible, .controls select:focus-visible, .canvas:focus-visible { outline: 2px solid var(--cd-color-brand); outline-offset: 2px; }
+@media (max-width: 639px) { .controls { grid-template-columns: minmax(0, 1fr); } }

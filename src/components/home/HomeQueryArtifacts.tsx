@@ -4,6 +4,7 @@ import * as React from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/src/components/ui/Button';
 import { trustedQueryClient, type QueryClientScope } from '@/src/services/trustedQueryClient';
+import { agentChartDescriptorSchema } from '@/src/lib/intelligence/query/chartProtocol';
 import { chartBounds, distributionGeometry, chartFacets, heatmapFill, heatmapLegend, lineGeometry, type ChartRequest, type ResultChart } from '@/src/lib/intelligence/query/charts';
 import { distributionStatLabels } from '@/src/lib/intelligence/query/distribution';
 import { formatExact, units, type QueryResultView } from '@/src/lib/intelligence/query/presentation';
@@ -39,13 +40,15 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   const isDistribution = result.operation === 'distribution';
   const isRelationship = result.operation === 'relationship';
   const request: ChartRequest = React.useMemo(() => {
+    const prepared = agentChartDescriptorSchema.safeParse(result.parameters.agentChart).data;
+    if (prepared) return prepared.request;
     const selection = multipleMetrics ? { metric: selectedMetric } : {};
     return isDistribution ? { kind: 'histogram' } : isRelationship ? { kind: 'scatter', x: 'rent', y: 'vacancy' }
       : isCross ? { kind: 'heatmap', ...selection } : result.operation === 'group_trend' || result.operation === 'cross_trend' ? { kind: 'grouped_time_series', ...selection }
         : result.operation === 'trend' ? { kind: 'time_series', ...selection } : result.operation === 'compare' ? { kind: 'period_comparison', ...selection }
           : { kind: 'bar', field: multipleMetrics ? 'value' : field, ...selection };
-  }, [isDistribution, isRelationship, isCross, result.operation, field, multipleMetrics, selectedMetric]);
-  const run = React.useCallback(async (input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip') => {
+  }, [isDistribution, isRelationship, isCross, result.operation, result.parameters.agentChart, field, multipleMetrics, selectedMetric]);
+  const run = React.useCallback(async (input: ChartRequest | 'xlsx' | 'csv_zip' | 'svg_zip' | 'png_zip') => {
     if (active.current || (typeof input !== 'string' && completedRequest.current === JSON.stringify(input))) return;
     const controller = new AbortController(); active.current = controller;
     setMessageTarget(typeof input === 'string' ? 'download' : 'chart');
@@ -53,7 +56,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
     try {
       if (typeof input === 'string') {
         const file = await trustedQueryClient.download(scope, { requestId, resultId: result.resultId, action: 'export', format: input,
-          ...(input === 'svg_zip' ? { chart: chart?.request ?? request } : {}) }, controller.signal);
+          ...(input === 'svg_zip' || input === 'png_zip' ? { chart: chart?.request ?? request } : {}) }, controller.signal);
         if (controller.signal.aborted) return;
         const url = URL.createObjectURL(file.blob), anchor = document.createElement('a');
         anchor.href = url; anchor.download = file.filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
@@ -75,7 +78,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
   // Charts use the same authorized result; exports always require a user action.
   const automaticKey = `${requestId}:${result.resultId}:${multipleMetrics ? selectedMetric : field}`;
   const started = React.useRef<string | null>(null);
-  const canAuto = result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0
+  const canAuto = !result.parameters.agentChart && result.operation !== 'aggregate' && result.operation !== 'list' && numeric.length > 0
     && (multipleMetrics ? result.table.rows.length > 0 : result.table.rows.some(row => row.cells[selectedField]?.kind === 'number'));
   React.useEffect(() => {
     let disposed = false;
@@ -95,13 +98,13 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       {internalExport && <details className={styles.exportMenu}><summary>下载本次结果</summary><div className={styles.actions}>
         <Button variant="ghost" disabled={busy} onClick={() => void run('xlsx')}>Excel</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void run('csv_zip')}>CSV 与来源</Button>
-        {numeric.length > 0 && <Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button>}
+        {numeric.length > 0 && <><Button variant="ghost" disabled={busy} onClick={() => void run('svg_zip')}>SVG 图与来源</Button><Button variant="ghost" disabled={busy} onClick={() => void run('png_zip')}>PNG 图与来源</Button></>}
       </div></details>}
     </HomeQueryResultActions>
     <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'download' ? message : ''}</p>
   </div>;
   return <div className={styles.artifacts}>
-    <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
+    {!result.parameters.agentChart && <div className={`${styles.actions} ${experienceStyles.chartTools}`}>
       {multipleMetrics && result.operation !== 'aggregate' ? <label className={styles.chartSelect}>图表指标<select value={selectedMetric} disabled={busy} onChange={event => {
         const chosen = metrics.find(item => item === event.target.value);
         if (!chosen || active.current) return;
@@ -113,7 +116,7 @@ export function HomeQueryArtifacts({ result, requestId, scope, internalExport, o
       {(isTrend || isCross) && <Button variant="ghost" disabled={busy} onClick={()=>void run({kind:'bar',field:'value', ...(multipleMetrics ? { metric: selectedMetric } : {})})}>查看柱状图</Button>}
       {result.operation === 'list' && numeric.length >= 2 && <Button variant="ghost" disabled={busy} onClick={() => void run({ kind: 'scatter', x: numeric[0].key, y: numeric[1].key })}>查看散点图</Button>}
       {chart && <Button variant="ghost" onClick={() => { setChart(null); completedRequest.current = null; }}>收起图表</Button>}
-    </div>
+    </div>}
     <p role="status" className={`${styles.notice} ${experienceStyles.artifactStatus}`}>{messageTarget === 'chart' ? message : ''}</p>
     {chart && <figure className={styles.chart} aria-label="同源查询图表">
       <figcaption className={experienceStyles.chartCaption}>

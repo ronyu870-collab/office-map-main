@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['ali-oss'],
-  outputFileTracingIncludes: { '/api/quarterly-research': ['./private/quarterly-research/*.html'] },
+  serverExternalPackages: ['ali-oss', '@resvg/resvg-js'],
+  outputFileTracingIncludes: { '/api/intelligence/query/**': ['./private/chart-fonts/*'], '/api/quarterly-research': ['./private/quarterly-research/*.html'] },
   poweredByHeader: false,
   typescript: {
     ignoreBuildErrors: true,

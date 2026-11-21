@@ -43,10 +43,10 @@ describe('DeepSeek official native chat completion protocol', () => {
     const sent = JSON.parse(String(init.body));
     expect(sent.model).toBe('deepseek-flash');
     expect(sent.tools.map((item: { function: { name: string } }) => item.function.name)).toEqual([
-      'query_verified_real_estate', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
+      'query_verified_real_estate', 'analyze_rent_vacancy', 'analyze_distribution', 'list_buildings', 'get_data_capabilities', 'search_buildings', 'get_building_profile',
       'query_quarterly_metrics', 'rank_buildings', 'compare_market_segments', 'analyze_market_trends',
-      'summarize_result', 'read_result_page', 'check_data_coverage', 'compare_result_sets',
-      'get_source_evidence', 'prepare_chart', 'prepare_map_selection', 'prepare_research_output',
+      'export_table', 'summarize_result', 'read_result_page', 'check_data_coverage', 'compare_result_sets',
+      'get_source_evidence', 'prepare_chart', 'create_chart', 'modify_chart', 'export_chart', 'prepare_map_selection', 'prepare_research_output',
     ]);
     expect(sent.tools[0].function.name).toBe('query_verified_real_estate');
     expect(sent.thinking.type).toBe('disabled');

@@ -1,9 +1,10 @@
 'use client';
 
-import { dealHistoryHref, mapBuildingHref } from '@/src/lib/broker/links';
+import { dealHistoryHref } from '@/src/lib/broker/links';
 import { useAppSession } from '@/src/components/SessionProvider';
 import { canAccessModule } from '@/src/utils/accessControl';
 import * as React from 'react';
+import { currentMapReturnHref } from './workspace/continuity';
 import { ChevronDown, ChevronLeft, ChevronRight, Database, X } from 'lucide-react';
 
 import { getSessionFast } from '@/src/services/Auth';
@@ -19,6 +20,7 @@ const cache = new Map<string, { payload: LeasePayload; cachedAt: number }>();
 type BuildingContext = {
   buildingId: string;
   buildingName?: string;
+  backHref?: string;
 };
 
 type LeaseRow = {
@@ -156,14 +158,14 @@ export function MapLeaseTransactionsBridge() {
 
       setPage(0);
       setExpandedReadId(null);
-      setContext(nextContext);
+      setContext({ ...nextContext, backHref: currentMapReturnHref(nextContext.buildingId) });
     };
 
     const onSection = (event: Event) => {
       const { id, name, section } = (event as CustomEvent).detail;
       if (section !== 'deals') return;
       setPage(0);
-      setContext({ buildingId: id, buildingName: name });
+      setContext({ buildingId: id, buildingName: name, backHref: currentMapReturnHref(id) });
     };
     document.addEventListener('click', handleClick, true);
     window.addEventListener('broker:building-section', onSection);
@@ -253,7 +255,7 @@ export function MapLeaseTransactionsBridge() {
         </span>
         {canAccessModule('lease-submission', session?.role) && <a className="inline-flex min-h-11 items-center text-sm text-[var(--cd-color-brand)] underline" href={dealHistoryHref(
           { id: context.buildingId, name: context.buildingName || '当前楼宇' },
-          mapBuildingHref(context.buildingId, { section: 'deals' }),
+          context.backHref,
         )}>在成交库查看</a>}
       </div>
 
