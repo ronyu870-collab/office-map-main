@@ -18,6 +18,11 @@ const limited = (reason: string): AgentToolObservation<QueryResult> => ({
 });
 
 export function preferredChartRequest(view: QueryResultView): ChartRequest | null {
+  if (view.parameters.dataDomain === 'lease-research/1') {
+    if (!view.table.columns.some(c => c.key === 'group')) return null;
+    const bindings = view.parameters.leaseBindings as Array<{ plan?: { groupBy?: string } }>;
+    return { kind: 'plot', type: bindings?.[0]?.plan?.groupBy === 'quarter' ? 'line' : 'bar', x: 'group', y: ['area'] };
+  }
   const op = view.operation;
   if (op === 'trend') return { kind: 'time_series' };
   if (op === 'group_trend' || op === 'cross_trend') return { kind: 'grouped_time_series' };

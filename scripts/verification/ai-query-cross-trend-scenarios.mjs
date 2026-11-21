@@ -8,7 +8,7 @@ import { CROSS_TREND_METRICS, crossTrendOracleRows, validateCrossTrendResult } f
 
 export async function verifyCrossTrend({ db, check, queryAdmin, person, call, recover, artifact, acknowledge, exportCaps, load }) {
   assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
-  assert.equal(db.connectionParameters.host, '127.0.0.1'); assert.equal(Number(db.connectionParameters.port), 55992);
+  assert.equal(db.connectionParameters.host, '127.0.0.1'); assert.equal(Number(db.connectionParameters.port), Number(process.env.AI_QUERY_AUTH_DB_PORT ?? 55992));
   const original = (await db.query('select id,submarket,grade from public.buildings where id=any($1::uuid[])', [BUILDINGS])).rows;
   const periods = [{ year: 2026, quarter: 2 }, { year: 2026, quarter: 3 }];
   const fields = ['height', 'totalArea', 'netEffectiveRent', 'vacantArea'];

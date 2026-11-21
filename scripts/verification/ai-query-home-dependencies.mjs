@@ -44,7 +44,7 @@ export async function loadQueryHomeDependencies(db, load) {
 export async function verifyQueryHomeDependencies({ db, load, check, person, app, until }) {
   assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
   assert.equal(db.connectionParameters.host, '127.0.0.1');
-  assert.equal(Number(db.connectionParameters.port), 55992);
+  assert.equal(Number(db.connectionParameters.port), Number(process.env.AI_QUERY_AUTH_DB_PORT ?? 55992));
   const owner = await person('admin', 'home-background');
   const readQueries = () => [
     owner.client.from('message_notifications').select('message_id').is('read_at', null).order('created_at', { ascending: false }).limit(100),
