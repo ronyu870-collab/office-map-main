@@ -219,7 +219,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             pending += delta;
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
-          if (!(result.message.tool_calls?.length)) await flush();
+          // File delivery state comes from the server, never model prose.
+          if (!(result.message.tool_calls?.length) && !preparedExport
+            && !/(?:导出|下载|Excel|CSV|xlsx)/i.test(valid.question)) await flush();
           return result;
         },
         signal, onEvent,
@@ -301,8 +303,18 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (preparedExport) {
       execution.result = preparedExport;
-      execution.answer += '\n\n服务器已生成 ' + preparedExport.table.rows.length
-        + ' 行文件，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。';
+      execution.answer = '服务器已生成 ' + preparedExport.table.rows.length
+        + ' 行' + ((preparedExport.parameters.agentExport as { format: string }).format === 'xlsx' ? ' Excel 文件' : ' CSV 与来源包')
+        + '，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。'
+        + (execution.unresolvedFailures.length ? '\n\n执行限制：' + execution.unresolvedFailures
+          .map(item => item.tool + '（' + item.code + '）').join('、') + '。其余步骤未全部完成。' : '');
+    }
+    if (!preparedExport && (execution.toolNames.includes('export_table')
+      || execution.unresolvedFailures.some(item => item.tool === 'export_table'))) {
+      execution.answer = '本轮未生成文件。'
+        + (execution.unresolvedFailures.some(item => item.code === 'export_not_authorized')
+          ? '当前身份没有独立的内部导出资格。' : '导出步骤未通过，请调整范围、字段或规格后重试。')
+        + '\n执行限制：' + execution.unresolvedFailures.map(item => item.tool + '（' + item.code + '）').join('、');
     }
     await audit.append(requestId, 'accounting', { provider: 'deepseek', status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,

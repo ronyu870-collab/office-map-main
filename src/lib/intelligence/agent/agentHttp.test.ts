@@ -315,7 +315,7 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
   const call = (name: string, args: unknown) => ({ id: randomUUID(), type: 'function',
     function: { name, arguments: JSON.stringify(args) } });
   const model = (tool_calls?: ReturnType<typeof call>[]) => ({ model: 'deepseek-flash', inputTokens: 10, outputTokens: 10,
-    message: { role: 'assistant', content: tool_calls ? null : '请使用本条回答中的文件下载。', ...(tool_calls ? { tool_calls } : {}) } });
+    message: { role: 'assistant', content: tool_calls ? null : '文件已保存到你的桌面：https://fake.invalid/export.xlsx', ...(tool_calls ? { tool_calls } : {}) } });
   const cases = [
     { question: '把 CBD 所有楼导出 Excel。', format: 'xlsx' },
     { question: '把 CBD 净有效租金最高的 10 栋楼导出 Excel。', format: 'xlsx', sort: { field: 'netEffectiveRent', direction: 'desc' }, topN: 10 },
@@ -344,6 +344,8 @@ describe('AI 5.0 natural-language export through the authenticated Agent handler
     expect(output.agent.toolCalls).toBe(2);
     expect(output.message).toContain('服务器已生成');
     expect(output.message).toContain('未确认本机保存');
+    expect(output.message).not.toContain('已保存到你的桌面');
+    expect(output.message).not.toContain('fake.invalid');
     const archived = state.append.mock.calls.find(x => x[1] === 'response_generated')?.[2]?.result;
     expect(archived.resultId).toBe(output.result.resultId);
     const artifact = await import('../query/artifacts').then(m => m.buildResultArtifact(archived,
