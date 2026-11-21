@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import type { MapController } from '@/src/services/MapController';
+import type { Camera } from '../workspace/continuity';
 import { installMapInteractionHardening } from './mapInteractionHardening';
 import { installMapStartupOptimization } from './mapStartupOptimization';
 import { recordMapStartup } from '@/src/utils/mapStartupProbe';
@@ -12,6 +13,7 @@ type MapRuntimeOptions = {
   containerId: string;
   userRole: string;
   currentUserId: string | null;
+  initialCamera?: Camera | null;
   onEditBuildingMetrics: (buildingId: string, buildingName: string) => void;
   onReady: (controller: MapController, isCancelled: () => boolean) => Promise<void> | void;
   onError: (message: string | null) => void;
@@ -245,6 +247,7 @@ export function useMapRuntime({
   containerId,
   userRole,
   currentUserId,
+  initialCamera,
   onEditBuildingMetrics,
   onReady,
   onError,
@@ -257,12 +260,16 @@ export function useMapRuntime({
   const editRef = React.useRef(onEditBuildingMetrics);
   const readyRef = React.useRef(onReady);
   const errorRef = React.useRef(onError);
+  const initialCameraRef = React.useRef(initialCamera);
 
   roleRef.current = userRole;
   userIdRef.current = currentUserId;
   editRef.current = onEditBuildingMetrics;
   readyRef.current = onReady;
   errorRef.current = onError;
+  React.useEffect(() => {
+    initialCameraRef.current = initialCamera;
+  }, [initialCamera]);
 
   const applyAdminMode = React.useCallback((controller: MapController) => {
     const isAdmin = roleRef.current === 'admin';
@@ -309,7 +316,15 @@ export function useMapRuntime({
           if (!cancelled) console.error('[MapRuntime] parallel startup work failed', error);
         });
 
-        await controller.initMap(containerId);
+        // A validated return snapshot is available before the SDK starts. Avoid
+        // loading the default city tiles/glyphs only to replace them on restore.
+        // This is an initial option, not a dependency that recreates a live map.
+        const camera = initialCameraRef.current;
+        if (camera) {
+          await controller.initMap(containerId, { lng: camera.center[0], lat: camera.center[1] }, { zoom: camera.zoom });
+        } else {
+          await controller.initMap(containerId);
+        }
         if (cancelled) return;
 
         assertMapInstanceCreated(controller);
