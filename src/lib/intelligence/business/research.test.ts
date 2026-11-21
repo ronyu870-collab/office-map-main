@@ -47,6 +47,16 @@ describe('controlled business research',()=>{
   s.records[0].data[1].values.gfaTotal='bogus';expect(buildBusinessResult(s,plan).table.rows[0].cells.gfaTotal).toMatchObject({state:'invalid'});
   s.records[0].data[1].values.address=null;expect(buildBusinessResult(s,plan).table.rows[0].cells.address).toMatchObject({state:'missing'});
  });
+ it('reuses existing height/floor/parking numeric domains and rejects fractional counts while retaining a real zero parking count',()=>{
+  const s=snap();Object.assign(s.records[0].data[1].values,{height:'0',floors:'0',parking:'0.5',floorsAbove:'36.5'});
+  const fields=['height','floors','parking','floorsAbove'] as const;
+  const p=businessPlanSchema.parse({...plan,fields:[...fields]});
+  const invalid=buildBusinessResult(s,p).table.rows[0].cells;
+  for(const key of fields)expect(invalid[key]).toMatchObject({kind:'unknown',state:'invalid'});
+  Object.assign(s.records[0].data[1].values,{height:'210',floors:'36.0',parking:'0',floorsAbove:'36'});
+  const valid=buildBusinessResult(s,p).table.rows[0].cells;
+  expect(valid.parking).toMatchObject({kind:'number',value:{numeric:0}});expect(valid.floors).toMatchObject({kind:'number',value:{numeric:36}});
+ });
  it('uses the full existing editorial release gate, including internal text in fact/insight arrays',()=>{
   const profile=businessPlanSchema.parse({tool:'query_submarket_profile',submarkets:['CBD']});const s=snap(),row=s.records[0];row.id='CBD';row.name='CBD';row.buildingId=null;
   const v={name:'CBD',published:'true',headline:'市场定位',overview:'静态介绍',industries:'产业描述',transport:'交通条件'};row.data=[evidence('map_submarket_profiles',v,'CBD')];row.editorial={...v,insights:[]};

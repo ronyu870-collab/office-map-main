@@ -5,6 +5,7 @@ import type { VerifiedQueryIdentity } from '../query/serverAuthority';
 import type { QueryResult, ResultCell } from '../query/result';
 import type { SourceRef } from '../query/contracts';
 import { Decimal } from '../query/decimal';
+import { numericFields } from '../query/registry';
 import { resultViewSchema } from '../query/presentation';
 import { publicBriefReviewErrors } from '@/src/app/map/model/submarketPublication';
 import { readSubmarketProfileRow } from '@/src/app/map/model/submarketProfile';
@@ -78,7 +79,11 @@ export function buildBusinessResult(snapshot:BusinessSnapshot,rawPlan:BusinessPl
       else if(values.length!==candidates.length)cell={kind:'unknown',state:'unverified',reason:'business_candidate_incomplete',sourceIds};
       else if(type==='number'){
         const value=Decimal.parse(values[0].value)!;
-        cell=value.compare(Decimal.parse('0')!)<0?{kind:'unknown',state:'invalid',reason:'business_negative_area_or_count',sourceIds}
+        const existingRule=plan.tool==='query_building_dossier' && (key==='height'||key==='floors'||key==='parking') ? numericFields[key] : null;
+        const compared=value.compare(Decimal.parse('0')!);
+        const invalid=compared<0 || existingRule?.positive && compared===0
+          || (existingRule?.integer || unit==='floor' || unit==='space') && value.exact().denominator!=='1';
+        cell=invalid?{kind:'unknown',state:'invalid',reason:'business_numeric_domain_invalid',sourceIds}
           :{kind:'number',value:{exact:value.exact(),numeric:value.toNumber()},sourceIds};
       } else {const value=values[0].value!;cell={kind:'text',value:plan.tool==='query_stacking_plan'||key==='entered'?labels[value]??value:value,sourceIds};}
     }
