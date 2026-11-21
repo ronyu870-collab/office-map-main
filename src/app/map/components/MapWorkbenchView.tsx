@@ -185,7 +185,7 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
         { label: '甲级写字楼', className: 'bg-[#245b78]' },
         { label: '乙级写字楼', className: 'bg-[#4f7968]' },
         { label: '产业园', className: 'bg-[#9b6948]' },
-        { label: '未来供应', className: 'border border-slate-500 bg-white' },
+        { label: '未来供应', className: 'border border-dashed border-white bg-[#4f7968]' },
       ],
     },
     rent: {
