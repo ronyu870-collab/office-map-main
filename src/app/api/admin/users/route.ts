@@ -1,3 +1,4 @@
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth'
@@ -48,29 +49,6 @@ async function requireAdmin(request: NextRequest): Promise<AdminContext | NextRe
 
 function isAdminContext(value: AdminContext | NextResponse): value is AdminContext {
   return !(value instanceof NextResponse)
-}
-
-async function audit(
-  client: SupabaseClient,
-  caller: User,
-  operation: string,
-  targetUserId: string,
-  details: Record<string, unknown> = {},
-) {
-  const { error } = await client.from('audit_logs').insert({
-    user_id: caller.email || caller.id,
-    action_type: 'ADMIN_DATA_OPERATION',
-    target_table: 'user_roles',
-    target_id: targetUserId,
-    details: {
-      operation,
-      table: 'user_roles',
-      table_label: '用户管理',
-      target_user_id: targetUserId,
-      ...details,
-    },
-  })
-  if (error) console.error('[admin/users] 审计日志写入失败:', error.message)
 }
 
 function normalizeText(value: unknown, maxLength = 200) {
@@ -194,6 +172,7 @@ export async function PATCH(request: NextRequest) {
     const userId = String(body.userId ?? '').trim()
     if (!userId) return NextResponse.json({ error: '缺少目标用户' }, { status: 400 })
 
+    const execute = async () => {
     if (action === 'update_profile') {
       const requestedRole = String(body.role ?? '').trim().toLowerCase()
       const expectedRequestedRole = String(body.expectedRole ?? '').trim().toLowerCase()
@@ -253,14 +232,6 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: '该用户资料已在其他页面更新，请刷新用户列表后再保存' }, { status: 409 })
       }
 
-      const changedFields = Object.keys(profileUpdate).filter((key) => oldProfile[key as keyof typeof oldProfile] !== profileUpdate[key])
-      await audit(client, caller, 'UPDATE_USER_PROFILE', userId, {
-        changed_fields: changedFields,
-        requested_role: requestedRole,
-        expected_role: expectedRequestedRole,
-        role_before: currentRole,
-        role_after: savedProfile.role,
-      })
       return NextResponse.json({
         success: true,
         message: '用户资料和角色已更新',
@@ -278,7 +249,7 @@ export async function PATCH(request: NextRequest) {
       if (authUpdateError) return NextResponse.json({ error: `账号状态修改失败：${authUpdateError.message}` }, { status: 500 })
       if (disabled) await client.from('user_roles').update({ session_id: null }).eq('user_id', userId)
 
-      await audit(client, caller, disabled ? 'DISABLE_USER' : 'ENABLE_USER', userId)
+
       return NextResponse.json({ success: true, message: disabled ? '账号已停用，历史数据保持不变' : '账号已重新启用' })
     }
 
@@ -363,16 +334,13 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: `未来供应任务转移失败，已完成任务已回滚：${futureTransfer.error.message}` }, { status: 500 })
       }
 
-      await audit(client, caller, 'TRANSFER_USER_ASSIGNMENTS', userId, {
-        target_user_id: targetUserId,
-        stock_count: stockIds.length,
-        future_count: futureIds.length,
-        historical_submissions_changed: false,
-      })
       return NextResponse.json({ success: true, message: `已转移 ${stockIds.length + futureIds.length} 项当前及未来任务，历史填报未修改` })
     }
 
     return NextResponse.json({ error: '不支持的操作' }, { status: 400 })
+    };
+    if(body.dryRun===true) return await execute();
+    return await withCriticalAudit(client,{user_id:caller.id,action_type:'ADMIN_DATA_OPERATION',module:'admin',target_table:'user_roles',target_id:userId,details:{operation:action,target_user_id:userId,recipient_user_id:body.targetUserId}},'admin/users',execute);
   } catch (error) {
     console.error('[admin/users] 操作失败:', error)
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 })

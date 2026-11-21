@@ -443,7 +443,7 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
     try {
       const authorization = await listAuthorization();
       if (!authorization || !mounted.current) throw new Error('登录身份已变化，请重新选择要上传的文件。');
-      const signatureResponse = await fetch('/api/oss?action=get-signature', { headers: authorization.headers, cache: 'no-store' });
+      const signatureResponse = await fetch('/api/oss?action=prepare-upload', {method:'POST',headers:{...authorization.headers,'Content-Type':'application/json'},body:JSON.stringify({files:uploadable.map(({file})=>({file_name:`${prefix}${file.name}`,size:file.size}))}),cache:'no-store'});
       const signature = await signatureResponse.json().catch(() => ({}));
       if (!signatureResponse.ok || signature.status !== 'success') throw new Error(signature.message || '获取上传签名失败');
 
@@ -459,16 +459,19 @@ function OSSWorkspace({ userEmail, scope, token, userId, role, targetUserId }: {
           }
           update(id, { status: 'uploading', progress: 1 });
           const fullKey = `${prefix}${file.name}`;
+          const permit=signature.files?.find((item:{file_name:string})=>item.file_name===fullKey);
+          if(!permit){failed++;update(id,{status:'error',message:'上传凭据缺失'});continue;}
           try {
             const formData = new FormData();
             formData.append('key', fullKey);
-            formData.append('policy', signature.policy);
+            formData.append('policy', permit.policy);
             formData.append('OSSAccessKeyId', signature.accessid);
-            formData.append('signature', signature.signature);
+            formData.append('signature', permit.signature);
             formData.append('success_action_status', '200');
             formData.append('file', file);
             await uploadToOSS(signature.host, formData, (progress) => update(id, { progress }));
-            logAction(userEmail, 'OSS_UPLOAD', { fileName: fullKey, size: file.size });
+            const confirmation=await fetch('/api/oss?action=confirm-upload',{method:'POST',headers:{...current.headers,'Content-Type':'application/json'},body:JSON.stringify({operation_id:permit.operation_id})});
+            if(!confirmation.ok)throw new Error('文件已传输，版本确认暂未完成，请刷新目录核查。');
             succeeded++;
             update(id, { status: 'success', progress: 100 });
           } catch (error) {

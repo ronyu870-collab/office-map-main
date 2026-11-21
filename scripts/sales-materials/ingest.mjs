@@ -1,3 +1,4 @@
+import { criticalImport } from '../lib/critical-audit.mjs';
 import { resolveImportActor } from './audit-actor.mjs';
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
@@ -46,6 +47,8 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
   const id = existing?.id || randomUUID();
   const ext = { 'image/png':'png','image/jpeg':'jpg','image/webp':'webp','application/pdf':'pdf',[XLSX_MIME]:'xlsx',[PPTX_MIME]:'pptx',[PPTM_MIME]:'pptm',[DOCX_MIME]:'docx' }[mimeType];
   const path = originalMode === 'cloud' ? `${building.id}/${id}/original.${ext}` : null;
+  return await criticalImport(client,{actor_id:actor,action_type:'SALES_MATERIAL_IMPORT',target_table:'building_sales_materials',target_id:id,
+    details:{executor:'codex',material_id:id,building_id:building.id,source_sha256:sourceHash,row_count:manifest.details.length,method:manifest.extraction.method}},async()=>{
   if (!existing) {
     const result = await client.from('building_sales_materials').insert({id,building_id:building.id,title:manifest.title,document_date:manifest.document_date,source:manifest.source,notes:manifest.notes,
       original_name:originalName,storage_path:path,original_location:originalMode,archive_reference:originalMode === 'local_archive' ? `sha256:${sourceHash}` : null,mime_type:mimeType,file_size:bytes.length,source_sha256:sourceHash,extraction_sha256:extractionHash,extraction:manifest,status:'pending',series_key:manifest.series_key,scope_label:manifest.scope_label,content_types:manifest.content_types,data_date:manifest.source_timing?.as_of?.value || manifest.document_date,commission_policies:manifest.commission_policies,project_facts:manifest.project_facts,workbook_preview:manifest.workbook_preview || null,association_status:manifest.association_status,association_note:manifest.association_note,historical_context:manifest.historical_context || null});
@@ -63,9 +66,8 @@ export async function importToSupabase(manifest, bytes, mimeType, originalName, 
   }
   const published = await client.from('building_sales_materials').update({details:manifest.details,status:'ready',published_at:new Date().toISOString()}).eq('id',id).eq('status','pending').select('id').maybeSingle();
   if (published.error || !published.data) throw new Error('资料发布失败，请检查任务状态');
-  const audit = await client.from('audit_logs').insert({user_id:actor,action_type:'SALES_MATERIAL_IMPORT',module:'map',page_url:'/map',target_name:manifest.building_name,request_source:'server',details:{executor:'codex',material_id:id,building_id:building.id,source_sha256:sourceHash,row_count:manifest.details.length,method:manifest.extraction.method}});
-  if (audit.error) console.error('资料已入库；审计写入失败，请补记', audit.error.code);
   return { id, duplicate:false };
+  });
 }
 
 async function main() {

@@ -5,6 +5,7 @@ import { GET, PUT } from '../route';
 
 const mocks = vi.hoisted(() => ({
   identity: vi.fn(),
+  intentError:false,completionError:false,receipt:null as Record<string,unknown>|null,
   from: vi.fn(),
   profileAvailable: false,
   profileRow: null as null | Record<string, unknown>,
@@ -19,7 +20,12 @@ vi.mock('@/src/lib/server/impersonationAuth', () => ({
     identity.isImpersonating ? NextResponse.json({ error: '模拟用户只读' }, { status: 403 }) : null,
 }));
 vi.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({ from: mocks.from }),
+  createClient: () => ({ from: mocks.from,rpc:async(_name:string,args:{p_details:Record<string,unknown>;p_state:string})=>{
+    if(mocks.completionError)return {error:{code:'offline'}};
+    const details=args.p_details;
+    mocks.inserts.push({table:'audit_logs',values:{...mocks.receipt,...details,details:{...(mocks.receipt?.details as object),outcome:args.p_state}}});
+    return {data:true,error:null};
+  }}),
 }));
 
 const baseUrl = 'https://synthetic.invalid/api/map/submarket?submarket=CBD';
@@ -46,6 +52,7 @@ beforeEach(() => {
   mocks.calls.length = 0;
   mocks.inserts.length = 0;
   mocks.upserts.length = 0;
+  mocks.intentError=false;mocks.completionError=false;mocks.receipt=null;
   mocks.profileAvailable = false;
   mocks.profileRow = null;
   mocks.metricError = null;
@@ -73,6 +80,7 @@ beforeEach(() => {
     };
     chain.single = () => Promise.resolve({ data: mocks.upserts.at(-1), error: null });
     chain.insert = (values: Record<string, unknown>) => {
+      if(table==='audit_operation_receipts'){mocks.receipt=values;return Promise.resolve({error:mocks.intentError?{code:'offline'}:null});}
       mocks.inserts.push({ table, values });
       return Promise.resolve({ error: null });
     };
@@ -246,4 +254,10 @@ describe('admin submarket editorial write', () => {
       old_values: { headline: '旧版' }, new_values: { headline: '新版介绍' },
     });
   });
+});
+
+it('does not mutate editorial data if a critical receipt cannot be persisted',async()=>{
+ mocks.identity.mockResolvedValue(getIdentity('admin'));mocks.profileAvailable=true;mocks.profileRow=emptySubmarketProfile();mocks.intentError=true;
+ const req=new NextRequest(baseUrl,{method:'PUT',body:JSON.stringify({...emptySubmarketProfile(),headline:'blocked'})});
+ expect((await PUT(req)).status).toBe(503);expect(mocks.upserts).toHaveLength(0);
 });

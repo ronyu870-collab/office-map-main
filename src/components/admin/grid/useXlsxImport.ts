@@ -67,7 +67,7 @@ export function useXlsxImport(
     XLSX.utils.book_append_sheet(wb, ws, '上传数据')
     const filename = `${config.label}_上传模板.xlsx`
     XLSX.writeFile(wb, filename)
-    logAction(undefined, 'EXPORT_DATA', {
+    logAction(undefined, 'EXPORT_TEMPLATE', {
       export_type: 'upload_template',
       table: config.table,
       table_label: config.label,

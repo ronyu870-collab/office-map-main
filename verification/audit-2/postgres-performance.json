@@ -1,0 +1,92 @@
+{
+  "version": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+  "path": "authenticated PostgreSQL transactions; 10 warmup +100 measured; localhost only",
+  "before": {
+    "samples": 100,
+    "p95Ms": 1.0107500000001437,
+    "medianMs": 0.3810409999998683,
+    "backendCpuMs": 20.000000000000018,
+    "meanMs": 0.4476649499999917
+  },
+  "after": {
+    "samples": 100,
+    "p95Ms": 0.6525419999998121,
+    "medianMs": 0.4678750000000491,
+    "backendCpuMs": 30.00000000000003,
+    "meanMs": 0.4808000000000084
+  },
+  "beforeBusiness": {
+    "ordinaryRead": {
+      "samples": 100,
+      "p95Ms": 0.5762920000000236,
+      "medianMs": 0.3861249999999927,
+      "backendCpuMs": 9.999999999999995,
+      "meanMs": 0.3787129099999984
+    },
+    "leaseInsert": {
+      "samples": 100,
+      "p95Ms": 0.39612499999998363,
+      "medianMs": 0.308667000000014,
+      "backendCpuMs": 20.000000000000004,
+      "meanMs": 0.32320537999999827
+    },
+    "leaseUpdate": {
+      "samples": 100,
+      "p95Ms": 0.9558749999999918,
+      "medianMs": 0.6334590000000162,
+      "backendCpuMs": 60.000000000000014,
+      "meanMs": 0.6756992600000029
+    },
+    "leaseDelete": {
+      "samples": 100,
+      "p95Ms": 0.5011250000000018,
+      "medianMs": 0.3231670000000122,
+      "backendCpuMs": 39.99999999999998,
+      "meanMs": 0.3585862599999996
+    }
+  },
+  "afterBusiness": {
+    "ordinaryRead": {
+      "samples": 100,
+      "p95Ms": 1.1186659999998483,
+      "medianMs": 0.28729199999997945,
+      "backendCpuMs": 20.000000000000018,
+      "meanMs": 0.4081370700000025
+    },
+    "leaseInsert": {
+      "samples": 100,
+      "p95Ms": 0.5738329999999223,
+      "medianMs": 0.3779589999999189,
+      "backendCpuMs": 30.00000000000003,
+      "meanMs": 0.4074058199999899
+    },
+    "leaseUpdate": {
+      "samples": 100,
+      "p95Ms": 0.9981250000000728,
+      "medianMs": 0.7030839999999898,
+      "backendCpuMs": 59.99999999999983,
+      "meanMs": 0.746497900000013
+    },
+    "leaseDelete": {
+      "samples": 100,
+      "p95Ms": 1.8917079999998805,
+      "medianMs": 0.6870829999998023,
+      "backendCpuMs": 120.00000000000011,
+      "meanMs": 0.8996162000000186
+    }
+  },
+  "beforeAuditBatch": {
+    "samples": 100,
+    "p95Ms": 0.5760830000000112,
+    "medianMs": 0.4058339999999987,
+    "backendCpuMs": 30.000000000000004,
+    "meanMs": 0.4190120700000034
+  },
+  "afterAuditBatch": {
+    "samples": 100,
+    "p95Ms": 0.8874999999998181,
+    "medianMs": 0.4908330000002934,
+    "backendCpuMs": 40.000000000000036,
+    "meanMs": 0.5445933399999922
+  }
+}

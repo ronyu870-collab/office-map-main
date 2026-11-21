@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
 import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
 import {
@@ -43,7 +44,7 @@ async function auditRecommendation(
   totalDurationMs: number,
 ) {
   try {
-    const { error } = await client.from('audit_logs').insert({
+    scheduleAuditBestEffort(client, {
       user_id: callerId,
       action_type: 'AI_RECOMMENDATION',
       module: 'intelligence',
@@ -59,10 +60,7 @@ async function auditRecommendation(
         ranking_version: response.meta.rankingVersion,
         capability_statuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
       },
-    });
-    if (error) {
-      console.error('[audit][intelligence] AI_RECOMMENDATION write failed', error.code, error.message);
-    }
+    }, 'intelligence/AI_RECOMMENDATION');
   } catch (error) {
     console.error(
       '[audit][intelligence] AI_RECOMMENDATION write threw',

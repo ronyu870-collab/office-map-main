@@ -1,3 +1,4 @@
+import { auditDefinition } from './auditRegistry';
 const NOISY_WINDOWS_MS: Record<string, number> = {
   PAGE_VIEW: 15_000,
   ENTER_MODULE: 5_000,
@@ -47,6 +48,7 @@ export class AuditPolicyGate {
 
   shouldRecord(actionType: string, details: Record<string, unknown> = {}, now = Date.now()): boolean {
     const normalized = actionType.trim().toUpperCase();
+    if (auditDefinition(normalized).tier === 'C') return false;
     const dedupeWindow = NOISY_WINDOWS_MS[normalized];
     if (!dedupeWindow) return true;
 

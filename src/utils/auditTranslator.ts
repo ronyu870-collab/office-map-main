@@ -1,3 +1,4 @@
+import { AUDIT_EVENT_REGISTRY } from './auditRegistry';
 /**
  * auditTranslator.ts
  * 将底层审计日志的 action_type + details 翻译为人类可读的中文句子，
@@ -66,6 +67,8 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
   const p = payload ?? {};
 
   switch (action) {
+    case 'CLIENT_MUTATION_OBSERVED': return `客户端观察到写请求响应：${p.table || '未标记对象'}（不代表数据库变更证明）`;
+    case 'AUDIT_EXPORT': return '导出了业务审计记录';
     case "LEASE_EXPIRY_REVIEW_SAVE":
       return "保存了租约线索核实草稿（未确认到期日）";
     case "PROJECT_MATERIAL_LIBRARY_IMPORT":
@@ -346,7 +349,7 @@ export function parseAuditLog(action: string, payload: Record<string, any> = {})
 
     default:
       // 新增操作类型尚未配置中文文案时，不将内部代码暴露给管理员界面。
-      return "执行了一项系统操作";
+      return AUDIT_EVENT_REGISTRY[action.toUpperCase()]?.label || "执行了一项系统操作";
   }
 }
 
@@ -485,5 +488,5 @@ const FALLBACK_BADGE: BadgeStyle = {
  * 根据 action_type 返回对应的 Badge 样式配置。
  */
 export function getLogBadgeStyle(action: string): BadgeStyle {
-  return BADGE_MAP[action] ?? FALLBACK_BADGE;
+  return BADGE_MAP[action] ?? (AUDIT_EVENT_REGISTRY[action] ? {variant:'zinc',label:AUDIT_EVENT_REGISTRY[action].label,className:'bg-zinc-100 text-zinc-700 ring-zinc-200'} : FALLBACK_BADGE);
 }

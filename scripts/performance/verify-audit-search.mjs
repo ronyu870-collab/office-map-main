@@ -44,9 +44,11 @@ try {
           const method = request.method();
           queries.push({ method, term, authorized: roleConfirmed && role === 'admin' && request.headers().authorization === `Bearer ${token}` });
           if (term === 'Alps' && method === 'GET') await alpsBlocked;
-          const rows = data.filter(row => row.target_name.includes(term));
+          const id=url.searchParams.get('id')?.replace('eq.','');
+          const rows = data.filter(row => row.target_name.includes(term)&&(!id||String(row.id)===id));
+          const detail=request.headers().accept?.includes('vnd.pgrst.object');
           const responseHeaders = { ...headers, 'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0' };
-          return route.fulfill(method === 'HEAD' ? { headers: responseHeaders } : { headers: responseHeaders, json: rows }).catch(() => undefined);
+          return route.fulfill(method === 'HEAD' ? { headers: responseHeaders } : { headers: responseHeaders, json: detail?rows[0]??null:rows }).catch(() => undefined);
         }
         return route.fulfill({ headers, json: [] });
       });
@@ -71,7 +73,7 @@ try {
       await page.getByText('2 条', { exact: true }).waitFor();
       const rapid = queries.filter(query => query.term);
       assert.deepEqual(rapid.filter(query => query.method === 'GET').map(query => query.term), ['Alpha'], 'one row request for a rapid five-character search');
-      assert.deepEqual(rapid.filter(query => query.method === 'HEAD').map(query => query.term), Array(6).fill('Alpha'), 'one pass of exact tab counts');
+      assert.deepEqual(rapid.filter(query => query.method === 'HEAD').map(query => query.term), [], 'no exact tab counts on search');
       assert.equal(await input.evaluate(element => document.activeElement === element && element.selectionStart === 5), true);
       assert.equal(await row('Alps 楼').count(), 0);
 
@@ -90,7 +92,7 @@ try {
       await row('Alpha 东楼').getByRole('button').first().click();
       await row('Alpha 东楼').getByText('操作对象：').waitFor();
       assert.ok(queries.every(query => query.authorized));
-      observations.push({ width, role, rapidRowRequests: 1, rapidExactCountRequests: 6, lateResponse: 'discarded', focus: 'preserved' });
+      observations.push({ width, role, rapidRowRequests: 1, rapidExactCountRequests: 0, lateResponse: 'discarded', focus: 'preserved' });
     } finally { await context.close(); }
   }
   console.log(JSON.stringify({ status: 'pass', browser: await browser.version(), environment: 'local production build with isolated REST responses', observations }));

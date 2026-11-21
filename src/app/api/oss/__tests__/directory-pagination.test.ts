@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({ list: vi.fn(), getUser: vi.fn(), sign: vi.fn(), audit: vi.fn() }));
 vi.mock('ali-oss', () => ({ default: class { list = fixture.list; signatureUrl = fixture.sign; } }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { getUser: fixture.getUser } }) }));
-vi.mock('@/src/lib/serverAudit', () => ({ writeAuditBestEffort: fixture.audit }));
+vi.mock('@/src/lib/serverAudit', () => ({ scheduleAuditBestEffort: fixture.audit }));
 import { GET, POST } from '../route';
 
 function request(marker?: string, authorized = true) {
@@ -54,7 +54,7 @@ it('distinguishes directory I/O from signing and audit without exposing objects 
   expect(directory.headers.get('server-timing')).toMatch(/colliers-auth;dur=[\d.]+, colliers-object-list;dur=[\d.]+/);
   const open = (authorized: boolean) => POST(new Request('https://fixture.invalid/api/oss?action=access', {
     method: 'POST', headers: authorized ? { authorization: 'Bearer synthetic' } : {},
-    body: JSON.stringify({ file_name: '研究资料/下一份.pdf', access_method: 'download' }),
+    body: JSON.stringify({ file_name: '研究资料/下一份.pdf', access_method: 'preview' }),
   }));
   const denied = await open(false);
   expect(denied.status).toBe(401);
@@ -65,5 +65,5 @@ it('distinguishes directory I/O from signing and audit without exposing objects 
   expect(await result.json()).toEqual({ status: 'success', url: 'https://fixture.invalid/signed?signature=synthetic-private' });
   expect(result.headers.get('server-timing')).toMatch(/^colliers-auth;dur=[\d.]+, colliers-sign;dur=[\d.]+, colliers-audit;dur=[\d.]+, colliers-json;dur=[\d.]+, colliers-handler;dur=[\d.]+$/);
   expect(fixture.audit).toHaveBeenCalledOnce();
-  expect(fixture.audit.mock.calls[0]?.[1]).toMatchObject({ action_type: 'OSS_FILE_ACCESS', details: { access_method: 'download' } });
+  expect(fixture.audit.mock.calls[0]?.[1]).toMatchObject({ action_type: 'OSS_FILE_ACCESS', details: { access_method: 'preview' } });
 });

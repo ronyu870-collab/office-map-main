@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePassword } from '@/src/utils/passwordPolicy';
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
     const userPassword = password as string;
     const normalizedEmail = email.trim();
 
+    return await withCriticalAudit(supabaseAdmin, { user_id:caller.id,action_type:'CREATE_USER',module:'admin',target_table:'user_roles',target_id:normalizedEmail,details:{role:databaseRole,email:normalizedEmail} }, 'admin/create-user', async recordResult => {
     // 创建 Auth 账号时，auth_user_created_profile trigger 会同步创建 viewer 档案。
     const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: normalizedEmail,
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = authData.user.id;
+    recordResult({target_id:userId,new_user_id:userId});
 
     // trigger 已经创建同主键档案，因此这里必须 upsert，而不能再次 insert。
     // 如果未来 trigger 被移除，upsert 仍能安全创建档案。
@@ -106,24 +108,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `创建用户档案失败: ${profileError.message}` }, { status: 500 });
     }
 
-    await writeAuditBestEffort(supabaseAdmin, {
-      user_id: caller.email || caller.id,
-      action_type: 'ADMIN_DATA_OPERATION',
-      details: {
-        operation: 'INSERT',
-        table: 'user_roles',
-        table_label: '用户管理',
-        target_user_id: userId,
-        role: databaseRole,
-        name: optionalText(full_name) || optionalText(chinese_name),
-        email: normalizedEmail,
-      },
-    }, 'admin/create-user');
+
 
     return NextResponse.json({
       success: true,
       message: '用户创建成功',
       userId,
+    });
     });
   } catch (err: unknown) {
     console.error('[create-user] 未预期的错误:', err);

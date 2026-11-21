@@ -140,8 +140,15 @@ describe('password change through actual page, route, SDK, storage and session p
     await screen.findByText(/密码修改失败/);
     expect(fixture.required).toBe(true);
     expect((await client.auth.getSession()).data.session?.access_token).toBe(old.access_token);
-    expect(fixture.audits).toHaveLength(0);
+    expect(fixture.audits).toEqual([expect.objectContaining({details:expect.objectContaining({outcome:'failed'})})]);
     expect(navigation.replace).not.toHaveBeenCalledWith('/');
+  });
+
+  it('does not change the password if the durable critical receipt is unavailable',async()=>{
+    await seed(false);fixture.faults.auditIntent=true;render(<App/>);await submit();
+    await screen.findByText(/关键操作凭据暂时无法保存/);
+    expect(fixture.requests.some(value=>value.startsWith('PUT /auth/v1/admin/users/'))).toBe(false);
+    expect(fixture.required).toBe(true);expect(fixture.audits).toHaveLength(0);
   });
 
   it('does not accept a replacement session that still requires a password change', async () => {

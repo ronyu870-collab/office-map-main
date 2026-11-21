@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   calls: [] as { table: string; op: string; args: unknown[] }[],
 }));
 vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: mocks.identity }));
-vi.mock('@/src/lib/serverAudit', () => ({ writeAuditBestEffort: mocks.audit }));
+vi.mock('@/src/lib/serverAudit', () => ({ scheduleAuditBestEffort: mocks.audit }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: mocks.from, storage: { from: mocks.bucket } }) }));
 const buildingId = '11111111-1111-4111-8111-111111111111';
 const photoId = '22222222-2222-4222-8222-222222222222';

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
+import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: '权限不足，仅管理员可导出成交数据' }, { status: 403 });
     }
 
+    const blocked = denyImpersonatedMutation(identity);
+    if (blocked) return blocked;
+    return await withCriticalAudit(supabaseAdmin,{user_id:identity.caller.id,action_type:'EXPORT_LEASE_TRANSACTIONS',module:'lease-submission',target_table:'lease_transactions',details:{maximum_rows:MAX_ROWS}},'lease/export',async recordResult=>{
     const records: Array<Record<string, unknown>> = [];
     let from = 0;
 
@@ -54,10 +58,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const profile=await supabaseAdmin.from('user_roles').select('role').eq('user_id',identity.caller.id).maybeSingle();
+    if(profile.error||profile.data?.role!=='admin')return NextResponse.json({error:'导出权限已变更'},{status:403});
+    recordResult({count:records.length});
     return NextResponse.json(
       { records, count: records.length },
       { headers: { 'Cache-Control': 'no-store' } },
     );
+    },true);
   } catch (error) {
     console.error('[lease-export] 异常:', error);
     return NextResponse.json({ error: '导出失败，请稍后重试' }, { status: 500 });

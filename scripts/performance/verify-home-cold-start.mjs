@@ -255,9 +255,9 @@ try {
       { ...desktop, name: 'reopen-mobile', network: 'mobile', count: samples },
       { ...desktop, name: 'refresh-mobile', network: 'mobile', mode: 'expired', count: Math.max(6, samples / 2) },
       { ...desktop, name: 'anonymous-mobile', network: 'mobile', mode: 'anonymous', count: Math.max(6, samples / 2) },
-      { ...desktop, name: 'click-before-profile', roleMs: 1800, click: true, count: 3 },
+      { ...desktop, name: 'click-before-profile', roleMs: 1800, click: true, count: process.env.PERF_HOME_SCENARIO ? samples : 3 },
     ];
-    for (const spec of configs) for (let round = 1; round <= spec.count; round++) {
+    for (const spec of configs.filter(spec=>!process.env.PERF_HOME_SCENARIO||spec.name===process.env.PERF_HOME_SCENARIO)) for (let round = 1; round <= spec.count; round++) {
       for (const v of (round % 2 ? variants : [...variants].reverse())) rows.push(await measure(v, spec, round));
       if (round === spec.count || round % 5 === 0) console.log(spec.name, round, rows.filter(x => x.failure).length, 'failures so far');
     }

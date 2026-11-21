@@ -54,14 +54,24 @@ try {
   for (const [width, role] of [[1280, 'admin'], [390, 'admin'], ...baseline ? [] : [[390, 'viewer']]]) {
     const context = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: width === 390, timezoneId: 'UTC', serviceWorkers: 'block' });
     const waits = { settings: gate(), names: gate(), buildings: gate() };
-    const requests = { settings: 0, names: [], buildingNames: 0, futureNames: 0, assignments: [], summary: [], history: [], workbook: [] };
+    const requests = { settings: 0, names: [], buildingNames: 0, futureNames: 0, assignments: [], summary: [], history: [], workbook: [], authorizations: [] };
     const violations = [];
     try {
       await context.routeWebSocket(/.*/, socket => socket.close());
       await context.route('**/*', async route => {
         const req = route.request();
         const url = new URL(req.url());
-        if (url.origin === base.origin) return url.pathname.startsWith('/api/') ? route.fulfill({ status: 204 }) : route.continue();
+        if (url.origin === base.origin) {
+          if (url.pathname === '/api/audit-events/critical') {
+            assert.equal(role, 'admin');
+            assert.equal(req.headers().authorization, `Bearer ${token}`);
+            const input = req.postDataJSON();
+            assert.deepEqual(input, { action: 'EXPORT_DATA', scope: 'quarterly_submissions', count: 2, format: 'xlsx' });
+            requests.authorizations.push(input);
+            return route.fulfill({ json: { authorized: true } });
+          }
+          return url.pathname.startsWith('/api/') ? route.fulfill({ status: 204 }) : route.continue();
+        }
         if (url.origin !== 'https://example.supabase.co') return route.abort();
         const headers = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': '*' };
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
@@ -191,6 +201,7 @@ try {
       const downloaded = page.waitForEvent('download');
       await downloadButton.click();
       const file = await downloaded;
+      if (!baseline) assert.equal(requests.authorizations.length, 1, 'upload workbook requires explicit export authorization');
       assert.match(file.suggestedFilename(), new RegExp(`^${year}Q${quarter}_.*_隔离管理员_.*_含甲级\\.xlsx$`));
       const workbook = XLSX.readFile(await file.path());
       assert.deepEqual(workbook.SheetNames, ['填报数据']);

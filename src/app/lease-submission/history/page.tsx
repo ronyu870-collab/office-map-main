@@ -1,4 +1,5 @@
 'use client';
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import { LeaseExpiryLink } from '@/src/components/lease/LeaseExpiryLink';
 import { ExportReview } from '@/src/components/ExportReview';
@@ -393,6 +394,8 @@ export default function LeaseHistoryPage() {
       const { XLSX, book } = await createHistoryWorkbook(records, exportScope);
       controller.signal.throwIfAborted();
       const filename = '筛选成交.xlsx';
+      await authorizeCriticalExport('EXPORT_LEASE_TRANSACTIONS', 'lease_history', records.length);
+      controller.signal.throwIfAborted();
       XLSX.writeFile(book, filename, { compression: true });
       logAction(session.user.email, 'EXPORT_LEASE_TRANSACTIONS', { record_count: records.length, file_name: filename, target_name: filename });
       setExportReview(false);

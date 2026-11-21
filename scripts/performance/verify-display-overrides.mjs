@@ -30,10 +30,17 @@ try {
         const request = route.request();
         const url = new URL(request.url());
         if (url.origin === base.origin && url.pathname === '/api/audit-events') {
-          for (const event of request.postDataJSON().events) {
-            if (event.target_table === 'building_display_overrides') auditEvents.add(event.action_type);
+          const events = request.postDataJSON().events;
+          for (const event of events) {
+            if (event.target_table === 'building_display_overrides') {
+              assert.equal(event.action_type, 'CLIENT_MUTATION_OBSERVED');
+              assert.equal(event.request_source, 'frontend');
+              assert.equal(event.details._evidence, 'client_reported');
+              assert.equal(event.details.outcome, 'observed');
+              auditEvents.add(event.details.operation);
+            }
           }
-          return route.fulfill({ json: {} });
+          return route.fulfill({ json: { accepted_event_ids: events.map(event => event.event_id) } });
         }
         if (url.origin === base.origin) return url.pathname.startsWith('/api/') ? route.fulfill({ status: 204 }) : route.continue();
         if (url.origin !== 'https://example.supabase.co') return route.abort();
@@ -145,14 +152,14 @@ try {
         await created.getByText('测试展示值', { exact: true }).waitFor();
         const deleteAudit = page.waitForRequest(request => {
           if (new URL(request.url()).pathname !== '/api/audit-events') return false;
-          return request.postDataJSON().events.some(event => event.target_table === 'building_display_overrides' && event.action_type === 'DB_DELETE');
+          return request.postDataJSON().events.some(event => event.target_table === 'building_display_overrides' && event.action_type === 'CLIENT_MUTATION_OBSERVED' && event.details.operation === 'DELETE');
         });
         page.once('dialog', confirm => confirm.accept());
         await created.getByRole('button', { name: '删除' }).click();
         await created.waitFor({ state: 'hidden' });
         await row.getByText('更新后的展示值', { exact: true }).waitFor();
         await (await deleteAudit).response();
-        assert.deepEqual([...auditEvents].sort(), ['DB_DELETE', 'DB_INSERT', 'DB_UPDATE']);
+        assert.deepEqual([...auditEvents].sort(), ['DELETE', 'INSERT', 'UPDATE']);
       }
       assert.deepEqual(calls, baseline ? { list: 1, picker: 1, names: 1, writes: 0 } : { list: 4, picker: 2, names: 0, writes: 3 });
       observations.push({ width, listBeforePicker, initialRequests, ...calls, auditEvents: [...auditEvents].sort() });

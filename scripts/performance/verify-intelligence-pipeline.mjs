@@ -126,6 +126,10 @@ const fixture = createServer(async (req, res) => {
   }
   return send(404, {});
 });
+async function waitForManagedAudit(observation) {
+  for(let i=0;i<100&&observation.audits.length===0;i++)await delay(10);
+  assert.equal(observation.audits.length,1,'managed ordinary audit must finish within the isolated request lifecycle');
+}
 function reset(next = {}) {
   options = next;
   probe = { buildings: [], catalogs: [], catalogBytes: 0, metrics: [], brochure: 0, evidenceReady: 0, models: [], audits: [] };
@@ -202,7 +206,8 @@ async function verifyBrowser(origin, path) {
         const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: buildings[0].name }) });
         await card.waitFor();
         await card.getByText('8.0%', { exact: true }).waitFor();
-        assert.equal(first.audits.length, 1);
+        await waitForManagedAudit(first);
+    assert.equal(first.audits.length, 1);
         await card.getByRole('button', { name: '展开分析' }).click();
         await card.getByText('评分构成').waitFor();
         const preselected = card.getByRole('button', { name: 'AI 预选' });
@@ -295,6 +300,7 @@ try {
     assert.equal(response.status, 200, logs);
     assert.equal(response.headers.get('cache-control'), 'no-store');
     const result = await response.json();
+    const responseMs=performance.now()-before;
     const stages = parseServerTiming(path, response.headers.get('server-timing'));
     assert.ok(stages && stages.model > 0 && stages.candidates > 0 && stages.audit >= 0);
     assert.equal(result.meta.latestMetricPeriod, '2026 Q3');
@@ -315,12 +321,13 @@ try {
     assert.equal(measured.models[0].vocabularyOk, true);
     assert.equal(measured.models[0].requirementMatched, true);
     assert.equal(measured.models[0].evidenceReady, baseline ? 2 : 0, 'the model can start before independent evidence is ready');
+    await waitForManagedAudit(measured);
     assert.equal(measured.audits.length, 1);
     assert.equal(measured.audits[0].user_id, admin);
     assert.equal(measured.audits[0].action_type, 'AI_RECOMMENDATION');
     assert.ok(!JSON.stringify(measured.audits).includes(text));
     const buildingReads = measured.buildings.length + measured.catalogs.length;
-    probes.push({ totalMs: Math.round(performance.now() - before), stages, buildingReads, catalogBytes: measured.catalogBytes,
+    probes.push({ totalMs: Math.round(responseMs), stages, buildingReads, catalogBytes: measured.catalogBytes,
       totalSourceReads: buildingReads + measured.metrics.length + measured.brochure, modelStartedBeforeEvidence: measured.models[0].evidenceReady === 0 });
   }
   if (versioned) {
@@ -330,11 +337,13 @@ try {
     const result = await response.json();
     assert.match(previous.catalogs[0], /^[a-f0-9]{64}$/);
     assert.equal(result.plan.recommendations[0].name, options.rename);
+    await waitForManagedAudit(previous);
     assert.equal(result.meta.latestMetricPeriod, '2026 Q4');
     const latest = reset({ rename: '隔离望京中心新版', quarter: 3, modelMs: 10 });
     const newer = await submit();
     assert.equal(newer.status, 200, logs);
     assert.equal((await newer.json()).meta.latestMetricPeriod, '2026 Q3', 'the catalog hit must never cache evidence or periods');
+    await waitForManagedAudit(latest);
     assert.notEqual(latest.catalogs[0], previous.catalogs[0]);
     assert.ok(latest.catalogBytes < 120);
     for (const token of ['synthetic-peer', 'synthetic-admin-refresh']) {
@@ -343,6 +352,7 @@ try {
       assert.equal(response.status, 200, logs);
       assert.deepEqual(isolated.catalogs, [null], 'separate accounts and credentials must start cold');
       assert.equal(isolated.models.length, 1);
+      await waitForManagedAudit(isolated);
       assert.equal(isolated.audits[0].user_id, token === 'synthetic-peer' ? peer : admin);
     }
     const simulated = reset();
@@ -363,6 +373,7 @@ try {
     assert.equal((await capResponse.json()).meta.universeCount, buildings.length);
     assert.deepEqual(capped.buildings.map(row => row.offset), [0, 400]);
     assert.deepEqual(capped.models.map(row => [row.model, row.requirementMatched]), [['fixture-primary', true], ['fixture-fallback', true]]);
+    await waitForManagedAudit(capped);
     assert.equal(capped.audits.length, 1);
     const rejected = reset({ rejectModels: true, text: `${text}；不应回显` });
     const rejectedResponse = await submit(path, 'synthetic-admin', options.text);
@@ -393,6 +404,7 @@ try {
     assert.ok(parse.catalogBytes < 120);
     assert.equal(parseResult.capabilities.find(row => row.key === 'rent')?.dataBasis, 'building_metrics.net_effective_rent · 2026 Q4');
   }
+  await waitForManagedAudit(parse);
   assert.equal(parse.audits[0].action_type, 'AI_REQUIREMENT_PARSE');
   const sorted = probes.map(row => row.totalMs).sort((a, b) => a - b);
   const browser = await verifyBrowser(origin, path);

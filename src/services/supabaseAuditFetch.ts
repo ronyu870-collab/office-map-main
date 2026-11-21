@@ -1,5 +1,6 @@
 import {
   reportSupabaseMutation,
+  captureSupabaseMutationOrigin,
   type SupabaseMutationNotice,
   type SupabaseMutationOperation,
 } from '@/src/utils/auditMutationBridge';
@@ -8,6 +9,9 @@ import { invalidateCompareSnapshot } from './compareSnapshot';
 const EXCLUDED_TABLES = new Set(['audit_logs', 'update_drafts']);
 const READ_ONLY_RPCS = new Set([
   'resolve_building_id',
+  'admin_audit_health',
+  'lease_expiry_context_list',
+  'lease_expiry_review_list',
   'get_all_tables',
   'get_table_columns',
   'get_all_memo_tags',
@@ -15,6 +19,8 @@ const READ_ONLY_RPCS = new Set([
   'admin_get_auth_audit_logs',
   'get_quarterly_submission_summary',
 ]);
+// These RPCs already persist authoritative evidence in the business transaction.
+const TRANSACTION_AUDITED_RPCS = new Set(['submit_quarterly_batch_v2', 'lease_expiry_review_save', 'admin_rename_building', 'set_current_submission_period_v2', 'admin_set_audit_retention']);
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const COMPARE_TABLES = new Set(['buildings', 'building_metrics', 'building_brochure_data']);
 const COMPARE_RPCS = new Set(['admin_rename_building', 'submit_quarterly_batch_v2']);
@@ -37,6 +43,7 @@ function mergedHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
 
 function bodyText(init?: RequestInit): string | null {
   const body = init?.body;
+  if (typeof body === 'string' && body.length > 2048) return null;
   if (typeof body === 'string') return body;
   if (body instanceof URLSearchParams) return body.toString();
   return null;
@@ -114,16 +121,18 @@ function describeMutation(
 export function createAuditAwareFetch(baseFetch?: typeof fetch): typeof fetch {
   const transport: typeof fetch = baseFetch ?? ((input, init) => globalThis.fetch(input, init));
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const origin = captureSupabaseMutationOrigin();
     const response = await transport(input, init);
-    if (response.ok && typeof window !== 'undefined') {
+    if (response.ok && typeof window !== 'undefined' && WRITE_METHODS.has(requestMethod(input, init))) {
       const status = response.status;
       queueMicrotask(() => {
-        const notice = describeMutation(input, init, status);
-        if (!notice) return;
-        reportSupabaseMutation(notice);
-        if ((notice.kind === 'table' ? COMPARE_TABLES : COMPARE_RPCS).has(notice.target)) {
-          invalidateCompareSnapshot();
-        }
+        try {
+          const notice = describeMutation(input, init, status);
+          if (!notice) return;
+          if ((notice.kind === 'table' ? COMPARE_TABLES : COMPARE_RPCS).has(notice.target)) invalidateCompareSnapshot();
+          if (!(notice.kind === 'rpc' && TRANSACTION_AUDITED_RPCS.has(notice.target))
+            && !(notice.target === 'lease_transactions' && notice.operation === 'UPDATE')) reportSupabaseMutation({...notice,origin});
+        } catch { /* observation failures cannot change business HTTP semantics */ }
       });
     }
     return response;

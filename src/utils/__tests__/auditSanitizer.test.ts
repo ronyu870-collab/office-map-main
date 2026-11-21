@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeAuditPayload, sanitizeAuditText } from '../auditSanitizer';
+import { sanitizeAuditPayload, sanitizeAuditText,sanitizeAuditDetails } from '../auditSanitizer';
 
 describe('auditSanitizer', () => {
   it('redacts sensitive keys recursively', () => {
@@ -21,4 +21,10 @@ describe('auditSanitizer', () => {
     expect(result).not.toContain('BearerXYZ');
     expect(result).not.toContain('secret123');
   });
+});
+
+it('allows only AI task metadata and removes restricted conversation content from ordinary audit',()=>{
+ const result=sanitizeAuditDetails('AI_QUERY',{model:'fixture',outcome:'success',duration_ms:42,prompt:'restricted original',answer:'restricted answer',documents:['restricted material'],nested:{access_token:'credential'}});
+ expect(result).toEqual({model:'fixture',outcome:'success',duration_ms:42});
+ expect(sanitizeAuditDetails('DATA_UPDATE',{question:'restricted',tool_name:'lookup'},'intelligence')).toEqual({tool_name:'lookup'});
 });
