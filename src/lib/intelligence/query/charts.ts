@@ -3,7 +3,7 @@ import { distributionAnalysisSchema, distributionLabel, type DistributionAnalysi
 import { CROSS_TREND_LIMITS, quarterRange } from './plan';
 import { quarterSchema, quarterKey } from './contracts';
 import { cellText, resultScopeText, resultSummary, units, type DisplayCell, type QueryResultView } from './presentation';
-import { metricLabels, metricSchema, resultMetricColumns, resultMetrics, selectResultMetric } from './multiMetricView';
+import { metricLabels, resultMetricColumns, resultMetrics, selectResultMetric } from './multiMetricView';
 
 export { chartRequestSchema, type ChartRequest } from './chartSpec';
 import { chartRequestSchema, type ChartRequest } from './chartSpec';
@@ -240,8 +240,8 @@ const wrap = (value: string, size: number): string[] => {
 
 /** Standalone export retains scope, coverage, limitations and exact cell/source
  * bindings. Large plots fail explicitly rather than silently dropping rows. */
-export function renderChartSvg(chart: ResultChart): string {
-  if (chart.request.kind === 'plot') return renderCartesianSvg(chart);
+export function renderChartSvg(chart: ResultChart, options?: { provenance: 'attachment' }): string {
+  if (chart.request.kind === 'plot') return renderCartesianSvg(chart, options);
   if (chart.points.length > (chart.kind === 'bar' ? 1000 : 5000)) throw new Error('CHART_SIZE_LIMIT');
   const width = chart.kind === 'heatmap' ? Math.max(960, 260 + (chart.grid?.columns.length ?? 0) * 160) : 960, left = 300, right = 780, top = 36;
   const elements: string[] = [];
@@ -325,7 +325,7 @@ export function renderChartSvg(chart: ResultChart): string {
   }
   y += 24;
   for (const limitation of chart.limitations) y = paragraph(limitation, y);
-  y = paragraph(`结果 ${chart.resultId}；完整来源、精确值及条件见同包 manifest.json。仅供内部分析。`, y);
+  y = paragraph(options?.provenance === 'attachment' ? '完整来源、精确值及条件见本文件内 manifest.json 来源附件。仅供内部研究。' : `结果 ${chart.resultId}；完整来源、精确值及条件见同包 manifest.json。仅供内部分析。`, y);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${y + 16}" viewBox="0 0 ${width} ${y + 16}" role="img"><title>${xml(chart.yLabel)}</title><desc>${xml(chart.title)}</desc><metadata>${xml(JSON.stringify(chart))}</metadata><rect width="100%" height="100%" fill="#fff"/><g font-family="system-ui, sans-serif" font-size="14" font-weight="400" fill="#172033">${elements.join('')}</g></svg>`;
 }
 

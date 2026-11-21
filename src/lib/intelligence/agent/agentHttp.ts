@@ -15,9 +15,12 @@ import { queryConversationSchema } from '../query/conversationProtocol';
 import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
+import { readOwnResult, recoverOwnResult } from '../query/recovery';
 import { buildResultArtifact } from '../query/artifacts';
 import { chartRequestSchema, type ChartRequest } from '../query/chartSpec';
 import { agentChartDescriptorSchema } from '../query/chartProtocol';
+import { generateAuthorizedReport } from './reportTool';
+import { readReportHistory } from './reportHistory';
 import { exportAuthorizedTable } from './exportTableTool';
 import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
@@ -64,6 +67,8 @@ function providerMessage(error: unknown): string {
       default: return 'DeepSeek 服务暂时不可用，本轮未生成模型回复。';
     }
   }
+  if (error instanceof Error && error.message === 'REPORT_HISTORY_RESULT_LIMIT') return '当前对话的历史正式结果超过 8 个，本轮未生成 PDF；请开始新对话并按所需范围查询后组合，不会截断结果。';
+  if (error instanceof Error && error.message === 'REPORT_HISTORY_CYCLE') return '历史引用无效，本轮未生成 PDF，请开始新对话。';
   if (error instanceof Error && error.message === 'AGENT_CONTEXT_UNAVAILABLE') return '之前的对话已过期或权限已变化，请开始新对话。';
   if (error instanceof Error && error.message === 'AGENT_RESUME_NOT_SUPPORTED') return '旧会话暂不能以 Agent 模式直接续接，请开始新对话。';
   if (error instanceof Error && error.message === 'AGENT_TOKEN_BUDGET_EXCEEDED') return '本轮研究超过模型 token 安全预算，未执行后续工具或生成新的结论。';
@@ -152,7 +157,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         : 'DeepSeek 调用预算校验未通过，本轮没有调用模型。' }, 503);
     }
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
-    if (history.contextResult) workset.register(history.contextResult, worksetOwner);
+    const reportHistory = /PDF/i.test(valid.question) && authority.grants.includes('export:internal')
+      ? await readReportHistory(client, actor, keys, authority, valid.conversation, signal) : undefined;
+    for (const result of reportHistory?.results ?? []) workset.register(result, worksetOwner);
+    if (history.contextResult && !reportHistory?.results.some(r => r.resultId === history.contextResult!.resultId))
+      workset.register(history.contextResult, worksetOwner);
+    if (reportHistory) {
+      const priorCheck = history.contextRecheck;
+      history.contextRecheck = async () => { await priorCheck?.(); await reportHistory.recheck(); };
+    }
     await observer?.({ type: 'run_started', requestId });
     await audit.append(requestId, 'tool_started', { tool: 'deepseek_chat', provider: 'deepseek',
       operation: 'native_tool_calling', historyTurns: history.length });
@@ -187,6 +200,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
     let preparedExport: QueryResult | undefined;
+    let preparedReport: QueryResult | undefined;
+    let reportFile: Record<string, unknown> | undefined;
     let preparedChart: QueryResult | undefined;
     let chartFile: Record<string, unknown> | undefined;
     const exportFiles: Array<Record<string, unknown>> = [];
@@ -198,6 +213,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
+        ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
         revalidate: async currentSignal => {
           await history.contextRecheck?.();
           const rechecked = await loadDataAuthority(client, actor, currentSignal);
@@ -229,7 +245,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           });
           // File delivery state comes from the server, never model prose.
           if (!(result.message.tool_calls?.length) && !preparedExport
-            && !preparedChart && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|图)/i.test(valid.question)) await flush();
+            && !preparedChart && !preparedReport && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
         signal, onEvent,
@@ -279,6 +295,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             // Source/chart of an earlier result must not change which formal
             // QueryResult is archived as this request's final result.
             return id === workset.latestId() ? presentation : { content: presentation.content };
+          }
+          if (name === 'generate_pdf_report') {
+            const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants, preparedChart);
+            await history.contextRecheck?.();
+            const current = await fresh();
+            if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision
+              || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+            preparedReport = report.result; reportFile = JSON.parse(report.content);
+            return report;
           }
           if (name === 'export_table') {
             const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants);
@@ -358,6 +383,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       execution.answer = '本轮未生成图片文件。' + (preparedChart ? '同源图表仍可查看。' : '')
         + '请核对导出资格、字段与图表规格后重试。';
     }
+    if (preparedReport) {
+      execution.result = preparedReport;
+      execution.answer = '服务器已生成内部研究 PDF 报告，可通过本条回答下载；尚未发起浏览器下载，未确认本机保存。对客发布须另行授权。';
+      if (execution.unresolvedFailures.length) execution.answer += '\n部分任务未完成，请核对执行限制后重试。';
+    } else if (execution.toolNames.includes('generate_pdf_report') || execution.unresolvedFailures.some(item => item.tool === 'generate_pdf_report')) {
+      execution.answer = '本轮未生成 PDF 文件。请核对内部导出资格、正式结果、报告范围与用途后重试；对客发布须另行授权。';
+    }
     await audit.append(requestId, 'accounting', { provider: 'deepseek', status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
@@ -377,7 +409,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
-      ...(preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
+      ...(preparedReport ? { reportFile } : {}),
+      ...(!preparedReport && preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
       ...(preparedExport ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
@@ -409,8 +442,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex'),
     }, { httpStatus: 200, provider: 'deepseek' });
     const response = await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
-    try { await history.contextRecheck?.(); } catch (error) {
-      await audit.append(requestId, 'correction', { reason: 'chart_sources_changed_before_response', delivery: 'not_sent' });
+    try {
+      await history.contextRecheck?.();
+      if (preparedReport) {
+        const read = await readOwnResult(client, actor, requestId, 'archive', signal);
+        await recoverOwnResult(client, actor, keys, requestId, read, signal);
+      }
+    } catch (error) {
+      await audit.append(requestId, 'correction', { reason: 'artifact_sources_changed_before_response', delivery: 'not_sent' });
       throw error;
     }
     const finalAuthority = await fresh();

@@ -10,7 +10,7 @@ import { renderResultCopy, resultCopyFormatSchema } from './resultOutput';
 const common = { requestId: z.uuid(), resultId: z.uuid() };
 export const artifactInputSchema = z.discriminatedUnion('action', [
   z.strictObject({ ...common, action: z.literal('chart'), chart: chartRequestSchema }),
-  z.strictObject({ ...common, action: z.literal('export'), format: z.enum(['csv_zip', 'xlsx', 'svg_zip', 'png_zip']), chart: chartRequestSchema.optional() }),
+  z.strictObject({ ...common, action: z.literal('export'), format: z.enum(['csv_zip', 'xlsx', 'svg_zip', 'png_zip', 'pdf']), chart: chartRequestSchema.optional() }),
   z.strictObject({ ...common, action: z.literal('copy'), format: resultCopyFormatSchema }),
 ]);
 export type ArtifactInput = z.infer<typeof artifactInputSchema>;
@@ -31,7 +31,10 @@ export async function buildResultArtifact(rawResult: unknown, input: ArtifactInp
     resultId: result.resultId, resultDigest: resultDigest(result) };
   if ((input.format === 'svg_zip' || input.format === 'png_zip') !== Boolean(input.chart)) throw new Error('ARTIFACT_CHART_FORMAT_MISMATCH');
   let bytes: Uint8Array, contentType: string;
-  if (input.format === 'xlsx') {
+  if (input.format === 'pdf') {
+    const { renderResearchPdf } = await import('./reportPdf');
+    bytes = (await renderResearchPdf(result)).bytes; contentType = 'application/pdf';
+  } else if (input.format === 'xlsx') {
     bytes = await buildXlsx(result); contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   } else {
     const { default: JSZip } = await import('jszip');

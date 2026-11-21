@@ -13,6 +13,7 @@ vi.mock('../query/serverAuthority', async original => ({
 }));
 import type { AuditKeys } from '../query/auditStore';
 import type { DataAuthority, VerifiedQueryIdentity } from '../query/serverAuthority';
+import { readReportHistory } from './reportHistory';
 import { readAgentHistory, restoreOwnAgentAnswer, trimAgentHistory, AGENT_CONVERSATION_PROTOCOL } from './agentConversation';
 
 const identity: VerifiedQueryIdentity = {
@@ -181,4 +182,26 @@ it('imports a chart snapshot only after owner/session/encrypted context and live
   expect(recheck).toHaveBeenCalled(); expect(stubs.recover).toHaveBeenCalled();
   recheck.mockRejectedValue(new Error('QUERY_DENIED'));
   await expect(readAgentHistory({ rpc } as unknown as SupabaseClient, identity, keys, authority, { id: conversationId, parentRequestId: requestId }, new AbortController().signal)).rejects.toThrow('QUERY_DENIED');
+});
+
+it('imports multiple completed snapshots only along this conversation encrypted parent chain and rechecks every source', async () => {
+  const conversationId = randomUUID(), requestIds = [randomUUID(), randomUUID()];
+  const results = [buildListResult(fixture(), ['height']), buildListResult(fixture(), ['totalArea'])];
+  const records = requestIds.map((requestId, i) => ({ state: 'succeeded', permission_revision: authority.permissionRevision,
+    head_hash: 'f'.repeat(64), head_sequence: 3, events: [
+      event(requestId, 'received', { sessionId: identity.sessionId, authority: { actorId: identity.actorId, effectiveUserId: identity.effectiveUserId },
+        metadata: { protocol: AGENT_CONVERSATION_PROTOCOL, conversation: { id: conversationId, ...(i ? { parentRequestId: requestIds[i - 1] } : {}) } } }, 1),
+      event(requestId, 'tool_finished', { protocol: 'agent-answer/1', permissionRevision: authority.permissionRevision, history: [{ user: '查询', assistant: '完成' }] }, 2),
+      event(requestId, 'response_generated', { result: results[i] }, 3),
+    ] }));
+  stubs.read.mockImplementation((_c, _i, requestId) => Promise.resolve(records[requestIds.indexOf(requestId)]));
+  const checks = [vi.fn().mockResolvedValue(undefined), vi.fn().mockResolvedValue(undefined)];
+  stubs.recover.mockImplementation((_c, _i, _k, requestId) => Promise.resolve({ result: results[requestIds.indexOf(requestId)], recheck: checks[requestIds.indexOf(requestId)] }));
+  const client = {} as SupabaseClient, signal = new AbortController().signal;
+  const history = await readReportHistory(client, identity, keys, authority, { id: conversationId, parentRequestId: requestIds[1] }, signal);
+  expect(history.results).toEqual(results); expect(history.limited).toBe(false);
+  await history.recheck(); expect(checks.every(check => check.mock.calls.length >= 2)).toBe(true);
+  checks[0].mockRejectedValue(new Error('QUERY_DENIED'));
+  await expect(history.recheck()).rejects.toThrow('QUERY_DENIED');
+  await expect(readReportHistory(client, identity, keys, authority, { id: randomUUID(), parentRequestId: requestIds[1] }, signal)).rejects.toThrow('QUERY_DENIED');
 });

@@ -16,7 +16,7 @@ export async function loadAgentHandler(output) {
   if (handlers.has(output)) return handlers.get(output);
   const root = process.cwd(), bundled = path.join(output, 'agent-export-handler.cjs');
   const bundle = await rolldown({ input: path.join(root, 'src/lib/intelligence/agent/agentHttp.ts'),
-    platform: 'node', resolve: { alias: { '@': root } }, external: ['next', 'next/server', 'next/headers', '@supabase/supabase-js', '@resvg/resvg-js'] });
+    platform: 'node', resolve: { alias: { '@': root } }, external: ['next', 'next/server', 'next/headers', '@supabase/supabase-js', '@resvg/resvg-js', 'pdf-lib', '@pdf-lib/fontkit'] });
   try { await bundle.write({ file: bundled, format: 'cjs', codeSplitting: false }); } finally { await bundle.close(); }
   const { handleAgentSubmission } = createRequire(import.meta.url)(bundled);
   handlers.set(output, handleAgentSubmission);

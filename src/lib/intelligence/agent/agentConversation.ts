@@ -153,5 +153,6 @@ export async function restoreOwnAgentAnswer(
   }
   await recheck();
   return { message, ...(result ? { result } : {}), recheck, headHash: read.head_hash,
-    headSequence: read.head_sequence };
+    headSequence: read.head_sequence,
+    parentRequestId: z.uuid().optional().parse(receipt?.metadata?.conversation?.parentRequestId) };
 }
