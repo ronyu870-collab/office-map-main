@@ -71,6 +71,7 @@ try {
   await db.setup.query(`create table if not exists public.${table}(id uuid default gen_random_uuid(),building_id uuid,user_id uuid,record_year integer,record_quarter integer,total_area numeric)`);
  }
  await db.setup.query(await readFile(new URL('../../migrations/20261121105118_audit_2_query_and_session_governance.sql',import.meta.url),'utf8'));
+ await db.setup.query(await readFile(new URL('../../migrations/20261121140949_fix_audit_export_role_check.sql',import.meta.url),'utf8'));
  await mkdir('verification/audit-2',{recursive:true});
  const operation='aaaaaaaa-1111-4111-8111-111111111111';
  const after=await benchmark();
@@ -201,6 +202,31 @@ try {
   assert.equal((await db.setup.query('select state from public.audit_operation_receipts where id=$1',[op])).rows[0].state,'pending');
   await assert.rejects(db.setup.query("select public.audit_complete_operation($1,null,'{}')",[op]),e=>e.code==='22023');
   await assert.rejects(db.setup.query("select public.audit_complete_operation($1,'failed','[]')",[op]),e=>e.code==='22023');
+ });
+ await check('service-role export completion permits live admins and rejects revoked actors atomically',async()=>{
+  // Production finalizes as service_role; current_role is the PostgreSQL SQL
+  // keyword, so the old function incorrectly compared service_role to admin.
+  await db.setup.query('grant select,update on public.user_roles to service_role');
+  const asService=async(sql,args=[])=>{
+   await db.setup.query('begin');
+   try {await db.setup.query('set local role service_role');const result=await db.setup.query(sql,args);await db.setup.query('commit');return result;}
+   catch(error){await db.setup.query('rollback');throw error;}
+  };
+  for(const action of ['AUDIT_EXPORT','EXPORT_LEASE_TRANSACTIONS','EXPORT_DATA','EXPORT_BACKUP']){
+   const op=crypto.randomUUID();
+   await asService('insert into public.audit_operation_receipts(id,actor_id,action_type) values($1,$2,$3)',[op,ADMIN,action]);
+   for(let i=0;i<2;i++)assert.equal((await asService("select public.audit_complete_operation($1,'success','{}') as ok",[op])).rows[0].ok,true);
+   assert.equal((await db.setup.query('select state from public.audit_operation_receipts where id=$1',[op])).rows[0].state,'success');
+   assert.equal((await db.setup.query('select count(*)::int n from public.audit_logs where event_id=$1',[op])).rows[0].n,1);
+  }
+  const revoked=crypto.randomUUID();
+  await asService("insert into public.audit_operation_receipts(id,actor_id,action_type) values($1,$2,'AUDIT_EXPORT')",[revoked,ADMIN]);
+  await db.setup.query("update public.user_roles set role='viewer' where user_id=$1",[ADMIN]);
+  await assert.rejects(asService("select public.audit_complete_operation($1,'success')",[revoked]),e=>e.code==='42501');
+  assert.equal((await db.setup.query('select state from public.audit_operation_receipts where id=$1',[revoked])).rows[0].state,'pending');
+  assert.equal((await db.setup.query('select count(*)::int n from public.audit_logs where event_id=$1',[revoked])).rows[0].n,0);
+  assert.equal((await asService("select public.audit_complete_operation($1,'failed') as ok",[revoked])).rows[0].ok,true);
+  await db.setup.query("update public.user_roles set role='admin' where user_id=$1",[ADMIN]);
  });
  await check('bounded health and retention are admin-only and revoke immediately',async()=>{
   await db.setup.query("create table if not exists auth.audit_log_entries(created_at timestamptz,payload jsonb)");
