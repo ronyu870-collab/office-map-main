@@ -55,7 +55,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
   const rootRef = React.useRef<HTMLElement>(null);
   const reading = React.useContext(MapReadingContext);
   const savedScroll = React.useRef(typeof reading?.fullScroll === 'number' ? reading.fullScroll : 0);
-  useMapReadingScroll(scrollRef, 'fullScroll', active);
+  const resetScroll = useMapReadingScroll(scrollRef, 'fullScroll', active);
   const sorted = React.useMemo(() => sortFullList(buildings, sort), [buildings, sort]);
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const page = paging.queryKey === queryKey ? (loading ? paging.page : Math.min(paging.page, pages)) : 1;
@@ -71,8 +71,8 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
     previousQuery.current = queryKey;
     if (reading) reading.fullScroll = 0;
     savedScroll.current = 0;
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [queryKey]);
+    resetScroll();
+  }, [queryKey, resetScroll]);
 
   React.useLayoutEffect(() => {
     if (!active) return;
@@ -88,7 +88,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
     if (focusResults) rootRef.current?.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
     setPaging({ queryKey, page: next });
     savedScroll.current = 0;
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    resetScroll();
   };
 
   return (

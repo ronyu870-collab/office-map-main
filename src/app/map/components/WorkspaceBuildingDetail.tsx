@@ -39,11 +39,10 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
   const [tab, updateTab] = React.useState(readingState?.tab ?? 'overview');
   const scroll = React.useRef<HTMLDivElement>(null);
   const [initialScroll] = React.useState(readingState?.scrollTop ?? 0);
-  useMapReadingScroll(scroll, `detail:${detail.building._dataType}:${detail.building.id}`, true, initialScroll);
+  const resetScroll = useMapReadingScroll(scroll, `detail:${detail.building._dataType}:${detail.building.id}`, true, initialScroll);
   const panel = React.useRef<HTMLDivElement>(null);
   React.useLayoutEffect(() => { const animation = animateWorkspace(panel.current, [{ opacity: .7 }, { opacity: 1 }], 120); return () => animation?.cancel(); }, [tab, building.id]);
-  const setTab = (next: string) => { updateTab(next); if (scroll.current) scroll.current.scrollTop = 0; onReadingChange?.({ tab: next, scrollTop: 0 }); };
-  React.useLayoutEffect(() => { if (scroll.current) scroll.current.scrollTop = initialScroll; }, [initialScroll]);
+  const setTab = (next: string) => { if (next === tab) return; updateTab(next); resetScroll(); onReadingChange?.({ tab: next, scrollTop: 0 }); };
   const [trendOpen, setTrendOpen] = React.useState(false);
   React.useEffect(() => () => onDisposeTrend(), [onDisposeTrend]);
   const future = building._dataType === 'future';

@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import * as React from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { WorkspaceBuildingDetail } from '../components/WorkspaceBuildingDetail';
 import type { WorkspaceBuildingDetail as Detail } from '../workspace/buildingDetail';
+import { MapReadingContext } from '../workspace/continuity';
 
 const base: Detail = { building: { id: 'stock-a', name: '甲楼', _dataType: 'existing', submarket: 'CBD', location_lng: null, location_lat: null, metrics: [], owner: '业主' }, metric: null, photos: [], canEdit: false, isDemo: false, overrides: {} };
 const actions = () => ({ onClose: vi.fn(), onAction: vi.fn(), onDisposeTrend: vi.fn() });
@@ -70,4 +72,23 @@ it('restores the building reading tab and reports further reading state without 
   expect(scroll.scrollTop).toBe(90);
   fireEvent.click(screen.getByRole('tab', { name: '行情' }));
   expect(change).toHaveBeenLastCalledWith({ tab: 'market', scrollTop: 0 });
+});
+
+it('does not pull a changed tab back to the previous restored scroll when content resizes', () => {
+  let resize!: () => void;
+  vi.stubGlobal('ResizeObserver', class { constructor(callback: () => void) { resize = callback; } observe() {} disconnect() {} });
+  try {
+    const { container, unmount } = render(<MapReadingContext.Provider value={{}}><WorkspaceBuildingDetail detail={base} {...actions()} readingState={{ tab: 'materials', scrollTop: 90 }} /></MapReadingContext.Provider>);
+    const scroll = container.querySelector('.workspace-scroll') as HTMLElement;
+    expect(scroll.scrollTop).toBe(90);
+    fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+    act(() => resize());
+    expect(scroll.scrollTop).toBe(0);
+    // Clicking the active tab should also preserve the current reading position.
+    fireEvent.wheel(scroll); scroll.scrollTop = 45; fireEvent.scroll(scroll);
+    fireEvent.click(screen.getByRole('tab', { name: '行情' }));
+    act(() => resize());
+    expect(scroll.scrollTop).toBe(45);
+    unmount();
+  } finally { vi.unstubAllGlobals(); }
 });

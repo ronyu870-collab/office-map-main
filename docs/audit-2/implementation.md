@@ -1,6 +1,6 @@
 # Audit 2.0 实施与验证
 
-基线为任务启动时的 main `97f704e5033ed927b8346ac2726bbfb0c9f502c9`。分支 `codex/audit-2-performance-and-observability`；随后兼容整合 main `f7cadfd` 的地图连续性与 AI 图表/导出更新，保留两侧功能。原有 A/B 性能附件基于启动基线，整合后的结果以最终 CI 为准。本轮包含应用、兼容迁移和 CI 回归，不包含生产迁移、部署或历史审计删除。
+基线为任务启动时的 main `97f704e5033ed927b8346ac2726bbfb0c9f502c9`。分支 `codex/audit-2-performance-and-observability`；随后兼容整合 main `dc9a22d` 的地图连续性、往返细节修复与 AI 图表/导出更新，保留两侧功能。原有 A/B 性能附件基于启动基线，整合后的结果以最终 CI 为准。本轮包含应用、兼容迁移和 CI 回归，不包含生产迁移、部署或历史审计删除。
 
 ## 事件与可信边界
 

@@ -20,6 +20,7 @@ export function useSurfacePresence(open: boolean, children: React.ReactNode) {
 }
 export function useSurfaceMotion(ref: React.RefObject<HTMLElement | null>, open: boolean, compact: boolean, signature: string) {
   const previous = React.useRef<{ box: DOMRect; open: boolean; signature: string } | null>(null);
+  const interrupted = React.useRef<Keyframe | null>(null);
   React.useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
@@ -29,12 +30,20 @@ export function useSurfaceMotion(ref: React.RefObject<HTMLElement | null>, open:
     if (!before || before.open === open && before.signature === signature) return;
     const offset = compact ? 'translateY(20px)' : element.classList.contains('map-workspace-left') ? 'translateX(-20px)' : 'translateX(20px)';
     let animation: Animation | undefined;
-    if (!open) animation = animateWorkspace(element, [{ opacity: 1, transform: 'translate(0,0)' }, { opacity: 0, transform: offset }], WORKSPACE_MOTION.state, 'forwards');
-    else if (!before.open) animation = animateWorkspace(element, [{ opacity: .5, transform: offset }, { opacity: 1, transform: 'translate(0,0)' }]);
+    const start = before.open !== open ? interrupted.current : null;
+    interrupted.current = null;
+    if (!open) animation = animateWorkspace(element, [{ opacity: 1, transform: 'translate(0,0)', ...start }, { opacity: 0, transform: offset }], WORKSPACE_MOTION.state, 'forwards');
+    else if (!before.open) animation = animateWorkspace(element, [{ opacity: .5, transform: offset, ...start }, { opacity: 1, transform: 'translate(0,0)' }]);
     else {
       const shift = compact ? before.box.top - box.top : before.box.left - box.left;
       animation = animateWorkspace(element, [{ transform: compact ? `translateY(${shift}px)` : `translateX(${shift}px)`, clipPath: `inset(0 0 ${Math.max(0, box.height - before.box.height)}px 0)` }, { transform: 'translate(0,0)', clipPath: 'inset(0)' }]);
     }
-    return () => animation?.cancel();
+    return () => {
+      if (animation && (animation.playState === 'running' || animation.pending)) {
+        const style = window.getComputedStyle(element);
+        interrupted.current = { opacity: style.opacity, transform: style.transform };
+      }
+      animation?.cancel();
+    };
   }, [compact, open, ref, signature]);
 }

@@ -44,7 +44,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
   const [viewMode, setViewMode] = useMapReadingState<'cards' | 'compact'>('listViewMode', 'compact');
   const loadMoreTriggerRef = React.useRef<HTMLDivElement>(null);
   const listContainerRef = React.useRef<HTMLDivElement>(null);
-  useMapReadingScroll(listContainerRef, 'listScroll', active);
+  const resetScroll = useMapReadingScroll(listContainerRef, 'listScroll', active);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const isDemo = useIsDemo();
   const [selectionMode, setSelectionMode] = React.useState(false);
@@ -123,8 +123,8 @@ export default function FloatingBuildingList({ buildings, active = true, display
     if (previousCriteria.current.query === query && previousCriteria.current.sort === sort) return;
     previousCriteria.current = { query, sort };
     setVisibleCount(INITIAL_LOAD_COUNT);
-    if (listContainerRef.current) listContainerRef.current.scrollTop = 0;
-  }, [query, sort, setVisibleCount]);
+    resetScroll();
+  }, [query, sort, setVisibleCount, resetScroll]);
 
   React.useEffect(() => {
     if (!active || !targetBuildingId) return;
@@ -195,6 +195,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
   return (
     <section className="workspace-building-list relative flex h-full w-full flex-col overflow-hidden" aria-label="项目列表">
       <WorkspacePanelHeader title={<>项目列表 <span className="workspace-title-count">{results.length}</span></>} onClose={onClose} closeLabel="关闭列表" />
+      <div ref={listContainerRef} className="workspace-scroll min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#c3ccd8 transparent' }}>
       <div className="workspace-list-tools">
         <div className="workspace-list-query">
           <label><span className="sr-only">搜索当前项目列表</span><input type="search" value={query} onChange={event => setQuery(event.currentTarget.value)} placeholder="搜索当前项目列表" /></label>
@@ -235,7 +236,6 @@ export default function FloatingBuildingList({ buildings, active = true, display
         </div>
       ) : null}
 
-      <div ref={listContainerRef} className="workspace-scroll min-h-0 flex-1 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#c3ccd8 transparent' }}>
         {results.length === 0 ? (
           <div className="flex h-full min-h-48 flex-col items-center justify-center px-5 text-center">
             <div className="text-[14px] font-semibold text-[#667085]">未找到符合条件的楼宇</div>
