@@ -4,6 +4,7 @@ import { REGISTERED_AGENT_TOOL_NAMES, PRESENTATION_TOOL_NAMES, STRUCTURED_DATA_T
 import { BUSINESS_TOOL_NAMES } from '../business/protocol';
 import { RESEARCH_TOOL_NAMES } from '../research/protocol';
 import type { QueryPlan } from '../query/plan';
+import { requestedArtifactFormats } from './artifactFulfillment';
 
 export const AGENT_LIMITS = { rounds: 9, tools: 12, maxToolText: 12000,
   maxHistoryTurns: 8, maxTotalTokens: 60000, recoveriesPerTool: 2 } as const;
@@ -200,7 +201,9 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         unresolved.set('verified_data', 'no_verified_result');
       if (/(?:Excel|CSV|xlsx|表格)/i.test(input.question)
         && !toolNames.includes('export_table') && !toolNames.includes('generate_research_deliverable') && result !== undefined) unresolved.set('export_table', 'not_generated');
-      if (/(?:导出|下载)/.test(input.question) && /(?:PNG|SVG|图片|图表)/i.test(input.question) && !toolNames.includes('export_chart')) unresolved.set('export_chart', 'not_generated');
+      if ((requestedArtifactFormats(input.question).some(f => f === 'png_zip' || f === 'svg_zip')
+        || /(?:导出|下载)/.test(input.question) && /(?:图片|图表)/i.test(input.question))
+        && !toolNames.includes('export_chart')) unresolved.set('export_chart', 'not_generated');
       if (result !== undefined && /(?:柱状图|条形图|折线图|散点图|热力图|直方图|箱线图|生成.*图表|绘制)/.test(input.question) && !toolNames.some(name => ['create_chart', 'modify_chart', 'prepare_chart', 'export_chart', 'review_research_task', 'generate_research_deliverable'].includes(name))) unresolved.set('create_chart', 'not_generated');
       if (/PDF/i.test(input.question) && !toolNames.includes('generate_pdf_report') && !toolNames.includes('generate_research_deliverable')) unresolved.set('generate_pdf_report', 'not_generated');
       if (/(?:Word|PPT|PowerPoint|docx|pptx)/i.test(input.question) && !toolNames.includes('generate_research_deliverable')) unresolved.set('generate_research_deliverable', 'not_generated');

@@ -15,6 +15,15 @@ const completion = (content: string | null, tools?: Array<{ id: string; question
 });
 
 describe('Colliers AI 4.0 native Agent loop', () => {
+  it('does not call an on-screen chart a generated PNG file', async () => {
+    const invoke = vi.fn().mockResolvedValueOnce({ ...completion(null), message: { role: 'assistant', content: null,
+      calls: [{ id: 'chart', name: 'create_chart', arguments: JSON.stringify({ resultId: randomUUID(), chart: { kind: 'bar', field: 'netEffectiveRent' } }) }] } })
+      .mockResolvedValueOnce(completion('PNG已生成。'));
+    const result = await runAgentLoop({ question: '生成一张租金排名 PNG 柱状图。', signal, invoke,
+      runTool: vi.fn().mockResolvedValue({ content: '{"status":"ready"}', result: { resultId: randomUUID() } }) });
+    expect(result.executionStatus).toBe('partial');
+    expect(result.unresolvedFailures).toContainEqual({ tool: 'export_chart', code: 'not_generated' });
+  });
   it('answers open conversation from the model without reading business data', async () => {
     const invoke = vi.fn().mockResolvedValue(completion('你好，我可以帮助你。'));
     const runTool = vi.fn();

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { fixture } from '../query/__tests__/fixtures';
 import { buildListResult } from '../query/result';
@@ -20,6 +20,24 @@ function manyBuildings(count = 25) {
 }
 
 describe('AI 5.0 ephemeral authorized result workset', () => {
+  it('fits Chinese pages to the UTF-8 budget with bounded serialization and lossless continuation', () => {
+    const identity = owner(), workset = new AuthorizedResultWorkset(identity);
+    const result = manyBuildings(50000);
+    result.table.rows.forEach(row => { row.cells.name = { kind: 'text', value: '中文资料'.repeat(100), sourceIds: [] }; });
+    workset.register(result, identity);
+    const stringify = vi.spyOn(JSON, 'stringify');
+    let page;
+    try {
+      page = workset.page({ resultId: result.resultId, offset: 1234, limit: 100 }, identity);
+      expect(stringify.mock.calls.length).toBeLessThanOrEqual(9);
+    } finally { stringify.mockRestore(); }
+    expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(WORKSET_LIMITS.modelBytes);
+    expect(page!.totalMatched).toBe(50000);
+    expect(page!.rows[0].entityId).toBe('building-1234');
+    const next = workset.page({ resultId: result.resultId, offset: page!.nextOffset!, limit: 100 }, identity);
+    expect(next.rows[0].entityId).toBe('building-' + (1234 + page!.returnedRows));
+    expect(workset.read(result.resultId, identity).table.rows).toHaveLength(50000);
+  });
   it('preserves entire authorized table behind the model preview, including later pages and counts', () => {
     const identity = owner(), workset = new AuthorizedResultWorkset(identity);
     const data = manyBuildings(25);

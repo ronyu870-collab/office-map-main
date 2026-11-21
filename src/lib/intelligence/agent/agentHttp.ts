@@ -6,6 +6,7 @@ import { ResearchExecution } from '../research/execution';
 import { isResearchResult, researchObservation, researchSections, reviewIssueText } from '../research/workspace';
 import { recheckResearchResult } from '../research/authorization';
 import { generateResearchDeliverable } from '../research/deliverable';
+import { artifactFulfillment, artifactLabels } from './artifactFulfillment';
 import { BUSINESS_TOOL_NAMES, isBusinessResult, type BusinessToolName } from '../business/protocol';
 import { queryBusinessResearch, businessModelObservation, recheckBusinessResults, businessCapabilities } from '../business/research';
 import { isLeaseResult } from '../lease/protocol';
@@ -541,14 +542,6 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     } else if (execution.toolNames.includes('generate_pdf_report') || execution.unresolvedFailures.some(item => item.tool === 'generate_pdf_report')) {
       execution.answer = '本轮未生成 PDF 文件。请核对内部导出资格、正式结果、报告范围与用途后重试；对客发布须另行授权。';
     }
-    await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
-      model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
-      toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
-      providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
-      inputTokens: execution.inputTokens, outputTokens: execution.outputTokens,
-      cost: null, costStatus: 'planning_range_not_invoice',
-      costEstimate: runtime.summary().providers.every(p => p === 'deepseek') ? estimateAgentCostRange(execution.model, execution.inputTokens, execution.outputTokens) : null,
-      durationMs: Math.max(0, Date.now() - agentStartedAt) });
     const current = await fresh();
     if (current.permissionRevision !== authority.permissionRevision
       || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
@@ -596,6 +589,26 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       if (researchFailures.length) execution.answer += '\n' + [...new Set(researchFailures)].join('');
       if (descriptor.state !== 'reviewed' || execution.unresolvedFailures.length) execution.executionStatus = 'partial';
     }
+    const fulfillment = artifactFulfillment(valid.question, execution.result);
+    if (fulfillment.missing.length) {
+      for (const format of fulfillment.missing) {
+        const tool = fulfillment.toolFor(format);
+        if (!execution.unresolvedFailures.some(f => f.tool === tool)) execution.unresolvedFailures.push({ tool, code: 'not_generated' });
+      }
+      execution.executionStatus = execution.result ? 'partial' : 'limited';
+      const delivered = fulfillment.requested.filter(f => fulfillment.available.includes(f));
+      execution.answer = (delivered.length ? '服务器已生成可通过本条回答下载的 ' + delivered.map(f => artifactLabels[f]).join('、') + ' 文件。' : '')
+        + '本轮未生成 ' + fulfillment.missing.map(f => artifactLabels[f]).join('、') + ' 文件，或尚未保留为本条回答可下载的成果；任务尚未全部完成。'
+        + '请核对当前授权、数据与生成步骤后继续。尚未发起浏览器下载，未确认本机保存。';
+    }
+    await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
+      model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
+      toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
+      providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
+      inputTokens: execution.inputTokens, outputTokens: execution.outputTokens,
+      cost: null, costStatus: 'planning_range_not_invoice',
+      costEstimate: runtime.summary().providers.every(p => p === 'deepseek') ? estimateAgentCostRange(execution.model, execution.inputTokens, execution.outputTokens) : null,
+      durationMs: Math.max(0, Date.now() - agentStartedAt) });
     const knowledgeAnswer=execution.result && isKnowledgeResult(execution.result);
     const businessAnswer=execution.result && isBusinessResult(execution.result);
     const leaseAnswer = execution.result && isLeaseResult(execution.result);

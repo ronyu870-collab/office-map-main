@@ -58,7 +58,12 @@ export function modelToolCatalogue(question: string, mode: ModelMode, messages: 
     for (const name of ['query_building_dossier', 'query_submarket_profile', 'query_future_supply', 'query_stacking_plan']) selected.add(name);
   if (/文档|楼书|资料|公开|联网|报告.*比较|比较.*报告/.test(question))
     for (const name of ['list_knowledge_documents', 'search_internal_documents', 'search_public_building_information']) selected.add(name);
-  if (hasChartContext || /图|PNG|SVG|坐标|横轴|纵轴/i.test(question)) {
+  // Existing charts already travel with their authorized result into report
+  // renderers. Merely packaging a file must not add another 11KiB edit schema
+  // and exhaust the unchanged budget before any model/tool can run.
+  const filePackaging = /PDF|Word|PPT|PowerPoint|docx|pptx|Excel|CSV/i.test(question)
+    && !/PNG|SVG|坐标|横轴|纵轴|(?:改|换|调整|绘制|画).{0,16}(?:图|轴)|(?:图|轴).{0,16}(?:改|换|调整)|(?:生成|制作|增加|添加|需要).{0,16}(?:柱状图|条形图|折线图|散点图|热力图|直方图|箱线图|趋势图|图表)/i.test(question);
+  if (!filePackaging && (hasChartContext || /图|PNG|SVG|坐标|横轴|纵轴/i.test(question))) {
     const modifying = hasChartContext || /改|换|调整/.test(question) || messages.some(m => m.calls?.some(c => c.name === 'create_chart'));
     selected.add(modifying ? 'modify_chart' : 'create_chart');
     if (/导出|下载|PNG|SVG/i.test(question)) selected.add('export_chart');

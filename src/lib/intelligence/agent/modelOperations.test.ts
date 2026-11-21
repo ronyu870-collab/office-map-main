@@ -5,7 +5,7 @@ import { ModelProviderError } from './modelProvider';
 import type { AgentCompletion, AgentMessage, ModelAdapter, ProviderId } from './modelProtocol';
 import { nextAgentMemory } from './agentMemory';
 import { summarizeModelOperations } from './modelOperationsView';
-import { runAgentLoop } from './agentOrchestrator';
+import { agentInstructions, runAgentLoop } from './agentOrchestrator';
 
 const actorId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const messages: AgentMessage[] = [{ role: 'user', content: '你好' }];
@@ -168,6 +168,21 @@ describe('bounded routing, fallback and model cost governance', () => {
     expect(names('国贸的空调系统和绿色认证是什么？')).toContain('query_building_dossier');
     expect(names('按租金从高到低排列。', true)).toContain('modify_chart');
     expect(names('按租金从高到低排列。')).not.toContain('modify_chart');
+  });
+  it('packages an existing chart as PDF within the unchanged budget, while keeping explicit chart edits available', async () => {
+    setup();
+    const question = '把这些结果生成 PDF 研究报告。';
+    const history: AgentMessage[] = [{ role: 'system', content: agentInstructions() },
+      { role: 'system', content: '已重新鉴权的结果引用：' + 'x'.repeat(4000) }, { role: 'user', content: question }];
+    const tools = modelToolCatalogue(question, 'deep', history, true);
+    const deepseek = vi.fn().mockResolvedValue(success('deepseek'));
+    const run = createModelRuntime({ actorId, question, hasChartContext: true, adapters: { deepseek },
+      revalidate: vi.fn().mockResolvedValue(undefined), onAttempt: vi.fn().mockResolvedValue(undefined) });
+    await expect(run.invoke(history, signal())).resolves.toMatchObject({ provider: 'deepseek' });
+    expect(tools.map(t => t.name)).toContain('generate_pdf_report');
+    expect(tools.map(t => t.name)).not.toContain('modify_chart');
+    expect(modelToolCatalogue('把刚才的柱状图导出 PDF。', 'deep', history, true).map(t => t.name)).not.toContain('modify_chart');
+    expect(modelToolCatalogue('调整散点图坐标并生成 PDF。', 'deep', history, true).map(t => t.name)).toContain('modify_chart');
   });
   it('compresses many turns without model costs or private facts, and separates unknown usage from actual invoice totals', () => {
     let memory; for (let i = 0; i < 24; i++) memory = nextAgentMemory(memory, '比较租金与空置率，生成Word；合成保密租户=987654，API_KEY=synthetic');

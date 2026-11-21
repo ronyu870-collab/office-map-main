@@ -73,12 +73,22 @@ beforeEach(() => {
 });
 
 describe('AI 4.0 authenticated route with model and auditable delivery', () => {
+  it.each(['Excel', 'CSV', 'PNG', 'SVG'])('rejects an invented %s file even without a formal result', async format => {
+    state.provider.mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
+      message: { role: 'assistant', content: format + '已生成 https://fake.invalid/download，已保存桌面。' } });
+    const response = await handleAgentSubmission(fakeRequest('把刚才的结果生成 ' + format + ' 文件。').request, deps());
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.agent.executionStatus).toBe('limited');
+    expect(body.message).not.toMatch(/fake.invalid|已保存|已生成/);
+    expect(body.message).toContain('未生成');
+  });
   it('never presents model-authored Office success or a download URL when no research file was generated', async () => {
     state.provider.mockResolvedValue({ model: 'deepseek-flash', inputTokens: 12, outputTokens: 18,
       message: { role: 'assistant', content: 'Word已保存桌面 https://fake.invalid/report.docx' } });
     const { request } = fakeRequest('生成 Word 研究报告。');
     const response = await handleAgentSubmission(request, deps()); const body = await response.json();
-    expect(response.status, JSON.stringify(body)).toBe(200); expect(body.message).toContain('未生成研究文件');
+    expect(response.status, JSON.stringify(body)).toBe(200); expect(body.message).toContain('未生成 Word 文件');
     expect(body.message).not.toMatch(/已保存|fake.invalid/); expect(body.result?.parameters?.researchDeliverables).toBeUndefined();
   });
   it('answers through provider after budget and audited admission', async () => {
@@ -444,7 +454,7 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     state.provider.mockReset().mockResolvedValueOnce(completed([call('export_chart', { resultId: formal.resultId, chart: { ...spec, y: ['height'] }, format: 'png_zip' })])).mockResolvedValueOnce(completed());
     const noExport = await handleAgentSubmission(fakeRequest('导出 PNG').request, deps());
     const noExportBody = await noExport.json();
-    expect(noExportBody.message).toContain('未生成图片'); expect(noExportBody.agent.unresolvedFailures).toContainEqual({ tool: 'export_chart', code: 'export_not_authorized' });
+    expect(noExportBody.message).toContain('未生成 PNG 文件'); expect(noExportBody.agent.unresolvedFailures).toContainEqual({ tool: 'export_chart', code: 'export_not_authorized' });
     const recheck = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error('QUERY_DENIED'));
     state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextRecheck: recheck }));
     state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: { ...spec, y: ['height'] } })])).mockResolvedValueOnce(completed());
