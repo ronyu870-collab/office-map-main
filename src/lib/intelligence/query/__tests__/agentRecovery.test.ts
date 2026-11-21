@@ -28,7 +28,7 @@ function auditEvent(requestId: string, sequence: number, kind: string, payload: 
       effectiveUserId: ids.effective }, keys.keyId, keys.encryptionKey) };
 }
 
-async function recover(finalSegment: string) {
+async function recover(finalSegment: string, exportPlans?: unknown[]) {
   const requestId = randomUUID(), resultId = randomUUID();
   const events = [
     auditEvent(requestId, 1, 'received', { sessionId: ids.session,
@@ -42,7 +42,7 @@ async function recover(finalSegment: string) {
       resolution: { protocol: 'research-conversation/1' } }),
     auditEvent(requestId, 5, 'response_generated', { result: {
       resultId, dataVersion: 'b'.repeat(64), registryVersion: FIELD_REGISTRY_VERSION,
-      sources: [], parameters: {}, operation: 'list', table: { id: 'x', columns: [], rows: [] },
+      sources: [], parameters: exportPlans ? { exportPlans } : {}, operation: 'list', table: { id: 'x', columns: [], rows: [] },
     } }),
     auditEvent(requestId, 6, 'succeeded', { delivery: 'not_yet_sent' }),
   ];
@@ -62,6 +62,10 @@ describe('immutable source-rechecked Agent result recovery', () => {
     const recovered = await recover('CBD');
     expect(recovered.resultId).toMatch(/^[a-f0-9-]{36}$/);
     await expect(recovered.recheck()).resolves.toBeUndefined();
+  });
+  it('rechecks every original plan in merged exports rather than only the final scope', async () => {
+    await expect(recover('CBD', [plan('CBD'), plan('UNAUTHORIZED_SEGMENT')])).rejects.toThrow('QUERY_DENIED');
+    await expect(recover('CBD', [plan('CBD')])).resolves.toBeDefined();
   });
   it('rejects recovery when the model final result scope is no longer authorized', async () => {
     await expect(recover('UNAUTHORIZED_SEGMENT')).rejects.toThrow('QUERY_DENIED');

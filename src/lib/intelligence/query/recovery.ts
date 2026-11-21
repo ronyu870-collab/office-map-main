@@ -65,12 +65,17 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
   authorizeRecoveryPlan(plan,authority);
   const archive=decodeGeneratedArchive(read.events.filter(event=>event.kind==='response_generated'),context,new Map([[keys.keyId,keys]]));
   const result=resultSchema.parse(archive.result);
+  const params = (archive.result as { parameters?: Record<string, unknown> }).parameters;
+  const exportPlans = params?.exportPlans === undefined ? []
+    : z.array(z.unknown()).min(1).max(64).parse(params.exportPlans).map(parseQueryPlan);
+  exportPlans.forEach(item => authorizeRecoveryPlan(item, authority));
   const sources=result.sources.map(ref=>({entity_id:ref.entityId,record_id:ref.recordId,source_table:ref.table,field:ref.field,
     year:ref.period?.year??null,quarter:ref.period?.quarter??null}));
   const recheck=async()=>{
     const current:DataAuthority=await loadDataAuthority(client,identity,signal);
     if(current.permissionRevision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     authorizeRecoveryPlan(plan,current);
+    exportPlans.forEach(item => authorizeRecoveryPlan(item, current));
     const {data,error}=await client.rpc('ai_query_result_sources_allowed',{
       p_actor:identity.actorId,p_effective:identity.effectiveUserId,p_session:identity.sessionId,p_request_id:requestId,
       p_permission_revision:current.permissionRevision,p_sources:sources,

@@ -26,6 +26,8 @@ const rowFilter = z.strictObject({ field: z.string().min(1).max(50),
   operator: z.enum(['eq', 'contains', 'gte', 'lte']), value: z.union([z.string().max(160), z.number().finite()]) });
 
 export const STRUCTURED_DATA_SCHEMAS = {
+  list_buildings: z.strictObject({ scope, fields: z.array(field).max(6).default([]),
+    period: quarter.nullable().default(null), filter: predicate.optional() }),
   search_buildings: z.strictObject({ scope, nameContains: z.string().trim().min(1).max(100).optional() }),
   get_building_profile: z.strictObject({
     buildingIds: z.array(z.uuid()).min(1).max(100), fields: z.array(field).max(6).optional(),
@@ -48,7 +50,22 @@ export const STRUCTURED_DATA_SCHEMAS = {
 export type StructuredDataToolName = keyof typeof STRUCTURED_DATA_SCHEMAS;
 export const STRUCTURED_DATA_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(STRUCTURED_DATA_SCHEMAS));
 
+export const exportTableSchema = z.strictObject({
+  resultIds: z.array(z.uuid()).min(1).max(8),
+  format: z.enum(['xlsx', 'csv_zip']),
+  fields: z.array(z.string().min(1).max(50)).min(1).max(30).optional(),
+  sort: rowSort.optional(), filters: z.array(rowFilter).max(10).default([]),
+  topN: z.number().int().min(1).max(50000).optional(),
+  singleSheet: z.boolean().default(false),
+});
+
+export const exportContextSchema = z.strictObject({
+  plans: z.array(z.unknown()).min(1).max(8),
+  selection: exportTableSchema.omit({ resultIds: true }),
+});
+
 export const WORKSET_TOOL_SCHEMAS = {
+  export_table: exportTableSchema,
   summarize_result: resultRef,
   read_result_page: z.strictObject({ resultId: z.uuid(), offset: z.number().int().min(0).max(100000).default(0),
     limit: z.number().int().min(1).max(100).default(30), sort: rowSort.optional(), filter: rowFilter.optional() }),
@@ -113,6 +130,8 @@ function def(name: string, description: string, properties: Record<string, unkno
 }
 const jsonScope = s;
 export const SPECIALIST_DATA_TOOLS = [
+  def('list_buildings', '查询完整获权楼宇列表及最多6个组合数值字段；无季度只能查询目录/资料字段，季度数值须明确period。可供全量导出，绝不以预览行替代全表。',
+    { scope: s, fields: { type: 'array', items: f, maxItems: 6 }, period: { anyOf: [q, { type: 'null' }] }, filter: p }, ['scope']),
   def('get_data_capabilities', '实时检查当前登录身份的楼宇、字段、范围、操作和内部导出授权；授权不保证数据覆盖，不得凭推测回答权限。',
     { question: { type: 'string', minLength: 2, maxLength: 1000 } }, ['question']),
   def('search_buildings', '列出获权楼宇目录，可用名称子串进一步筛选。先使用此工具取得真实楼宇ID，不接受模糊生成的ID。',
@@ -136,6 +155,8 @@ export const SPECIALIST_DATA_TOOLS = [
       groupBy: { type: 'string', enum: ['submarket', 'grade'] } }, ['scope', 'start', 'end', 'metric']),
 ] as const;
 export const WORKSET_TOOLS = [
+  def('export_table', '真实生成内部Excel或CSV与来源ZIP。只接受本轮完整正式resultIds，不能提交数值/SQL/路径。可选择现有列、组合筛选、排序、Top N；默认全部行，超限明确失败。多结果按同列结构纵向合并并保留结果ID/期间，禁止重算均值。singleSheet=true明确只生成一个工作表。跨轮“刚才结果”须按历史条件重新查询再导出。先获取合法resultId及列key；本工具成功只表示服务器生成，下载由回答中的真实操作交付，不表示本机已保存。',
+    z.toJSONSchema(exportTableSchema).properties as Record<string, unknown>, ['resultIds', 'format']),
   def('summarize_result', '汇总本次请求中某一完整可信结果的总行数、正式结论、列有效样本数，非前8行。',
     { resultId: ref.properties.resultId }, ['resultId']),
   def('read_result_page', '对本次获权工作集结果分页、按已存在列排序或筛选，返回真实总行数及分页，不能访问不属于本次会话的结果。',
