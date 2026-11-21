@@ -45,3 +45,22 @@ it('preserves missing trend observations instead of drawing false zeroes', () =>
   expect(chart.setOption.mock.lastCall?.[0].series[0].data).toEqual([null, null, null, null, 0, 20000]);
   instance!.dispose();
 });
+
+it('observes the displayed metric once per actual switch and stops after disposal', () => {
+  document.body.innerHTML = '<button id="chart-btn-rent"></button><button id="chart-btn-vac"></button><div id="chart"></div>';
+  const chart = { setOption: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
+  runtime.init.mockReturnValue(chart);
+  const view = vi.fn();
+  const instance = initTrendChart(document.getElementById('chart')!, [{ year: 2026, net_effective_rent: 200, vacancy_rate: .1 }], view);
+  document.getElementById('chart-btn-rent')!.click();
+  document.getElementById('chart-btn-vac')!.click();
+  document.getElementById('chart-btn-vac')!.click();
+  document.getElementById('chart-btn-rent')!.click();
+  expect(view.mock.calls).toEqual([['rent'], ['vac'], ['rent']]);
+  expect(chart.setOption).toHaveBeenCalledTimes(3);
+  instance!.dispose();
+  document.getElementById('chart-btn-vac')!.click();
+  expect(view).toHaveBeenCalledTimes(3);
+  expect(initTrendChart(document.getElementById('chart')!, [], view)).toBeNull();
+  expect(view).toHaveBeenCalledTimes(3);
+});
