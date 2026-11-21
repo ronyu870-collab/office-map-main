@@ -54,7 +54,7 @@ describe('DeepSeek native SSE parsing', () => {
     await expect(parseDeepSeekStream(streaming([
       frame({ content: '只返回部分结果' }, 'stop'),
     ], false), 'deepseek-flash', vi.fn(), new AbortController().signal))
-      .rejects.toMatchObject({ code: 'invalid_response' });
+      .rejects.toMatchObject({ code: 'stream_interrupted' });
   });
 
   it('fails closed on unbounded streamed text rather than accepting a partial success', async () => {

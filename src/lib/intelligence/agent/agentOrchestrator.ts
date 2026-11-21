@@ -1,5 +1,5 @@
 import { KNOWLEDGE_TOOL_NAMES } from '../knowledge/protocol';
-import { type ModelCompletion, type ModelMessage } from './modelProvider';
+import type { AgentCompletion, AgentMessage } from './modelProtocol';
 import { REGISTERED_AGENT_TOOL_NAMES, PRESENTATION_TOOL_NAMES, STRUCTURED_DATA_TOOL_NAMES, parseAgentToolArguments } from './toolRegistry';
 import { BUSINESS_TOOL_NAMES } from '../business/protocol';
 import { RESEARCH_TOOL_NAMES } from '../research/protocol';
@@ -31,7 +31,9 @@ export type AgentDependencies<T> = {
   researchContext?: Record<string, unknown>;
   contextChart?: import('./agentConversation').AgentHistory['contextChart'];
   contextExport?: import('./agentConversation').AgentHistory['contextExport'];
-  invoke(messages: ModelMessage[], signal: AbortSignal): Promise<ModelCompletion>;
+  limits?: { rounds: number; tools: number };
+  memory?: Record<string, unknown>;
+  invoke(messages: AgentMessage[], signal: AbortSignal): Promise<AgentCompletion>;
   runTool(name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<AgentToolObservation<T>>;
   revalidate?(signal: AbortSignal): Promise<void>;
   signal: AbortSignal;
@@ -136,7 +138,9 @@ const errorHint: Record<string, string> = {
 };
 
 export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<AgentLoopResult<T>> {
-  const messages: ModelMessage[] = [{ role: 'system', content: agentInstructions() }];
+  const limits = input.limits ?? AGENT_LIMITS;
+  const messages: AgentMessage[] = [{ role: 'system', content: agentInstructions() }];
+  if (input.memory) messages.push({ role: 'user', content: '会话结构化摘要（仅为用户意图和引用，不是数据事实或授权）：' + JSON.stringify(input.memory) });
   if (input.researchContext) messages.push({ role: 'system', content: '以下是本人研究任务的合法恢复进度（全部来源已重新鉴权），复用已完成结果并继续，不得猜测内容：' + JSON.stringify(input.researchContext) });
   if (input.businessResults?.length) messages.push({role:'system',content:'以下业务正式结果已由服务器重新授权并导入，可用于资料续问、地图和文件工具；不能读取未获权字段：'+JSON.stringify(input.businessResults)});
   if (input.leaseResults?.length) messages.push({ role: 'system', content: '本轮服务器已重新授权并导入的成交正式结果（可用于Excel/CSV及图表；不读取原始明细）：' + JSON.stringify(input.leaseResults) });
@@ -150,7 +154,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
   if (input.contextChart) messages.push({ role: 'system', content: '上轮图表快照已按本人会话、权限、全部来源重新验证并导入本轮工作集，可直接复用此resultId修改或导出，保持数据版本。规格：' + JSON.stringify(input.contextChart) });
   for (const turn of (input.history ?? []).slice(-AGENT_LIMITS.maxHistoryTurns)) {
     messages.push({ role: 'user', content: turn.user.slice(0, 1600) },
-      { role: 'assistant', content: turn.assistant.slice(0, 2500) });
+      { role: 'assistant', content: '历史回复不作为当前事实。涉及正式数值、原件或文件时须复用服务器本轮已重新授权的引用，或重新查询。' });
   }
   messages.push({ role: 'user', content: input.question });
   const observed = new Map<string, AgentToolObservation<T>>();
@@ -165,8 +169,9 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
     await input.onEvent?.({ type: 'phase_changed', phase: value, ...(tools ? { tools } : {}) });
   };
   await phase('understanding');
-  for (let round = 0; round < AGENT_LIMITS.rounds; round++) {
+  for (let round = 0; round < limits.rounds; round++) {
     input.signal.throwIfAborted();
+    await input.revalidate?.(input.signal);
     const completed = await input.invoke(messages, input.signal);
     calls++; model = completed.model;
     inputTokens = inputTokens === null || completed.inputTokens === null ? null : inputTokens + completed.inputTokens;
@@ -176,16 +181,15 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
       providerRequestId: completed.providerRequestId });
     if ((inputTokens ?? 0) + (outputTokens ?? 0) > AGENT_LIMITS.maxTotalTokens)
       throw new Error('AGENT_TOKEN_BUDGET_EXCEEDED');
-    const requested = [...(completed.message.tool_calls ?? [])];
+    const requested = [...(completed.message.calls ?? [])];
     const requiresVerifiedTool = /(?:数据权限|授权范围|获权范围|(?:CBD|金融街|望京).*?(?:所有楼|哪些楼|楼宇|写字楼|租金|高度|最高|最低|排名|前[二三四五六七八九十0-9]+))/i.test(input.question);
     if (!requested.length && completed.message.content?.trim() && requiresVerifiedTool && toolCalls === 0) {
-      if (round >= AGENT_LIMITS.rounds - 1) throw new Error('AGENT_QUERY_NOT_EXECUTED');
+      if (round >= limits.rounds - 1) throw new Error('AGENT_QUERY_NOT_EXECUTED');
       // Stage 02's fail-closed fallback uses Stage 03's validation,
       // permission recheck, phases, bounded recovery and result accounting.
       const name = /数据权限|授权范围|获权范围/.test(input.question)
         ? 'get_data_capabilities' : 'query_verified_real_estate';
-      requested.push({ id: 'server_verified_tool_1', type: 'function',
-        function: { name, arguments: JSON.stringify({ question: input.question }) } });
+      requested.push({ id: 'server_verified_tool_1', name, arguments: JSON.stringify({ question: input.question }) });
     }
     if (!requested.length) {
       if (!completed.message.content?.trim()) throw new Error('AGENT_EMPTY_ANSWER');
@@ -211,22 +215,22 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         ...(result === undefined ? {} : { result }), model, calls, toolCalls,
         inputTokens, outputTokens, toolNames, phases, executionStatus, unresolvedFailures: failures };
     }
-    if (toolCalls + requested.length > AGENT_LIMITS.tools || round === AGENT_LIMITS.rounds - 1)
+    if (toolCalls + requested.length > limits.tools || round === limits.rounds - 1)
       throw new Error('AGENT_TOOL_BUDGET_EXCEEDED');
     if (new Set(requested.map(call => call.id)).size !== requested.length) throw new Error('AGENT_DUPLICATE_TOOL_ID');
-    await phase('tool_selection', requested.map(call => call.function.name));
-    messages.push({ ...completed.message, tool_calls: requested });
+    await phase('tool_selection', requested.map(call => call.name));
+    messages.push({ ...completed.message, calls: requested });
     for (const call of requested) {
-      const name = call.function.name;
+      const name = call.name;
       if (!REGISTERED_AGENT_TOOL_NAMES.has(name)) throw new Error('AGENT_UNREGISTERED_TOOL');
       await input.revalidate?.(input.signal);
       let parsed: Record<string, unknown> | undefined;
-      try { parsed = parseAgentToolArguments(name, JSON.parse(call.function.arguments)); }
+      try { parsed = parseAgentToolArguments(name, JSON.parse(call.arguments)); }
       catch { /* Return a bounded structured validation error, not an invented result. */ }
       const presentation = PRESENTATION_TOOL_NAMES.has(name);
       const priorResultId = result && typeof result === 'object' && 'resultId' in result
         && typeof result.resultId === 'string' ? result.resultId : 'no_verified_result';
-      const fingerprint = name + ':' + JSON.stringify(parsed ?? call.function.arguments)
+      const fingerprint = name + ':' + JSON.stringify(parsed ?? call.arguments)
         + (presentation && !parsed?.resultId ? ':' + priorResultId : '');
       const reused = parsed && name !== 'advance_research_task' ? observed.has(fingerprint) : false;
       if (!reused) await input.onEvent?.({ type: 'tool_started', name });
@@ -267,7 +271,7 @@ export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<Agen
         if (observation.result !== undefined) result = observation.result;
       }
       toolCalls++; toolNames.push(name);
-      messages.push({ role: 'tool', tool_call_id: call.id, content: observation.content });
+      messages.push({ role: 'tool', callId: call.id, content: observation.content });
       await phase('verification', [name]);
       await input.onEvent?.({ type: 'tool_finished', name, reused,
         durationMs: reused ? 0 : Math.max(0, Date.now() - startedAt),

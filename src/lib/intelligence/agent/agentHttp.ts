@@ -37,6 +37,8 @@ import { readReportHistory } from './reportHistory';
 import { exportAuthorizedTable } from './exportTableTool';
 import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
+import { createModelRuntime, modelModeSchema } from './modelRuntime';
+import { nextAgentMemory } from './agentMemory';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
 import { recordHistorySubmission } from '../query/historyStore';
@@ -47,7 +49,7 @@ import { AGENT_CONVERSATION_PROTOCOL, readAgentHistory, trimAgentHistory } from 
 
 const inputSchema = z.strictObject({
   idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(s => !!s.trim()),
-  conversation: queryConversationSchema,
+  conversation: queryConversationSchema, mode: modelModeSchema.optional(),
 });
 type Dependencies = { client: SupabaseClient; keys: AuditKeys; enabled: boolean; invokeModel?: typeof completeWithDeepSeek };
 export type AgentStreamObserver = (event:
@@ -69,15 +71,18 @@ function scopedAgentId(identity: VerifiedQueryIdentity, idempotencyKey: string):
 function providerMessage(error: unknown): string {
   if (error instanceof ModelProviderError) {
     switch (error.code) {
-      case 'not_configured': return 'DeepSeek 尚未配置，本轮未调用模型。';
-      case 'unauthorized': return 'DeepSeek API 鉴权失败（401），请核对生产密钥。';
-      case 'payment_required': return 'DeepSeek API 余额或付费状态异常（402），本轮未生成模型回复。';
-      case 'model_not_found': return 'DeepSeek 当前模型不可用（404），请核对生产模型配置。';
-      case 'rate_limited': return 'DeepSeek 请求过于频繁（429），请稍后重试。';
-      case 'timeout': return 'DeepSeek 连接超时，本轮未完成。';
-      case 'invalid_configuration': return 'DeepSeek 生产接口配置无效，请联系管理员核对。';
-      case 'invalid_response': return 'DeepSeek 返回不符合响应协议，本轮未完成。';
-      default: return 'DeepSeek 服务暂时不可用，本轮未生成模型回复。';
+      case 'budget_exceeded': return '本轮模型调用已达到 token 或费用估算预算，未继续调用供应商。';
+      case 'disclosure_denied': return '当前账号未获准向该模型供应商披露请求，未调用供应商。';
+      case 'stream_interrupted': return '模型供应商流式连接中断，未取得完整回复。';
+      case 'not_configured': return '模型供应商尚未配置，本轮未调用模型。';
+      case 'unauthorized': return '模型供应商 API 鉴权或访问资格失败（401／403），请核对生产密钥。';
+      case 'payment_required': return '模型供应商 API 余额或付费状态异常（402），本轮未生成模型回复。';
+      case 'model_not_found': return '模型供应商当前模型不可用（404），请核对生产模型配置。';
+      case 'rate_limited': return '模型供应商请求过于频繁（429），请稍后重试。';
+      case 'timeout': return '模型供应商连接超时，本轮未完成。';
+      case 'invalid_configuration': return '模型供应商生产接口配置无效，请联系管理员核对。';
+      case 'invalid_response': return '模型供应商返回不符合响应协议，本轮未完成。';
+      default: return '模型供应商服务暂时不可用，本轮未生成模型回复。';
     }
   }
   if (error instanceof Error && error.message === 'REPORT_HISTORY_RESULT_LIMIT') return '当前对话的历史正式结果超过 8 个，本轮未生成 PDF；请开始新对话并按所需范围查询后组合，不会截断结果。';
@@ -150,14 +155,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     if (receipt.replayed) {
       await fresh();
       return json({ requestId, status: 'already_received',
-        error: '同一请求已记录。请勿重复提交；此请求不会再次调用 DeepSeek。' }, 202);
+        error: '同一请求已记录。请勿重复提交；此请求不会再次调用模型供应商。' }, 202);
     }
     const authority = await fresh();
     const worksetOwner: WorksetOwner = { requestId, actorId: actor.actorId,
       effectiveUserId: actor.effectiveUserId, sessionId: actor.sessionId,
       permissionRevision: authority.permissionRevision, policyVersion: authority.policyVersion };
     const workset = new AuthorizedResultWorkset(worksetOwner);
-    await audit.append(requestId, 'running', { phase: 'agent_planning', provider: 'deepseek',
+    await audit.append(requestId, 'running', { phase: 'agent_planning', provider: 'server_policy',
       permissionRevision: authority.permissionRevision, policyVersion: authority.policyVersion });
     const budget = await client.rpc('ai_query_model_budget', {
       p_actor: actor.actorId, p_effective: actor.effectiveUserId,
@@ -168,8 +173,8 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       await audit.append(requestId, 'failed', { stage: 'provider_admission', reason, delivery: 'not_sent' });
       completed = true;
       return json({ requestId, status: 'unavailable', error: budget.error
-        ? 'DeepSeek 调用预算服务暂不可用，本轮没有调用模型。'
-        : 'DeepSeek 调用预算校验未通过，本轮没有调用模型。' }, 503);
+        ? '模型供应商调用预算服务暂不可用，本轮没有调用模型。'
+        : '模型供应商调用预算校验未通过，本轮没有调用模型。' }, 503);
     }
     const history = await readAgentHistory(client, actor, keys, authority, valid.conversation, signal);
     const research = new ResearchExecution(history.contextResult && isResearchResult(history.contextResult) ? history.contextResult : undefined);
@@ -185,7 +190,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       history.contextRecheck = async () => { await priorCheck?.(); await reportHistory.recheck(); };
     }
     await observer?.({ type: 'run_started', requestId });
-    await audit.append(requestId, 'tool_started', { tool: 'deepseek_chat', provider: 'deepseek',
+    await audit.append(requestId, 'tool_started', { tool: 'model_agent', provider: 'server_policy',
       operation: 'native_tool_calling', historyTurns: history.length });
     const agentStartedAt = Date.now();
     let completedModels = 0, reportedInput: number | null = 0, reportedOutput: number | null = 0;
@@ -229,6 +234,16 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       await recheckLeaseResults(client, actor, signal, [...leaseResults.values()], exporting);
       await recheckBusinessResults(client,actor,signal,[...businessResults.values()],exporting);
     };
+    const revalidateModel = async (currentSignal: AbortSignal) => {
+      await history.contextRecheck?.(); await recheckLeases();
+      const current = await loadDataAuthority(client, actor, currentSignal);
+      if (!current.grants.includes('query:catalog') || current.permissionRevision !== authority.permissionRevision
+        || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+    };
+    const runtime = createModelRuntime({ actorId: actor.actorId, question: valid.question, mode: valid.mode ?? (research.task ? 'deep' : undefined),
+      hasChartContext: !!history.contextChart,
+      legacyInvoke: dependencies.invokeModel ?? completeWithDeepSeek, revalidate: revalidateModel,
+      onAttempt: async attempt => { await audit!.append(requestId, 'accounting', attempt); } });
     let preparedMap: QueryResult | undefined;
     let preparedExport: QueryResult | undefined;
     let preparedReport: QueryResult | undefined;
@@ -242,7 +257,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
-        history,
+        history, memory: history.memory, limits: runtime.limits,
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
@@ -259,7 +274,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
         },
         invoke: async (messages, currentSignal) => {
-          if (!observer) return (dependencies.invokeModel ?? completeWithDeepSeek)(messages, currentSignal);
+          if (!observer) return runtime.invoke(messages, currentSignal);
           // Bound provisional updates; never make a DB authorization RPC for
           // every individual supplier token. Every visible batch must pass a
           // live permission-revision check before it reaches the browser.
@@ -276,12 +291,12 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           };
           // Provisional model tokens may include unfinished tool calls. Never
           // send those to the UI as if they were a verified final answer.
-          const result = await (dependencies.invokeModel ?? completeWithDeepSeek)(messages, currentSignal, async delta => {
+          const result = await runtime.invoke(messages, currentSignal, async delta => {
             pending += delta;
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
           // File delivery state comes from the server, never model prose.
-          if (!(result.message.tool_calls?.length) && !leaseResults.size && !knowledgeResults.size && !preparedExport
+          if (!(result.message.calls?.length) && !leaseResults.size && !knowledgeResults.size && !preparedExport
             && !preparedChart && !preparedReport && !research.task && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|Word|PPT|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
@@ -458,22 +473,23 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         },
       });
     } catch (error) {
-      await audit.append(requestId, 'accounting', { provider: 'deepseek', status: 'incomplete',
+      await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: 'incomplete',
         modelCallsCompleted: completedModels, inputTokens: reportedInput, outputTokens: reportedOutput,
         providerRequestIds: providerRequestIds.slice(0, 6),
         cost: null, costStatus: 'planning_range_not_invoice',
-        costEstimate: estimateAgentCostRange(reportedModel, reportedInput, reportedOutput),
+        costEstimate: runtime.summary().providers.every(p => p === 'deepseek') ? estimateAgentCostRange(reportedModel, reportedInput, reportedOutput) : null,
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
-      if (researchTouched && research.task && (request.signal.aborted || signal.aborted)) {
+      if ((researchTouched || history.contextResult && isResearchResult(history.contextResult)) && research.task
+        && !(error instanceof Error && error.message === 'QUERY_DENIED')) {
         // A valid partial checkpoint is a successful archive write, not a claim
         // that the research completed. Existing owner/session audit recovery is reused.
         const checkpoint = research.checkpoint(true)!;
         const checkpointSignal = AbortSignal.timeout(10000);
         await recheckResearchResult(client, actor, checkpointSignal, requestId, checkpoint, authority.permissionRevision);
-        const answer = '研究已中断，已完成步骤已记录；可重新鉴权后恢复继续。尚未完成研究或生成新文件。';
+        const answer = '研究已暂停，已完成步骤已记录；可重新鉴权后恢复继续。尚未完成研究或交付新文件。';
         await audit.append(requestId, 'tool_finished', { protocol: 'agent-answer/1', researchContext: true,
           resolution: { protocol: 'deep-research/1' }, permissionRevision: authority.permissionRevision,
-          history: trimAgentHistory(history, valid.question, answer), executionStatus: 'partial', status: 'checkpoint_prepared' });
+          history: trimAgentHistory(history, valid.question, answer), memory: nextAgentMemory(history.memory, valid.question, checkpoint), operations: runtime.summary(), executionStatus: 'partial', status: 'checkpoint_prepared' });
         await audit.append(requestId, 'response_generated', { result: checkpoint });
         await audit.append(requestId, 'succeeded', { delivery: 'not_sent', executionStatus: 'partial', researchInterrupted: true });
         completed = true; checkpointPreserved = true;
@@ -525,13 +541,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     } else if (execution.toolNames.includes('generate_pdf_report') || execution.unresolvedFailures.some(item => item.tool === 'generate_pdf_report')) {
       execution.answer = '本轮未生成 PDF 文件。请核对内部导出资格、正式结果、报告范围与用途后重试；对客发布须另行授权。';
     }
-    await audit.append(requestId, 'accounting', { provider: 'deepseek', status: execution.executionStatus,
+    await audit.append(requestId, 'accounting', { provider: 'server_policy', operations: runtime.summary(), status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       providerRequestIds: providerRequestIds.slice(0, 6), toolNames: execution.toolNames,
       inputTokens: execution.inputTokens, outputTokens: execution.outputTokens,
       cost: null, costStatus: 'planning_range_not_invoice',
-      costEstimate: estimateAgentCostRange(execution.model, execution.inputTokens, execution.outputTokens),
+      costEstimate: runtime.summary().providers.every(p => p === 'deepseek') ? estimateAgentCostRange(execution.model, execution.inputTokens, execution.outputTokens) : null,
       durationMs: Math.max(0, Date.now() - agentStartedAt) });
     const current = await fresh();
     if (current.permissionRevision !== authority.permissionRevision
@@ -586,9 +602,10 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const researchAnswer = execution.result && isResearchResult(execution.result);
     const answerPlan = execution.result && !researchAnswer && !leaseAnswer && !businessAnswer && !knowledgeAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     await audit.append(requestId, 'tool_finished', {
-      protocol: 'agent-answer/1', provider: 'deepseek', model: execution.model,
+      protocol: 'agent-answer/1', provider: 'server_policy', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
+      memory: nextAgentMemory(history.memory, valid.question, execution.result), operations: runtime.summary(),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(researchAnswer ? { researchContext: true, resolution: { protocol: 'deep-research/1' } } : {}),
@@ -613,7 +630,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       version: 'agent-message/1', text: execution.answer, model: execution.model,
     } });
     await audit.append(requestId, 'succeeded', { delivery: 'not_yet_sent',
-      provider: 'deepseek', model: execution.model, toolCalls: execution.toolCalls,
+      provider: 'server_policy', model: execution.model, toolCalls: execution.toolCalls,
       executionStatus: execution.executionStatus, worksetCount: workset.manifest(worksetOwner).length });
     completed = true;
     // History indexing is optional until the owner-only RPC is deployed.
@@ -621,7 +638,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const responseBody = { requestId, status: execution.result ? 'ready' : 'assistant',
       message: execution.answer, ...(execution.result ? { result: execution.result } : {}),
       conversation: valid.conversation, historySaved,
-      agent: { model: execution.model, modelCalls: execution.calls,
+      agent: { model: execution.model, modelCalls: execution.calls, operations: runtime.summary(),
         toolCalls: execution.toolCalls, inputTokens: execution.inputTokens,
         outputTokens: execution.outputTokens, executionStatus: execution.executionStatus,
         phases: execution.phases, workset: workset.manifest(worksetOwner),
@@ -631,7 +648,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       resultId: execution.result?.resultId ?? null,
       itemCount: execution.result?.table.rows.length ?? 0,
       bodySha256: createHash('sha256').update(JSON.stringify(responseBody)).digest('hex'),
-    }, { httpStatus: 200, provider: 'deepseek' });
+    }, { httpStatus: 200, provider: 'server_policy' });
     const response = await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
     try {
       await history.contextRecheck?.();
@@ -664,7 +681,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     }
     if (request.signal.aborted) return json({ requestId, status: 'cancelled',
       error: checkpointPreserved ? '研究已中断，已完成的合法步骤已记录，可从历史恢复继续；研究尚未全部完成。' : '浏览器已中断请求，不能确认服务端是否完全停止。' }, 409);
-    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行时间已达限制，合法研究进度已记录，可从历史恢复继续；研究尚未全部完成。' }, 409);
+    if (checkpointPreserved) return json({ requestId, status: 'cancelled', error: '本轮执行受到预算、时间或服务异常限制，合法研究进度已记录，可从历史恢复继续；研究尚未全部完成。' }, 409);
     return json({ requestId, status: error instanceof Error && error.message === 'QUERY_DENIED' ? 'denied' : 'unavailable',
       error: providerMessage(error) },
       error instanceof Error && error.message === 'QUERY_DENIED' ? 403 : 503);

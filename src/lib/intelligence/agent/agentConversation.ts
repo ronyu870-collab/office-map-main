@@ -12,6 +12,7 @@ import { chartContextSchema } from '../query/chartProtocol';
 import type { QueryResult } from '../query/result';
 import { exportContextSchema } from './toolRegistry';
 import { authorizeConversationPlan } from '../query/conversationStore';
+import { agentMemorySchema, type AgentMemory } from './agentMemory';
 
 export const AGENT_CONVERSATION_PROTOCOL = 'colliers-agent-conversation/1';
 const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequence: z.number().int().positive(),
@@ -19,7 +20,7 @@ const eventSchema = z.object({ request_id: z.uuid(), event_id: z.uuid(), sequenc
 const historySchema = z.array(z.strictObject({
   user: z.string().min(1).max(1800), assistant: z.string().min(1).max(3000),
 })).max(8);
-export type AgentHistory = z.infer<typeof historySchema> & { contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextRecheck?: () => Promise<void> };
+export type AgentHistory = z.infer<typeof historySchema> & { memory?: AgentMemory; contextPlan?: QueryPlan; contextExport?: z.infer<typeof exportContextSchema>; contextChart?: z.infer<typeof chartContextSchema>; contextResult?: QueryResult; contextRecheck?: () => Promise<void> };
 
 /** Load only server-side encrypted previous answers from the existing owner/session-bound
  * RPC; never accept arbitrary client-provided history text as context. */
@@ -67,6 +68,9 @@ export async function readAgentHistory(
   if (!prior || prior.permissionRevision !== authority.permissionRevision
     || data.state !== 'succeeded') throw new Error('AGENT_CONTEXT_UNAVAILABLE');
   const history: AgentHistory = historySchema.parse(prior.history);
+  // The summary contains intent and non-authoritative references only. Older
+  // assistant business claims are never replayed into a supplier prompt.
+  if (prior.memory) history.memory = agentMemorySchema.parse(prior.memory);
   // Only an encrypted, owner-checked prior execution plan is inheritable.
   // An older result or source is never imported into the new request's workset.
   if (prior.plan) {

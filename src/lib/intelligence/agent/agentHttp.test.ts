@@ -78,7 +78,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
       message: { role: 'assistant', content: 'Word已保存桌面 https://fake.invalid/report.docx' } });
     const { request } = fakeRequest('生成 Word 研究报告。');
     const response = await handleAgentSubmission(request, deps()); const body = await response.json();
-    expect(response.status).toBe(200); expect(body.message).toContain('未生成研究文件');
+    expect(response.status, JSON.stringify(body)).toBe(200); expect(body.message).toContain('未生成研究文件');
     expect(body.message).not.toMatch(/已保存|fake.invalid/); expect(body.result?.parameters?.researchDeliverables).toBeUndefined();
   });
   it('answers through provider after budget and audited admission', async () => {
@@ -97,7 +97,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(state.receive).toHaveBeenCalledOnce();
     expect(state.append.mock.calls.map(x => x[1])).toContain('succeeded');
     expect(state.append.mock.calls.map(x => x[1])).toContain('accounting');
-    expect(state.append.mock.calls.find(x => x[1] === 'accounting')?.[2]).toMatchObject({
+    expect(state.append.mock.calls.find(x => x[1] === 'accounting' && x[2]?.costStatus)?.[2]).toMatchObject({
       cost: null, costStatus: 'planning_range_not_invoice', durationMs: expect.any(Number),
       costEstimate: { minUsd: expect.any(Number), maxUsd: expect.any(Number) },
     });
@@ -294,7 +294,7 @@ describe('AI 4.0 authenticated route with model and auditable delivery', () => {
     expect(response.status).toBe(403);
     expect((await response.json()).status).toBe('denied');
     expect(state.append.mock.calls.some(entry => entry[1] === 'denied')).toBe(true);
-    expect(state.provider).toHaveBeenCalledTimes(2);
+    expect(state.provider).toHaveBeenCalledTimes(1);
   });
 
   it('does not claim complete success after authorized source read fails', async () => {
@@ -448,9 +448,11 @@ describe('AI5 chart creation, same-snapshot modification and image delivery', ()
     const recheck = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error('QUERY_DENIED'));
     state.history.mockResolvedValue(Object.assign([], { contextResult: formal, contextRecheck: recheck }));
     state.provider.mockReset().mockResolvedValueOnce(completed([call('modify_chart', { chart: { ...spec, y: ['height'] } })])).mockResolvedValueOnce(completed());
+    state.append.mockClear();
     const revoked = await handleAgentSubmission(fakeRequest('改为横向柱状图').request, deps());
     expect(revoked.status).toBe(403); expect((await revoked.json()).result).toBeUndefined();
-    expect(state.append.mock.calls.some(c => c[1] === 'correction' && c[2]?.delivery === 'not_sent')).toBe(true);
+    expect(state.append.mock.calls.some(c => c[1] === 'denied')).toBe(true);
+    expect(state.append.mock.calls.some(c => c[1] === 'succeeded')).toBe(false);
   });
 });
 

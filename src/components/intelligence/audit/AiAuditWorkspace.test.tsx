@@ -241,3 +241,19 @@ test('does not dispatch denied or stale exports and explains an unconfirmed clie
   fireEvent.click(screen.getByRole('button',{name:'导出本页 1 条（JSON）'}));
   fireEvent(window,new Event('pagehide'));await act(async()=>resolve(file));expect(click).toHaveBeenCalledTimes(1);
 });
+
+test('reads an explicit bounded cost sample through current audit grants and clears it on denial', async () => {
+  const attempt = { protocol: 'agent-model-attempt/1', provider: 'openai', mode: 'deep', state: 'failed', model: 'synthetic-model',
+    errorCode: 'timeout', fallback: true, durationMs: 1000, inputTokens: null, outputTokens: null, estimateUsd: .01, usageStatus: 'unknown_reserved' };
+  fixture.stream.mockResolvedValue({ record: { events: [{ document: { content: attempt } }] } });
+  render(<AiAuditSearch scope={scope} />); clickSearch(); await screen.findByText('CBD最高的楼');
+  expect(fixture.stream).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText('查看模型运营统计'));
+  fireEvent.click(screen.getByRole('button', { name: '读取本页模型运营统计' }));
+  await screen.findByText(/实际账单尚未核对/); expect(fixture.stream).toHaveBeenCalledWith(scope, requestId, expect.any(AbortSignal));
+  expect(screen.getByText(/输入 未知/)).toBeInTheDocument(); expect(screen.getByText(/本页 1 个不同请求的抽样/)).toBeInTheDocument();
+  fixture.stream.mockRejectedValue(new AuditReadError('denied'));
+  fireEvent.click(screen.getByRole('button', { name: '读取本页模型运营统计' }));
+  await waitFor(() => expect(screen.queryByText(/实际账单尚未核对/)).not.toBeInTheDocument());
+  expect(screen.queryByText('CBD最高的楼')).not.toBeInTheDocument();
+});

@@ -59,7 +59,8 @@ const responseSchema = z.object({
 
 export class ModelProviderError extends Error {
   constructor(public readonly code: 'not_configured' | 'invalid_configuration' | 'unauthorized' | 'payment_required'
-    | 'model_not_found' | 'rate_limited' | 'timeout' | 'provider_unavailable' | 'invalid_response') {
+    | 'model_not_found' | 'rate_limited' | 'timeout' | 'provider_unavailable' | 'invalid_response' | 'stream_interrupted'
+    | 'budget_exceeded' | 'disclosure_denied') {
     super('AGENT_MODEL_' + code.toUpperCase());
   }
 }
@@ -103,19 +104,19 @@ async function boundedJson(response: Response, maximum = 160000): Promise<unknow
 
 /** One real DeepSeek completion; no mock or rule-generated text is substituted on failure. */
 export async function completeWithDeepSeek(messages: ModelMessage[], signal: AbortSignal,
-  onDelta?: (delta: string) => Promise<void>): Promise<ModelCompletion> {
+  onDelta?: (delta: string) => Promise<void>, options?: import('./modelProtocol').AdapterOptions): Promise<ModelCompletion> {
   const key = process.env.DEEPSEEK_API_KEY?.trim();
   if (!key) throw new ModelProviderError('not_configured');
   const model = configuredModel();
   const url = providerUrl();
-  const deadline = AbortSignal.any([signal, AbortSignal.timeout(18000)]);
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(options?.timeoutMs ?? 18000)]);
   let response: Response;
   try {
     response = await fetch(url, { method: 'POST', cache: 'no-store', redirect: 'error', signal: deadline,
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-      body: JSON.stringify({ model, messages, tools: AGENT_TOOLS, tool_choice: 'auto',
+      body: JSON.stringify({ model, messages, tools: options?.tools?.map(tool => ({ type: 'function', function: tool })) ?? AGENT_TOOLS, tool_choice: 'auto',
         thinking: { type: 'disabled' }, stream: !!onDelta,
-        ...(onDelta ? { stream_options: { include_usage: true } } : {}), max_tokens: 1800 }),
+        ...(onDelta ? { stream_options: { include_usage: true } } : {}), max_tokens: options?.maxOutputTokens ?? 1800 }),
     });
   } catch (error) {
     if (signal.aborted) throw error;
@@ -123,7 +124,7 @@ export async function completeWithDeepSeek(messages: ModelMessage[], signal: Abo
   }
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new ModelProviderError(response.status === 401 ? 'unauthorized'
+    throw new ModelProviderError(response.status === 401 || response.status === 403 ? 'unauthorized'
       : response.status === 402 ? 'payment_required'
       : response.status === 404 ? 'model_not_found'
       : response.status === 429 ? 'rate_limited'
