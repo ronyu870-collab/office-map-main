@@ -23,6 +23,8 @@ try{
  create table public.building_metrics(id bigint primary key,building_id uuid);
  create table public.lease_transactions(id uuid primary key);
  create table public.auth_session_audit_context(auth_session_id uuid primary key,user_id uuid,last_seen_at timestamptz);`);
+ const actorSource=await sql('../../migrations/20261102063824_audit_actor_identity.sql');
+ await db.setup.query(actorSource.slice(actorSource.indexOf('create function private.snapshot_audit_actor()'),actorSource.indexOf('-- Classify existing rows')));
  const payload=[{building_id:'33333333-3333-4333-8333-333333333333',total_area:1000,vacant_area:100,vacancy_rate:10,asking_rent:100,management_fee:20,face_rent:90,rent_free_period:2}];
  const measure=async(run)=>{
   const durations=[];

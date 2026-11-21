@@ -368,6 +368,7 @@ jobs:
           node scripts/performance/verify-frozen-meeting-map.mjs http://127.0.0.1:3210
           node scripts/performance/verify-map-pdf-preview.mjs http://127.0.0.1:3210
           node scripts/performance/verify-audit-lifecycle.mjs
+          node scripts/performance/verify-audit-browser-budget.mjs
           node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-workspace-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-history-count.mjs http://127.0.0.1:3210
@@ -391,6 +392,14 @@ jobs:
           node scripts/verification/verify-lease-expiry.mjs http://127.0.0.1:3210
           node scripts/verification/lease-expiry-timeline-browser.mjs http://127.0.0.1:3210
 
+      - name: Retain Audit 2 execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-2-verification
+          path: verification/audit-2
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Retain homepage browser evidence
         if: always()
         uses: actions/upload-artifact@v4
