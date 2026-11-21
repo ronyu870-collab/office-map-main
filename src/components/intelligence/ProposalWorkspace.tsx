@@ -246,7 +246,7 @@ function ScopedProposalWorkspace({ scope, session }: { scope: ProposalDraftScope
       <main className="mx-auto w-full max-w-[1120px] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3 print:hidden">
           <div>
-            <button type="button" onClick={() => { if (window.history.length > 1) router.back(); else router.push('/intelligence'); }} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-[var(--cd-color-brand)]">
+            <button type="button" onClick={() => { router.push('/intelligence'); }} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 transition hover:text-[var(--cd-color-brand)]">
               <ArrowLeft size={13} aria-hidden="true" /> 返回业务智能
             </button>
             <h1 className="mt-2 text-xl font-semibold text-slate-900">客户候选方案</h1>

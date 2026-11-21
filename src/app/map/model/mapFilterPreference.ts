@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const strings = z.array(z.string().max(100)).max(100);
-const criteria = z.object({
+export const mapFilterCriteria = z.object({
   districts: strings, submarkets: strings, leeds: strings, projectTypes: strings,
   showBoundaries: z.boolean(), subwayLine: z.string().max(100).nullable(),
   subwayStation: z.null(), subwayDistance: z.number().finite().nullable(),
@@ -13,7 +13,7 @@ const criteria = z.object({
   })).max(25),
   showFutureSupply: z.boolean(), futureSupplyGrades: strings, futureSupplyYears: strings,
 });
-const preference = z.object({ input: z.string().max(200), filters: criteria.nullable() });
+const preference = z.object({ input: z.string().max(200), filters: mapFilterCriteria.nullable() });
 
 export function readMapFilterPreference(key: string) {
   if (typeof window === 'undefined') return null;

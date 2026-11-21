@@ -1,4 +1,5 @@
 'use client';
+import { MapReadingContext, useMapReadingState, useMapReadingScroll } from '../workspace/continuity';
 
 import * as React from 'react';
 import { AppHeader, Button } from '@/src/components/ui';
@@ -48,21 +49,27 @@ function format(value: number | null, digits: number, unit: string) {
 }
 
 export function FullBuildingList({ active, searchContextKey, buildings, queryKey, activeFilterChips, compareGroupCount, requirementContext, competitorContext, filterState, onPatchFilters, keyword, loading, error, warning, filtersOpen, moreFiltersTriggerId, filtersPanelId, displayOverrides, targetBuildingId, onBack, onToggleFilters, onKeywordChange, onSearch, onResetFilters, onRetry, onBuildingClick }: Props) {
-  const [sort, setSort] = React.useState<FullListSort>('default');
-  const [paging, setPaging] = React.useState({ queryKey, page: 1 });
+  const [sort, setSort] = useMapReadingState<FullListSort>('fullSort', 'default');
+  const [paging, setPaging] = useMapReadingState('fullPaging', { queryKey, page: 1 });
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const rootRef = React.useRef<HTMLElement>(null);
-  const savedScroll = React.useRef(0);
+  const reading = React.useContext(MapReadingContext);
+  const savedScroll = React.useRef(typeof reading?.fullScroll === 'number' ? reading.fullScroll : 0);
+  useMapReadingScroll(scrollRef, 'fullScroll', active);
   const sorted = React.useMemo(() => sortFullList(buildings, sort), [buildings, sort]);
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const page = paging.queryKey === queryKey ? Math.min(paging.page, pages) : 1;
+  const page = paging.queryKey === queryKey ? (loading ? paging.page : Math.min(paging.page, pages)) : 1;
   const visible = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const periods = React.useMemo(() => new Set(buildings.map(building => listBuildingValues(building).period).filter(Boolean)), [buildings]);
   const moreFilterChips = activeFilterChips.filter(chip => !FULL_LIST_QUICK_FILTER_KEYS.has(chip.id));
 
   if (paging.queryKey !== queryKey || paging.page !== page) setPaging({ queryKey, page });
 
+  const previousQuery = React.useRef(queryKey);
   React.useEffect(() => {
+    if (previousQuery.current === queryKey) return;
+    previousQuery.current = queryKey;
+    if (reading) reading.fullScroll = 0;
     savedScroll.current = 0;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [queryKey]);
@@ -101,7 +108,7 @@ export function FullBuildingList({ active, searchContextKey, buildings, queryKey
         </div>
       </div>
       <div className={styles.scroll} ref={scrollRef} data-testid="full-list-scroll" onScroll={event => {
-        if (active) savedScroll.current = event.currentTarget.scrollTop;
+        if (active) { savedScroll.current = event.currentTarget.scrollTop; if (reading) reading.fullScroll = event.currentTarget.scrollTop; }
       }}>
         <div className={styles.content}>
           {(moreFilterChips.length > 0 || compareGroupCount > 0 || requirementContext || competitorContext) ? (

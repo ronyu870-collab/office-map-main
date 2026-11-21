@@ -2,6 +2,8 @@
 import * as React from 'react';
 import { PANEL_SIZES, workspaceColumns, workspaceSheetHeight, type SheetMode, type WorkspaceKind } from '../workspace/workspaceState';
 import { WorkspacePanelContext } from './WorkspacePanelHeader';
+import { useMapReadingState } from '../workspace/continuity';
+import { useSurfaceMotion, useSurfacePresence } from '../runtime/workspaceMotion';
 
 type Props = {
   left: React.ReactNode; right: React.ReactNode; children: React.ReactNode;
@@ -14,7 +16,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const leftRef = React.useRef<HTMLElement>(null);
   const [available, setAvailable] = React.useState({ width: 0, height: 0 });
   const [summary, setSummary] = React.useState(200);
-  const [modes, setModes] = React.useState<Partial<Record<WorkspaceKind | 'filters', SheetMode>>>({});
+  const [modes, setModes] = useMapReadingState<Partial<Record<WorkspaceKind | 'filters', SheetMode>>>('sheetModes', {});
   const previousModes = React.useRef<Partial<Record<WorkspaceKind | 'filters', SheetMode>>>({});
   const [leftPriority, setLeftPriority] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
@@ -87,6 +89,14 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   const expanded = mode === 'full' && (rightVisible || leftVisible);
   const accessibleLeft = leftVisible && (!expanded || modeKey === 'filters');
   const accessibleRight = rightVisible && (!expanded || modeKey !== 'filters');
+  const lastGeometry = React.useRef({ right: width, left: 280, height: sheetHeight });
+  if (accessibleRight) lastGeometry.current.right = displayWidth;
+  if (accessibleLeft) lastGeometry.current.left = columns.left || 280;
+  if (accessibleLeft || accessibleRight) lastGeometry.current.height = sheetHeight;
+  const rightPresence = useSurfacePresence(accessibleRight, right);
+  const leftPresence = useSurfacePresence(accessibleLeft, left);
+  useSurfaceMotion(rightRef, accessibleRight, columns.compact, `${kind}:${mode}:${displayWidth}`);
+  useSurfaceMotion(leftRef, accessibleLeft, columns.compact, `${mode}:${columns.left}`);
   React.useEffect(() => {
     if (!expanded) return;
     const escape = (event: KeyboardEvent) => {
@@ -98,18 +108,20 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
   }, [expanded, modeKey, setMode]);
   React.useEffect(() => {
     if (!leftVisible && leftRef.current?.contains(document.activeElement)) root.current?.querySelector<HTMLButtonElement>('.workspace-restore-filter')?.focus({ preventScroll: true });
-  }, [leftVisible]);
+    if (!rightVisible && rightRef.current?.contains(document.activeElement)) root.current?.querySelector<HTMLButtonElement>('.map-workspace-canvas button')?.focus({ preventScroll: true });
+  }, [leftVisible, rightVisible]);
   const finishDrag = () => { dragRef.current = null; setDragging(false); };
   return <div ref={root} className="map-workspace-layout" data-compact={columns.compact || undefined}
     data-expanded={expanded || undefined} data-dragging={dragging || undefined} data-left-priority={showLeftFirst || undefined}
-    style={{ '--workspace-left': `${columns.left}px`, '--workspace-right': `${columns.right}px`, '--workspace-sheet-height': `${sheetHeight}px` } as React.CSSProperties}>
+    style={{ '--workspace-left': `${columns.left}px`, '--workspace-right': `${columns.right}px`, '--workspace-sheet-height': `${sheetHeight}px`, '--workspace-exit-right': `${lastGeometry.current.right}px`, '--workspace-exit-left': `${lastGeometry.current.left}px`, '--workspace-exit-height': `${lastGeometry.current.height}px` } as React.CSSProperties}>
     <WorkspacePanelContext.Provider value={columns.compact ? { compact: true, mode: modes.filters ?? 'compact', setMode, restore: restoreMode } : null}>
       <aside ref={leftRef} className="map-workspace-left" data-open={accessibleLeft || undefined}
-        inert={!accessibleLeft || undefined} aria-hidden={!accessibleLeft}>{left}</aside>
+        data-exiting={leftPresence.exiting || undefined} inert={!accessibleLeft || undefined} aria-hidden={!accessibleLeft}>{left}</aside>
     </WorkspacePanelContext.Provider>
     {React.isValidElement(children) ? React.cloneElement(children as React.ReactElement<{ inert?: boolean; 'aria-hidden'?: boolean }>, { inert: expanded || undefined, 'aria-hidden': expanded || undefined }) : children}
     <WorkspacePanelContext.Provider value={{ compact: columns.compact, mode, setMode, restore: restoreMode, backLabel, onBack }}>
       <aside ref={rightRef} className="map-workspace-right" data-open={accessibleRight || undefined}
+        data-exiting={rightPresence.exiting || undefined}
         inert={!accessibleRight || undefined} aria-hidden={!accessibleRight} aria-label="地图业务工作区">
         <div role="separator" aria-label="调整业务工作区宽度" aria-orientation="vertical" tabIndex={0}
           aria-valuemin={range.min} aria-valuemax={Math.max(range.min, maxWidth)} aria-valuenow={Math.round(displayWidth)} className="map-workspace-resize"
@@ -123,7 +135,7 @@ export function MapWorkspaceLayout({ left, right, children, leftOpen, rightOpen,
           onPointerDown={event => { dragRef.current = { start: event.clientX, width: displayWidth }; setDragging(true); event.currentTarget.setPointerCapture(event.pointerId); }}
           onPointerMove={event => { if (dragRef.current) onWidthChange(Math.min(maxWidth, Math.max(range.min, dragRef.current.width + dragRef.current.start - event.clientX))); }}
           onPointerUp={finishDrag} onPointerCancel={finishDrag} onLostPointerCapture={finishDrag} />
-        {right}
+        {rightPresence.children}
       </aside>
     </WorkspacePanelContext.Provider>
     {!focus && (desired.leftCollapsed || (columns.compact && leftOpen && rightOpen)) ? <button type="button" className="workspace-restore-filter" onClick={() => setLeftPriority(current => !current)}>{leftPriority ? '返回业务工作区' : '恢复筛选'}</button> : null}

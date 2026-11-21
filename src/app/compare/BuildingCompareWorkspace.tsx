@@ -245,7 +245,7 @@ function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
   const competitorCount = selectedRows.length - (targetSelected ? 1 : 0);
 
   if (authorizationError) return <div className="flex h-dvh min-h-0 flex-col bg-zinc-50">
-    <CompareHeader />
+    <CompareHeader backHref={params.get('back')} />
     <div role="alert" className="m-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
       {authorizationError} <button type="button" className="min-h-11 px-3 font-semibold underline" onClick={() => {
         setRetry(current => current + 1);
@@ -299,7 +299,7 @@ function Workspace({ token, userId, role, targetUserId }: CompareReadIdentity) {
         : [['contains', '包含'], ['equals', '等于']];
 
   return <div className="flex h-screen h-[100dvh] min-h-0 flex-col bg-zinc-50">
-    <CompareHeader targetName={targetName} competitorCount={competitorCount} />
+    <CompareHeader backHref={params.get('back')} targetName={targetName} competitorCount={competitorCount} />
 
     <div className="shrink-0 border-b border-zinc-200 bg-white px-4 lg:hidden">
       <button ref={selectionToggleRef} type="button" aria-expanded={mobileSelectionOpen} aria-controls={selectionPanelId} onClick={() => setMobileSelectionOpen((open) => !open)} className="flex min-h-11 w-full items-center gap-2 text-left text-sm font-medium text-[#003e7e]">

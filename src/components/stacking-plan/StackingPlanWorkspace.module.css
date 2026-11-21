@@ -308,6 +308,14 @@
 .statGrid strong {margin-top:4px}
 .layoutSingle {display:block}
 .detailsHidden {display:none}
+.refreshStatus {margin:0 0 8px;color:var(--sp-muted);font-size:14px}
+@keyframes drawerShadeIn {from {opacity:0} to {opacity:1}}
+.drawerBackdrop {animation:drawerShadeIn 180ms cubic-bezier(.16,1,.3,1);transition:opacity 180ms cubic-bezier(.16,1,.3,1)}
+.drawerBackdrop[data-closing] {opacity:0;pointer-events:none}
+.details {overscroll-behavior:contain}
+@media (prefers-reduced-motion:reduce) {
+  .drawerBackdrop {transition:none;animation:none}
+}
 .sourceDetailsBody .evidenceControls {justify-content:flex-start;flex-wrap:wrap;
   margin:8px 0 14px;padding-bottom:12px;border-bottom:1px solid #EBEFF3}
 .exportMenu {position:relative;flex-shrink:0}
