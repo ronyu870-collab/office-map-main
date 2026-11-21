@@ -18,7 +18,7 @@ const stock = [
   { id: 'cbd-b', name: 'CBD乙楼', submarket: 'CBD', location_lng: 116.48, location_lat: 39.92 },
   { id: 'other', name: '中关村楼·' + '超长项目名称及楼座信息'.repeat(6), submarket: '中关村', location_lng: 116.32, location_lat: 39.98 },
   { id: 'missing', name: '未定位楼', submarket: 'CBD', location_lng: null, location_lat: null },
-].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 10000, net_effective_rent: 200, vacancy_rate: .12 }] }));
+].map(building => ({ ...building, grade: 'A', district: '朝阳区', building_metrics: [{ id: `m-${building.id}`, building_id: building.id, record_year: 2026, record_quarter: 3, total_area: 9019486, net_effective_rent: 146.1, vacancy_rate: .211 }] }));
 const future = [{ id: 'future-cbd', building_id: 'master-cbd', name: 'CBD未来楼', type: '办公', district: '朝阳区', submarket: 'CBD', launch_year: 2027, launch_quarter: 'Q2', total_area: 80000, location_lng: 116.47, location_lat: 39.92 }];
 function instrumentMap() {
   const BaseMap = window.AMap.Map;
@@ -84,24 +84,23 @@ try {
       assert.equal(await page.locator('.map-workspace-right').getAttribute('aria-hidden'), 'true');
       const liveStats = page.getByRole('region', { name: '市场实时指标', exact: true });
       await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
-      const overview = page.locator('.map-market-overview > summary');
-      await overview.focus();
-      await overview.press('Enter');
-      const menu = page.locator('.map-disclosure-content');
-      await menu.getByText(/按筛选结果统计，不随地图移动变化/).waitFor();
+      assert.equal(await liveStats.locator('summary,button').count(), 0, 'metrics have no explanation trigger');
+      const metricBounds = await liveStats.boundingBox();
+      assert.ok(metricBounds.x >= 0 && metricBounds.x + metricBounds.width <= width, 'metrics fit the viewport');
+      if (width > 1100) assert.ok(metricBounds.width <= 520, `content-sized metrics width ${metricBounds.width}`);
       const statsBeforeMove = await liveStats.locator('dl').innerText();
       await page.evaluate(() => { window.__workspaceMap.emit('moveend'); });
       assert.equal(await liveStats.locator('dl').innerText(), statsBeforeMove);
+      const legend = page.locator('.map-workspace-legend > summary');
+      await legend.focus();
+      await legend.press('Enter');
+      const menu = page.locator('.map-disclosure-content');
+      await menu.waitFor();
       const popup = await menu.boundingBox();
-      assert.ok(popup.x >= 0 && popup.x + popup.width <= width && popup.y >= 0 && popup.y + popup.height <= height, 'statistics fit the visible viewport');
+      assert.ok(popup.x >= 0 && popup.x + popup.width <= width && popup.y >= 0 && popup.y + popup.height <= height, 'legend fits the visible viewport');
       await page.keyboard.press('Escape');
       await menu.waitFor({ state: 'detached' });
-      assert.ok(await overview.evaluate(el => el === document.activeElement), 'disclosure returns focus');
-      await page.locator('.map-workspace-legend > summary').click();
-      await menu.waitFor();
-      await overview.click();
-      assert.equal(await page.locator('.map-disclosure[open]').count(), 1, 'statistics and legend do not stack');
-      await page.keyboard.press('Escape');
+      assert.ok(await legend.evaluate(el => el === document.activeElement), 'disclosure returns focus');
       await page.getByRole('button', { name: '筛选', exact: true }).click();
       await page.getByRole('button', { name: '项目列表', exact: true }).click();
       const list = page.getByRole('region', { name: '项目列表', exact: true });
@@ -196,7 +195,7 @@ try {
       await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).waitFor();
       await page.waitForTimeout(350);
       if (width === 1536) assert.equal(Math.round((await page.locator('.map-workspace-right').boundingBox()).width), 376, 'building has a distinct default width');
-      await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).getByText('200', { exact: true }).waitFor();
+      await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).getByText('146.1', { exact: true }).waitFor();
       await page.screenshot({ path: `/tmp/map-layout-building-${width}.png` });
       assert.equal(await page.locator('.workspace-building').count(), 1);
       assert.equal(await page.locator('.map-selected-marker').count(), 1);
@@ -371,7 +370,7 @@ try {
       assert.deepEqual(errors, []);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no document overflow');
       await page.screenshot({ path: `/tmp/map-workspace-${width}.png` });
-      observations.push({ width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
+      observations.push({ width, metricWidth: metricBounds.width, canvasWidth: canvas.width, mapInstances: sdk.created, stockReads, nativeOpens: sdk.nativeOpens, typography });
     } catch (error) {
       await page?.screenshot({ path: `/tmp/map-workspace-failure-${width}.png` }).catch(() => {});
       console.error('workspace failure state', width, await page?.evaluate(() => ({

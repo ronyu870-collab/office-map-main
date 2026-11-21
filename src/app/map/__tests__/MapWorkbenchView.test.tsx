@@ -275,6 +275,7 @@ it('keeps all four metrics visible and updates their values without opening a di
   expect(within(metrics).getByText('12.0')).toBeVisible();
   expect(within(metrics).getByText('80')).toBeVisible();
   expect(within(metrics).getByText('1,000,000')).toBeVisible();
+  expect(screen.queryByText('统计口径')).not.toBeInTheDocument();
   expect(document.querySelector('.map-disclosure[open]')).toBeNull();
   view.update({ stats: { avgRent: '146.1', overallVacancyPct: '21.1', visibleProjectCount: '601', projectCount: '650', totalArea: '36,077,944' } });
   expect(within(metrics).getByText('146.1')).toBeVisible();
