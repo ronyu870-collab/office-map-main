@@ -28,7 +28,7 @@ try {
  const cpuSeconds=async()=>{
   // The disposable CI database runs in a separate PID namespace. Read from
   // the measured backend itself, never interpret its PID on the runner host.
-  if(tickRate){const stat=(await db.setup.query("select pg_read_file('/proc/self/stat') as stat")).rows[0].stat;const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return(Number(fields[11])+Number(fields[12]))/tickRate;}
+  if(tickRate){const stat=(await db.setup.query("select pg_read_file('/proc/self/stat',0,4096) as stat")).rows[0].stat;const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');const seconds=(Number(fields[11])+Number(fields[12]))/tickRate;assert.ok(Number.isFinite(seconds),'PostgreSQL backend CPU sample must be readable');return seconds;}
   return execFileSync('ps',['-p',String(backendPid),'-o','time='],{encoding:'utf8'}).trim().split(':').map(Number).reduce((seconds,part)=>seconds*60+part,0);
  };
  const measure=async(run,prepare=async()=>undefined)=>{
