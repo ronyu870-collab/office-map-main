@@ -47,9 +47,10 @@ export function auditDefinition(action: string): AuditDefinition {
 }
 export function auditOutcome(event: { request_source?: string; error_message?: string; details?: Record<string, unknown> }): string {
   const details = event.details || {};
-  if (details.outcome === 'denied' || details.blocked === true) return '拒绝';
-  if (event.error_message || details.success === false || ['failed', 'failure', 'error'].includes(String(details.outcome))) return '失败';
   if (event.request_source === 'frontend') return '客户端报告';
+  if (details.business_outcome === 'partial' || details.outcome === 'partial') return '部分完成';
+  if (details.business_outcome === 'denied' || details.outcome === 'denied' || details.blocked === true) return '拒绝';
+  if (event.error_message || details.business_outcome === 'failed' || details.success === false || ['failed', 'failure', 'error'].includes(String(details.outcome))) return '失败';
   if (['success', 'succeeded'].includes(String(details.outcome)) || event.request_source === 'database_trigger') return '已确认';
   return '已记录';
 }

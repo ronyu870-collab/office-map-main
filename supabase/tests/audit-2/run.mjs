@@ -208,6 +208,9 @@ try {
   const result=(await db.asUser(ADMIN,'select public.admin_audit_health() as health')).rows[0].health;
   assert.equal(result.window,'latest_1000_within_24h');assert.equal(result.auth.failed_logins,1);assert.equal(result.storage_history.length,1);
   await db.asUser(ADMIN,'select public.admin_audit_health()');assert.equal((await db.setup.query('select count(*)::int n from public.audit_storage_observations')).rows[0].n,1);assert.ok(Array.isArray(result.pending_sample));assert.equal(result.retention.automatic_cleanup,false);
+  await db.setup.query("insert into public.audit_logs(user_id,action_type,request_source,details) values($1,'OSS_DELETE','server','{\"outcome\":\"success\",\"business_outcome\":\"partial\"}')",[ADMIN]);
+  const withPartial=(await db.asUser(ADMIN,'select public.admin_audit_health() as health')).rows[0].health;
+  assert.equal(withPartial.summary.failures,result.summary.failures+1);
   await db.asUser(ADMIN,'select public.admin_set_audit_retention(60)');
   assert.equal((await db.setup.query('select ordinary_days from public.audit_retention_policy')).rows[0].ordinary_days,60);
   await assert.rejects(db.asUser(OWNER,'select public.admin_set_audit_retention(60)'),e=>e.code==='42501');

@@ -7,7 +7,7 @@ import { withCriticalAudit } from '@/src/lib/serverAudit';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const schema=z.strictObject({filters:auditFiltersSchema,format:z.enum(['csv','xlsx','json']),limit:z.number().int().min(1).max(500)});
-const fields='id,user_id,actor_kind,actor_name,actor_role,occurred_at,action_type,module,target_table,target_id,target_name,request_source,error_message';
+const fields='id,user_id,actor_kind,actor_name,actor_role,occurred_at,action_type,module,target_table,target_id,target_name,request_source,error_message,outcome:details->>outcome,business_outcome:details->>business_outcome';
 const headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'};
 function csvCell(value:unknown){let text=value==null?'':String(value);if(/^[\s]*[=+\-@\t\r]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';}
 export async function POST(request:Request):Promise<Response>{
@@ -34,7 +34,7 @@ export async function POST(request:Request):Promise<Response>{
     // A second live profile lookup prevents delivery if privileges changed while preparing.
     const profile=await client.from('user_roles').select('role').eq('user_id',identity.caller.id).maybeSingle();
     if(profile.error||profile.data?.role!=='admin')return Response.json({error:'读取权限已变更'},{status:403,headers});
-    const columns=fields.split(',');
+    const columns=fields.split(',').map(field=>field.split(':')[0]);
     const records=data.map(value=>{const row=value as Record<string,unknown>;return Object.fromEntries(columns.map(column=>[column,typeof row[column]==='string'?sanitizeAuditText(row[column]):row[column]??null]));});
     let body:Uint8Array;let contentType:string;
     if(format==='xlsx'){

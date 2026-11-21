@@ -19,7 +19,7 @@ import { POST } from '../route';
 const request=(format='json',filters:Record<string,unknown>={view:'all',excludeCodex:false},limit=500)=>new Request('http://localhost/api/admin/audit/export',{method:'POST',body:JSON.stringify({format,filters,limit})});
 beforeEach(()=>{
  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL','https://example.supabase.co');vi.stubEnv('SUPABASE_SECRET_KEY','synthetic');
- Object.assign(fixture,{role:'admin',impersonating:false,revoked:false,intentError:false,completionError:false,readError:false,calls:[],rows:[{id:1,user_id:'verified-admin',action_type:'AI_QUERY',target_name:'=HYPERLINK("unsafe")',error_message:'Bearer private-token',details:{prompt:'restricted AI original'},new_values:{password:'private'}}]});
+ Object.assign(fixture,{role:'admin',impersonating:false,revoked:false,intentError:false,completionError:false,readError:false,calls:[],rows:[{id:1,user_id:'verified-admin',action_type:'AI_QUERY',outcome:'success',business_outcome:'partial',target_name:'=HYPERLINK("unsafe")',error_message:'Bearer private-token',details:{prompt:'restricted AI original'},new_values:{password:'private'}}]});
  fixture.complete.mockReset().mockImplementation(async()=>({data:!fixture.completionError,error:fixture.completionError?{code:'offline'}:null}));
  vi.spyOn(console,'error').mockImplementation(()=>undefined);
 });
@@ -30,7 +30,7 @@ it('rejects viewers and impersonated administrators before any data or receipt a
 it('uses server-side current filters and exports only explicit sanitized summary columns',async()=>{
  const response=await POST(request('json',{view:'all',targetTable:'buildings',targetId:'object-id',operationId:'request-id'}));
  expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toContain('no-store');
- const result=await response.json();expect(result.count).toBe(1);expect(result.records[0].error_message).toBe('Bearer [REDACTED]');
+ const result=await response.json();expect(result.count).toBe(1);expect(result.records[0].business_outcome).toBe('partial');expect(result.records[0].error_message).toBe('Bearer [REDACTED]');
  expect(JSON.stringify(result)).not.toMatch(/restricted AI original|private-token|password/);
  expect(fixture.calls).toContainEqual(['audit_logs','eq','target_id','object-id']);
  expect(fixture.calls).toContainEqual(['audit_logs','or','details->>operation_id.eq.request-id,details->>request_id.eq.request-id,details->>event_group.eq.request-id,event_id.eq.request-id']);

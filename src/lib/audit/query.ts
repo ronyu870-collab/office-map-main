@@ -15,7 +15,7 @@ export const auditFiltersSchema=z.strictObject({
  excludeCodex:z.boolean().default(true),action:string,module:string,object:string,ip:string,device:string,
  session:z.union([z.uuid(),z.literal('')]).default(''),deviceType:z.enum(['','desktop','mobile','tablet','unknown']).default(''),
  from:z.union([z.iso.datetime({offset:true}),z.literal('')]).default(''),to:z.union([z.iso.datetime({offset:true}),z.literal('')]).default(''),
- highRisk:z.boolean().default(false),tier:z.enum(['','A','B']).default(''),outcome:z.enum(['','success','failed','denied','observed']).default(''),
+ highRisk:z.boolean().default(false),tier:z.enum(['','A','B']).default(''),outcome:z.enum(['','success','failed','denied','observed','partial']).default(''),
  targetTable:string,targetId:string,operationId:z.string().max(100).regex(/^[A-Za-z0-9:_-]*$/).default(''),
 });
 export type AuditFilters=z.infer<typeof auditFiltersSchema>;
@@ -40,7 +40,12 @@ export function applyAuditFilters(query:AuditQuery,f:AuditFilters):AuditQuery {
  else {if(f.targetTable)query=query.eq('target_table',f.targetTable);if(f.targetId)query=query.eq('target_id',f.targetId);}
  if(f.operationId)query=query.or(`details->>operation_id.eq.${f.operationId},details->>request_id.eq.${f.operationId},details->>event_group.eq.${f.operationId},event_id.eq.${f.operationId}`);
  if(f.outcome==='observed')query=query.eq('request_source','frontend');
- else if(f.outcome) {query=query.neq('request_source','frontend');query=f.outcome==='success'?query.or('details->>outcome.eq.success,request_source.eq.database_trigger'):query.eq('details->>outcome',f.outcome);}
+ else if(f.outcome) {
+  query=query.neq('request_source','frontend');
+  query=f.outcome==='success'
+   ?query.or('details->>outcome.eq.success,request_source.eq.database_trigger').or('details->>business_outcome.is.null,details->>business_outcome.eq.success')
+   :query.or(`details->>outcome.eq.${f.outcome},details->>business_outcome.eq.${f.outcome}`);
+ }
  if(f.from)query=query.gte('occurred_at',f.from);
  if(f.to)query=query.lte('occurred_at',f.to);
  if(f.tier){

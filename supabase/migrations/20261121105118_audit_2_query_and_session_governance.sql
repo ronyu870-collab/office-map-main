@@ -145,7 +145,7 @@ begin
    select action_type,error_message,actor_kind,request_source,occurred_at,created_at,target_table,target_id,details
    from public.audit_logs where occurred_at>=now()-interval '24 hours' order by occurred_at desc,id desc limit 1000
  ), summary as (
-   select count(*) as inspected,count(*) filter(where error_message is not null or details->>'outcome'='failed') as failures,
+   select count(*) as inspected,count(*) filter(where error_message is not null or details->>'outcome' in ('failed','partial') or details->>'business_outcome' in ('failed','partial')) as failures,
     count(*) filter(where actor_kind='unknown') as unknown_actors,
     count(*) filter(where action_type='ACCESS_DENIED') as denied,
     count(*) filter(where action_type in ('DB_DELETE','DATA_DELETE','DELETE_PROJECT','OSS_BATCH_DELETE','OSS_DELETE','BUILDING_DELETE','LEASE_TRANSACTION_DELETE','METRICS_DELETE')) as deletes,
