@@ -428,7 +428,11 @@ export function MapWorkbenchView({
   const viewportRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     const viewport = window.visualViewport;
-    const update = () => viewportRef.current?.style.setProperty('--map-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
+    const update = () => {
+      const height = viewport?.height ?? window.innerHeight;
+      viewportRef.current?.style.setProperty('--map-viewport-height', `${height}px`);
+      viewportRef.current?.toggleAttribute('data-short-viewport', height < 520);
+    };
     update(); viewport?.addEventListener('resize', update); window.addEventListener('resize', update);
     return () => { viewport?.removeEventListener('resize', update); window.removeEventListener('resize', update); };
   }, []);

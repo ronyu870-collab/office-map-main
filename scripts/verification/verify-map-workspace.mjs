@@ -347,6 +347,7 @@ try {
         await choices.getByRole('button', { name: '清空关键词', exact: true }).waitFor();
         await choices.getByRole('button', { name: '全屏阅读工作区' }).click();
         await choices.getByRole('button', { name: '清空关键词', exact: true }).click();
+        await liveStats.getByText('有坐标项目', { exact: true }).waitFor();
         assert.equal(await search.inputValue(), '');
         assert.ok(await search.evaluate(el => el === document.activeElement));
         await page.setViewportSize({ width, height });

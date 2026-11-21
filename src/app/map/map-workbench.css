@@ -463,3 +463,6 @@ body:has(#map-container) #map-container [data-building-id][style*="width:26px"]:
   .workspace-panel-title-row > .workspace-panel-actions { order: 2; }
   .workspace-panel-title-row > .workspace-sheet-states { order: 3; flex-basis: 100%; }
 }
+
+/* Explicit reading takes priority when the visual viewport is keyboard-sized. */
+.map-workbench[data-short-viewport]:has(.map-workspace-layout[data-expanded]) .map-live-stats { display: none; }
