@@ -79,6 +79,12 @@ export async function readAgentHistory(
     context.plans.forEach(raw => authorizeConversationPlan(parseQueryPlan(raw), authority));
     history.contextExport = context;
   }
+  if (prior.leaseContext === true) {
+    const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);
+    if (!restored.result) throw new Error('QUERY_DENIED');
+    history.contextResult = restored.result as QueryResult;
+    history.contextRecheck = restored.recheck;
+  }
   if (prior.chartContext) {
     const context = chartContextSchema.parse(prior.chartContext);
     const restored = await restoreOwnAgentAnswer(client, identity, keys, authority, conversation.id, requestId, signal);

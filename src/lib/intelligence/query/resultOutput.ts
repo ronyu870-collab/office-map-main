@@ -19,6 +19,11 @@ const quarterText = (value: unknown) => { const p = quarterSchema.safeParse(valu
 
 /** Descriptive labels only; neither resolves a new entity nor reads current data. */
 export function resultOutputDescriptor(result: QueryResultView): { object: string; metric: string; period: string } {
+  if (result.parameters.dataDomain === 'lease-research/1') {
+    const bindings = result.parameters.leaseBindings as Array<{ plan?: { from?: string; to?: string } }>;
+    const periods = [...new Set((bindings ?? []).flatMap(b => b.plan?.from && b.plan?.to ? [b.plan.from + '至' + b.plan.to] : []))];
+    return { object: '获权租赁成交', metric: '成交研究', period: periods.join('与') || '见来源期间' };
+  }
   const scope = scopeSchema.safeParse(result.parameters.scope).data;
   const ids = scope?.buildingIds ?? [];
   const requested = new Set(ids);

@@ -33,7 +33,7 @@ export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.str
 });
 export type QueryResultView = z.infer<typeof resultViewSchema>;
 export type DisplayCell = z.infer<typeof resultCellSchema>;
-export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋' };
+export const units: Record<string, string> = { m: '米', floor: '层', space: '个', m2: '㎡', 'CNY/m2/month': '元/㎡/月', ratio: '%', percent: '%', percentage_point: '百分点', building_count: '栋', transaction_count: '笔', month: '月', lease_rent_raw: '原始单位待核验', lease_fee_raw: '原始单位待核验' };
 export const unknownLabels = { missing: '未知：缺少数据', invalid: '未知：数据无效', conflict: '未知：来源冲突', unverified: '未知：尚未核验' } as const;
 
 /** Display rounding only; never calculates using the approximate chart projection. */
@@ -46,6 +46,7 @@ export function formatExact(value: z.infer<typeof number>, unit: string | null):
   return `${negative && rounded !== BigInt(0) ? '-' : ''}${whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction ? '.' + fraction : ''}`;
 }
 export function cellText(cell: DisplayCell, unit: string | null): string {
+  if (cell.kind === 'unknown' && cell.reason === 'disclosure_threshold') return '受控：未达到聚合披露样本数';
   if (cell.kind === 'unknown' && cell.reason === 'no_valid_sample') return '未知：无有效样本';
   if (cell.kind === 'unknown' && cell.reason === 'no_common_valid_sample') return '未知：无共同有效样本';
   return cell.kind === 'text' ? cell.value : cell.kind === 'unknown' ? unknownLabels[cell.state] : formatExact(cell.value, unit);
@@ -63,6 +64,7 @@ export function resultSummary(result: QueryResultView): string[] {
   if (report) return [`本次内部 PDF 包含 ${report.sectionCount} 个研究部分，保留 ${report.rowCount} 条原表记录；各部分独立统计，记录数不等于楼宇总数。`];
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
   if (exported) return [`本次导出 ${exported.exportedRows} 条记录，筛选后共 ${exported.matchedRows} 条；文件使用完整正式结果，不受界面分页限制。`];
+  if (result.parameters.dataDomain === 'lease-research/1') return [`获权成交研究结果共 ${result.table.rows.length} 行；成交记录数按有效身份关联去重，未经核验的跨表重叠仍可能存在。`, '成交面积与有效面积样本数分别列示，不代表净吸纳量或市场全集。'];
   const metrics = resultMetrics(result);
   if (metrics.length > 1) return [
     `本次同时分析${metrics.map(metric => metricLabels[metric]).join('、')}；每项分别核算有效样本和分母。`,
@@ -127,6 +129,7 @@ export function resultSummary(result: QueryResultView): string[] {
   })];
 }
 export function resultScopeText(result: QueryResultView): string {
+  if (result.parameters.dataDomain === 'lease-research/1') return '获权成交记录研究；来源、日期精度、身份匹配和去重覆盖见口径及限制。';
   if (reportDescriptorSchema.safeParse(result.parameters.agentReport).success)
     return '由获权正式快照组合；各部分的范围、期间、来源和统计口径见报告及研究索引，不重算跨结果指标。';
   const exported = agentExportDescriptorSchema.safeParse(result.parameters.agentExport).data;
