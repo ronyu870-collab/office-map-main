@@ -1,0 +1,2114 @@
+{
+  "schema": 1,
+  "applicationCommit": "9b81282471e6bae4f23a808eb17bfa3df891b8dd",
+  "environment": "production React + real AMap 2.0/tiles + isolated business/auth fixtures",
+  "browser": "158.0.8127.36",
+  "locatedProjects": 601,
+  "status": "passed",
+  "actions": 48,
+  "captures": [
+    {
+      "width": 1536,
+      "reduced": false,
+      "action": "stack-return-0",
+      "profileFile": "1536-motion-stack-return-0.cpuprofile",
+      "traceFile": "1536-motion-stack-return-0.trace.json",
+      "tasks": [
+        {
+          "startTime": 6917.799999952316,
+          "duration": 54,
+          "topStacks": [
+            {
+              "cpuMs": 17.669,
+              "stack": [
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 15.482,
+              "stack": [
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 7.731999999999999,
+              "stack": [
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 5.600999999999996,
+              "stack": [
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.34,
+              "stack": [
+                {
+                  "function": "(garbage collector)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.06,
+              "stack": [
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.4329999999999998,
+              "stack": [
+                {
+                  "function": "t.R9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.05,
+              "stack": [
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.369,
+              "stack": [
+                {
+                  "function": "getLineTypeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "getLineType",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.G9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.17300006103515625,
+              "stack": [
+                {
+                  "function": "(program)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.05199993896484375,
+              "stack": [
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.039,
+              "stack": [
+                {
+                  "function": "t.G9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "name": "XHRReadyStateChange",
+              "durationMs": 54.666,
+              "offsetMs": 0.01600006103515625
+            },
+            {
+              "name": "v8.callFunction",
+              "durationMs": 54.628,
+              "offsetMs": 0.04300006103515625
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 54.288,
+              "offsetMs": 0.05300006103515625
+            },
+            {
+              "name": "MinorGC",
+              "durationMs": 4.838,
+              "offsetMs": 31.967000061035158
+            },
+            {
+              "name": "V8.GCScavenger",
+              "durationMs": 4.733,
+              "offsetMs": 31.973000061035155
+            },
+            {
+              "name": "V8.GC_SCAVENGER",
+              "durationMs": 4.678,
+              "offsetMs": 32.023000061035155
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE",
+              "durationMs": 4.637,
+              "offsetMs": 32.03600006103515
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+              "durationMs": 3.986,
+              "offsetMs": 32.276000061035155
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+              "durationMs": 3.53,
+              "offsetMs": 32.40600006103516
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1536,
+      "reduced": false,
+      "action": "stack-return-1",
+      "profileFile": "1536-motion-stack-return-1.cpuprofile",
+      "traceFile": "1536-motion-stack-return-1.trace.json",
+      "tasks": [
+        {
+          "startTime": 10183.599999964237,
+          "duration": 50,
+          "topStacks": [
+            {
+              "cpuMs": 15.312999938964845,
+              "stack": [
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 13.216,
+              "stack": [
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 8.836,
+              "stack": [
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 4.26,
+              "stack": [
+                {
+                  "function": "Gn.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.9430000610351563,
+              "stack": [
+                {
+                  "function": "(program)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.8739999999999999,
+              "stack": [
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.849,
+              "stack": [
+                {
+                  "function": "t.D9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.257,
+              "stack": [
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.731,
+              "stack": [
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.503,
+              "stack": [
+                {
+                  "function": "getLineType",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.G9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.218,
+              "stack": [
+                {
+                  "function": "t._8t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.R9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "name": "XHRReadyStateChange",
+              "durationMs": 50.176,
+              "offsetMs": 0.19200006103515624
+            },
+            {
+              "name": "v8.callFunction",
+              "durationMs": 50.164,
+              "offsetMs": 0.19400006103515624
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 50.156,
+              "offsetMs": 0.19600006103515624
+            },
+            {
+              "name": "MinorGC",
+              "durationMs": 4.427,
+              "offsetMs": 25.880000061035155
+            },
+            {
+              "name": "V8.GCScavenger",
+              "durationMs": 4.354,
+              "offsetMs": 25.885000061035157
+            },
+            {
+              "name": "V8.GC_SCAVENGER",
+              "durationMs": 4.335,
+              "offsetMs": 25.902000061035157
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE",
+              "durationMs": 4.26,
+              "offsetMs": 25.915000061035155
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+              "durationMs": 3.162,
+              "offsetMs": 26.426000061035158
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "findings": [
+    "Two desktop project returns reproduced 54ms and 50ms tasks in AMap decodeStyleList/parseStyle XHR callbacks.",
+    "Sorted sampling intervals put 51.49ms/48.06ms in AMap stacks; no application frames in these task samples.",
+    "Main-thread minor GC was approximately 4.84ms/4.43ms, nested inside these task intervals; not additive.",
+    "This identifies a reproducible same-flow bottleneck; the historical 55ms task has no original CPU profile for exact retrospective attribution."
+  ],
+  "layerReuseExperiment": {
+    "interface": "public layer.setMap(null) + Map({layers})",
+    "application": "diagnostic only; not shipped",
+    "actionsPerVariant": 31,
+    "returnProfilesPerVariant": 7,
+    "baselineStyleSampleMedianMs": 28.323,
+    "reusedStyleSampleMedianMs": 32.039,
+    "conclusion": "No demonstrated reduction; retain existing engine/layer lifecycle and appearance."
+  },
+  "limitations": [
+    "Mobile is a desktop Chrome viewport, not an iOS/Android device.",
+    "No production authentication, database, business records or writes are exercised.",
+    "Frame intervals describe this machine/sample; CPU paint trace time is not GPU execution time.",
+    "Each route transition creates its own map; panel transitions must retain that route map.",
+    "CPU sample durations are estimates and profiler overhead is present.",
+    "Full sanitized captures are local artifacts; raw unsanitized CDP payloads were never written.",
+    "Original first capture summaries were reprocessed from saved profiles using sorted timestamps and forward intervals."
+  ],
+  "supplementaryCaptures": [
+    {
+      "width": 1536,
+      "reduced": false,
+      "action": "stack-return-0",
+      "profileFile": "partial-1536-motion-stack-return-0.cpuprofile",
+      "traceFile": "partial-1536-motion-stack-return-0.trace.json",
+      "tasks": [
+        {
+          "startTime": 3062.899999976158,
+          "duration": 58,
+          "topStacks": [
+            {
+              "cpuMs": 15.879,
+              "stack": [
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 13.44,
+              "stack": [
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 6.399,
+              "stack": [
+                {
+                  "function": "(garbage collector)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 4.1049999999999995,
+              "stack": [
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 3.754,
+              "stack": [
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.92,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.39,
+              "stack": [
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.746,
+              "stack": [
+                {
+                  "function": "t.U9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.377,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "arrayEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "forEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.369,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.293,
+              "stack": [
+                {
+                  "function": "Gn.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.268,
+              "stack": [
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.237,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.582,
+              "stack": [
+                {
+                  "function": "t.send",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "arrayEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "forEach",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "g.Ka",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.wn",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.24100000000000002,
+              "stack": [
+                {
+                  "function": "(program)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "name": "XHRReadyStateChange",
+              "durationMs": 58.127,
+              "offsetMs": 0.139
+            },
+            {
+              "name": "v8.callFunction",
+              "durationMs": 58.117,
+              "offsetMs": 0.142
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 57.808,
+              "offsetMs": 0.144
+            },
+            {
+              "name": "MinorGC",
+              "durationMs": 6.778,
+              "offsetMs": 14.501
+            },
+            {
+              "name": "V8.GCScavenger",
+              "durationMs": 6.692,
+              "offsetMs": 14.51
+            },
+            {
+              "name": "V8.GC_SCAVENGER",
+              "durationMs": 6.603,
+              "offsetMs": 14.595
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE",
+              "durationMs": 6.528,
+              "offsetMs": 14.612
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+              "durationMs": 4.881,
+              "offsetMs": 15.108
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+              "durationMs": 2.848,
+              "offsetMs": 15.286
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1536,
+      "reduced": false,
+      "action": "stack-return-2",
+      "profileFile": "partial-1536-motion-stack-return-2.cpuprofile",
+      "traceFile": "partial-1536-motion-stack-return-2.trace.json",
+      "tasks": [
+        {
+          "startTime": 8070.199999988079,
+          "duration": 56,
+          "topStacks": [
+            {
+              "cpuMs": 12.847,
+              "stack": [
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 9.815,
+              "stack": [
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 7.685,
+              "stack": [
+                {
+                  "function": "(garbage collector)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 5.578,
+              "stack": [
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "IQ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 5.3549999999999995,
+              "stack": [
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 4.765000000000001,
+              "stack": [
+                {
+                  "function": "Gn.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.decodeStyleList",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 3.718,
+              "stack": [
+                {
+                  "function": "t.D9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 2.573,
+              "stack": [
+                {
+                  "function": "Gn.CZ",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 1.313,
+              "stack": [
+                {
+                  "function": "t._8t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.R9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.9289999999999999,
+              "stack": [
+                {
+                  "function": "t.U9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.885,
+              "stack": [
+                {
+                  "function": "(program)",
+                  "source": "runtime",
+                  "line": 0
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.387,
+              "stack": [
+                {
+                  "function": "t._8t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.G9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.B9t",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "t.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "b.parseStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            },
+            {
+              "cpuMs": 0.15,
+              "stack": [
+                {
+                  "function": "nw",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "read",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "decodeStyle",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(anonymous)",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "Ajax.window.XMLHttpRequest.window.wv.onreadystatechange",
+                  "source": "amap:webapi.amap.com/maps",
+                  "line": 1
+                },
+                {
+                  "function": "(root)",
+                  "source": "runtime",
+                  "line": 0
+                }
+              ]
+            }
+          ],
+          "trace": [
+            {
+              "name": "XHRReadyStateChange",
+              "durationMs": 55.851,
+              "offsetMs": 0.353
+            },
+            {
+              "name": "v8.callFunction",
+              "durationMs": 55.823,
+              "offsetMs": 0.374
+            },
+            {
+              "name": "FunctionCall",
+              "durationMs": 55.804,
+              "offsetMs": 0.386
+            },
+            {
+              "name": "MinorGC",
+              "durationMs": 7.567,
+              "offsetMs": 28.115
+            },
+            {
+              "name": "V8.GCScavenger",
+              "durationMs": 7.476,
+              "offsetMs": 28.12
+            },
+            {
+              "name": "V8.GC_SCAVENGER",
+              "durationMs": 7.282,
+              "offsetMs": 28.306
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE",
+              "durationMs": 7.168,
+              "offsetMs": 28.334
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE",
+              "durationMs": 5.698,
+              "offsetMs": 28.871
+            },
+            {
+              "name": "V8.GC_SCAVENGER_SCAVENGE_PARALLEL",
+              "durationMs": 5.18,
+              "offsetMs": 29.066
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "validationAttempts": [
+    {
+      "name": "first public-layer baseline",
+      "status": "failed",
+      "failure": {
+        "name": "AssertionError",
+        "phase": "1536/motion/startup",
+        "code": "ERR_ASSERTION",
+        "state": {
+          "path": "/map"
+        }
+      },
+      "actions": 0
+    },
+    {
+      "name": "full CPU confirmation before tile wait fix",
+      "status": "failed",
+      "failure": {
+        "name": "AssertionError",
+        "phase": "390/motion/startup",
+        "code": "ERR_ASSERTION",
+        "network": {
+          "sdkOK": 1,
+          "tileOK": 0,
+          "providerHTTPFailures": 0,
+          "failedRequests": 0,
+          "abortedRequests": 0,
+          "blockedHosts": []
+        },
+        "state": {
+          "path": "/map"
+        }
+      },
+      "completedActions": 16
+    }
+  ],
+  "confirmation": {
+    "status": "passed",
+    "actions": 48,
+    "longTasks": [],
+    "transport": [
+      {
+        "width": 1536,
+        "reduced": false,
+        "network": {
+          "sdkOK": 1,
+          "tileOK": 68,
+          "providerHTTPFailures": 0,
+          "failedRequests": 0,
+          "abortedRequests": 30,
+          "blockedHosts": []
+        },
+        "errors": []
+      },
+      {
+        "width": 390,
+        "reduced": false,
+        "network": {
+          "sdkOK": 1,
+          "tileOK": 56,
+          "providerHTTPFailures": 0,
+          "failedRequests": 0,
+          "abortedRequests": 17,
+          "blockedHosts": []
+        },
+        "errors": []
+      },
+      {
+        "width": 390,
+        "reduced": true,
+        "network": {
+          "sdkOK": 1,
+          "tileOK": 49,
+          "providerHTTPFailures": 0,
+          "failedRequests": 0,
+          "abortedRequests": 14,
+          "blockedHosts": []
+        },
+        "errors": []
+      }
+    ]
+  },
+  "artifactIntegrity": [
+    {
+      "name": "1536-motion-stack-return-0.cpuprofile",
+      "bytes": 333810,
+      "sha256": "cf3b66fc113cb58c05c72bdda8dc3059229c79a2dfd0f1714dd076d60b2a2384"
+    },
+    {
+      "name": "1536-motion-stack-return-1.cpuprofile",
+      "bytes": 241833,
+      "sha256": "acec9161f6671d710fb401662cc134686ab1a3b98c8e77342168908ca0e0c34f"
+    },
+    {
+      "name": "partial-1536-motion-stack-return-0.cpuprofile",
+      "bytes": 325275,
+      "sha256": "009cf3b120781d37c9a377e018e548e48acba0febb6b8251900cb03e7851babf"
+    },
+    {
+      "name": "partial-1536-motion-stack-return-2.cpuprofile",
+      "bytes": 257924,
+      "sha256": "ecc1c82818b280a76d6cb44037023522686e09e86b155da295eb124c70eb7245"
+    }
+  ]
+}
