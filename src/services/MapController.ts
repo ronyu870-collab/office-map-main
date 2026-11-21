@@ -3,6 +3,8 @@
  */
 
 "use client";
+import { createSelectionMarker, markerBadgeImage, futureSupplyImage } from '@/src/app/map/runtime/mapSelectionMarker';
+import { markerTextColor } from '@/src/app/map/runtime/mapMarkerContrast';
 import type { WorkspaceBuildingDetail, WorkspaceBuilding } from '@/src/app/map/workspace/buildingDetail';
 import { auditBuildingReading } from '@/src/utils/buildingReadingAudit';
 import { resolveBuildingId } from './buildingIdentity';
@@ -199,7 +201,7 @@ function getMarkerStyle(
 
   if (mode === "default") {
     if (isFuture) {
-      bgColor = "#10b981";
+      bgColor = "#4f7968";
       borderColor = "#ffffff";
       text = "F";
     } else {
@@ -260,24 +262,24 @@ function getMarkerStyle(
       ""
     ).toUpperCase();
     if (leed.includes("PLATINUM")) {
-      bgColor = "#e0f2fe";
-      borderColor = "#38bdf8";
-      textColor = "#0369a1";
+      bgColor = "#d9edf3";
+      borderColor = "#68aebf";
+      textColor = "#225a68";
       text = "P"; // 铂金
     } else if (leed.includes("GOLD")) {
-      bgColor = "#fef3c7";
-      borderColor = "#fbbf24";
-      textColor = "#b45309";
+      bgColor = "#eadfbd";
+      borderColor = "#b69a52";
+      textColor = "#6f5a25";
       text = "G"; // 黄金
     } else if (leed.includes("SILVER")) {
-      bgColor = "#f1f5f9";
-      borderColor = "#94a3b8";
-      textColor = "#475569";
+      bgColor = "#e7ebef";
+      borderColor = "#9ca8b3";
+      textColor = "#52606d";
       text = "S"; // 白银
     } else {
-      bgColor = "#f8fafc";
-      borderColor = "#e2e8f0";
-      textColor = "#94a3b8";
+      bgColor = "#eef1f4";
+      borderColor = "#bdc6ce";
+      textColor = "#6f7c89";
       text = "N"; // 无认证
     }
   }
@@ -289,7 +291,7 @@ function getMarkerStyle(
     textColor = "#ffffff";
   }
 
-  return { bgColor, borderColor, textColor, text, fontSize };
+  return { bgColor, borderColor, textColor: markerTextColor(bgColor, textColor), text, fontSize };
 }
 
 function matchesGroupGrades(grade: string, groupGrades: string[]): boolean {
@@ -341,15 +343,41 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
   private workspaceSelectionMarker: any | null = null;
   private workspaceSubmarket: string | null = null;
 
+  private workspaceSelectedBuilding: WorkspaceBuilding | null = null;
+  private workspaceSelectionContent: HTMLDivElement | null = null;
+  private workspaceSelectionRenderer: ((building: WorkspaceBuilding) => string) | null = null;
+  private workspaceMarkerMode: RenderMode = 'default';
+  private workspaceMarkerGroups: CompareGroup[] | undefined;
+
+  setWorkspaceSelectionRenderer(renderer: ((building: WorkspaceBuilding) => string) | null): void {
+    this.workspaceSelectionRenderer = renderer;
+    if (renderer) this.refreshWorkspaceSelection();
+  }
+  private workspaceSelectionImage(building: WorkspaceBuilding): string {
+    if (this.workspaceSelectionRenderer) return this.workspaceSelectionRenderer(building);
+    if (building._dataType === 'future') return futureSupplyImage(building, this.workspaceMarkerMode);
+    const style = getMarkerStyle(building, pickLatestMetric(building.metrics ?? []), this.workspaceMarkerMode, false,
+      this.workspaceMarkerGroups ? findBuildingGroupColor(building, this.workspaceMarkerGroups) : undefined);
+    return markerBadgeImage({ background: style.bgColor, border: style.borderColor, textColor: style.textColor,
+      text: style.text, fontSize: parseFloat(style.fontSize) });
+  }
+  refreshWorkspaceSelection(): void {
+    const image = this.workspaceSelectionContent?.querySelector('img');
+    if (!image || !this.workspaceSelectedBuilding) return;
+    const next = this.workspaceSelectionImage(this.workspaceSelectedBuilding);
+    if (image.getAttribute('src') !== next) image.src = next;
+  }
+
   setWorkspaceSubmarket(name: string | null): void { this.workspaceSubmarket = name; }
   isWorkspaceActive(): boolean { return Boolean(this.workspaceDetailHandler); }
   setWorkspaceSelection(building: WorkspaceBuilding | null): void {
     if (this.workspaceSelectionMarker) this.map?.remove?.(this.workspaceSelectionMarker);
     this.workspaceSelectionMarker = null;
+    this.workspaceSelectionContent = null;
+    this.workspaceSelectedBuilding = building;
     if (!building || !Number.isFinite(building.location_lng) || !Number.isFinite(building.location_lat) || !this.AMap?.Marker) return;
-    const content = document.createElement('div');
-    content.className = 'map-selected-marker';
-    content.innerHTML = '<span class="map-selected-marker__core"></span><span class="map-selected-marker__ring"></span>';
+    const content = createSelectionMarker(this.workspaceSelectionImage(building), building._dataType === 'future');
+    this.workspaceSelectionContent = content;
     this.workspaceSelectionMarker = new this.AMap.Marker({ position: [building.location_lng, building.location_lat], content, anchor: 'center', zIndex: 999999, bubble: true });
     this.map.add(this.workspaceSelectionMarker);
   }
@@ -1906,6 +1934,8 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     renderMode: RenderMode = "default",
   ): void {
     if (this._destroyed || !this.map || !this.AMap) return;
+    this.workspaceMarkerMode = renderMode;
+    this.refreshWorkspaceSelection();
     const AMap = this.AMap;
 
     this.removeFutureMarkerOverlays();
@@ -2071,6 +2101,9 @@ export class MapController<T extends BuildingMarkerData = BuildingMarkerData> {
     overviewBuildings?: BuildingWithMetrics[],
   ): void {
     if (this._destroyed || !this.map || !this.AMap) return;
+    this.workspaceMarkerMode = renderMode;
+    this.workspaceMarkerGroups = comparisonGroups;
+    this.refreshWorkspaceSelection();
     const AMap = this.AMap;
     this.clearMarkers();
 

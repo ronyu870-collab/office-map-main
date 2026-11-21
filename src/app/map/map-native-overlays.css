@@ -28,7 +28,7 @@ body:has(#map-container) .map-submarket-bubble {
   border: 2px solid rgba(255, 255, 255, 0.94);
   border-radius: 50%;
   background: var(--sm-accent);
-  color: #ffffff;
+  color: var(--sm-foreground, #ffffff);
   box-shadow: 0 5px 16px rgba(23, 42, 58, 0.18), 0 1px 3px rgba(23, 42, 58, 0.12);
   contain: layout paint style;
   transform: translate3d(var(--sm-collision-x), var(--sm-collision-y), 0) scale(1);
@@ -84,8 +84,7 @@ body:has(#map-container) .map-submarket-bubble__name {
   font-weight: 800;
   line-height: 1.18;
   letter-spacing: -0.01em;
-  color: #ffffff;
-  text-shadow: 0 1px 2px rgba(20, 35, 50, 0.22);
+  color: var(--sm-foreground, #ffffff);
 }
 
 body:has(#map-container) .map-submarket-bubble__metrics {
@@ -101,13 +100,13 @@ body:has(#map-container) .map-submarket-bubble__metrics {
   font-size: 10px;
   font-weight: 600;
   line-height: 1.1;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--sm-foreground, #ffffff);
   font-variant-numeric: tabular-nums;
 }
 
 body:has(#map-container) .map-submarket-bubble__primary {
   flex: 0 0 auto;
-  color: #ffffff;
+  color: var(--sm-foreground, #ffffff);
   font-size: 11px;
   font-weight: 800;
 }
@@ -118,45 +117,39 @@ body:has(#map-container) .map-submarket-bubble__count {
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
-  color: #ffffff;
+  color: var(--sm-foreground, #ffffff);
   font-variant-numeric: tabular-nums;
 }
 body:has(#map-container) .map-submarket-bubble__context {
   font-size: 9px;
   line-height: 1;
-  color: rgba(255,255,255,.8);
+  color: var(--sm-foreground, #ffffff);
 }
 
-/* Selected building continuity marker. It is deliberately DOM-based so selection
- * remains visible while native marker tiers cross-fade underneath it. */
+/* Selection stays outside the 34px data badge. A single neutral boundary
+ * preserves category/metric colors and never paints over the badge text. */
 body:has(#map-container) .map-selected-marker {
   position: relative;
-  width: 44px;
-  height: 44px;
-  pointer-events: none;
-  transform: translateZ(0);
-}
-body:has(#map-container) .map-selected-marker__core {
-  position: absolute;
-  inset: 14px;
-  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1.5px solid #475569;
+  border-radius: 50%;
   background: transparent;
-  border: 2px solid #F28C5C;
-  transform: scale(1.2);
-  box-shadow: 0 2px 7px rgba(23, 42, 58, 0.2);
+  box-shadow: 0 2px 6px rgba(23, 42, 58, 0.16);
+  pointer-events: none;
 }
-body:has(#map-container) .map-selected-marker__ring {
+
+body:has(#map-container) .map-selected-marker__badge {
   position: absolute;
-  inset: 4px;
-  border-radius: 999px;
-  border: 2px solid rgba(242, 140, 92, 0.7);
-  box-shadow: 0 0 0 4px rgba(246, 183, 90, 0.16);
-  animation: map-selected-pulse 700ms ease-out 2;
+  width: 34px;
+  height: 34px;
+  max-width: none;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
-@keyframes map-selected-pulse {
-  0% { transform: scale(.76); opacity: .95; }
-  75%, 100% { transform: scale(1.12); opacity: 0; }
-}
+body:has(#map-container) .map-selected-marker--future { width: 34px; height: 34px; }
 
 /* InfoWindow chrome and action area. The bridge decorates existing string-built
  * controls with data-map-action, keeping business logic untouched. */
@@ -226,5 +219,4 @@ body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map
   body:has(#map-container) .map-submarket-bubble,
   body:has(#map-container) .amap-info-content,
   body:has(#map-container) .amap-info-content:not(:has(.building-popup)) [data-map-action] { transition: none !important; animation: none !important; }
-  body:has(#map-container) .map-selected-marker__ring { animation: none !important; opacity: .45; }
 }
