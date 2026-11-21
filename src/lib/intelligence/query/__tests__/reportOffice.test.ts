@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { completedResearch } from '../../research/testFixtures';
 import { generateResearchDeliverable } from '../../research/deliverable';
 import { buildResultArtifact } from '../artifacts';
@@ -67,7 +69,7 @@ describe('native Office research files and shared evidence model', () => {
           expect(Number(offset.getAttribute('y')) + Number(extent.getAttribute('cy'))).toBeLessThanOrEqual(height);
         }
       }
-      await writeFile('/private/tmp/ai5-deep-fixture.' + kind, file.bytes);
+      await writeFile(join(tmpdir(), 'ai5-deep-fixture.' + kind), file.bytes);
     }
     const xlsx = await buildResultArtifact(generated.result, { requestId: crypto.randomUUID(), resultId: generated.result.resultId, action: 'export', format: 'xlsx' });
     if (xlsx.type !== 'download') throw Error();
