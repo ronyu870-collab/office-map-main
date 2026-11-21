@@ -1,4 +1,5 @@
 'use client'
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 import React, { useState } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
 import JSZip from 'jszip'
@@ -114,6 +115,7 @@ export function BackupModal({ onClose }: BackupModalProps) {
 
       const blob = await zip.generateAsync({ type: 'blob' })
       const filename = `colliers-backup-${timestamp}.zip`
+      await authorizeCriticalExport('EXPORT_BACKUP', 'legacy_backup', BACKUP_TABLES.length, 'zip');
       saveAs(blob, filename)
       logAction(undefined, 'EXPORT_BACKUP', {
         table_count: BACKUP_TABLES.length,

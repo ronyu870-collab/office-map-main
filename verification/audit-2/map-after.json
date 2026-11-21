@@ -1,0 +1,111 @@
+{
+  "status": "pass",
+  "browser": "158.0.8127.36",
+  "environment": "isolated AMap SDK and data adapter, not live tiles or GPU",
+  "observations": [
+    {
+      "label": "sdk-delayed",
+      "stage": {
+        "authorized": 516.1000000238419,
+        "controller_ready": 530.8000000119209,
+        "sdk_start": 531.1999999880791,
+        "sdk_ready": 995,
+        "tiles_complete": 1036.199999988079,
+        "visual_ready": 1068.6000000238419,
+        "stock_read_start": 531,
+        "stock_data_ready": 554.4000000357628,
+        "stock_render_start": 1085.4000000357628,
+        "stock_render_returned": 1086.1000000238419
+      },
+      "fixtureOverlayMs": 1117.800000011921
+    },
+    {
+      "label": "data-delayed",
+      "stage": {
+        "authorized": 440.69999998807907,
+        "controller_ready": 451.39999997615814,
+        "sdk_start": 451.80000001192093,
+        "sdk_ready": 477.80000001192093,
+        "tiles_complete": 518.5999999642372,
+        "visual_ready": 543.0999999642372,
+        "stock_read_start": 451.39999997615814,
+        "stock_data_ready": 907.8999999761581,
+        "stock_render_start": 926.6999999880791,
+        "stock_render_returned": 927.3000000119209
+      },
+      "fixtureOverlayMs": 959.3000000119209
+    }
+  ],
+  "lifecycle": [
+    {
+      "label": "reentry-desktop",
+      "width": 1280,
+      "visits": [
+        968,
+        250,
+        244,
+        230,
+        244,
+        231,
+        244,
+        226,
+        242,
+        243,
+        236,
+        232,
+        241,
+        239,
+        245,
+        241,
+        232,
+        226,
+        249,
+        235
+      ],
+      "requests": {
+        "stock": 1,
+        "future": 1,
+        "sdk": 1,
+        "role": 1
+      },
+      "created": 20,
+      "destroyed": 20,
+      "active": 0
+    },
+    {
+      "label": "reentry-narrow",
+      "width": 390,
+      "visits": [
+        898,
+        247,
+        230,
+        227,
+        227,
+        231,
+        236,
+        234,
+        243,
+        234,
+        239,
+        237,
+        245,
+        242,
+        238,
+        250,
+        232,
+        228,
+        231,
+        231
+      ],
+      "requests": {
+        "stock": 1,
+        "future": 1,
+        "sdk": 1,
+        "role": 1
+      },
+      "created": 20,
+      "destroyed": 20,
+      "active": 0
+    }
+  ]
+}

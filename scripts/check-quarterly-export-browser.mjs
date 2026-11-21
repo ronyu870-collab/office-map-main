@@ -23,7 +23,7 @@ const dir = await mkdtemp(path.join(tmpdir(), 'quarterly-export-browser-'));
 const executable = process.env.CHROME_PATH || ['/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => spawnSync('test', ['-x', p]).status === 0);
 const port = 3487;
 let server, browser, page;
-const errors = [], downloads = [], blocked = [], consoleErrors = [];
+const errors = [], downloads = [], blocked = [], consoleErrors = [], authorizations=[];
 try {
   await symlink(path.join(root, 'node_modules'), path.join(dir, 'node_modules'), 'dir');
   await mkdir(path.join(dir, 'app'));
@@ -54,7 +54,7 @@ const fixtures = {
   quarterly_submissions: [{...metric,id:'s1',record_quarter:3,created_at:'2026-09-01T00:00:00.000001Z',net_effective_rent:260}, {...metric,id:'s2',record_quarter:3,created_at:'2026-09-02T00:00:00.000001Z',net_effective_rent:240}],
   building_metrics: [{...metric,id:'m1',record_quarter:2,created_at:'2026-06-30T00:00:00Z',net_effective_rent:250,vacancy_rate:0.1}, {...metric,id:'m2',building_id:'b',record_quarter:2,created_at:'2026-06-30T00:00:00Z',net_effective_rent:290,vacant_area:20,vacancy_rate:0.2}]
 };
-export const supabase = { from(table) { const filters=[], orders=[]; let start=0,end=499;
+export const supabase = { auth:{getSession:async()=>({data:{session:{user:{id:'synthetic-admin'},access_token:'synthetic'}}})}, from(table) { const filters=[], orders=[]; let start=0,end=499;
   const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},lte(k,v){filters.push(r=>r[k]<=v);return q},order(k,options){orders.push([k,options?.ascending!==false]);return q},range(a,b){start=a;end=b;return q},then(resolve,reject){let rows=(fixtures[table]||[]).filter(r=>filters.every(f=>f(r)));rows.sort((a,b)=>{for(const [k,asc] of orders){const d=String(a[k]).localeCompare(String(b[k]));if(d)return asc?d:-d;}return 0});return Promise.resolve({data:rows.slice(start,end+1),error:null}).then(resolve,reject)}};return q;} };`);
   // Fixture typing only; the release separately runs the repository's unmodified npm run verify.
   const env = { ...process.env, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' };
@@ -69,7 +69,7 @@ export const supabase = { from(table) { const filters=[], orders=[]; let start=0
   assert.ok(ready, 'Harness server failed: ' + serverLog);
   browser = await chromium.launch({ headless: true, ...(executable ? { executablePath: executable } : {}) });
   const context = await browser.newContext({ acceptDownloads: true });
-  await context.route('**/*', route => { const u = new URL(route.request().url()); return u.hostname === '127.0.0.1' ? route.continue() : (blocked.push(u.origin), route.abort()); });
+  await context.route('**/*', route => { const u = new URL(route.request().url()); if(u.pathname==='/api/audit-events/critical'){const input=route.request().postDataJSON();assert.equal(input.action,'EXPORT_DATA');assert.equal(input.scope,'quarterly_submissions');authorizations.push(input);return route.fulfill({json:{authorized:true}});} return u.hostname === '127.0.0.1' ? route.continue() : (blocked.push(u.origin), route.abort()); });
   page = await context.newPage();
   page.on('pageerror', e => { errors.push(e.message); console.error('Browser error:', e.message); });
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
@@ -89,6 +89,7 @@ export const supabase = { from(table) { const filters=[], orders=[]; let start=0
     console.log('NEGATIVE CONTROL: reproduced minified production error:', error);
   } else {
     for (let i = 0; i < 300 && downloads.length === 0; i++) { if (await page.locator('p[role="alert"]').count()) throw new Error(await page.locator('p[role="alert"]').innerText()); await new Promise(r => setTimeout(r, 100)); }
+    assert.equal(authorizations.length,1,'server authorization precedes the browser download');
     assert.equal(downloads.length, 1, 'An actual browser download is required, not a mocked save function');
     const saved = path.join(evidence, 'browser-downloaded-quarterly.xlsx');
     assert.equal(downloads[0].suggestedFilename(), '季度市场数据_2026Q3.xlsx');

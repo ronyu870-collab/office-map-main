@@ -1,3 +1,4 @@
+vi.mock('@/src/utils/criticalExport', () => ({ authorizeCriticalExport: vi.fn().mockResolvedValue(undefined) }));
 import * as React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +15,7 @@ vi.mock('@/src/components/ui', () => ({ Button: (props: React.ButtonHTMLAttribut
 import { loadReport } from './data';
 import { reportBytes } from './workbook';
 import saveAs from 'file-saver';
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 import { logAction } from '@/src/utils/audit';
 import { buildReport, type Report } from './model';
 import { QuarterlyReportPanel } from './QuarterlyReportPanel';
@@ -96,4 +98,10 @@ describe('quarterly report panel', () => {
     expect(saveAs).not.toHaveBeenCalled(); expect(logAction).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: '导出 Excel' })).not.toBeDisabled();
   });
+});
+
+it('withholds the workbook if durable delivery authorization fails',async()=>{
+  vi.mocked(authorizeCriticalExport).mockRejectedValueOnce(new Error('授权未完成'));
+  render(<Panel />);await screen.findByText('甲级写字楼');fireEvent.click(screen.getByRole('button',{name:/导出/}));
+  await screen.findByText('授权未完成');expect(saveAs).not.toHaveBeenCalled();
 });

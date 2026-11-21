@@ -1,4 +1,5 @@
 'use client'
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -861,7 +862,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
     XLSX.utils.book_append_sheet(wb, ws, '上传数据')
     const filename = `${config.label}_上传模板.xlsx`
     XLSX.writeFile(wb, filename)
-    logAction(undefined, 'EXPORT_DATA', {
+    logAction(undefined, 'EXPORT_TEMPLATE', {
       export_type: 'upload_template',
       table: config.table,
       table_label: config.label,
@@ -1117,6 +1118,7 @@ export function GenericTablePanel({ config, dicts = {} }: GenericTablePanelProps
     const now = new Date()
     const ts = now.toISOString().slice(0, 10).replace(/-/g, '')
     const filename = `${filenamePrefix}_${ts}.xlsx`
+    try { await authorizeCriticalExport('EXPORT_DATA', config.table, filtered.length); } catch { showToast('导出授权未完成，请重试', false); return }
     XLSX.writeFile(wb, filename)
     showToast(`已导出 ${filtered.length} 条数据`)
 

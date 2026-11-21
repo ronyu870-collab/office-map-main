@@ -123,6 +123,8 @@ export async function POST(req: NextRequest) {
       .insert({
         user_id: caller.email || caller.id,
         action_type: action,
+        request_source: 'server',
+        module: 'admin',
         details: {
           admin_user_id: caller.id,
           admin_email: caller.email,

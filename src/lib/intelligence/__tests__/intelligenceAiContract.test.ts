@@ -34,7 +34,7 @@ describe('Intelligence AI integration contract', () => {
     expect(recommendRoute).toContain('normalizeRequirementAgainstVocabulary');
   });
 
-  it('awaits privacy-preserving AI audit writes before returning while keeping audit failures non-blocking', () => {
+  it('registers privacy-preserving B summaries with managed after lifecycle', () => {
     const parseRoute = source('src/app/api/intelligence/parse-requirement/route.ts');
     const recommendRoute = source('src/app/api/intelligence/recommend/route.ts');
     const auditCoverage = source('scripts/check-audit-coverage.mjs');
@@ -48,8 +48,8 @@ describe('Intelligence AI integration contract', () => {
     expect(recommendRoute).toContain('await auditRecommendation(');
     expect(parseRoute).not.toMatch(/\bvoid\s+auditAIParse\s*\(/);
     expect(recommendRoute).not.toMatch(/\bvoid\s+auditRecommendation\s*\(/);
-    expect(parseRoute).toContain('AI_REQUIREMENT_PARSE write threw');
-    expect(recommendRoute).toContain('AI_RECOMMENDATION write threw');
+    expect(parseRoute).toContain('scheduleAuditBestEffort(client');
+    expect(recommendRoute).toContain('scheduleAuditBestEffort(client');
     expect(auditCoverage).toContain('server audit write is unawaited');
     expect(auditCoverage).toContain('unawaitedServerAuditCalls');
     expect(parseRoute).not.toContain('details: { requirement');

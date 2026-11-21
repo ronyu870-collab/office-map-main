@@ -4,9 +4,9 @@ import{sha256}from'./local-store.mjs';
 const bytes=Buffer.from('synthetic original');const bid='11111111-1111-4111-8111-111111111111';
 const manifest={building_id:bid,building_name:'合成楼宇',title:'历史佣金',document_date:null,source:'合成',notes:'',series_key:'history',scope_label:'历史',content_types:['commission'],details:[],commission_policies:[{key:'old',summary:'2个月'}],project_facts:[],association_status:'confirmed',association_note:'',historical_context:{period_label:'日期未知',evidence:'合成',not_current:true},extraction:{method:'codex-document',source_sha256:sha256(bytes),reviewed:true,historical_import_authorized:true}};
 let stored=null;let storageCalls=0;let writes=0;let actorRole='admin';let actorLookupError=null;
-const client={storage:{from(){storageCalls++;throw Error('must not access Storage');}},from(table){
+const client={rpc:async()=>({data:true,error:null}),storage:{from(){storageCalls++;throw Error('must not access Storage');}},from(table){
  if(table==='user_roles')return{select(){return this;},eq(){return this;},async maybeSingle(){return{data:{user_id:bid,role:actorRole},error:actorLookupError};}};
- if(table==='audit_logs')return{insert:async row=>{assert.equal(row.user_id,bid);assert.equal(row.details.executor,'codex');return{error:null};}};
+ if(table==='audit_operation_receipts')return{insert:async row=>{assert.equal(row.actor_id,bid);assert.equal(row.details.executor,'codex');return{error:null};}};
  const chain={select(){return this;},eq(){return this;},async maybeSingle(){return{data:table==='buildings'?{id:bid,name:'合成楼宇'}:stored,error:null};},async insert(row){stored={...row};writes++;return{error:null};},update(patch){Object.assign(stored,patch);writes++;return this;}};
  return chain;
 }};

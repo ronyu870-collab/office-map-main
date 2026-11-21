@@ -1,0 +1,125 @@
+{
+  "status": "pass",
+  "baseline": false,
+  "versioned": true,
+  "scenario": "isolated production Next route, held evidence and synthetic model",
+  "fixtureRows": {
+    "buildings": 622,
+    "metrics": 622,
+    "brochures": 370
+  },
+  "medianMs": 577,
+  "probes": [
+    {
+      "totalMs": 606,
+      "stages": {
+        "auth": 5.3,
+        "vocabulary": 16.5,
+        "candidates": 437.4,
+        "model": 573.6,
+        "rank": 2.6,
+        "audit": 0.3,
+        "json": 0.2,
+        "handler": 599.5
+      },
+      "buildingReads": 1,
+      "catalogBytes": 85182,
+      "totalSourceReads": 3,
+      "modelStartedBeforeEvidence": true
+    },
+    {
+      "totalMs": 570,
+      "stages": {
+        "auth": 1.6,
+        "vocabulary": 1.4,
+        "candidates": 434.8,
+        "model": 562.6,
+        "rank": 0.8,
+        "audit": 0.1,
+        "json": 0.1,
+        "handler": 566.9
+      },
+      "buildingReads": 1,
+      "catalogBytes": 90,
+      "totalSourceReads": 3,
+      "modelStartedBeforeEvidence": true
+    },
+    {
+      "totalMs": 576,
+      "stages": {
+        "auth": 3.5,
+        "vocabulary": 2.6,
+        "candidates": 435,
+        "model": 563.7,
+        "rank": 0.7,
+        "audit": 0.1,
+        "json": 0.2,
+        "handler": 571.1
+      },
+      "buildingReads": 1,
+      "catalogBytes": 90,
+      "totalSourceReads": 3,
+      "modelStartedBeforeEvidence": true
+    },
+    {
+      "totalMs": 577,
+      "stages": {
+        "auth": 3.3,
+        "vocabulary": 2.4,
+        "candidates": 433.9,
+        "model": 565,
+        "rank": 0.8,
+        "audit": 0.1,
+        "json": 0.2,
+        "handler": 572.6
+      },
+      "buildingReads": 1,
+      "catalogBytes": 90,
+      "totalSourceReads": 3,
+      "modelStartedBeforeEvidence": true
+    },
+    {
+      "totalMs": 580,
+      "stages": {
+        "auth": 2.7,
+        "vocabulary": 1.7,
+        "candidates": 432.7,
+        "model": 563.6,
+        "rank": 1,
+        "audit": 0.6,
+        "json": 0.4,
+        "handler": 570.5
+      },
+      "buildingReads": 1,
+      "catalogBytes": 90,
+      "totalSourceReads": 3,
+      "modelStartedBeforeEvidence": true
+    }
+  ],
+  "browser": {
+    "browser": "158.0.8127.36",
+    "observations": [
+      {
+        "width": 1280,
+        "role": "admin",
+        "cancelAvailable": true,
+        "priorSelectionKept": true,
+        "proposalSelection": 1
+      },
+      {
+        "width": 390,
+        "role": "admin",
+        "cancelAvailable": true,
+        "priorSelectionKept": true,
+        "proposalSelection": 1
+      },
+      {
+        "width": 390,
+        "role": "viewer",
+        "protectedReads": 0
+      }
+    ]
+  },
+  "rejectionProtected": true,
+  "modelCancelReachedProvider": true
+}

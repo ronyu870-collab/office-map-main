@@ -1,4 +1,5 @@
 "use client";
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import * as React from "react";
 import { createPortal } from "react-dom";
@@ -1530,6 +1531,7 @@ function TablePanel({
     const filename = `${filenamePrefix}_${year}Q${quarter}_${timestamp}.xlsx`;
 
     // 触发下载
+    try { await authorizeCriticalExport('EXPORT_DATA', config.table, exportRows.length); } catch { showToast('导出授权未完成，请重试', false); return; }
     XLSX.writeFile(workbook, filename);
     showToast(`已导出 ${exportRows.length} 条数据`);
 

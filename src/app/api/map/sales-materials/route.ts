@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { resolveEffectiveRequestIdentity, type EffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
 import { getBuildingMediaPilot, pilotMediaPath } from '@/src/lib/sales-materials/building-media-pilot';
 import { buildingPhotoDownloadUrl } from '@/src/lib/building-photos/model';
 import { parseUserRole, type UserRole } from '@/src/types/auth';
@@ -52,7 +52,7 @@ function databaseError(error: { code?: string }, fallback: string) {
 }
 
 async function audit(admin: SupabaseClient, identity: EffectiveRequestIdentity, action: 'ACCESS', buildingId: string, materialId: string, title?: string) {
-  await writeAuditBestEffort(admin, {
+  scheduleAuditBestEffort(admin, {
     user_id: identity.caller.email || identity.caller.id,
     action_type: 'SALES_MATERIAL_ACCESS',
     module: 'map', page_url: '/map', target_name: title,

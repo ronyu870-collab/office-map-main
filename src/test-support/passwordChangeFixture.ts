@@ -15,9 +15,10 @@ export function createPasswordChangeFixture() {
   let customSessionId: string | null = 'fixture-device-session';
   let metadata: Record<string, unknown> = { session_id: customSessionId };
   const validSessions = new Map<string, Session>();
+  const receipts=new Map<string,Record<string,unknown>>();
   const audits: Record<string, unknown>[] = [];
   const requests: string[] = [];
-  const faults = { signIn: false, profile: false, logout: false, save: false, returnRequired: false };
+  const faults = { signIn: false, profile: false, logout: false, save: false, returnRequired: false, auditIntent:false, auditComplete:false };
   const currentUser = (): User => ({
     id: userId, email, aud: 'authenticated', role: 'authenticated',
     app_metadata: { must_change_password: required }, user_metadata: { ...metadata },
@@ -84,6 +85,22 @@ export function createPasswordChangeFixture() {
       }
       return json({ user_id: userId, email, role: 'editor', full_name: 'Fixture User', chinese_name: '测试用户', session_id: customSessionId, phone });
     }
+    if(url.pathname==='/rest/v1/audit_operation_receipts'&&request.method==='POST'){
+      if(bearer!=='synthetic-service-key')return unauthorized();
+      if(faults.auditIntent)return json({code:'XX000',message:'Synthetic durable intent unavailable'},503);
+      const body=await request.json();receipts.set(body.id,{...body,state:'pending'});return new Response(null,{status:201});
+    }
+    if(url.pathname==='/rest/v1/rpc/audit_complete_operation'){
+      if(bearer!=='synthetic-service-key')return unauthorized();
+      if(faults.auditComplete)return json({code:'XX000',message:'Synthetic completion unavailable'},503);
+      const body=await request.json();const receipt=receipts.get(body.p_id);
+      if(!receipt)return json({code:'22023',message:'Unknown operation'},400);
+      if(receipt.state==='pending'){
+        receipt.state=body.p_state;
+        audits.push({user_id:receipt.actor_id,action_type:receipt.action_type,event_id:body.p_id,details:{...(receipt.details as Record<string,unknown>),outcome:body.p_state}});
+      }
+      return json(true);
+    }
     if (url.pathname === '/rest/v1/audit_logs' && request.method === 'POST') {
       const body = await request.json();
       audits.push(...(Array.isArray(body) ? body : [body]));
@@ -92,7 +109,7 @@ export function createPasswordChangeFixture() {
     throw new Error(`Unexpected fixture request blocked: ${request.method} ${url.pathname}`);
   }
   return {
-    userId, email, phone, temporaryPassword, newPassword, issueSession, handle, faults, requests, audits,
+    userId, email, phone, temporaryPassword, newPassword, issueSession, handle, faults, requests, audits, receipts,
     get required() { return required; },
     setRequired(value: boolean) { required = value; },
     get sessionCount() { return validSessions.size; },

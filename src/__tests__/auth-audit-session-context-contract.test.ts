@@ -23,7 +23,7 @@ describe('auth audit session context contract', () => {
 
   it('keeps application-observed context as a best-effort fallback', () => {
     const route = read('src/app/api/audit-events/route.ts');
-    expect(route).toContain(".from('auth_session_audit_context')");
+    expect(route).toContain("rpc('audit_touch_session'");
     expect(route).toContain('application_ip_address');
     expect(route).toContain('application_user_agent');
     expect(route).toContain('snapshotError');

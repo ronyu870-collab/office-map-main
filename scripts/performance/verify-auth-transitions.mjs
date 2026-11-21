@@ -29,6 +29,8 @@ async function dispatch(request, source) {
   } else if (pathname === '/auth/v1/user' && method === 'PUT') stage = 'metadata';
   else if (pathname === '/auth/v1/user') stage = 'serverUser';
   else if (pathname.startsWith('/auth/v1/admin/users/')) stage = 'save';
+  else if (pathname === '/rest/v1/audit_operation_receipts') stage = 'auditIntent';
+  else if (pathname === '/rest/v1/rpc/audit_complete_operation') stage = 'auditComplete';
   else if (pathname === '/rest/v1/audit_logs') stage = 'audit';
   else if (pathname === '/auth/v1/logout') stage = 'logout';
   if (stage) {
@@ -166,6 +168,13 @@ try {
       if (mode === 'password') {
         assert.equal(fixture.required, false);
         assert.equal(fixture.audits.filter(row => row.action_type === 'CHANGE_PASSWORD').length, 1);
+        assert.equal(fixture.receipts.size, 1);
+        assert.equal([...fixture.receipts.values()][0].state, 'success');
+        const intent = stages.find(s => s.stage === 'auditIntent');
+        const save = stages.find(s => s.stage === 'save');
+        const complete = stages.find(s => s.stage === 'auditComplete');
+        assert.ok(intent && save && complete && intent.ended <= save.started && save.ended <= complete.started,
+          'password changes require durable intent before Auth mutation and confirmed evidence afterwards');
         assert.equal(stages.filter(s => s.stage === 'refresh').length, 0);
       }
       if (mode !== 'wrong-phone') {
