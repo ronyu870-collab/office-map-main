@@ -212,9 +212,17 @@ try {
       await page.screenshot({ path: `/tmp/map-layout-building-${width}.png` });
       assert.equal(await page.locator('.workspace-building').count(), 1);
       assert.equal(await page.locator('.map-selected-marker').count(), 1);
-      const highlight = await page.locator('.map-selected-marker__ring').evaluate(el => ({ color: getComputedStyle(el).borderColor, count: getComputedStyle(el).animationIterationCount }));
-      assert.notEqual(highlight.count, 'infinite');
-      assert.ok(highlight.color.includes('242, 140, 92'), highlight.color);
+      const highlight = await page.locator('.map-selected-marker').evaluate(el => {
+        const style = getComputedStyle(el), box = el.getBoundingClientRect();
+        return { width: box.width, height: box.height, background: style.backgroundColor,
+          animation: style.animationName, decorations: el.querySelectorAll('span').length, badge: Boolean(el.querySelector('img')?.naturalWidth), pointerEvents: style.pointerEvents };
+      });
+      assert.ok(highlight.width <= 40 && highlight.height <= 40, 'selection stays compact');
+      assert.equal(highlight.background, 'rgba(0, 0, 0, 0)', 'data badge remains visible');
+      assert.equal(highlight.decorations, 0, 'no inner rings may cover badge text');
+      assert.equal(highlight.badge, true, 'selection owns a visible data badge independent of layer collision');
+      assert.equal(highlight.animation, 'none', 'selection does not pulse or reset to a halo');
+      assert.equal(highlight.pointerEvents, 'none', 'selection decoration does not capture marker input');
       await page.evaluate(() => { window.__workspaceMap.emit('click'); window.__workspaceMap.emit('zoomend'); window.__workspaceMap.emit('moveend'); });
       assert.equal(await page.getByRole('region', { name: 'CBD甲楼楼宇详情' }).count(), 1);
       // Repeat the same opening through the actual map marker after the list entry.
@@ -341,6 +349,10 @@ try {
       await page.getByRole('button', { name: '未来供应', exact: true }).click();
       await page.getByRole('button', { name: /CBD未来楼/ }).click();
       await page.getByRole('region', { name: 'CBD未来楼楼宇详情' }).waitFor();
+      const futureBadge = page.locator('.map-selected-marker__badge');
+      await futureBadge.waitFor();
+      await page.waitForFunction(() => document.querySelector('.map-selected-marker__badge')?.naturalWidth > 0);
+      assert.ok(decodeURIComponent(await futureBadge.getAttribute('src')).includes('>F</text>'), 'selected future remains visible even without its map layer');
       await page.getByRole('tab', { name: '成交与资料' }).click();
       assert.equal(await page.getByRole('button', { name: '销控与佣金' }).getAttribute('data-building-id'), 'master-cbd');
       if (width === 390) {

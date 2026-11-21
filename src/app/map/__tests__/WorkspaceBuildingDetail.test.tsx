@@ -92,3 +92,12 @@ it('does not pull a changed tab back to the previous restored scroll when conten
     unmount();
   } finally { vi.unstubAllGlobals(); }
 });
+
+it('shows missing text for empty and whitespace-only facts instead of blank rows', () => {
+  const { container } = render(<WorkspaceBuildingDetail detail={{ ...base, building: { ...base.building,
+    owner: '   ', property_management: '', leed_certification: '', completion_year: '',
+  } }} {...actions()} />);
+  const facts = [...container.querySelectorAll('.workspace-building-facts dd')];
+  expect(facts.length).toBeGreaterThan(0);
+  expect(facts.every(cell => Boolean(cell.textContent?.trim()))).toBe(true);
+});

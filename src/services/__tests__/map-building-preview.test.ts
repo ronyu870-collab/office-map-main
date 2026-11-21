@@ -79,7 +79,7 @@ it('keeps the legacy fallback F marker a round green badge with dashed border', 
   expect(badge?.style.height).toBe('26px');
   expect(badge?.style.borderRadius).toBe('50%');
   expect(badge?.style.borderTopStyle).toBe('dashed');
-  expect(badge?.style.backgroundColor).toBe('rgb(16, 185, 129)');
+  expect(badge?.style.backgroundColor).toBe('rgb(79, 121, 104)');
   fireEvent.mouseOver(badge!);
   fireEvent.mouseOut(badge!);
   expect(badge?.style.borderRadius).toBe('50%');

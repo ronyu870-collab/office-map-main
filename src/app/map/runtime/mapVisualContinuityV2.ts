@@ -1,5 +1,9 @@
 'use client';
 
+import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
+import { mapBuildingLabel } from './mapMarkerLabel';
+import { markerTextColor } from './mapMarkerContrast';
+
 import type { MapController } from '@/src/services/MapController';
 import { controllerInternals, type ControllerInternals } from './mapNativeMarkerRenderer';
 
@@ -113,7 +117,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
   }
   const override = mode === 'default' ? groupColor(building, groups) : undefined;
   if (override) { background = override; border = '#ffffff'; textColor = '#ffffff'; }
-  return { background, border, textColor, text, fontSize };
+  return { background, border, textColor: markerTextColor(background, textColor), text, fontSize };
 }
 
 function dataUri(svg: string): string { return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`; }
@@ -204,6 +208,8 @@ export function installMapVisualContinuityV2(controller: MapController, containe
   let lastBuildings: any[] = [];
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
+  c.setWorkspaceSelectionRenderer?.(building => building._dataType === 'future'
+    ? futureSupplyImage(building, lastMode) : detailImage(visualFor(building, lastMode, lastGroups)));
   let pendingFrame: number | null = null;
   let disposeTimer: number | null = null;
   let selectedMarker: any | null = null;
@@ -220,9 +226,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     clearSelection();
     if (c.isWorkspaceActive?.()) return;
     if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
-    const el = document.createElement('div');
-    el.className = 'map-selected-marker';
-    el.innerHTML = '<span class="map-selected-marker__core"></span><span class="map-selected-marker__ring"></span>';
+    const el = createSelectionMarker(detailImage(visualFor(building, lastMode, lastGroups)));
     selectedMarker = new Marker({ position: [building.location_lng, building.location_lat], content: el, anchor: 'center', zIndex: 999999, bubble: true });
     map.add?.(selectedMarker);
     selectedId = String(building.id ?? '');
@@ -269,7 +273,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       const separator = mode === 'default' ? '<span class="map-submarket-bubble__sep">·</span>' : '';
       const el = document.createElement('div');
       el.className = 'map-submarket-bubble'; el.dataset.renderMode = mode; el.title = agg.name;
-      el.style.setProperty('--sm-accent', accent); el.style.setProperty('--sm-size', `${size}px`);
+      el.style.setProperty('--sm-accent', accent); el.style.setProperty('--sm-foreground', markerTextColor(accent)); el.style.setProperty('--sm-size', `${size}px`);
       el.innerHTML = `<div class="map-submarket-bubble__name">${escapeHtml(agg.name)}</div><div class="map-submarket-bubble__metrics"><span class="map-submarket-bubble__primary">${primary}</span>${separator}<span class="map-submarket-bubble__secondary">${secondary}</span></div>`;
       const marker = new Marker({ position: center, content: el, anchor: 'center', zooms: [3, 20], zIndex: 92, topWhenClick: true, opacity: 0 });
       marker.on?.('click', () => { el.classList.add('is-expanding'); map.setZoomAndCenter?.(12.15, center, false, 340); window.setTimeout(() => el.classList.remove('is-expanding'), 420); });
@@ -303,7 +307,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
       icon.on?.('mouseout', () => { icon.setOpacity?.(1); icon.setzIndex?.(rank); c.hideHoverTooltip?.(); }); icon.on?.('click', () => { showSelection(b); c.openBuildingInfoWindow?.(b.id); });
       detailItems.push(icon); labels.set(String(b.id), icon); baseRanks.set(String(b.id), rank);
       const name = String(b?.name ?? '').trim(); if (!name) continue;
-      const label = new LabelMarker({ name: `${b.id}:name`, position: [b.location_lng, b.location_lat], zooms: [13.55, 20], opacity: 1, rank: Math.max(1, rank - 1), zIndex: rank, extData: { id: b.id }, text: { content: name, direction: 'right', offset: [19, 0], style: { fontSize: 11, fontWeight: '600', fillColor: '#26394d', strokeColor: '#ffffff', strokeWidth: 3, padding: '1, 2', fold: true } } });
+      const label = new LabelMarker({ name: `${b.id}:name`, position: [b.location_lng, b.location_lat], zooms: [13.55, 20], opacity: 1, rank: Math.max(1, rank - 1), zIndex: rank, extData: { id: b.id }, text: { content: mapBuildingLabel(name), direction: 'right', offset: [22, 0], style: { fontSize: 11, fontWeight: '600', fillColor: '#26394d', strokeColor: '#ffffff', strokeWidth: 3, padding: '1, 2', fold: false } } });
       label.on?.('click', () => { showSelection(b); c.openBuildingInfoWindow?.(b.id); }); nameItems.push(label);
     }
     detail.add?.(detailItems); names.add?.(nameItems); map.add?.(detail); map.add?.(names);
@@ -322,6 +326,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     if (outgoing) removeSet(map, outgoing);
     outgoing = current; current = next;
     lastSignature = sig; lastBuildings = buildings; lastMode = mode; lastGroups = groups;
+    c.refreshWorkspaceSelection?.();
     container.classList.add('map-marker-swapping');
     requestAnimationFrame(() => {
       apply();
@@ -388,6 +393,7 @@ export function installMapVisualContinuityV2(controller: MapController, containe
     if (disposeTimer !== null) window.clearTimeout(disposeTimer);
     removeSet(map, outgoing); removeSet(map, current); clearSelection();
     map.off?.('zoomstart', onZoomStart); map.off?.('zoomchange', onZoomChange); map.off?.('zoomend', onZoomEnd); map.off?.('movestart', onMoveStart); map.off?.('moveend', onMoveEnd); map.off?.('click', onMapClick);
+    c.setWorkspaceSelectionRenderer?.(null);
     c.renderMarkers = originalRender as ControllerInternals['renderMarkers']; c.clearMarkers = originalClear as ControllerInternals['clearMarkers'];
     if (originalUpdate) c.updateVisibilityByZoom = originalUpdate; if (originalBounce) c.bounceMarker = originalBounce; if (originalStop) c.stopBounceMarker = originalStop; if (originalRefresh) c.refreshBuildingData = originalRefresh; if (originalFutureRender) c.renderFutureMarkers = originalFutureRender; if (originalFutureClear) c.clearFutureMarkers = originalFutureClear;
     container.classList.remove('map-is-zooming', 'map-is-moving', 'map-marker-rendering', 'map-marker-swapping'); delete container.dataset.markerTier; delete container.dataset.selectedBuilding;

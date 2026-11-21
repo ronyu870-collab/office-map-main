@@ -71,7 +71,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
     <div ref={scroll} className="workspace-building-scroll workspace-scroll" onScroll={event => onReadingChange?.({ tab, scrollTop: event.currentTarget.scrollTop })}>
       {!hasBuildingLocation(building) ? <p role="status">此项目未提供有效坐标，可继续查看资料。</p> : null}
       <dl className="workspace-building-metrics">
-        <div><dt>净有效租金 · 元/㎡/月</dt><dd>{number(metric?.net_effective_rent)}</dd></div>
+        <div><dt>净有效租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{number(metric?.net_effective_rent)}</dd></div>
         <div><dt>空置率</dt><dd>{number(listVacancyPercent(finiteMetric(metric?.vacancy_rate)), '%')}</dd></div>
         <div><dt>{future ? '预计总体量' : '建筑面积'} · ㎡</dt><dd>{number(future ? building.total_area : metric?.total_area)}</dd></div>
       </dl>
@@ -88,7 +88,7 @@ export function WorkspaceBuildingDetail({ detail, onClose, onAction, onDisposeTr
             aria-controls={`workspace-building-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div ref={panel} role="tabpanel" id={`workspace-building-panel-${tab}`} aria-labelledby={`workspace-building-tab-${tab}`}>
-        {tab === 'overview' ? <><dl className="workspace-building-facts">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><Photos detail={detail} /></> : null}
+        {tab === 'overview' ? <><dl className="workspace-building-facts">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{typeof value === 'string' && !value.trim() ? '未提供' : value}</dd></div>)}</dl><Photos detail={detail} /></> : null}
         {tab === 'market' ? <>
           <dl className="workspace-building-facts"><div><dt>表面租金 · 元/㎡/月</dt><dd>{number(metric?.face_rent)}</dd></div><div><dt>物业费 · 元/㎡/月</dt><dd>{number(metric?.management_fee)}</dd></div></dl>
           {!future ? <div className="workspace-business-actions">

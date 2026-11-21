@@ -1,5 +1,9 @@
 'use client';
 
+import { createSelectionMarker, futureSupplyImage } from './mapSelectionMarker';
+import { mapBuildingLabel } from './mapMarkerLabel';
+import { markerTextColor } from './mapMarkerContrast';
+
 import type { MapController } from '@/src/services/MapController';
 import { MAP_BUILDING_TIER_MIN_ZOOM } from './mapMarkerZoom';
 import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
@@ -165,7 +169,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     border = '#ffffff';
     textColor = '#ffffff';
   }
-  return { background, border, textColor, text, fontSize };
+  return { background, border, textColor: markerTextColor(background, textColor), text, fontSize };
 }
 
 function dataUri(svg: string): string {
@@ -180,35 +184,6 @@ function detailImage(visual: ReturnType<typeof visualFor>): string {
   return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="16" fill="#fff" fill-opacity=".97"/><circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="800" fill="${visual.textColor}">${escapeHtml(visual.text)}</text></svg>`);
 }
 
-
-/* V3 draws F through the same collision-aware LabelsLayer as A/B buildings.
- * Keep the 26px green circle, white dashed outline and F from the legacy marker.
- * Other render modes retain the legacy neutral / LEED semantics. */
-function futureSupplyImage(supply: any, mode: RenderMode): string {
-  let background = '#10b981';
-  let border = '#ffffff';
-  let foreground = '#ffffff';
-  let text = 'F';
-  let fontSize = 12;
-  if (mode === 'rent' || mode === 'vacancy') {
-    background = '#94a3b8';
-    text = '-';
-    fontSize = 10;
-  } else if (mode === 'leed') {
-    const leed = String(supply?.leed_certification ?? supply?.leed ?? '').toUpperCase();
-    if (leed.includes('PLATINUM')) {
-      background = '#e0f2fe'; border = '#38bdf8'; foreground = '#0369a1'; text = 'P';
-    } else if (leed.includes('GOLD')) {
-      background = '#fef3c7'; border = '#fbbf24'; foreground = '#b45309'; text = 'G';
-    } else if (leed.includes('SILVER')) {
-      background = '#f1f5f9'; border = '#94a3b8'; foreground = '#475569'; text = 'S';
-    } else {
-      background = '#f8fafc'; border = '#e2e8f0'; foreground = '#94a3b8'; text = 'N';
-    }
-  }
-  const dash = mode === 'default' ? ' stroke-dasharray="3 2"' : '';
-  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="12" fill="${background}" stroke="${border}" stroke-width="2"${dash}/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${fontSize}" font-weight="800" fill="${foreground}">${text}</text></svg>`);
-}
 
 function tierForZoom(zoom: number): MarkerTier {
   if (zoom < BREAKPOINTS.submarketToDot) return 'submarket';
@@ -325,6 +300,8 @@ export function installMapVisualHierarchyV3(
   let lastBuildings: any[] = [];
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
+  c.setWorkspaceSelectionRenderer?.(building => building._dataType === 'future'
+    ? futureSupplyImage(building, lastMode) : detailImage(visualFor(building, lastMode, lastGroups)));
   let lastShowAreaPlaceholders = false;
   let lastOverviewBuildings: any[] | undefined;
   let pendingFrame: number | null = null;
@@ -370,9 +347,7 @@ export function installMapVisualHierarchyV3(
     clearSelection();
     if (c.isWorkspaceActive?.()) return;
     if (!building || !finite(building.location_lng) || !finite(building.location_lat)) return;
-    const element = document.createElement('div');
-    element.className = 'map-selected-marker';
-    element.innerHTML = '<span class="map-selected-marker__core"></span><span class="map-selected-marker__ring"></span>';
+    const element = createSelectionMarker(detailImage(visualFor(building, lastMode, lastGroups)));
     selectedMarker = new Marker({
       position: [building.location_lng, building.location_lat],
       content: element,
@@ -501,7 +476,10 @@ export function installMapVisualHierarchyV3(
       element.dataset.renderMode = mode;
       element.title = `${aggregate.name} · 甲乙级${count}个${referenceRent ? ' · *为区域参考租金，非加权均值' : ''}`;
       element.setAttribute('aria-label', `查看${aggregate.name}子市场介绍，甲乙级${count}个，租金${rentLabel}，空置率${vacancyLabel}`);
-      if (!nameOnly) element.style.setProperty('--sm-accent', accent);
+      if (!nameOnly) {
+        element.style.setProperty('--sm-accent', accent);
+        element.style.setProperty('--sm-foreground', markerTextColor(accent));
+      }
       element.style.setProperty('--sm-size', `${size}px`);
       const metrics = nameOnly ? '' : `
         <div class="map-submarket-bubble__metrics">
@@ -674,9 +652,9 @@ export function installMapVisualHierarchyV3(
         zIndex: rank,
         extData: { id: building.id },
         text: {
-          content: buildingName,
+          content: mapBuildingLabel(buildingName),
           direction: 'right',
-          offset: [18, 0],
+          offset: [22, 0],
           style: {
             fontSize: 11,
             fontWeight: '600',
@@ -684,7 +662,7 @@ export function installMapVisualHierarchyV3(
             strokeColor: '#ffffff',
             strokeWidth: 3,
             padding: '1, 2',
-            fold: true,
+            fold: false,
           },
         },
       });
@@ -731,6 +709,7 @@ export function installMapVisualHierarchyV3(
     lastBuildings = buildings;
     lastMode = mode;
     lastGroups = groups;
+    c.refreshWorkspaceSelection?.();
     lastShowAreaPlaceholders = showAreaPlaceholders;
     lastOverviewBuildings = overviewBuildings;
     container.classList.add('map-marker-swapping');
@@ -883,6 +862,7 @@ export function installMapVisualHierarchyV3(
     map.off?.('moveend', onMoveEnd);
     map.off?.('click', onMapClick);
 
+    c.setWorkspaceSelectionRenderer?.(null);
     c.renderMarkers = originalRender as ControllerInternals['renderMarkers'];
     c.clearMarkers = originalClear as ControllerInternals['clearMarkers'];
     if (originalUpdate) c.updateVisibilityByZoom = originalUpdate;

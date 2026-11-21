@@ -181,7 +181,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
         <div className="workspace-list-name">{building.name || '未命名项目'}</div>
         <div className="workspace-list-meta">{[building.submarket, building.grade].filter(Boolean).join(' · ') || '—'}{isFuture ? ' · ' + (isPendingFutureSupply(building) ? '待核实供应' : '未来供应') : ''}</div>
         <dl className="workspace-list-metrics">
-          <div><dt>净租金 · 元/㎡/月</dt><dd>{rent}</dd></div>
+          <div><dt>净租金 · <span className="whitespace-nowrap">元/㎡/月</span></dt><dd>{rent}</dd></div>
           <div><dt>空置率</dt><dd>{vacancy}</dd></div>
           <div><dt>面积 · ㎡</dt><dd>{area}</dd></div>
         </dl>
