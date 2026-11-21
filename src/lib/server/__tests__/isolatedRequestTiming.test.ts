@@ -4,8 +4,9 @@ import type { ParsedRequirement } from '@/src/lib/intelligence/requirementSchema
 
 const fixture = vi.hoisted(() => ({
   identity: vi.fn(), access: vi.fn(), profiles: vi.fn(), authDirectory: vi.fn(), catalog: vi.fn(),
-  evidence: vi.fn(), model: vi.fn(), insert: vi.fn(),
+  evidence: vi.fn(), model: vi.fn(), insert: vi.fn(),after:[] as Array<()=>Promise<void>>,
 }));
+vi.mock('next/server',async importOriginal=>({...await importOriginal<typeof import('next/server')>(),after:(callback:()=>Promise<void>)=>fixture.after.push(callback)}));
 vi.mock('@/src/lib/server/impersonationAuth', () => ({ resolveEffectiveRequestIdentity: fixture.identity }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({
   auth: { admin: { listUsers: fixture.authDirectory } },
@@ -38,7 +39,7 @@ const parsed: ParsedRequirement = {
 };
 
 beforeEach(() => {
-  vi.resetAllMocks();
+  vi.resetAllMocks();fixture.after=[];
   vi.stubEnv('PERF_ISOLATED_SERVER_TIMING', 'preview');
   vi.stubEnv('VERCEL_ENV', 'preview');
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://synthetic.invalid');
@@ -102,6 +103,8 @@ it('requires access and the catalog before calling the model, then waits for evi
   const result = await pending;
   expect(result.status).toBe(200);
   expect((await result.json()).meta).toMatchObject({ universeCount: 0, returnedCount: 0, latestMetricPeriod: '2026 Q3' });
+  expect(fixture.insert).not.toHaveBeenCalled();
+  expect(fixture.after).toHaveLength(1);await fixture.after[0]();
   expect(fixture.insert).toHaveBeenCalledOnce();
   expect(fixture.insert).toHaveBeenCalledWith(expect.objectContaining({ action_type: 'AI_RECOMMENDATION' }));
   expect(JSON.stringify(fixture.insert.mock.calls)).not.toContain(requirement);

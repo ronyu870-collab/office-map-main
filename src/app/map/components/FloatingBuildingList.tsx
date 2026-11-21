@@ -1,4 +1,5 @@
 'use client';
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
@@ -75,6 +76,7 @@ export default function FloatingBuildingList({ buildings, active = true, display
     setExportError(null);
     try {
       const { downloadBuildingComparisonPng } = await import('./buildingComparisonExport');
+      await authorizeCriticalExport('EXPORT_BUILDING_COMPARISON', 'building_comparison', selectedComparisonBuildings.length, 'png');
       await downloadBuildingComparisonPng(selectedComparisonBuildings, layout, displayOverrides);
       logAction(undefined, 'EXPORT_BUILDING_COMPARISON', {
         format: 'png', layout, count: selectedComparisonBuildings.length,

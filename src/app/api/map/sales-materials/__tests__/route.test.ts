@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import * as route from '../route';
 const mocks=vi.hoisted(()=>({identity:vi.fn(),audit:vi.fn(),from:vi.fn(),query:vi.fn(),sign:vi.fn(),calls:[] as {table:string;op:string;args:unknown[]}[]}));
 vi.mock('@/src/lib/server/impersonationAuth',()=>({resolveEffectiveRequestIdentity:mocks.identity}));
-vi.mock('@/src/lib/serverAudit',()=>({writeAuditBestEffort:mocks.audit}));
+vi.mock('@/src/lib/serverAudit',()=>({scheduleAuditBestEffort:mocks.audit}));
 vi.mock('@supabase/supabase-js',()=>({createClient:()=>({from:mocks.from,storage:{from:()=>({createSignedUrl:mocks.sign})}})}));
 const building='749e53a6-9d2e-40f0-8d36-e42a6e6ad36d',id='22222222-2222-4222-8222-222222222222';
 const row={id,title:'空置面积表',storage_path:`${building}/${id}/original.png`,original_name:'原件.png',details:[],created_at:'2026-10-23T01:00:00Z',source_sha256:'a'.repeat(64),extraction:{contacts:[{name:'private contact'}],source_timing:{document_date_evidence:'原图页眉',received:{value:'2026-10-22',evidence:'用户提供的原始消息日期'}}}};

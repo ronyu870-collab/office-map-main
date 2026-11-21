@@ -7,9 +7,12 @@ vi.mock('@/src/components/demo', () => ({ MaskedText: ({children}: {children: Re
 vi.mock('./AuthAuditLogPanel', () => ({ AuthAuditLogPanel: () => null }));
 vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from(table: string) {
   let head = false;
+  let rowId: number | undefined;
   let selectedUsers: string[] | undefined;
   const excludedUsers = new Set<string>();
   const query: Record<string, unknown> = {
+    eq(field:string,value:unknown) { if(field==='id') rowId=Number(value); return query; },
+    maybeSingle() { return { then: (resolve:(value:unknown)=>unknown) => (query.then as (resolve:(value:any)=>unknown)=>unknown)((result:any)=>resolve({...result,data:result.data?.find((row:any)=>row.id===rowId)})) }; },
     select(_fields: string, options?: {head?: boolean}) { head = Boolean(options?.head); return query; },
     or(filter: string) { fixture.filters.push(filter); return query; },
     neq(field: string, value: string) { if (field === 'user_id') excludedUsers.add(value); return query; },
@@ -32,7 +35,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from(table: string
         : {data: head ? null : rows, count: rows.length, error: null}).then(resolve);
     },
   };
-  for (const method of ['eq','gte','order','range','ilike','abortSignal']) query[method] = () => query;
+  for (const method of ['gte','order','range','ilike','abortSignal','limit']) query[method] = () => query;
   return query;
 } } }));
 
@@ -46,7 +49,7 @@ test('legacy Codex imports show executor, business action and raw evidence', asy
   expect(screen.getByText('导入了项目资料（2 份资料、8 条参数与说明）')).toBeInTheDocument();
   expect(screen.queryByText('未匹配用户')).not.toBeInTheDocument();
   fireEvent.click(actor.closest('button')!);
-  expect(screen.getByText('导入批次')).toBeInTheDocument();
+  expect(await screen.findByText('导入批次')).toBeInTheDocument();
   expect(screen.getByText(/"user_id": "codex"/)).toBeInTheDocument();
 });
 
@@ -56,6 +59,7 @@ test('missing directory is explicit and persisted identity remains readable', as
   expect(await screen.findByRole('alert')).toHaveTextContent('用户目录暂时无法加载');
   expect(await screen.findByText('历史操作人')).toBeInTheDocument();
   expect(screen.getByText('身份待核验')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('tab', {name:'需关注'}));
   await waitFor(() => expect(fixture.filters.some(filter => filter.includes('actor_kind.eq.unknown'))).toBe(true));
 });
 
@@ -64,8 +68,7 @@ test('Codex is excluded by default while admin exclusion is opt-in, and clearing
   render(<AuditLogPage/>);
   const codex = screen.getByRole('button', {name: '排除 Codex'});
   const admins = screen.getByRole('button', {name: '排除管理员'});
-  const history = screen.getByText('历史总量').parentElement;
-  const current = screen.getByText('当前筛选').parentElement;
+
 
   await screen.findByText('4 条');
   expect(codex).toHaveAttribute('aria-pressed', 'true');
@@ -75,9 +78,8 @@ test('Codex is excluded by default while admin exclusion is opt-in, and clearing
   expect(screen.getByText('系统任务')).toBeInTheDocument();
   expect(screen.getByText('身份待核验')).toBeInTheDocument();
   expect(screen.getByText('测试管理员')).toBeInTheDocument();
-  expect(screen.getByRole('tab', {name: /^业务活动\s*4$/})).toBeInTheDocument();
-  expect(current).toHaveTextContent('4');
-  expect(history).toHaveTextContent('5');
+  expect(screen.getByRole('tab', {name: '业务活动'})).toBeInTheDocument();
+
 
   fireEvent.click(codex);
   await screen.findByText('5 条');

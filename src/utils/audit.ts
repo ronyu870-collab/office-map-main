@@ -1,30 +1,21 @@
-/**
- * 客户端审计事件队列。
- *
- * 业务操作永远不等待审计网络请求：事件先异步写入浏览器 IndexedDB，
- * 每 3 秒（或累计 20 条）批量发送。离线/临时失败的事件会保留到下次
- * 打开系统后继续发送，服务端以 event_id 去重。
- *
- * LOGIN / LOGIN_FAILED / LOGOUT 已由 Supabase Auth Audit Logs 作为权威来源，
- * 客户端兼容调用不会再生成重复的应用审计事件。
- */
+/** Client events are supplementary observations; critical evidence lives in trusted transactions. */
 import { supabase } from '../services/supabaseClient';
 import { getOrCreateDeviceId } from '../services/deviceIdentity';
 import { getSessionIdFromAccessToken } from './authSession';
 import { AUDIT_ORIGIN_SCHEMA_VERSION, isAuditOriginCurrent } from './auditOrigin';
-import { auditPolicyGate, isNoisyAuditAction } from './auditPolicy';
-import { subscribeSupabaseMutations, type SupabaseMutationNotice } from './auditMutationBridge';
-
+import { auditPolicyGate } from './auditPolicy';
+import { auditDefinition, AUDIT_SCHEMA_VERSION } from './auditRegistry';
+import { sanitizeAuditPayload, sanitizeAuditDetails } from './auditSanitizer';
+import { subscribeSupabaseMutations, setSupabaseMutationOrigin, type SupabaseMutationNotice } from './auditMutationBridge';
 const DB_NAME = 'colliers-audit-outbox-v1';
 const STORE_NAME = 'events';
 const BATCH_SIZE = 20;
 const FLUSH_DELAY_MS = 3000;
 const MAX_BACKOFF_MS = 60_000;
 const MAX_OUTBOX_EVENTS = 1500;
-const AUTO_MUTATION_DEDUPE_MS = 500;
-const AUTO_MUTATION_BUDGET_PER_MINUTE = 300;
+const MAX_BUFFER_EVENTS = 200;
+const MAX_BATCH_BYTES = 30 * 1024;
 const AUTHORITY_OWNED_AUTH_ACTIONS = new Set(['LOGIN', 'LOGIN_FAILED', 'LOGOUT']);
-
 export interface AuditEvent {
   event_id: string;
   action_type: string;
@@ -47,295 +38,244 @@ export interface AuditEvent {
   origin_auth_session_id: string;
 }
 
-interface AuditSessionContext {
-  userId: string;
-  authSessionId: string;
-  deviceId: string | null;
-}
-
+interface AuditSessionContext { userId: string; authSessionId: string; deviceId: string | null }
 let databasePromise: Promise<IDBDatabase> | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saving: Promise<void> | null = null;
 let isFlushing = false;
 let failureCount = 0;
 let initialized = false;
+let contextRevision = 0;
 let currentAuditContext: AuditSessionContext | null = null;
-const recentAutomaticMutations = new Map<string, number>();
-let automaticMutationWindowStartedAt = 0;
-let automaticMutationCount = 0;
-
-function createEventId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-}
-
-function isAuthorityOwnedAuthAction(actionType: string): boolean {
-  return AUTHORITY_OWNED_AUTH_ACTIONS.has(actionType.trim().toUpperCase());
-}
-
+const pending: AuditEvent[] = [];
+const health = { stored: 0, acknowledged: 0, discarded: 0, stale: 0, storageFailures: 0, retries: 0, pressureDrops: 0, criticalSupplementDrops: 0, missingOrigin: 0 };
+/** Local diagnostic snapshot, read only on demand by authorized admin UI. Never polled on normal routes. */
+export function getAuditQueueHealth() { return { ...health, buffered: pending.length, failureCount, isFlushing }; }
+function createEventId(): string { return crypto.randomUUID(); }
+function isAuthorityOwnedAuthAction(action: string) { return AUTHORITY_OWNED_AUTH_ACTIONS.has(action.trim().toUpperCase()); }
 export function setAuditSessionContext(params: { userId: string; accessToken?: string | null; authSessionId?: string | null }): void {
-  if (!params.userId) {
-    currentAuditContext = null;
-    return;
-  }
   const authSessionId = params.authSessionId ?? getSessionIdFromAccessToken(params.accessToken);
-  if (!authSessionId) {
-    currentAuditContext = null;
-    return;
-  }
-  currentAuditContext = {
-    userId: params.userId,
-    authSessionId,
-    deviceId: getOrCreateDeviceId(),
-  };
+  if (!params.userId || !authSessionId) { clearAuditSessionContext(); return; }
+  if (currentAuditContext?.userId === params.userId && currentAuditContext.authSessionId === authSessionId) return;
+  contextRevision += 1;
+  auditPolicyGate.reset();
+  currentAuditContext = { userId: params.userId, authSessionId, deviceId: getOrCreateDeviceId() };
+  setSupabaseMutationOrigin({userId:params.userId,authSessionId});
 }
-
 export function clearAuditSessionContext(): void {
+  contextRevision += 1;
   currentAuditContext = null;
+  setSupabaseMutationOrigin(null);
+  auditPolicyGate.reset();
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
 }
-
 export async function refreshAuditSessionContext(expectedUserId?: string): Promise<void> {
+  const revision = contextRevision;
   const { data: { session } } = await supabase.auth.getSession();
+  if (revision !== contextRevision) return;
   if (!session?.user?.id || !session.access_token || (expectedUserId && session.user.id !== expectedUserId)) {
-    clearAuditSessionContext();
-    return;
+    clearAuditSessionContext(); return;
   }
   setAuditSessionContext({ userId: session.user.id, accessToken: session.access_token });
+  // Recover persisted events after reload without an eager initialization read.
+  ensureInit(); scheduleFlush();
 }
-
 export async function ensureAuditSessionContext(userId: string): Promise<void> {
-  await refreshAuditSessionContext(userId);
+  if (currentAuditContext?.userId !== userId) await refreshAuditSessionContext(userId);
 }
-
 function getDatabase(): Promise<IDBDatabase> {
   if (databasePromise) return databasePromise;
-  databasePromise = new Promise((resolve, reject) => {
+  databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: 'event_id' });
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) request.result.createObjectStore(STORE_NAME, { keyPath: 'event_id' });
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      request.result.onversionchange = () => { request.result.close(); databasePromise = null; };
+      resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
-  });
+    request.onblocked = () => reject(new Error('AUDIT_STORAGE_BLOCKED'));
+  }).catch(error => { databasePromise = null; throw error; });
   return databasePromise;
 }
-
-async function saveEvent(event: AuditEvent): Promise<void> {
-  const db = await getDatabase();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(event);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
+/** One capacity read and one atomic transaction for a burst, including concurrent tabs. A observations are never capacity-dropped. */
+async function savePending(): Promise<void> {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  if (saving) { await saving; return; }
+  if (!pending.length) return;
+  const events = pending.splice(0, MAX_BUFFER_EVENTS);
+  saving = (async () => {
+    try {
+      const db = await getDatabase();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const count = store.count();
+        let written = 0; let dropped = 0;
+        count.onsuccess = () => {
+          let size = count.result;
+          for (const event of events) {
+            if (size >= MAX_OUTBOX_EVENTS && auditDefinition(event.action_type).tier !== 'A') { dropped++; continue; }
+            store.put(event); size++; written++;
+          }
+        };
+        tx.oncomplete = () => { health.stored += written; health.pressureDrops += dropped; resolve(); };
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      scheduleFlush();
+    } catch {
+      health.storageFailures++;
+      // Retain a bounded buffer on unavailable IndexedDB; critical authoritative logs never depend on this buffer.
+      const retained=[...events,...pending].sort((a,b)=>Number(auditDefinition(b.action_type).tier==='A')-Number(auditDefinition(a.action_type).tier==='A'));
+      const dropped=retained.slice(MAX_BUFFER_EVENTS);
+      health.criticalSupplementDrops+=dropped.filter(event=>auditDefinition(event.action_type).tier==='A').length;
+      health.pressureDrops+=dropped.length;
+      pending.splice(0,pending.length,...retained.slice(0,MAX_BUFFER_EVENTS));
+      queueFlushAfterFailure();
+    }
+  })();
+  await saving; saving = null;
 }
-
-async function getOutboxCount(): Promise<number> {
-  const db = await getDatabase();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).count();
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
 async function getBatch(): Promise<AuditEvent[]> {
   const db = await getDatabase();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).getAll(null, BATCH_SIZE);
+    const request = db.transaction(STORE_NAME).objectStore(STORE_NAME).getAll(null, BATCH_SIZE);
     request.onsuccess = () => resolve(request.result as AuditEvent[]);
     request.onerror = () => reject(request.error);
   });
 }
-
-async function removeEvents(eventIds: string[]): Promise<void> {
-  if (!eventIds.length) return;
+async function removeEvents(ids: string[]): Promise<void> {
+  if (!ids.length) return;
   const db = await getDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    eventIds.forEach(id => store.delete(id));
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+    for (const id of ids) tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
   });
 }
-
 function scheduleFlush(delay = FLUSH_DELAY_MS): void {
-  if (typeof window === 'undefined' || flushTimer) return;
-  flushTimer = setTimeout(() => {
-    flushTimer = null;
-    void flushAuditLogs();
-  }, delay);
+  if (typeof window === 'undefined' || flushTimer || !currentAuditContext) return;
+  flushTimer = setTimeout(() => { flushTimer = null; void flushAuditLogs(); }, delay);
 }
-
 function queueFlushAfterFailure(): void {
-  failureCount += 1;
-  scheduleFlush(Math.min(MAX_BACKOFF_MS, 1000 * 2 ** Math.min(failureCount, 6)));
+  failureCount++; health.retries++;
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
+  scheduleFlush(Math.min(MAX_BACKOFF_MS, 1000 * 2 ** Math.min(failureCount, 6)) * (0.75 + Math.random() * 0.25));
 }
-
 function ensureInit(): void {
   if (initialized || typeof window === 'undefined') return;
   initialized = true;
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') void flushAuditLogs();
-  });
-  window.addEventListener('online', () => void flushAuditLogs());
-  void flushAuditLogs();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') void flushAuditLogs(); });
+  window.addEventListener('online', () => { if (!flushTimer) scheduleFlush(0); });
 }
-
-async function enqueueAuditEvent(
-  event: Omit<AuditEvent, 'event_id' | 'occurred_at' | 'client_device_id' | 'origin_schema_version' | 'origin_user_id' | 'origin_auth_session_id'>,
-  occurredAt: string,
-): Promise<void> {
-  if (isNoisyAuditAction(event.action_type)) {
-    const outboxCount = await getOutboxCount().catch(() => 0);
-    if (outboxCount >= MAX_OUTBOX_EVENTS) return;
-  }
-
-  let context = currentAuditContext;
-  if (!context) {
-    await refreshAuditSessionContext().catch(() => {});
-    context = currentAuditContext;
-  }
-  if (!context) return;
-
-  const queuedEvent: AuditEvent = {
-    ...event,
-    event_id: createEventId(),
-    occurred_at: occurredAt,
-    client_device_id: context.deviceId || undefined,
-    origin_schema_version: AUDIT_ORIGIN_SCHEMA_VERSION,
-    origin_user_id: context.userId,
-    origin_auth_session_id: context.authSessionId,
-  };
-  await saveEvent(queuedEvent);
-  scheduleFlush();
-}
-
-/** 以不阻塞当前操作的方式写入队列。 */
-export function logAuditEvent(
-  event: Omit<AuditEvent, 'event_id' | 'occurred_at' | 'client_device_id' | 'origin_schema_version' | 'origin_user_id' | 'origin_auth_session_id'> & Partial<Pick<AuditEvent, 'occurred_at'>>,
-): void {
+type AuditInput = Omit<AuditEvent, 'event_id' | 'occurred_at' | 'client_device_id' | 'origin_schema_version' | 'origin_user_id' | 'origin_auth_session_id'> & Partial<Pick<AuditEvent, 'occurred_at'>>;
+/** Snapshot origin synchronously. Never discover an identity after the event happened. */
+export function logAuditEvent(event: AuditInput): void {
   if (typeof window === 'undefined') return;
-  try { if (sessionStorage.getItem('__impersonation_state')) return; } catch { /* continue */ }
-
-  const actionType = event.action_type.trim().toUpperCase();
-  if (isAuthorityOwnedAuthAction(actionType)) {
-    if (actionType === 'LOGIN') void refreshAuditSessionContext().catch(() => {});
-    return;
-  }
-  if (!auditPolicyGate.shouldRecord(actionType, event.details || {})) return;
-
-  ensureInit();
-  const occurredAt = event.occurred_at || new Date().toISOString();
-  const { occurred_at: _occurredAt, ...payload } = event;
-  void enqueueAuditEvent(payload, occurredAt).catch(() => { /* audit must never block business */ });
+  try {
+    if (sessionStorage.getItem('__impersonation_state')) return;
+    const actionType = event.action_type.trim().toUpperCase();
+    if (isAuthorityOwnedAuthAction(actionType)) return;
+    if (!auditPolicyGate.shouldRecord(actionType, event.details || {})) return;
+    const context = currentAuditContext;
+    if (!context) { health.missingOrigin++; return; }
+    if (pending.length >= MAX_BUFFER_EVENTS) {
+      const expendable=auditDefinition(actionType).tier==='A'?pending.findIndex(item=>auditDefinition(item.action_type).tier!=='A'):-1;
+      health.pressureDrops++;
+      if(expendable<0){if(auditDefinition(actionType).tier==='A')health.criticalSupplementDrops++;return;}
+      pending.splice(expendable,1);
+    }
+    ensureInit();
+    pending.push({ ...event,details:snapshotAuditValue(event.details),old_values:event.old_values?snapshotAuditValue(event.old_values):undefined,new_values:event.new_values?snapshotAuditValue(event.new_values):undefined, action_type: actionType, event_id: createEventId(), occurred_at: event.occurred_at || new Date().toISOString(),
+      client_device_id: context.deviceId || undefined, origin_schema_version: AUDIT_ORIGIN_SCHEMA_VERSION,
+      origin_user_id: context.userId, origin_auth_session_id: context.authSessionId });
+    if (!saveTimer) saveTimer = setTimeout(() => { void savePending(); }, 20);
+  } catch { health.storageFailures++; /* supplementary audit cannot fail a business call */ }
 }
-
-/** 将待发事件提交到服务端。仅供生命周期事件或测试使用；业务代码不要 await 它。 */
+/** Bound and detach caller-owned objects before buffering; no large JSON serialization on interaction. */
+function snapshotAuditValue(value: Record<string, unknown>): Record<string, unknown> {
+  let remaining=4000;
+  const visit=(input:unknown,depth:number):unknown=>{
+    if(remaining<=0||depth>4)return '[TRUNCATED]';
+    if(typeof input==='string'){const clipped=input.slice(0,Math.min(500,remaining));remaining-=clipped.length;return clipped;}
+    if(Array.isArray(input))return input.slice(0,16).map(child=>visit(child,depth+1));
+    if(input&&typeof input==='object'){
+      const result:Record<string,unknown>={};let count=0;
+      for(const key in input){if(!Object.prototype.hasOwnProperty.call(input,key))continue;if(++count>32||remaining<=0)break;remaining-=key.length+8;result[key.slice(0,100)]=visit((input as Record<string,unknown>)[key],depth+1);}
+      return result;
+    }
+    remaining-=8;return typeof input==='number'&&!Number.isFinite(input)?null:input;
+  };
+  return (visit(value,0)||{}) as Record<string,unknown>;
+}
+function boundedEvent(event: AuditEvent): AuditEvent {
+  const bounded = (value: unknown): Record<string, unknown> => {
+    const sanitized = sanitizeAuditPayload(value) as Record<string, unknown>;
+    return JSON.stringify(sanitized || {}).length > 2000 ? { _truncated: true } : sanitized;
+  };
+  return { ...event,action_type:event.action_type.slice(0,100),module:event.module?.slice(0,100),target_table:event.target_table?.slice(0,100),error_message:event.error_message?.slice(0,1000),client_device_id:event.client_device_id?.slice(0,100), target_name:event.target_name?.slice(0,500),target_id:event.target_id?.slice(0,200),page_url:event.page_url?.slice(0,500),user_agent:undefined, details: { ...sanitizeAuditDetails(event.action_type,bounded(event.details),event.module), _schema_version: AUDIT_SCHEMA_VERSION, _evidence: 'client_reported' },
+    old_values: bounded(event.old_values), new_values: bounded(event.new_values) };
+}
+/** Lifecycle only. HTTP success is insufficient; remove only explicit, in-batch acknowledgements. */
 export async function flushAuditLogs(): Promise<void> {
-  if (typeof window === 'undefined' || isFlushing) return;
+  if (typeof window === 'undefined' || isFlushing || !currentAuditContext) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
   isFlushing = true;
   try {
+    await savePending();
     const events = await getBatch();
     if (!events.length) { failureCount = 0; return; }
-
+    const revision = contextRevision;
     const { data: { session } } = await supabase.auth.getSession();
+    if (revision !== contextRevision) { scheduleFlush(); return; }
     if (!session?.access_token || !session.user?.id) { queueFlushAfterFailure(); return; }
-    const authSessionId = getSessionIdFromAccessToken(session.access_token);
-    if (!authSessionId) { queueFlushAfterFailure(); return; }
-    setAuditSessionContext({ userId: session.user.id, authSessionId });
-
-    const currentEvents = events.filter(event => isAuditOriginCurrent(event, session.user.id, authSessionId));
-    const staleIds = events
-      .filter(event => !isAuditOriginCurrent(event, session.user.id, authSessionId))
-      .map(event => event.event_id);
-    await removeEvents(staleIds);
-
-    if (!currentEvents.length) {
-      failureCount = 0;
-      if (events.length === BATCH_SIZE) scheduleFlush(0);
-      return;
+    const sessionId = getSessionIdFromAccessToken(session.access_token);
+    if (!sessionId) { queueFlushAfterFailure(); return; }
+    const current = events.filter(event => isAuditOriginCurrent(event, session.user.id, sessionId));
+    const stale = events.filter(event => !isAuditOriginCurrent(event, session.user.id, sessionId));
+    await removeEvents(stale.map(event => event.event_id)); health.stale += stale.length;
+    const batch: AuditEvent[] = [];
+    for (const event of current) {
+      const next = boundedEvent(event);
+      if (new TextEncoder().encode(JSON.stringify({ events: [...batch, next] })).byteLength > MAX_BATCH_BYTES) break;
+      batch.push(next);
     }
-
-    const response = await fetch('/api/audit-events', {
-      method: 'POST',
+    if (!batch.length) { if (events.length === BATCH_SIZE) scheduleFlush(0); return; }
+    const response = await fetch('/api/audit-events', { method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ events: currentEvents }),
-      keepalive: currentEvents.length <= BATCH_SIZE,
-    });
+      body: JSON.stringify({ events: batch }), keepalive: true, signal: AbortSignal.timeout(10_000) });
     if (!response.ok) { queueFlushAfterFailure(); return; }
-
-    const result = await response.json().catch(() => ({}));
-    const acceptedIds = Array.isArray(result.accepted_event_ids)
-      ? result.accepted_event_ids.filter((id: unknown): id is string => typeof id === 'string')
-      : currentEvents.map(event => event.event_id);
-    const discardedIds = Array.isArray(result.discarded_event_ids)
-      ? result.discarded_event_ids.filter((id: unknown): id is string => typeof id === 'string')
-      : [];
-    await removeEvents(Array.from(new Set([...acceptedIds, ...discardedIds])));
+    const result = await response.json();
+    const submitted = new Set(batch.map(event => event.event_id));
+    const ids = (value: unknown): string[] => Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string' && submitted.has(id)) : [];
+    const accepted = ids(result.accepted_event_ids); const discarded = ids(result.discarded_event_ids);
+    const removed = [...new Set([...accepted, ...discarded])];
+    if (!removed.length) { queueFlushAfterFailure(); return; }
+    await removeEvents(removed); health.acknowledged += accepted.length; health.discarded += discarded.length;
     failureCount = 0;
-    if (events.length === BATCH_SIZE) scheduleFlush(0);
-  } catch {
-    queueFlushAfterFailure();
-  } finally {
-    isFlushing = false;
-  }
+    if (removed.length < batch.length) queueFlushAfterFailure();
+    else if (events.length === BATCH_SIZE || batch.length < current.length || pending.length) scheduleFlush(0);
+  } catch { queueFlushAfterFailure(); }
+  finally { isFlushing = false; }
 }
-
 function handleAutomaticMutation(notice: SupabaseMutationNotice): void {
-  if (typeof window === 'undefined') return;
-  try { if (sessionStorage.getItem('__impersonation_state')) return; } catch { /* continue */ }
-
+  // This is an observation, never database proof. No time-window de-duplication of distinct requests.
+  if ('origin' in notice && (!notice.origin || notice.origin.userId!==currentAuditContext?.userId || notice.origin.authSessionId!==currentAuditContext.authSessionId)) return;
   const page = window.location.pathname;
-  const key = `${notice.kind}:${notice.target}:${notice.operation}:${page}`;
-  const now = Date.now();
-  const last = recentAutomaticMutations.get(key);
-  if (last !== undefined && now - last < AUTO_MUTATION_DEDUPE_MS) return;
-
-  if (automaticMutationWindowStartedAt === 0 || now - automaticMutationWindowStartedAt >= 60_000) {
-    automaticMutationWindowStartedAt = now;
-    automaticMutationCount = 0;
-  }
-  if (automaticMutationCount >= AUTO_MUTATION_BUDGET_PER_MINUTE) return;
-
-  recentAutomaticMutations.set(key, now);
-  automaticMutationCount += 1;
-  if (recentAutomaticMutations.size > 200) {
-    for (const [recentKey, timestamp] of recentAutomaticMutations) {
-      if (now - timestamp > 60_000) recentAutomaticMutations.delete(recentKey);
-    }
-  }
-
-  const actionType = notice.operation === 'INSERT'
-    ? 'DB_INSERT'
-    : notice.operation === 'DELETE'
-      ? 'DB_DELETE'
-      : 'DB_UPDATE';
-  const displayTarget = notice.kind === 'rpc' ? `RPC/${notice.target}` : notice.target;
-  logAuditEvent({
-    action_type: actionType,
-    details: {
-      table: displayTarget,
-      operation: notice.operation,
-      http_status: notice.status,
-      coverage: 'automatic_fallback',
-    },
-    request_source: 'frontend',
-    module: page.split('/')[1] || 'home',
-    page_url: page,
-    target_table: notice.kind === 'table' ? notice.target : undefined,
-    target_name: notice.kind === 'rpc' ? notice.target : undefined,
-    occurred_at: notice.occurredAt,
-  });
+  logAuditEvent({ action_type: 'CLIENT_MUTATION_OBSERVED', details: { table: notice.target, operation: notice.operation,
+    http_status: notice.status, coverage: 'automatic_fallback', outcome: 'observed' }, request_source: 'frontend',
+    module: page.split('/')[1] || 'home', page_url: page, target_table: notice.kind === 'table' ? notice.target : undefined,
+    target_name: notice.kind === 'rpc' ? notice.target : undefined, occurred_at: notice.occurredAt });
 }
-
 if (typeof window !== 'undefined') subscribeSupabaseMutations(handleAutomaticMutation);
-
 /** 兼容已有调用；身份由服务端 JWT 决定，userId 不再直接写入数据库。 */
 export function logAction(_userId: string | undefined, actionType: string, details: Record<string, unknown> = {}): void {
   if (isAuthorityOwnedAuthAction(actionType)) {
@@ -366,7 +306,7 @@ export function logAction(_userId: string | undefined, actionType: string, detai
   });
 }
 
-/** 兼容旧接口：关键事件只提前安排发送，仍不阻塞用户操作。 */
+/** 兼容接口仅安排辅助观察发送；A 类可靠性由可信事务／服务端负责。 */
 export async function logActionImmediate(userId: string | undefined, actionType: string, details: Record<string, unknown> = {}): Promise<void> {
   logAction(userId, actionType, details);
   scheduleFlush(0);

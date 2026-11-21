@@ -1,0 +1,32 @@
+{
+  "environment": "Real PostgreSQL 17; existing quarterly SQL/RPC and synthetic fixture; 10 warmup +100 measured per operation; draft includes revision read; not an HTTP or production CPU measurement",
+  "version": "PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, compiled by Apple clang version 21.0.0 (clang-2100.3.34.2), 64-bit",
+  "before": {
+    "draft": {
+      "samples": 100,
+      "p95Ms": 0.9680000000000177,
+      "medianMs": 0.6048749999999927
+    },
+    "submit": {
+      "samples": 100,
+      "p95Ms": 0.8727499999999964,
+      "medianMs": 0.5225829999999974
+    }
+  },
+  "after": {
+    "draft": {
+      "samples": 100,
+      "p95Ms": 0.6553329999999846,
+      "medianMs": 0.40654200000000174
+    },
+    "submit": {
+      "samples": 100,
+      "p95Ms": 1.0973749999999995,
+      "medianMs": 0.6996669999999767
+    }
+  },
+  "counts": {
+    "requests": 220,
+    "provenance": 220
+  }
+}

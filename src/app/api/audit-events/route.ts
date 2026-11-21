@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAuditRequestContext } from '@/src/utils/server/auditRequestContext';
-import { sanitizeAuditPayload, sanitizeAuditText } from '@/src/utils/auditSanitizer';
+import { sanitizeAuditPayload, sanitizeAuditText, sanitizeAuditDetails } from '@/src/utils/auditSanitizer';
 import { getSessionIdFromAccessToken } from '@/src/utils/authSession';
+import { AUDIT_SCHEMA_VERSION } from '@/src/utils/auditRegistry';
 import { isAuditOriginCurrent } from '@/src/utils/auditOrigin';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ function jsonWithinLimit(value: unknown, maxBytes: number): Record<string, unkno
   if (!sanitized || typeof sanitized !== 'object' || Array.isArray(sanitized)) return {};
   try {
     const serialized = JSON.stringify(sanitized);
-    if (serialized.length <= maxBytes) return sanitized as Record<string, unknown>;
+    if (new TextEncoder().encode(serialized).byteLength <= maxBytes) return sanitized as Record<string, unknown>;
     return { _truncated: true, _original_size: serialized.length };
   } catch {
     return { _unserializable: true };
@@ -52,19 +53,20 @@ function normalizeEvent(
     ? Math.max(0, Math.min(Math.round(event.duration_ms), 3_600_000))
     : null;
 
+  const aiSummary=actionType.toUpperCase().startsWith('AI_')||event.module==='intelligence';
   return {
     event_id: eventId,
     user_id: userId,
     action_type: actionType,
-    details: jsonWithinLimit(event.details, MAX_DETAILS_BYTES),
+    details: { ...sanitizeAuditDetails(actionType,jsonWithinLimit(event.details, MAX_DETAILS_BYTES),event.module), _schema_version:AUDIT_SCHEMA_VERSION,_evidence:'client_reported' },
     request_source: 'frontend',
     module: text(event.module, 100),
     page_url: text(event.page_url, 500),
     target_table: text(event.target_table, 100),
     target_id: text(event.target_id, 200),
-    target_name: text(event.target_name, 500),
-    old_values: jsonWithinLimit(event.old_values, MAX_DETAILS_BYTES),
-    new_values: jsonWithinLimit(event.new_values, MAX_DETAILS_BYTES),
+    target_name: aiSummary ? 'AI 任务摘要' : sanitizeAuditText(text(event.target_name, 500)),
+    old_values: aiSummary ? {} : jsonWithinLimit(event.old_values, MAX_DETAILS_BYTES),
+    new_values: aiSummary ? {} : jsonWithinLimit(event.new_values, MAX_DETAILS_BYTES),
     duration_ms: duration,
     error_message: sanitizeAuditText(text(event.error_message, 1000)),
     occurred_at: occurredAt(event.occurred_at),
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const raw = await request.text();
-    if (raw.length > MAX_BODY_BYTES) return NextResponse.json({ error: '日志批次过大' }, { status: 413 });
+    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) return NextResponse.json({ error: '日志批次过大' }, { status: 413 });
     const body = JSON.parse(raw) as { events?: unknown };
     if (!Array.isArray(body.events) || body.events.length === 0 || body.events.length > MAX_EVENTS_PER_REQUEST) {
       return NextResponse.json({ error: '日志批次格式无效' }, { status: 400 });
@@ -167,12 +169,11 @@ export async function POST(request: NextRequest) {
       const clientDeviceId = events.find(event => event.client_device_id)?.client_device_id;
       if (clientDeviceId) snapshot.client_device_id = clientDeviceId;
 
-      const { error: snapshotError } = await supabaseAdmin
-        .from('auth_session_audit_context')
-        .upsert(snapshot, { onConflict: 'auth_session_id' });
-      if (snapshotError) {
-        console.warn('[audit-events] 会话审计快照更新失败', snapshotError.code, snapshotError.message);
-      }
+      try { after(async () => {
+        // auth_session_audit_context remains server-owned; conditional RPC avoids rewriting identical context each batch.
+        const { error:snapshotError } = await supabaseAdmin.rpc('audit_touch_session', {p_snapshot:snapshot});
+        if (snapshotError) console.warn('[audit-events] 会话审计快照更新失败', snapshotError.code);
+      }); } catch { console.warn('[audit-events] 会话快照生命周期不可用'); }
     }
 
     if (!events.length && !discardedEventIds.length) {

@@ -1,4 +1,5 @@
 "use client";
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import * as React from "react";
 import { supabase } from "@/src/services/supabaseClient";
@@ -434,6 +435,8 @@ function SubmissionProgressSection({ dicts, period, people, buildingNamesReady }
     const gradePart = gradeSummary ? `_${gradeSummary}` : '';
     const safeUserName = userName.replace(/[\/\\:*?"<>|]/g, "_");
     const filename = `${year}Q${quarter}_${dateNum}_${safeUserName}_第${session.session_index}次_${timeNum}${gradePart}.xlsx`;
+    await authorizeCriticalExport('EXPORT_DATA', 'quarterly_submissions', uniqueRows.length);
+    if (request !== sessionRequest.current) return;
     XLSX.writeFile(wb, filename);
     logAction(undefined, 'EXPORT_DATA', {
       export_type: 'quarterly_submission_session',
@@ -1253,6 +1256,7 @@ function FutureSupplySubmissionsSection({ dicts, period }: { dicts: DictBundle; 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "未来供应数据");
     const filename = `未来供应_${year}Q${quarter}.xlsx`;
+    try { await authorizeCriticalExport('EXPORT_DATA', 'future_supply_submissions', exportRows.length); } catch { alert('导出授权未完成，请重试'); return; }
     XLSX.writeFile(wb, filename);
     logAction(undefined, 'EXPORT_DATA', {
       export_type: 'future_supply_submissions',

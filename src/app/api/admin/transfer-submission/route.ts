@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { canWriteBusinessData } from '@/src/utils/accessControl';
 
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '只能赠与自己提交的记录' }, { status: 403 });
     }
 
+    return await withCriticalAudit(supabaseAdmin, { user_id:caller.id,action_type:'TRANSFER_SUBMISSION',module:'admin',target_table:'lease_transactions',target_id:submissionId,details:{original_submitter_id:submission.submitter_id,target_user_id:targetUserId} }, 'admin/transfer-submission', async () => {
     // 执行赠与：只更新 submitter_id 和 submitter_name，不动 original_* 字段
     const { error: updateError } = await supabaseAdmin
       .from('lease_transactions')
@@ -67,21 +68,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `赠与失败: ${updateError.message}` }, { status: 500 });
     }
 
-    await writeAuditBestEffort(supabaseAdmin, {
-      user_id: caller.id,
-      action_type: 'TRANSFER_SUBMISSION',
-      details: {
-        record_id: submissionId,
-        original_submitter_id: submission.submitter_id,
-        original_submitter_name: submission.submitter_name,
-        target_user_id: targetUserId,
-        target_user_name: targetUserName,
-      },
-    }, 'admin/transfer-submission');
+
 
     return NextResponse.json({
       success: true,
       message: `已成功赠与给 ${targetUserName}`,
+    });
     });
   } catch (err: unknown) {
     console.error('[transfer-submission] 未预期的错误:', err);

@@ -1,0 +1,31 @@
+{
+  "mode": "read-only; no deployment or migration",
+  "before": {
+    "audit": {
+      "bytes": 16269312,
+      "live_estimate": 13228,
+      "deleted_cumulative": 3,
+      "updated_cumulative": 2639,
+      "inserted_cumulative": 14047
+    },
+    "captured_at": "2026-11-21T11:38:22.035653+00:00",
+    "stats_reset": "2026-07-24T08:28:18.170248+00:00",
+    "server_version": "17.6"
+  },
+  "after": {
+    "audit": {
+      "n_tup_del": 3,
+      "n_tup_ins": 14047,
+      "n_tup_upd": 2639,
+      "n_live_tup": 13228
+    },
+    "observed_at": "2026-11-21T11:51:48.476258+00:00",
+    "session_context": {
+      "n_tup_del": 0,
+      "n_tup_ins": 305,
+      "n_tup_upd": 5221,
+      "n_live_tup": 305
+    },
+    "statistics_reset": "2026-07-24T08:28:18.170248+00:00"
+  }
+}

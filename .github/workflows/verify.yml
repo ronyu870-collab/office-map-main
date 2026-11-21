@@ -218,6 +218,13 @@ jobs:
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 
+      - name: Real PostgreSQL Audit 2 reliability and permission regressions
+        run: |
+          node supabase/tests/audit-2/run.mjs
+          node supabase/tests/audit-2/quarterly-performance.mjs
+        env:
+          LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
+
       - name: Real PostgreSQL AI query audit regressions
         run: |
           node supabase/tests/ai-query-audit/run.mjs
@@ -359,6 +366,7 @@ jobs:
           node scripts/verification/verify-map-workspace.mjs http://127.0.0.1:3210
           node scripts/performance/verify-frozen-meeting-map.mjs http://127.0.0.1:3210
           node scripts/performance/verify-map-pdf-preview.mjs http://127.0.0.1:3210
+          node scripts/performance/verify-audit-lifecycle.mjs
           node scripts/performance/verify-audit-search.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-workspace-read.mjs http://127.0.0.1:3210
           node scripts/performance/verify-lease-history-count.mjs http://127.0.0.1:3210

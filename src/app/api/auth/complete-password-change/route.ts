@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { validatePassword } from '@/src/utils/passwordPolicy';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     }
     const newPassword = body.password as string;
 
+    return await withCriticalAudit(supabaseAdmin, { user_id:user.id,action_type:'CHANGE_PASSWORD',module:'settings',target_id:user.id,details:{required_change_completed:true} }, 'auth/complete-password-change', async () => {
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
       password: newPassword,
       app_metadata: {
@@ -43,13 +44,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `密码修改失败: ${updateError.message}` }, { status: 500 });
     }
 
-    await writeAuditBestEffort(supabaseAdmin, {
-      user_id: user.email || user.id,
-      action_type: 'CHANGE_PASSWORD',
-      details: { status: 'success', required_change_completed: true },
-    }, 'auth/complete-password-change');
+
 
     return NextResponse.json({ success: true });
+    });
   } catch (error) {
     console.error('[complete-password-change] 异常:', error);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });

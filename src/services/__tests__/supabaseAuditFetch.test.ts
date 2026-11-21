@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAuditAwareFetch } from '@/src/services/supabaseAuditFetch';
 import { subscribeSupabaseMutations, type SupabaseMutationNotice } from '@/src/utils/auditMutationBridge';
+import { readCompareSnapshot,clearCompareSnapshot } from '@/src/services/compareSnapshot';
 
 function successfulFetch() {
   return vi.fn(async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
@@ -69,4 +70,19 @@ describe('Supabase audit-aware fetch', () => {
     expect(notices).toHaveLength(1);
     expect(notices[0]).toMatchObject({ kind: 'rpc', target: 'lock_quarter', operation: 'RPC' });
   });
+});
+
+it('invalidates comparison snapshots for transaction-audited writes even without an audit subscriber',async()=>{
+ clearCompareSnapshot();const load=vi.fn(async()=>({version:1}));
+ await readCompareSnapshot('fixture',load);await readCompareSnapshot('fixture',load);expect(load).toHaveBeenCalledTimes(1);
+ const notices=await capture(fetcher=>fetcher('https://example.supabase.co/rest/v1/rpc/submit_quarterly_batch_v2',{method:'POST',body:'{}'}));
+ expect(notices).toEqual([]);await readCompareSnapshot('fixture',load);expect(load).toHaveBeenCalledTimes(2);
+});
+
+it('preserves the original response body and transport failures while observation listeners fail',async()=>{
+ const response=new Response('original-business-body',{status:200});const clone=vi.spyOn(response,'clone');
+ const transport=vi.fn(async()=>response);const input='https://example.supabase.co/rest/v1/buildings';const init={method:'PATCH',body:'x'.repeat(100000)};
+ const stop=subscribeSupabaseMutations(()=>{throw new Error('observer failure');});
+ try{const actual=await createAuditAwareFetch(transport)(input,init);await settleAuditMicrotasks();expect(actual).toBe(response);expect(await actual.text()).toBe('original-business-body');expect(clone).not.toHaveBeenCalled();expect(transport).toHaveBeenCalledWith(input,init);}finally{stop();}
+ const error=new TypeError('business network failure');const failed=vi.fn(async()=>{throw error;});await expect(createAuditAwareFetch(failed)(input,init)).rejects.toBe(error);
 });

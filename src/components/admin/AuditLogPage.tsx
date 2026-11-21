@@ -1,4 +1,5 @@
 'use client';
+import { AuditQuarterlyEvidence } from './AuditQuarterlyEvidence';
 
 import * as React from 'react';
 import Link from 'next/link';
@@ -7,10 +8,13 @@ import { supabase } from '@/src/services/supabaseClient';
 import { getLogBadgeStyle, parseAuditLog } from '@/src/utils/auditTranslator';
 import { displayAuditActor, isUnresolvedAuditActor } from '@/src/utils/auditActor';
 import { MaskedText } from '@/src/components/demo';
+import { auditDefinition, auditOutcome } from '@/src/utils/auditRegistry';
+import { applyAuditFilters, auditFiltersSchema, TRAIL_ACTIONS, DATABASE_ACTIONS, FILE_ACTIONS, HIGH_RISK_ACTIONS, type AuditFilters } from '@/src/lib/audit/query';
+import { AuditHealthPanel } from './AuditHealthPanel';
 import { AuthAuditLogPanel } from './AuthAuditLogPanel';
 
-type AuditTab = 'user' | 'files' | 'admin' | 'database' | 'trail' | 'security' | 'auth';
-type AppAuditTab = Exclude<AuditTab, 'auth'>;
+type AuditTab = 'all' | 'people' | 'health' | 'user' | 'files' | 'admin' | 'database' | 'trail' | 'security' | 'auth';
+type AppAuditTab = Exclude<AuditTab, 'auth' | 'health'>;
 
 interface AuditLog {
   id: number; user_id: string; action_type: string; details: Record<string, unknown>; created_at: string;
@@ -18,41 +22,26 @@ interface AuditLog {
   user_agent?: string; auth_session_id?: string; client_device_id?: string;
   browser_name?: string; browser_version?: string; os_name?: string; os_version?: string; device_type?: string;
   request_source?: string; module?: string; page_url?: string; target_table?: string; target_id?: string; target_name?: string;
-  actor_kind?: string; actor_name?: string;
+  actor_kind?: string; actor_name?: string; actor_role?:string;
   old_values?: Record<string, unknown>; new_values?: Record<string, unknown>; error_message?: string;
 }
 interface AuditLogWithUser extends AuditLog { user_name?: string }
 interface UserOption { id: string; name: string; auditIds: string[]; role?: string }
-const APP_AUDIT_TABS = ['user','files','admin','database','trail','security'] as const;
-const EMPTY_TEXT_FILTERS = { object: '', ip: '', device: '', session: '' };
+const LIST_FIELDS = 'id,user_id,action_type,created_at,occurred_at,actor_kind,actor_name,actor_role,request_source,module,target_table,target_id,target_name,error_message,photo_count:details->photo_count,material_count:details->material_count,parameter_and_note_count:details->parameter_and_note_count,operation:details->operation,table:details->table,table_label:details->table_label,outcome:details->outcome,count:details->count';
+const EMPTY_TEXT_FILTERS = { object: '', ip: '', device: '', session: '', targetTable:'',targetId:'',operationId:'',from:'',to:'' };
 const SEARCH_SETTLE_MS = 280;
 const DEFAULT_EXCLUDE_CODEX = true;
 
 const PAGE_SIZE = 50;
-const EXCLUSION_BUTTON = 'rounded-md border px-2.5 py-1.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-40';
+const EXCLUSION_BUTTON = 'rounded-md border px-2.5 py-1.5 text-[13px] transition disabled:cursor-not-allowed disabled:opacity-40';
 
 function exclusionClass(active: boolean) {
   return `${EXCLUSION_BUTTON} ${active ? 'border-[#24478f] bg-blue-50 text-[#24478f]' : 'border-zinc-200 text-zinc-600'}`;
 }
 const MODULE_NAMES: Record<string, string> = { map:'楼宇地图', compare:'楼宇对比', admin:'管理后台', update:'季度填报', bi:'商业分析', intelligence:'业务智能', 'lease-submission':'租赁成交', oss:'研究资料库', login:'登录', home:'首页', settings:'修改密码' };
 
-const TRAIL_ACTIONS = [
-  'PAGE_VIEW','ENTER_MODULE','MAP_FILTER','SEARCH','VIEW_BUILDING','VIEW_BI_CHART',
-  'OPEN_LEASE_FORM','LOOKUP_LEASE_COMPANY_HISTORY','VIEW_USER_SUBMISSION',
-];
-const DATABASE_ACTIONS = ['DB_INSERT','DB_UPDATE','DB_DELETE','LEASE_TRANSACTION_UPDATE','LEASE_EXPIRY_REVIEW_SAVE'];
 const AUTH_ACTIONS = ['LOGIN','LOGIN_FAILED','LOGOUT'];
-const FILE_ACTIONS = [
-  'OSS_FILE_ACCESS','OSS_UPLOAD','OSS_DELETE','OSS_BATCH_DELETE','OSS_CREATE_FOLDER','OSS_MOVE',
-  'EXPORT_DATA','EXPORT_LEASE_TRANSACTIONS','EXPORT_BACKUP','EXPORT_MAP_DATA','EXPORT_REPORT','EXPORT_TABLE','EXPORT_CHART',
-  'UPLOAD_FILE','DELETE_FILE','IMPORT_DATA','SALES_MATERIAL_IMPORT','SALES_MATERIAL_ACCESS',
-];
-const HIGH_RISK_ACTIONS = [
-  'LOGIN_FAILED','DELETE_USER','DELETE_PROJECT','DB_DELETE','OSS_DELETE','OSS_BATCH_DELETE',
-  'IMPERSONATE_START','impersonate_start','CHANGE_PASSWORD','ACCESS_DENIED','EXPORT_BACKUP',
-];
 const HIGH_RISK_SET = new Set(HIGH_RISK_ACTIONS);
-const HIGH_RISK_FILTER = `action_type.in.(${HIGH_RISK_ACTIONS.join(',')}),error_message.not.is.null,actor_kind.eq.unknown`;
 const BUSINESS_EXCLUDED_ACTIONS = Array.from(new Set([
   'ADMIN_DATA_OPERATION',
   ...DATABASE_ACTIONS,
@@ -96,8 +85,7 @@ function formatFullTime(value: string) { return new Intl.DateTimeFormat('zh-CN',
 function isHighRisk(log: AuditLog) { return HIGH_RISK_SET.has(log.action_type) || Boolean(log.error_message) || isUnresolvedAuditActor(log); }
 function readable(value: unknown) { if (value == null || value === '') return '—'; if (typeof value === 'object') return JSON.stringify(value); return String(value); }
 function isReadableText(value: unknown): value is string { return typeof value === 'string' && value.trim().length > 0 && !/[\u0000-\u001F\uFFFD]/.test(value); }
-function sourceLabel(source?: string) { if (source === 'database_trigger') return '数据库触发器'; if (source === 'frontend') return '用户界面'; if (source === 'server') return '服务端'; return source || '系统'; }
-function deviceSummary(log: AuditLog) { return [log.os_name, log.browser_name].filter(Boolean).join(' · ') || log.device_type || '—'; }
+function sourceLabel(source?: string) { if (source === 'database_trigger') return '数据库触发器'; if (source === 'frontend') return '用户界面'; if (source === 'server') return '服务端'; return source || '来源未标记'; }
 function detailLabel(key: string) { return DETAIL_LABELS[key] || key; }
 function objectSummary(log: AuditLog) {
   const p = log.details || {};
@@ -116,34 +104,49 @@ function objectSummary(log: AuditLog) {
   return value ? String(value) : '—';
 }
 
-function LogItem({ log, isDemo }: { log: AuditLogWithUser; isDemo: boolean }) {
+function LogItem({ log, isDemo,onTimeline }: { log: AuditLogWithUser; isDemo: boolean;onTimeline:(table:string,id:string)=>void }) {
   const [expanded,setExpanded] = useState(false);
+  const [full,setFull] = useState<AuditLogWithUser | null>(null);
+  const [detailError,setDetailError] = useState('');
+  useEffect(() => {
+    if (!expanded) return;
+    const controller = new AbortController();
+    void supabase.from('audit_logs').select('*').eq('id',log.id).abortSignal(controller.signal).maybeSingle().then(({data,error}) => {
+      if (controller.signal.aborted) return;
+      if (error || !data) { setDetailError('详情暂时无法加载，可能已失去读取权限。'); return; }
+      setFull({ ...data, user_name:log.user_name });
+    },()=>{if(!controller.signal.aborted)setDetailError('详情暂时无法加载，请重试。');});
+    return () => controller.abort();
+  }, [expanded, log.id, log.user_name]);
+  log = full || log;
   const badge = getLogBadgeStyle(log.action_type);
   const details = Object.entries(log.details || {}).filter(([key]) => !key.startsWith('_') && key !== 'changed_fields').slice(0,8);
   const before = log.old_values || {}; const after = log.new_values || {};
   const changes = Array.from(new Set([...Object.keys(before),...Object.keys(after)])).filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]));
   const when = log.occurred_at || log.created_at;
   return <article className={`border-b border-zinc-100 ${isHighRisk(log) ? 'bg-amber-50/30' : 'bg-white'}`}>
-    <button type="button" onClick={() => setExpanded(v => !v)} aria-expanded={expanded} className="grid w-full grid-cols-[88px_minmax(120px,.75fr)_minmax(260px,2fr)_minmax(130px,.9fr)_130px_24px] items-center gap-3 px-5 py-3 text-left hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#24478f] max-lg:grid-cols-[78px_minmax(0,1fr)_100px_20px]">
-      <time className="text-xs tabular-nums text-zinc-400">{formatTime(when)}</time>
-      <span className="truncate text-xs text-zinc-600"><MaskedText>{displayAuditActor(log)}</MaskedText></span>
-      <span className="min-w-0 flex items-center gap-2"><span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${badge.className}`}>{badge.label}</span>{isHighRisk(log) && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">需关注</span>}<span className="truncate text-[13px] text-zinc-800">{parseAuditLog(log.action_type,log.details)}</span></span>
-      <span className="truncate text-xs text-zinc-500 max-lg:hidden">{objectSummary(log)}</span>
-      <span className="truncate text-right text-[11px] text-zinc-400 max-lg:hidden">{deviceSummary(log)}</span>
+    <button type="button" onClick={() => {setFull(null);setDetailError('');setExpanded(v => !v);}} aria-expanded={expanded} className="grid w-full grid-cols-[88px_minmax(120px,.75fr)_minmax(260px,2fr)_minmax(130px,.9fr)_130px_24px] items-center gap-3 px-5 py-3 text-left hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#24478f] max-lg:grid-cols-[78px_minmax(0,1fr)_100px_20px]">
+      <time className="text-[13px] tabular-nums text-zinc-400">{formatTime(when)}</time>
+      <span className="truncate text-[13px] text-zinc-600"><MaskedText>{displayAuditActor(log)}</MaskedText></span>
+      <span className="min-w-0 flex items-center gap-2"><span className={`shrink-0 rounded px-1.5 py-0.5 text-[13px] font-medium ring-1 ring-inset ${badge.className}`}>{badge.label}</span>{isHighRisk(log) && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[13px] font-medium text-amber-800">需关注</span>}<span className="truncate text-[13px] text-zinc-800">{parseAuditLog(log.action_type,log.details)}</span></span>
+      <span className="truncate text-[13px] text-zinc-500 max-lg:hidden">{objectSummary(log)}</span>
+      <span className="text-right text-[13px] text-zinc-600 max-lg:hidden">{auditOutcome(log)} · {auditDefinition(log.action_type).tier}</span>
       <svg aria-hidden="true" className={`h-3.5 w-3.5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" /></svg>
     </button>
     {expanded && <div className="border-t border-zinc-100 bg-zinc-50 px-5 py-4">
-      <div className="grid gap-x-8 gap-y-2 text-xs text-zinc-500 sm:grid-cols-2 lg:grid-cols-4">
+      {log.target_table && log.target_id && <button type="button" className="mb-3 min-h-11 rounded border px-3" onClick={()=>onTimeline(log.target_table!,log.target_id!)}>查看此对象时间线</button>}
+      {detailError && <p role="alert">{detailError}</p>}
+      <div className="grid gap-x-8 gap-y-2 text-[13px] text-zinc-500 sm:grid-cols-2 lg:grid-cols-4">
         <span className="break-words sm:col-span-2"><b className="font-medium text-zinc-700">操作人：</b><MaskedText>{displayAuditActor(log)}</MaskedText></span><span className="break-words sm:col-span-2"><b className="font-medium text-zinc-700">操作内容：</b>{parseAuditLog(log.action_type,log.details)}</span>
         <span className="break-words sm:col-span-2"><b className="font-medium text-zinc-700">操作对象：</b>{objectSummary(log)}</span>
-        <span><b className="font-medium text-zinc-700">发生时间：</b>{formatFullTime(when)}</span><span><b className="font-medium text-zinc-700">入库时间：</b>{formatFullTime(log.created_at)}</span><span><b className="font-medium text-zinc-700">模块：</b>{moduleName(log.module)}</span><span><b className="font-medium text-zinc-700">来源：</b>{sourceLabel(log.request_source)}</span>
+        <span><b className="font-medium text-zinc-700">结果 / 级别：</b>{auditOutcome(log)} · {auditDefinition(log.action_type).tier}</span><span><b className="font-medium text-zinc-700">入库时角色：</b>{log.actor_role || '历史未记录'}</span><span><b className="font-medium text-zinc-700">发生时间：</b>{formatFullTime(when)}</span><span><b className="font-medium text-zinc-700">入库时间：</b>{formatFullTime(log.created_at)}</span><span><b className="font-medium text-zinc-700">模块：</b>{moduleName(log.module)}</span><span><b className="font-medium text-zinc-700">来源：</b>{sourceLabel(log.request_source)}</span>
         <span><b className="font-medium text-zinc-700">IP：</b>{isDemo ? '***' : log.ip_address || '—'}</span><span><b className="font-medium text-zinc-700">地区：</b>{isDemo ? '***' : [log.ip_country,log.ip_region,log.ip_city].filter(Boolean).join(' / ') || '—'}</span><span><b className="font-medium text-zinc-700">设备：</b>{[log.os_name,log.os_version,log.browser_name,log.browser_version].filter(Boolean).join(' ') || '—'}</span><span><b className="font-medium text-zinc-700">类型：</b>{log.device_type || '—'}</span>
         <span className="sm:col-span-2"><b className="font-medium text-zinc-700">Device ID：</b><span className="font-mono">{isDemo ? '***' : log.client_device_id || '—'}</span></span><span className="sm:col-span-2"><b className="font-medium text-zinc-700">Auth Session：</b><span className="font-mono">{isDemo ? '***' : log.auth_session_id || '—'}</span></span>
       </div>
-      {details.length > 0 && <div className="mt-4 overflow-hidden rounded-md border border-zinc-200 bg-white"><div className="border-b border-zinc-100 px-3 py-2 text-xs font-medium text-zinc-800">操作信息</div><div className="grid sm:grid-cols-2">{details.map(([key,value]) => <div key={key} className="flex gap-3 border-b border-zinc-100 px-3 py-2 text-xs"><span className="shrink-0 text-zinc-400">{detailLabel(key)}</span><span className="break-words text-zinc-700">{readable(value)}</span></div>)}</div></div>}
-      {changes.length > 0 && <div className="mt-4 overflow-hidden rounded-md border border-zinc-200 bg-white"><div className="border-b border-zinc-100 px-3 py-2 text-xs font-medium text-zinc-800">字段变更</div>{changes.map(key => <div key={key} className="grid grid-cols-[minmax(100px,.7fr)_1fr_1fr] border-b border-zinc-100 text-xs"><div className="px-3 py-2 text-zinc-700">{key}</div><div className="px-3 py-2 text-zinc-500">{readable(before[key])}</div><div className="px-3 py-2 text-zinc-800">{readable(after[key])}</div></div>)}</div>}
-      {log.error_message && <p className="mt-3 rounded border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">失败原因：{log.error_message}</p>}
-      <details className="mt-3 text-xs text-zinc-500"><summary className="cursor-pointer">技术详情</summary><pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-900 p-3 text-[11px] text-zinc-200">{JSON.stringify({ id:log.id,user_id:isDemo?'***':log.user_id,actor_kind:log.actor_kind,action_type:log.action_type,request_source:log.request_source,details:isDemo?undefined:log.details,page_url:log.page_url,target_id:log.target_id,user_agent:log.user_agent },null,2)}</pre></details>
+      {details.length > 0 && <div className="mt-4 overflow-hidden rounded-md border border-zinc-200 bg-white"><div className="border-b border-zinc-100 px-3 py-2 text-[13px] font-medium text-zinc-800">操作信息</div><div className="grid sm:grid-cols-2">{details.map(([key,value]) => <div key={key} className="flex gap-3 border-b border-zinc-100 px-3 py-2 text-[13px]"><span className="shrink-0 text-zinc-400">{detailLabel(key)}</span><span className="break-words text-zinc-700">{readable(value)}</span></div>)}</div></div>}
+      {changes.length > 0 && <div className="mt-4 overflow-hidden rounded-md border border-zinc-200 bg-white"><div className="border-b border-zinc-100 px-3 py-2 text-[13px] font-medium text-zinc-800">字段变更</div>{changes.map(key => <div key={key} className="grid grid-cols-[minmax(100px,.7fr)_1fr_1fr] border-b border-zinc-100 text-[13px]"><div className="px-3 py-2 text-zinc-700">{key}</div><div className="px-3 py-2 text-zinc-500">{readable(before[key])}</div><div className="px-3 py-2 text-zinc-800">{readable(after[key])}</div></div>)}</div>}
+      {log.error_message && <p className="mt-3 rounded border border-red-100 bg-red-50 px-3 py-2 text-[13px] text-red-700">失败原因：{log.error_message}</p>}
+      <details className="mt-3 text-[13px] text-zinc-500"><summary className="cursor-pointer">技术详情</summary><pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-900 p-3 text-[13px] text-zinc-200">{JSON.stringify({ id:log.id,user_id:isDemo?'***':log.user_id,actor_kind:log.actor_kind,actor_role_at_ingestion:log.actor_role,action_type:log.action_type,request_source:log.request_source,details:isDemo?undefined:log.details,page_url:log.page_url,target_id:log.target_id,user_agent:log.user_agent },null,2)}</pre></details>
     </div>}
   </article>;
 }
@@ -157,9 +160,15 @@ export function AuditLogPage() {
   const [textDraft,setTextDraft] = useState(EMPTY_TEXT_FILTERS);
   const [textFilters,setTextFilters] = useState(EMPTY_TEXT_FILTERS);
   const [composing,setComposing] = useState(false);
+  const [tier,setTier] = useState<AuditFilters['tier']>('');
+  const [outcome,setOutcome] = useState<AuditFilters['outcome']>('');
+  const [exportFormat,setExportFormat] = useState<'csv'|'xlsx'|'json'>('csv');
+  const [exporting,setExporting] = useState(false);const [exportStatus,setExportStatus] = useState('');
   const [deviceType,setDeviceType] = useState('ALL');
-  const [page,setPage] = useState(0); const [totalCount,setTotalCount] = useState(0); const [historyTotal,setHistoryTotal] = useState(0); const [isDemo,setIsDemo] = useState(false); const [lastUpdated,setLastUpdated] = useState<Date|null>(null); const [authRefresh,setAuthRefresh] = useState(0);
-  const [tabCounts,setTabCounts] = useState({user:0,files:0,admin:0,database:0,trail:0,security:0}); const [userOptions,setUserOptions] = useState<UserOption[]>([]);
+  const [page,setPage] = useState(0); const [totalCount,setTotalCount] = useState(0); const [isDemo,setIsDemo] = useState(false); const [lastUpdated,setLastUpdated] = useState<Date|null>(null); const [authRefresh,setAuthRefresh] = useState(0);
+  const [hasNext,setHasNext] = useState(false);
+  const cursors = React.useRef<Array<{time:string;id:number} | null>>([null]);
+  const [userOptions,setUserOptions] = useState<UserOption[]>([]);
   const rowsRequest = React.useRef<AbortController | null>(null);
   const textPending = textDraft !== textFilters;
 
@@ -179,90 +188,74 @@ export function AuditLogPage() {
   const codexExcluded = filterUser === 'ALL' && excludeCodex;
   const logsWithUsers = useMemo(() => logs.map(log => ({ ...log, user_name: userNames.get(log.user_id) })), [logs, userNames]);
 
-  const applyFilters = useCallback((query:any, tab:AppAuditTab) => {
-    if(tab==='admin') {
-      query=query.eq('action_type','ADMIN_DATA_OPERATION');
-    } else if(tab==='files') {
-      query=query.in('action_type',FILE_ACTIONS);
-    } else if(tab==='database') {
-      query=query.or(`request_source.eq.database_trigger,action_type.in.(${DATABASE_ACTIONS.join(',')})`);
-    } else if(tab==='trail') {
-      query=query.in('action_type',TRAIL_ACTIONS);
-    } else if(tab==='security') {
-      query=query.or(HIGH_RISK_FILTER);
-    } else {
-      for (const action of BUSINESS_EXCLUDED_ACTIONS) query=query.neq('action_type',action);
-      query=query.or('request_source.neq.database_trigger,request_source.is.null');
-    }
-
-    if(selectedAuditIds){
-      query=query.in('user_id',selectedAuditIds);
-    } else if(excludedAuditIds) {
-      for (const adminId of excludedAuditIds) query=query.neq('user_id',adminId);
-    }
-
-    if(codexExcluded) query=query.neq('user_id','codex');
-
-    if(filterAction!=='ALL') query=query.eq('action_type',filterAction);
-    if(filterModule!=='ALL') query=query.eq('module',filterModule);
-    if(textFilters.object.trim()) query=query.ilike('target_name',`%${textFilters.object.trim()}%`);
-    if(highRiskOnly&&tab!=='security') query=query.or(HIGH_RISK_FILTER);
-    if(timeRange!=='all'){ const now=new Date(); const start=timeRange==='today'?new Date(now.getFullYear(),now.getMonth(),now.getDate()):timeRange==='week'?new Date(now.getTime()-7*86400000):new Date(now.getFullYear(),now.getMonth(),1); query=query.gte('occurred_at',start.toISOString()); }
-    if(textFilters.ip.trim()) query=query.ilike('ip_address',`%${textFilters.ip.trim()}%`);
-    if(textFilters.device.trim()) query=query.ilike('client_device_id',`%${textFilters.device.trim()}%`);
-    if(textFilters.session.trim()) query=query.eq('auth_session_id',textFilters.session.trim());
-    if(deviceType!=='ALL') query=query.eq('device_type',deviceType);
-    return query;
-  },[codexExcluded, deviceType, excludedAuditIds, filterAction, filterModule, highRiskOnly, selectedAuditIds, textFilters, timeRange]);
-
+  const activeFilters=useMemo<AuditFilters>(()=>{
+    const now=new Date();
+    const from=textFilters.from?new Date(textFilters.from).toISOString():timeRange==='all'?'':timeRange==='today'?new Date(now.getFullYear(),now.getMonth(),now.getDate()).toISOString():timeRange==='week'?new Date(now.getTime()-7*86400000).toISOString():new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+    return {view:logTab==='auth'||logTab==='health'?'all':logTab,users:selectedAuditIds,excludedUsers:excludedAuditIds,
+      excludeCodex:codexExcluded,action:filterAction==='ALL'?'':filterAction,module:filterModule==='ALL'?'':filterModule,
+      ...textFilters,from,to:textFilters.to?new Date(textFilters.to).toISOString():'',deviceType:deviceType==='ALL'?'':deviceType as AuditFilters['deviceType'],highRisk:highRiskOnly,tier,outcome};
+  },[logTab,selectedAuditIds,excludedAuditIds,codexExcluded,filterAction,filterModule,textFilters,timeRange,deviceType,highRiskOnly,tier,outcome]);
+  const applyFilters=useCallback((query:any,tab:AppAuditTab)=>applyAuditFilters(query,{...activeFilters,view:tab}),[activeFilters]);
+  const exportLogs=async()=>{
+    setExporting(true);setExportStatus('正在生成当前筛选的摘要文件，最多 500 条…');
+    try {
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session)throw new Error('登录已失效');
+      const response=await fetch('/api/admin/audit/export',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({filters:activeFilters,format:exportFormat,limit:500}),signal:AbortSignal.timeout(30000)});
+      if(!response.ok)throw new Error((await response.json()).error||'导出失败');
+      const blob=await response.blob();
+      const {data:{session:current}}=await supabase.auth.getSession();
+      if(current?.user.id!==session.user.id || current?.access_token!==session.access_token)throw new Error('登录状态已变更，请重新导出');
+      const href=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=href;anchor.download=`business-audit.${exportFormat}`;anchor.click();setTimeout(()=>URL.revokeObjectURL(href),1000);
+      setExportStatus(`已生成 ${response.headers.get('X-Audit-Row-Count')||''} 条摘要。`);
+    }catch(error){setExportStatus(error instanceof Error?error.message:'导出失败');}finally{setExporting(false);}
+  };
   const fetchLogs = useCallback(async (nextPage: number) => {
-    if (logTab === 'auth') return;
+    if (logTab === 'auth' || logTab === 'health') return;
     rowsRequest.current?.abort();
     const controller = new AbortController();
     rowsRequest.current = controller;
     setLoading(true);
     setLoadError('');
     try {
-      const query = applyFilters(supabase.from('audit_logs').select('*', { count: 'exact' }), logTab).order('occurred_at', { ascending: false });
-      const { data, count, error } = await query.range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1).abortSignal(controller.signal);
+      if(!auditFiltersSchema.safeParse(activeFilters).success) throw new Error('筛选格式无效');
+      const query = applyFilters(supabase.from('audit_logs').select(LIST_FIELDS), logTab).order('occurred_at', { ascending: false });
+      const cursor = cursors.current[nextPage];
+      if (nextPage > 0 && cursor) query.or(`occurred_at.lt.${cursor.time},and(occurred_at.eq.${cursor.time},id.lt.${cursor.id})`);
+      const { data, error } = await query.order('id', { ascending:false }).limit(PAGE_SIZE + 1).abortSignal(controller.signal);
       if (controller.signal.aborted) return;
       if (error) throw error;
-      setLogs(data ?? []);
-      setTotalCount(count ?? 0);
+      const rows = (data ?? []).slice(0,PAGE_SIZE).map((row:any) => ({...row,details:row.details || {photo_count:row.photo_count,material_count:row.material_count,parameter_and_note_count:row.parameter_and_note_count,operation:row.operation,table:row.table,table_label:row.table_label,outcome:row.outcome,count:row.count}}));
+      setLogs(rows);
+      setHasNext((data?.length || 0) > PAGE_SIZE);
+      const last=rows.at(-1);
+      if (last) cursors.current[nextPage+1]={time:last.occurred_at || last.created_at,id:last.id};
+      setTotalCount(nextPage*PAGE_SIZE+rows.length);
       setLastUpdated(new Date());
     } catch (error) {
       if (controller.signal.aborted) return;
       console.error('获取审计日志失败:', error);
       setLogs([]);
+      setHasNext(false);
       setTotalCount(0);
       setLoadError('日志暂时无法加载，请刷新后重试。');
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [applyFilters, logTab]);
+  }, [activeFilters, applyFilters, logTab]);
   useEffect(() => {
-    if (logTab === 'auth') return;
+    if (logTab === 'auth' || logTab === 'health') return;
     let active = true;
     queueMicrotask(() => {
       if (!active) return;
+      cursors.current = [null];
       setPage(0);
       void fetchLogs(0);
     });
     return () => { active = false; rowsRequest.current?.abort(); };
   }, [fetchLogs, logTab]);
-  useEffect(() => {
-    const controller = new AbortController();
-    void Promise.all(APP_AUDIT_TABS.map(tab => applyFilters(supabase.from('audit_logs').select('*', { count: 'exact', head: true }), tab).abortSignal(controller.signal)))
-      .then(([user, files, admin, database, trail, security]) => {
-        if (controller.signal.aborted) return;
-        setTabCounts({ user: user.count ?? 0, files: files.count ?? 0, admin: admin.count ?? 0, database: database.count ?? 0, trail: trail.count ?? 0, security: security.count ?? 0 });
-      });
-    return () => controller.abort();
-  }, [applyFilters]);
-  useEffect(()=>{supabase.from('audit_logs').select('*',{count:'exact',head:true}).then(({count})=>setHistoryTotal(count||0));},[]);
-
-  const totalPages=Math.ceil(totalCount/PAGE_SIZE); const hasFilters=filterUser!=='ALL'||filterAction!=='ALL'||filterModule!=='ALL'||timeRange!=='week'||highRiskOnly||excludeAdmins||excludeCodex!==DEFAULT_EXCLUDE_CODEX||Object.values(textDraft).some(Boolean)||deviceType!=='ALL';
-  const resetFilters=()=>{setFilterUser('ALL');setFilterAction('ALL');setFilterModule('ALL');setTimeRange('week');setHighRiskOnly(false);setExcludeAdmins(false);setExcludeCodex(DEFAULT_EXCLUDE_CODEX);setTextDraft(EMPTY_TEXT_FILTERS);setTextFilters(EMPTY_TEXT_FILTERS);setComposing(false);setDeviceType('ALL');};
+  const totalPages=page+1+(hasNext?1:0); const hasFilters=filterUser!=='ALL'||filterAction!=='ALL'||filterModule!=='ALL'||timeRange!=='week'||highRiskOnly||excludeAdmins||excludeCodex!==DEFAULT_EXCLUDE_CODEX||Object.values(textDraft).some(Boolean)||deviceType!=='ALL'||Boolean(tier)||Boolean(outcome);
+  const resetFilters=()=>{setFilterUser('ALL');setFilterAction('ALL');setFilterModule('ALL');setTimeRange('week');setHighRiskOnly(false);setExcludeAdmins(false);setExcludeCodex(DEFAULT_EXCLUDE_CODEX);setTextDraft(EMPTY_TEXT_FILTERS);setTextFilters(EMPTY_TEXT_FILTERS);setComposing(false);setDeviceType('ALL');setTier('');setOutcome('');};
   const textInput = (field: keyof typeof EMPTY_TEXT_FILTERS) => ({
     value: textDraft[field],
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -274,10 +267,11 @@ export function AuditLogPage() {
   });
   const refresh = () => {
     if (logTab === 'auth') setAuthRefresh(value => value + 1);
+    else if(logTab==='health') return;
     else if (textPending && !composing) setTextFilters(textDraft);
     else void fetchLogs(page);
   };
-  const tabs=[{key:'user',label:'业务活动'},{key:'files',label:'文件 / 导出'},{key:'admin',label:'后台数据操作'},{key:'database',label:'数据库变更'},{key:'trail',label:'访问轨迹'},{key:'security',label:'需关注'},{key:'auth',label:'登录记录'}] as const;
+  const tabs=[{key:'all',label:'全部业务'},{key:'people',label:'用户与权限'},{key:'user',label:'业务活动'},{key:'files',label:'文件 / 导出'},{key:'admin',label:'后台数据操作'},{key:'database',label:'数据库变更'},{key:'trail',label:'访问轨迹'},{key:'security',label:'需关注'},{key:'auth',label:'登录记录'},{key:'health',label:'系统健康'}] as const;
   const actionOptions = useMemo(() => {
     if(logTab==='files') return FILE_ACTIONS;
     if(logTab==='admin') return ['ADMIN_DATA_OPERATION'];
@@ -290,12 +284,20 @@ export function AuditLogPage() {
 
   return <section className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white" aria-label="审计日志">
     <header className="shrink-0 border-b border-zinc-200 bg-white px-5 pt-4">
-      <div className="flex items-start justify-between gap-4"><div><h2 className="text-base font-semibold text-zinc-900">审计日志</h2><p className="mt-1 text-xs text-zinc-500">优先呈现可追责的业务动作；页面访问与筛选等低风险行为已独立到「访问轨迹」</p></div><div className="flex flex-wrap items-center gap-3"><Link href="/intelligence/audit" className="inline-flex min-h-11 items-center rounded-md border border-zinc-200 px-3 text-sm text-[#003E7E] focus-visible:outline focus-visible:outline-2">AI 提问审计</Link><span className="hidden text-[11px] text-zinc-400 sm:inline">{lastUpdated?`更新于 ${formatTime(lastUpdated.toISOString())}`:'尚未加载'}</span><button type="button" onClick={refresh} className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-50">刷新</button></div></div>
-      <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50/60 sm:grid-cols-4"><div className="border-r border-zinc-200 px-3 py-2.5"><p className="text-[11px] text-zinc-500">历史总量</p><p className="text-lg font-semibold">{historyTotal}</p></div><div className="border-r border-zinc-200 px-3 py-2.5"><p className="text-[11px] text-zinc-500">当前筛选</p><p className="text-lg font-semibold">{logTab==='auth'?'—':totalCount}</p></div><div className="border-r border-zinc-200 px-3 py-2.5"><p className="text-[11px] text-zinc-500">当前范围需关注</p><p className="text-lg font-semibold text-amber-700">{tabCounts.security}</p></div><div className="px-3 py-2.5"><p className="text-[11px] text-zinc-500">文件 / 导出</p><p className="text-lg font-semibold text-[#24478f]">{tabCounts.files}</p></div></div>
-      <div className="mt-4 flex items-center gap-1 overflow-x-auto" role="tablist">{tabs.map(tab=><button key={tab.key} type="button" role="tab" aria-selected={logTab===tab.key} onClick={()=>setLogTab(tab.key)} className={`shrink-0 border-b-2 px-3 py-2 text-xs font-medium ${logTab===tab.key?'border-[#24478f] text-[#24478f]':'border-transparent text-zinc-500'}`}>{tab.label}{tab.key!=='auth'&&<span className="ml-1.5 text-zinc-400">{tabCounts[tab.key]}</span>}</button>)}</div>
-      {logTab!=='auth'&&<div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 py-3"><select value={filterUser} onChange={e=>setFilterUser(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs"><option value="ALL">全部人员</option>{userOptions.map(o=><option key={o.id} value={o.id}>{o.name}{['admin','super_admin'].includes(String(o.role||'').toLowerCase())?'（管理员）':''}</option>)}</select><button type="button" onClick={()=>setExcludeAdmins(v=>!v)} disabled={filterUser!=='ALL'} aria-pressed={Boolean(excludedAuditIds)} title={filterUser!=='ALL'?'已指定人员时无需排除管理员':'从当前审计视图中排除所有管理员账号'} className={exclusionClass(Boolean(excludedAuditIds))}>排除管理员</button><button type="button" onClick={()=>setExcludeCodex(v=>!v)} disabled={filterUser!=='ALL'} aria-pressed={codexExcluded} title={filterUser!=='ALL'?'已指定人员时无需排除 Codex':'从当前审计视图中排除由 Codex 工具署名的日志'} className={exclusionClass(codexExcluded)}>排除 Codex</button><select value={filterAction} onChange={e=>setFilterAction(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs"><option value="ALL">全部操作</option>{actionOptions.map(action=><option key={action} value={action}>{getLogBadgeStyle(action).label}</option>)}</select><select value={filterModule} onChange={e=>setFilterModule(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs"><option value="ALL">全部模块</option>{Object.entries(MODULE_NAMES).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><input {...textInput('object')} placeholder="搜索对象 / 文件名" className="w-40 rounded-md border border-zinc-200 px-2 py-1.5 text-xs"/><select value={deviceType} onChange={e=>setDeviceType(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-xs"><option value="ALL">全部设备</option><option value="desktop">Desktop</option><option value="mobile">Mobile</option><option value="tablet">Tablet</option><option value="unknown">Unknown</option></select><input {...textInput('ip')} placeholder="搜索 IP" className="w-32 rounded-md border border-zinc-200 px-2 py-1.5 text-xs"/><input {...textInput('device')} placeholder="Device ID" className="w-36 rounded-md border border-zinc-200 px-2 py-1.5 text-xs"/><input {...textInput('session')} placeholder="完整 Session UUID" className="w-44 rounded-md border border-zinc-200 px-2 py-1.5 text-xs"/><div className="flex rounded-md border border-zinc-200 p-0.5">{[{key:'today',label:'今日'},{key:'week',label:'近 7 天'},{key:'month',label:'本月'},{key:'all',label:'全部'}].map(r=><button key={r.key} type="button" onClick={()=>setTimeRange(r.key)} className={`rounded px-2 py-1 text-[11px] ${timeRange===r.key?'bg-zinc-100 font-medium':'text-zinc-500'}`}>{r.label}</button>)}</div><button type="button" onClick={()=>setHighRiskOnly(v=>!v)} className={`rounded-md border px-2.5 py-1.5 text-xs ${highRiskOnly?'border-amber-300 bg-amber-50 text-amber-800':'border-zinc-200 text-zinc-600'}`}>仅高风险</button>{hasFilters&&<button type="button" onClick={resetFilters} className="text-xs text-zinc-500">清除筛选</button>}<span className="ml-auto text-xs text-zinc-500">{textPending ? <span role="status">正在更新筛选…</span> : `${totalCount} 条`}</span></div>}
+      <div className="flex items-start justify-between gap-4"><div><h2 className="text-base font-medium text-zinc-900">审计日志</h2><p className="mt-1 text-[13px] text-zinc-500">优先呈现可追责的业务动作；页面访问与筛选等低风险行为已独立到「访问轨迹」</p></div><div className="flex flex-wrap items-center gap-3"><Link href="/intelligence/audit" className="inline-flex min-h-11 items-center rounded-md border border-zinc-200 px-3 text-[13px] text-[#003E7E] focus-visible:outline focus-visible:outline-2">AI 提问审计</Link><span className="hidden text-[13px] text-zinc-400 sm:inline">{lastUpdated?`更新于 ${formatTime(lastUpdated.toISOString())}`:'尚未加载'}</span><button type="button" onClick={refresh} className="rounded-md border border-zinc-200 px-3 py-1.5 text-[13px] text-zinc-600 hover:bg-zinc-50">刷新</button></div></div>
+      <div className="mt-4 flex items-center gap-1 overflow-x-auto" role="tablist">{tabs.map(tab=><button key={tab.key} type="button" role="tab" aria-selected={logTab===tab.key} onClick={()=>setLogTab(tab.key)} className={`shrink-0 border-b-2 px-3 py-2 text-[13px] font-medium ${logTab===tab.key?'border-[#24478f] text-[#24478f]':'border-transparent text-zinc-500'}`}>{tab.label}</button>)}</div>
+      {logTab!=='auth'&&logTab!=='health'&&<details className="border-t py-2 text-[13px]"><summary className="cursor-pointer">高级筛选与导出</summary><div className="mt-2 flex flex-wrap items-center gap-2">
+        <input {...textInput('targetTable')} aria-label="数据表" placeholder="数据表" className="rounded border p-2"/><input {...textInput('targetId')} aria-label="对象 ID" placeholder="完整对象 ID" className="rounded border p-2"/><input {...textInput('operationId')} aria-label="操作或请求 ID" placeholder="操作 / 请求 ID" className="rounded border p-2"/>
+        <label>开始<input {...textInput('from')} aria-label="开始时间" type="datetime-local" className="ml-2 rounded border p-2"/></label><label>结束<input {...textInput('to')} aria-label="结束时间" type="datetime-local" className="ml-2 rounded border p-2"/></label>
+        <select aria-label="事件级别" value={tier} onChange={e=>setTier(e.target.value as AuditFilters['tier'])} className="rounded border p-2"><option value="">全部级别</option><option value="A">A · 关键事件</option><option value="B">B · 普通事件</option></select>
+        <select aria-label="操作结果" value={outcome} onChange={e=>setOutcome(e.target.value as AuditFilters['outcome'])} className="rounded border p-2"><option value="">全部结果</option><option value="success">已确认成功</option><option value="failed">失败</option><option value="denied">拒绝</option><option value="observed">仅客户端观察</option></select>
+        <select aria-label="导出格式" value={exportFormat} onChange={e=>setExportFormat(e.target.value as 'csv'|'xlsx'|'json')} className="rounded border p-2"><option value="csv">CSV</option><option value="xlsx">Excel</option><option value="json">JSON 摘要</option></select><button type="button" disabled={exporting||textPending||isDemo} onClick={()=>void exportLogs()} className="min-h-11 rounded border px-3">导出当前筛选（最多 500 条）</button>
+      </div><p className="mt-2 text-zinc-500">时间线只包含已记录的关联事件；历史缺失不表示未发生。导出仅含业务审计摘要，AI 受限内容需独立授权。</p></details>}
+      {logTab!=='auth'&&logTab!=='health'&&<div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 py-3"><select value={filterUser} onChange={e=>setFilterUser(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部人员</option>{userOptions.map(o=><option key={o.id} value={o.id}>{o.name}{['admin','super_admin'].includes(String(o.role||'').toLowerCase())?'（管理员）':''}</option>)}</select><button type="button" onClick={()=>setExcludeAdmins(v=>!v)} disabled={filterUser!=='ALL'} aria-pressed={Boolean(excludedAuditIds)} title={filterUser!=='ALL'?'已指定人员时无需排除管理员':'从当前审计视图中排除所有管理员账号'} className={exclusionClass(Boolean(excludedAuditIds))}>排除管理员</button><button type="button" onClick={()=>setExcludeCodex(v=>!v)} disabled={filterUser!=='ALL'} aria-pressed={codexExcluded} title={filterUser!=='ALL'?'已指定人员时无需排除 Codex':'从当前审计视图中排除由 Codex 工具署名的日志'} className={exclusionClass(codexExcluded)}>排除 Codex</button><select value={filterAction} onChange={e=>setFilterAction(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部操作</option>{actionOptions.map(action=><option key={action} value={action}>{getLogBadgeStyle(action).label}</option>)}</select><select value={filterModule} onChange={e=>setFilterModule(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部模块</option>{Object.entries(MODULE_NAMES).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><input {...textInput('object')} placeholder="搜索对象 / 文件名" className="w-40 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><select value={deviceType} onChange={e=>setDeviceType(e.target.value)} className="rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"><option value="ALL">全部设备</option><option value="desktop">Desktop</option><option value="mobile">Mobile</option><option value="tablet">Tablet</option><option value="unknown">Unknown</option></select><input {...textInput('ip')} placeholder="搜索 IP" className="w-32 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><input {...textInput('device')} placeholder="Device ID" className="w-36 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><input {...textInput('session')} placeholder="完整 Session UUID" className="w-44 rounded-md border border-zinc-200 px-2 py-1.5 text-[13px]"/><div className="flex rounded-md border border-zinc-200 p-0.5">{[{key:'today',label:'今日'},{key:'week',label:'近 7 天'},{key:'month',label:'本月'},{key:'all',label:'全部'}].map(r=><button key={r.key} type="button" onClick={()=>setTimeRange(r.key)} className={`rounded px-2 py-1 text-[13px] ${timeRange===r.key?'bg-zinc-100 font-medium':'text-zinc-500'}`}>{r.label}</button>)}</div><button type="button" onClick={()=>setHighRiskOnly(v=>!v)} className={`rounded-md border px-2.5 py-1.5 text-[13px] ${highRiskOnly?'border-amber-300 bg-amber-50 text-amber-800':'border-zinc-200 text-zinc-600'}`}>仅高风险</button>{hasFilters&&<button type="button" onClick={resetFilters} className="text-[13px] text-zinc-500">清除筛选</button>}<span className="ml-auto text-[13px] text-zinc-500">{textPending ? <span role="status">正在更新筛选…</span> : `${totalCount}${hasNext?'+':''} 条`}</span></div>}
     </header>
-    {directoryError && <p role="alert" className="px-5 py-3 text-xs text-amber-800">用户目录暂时无法加载，历史身份快照仍保留；请刷新后重试。</p>}
-    {logTab==='auth'?<AuthAuditLogPanel userOptions={userOptions} isDemo={isDemo} refreshNonce={authRefresh}/>:<><div className="grid shrink-0 grid-cols-[88px_minmax(120px,.75fr)_minmax(260px,2fr)_minmax(130px,.9fr)_130px_24px] gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-2 text-[11px] font-medium text-zinc-400 max-lg:grid-cols-[78px_minmax(0,1fr)_100px_20px]"><span>时间</span><span>操作人</span><span>操作内容</span><span className="max-lg:hidden">对象</span><span className="text-right max-lg:hidden">设备</span><span/></div><div className="min-h-0 flex-1 overflow-y-auto">{loading?<div className="py-20 text-center text-sm text-zinc-500">正在加载…</div>:loadError?<div className="py-20 text-center text-sm text-red-700">{loadError}</div>:logsWithUsers.length===0?<div className="py-20 text-center text-sm text-zinc-500">没有符合条件的日志</div>:logsWithUsers.map(log=><LogItem key={log.id} log={log} isDemo={isDemo}/>)}</div>{totalPages>1&&<footer className="flex shrink-0 items-center justify-between border-t border-zinc-200 px-5 py-3"><span className="text-xs text-zinc-400">第 {page+1} / {totalPages} 页</span><div className="flex gap-2"><button disabled={page===0||loading||textPending} onClick={()=>{const next=page-1;setPage(next);void fetchLogs(next);}} className="rounded border border-zinc-200 px-3 py-1.5 text-xs disabled:opacity-40">上一页</button><button disabled={page>=totalPages-1||loading||textPending} onClick={()=>{const next=page+1;setPage(next);void fetchLogs(next);}} className="rounded border border-zinc-200 px-3 py-1.5 text-xs disabled:opacity-40">下一页</button></div></footer>}</>}
+    {exportStatus&&<p role="status" className="px-5 py-2 text-[13px]">{exportStatus}</p>}
+    {textFilters.targetTable==='buildings'&&/^[0-9a-f-]{36}$/i.test(textFilters.targetId)&&logTab!=='auth'&&logTab!=='health'&&<AuditQuarterlyEvidence key={textFilters.targetId} buildingId={textFilters.targetId}/>}
+    {directoryError && <p role="alert" className="px-5 py-3 text-[13px] text-amber-800">用户目录暂时无法加载，历史身份快照仍保留；请刷新后重试。</p>}
+    {logTab==='health'?<AuditHealthPanel/>:logTab==='auth'?<AuthAuditLogPanel userOptions={userOptions} isDemo={isDemo} refreshNonce={authRefresh}/>:<><div className="grid shrink-0 grid-cols-[88px_minmax(120px,.75fr)_minmax(260px,2fr)_minmax(130px,.9fr)_130px_24px] gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-2 text-[13px] font-medium text-zinc-400 max-lg:grid-cols-[78px_minmax(0,1fr)_100px_20px]"><span>时间</span><span>操作人</span><span>操作内容</span><span className="max-lg:hidden">对象</span><span className="text-right max-lg:hidden">结果 / 级别</span><span/></div><div className="min-h-0 flex-1 overflow-y-auto">{loading?<div className="py-20 text-center text-[13px] text-zinc-500">正在加载…</div>:loadError?<div className="py-20 text-center text-[13px] text-red-700">{loadError}</div>:logsWithUsers.length===0?<div className="py-20 text-center text-[13px] text-zinc-500">没有符合条件的日志</div>:logsWithUsers.map(log=><LogItem key={log.id} log={log} isDemo={isDemo} onTimeline={(targetTable,targetId)=>{resetFilters();setExcludeAdmins(false);setExcludeCodex(false);setLogTab('all');setTimeRange('all');setTextDraft({...EMPTY_TEXT_FILTERS,targetTable,targetId});setTextFilters({...EMPTY_TEXT_FILTERS,targetTable,targetId});}}/>)}</div>{totalPages>1&&<footer className="flex shrink-0 items-center justify-between border-t border-zinc-200 px-5 py-3"><span className="text-[13px] text-zinc-400">第 {page+1} 页</span><div className="flex gap-2"><button disabled={page===0||loading||textPending} onClick={()=>{const next=page-1;setPage(next);void fetchLogs(next);}} className="rounded border border-zinc-200 px-3 py-1.5 text-[13px] disabled:opacity-40">上一页</button><button disabled={page>=totalPages-1||loading||textPending} onClick={()=>{const next=page+1;setPage(next);void fetchLogs(next);}} className="rounded border border-zinc-200 px-3 py-1.5 text-[13px] disabled:opacity-40">下一页</button></div></footer>}</>}
   </section>;
 }

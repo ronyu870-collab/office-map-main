@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { MAP_SUBMARKETS, MAP_SUBMARKETS_SECONDARY, normalizeMapSubmarket } from '@/src/app/map/model/mapDomain';
@@ -172,6 +173,7 @@ export async function PUT(request: NextRequest) {
 
     const before = await readProfile(client, name);
     if (!before.available) return json({ error: '子市场资料表尚未部署，请先应用对应数据库迁移' }, 503);
+    return await withCriticalAudit(client,{user_id:identity.caller.id,action_type:'ADMIN_DATA_OPERATION',module:'map',target_table:'map_submarket_profiles',target_id:name,details:{operation:publish?'publish_submarket_profile':'save_submarket_draft',submarket:name}},'map/submarket',async recordResult=>{
     const updatedAt = new Date().toISOString();
     const { data, error } = await client.from('map_submarket_profiles').upsert({
       submarket: name, ...parsed.data, updated_by: identity.caller.id, updated_at: updatedAt,
@@ -180,23 +182,16 @@ export async function PUT(request: NextRequest) {
     }, { onConflict: 'submarket' }).select('*').single();
     if (error) throw new Error('PROFILE_SAVE_FAILED');
 
-    const audit = await client.from('audit_logs').insert({
-      user_id: identity.caller.email || identity.caller.id,
-      action_type: 'ADMIN_DATA_OPERATION',
-      target_table: 'map_submarket_profiles',
-      target_id: name,
-      target_name: name,
-      module: 'map',
-      details: { operation: publish ? 'publish_submarket_profile' : 'save_submarket_draft', submarket: name, updated_at: updatedAt },
-      old_values: { ...before.profile, is_published: before.published },
-      new_values: { ...readSubmarketProfileRow(data, name), is_published: publish },
-    });
-    if (audit.error) {
-      console.error('[api/map/submarket] audit write failed', audit.error);
-      return json({ error: '资料已保存，但审计记录失败，请联系管理员核查', saved: true,
-        profile: readSubmarketProfileRow(data, name) }, 500);
+    const oldValues:Record<string,unknown>={};const newValues:Record<string,unknown>={};
+    const oldProfile={...before.profile,is_published:before.published};
+    const newProfile={...readSubmarketProfileRow(data,name),is_published:publish};
+    for(const [key,value] of Object.entries(newProfile)){
+      const previous=(oldProfile as Record<string,unknown>)[key];
+      if(JSON.stringify(previous)!==JSON.stringify(value)){oldValues[key]=previous??null;newValues[key]=value;}
     }
+    recordResult({target_name:name,old_values:oldValues,new_values:newValues,updated_at:updatedAt});
     return json({ saved: true, profile: readSubmarketProfileRow(data, name), profilePublished: publish });
+    });
   } catch (error) {
     console.error('[api/map/submarket] update failed', error);
     return json({ error: '子市场资料保存失败，请稍后重试' }, 500);

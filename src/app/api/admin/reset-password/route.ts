@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePassword } from '@/src/utils/passwordPolicy';
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { withCriticalAudit } from '@/src/lib/serverAudit';
 import { denyImpersonatedMutation, resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 
 // 明确告诉 Next.js 这是完全动态的 API，不要在构建时静态渲染
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '目标账号不存在' }, { status: 404 });
     }
 
+    return await withCriticalAudit(supabaseAdmin, { user_id:caller.id,action_type:'CHANGE_PASSWORD',module:'admin',target_table:'auth.users',target_id:userId,details:{operation:'admin_reset'} }, 'admin/reset-password', async () => {
     // 8. 执行密码重置，并要求用户下次登录先修改临时密码。
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: temporaryPassword,
@@ -70,13 +71,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `重置失败: ${updateError.message}` }, { status: 500 });
     }
 
-    await writeAuditBestEffort(supabaseAdmin, {
-      user_id: caller.email || caller.id,
-      action_type: 'ADMIN_DATA_OPERATION',
-      details: { operation: 'UPDATE', table: 'auth.users', table_label: '重置密码', target_user_id: userId },
-    }, 'admin/reset-password');
+
 
     return NextResponse.json({ success: true, message: '临时密码已生成' });
+    });
   } catch (err: unknown) {
     console.error('[reset-password] 未预期的错误:', err);
     return NextResponse.json({ error: '服务器内部错误' }, { status: 500 });
