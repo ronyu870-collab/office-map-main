@@ -1,3 +1,5 @@
+import { verifyAi5Knowledge } from './ai5-knowledge-scenarios.mjs';
+import { installKnowledgeFixture } from '../../supabase/tests/ai-knowledge-retrieval/fixture.mjs';
 import { verifyAi5Business } from './ai5-business-scenarios.mjs';
 import { installBusinessFixture } from '../../supabase/tests/ai-business-research/fixture.mjs';
 import { verifyAi5Leases } from './ai5-lease-scenarios.mjs';
@@ -132,6 +134,7 @@ try{
   }
   await installLeaseResearchFixture(db);
   await installBusinessFixture(db);
+  await installKnowledgeFixture(db);
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -145,7 +148,7 @@ try{
   log=await open(path.join(output,'next-local.log'),'w',0o600);
   const env={...process.env,NEXT_PUBLIC_SUPABASE_URL:settings.API_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:settings.ANON_KEY,SUPABASE_SECRET_KEY:settings.SERVICE_ROLE_KEY,
     NEXT_PUBLIC_INTELLIGENCE_PREVIEW:'true',AI_QUERY_HTTP_ENABLED:'true',AI_AUDIT_HTTP_ENABLED:'true',AI_QUERY_AUDIT_KEY_ID:keyId,AI_QUERY_AUDIT_ENCRYPTION_KEY:encryptionKey.toString('hex'),AI_QUERY_AUDIT_DIGEST_KEY:digestKey.toString('hex'),
-    DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'',NEXT_PUBLIC_AMAP_SECURITY_CODE:'',...companyFixture.env};
+    AI_PUBLIC_SEARCH_PROVIDER:'',BRAVE_SEARCH_API_KEY:'',DEEPSEEK_API_KEY:'',OPENAI_API_KEY:'',NEXT_PUBLIC_AMAP_KEY:'',NEXT_PUBLIC_AMAP_SECURITY_CODE:'',...companyFixture.env};
   const types=spawn('npm',['run','typecheck'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
   assert.equal((await once(types,'exit'))[0],0,'Typecheck must pass before the production build');
   const build=spawn('npm',['run','build'],{cwd:root,env,stdio:['ignore',log.fd,log.fd]});
@@ -603,6 +606,7 @@ try{
   await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Leases({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Business({db,app,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
+  await verifyAi5Knowledge({db,app,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     if (suite === 'regression') {
       performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});

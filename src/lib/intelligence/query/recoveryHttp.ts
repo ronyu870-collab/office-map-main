@@ -1,3 +1,5 @@
+import { documentMetadata,readDocumentBytes } from '../knowledge/research';
+import { isKnowledgeResult } from '../knowledge/protocol';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { IMPERSONATION_REQUEST_HEADER } from '@/src/lib/server/impersonationAuth';
@@ -16,12 +18,13 @@ import { buildingContextInputSchema } from './buildingCards';
 import { readBuildingContext } from './buildingContext';
 import { artifactContentDisposition } from './artifactFilename';
 
+const documentInputSchema=z.strictObject({requestId:z.uuid(),resultId:z.uuid(),sourceId:z.string().min(1).max(200),action:z.literal('original')});
 const inputSchema=z.strictObject({requestId:z.uuid(),action:z.enum(['status','recover'])});
 const json=(body:unknown,status:number,extraHeaders:Record<string,string>={})=>Response.json(body,{status,headers:{'Cache-Control':'private, no-store',
   Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,'X-Content-Type-Options':'nosniff',...extraHeaders}});
 
 /** Control requests have their own durable audit; they never execute a new query. */
-export async function handleResultRecovery(request:Request,dependencies:ReturnType<typeof queryHttpDependencies>,mode:'recover'|'artifact'|'buildings'='recover'):Promise<Response> {
+export async function handleResultRecovery(request:Request,dependencies:ReturnType<typeof queryHttpDependencies>,mode:'recover'|'artifact'|'buildings'|'document'='recover'):Promise<Response> {
   const attemptId=randomUUID(),{client,keys}=dependencies;
   let audit:AuditPort|undefined,received=false,terminal=false;
   try {
@@ -37,16 +40,16 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
       }catch{/* Unverified callers never acquire an audit identity. */}
     }
     await recordQueryIntake(client,keys,{requestId:attemptId,body,identity,
-      entry:mode==='artifact'?'query_result_artifact':'query_result_recovery',impersonationDenied});
+      entry:mode==='artifact'||mode==='document'?'query_result_artifact':'query_result_recovery',impersonationDenied});
     if(body.rejection)return json({attemptId,status:'rejected',error:'请求未完整接收。'},body.rejection==='body_too_large'?413:400);
     if(!identity)return json({attemptId,status:'denied',error:'登录状态无效，请重新登录。'},401);
     audit=createRpcAuditPort(client,identity,keys);
     const pending:QueryAuthority={actorId:identity.actorId,effectiveUserId:identity.effectiveUserId,sessionActive:false,
       policyVersion:'http-receipt/1:authorization-pending',permissionRevision:'not_evaluated',grants:[],fields:[]};
     await audit.receive({requestId:attemptId,submittedText:body.text!,plan:null,authority:pending,
-      metadata:{rawRequest:body.text,entry:mode==='artifact'?'query_result_artifact':'query_result_recovery',impersonationDenied}});received=true;
-    let input:z.infer<typeof inputSchema>|ArtifactInput|z.infer<typeof buildingContextInputSchema>;
-    try{input=mode==='artifact'?artifactInputSchema.parse(JSON.parse(body.text!)):mode==='buildings'?buildingContextInputSchema.parse(JSON.parse(body.text!)):inputSchema.parse(JSON.parse(body.text!));}catch{throw new Error('QUERY_DENIED');}
+      metadata:{rawRequest:body.text,entry:mode==='artifact'||mode==='document'?'query_result_artifact':'query_result_recovery',impersonationDenied}});received=true;
+    let input:z.infer<typeof inputSchema>|ArtifactInput|z.infer<typeof buildingContextInputSchema>|z.infer<typeof documentInputSchema>;
+    try{input=mode==='document'?documentInputSchema.parse(JSON.parse(body.text!)):mode==='artifact'?artifactInputSchema.parse(JSON.parse(body.text!)):mode==='buildings'?buildingContextInputSchema.parse(JSON.parse(body.text!)):inputSchema.parse(JSON.parse(body.text!));}catch{throw new Error('QUERY_DENIED');}
     if(!dependencies.enabled || impersonationDenied || !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type')??'')
       || !isQuerySameOrigin(request))throw new Error('QUERY_DENIED');
     const signal=AbortSignal.any([request.signal,AbortSignal.timeout(30000)]),verified=identity;
@@ -57,7 +60,18 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     if(record.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     const restored=input.action!=='status'&&record.state==='succeeded'
       ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover',exporting:mode==='artifact'&&(input.action==='export'||input.action==='copy')}):null;
-    const artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
+    let artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
+    if(mode==='document'){
+      const p=documentInputSchema.parse(input);if(!restored || !isKnowledgeResult(restored.result as {parameters:Record<string,unknown>}) || restored.resultId!==p.resultId)throw new Error('QUERY_DENIED');
+      const view=restored.result as import('./result').QueryResult;
+      const source=view.sources.find(s=>s.id===p.sourceId);if(!source?.original || source.table!=='building_sales_materials')throw new Error('QUERY_DENIED');
+      const metadata=await documentMetadata(client,verified,signal,[source.original.documentId]);const doc=metadata.documents[0];
+      if(doc.version!==source.original.version)throw new Error('QUERY_DENIED');
+      const bytes=await readDocumentBytes(client,verified,signal,doc);
+      const extension:Record<string,string>={'application/pdf':'pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'xlsx','application/vnd.openxmlformats-officedocument.presentationml.presentation':'pptx'};
+      if(!extension[doc.mime])throw new Error('KNOWLEDGE_FORMAT_UNSUPPORTED');
+      artifact={type:'download',bytes,contentType:doc.mime,filename:'内部资料原件.'+extension[doc.mime],sha256:doc.sha256,resultDigest:view.dataVersion};
+    }
     if(mode==='artifact'&&!artifact)throw new Error('QUERY_RESULT_NOT_READY');
     const buildingContext=mode==='buildings'&&restored?await readBuildingContext(client,restored.result,input as z.infer<typeof buildingContextInputSchema>,signal):null;
     if(mode==='buildings'&&!buildingContext)throw new Error('QUERY_RESULT_NOT_READY');
@@ -86,7 +100,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
           licenseUrl:buildingContext.photoAccess.license_url??null,isPreview:buildingContext.photoAccess.is_preview}}:{})}}:{}),
       ...(artifact?{artifact:artifact.type==='chart'?{kind:'chart',spec:artifact.chart,resultDigest:artifact.resultDigest}
         :artifact.type==='copy'?{kind:'copy',format:artifact.format,text:artifact.text,resultDigest:artifact.resultDigest,rendererVersion:'result-copy/1'}
-        :{kind:'download',format:(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
+        :{kind:'download',format:mode==='document'?'document_original':(input as ArtifactInput & {format:string}).format,filename:artifact.filename,bytes:artifact.bytes.byteLength,resultDigest:artifact.resultDigest,rendererVersion:mode==='document'?'document-original/1':'result-chart/1',chart:'chart' in input?input.chart:null}}:{})}});
     await audit.append(attemptId,'succeeded',{delivery:'not_yet_sent'});terminal=true;
     const deliveryHeaders=await prepareDelivery(audit,keys,verified,{requestId:attemptId,bodySha256,
       kind:artifact?.type==='download'?'download':artifact?.type==='chart'?'chart':artifact?.type==='copy'?'copy':restored?'result':'status',
@@ -103,7 +117,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     if(artifact?.type==='download')return new Response(new Uint8Array(artifact.bytes),{status:200,headers:{
       'Content-Type':artifact.contentType,'Content-Disposition':artifactContentDisposition(artifact.filename),
       'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',Vary:`Authorization, ${IMPERSONATION_REQUEST_HEADER}`,
-      'X-Query-Result-Id':input.action==='export'?input.resultId:'','X-Artifact-Sha256':artifact.sha256,'X-Audit-Attempt-Id':attemptId,...deliveryHeaders,
+      'X-Query-Result-Id':input.action==='export'||input.action==='original'?input.resultId:'','X-Artifact-Sha256':artifact.sha256,'X-Audit-Attempt-Id':attemptId,...deliveryHeaders,
     }});
     return jsonResponse!;
   }catch(error){

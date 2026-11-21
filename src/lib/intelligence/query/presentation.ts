@@ -17,7 +17,7 @@ export const resultCellSchema = z.discriminatedUnion('kind', [
 export const sourceSchema = z.object({ id: text, table: text, recordId: text, field: text, entityId: text, recordVersion: text,
   rawValue: z.unknown(), unit: text, period: quarterSchema.nullable(), recordedAt: text.nullable(), businessAsOf: text.nullable(),
   verification: z.enum(['database_only', 'verified_original', 'unreviewed', 'historical']),
-  original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional() }).nullable(),
+  original: z.object({ documentId: text, version: text, page: z.number().optional(), sheet: text.optional(), row: z.number().optional(), location: z.string().max(160).optional() }).nullable(),
 });
 export const resultViewSchema = z.object({ resultId: z.uuid(), snapshotId: z.string(), createdAt: z.iso.datetime(), dataVersion: z.string(),
   scopeFingerprint: z.string(), registryVersion: z.string(), operation: z.enum(['list', 'rank', 'aggregate', 'compare', 'trend', 'group_aggregate', 'group_trend', 'cross_aggregate', 'cross_trend', 'relationship', 'distribution']),

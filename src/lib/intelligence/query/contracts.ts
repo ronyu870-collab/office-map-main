@@ -19,7 +19,7 @@ export type SourceRef = Readonly<{
   recordedAt: string | null;
   businessAsOf: string | null;
   verification: 'database_only' | 'verified_original' | 'unreviewed' | 'historical';
-  original: { documentId: string; version: string; page?: number; sheet?: string; row?: number } | null;
+  original: { documentId: string; version: string; page?: number; sheet?: string; row?: number; location?: string } | null;
 }>;
 export type FactState = 'valid' | 'missing' | 'invalid' | 'conflict' | 'unverified';
 export type NumericFact =

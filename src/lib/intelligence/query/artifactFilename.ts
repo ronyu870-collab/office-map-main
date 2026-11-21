@@ -15,7 +15,7 @@ export function buildArtifactFilename(result: QueryResultView, format: 'xlsx' | 
   return `ColliersAI_${part(object, 20)}_${part(metric, 20)}_${part(period, 40)}_${format}_${result.resultId.slice(0, 8)}.${extension}`;
 }
 
-const safeName = (value: string) => value.length <= 180 && !value.startsWith('.') && /^[\p{L}\p{N}._-]+\.(xlsx|zip|pdf)$/u.test(value)
+const safeName = (value: string) => value.length <= 180 && !value.startsWith('.') && /^[\p{L}\p{N}._-]+\.(xlsx|zip|pdf|docx|pptx)$/u.test(value)
   && new TextEncoder().encode(value).byteLength <= 240;
 
 /** UTF-8 filenames keep Chinese entity/metric labels outside raw HTTP headers. */
