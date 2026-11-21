@@ -1,3 +1,6 @@
+import { isLeaseResult } from '../lease/protocol';
+import { queryLeaseResearch, leaseModelObservation } from '../lease/tool';
+import { recheckLeaseResult, recheckLeaseResults } from '../lease/research';
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -76,6 +79,7 @@ function providerMessage(error: unknown): string {
   if (error instanceof Error && error.message === 'AGENT_TOOL_RECOVERY_EXHAUSTED') return '工具连续失败或参数无效，已达到受控修正上限，本轮未将失败任务认定为完成。';
   if (error instanceof Error && error.message === 'AGENT_WORKSET_LIMIT') return '本轮已达到可信结果工作集容量上限，请缩小任务范围后重新查询。';
   if (error instanceof Error && error.message === 'AGENT_TOOL_RESULT_TOO_LARGE') return '工具返回内容超过安全上限，须使用分页或缩小范围。';
+  if (error instanceof Error && error.message === 'LEASE_SNAPSHOT_LIMIT') return '获权成交数据池超过 20000 条，本轮未交付部分数据；请由授权维护者缩小正式研究授权范围后重试。';
   if (error instanceof Error && error.message === 'QUERY_READ_UNAVAILABLE') return '授权数据源读取失败，本轮未能取得可核验的正式结果。';
   if (error instanceof Error && error.message === 'QUERY_AUTHORITY_UNAVAILABLE') return '权限复核服务暂不可用，已停止查询与结果交付。';
   if (error instanceof Error && error.message === 'QUERY_DENIED') return '查询权限已变化或当前没有该数据的访问资格。';
@@ -199,6 +203,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
+    const leaseResults = new Map<string, QueryResult>();
+    if (history.contextResult?.parameters.leaseBindings) leaseResults.set(history.contextResult.resultId, history.contextResult);
+    const recheckLeases = async (exporting = false) => {
+      await recheckLeaseResults(client, actor, signal, [...leaseResults.values()], exporting);
+    };
     let preparedExport: QueryResult | undefined;
     let preparedReport: QueryResult | undefined;
     let reportFile: Record<string, unknown> | undefined;
@@ -213,9 +222,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         contextPlan: history.contextPlan,
         contextExport: history.contextExport,
         contextChart: history.contextChart,
+        ...(history.contextResult && isLeaseResult(history.contextResult) ? { leaseResults: workset.manifest(worksetOwner) } : {}),
         ...(reportHistory ? { reportResults: workset.manifest(worksetOwner), reportHistoryLimited: reportHistory.limited } : {}),
         revalidate: async currentSignal => {
           await history.contextRecheck?.();
+          await recheckLeases();
           const rechecked = await loadDataAuthority(client, actor, currentSignal);
           if (!rechecked.grants.includes('query:catalog')
             || rechecked.permissionRevision !== authority.permissionRevision
@@ -244,7 +255,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
           // File delivery state comes from the server, never model prose.
-          if (!(result.message.tool_calls?.length) && !preparedExport
+          if (!(result.message.tool_calls?.length) && !leaseResults.size && !preparedExport
             && !preparedChart && !preparedReport && !/(?:导出|下载|Excel|CSV|xlsx|PNG|SVG|PDF|报告|图)/i.test(valid.question)) await flush();
           return result;
         },
@@ -256,6 +267,14 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           if (!rechecked.grants.includes('query:catalog')
             || rechecked.permissionRevision !== authority.permissionRevision
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+          await recheckLeases();
+          if (name === 'query_lease_transactions') {
+            const observed = await queryLeaseResearch(client, actor, toolSignal, args);
+            if (!observed.result) return observed;
+            leaseResults.set(observed.result.resultId, observed.result);
+            const manifest = workset.register(observed.result, worksetOwner);
+            return { ...observed, content: JSON.stringify({ ...JSON.parse(observed.content), workset: manifest }) };
+          }
           if (name === 'get_data_capabilities') {
             return { content: JSON.stringify({ status: 'ready', authority: queryCapabilityManifest(rechecked) }) };
           }
@@ -272,11 +291,13 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               const format = args.format as 'png_zip' | 'svg_zip';
               const next: QueryResult = { ...chosen, parameters: { ...chosen.parameters,
                 agentChart: { version: 'chart-workspace/1', request: chart, format } } };
+              if (isLeaseResult(next)) await recheckLeaseResult(client, actor, toolSignal, next, true);
               const file = await buildResultArtifact(next, { requestId, resultId: next.resultId, action: 'export', format, chart });
               if (file.type !== 'download') throw new Error('AGENT_EXPORT_NOT_GENERATED');
               await history.contextRecheck?.();
               const current = await fresh();
               if (!current.grants.includes('export:internal') || current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
+              await recheckLeases(true);
               preparedChart = next;
               chartFile = { status: 'ready', state: 'server_generated', format, filename: file.filename, bytes: file.bytes.length, sha256: file.sha256 };
               return { content: JSON.stringify({ ...chartFile, resultId: next.resultId, note: '服务器已生成真实图片及来源包；回答提供下载操作，尚未发起浏览器下载，不能声称本机已保存。' }), result: next };
@@ -290,13 +311,16 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
               requestId, chosen, args as { chart?: ChartRequest });
             if (['prepare_chart', 'create_chart', 'modify_chart'].includes(name) && presentation.result) {
               preparedChart = presentation.result; chartFile = undefined;
+              if (isLeaseResult(presentation.result)) return { ...presentation, content: JSON.stringify(leaseModelObservation(presentation.result)) };
               return presentation;
             }
             // Source/chart of an earlier result must not change which formal
             // QueryResult is archived as this request's final result.
+            if (chosen && isLeaseResult(chosen)) return { content: JSON.stringify(leaseModelObservation(chosen)) };
             return id === workset.latestId() ? presentation : { content: presentation.content };
           }
           if (name === 'generate_pdf_report') {
+            if ((args.resultIds as string[]).some(id => isLeaseResult(workset.read(id, worksetOwner)))) throw new Error('LEASE_PDF_UNSUPPORTED');
             const report = await generateAuthorizedReport(workset, worksetOwner, args, rechecked.grants, preparedChart);
             await history.contextRecheck?.();
             const current = await fresh();
@@ -306,10 +330,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return report;
           }
           if (name === 'export_table') {
+            for (const id of args.resultIds as string[]) {
+              const result = workset.read(id, worksetOwner);
+              if (isLeaseResult(result)) await recheckLeaseResult(client, actor, toolSignal, result, true);
+            }
             const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants);
             // Derived export is archived as the terminal result. Do not duplicate
             // its rows into the bounded query workset or evict earlier queries.
             preparedExport = exported.result;
+            await recheckLeases(true);
             exportFiles.push(JSON.parse(exported.content) as Record<string, unknown>);
             const current = await loadDataAuthority(client, actor, toolSignal);
             if (!current.grants.includes('export:internal')
@@ -318,6 +347,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             return exported;
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
+            const ids = name === 'compare_result_sets' ? args.resultIds as string[] : [args.resultId as string];
+            const leases = ids.map(id => workset.read(id, worksetOwner)).filter(isLeaseResult);
+            if (leases.length) return { content: JSON.stringify({ status: 'ready', results: leases.map(leaseModelObservation) }) };
             const id = args.resultId as string;
             const payload = name === 'summarize_result' ? workset.summary(id, worksetOwner)
               : name === 'check_data_coverage' ? workset.coverage(id, worksetOwner)
@@ -331,6 +363,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           }
           let observation: Awaited<ReturnType<typeof queryVerifiedRealEstate>>;
           if (typeof args.question === 'string') {
+            if (/(?:成交|租赁交易|lease.transaction)/i.test(args.question)) throw new Error('LEASE_TOOL_REQUIRED');
             // Bounded migration for previous native Tool Calling clients.
             observation = await queryVerifiedRealEstate({ client, keys, identity: actor, audit: audit!,
               requestId, authority, signal: toolSignal }, args.question);
@@ -356,6 +389,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
       throw error;
     }
+    if (execution.unresolvedFailures.some(item => item.code === 'lease_scope_too_large')) execution.answer = '获权成交数据池超过20000条，未返回部分结果。请由授权维护者缩小正式研究授权范围后重试；本轮未完成成交查询。';
     if (!preparedChart && (execution.toolNames.some(name => ['prepare_chart', 'create_chart', 'modify_chart'].includes(name))
       || execution.unresolvedFailures.some(item => ['create_chart', 'modify_chart'].includes(item.tool)))) execution.answer = '本轮未生成图表。请核对获权字段、单位、范围及图表规格后重试。';
     if (preparedChart) {
@@ -401,17 +435,26 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const current = await fresh();
     if (current.permissionRevision !== authority.permissionRevision
       || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
-    const answerPlan = execution.result ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
+    await recheckLeases();
+    if (leaseResults.size) {
+      execution.result ??= [...leaseResults.values()].at(-1);
+      if (execution.result && !isLeaseResult(execution.result)) execution.result = { ...execution.result,
+        parameters: { ...execution.result.parameters, leaseBindings: [...leaseResults.values()].flatMap(r => r.parameters.leaseBindings as unknown[]) } };
+    }
+    const leaseAnswer = execution.result && isLeaseResult(execution.result);
+    const answerPlan = execution.result && !leaseAnswer ? parseQueryPlan(execution.result.parameters.executedPlan) : null;
     await audit.append(requestId, 'tool_finished', {
       protocol: 'agent-answer/1', provider: 'deepseek', model: execution.model,
       permissionRevision: authority.permissionRevision,
       history: trimAgentHistory(history, valid.question, execution.answer),
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
+      ...(leaseResults.size ? { leaseContext: true } : {}),
+      ...(leaseAnswer ? { resolution: { protocol: 'lease-research/1' } } : {}),
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
       ...(preparedReport ? { reportFile } : {}),
       ...(!preparedReport && preparedChart ? { chartContext: { resultId: preparedChart.resultId, chart: (preparedChart.parameters.agentChart as { request: ChartRequest }).request }, ...(chartFile ? { chartFile } : {}) } : {}),
-      ...(preparedExport ? { exportFiles, exportContext: {
+      ...(preparedExport && !isLeaseResult(preparedExport) ? { exportFiles, exportContext: {
         plans: preparedExport.parameters.exportPlans,
         selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
           selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),
@@ -444,6 +487,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     const response = await prepareQueryJsonResponse(request, responseBody, deliveryHeaders);
     try {
       await history.contextRecheck?.();
+      await recheckLeases();
       if (preparedReport) {
         const read = await readOwnResult(client, actor, requestId, 'archive', signal);
         await recoverOwnResult(client, actor, keys, requestId, read, signal);

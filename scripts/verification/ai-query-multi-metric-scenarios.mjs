@@ -10,7 +10,7 @@ import { BUILDINGS } from '../../supabase/tests/ai-query-authority/snapshot-fixt
 export async function verifyMultiMetricAnalysis({ db, check, queryAdmin, call, recover, artifact, exportCaps }) {
   assert.equal(process.env.AI_QUERY_AUTH_ALLOW_LOCAL, 'disposable');
   assert.equal(db.connectionParameters.host, '127.0.0.1');
-  assert.equal(Number(db.connectionParameters.port), 55992);
+  assert.equal(Number(db.connectionParameters.port), Number(process.env.AI_QUERY_AUTH_DB_PORT ?? 55992));
   const original = (await db.query('select id,submarket,grade from public.buildings where id=any($1::uuid[]) order by id', [BUILDINGS])).rows;
   const query = question => call(queryAdmin, { idempotencyKey: randomUUID(), question, conversation: { id: randomUUID() } });
   const fields = ['height', 'totalArea', 'netEffectiveRent', 'vacantArea'];

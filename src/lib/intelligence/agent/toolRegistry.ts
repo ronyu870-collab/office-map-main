@@ -1,3 +1,4 @@
+import { leasePlanSchema } from '../lease/protocol';
 import { z } from 'zod';
 import { reportRequestSchema } from '../query/reportProtocol';
 import { distributionMeasureSchema } from '../query/distribution';
@@ -102,6 +103,7 @@ export const LEGACY_TOOL_NAMES: ReadonlySet<string> = new Set([
 /** For a bounded migration, accept previously issued {question} calls at the
  * runtime boundary, but do not advertise that obsolete contract to the model. */
 export function parseAgentToolArguments(name: string, input: unknown): Record<string, unknown> {
+  if (name === 'query_lease_transactions') return leasePlanSchema.parse(input);
   if (name === 'query_verified_real_estate') return legacy.parse(input);
   if (LEGACY_TOOL_NAMES.has(name) && typeof input === 'object' && input !== null
     && Object.hasOwn(input, 'question')) return legacy.parse(input);
@@ -140,6 +142,7 @@ function def(name: string, description: string, properties: Record<string, unkno
 }
 const jsonScope = s;
 export const SPECIALIST_DATA_TOOLS = [
+  def('query_lease_transactions', '独立租赁成交研究，只读取当前用户获权数据，绝不使用季度租金引擎回答成交。source=live|history|combined；明确from/to日期（含首尾），mode=aggregate|details。aggregate按total|quarter|building|industry|submarket汇总成交记录数和面积，可sort=area|count|period与topN；industry按已存精确值过滤；industries可按用户明确的多个分类组合（两者不能并用）。TMT单标签条件先澄清：仅按原标签可明确传industries=[TMT]，或先按industry分组后确认组合范围，不自动映射为科技/媒体/通信。buildingName精确匹配治理后的规范名或原别名，buildingIds须来自已授权目录。details需要独立资格，默认仅脱敏字段，模型不可读取原始明细；可交付Excel。公司/经纪人/提交人/备注一律不可查询。租金原值分live/history独立列，未经核验不称净有效，不跨表算租金均值。两表仅按经核验且版本未变化的身份关联去重，其他相似记录保留并注明可能重叠；年份精度不强分配季度。完整获权池超过20000行明确失败，不静默截断。', z.toJSONSchema(leasePlanSchema).properties as Record<string, unknown>, ['source', 'from', 'to']),
   def('query_report_market', 'PDF研究报告的相对期间查询。用户未指定明确起止、说最近四季度时，报告默认最近4个已结束的北京时间日历季度；由服务器计算起止，缺期保留未知，不回退到最近有数季度。metric=rent|vacancy|totalArea，可分别执行后组合PDF。已指定起止或含本季度时应使用analyze_market_trends，不改写用户期间。', z.toJSONSchema(STRUCTURED_DATA_SCHEMAS.query_report_market).properties as Record<string, unknown>, ['scope', 'metric']),
   def('analyze_rent_vacancy', '查询同季度获权楼宇的净有效租金与空置率联合样本，用于散点；返回rent与vacancy列，空置率正式比例来自授权面积，不自行估算。', { scope: s, period: q }, ['scope', 'period']),
   def('analyze_distribution', '复用正式分布统计生成直方图或箱线图所需的完整获权结果；不由模型计算分箱和分位数。', z.toJSONSchema(STRUCTURED_DATA_SCHEMAS.analyze_distribution).properties as Record<string, unknown>, ['scope', 'period', 'measure']),

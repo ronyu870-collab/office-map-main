@@ -1,3 +1,4 @@
+import { isLeaseResult, LEASE_DOMAIN, leaseBindingSchema } from '../lease/protocol';
 import { createHash, randomUUID } from 'node:crypto';
 import { exportTableSchema } from './toolRegistry';
 import { AuthorizedResultWorkset, type WorksetOwner, WORKSET_LIMITS } from './resultWorkset';
@@ -24,6 +25,8 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     || results.some((result, i) => result.resultId !== args.resultIds[i])) throw new Error('AGENT_RESULT_NOT_FOUND');
   results.forEach(result => resultViewSchema.parse(result));
   const base = results[0];
+  const lease = isLeaseResult(base);
+  if (results.some(result => isLeaseResult(result) !== lease)) throw new Error('AGENT_EXPORT_INCOMPATIBLE_DOMAIN');
   if (results.some(result => JSON.stringify(result.table.columns) !== JSON.stringify(base.table.columns)))
     throw new Error('AGENT_EXPORT_INCOMPATIBLE_COLUMNS');
   if (results.reduce((sum, result) => sum + result.table.rows.length, 0) > WORKSET_LIMITS.totalRows)
@@ -40,7 +43,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   let rows: Array<{ entityId: string; cells: Record<string, ResultCell> }> = results.flatMap(result => result.table.rows.map(row => ({ ...row,
     cells: { ...row.cells, ...(results.length > 1 ? {
       export_result_id: { kind: 'text' as const, value: result.resultId, sourceIds: [] },
-      export_period: { kind: 'text' as const, value: JSON.stringify(result.parameters.period ?? {
+      export_period: { kind: 'text' as const, value: JSON.stringify(lease ? result.parameters.scope : result.parameters.period ?? {
         start: result.parameters.start, end: result.parameters.end,
       }), sourceIds: [] },
     } : {}) },
@@ -87,7 +90,8 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
   const lineage = results.map(result => ({ resultId: result.resultId, snapshotId: result.snapshotId,
     dataVersion: result.dataVersion, scopeFingerprint: result.scopeFingerprint,
     parameters: result.parameters, analysis: result.analysis, rowCount: result.table.rows.length }));
-  const exportPlans = results.flatMap(result => Array.isArray(result.parameters.exportPlans)
+  const leaseBindings = lease ? results.flatMap(result => leaseBindingSchema.array().min(1).max(64).parse(result.parameters.leaseBindings)) : [];
+  const exportPlans = lease ? [] : results.flatMap(result => Array.isArray(result.parameters.exportPlans)
     ? result.parameters.exportPlans.map(parseQueryPlan) : [parseQueryPlan(result.parameters.executedPlan)]);
   const outputColumns = [...(results.length > 1 ? [
     { key: 'export_result_id', label: '原结果编号', unit: null },
@@ -101,6 +105,7 @@ export function prepareExportResult(results: readonly QueryResult[], raw: unknow
     // make the multi-metric renderer reject this list result.
     parameters: { ...Object.fromEntries(Object.entries(base.parameters).filter(([key]) =>
       ['scope', 'period', 'executedPlan', 'relativeQuarterContext'].includes(key))), fields, exportPlans,
+      ...(lease ? { dataDomain: LEASE_DOMAIN, leaseBindings, leaseProviderMinGroupSize: Math.max(...results.map(r => typeof r.parameters.leaseProviderMinGroupSize === 'number' ? r.parameters.leaseProviderMinGroupSize : 100)) } : {}),
       agentExport: { version: 'agent-export/1', format: args.format, singleSheet: args.singleSheet,
         matchedRows, exportedRows: rows.length, selection: args, lineage } },
     table: { id: 'export', columns: outputColumns, rows: rows.map(row => ({ ...row,
