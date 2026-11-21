@@ -15,6 +15,8 @@ import { queryConversationSchema } from '../query/conversationProtocol';
 import { parseQueryPlan } from '../query/plan';
 import { completeWithDeepSeek, ModelProviderError } from './modelProvider';
 import { runAgentLoop, type AgentEvent } from './agentOrchestrator';
+import { exportAuthorizedTable } from './exportTableTool';
+import type { QueryResult } from '../query/result';
 import { estimateAgentCostRange } from './agentCost';
 import { queryVerifiedRealEstate, executeStructuredDataTool } from './verifiedDataTool';
 import { queryCapabilityManifest } from '../query/capabilityManifest';
@@ -28,7 +30,7 @@ const inputSchema = z.strictObject({
   idempotencyKey: z.uuid(), question: z.string().min(1).max(6000).refine(s => !!s.trim()),
   conversation: queryConversationSchema,
 });
-type Dependencies = { client: SupabaseClient; keys: AuditKeys; enabled: boolean };
+type Dependencies = { client: SupabaseClient; keys: AuditKeys; enabled: boolean; invokeModel?: typeof completeWithDeepSeek };
 export type AgentStreamObserver = (event:
   | { type: 'run_started'; requestId: string }
   | { type: 'phase_changed'; phase: import('./agentOrchestrator').AgentPhase; tools?: string[] }
@@ -180,12 +182,15 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
     };
     // All results live only in this authenticated request, never in process globals.
     // A revocation invalidates every reference, including cached/deduplicated reads.
+    let preparedExport: QueryResult | undefined;
+    const exportFiles: Array<Record<string, unknown>> = [];
     let execution: Awaited<ReturnType<typeof runAgentLoop<import('../query/result').QueryResult>>>;
     try {
       execution = await runAgentLoop({
         question: redactSubmittedCredentials(valid.question).text,
         history,
         contextPlan: history.contextPlan,
+        contextExport: history.contextExport,
         revalidate: async currentSignal => {
           const rechecked = await loadDataAuthority(client, actor, currentSignal);
           if (!rechecked.grants.includes('query:catalog')
@@ -193,7 +198,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             || rechecked.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
         },
         invoke: async (messages, currentSignal) => {
-          if (!observer) return completeWithDeepSeek(messages, currentSignal);
+          if (!observer) return (dependencies.invokeModel ?? completeWithDeepSeek)(messages, currentSignal);
           // Bound provisional updates; never make a DB authorization RPC for
           // every individual supplier token. Every visible batch must pass a
           // live permission-revision check before it reaches the browser.
@@ -210,7 +215,7 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
           };
           // Provisional model tokens may include unfinished tool calls. Never
           // send those to the UI as if they were a verified final answer.
-          const result = await completeWithDeepSeek(messages, currentSignal, async delta => {
+          const result = await (dependencies.invokeModel ?? completeWithDeepSeek)(messages, currentSignal, async delta => {
             pending += delta;
             if (pending.length > 12000) throw new Error('AGENT_STREAM_EVENT_TOO_LARGE');
           });
@@ -242,6 +247,18 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
             // Source/chart of an earlier result must not change which formal
             // QueryResult is archived as this request's final result.
             return id === workset.latestId() ? presentation : { content: presentation.content };
+          }
+          if (name === 'export_table') {
+            const exported = await exportAuthorizedTable(workset, worksetOwner, args, rechecked.grants);
+            // Derived export is archived as the terminal result. Do not duplicate
+            // its rows into the bounded query workset or evict earlier queries.
+            preparedExport = exported.result;
+            exportFiles.push(JSON.parse(exported.content) as Record<string, unknown>);
+            const current = await loadDataAuthority(client, actor, toolSignal);
+            if (!current.grants.includes('export:internal')
+              || current.permissionRevision !== authority.permissionRevision
+              || current.policyVersion !== authority.policyVersion) throw new Error('QUERY_DENIED');
+            return exported;
           }
           if (WORKSET_TOOL_NAMES.has(name)) {
             const id = args.resultId as string;
@@ -282,6 +299,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
         durationMs: Math.max(0, Date.now() - agentStartedAt) });
       throw error;
     }
+    if (preparedExport) {
+      execution.result = preparedExport;
+      execution.answer += '\n\n服务器已生成 ' + preparedExport.table.rows.length
+        + ' 行文件，可通过本条回答的下载操作获取；尚未发起浏览器下载，也未确认本机保存。';
+    }
     await audit.append(requestId, 'accounting', { provider: 'deepseek', status: execution.executionStatus,
       model: execution.model, modelCalls: execution.calls, toolCalls: execution.toolCalls,
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
@@ -301,6 +323,11 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       toolTrace, phases: execution.phases, workset: workset.manifest(worksetOwner),
       executionStatus: execution.executionStatus, unresolvedFailures: execution.unresolvedFailures,
       ...(answerPlan ? { plan: answerPlan, resolution: { protocol: 'research-conversation/1' } } : {}),
+      ...(preparedExport ? { exportFiles, exportContext: {
+        plans: preparedExport.parameters.exportPlans,
+        selection: (() => { const { resultIds: _ids, ...selection } = (preparedExport.parameters.agentExport as {
+          selection: { resultIds: string[] } }).selection; void _ids; return selection; })(),
+      } } : {}),
       status: 'answer_prepared',
     });
     await audit.append(requestId, 'response_generated', { result: execution.result ?? {

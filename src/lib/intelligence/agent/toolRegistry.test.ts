@@ -20,7 +20,7 @@ describe('AI 5.0 structured native tool protocol', () => {
     for (const name of Object.keys(WORKSET_TOOL_SCHEMAS)) {
       const exposed = AGENT_TOOLS.find(tool => tool.function.name === name);
       expect(exposed?.function.parameters.properties).toHaveProperty(
-        name === 'compare_result_sets' ? 'resultIds' : 'resultId');
+        ['compare_result_sets', 'export_table'].includes(name) ? 'resultIds' : 'resultId');
     }
   });
 

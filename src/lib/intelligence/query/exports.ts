@@ -42,6 +42,7 @@ export function buildCsvPackage(result: QueryResult) {
 export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
   const XLSX = await import('xlsx');
   const workbook = XLSX.utils.book_new();
+  const singleSheet = (result.parameters.agentExport as { singleSheet?: boolean } | undefined)?.singleSheet === true;
   const append = (name: string, rows: (string | number | null)[][]) => {
     if (rows.length > 1048576 || rows.some(row => row.length > 16384)) throw new Error('XLSX_DIMENSION_LIMIT');
     if (rows.some(row => row.some(value => typeof value === 'string' && value.length > 32767))) throw new Error('XLSX_CELL_LIMIT');
@@ -52,6 +53,17 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
       const typed = cell as { t?: string; f?: string; v?: unknown };
       if (typeof typed.v === 'string') { typed.t = 's'; delete typed.f; }
     }
+    const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+    sheet['!cols'] = Array.from({ length: columnCount }, (_, index) => ({
+      wch: rows.reduce((width, row) => Math.max(width, Math.min(60,
+        Array.from(String(row[index] ?? '')).reduce((sum, c) => sum + (c.charCodeAt(0) > 255 ? 2 : 1), 0))), 14),
+    }));
+    if (singleSheet && workbook.SheetNames.length) {
+      const target = workbook.Sheets[workbook.SheetNames[0]];
+      if (XLSX.utils.decode_range(target['!ref']!).e.r + rows.length + 3 > 1048576) throw new Error('XLSX_DIMENSION_LIMIT');
+      XLSX.utils.sheet_add_aoa(target, [[], [name], ...rows], { origin: -1 });
+      return target;
+    }
     XLSX.utils.book_append_sheet(workbook, sheet, name);
     return sheet;
   };
@@ -60,10 +72,18 @@ export async function buildXlsx(result: QueryResult): Promise<Uint8Array> {
     const count = Math.ceil(value.length / 30000);
     return [[`${key}:parts`, String(count)], ...Array.from({ length: count }, (_, index) => [`${key}:part:${String(index + 1).padStart(6, '0')}`, value.slice(index * 30000, (index + 1) * 30000)])];
   };
-  append('数据', [
-    ['entity_id', ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
-    ...result.table.rows.map(row => [row.entityId, ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
+  const dataSheet = append('数据', [
+    [...(result.parameters.agentExport ? [] : ['entity_id']), ...result.table.columns.map(column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`)],
+    ...result.table.rows.map(row => [...(result.parameters.agentExport ? [] : [row.entityId]), ...result.table.columns.map(column => cellValue(row.cells[column.key]))]),
   ]);
+  dataSheet['!autofilter'] = { ref: XLSX.utils.encode_range({ r: 0, c: 0 },
+    { r: result.table.rows.length, c: result.table.columns.length - (result.parameters.agentExport ? 1 : 0) }) };
+  result.table.columns.forEach((column, index) => {
+    if (column.unit === 'ratio') result.table.rows.forEach((_, row) => {
+      const cell = dataSheet[XLSX.utils.encode_cell({ r: row + 1, c: index + (result.parameters.agentExport ? 0 : 1) })];
+      if (cell?.t === 'n') cell.z = '0.00%';
+    });
+  });
   if (result.operation === 'cross_aggregate') {
     // Reuse the exact axis/cell validator, then copy original typed cells. No
     // regrouping, pivot aggregate, fresh data read or rounded recomputation.
