@@ -44,7 +44,7 @@ const stacking = { building: { id: project, name: 'CBD甲楼' }, towers: [{id:'t
 const observations = [];
 try {
  for (const [width, reduced] of [[1536,false],[390,false],[390,true]]) {
-  const context = await browser.newContext({viewport:{width,height:900},reducedMotion:reduced?'reduce':'no-preference',serviceWorkers:'block'});
+  const context = await browser.newContext({viewport:{width,height:width===390?560:900},reducedMotion:reduced?'reduce':'no-preference',serviceWorkers:'block'});
   let stackReads=0, failRefresh=false;
   const errors=[];
   await context.routeWebSocket(/.*/, socket=>socket.close());
@@ -76,13 +76,19 @@ try {
   await list.getByRole('searchbox',{name:'搜索当前项目列表'}).fill('CBD');
   await list.getByRole('combobox',{name:'项目列表排序'}).selectOption('name');
   await list.getByRole('button',{name:/^选择项目/}).click();
-  await list.getByRole('checkbox',{name:'选择CBD乙楼',exact:true}).check();
+  await list.getByRole('checkbox',{name:'选择CBD乙楼',exact:true}).check().catch(async error=>{
+    console.log('short viewport geometry',await page.locator('.map-workspace-layout, .map-workspace-right, .workspace-building-list, .workspace-panel-header, .workspace-list-tools, .workspace-scroll').evaluateAll(elements=>elements.map(element=>({name:element.className,box:element.getBoundingClientRect().toJSON(),scrollTop:element.scrollTop,scrollHeight:element.scrollHeight}))));
+    await page.screenshot({path:'/tmp/continuity-short-phone.png'});throw error;
+  });
   await list.getByRole('button',{name:'完成选择',exact:true}).click();
   await list.getByRole('button',{name:/^CBD甲楼/}).click();await detail.waitFor();
   await page.getByRole('tab',{name:'成交与资料',exact:true}).click();
   if(width===390)await detail.getByRole('button',{name:'阅读',exact:true}).click();
   if(width===1536)await page.getByRole('separator',{name:'调整业务工作区宽度'}).press('End');
   await page.waitForTimeout(260);
+  const stackLink = page.getByRole('link',{name:'Stacking Plan',exact:true});
+  await stackLink.scrollIntoViewIfNeeded(); await page.waitForTimeout(80);
+  const readingScroll = await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop);
   const before={camera:await page.evaluate(()=>({zoom:window.__workspaceMap.getZoom(),center:window.__workspaceMap.center})),box:await page.locator('.map-workspace-right').boundingBox()};
   console.log('enter stacking',width);
   const denseStarted=Date.now();
@@ -122,6 +128,7 @@ try {
   console.log('return project',width);
   await detail.waitFor();await page.waitForTimeout(400);
   assert.equal(await page.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true','return restores original detail tab');
+  assert.ok(Math.abs(await detail.locator('.workspace-scroll').evaluate(element=>element.scrollTop)-readingScroll)<2,'return restores actual detail scroll on a short phone viewport');
   assert.equal(await page.getByRole('button',{name:'租金',exact:true}).getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('.map-selected-marker').count(),1);
   assert.deepEqual(await page.evaluate(()=>({zoom:window.__workspaceMap.getZoom(),center:window.__workspaceMap.center})),before.camera,'return restores camera');
@@ -138,6 +145,10 @@ try {
   for(let round=0;round<2;round++) {
     await page.goBack(); console.log('history back',round,page.url()); await detail.waitFor();
     assert.equal(await page.getByRole('tab',{name:'成交与资料',exact:true}).getAttribute('aria-selected'),'true','browser back restores tab');
+    await page.waitForFunction(({top,camera})=>{
+      const scroller=document.querySelector('.workspace-building-scroll');
+      return scroller&&Math.abs(scroller.scrollTop-top)<2&&window.__workspaceMap.getZoom()===camera.zoom&&JSON.stringify(window.__workspaceMap.center)===JSON.stringify(camera.center);
+    },{top:readingScroll,camera:before.camera});
     await page.goForward(); console.log('history forward',round,page.url()); await page.getByRole('heading',{name:/CBD甲楼/}).waitFor();
   }
   await page.goBack(); await detail.waitFor();
@@ -147,6 +158,13 @@ try {
   await list.getByRole('button',{name:/^选择项目/}).click();
   assert.equal(await list.getByRole('checkbox',{name:'选择CBD乙楼',exact:true}).isChecked(),true,'return restores comparison selection');
   await list.getByRole('button',{name:'完成选择',exact:true}).click();
+  // Reopening the same project must refocus after the user has panned in a list.
+  await list.getByRole('button',{name:/^CBD甲楼/}).click(); await detail.waitFor();
+  await page.getByRole('button',{name:'项目列表',exact:true}).click(); await list.waitFor();
+  await page.evaluate(()=>window.__workspaceMap.setCenter([116.2,40.1]));
+  await list.getByRole('button',{name:/^CBD甲楼/}).click(); await detail.waitFor(); await page.waitForTimeout(280);
+  assert.deepEqual(await page.evaluate(()=>window.__workspaceMap.center),[116.46,39.91],'same project refocuses after a list and manual pan');
+  await page.getByRole('button',{name:'项目列表',exact:true}).click(); await list.waitFor();
   // Rapid reversals must settle on the final project without queued camera callbacks.
   await list.getByRole('button',{name:/^CBD乙楼/}).click();
   await page.getByRole('button',{name:'关闭楼宇详情'}).click();
@@ -169,7 +187,7 @@ try {
   await page.waitForTimeout(100);
   const motion=await page.evaluate(()=>{window.__continuityObserver?.disconnect();const frames=window.__continuityFrames.slice(1).sort((a,b)=>a-b);return {frameP95Ms:frames[Math.floor(frames.length*.95)]??null,longTasks:window.__continuityLongTasks};});
   await context.close();
-  observations.push({width,reduced,roundTrip:true,refreshRetainsContent:true,dirtyCancel:true,resizeCalls:resizes,dense600ReadyMs:denseReadyMs,dense600FilterMs:denseFilterMs,motion,errors});
+  observations.push({width,reduced,roundTrip:true,readingScroll,sameProjectRefocus:true,refreshRetainsContent:true,dirtyCancel:true,resizeCalls:resizes,dense600ReadyMs:denseReadyMs,dense600FilterMs:denseFilterMs,motion,errors});
   assert.deepEqual(errors,[]);
  }
  console.log(JSON.stringify({environment:'production React + real controller + isolated SDK/data transport',observations}));

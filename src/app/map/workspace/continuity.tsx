@@ -112,20 +112,30 @@ export function useMapReadingState<T>(key: string, initial: T) {
 /** Restore after late content/size changes without stealing the user's scroll. */
 export function useMapReadingScroll(ref: React.RefObject<HTMLDivElement | null>, key: string, active = true, initial = 0) {
   const store = React.useContext(MapReadingContext);
+  const reset = React.useRef<((position: number) => void) | null>(null);
+  const resetScroll = React.useCallback((position = 0) => {
+    if (store) store[key] = Math.max(0, position);
+    if (reset.current) reset.current(position);
+    else if (ref.current) ref.current.scrollTop = position;
+  }, [key, ref, store]);
   React.useLayoutEffect(() => {
     const element = ref.current;
-    if (!element || !store || !active) return;
-    const desired = typeof store[key] === 'number' ? Math.max(0, store[key] as number) : initial;
+    if (!element || !active) return;
+    let desired = typeof store?.[key] === 'number' ? Math.max(0, store[key] as number) : initial;
     let restoring = true;
     const restore = () => { if (restoring) element.scrollTop = desired; };
     const takeOver = () => { restoring = false; };
-    const save = () => { if (!restoring) store[key] = element.scrollTop; };
+    const save = () => { if (!restoring && store) store[key] = element.scrollTop; };
+    reset.current = position => {
+      desired = Math.max(0, position); if (store) store[key] = desired; restoring = true; restore();
+    };
     restore();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(restore);
     for (const child of element.children) observer?.observe(child);
     element.addEventListener('wheel', takeOver, { passive: true }); element.addEventListener('pointerdown', takeOver);
     element.addEventListener('keydown', takeOver); element.addEventListener('scroll', save);
-    return () => { observer?.disconnect(); element.removeEventListener('wheel', takeOver); element.removeEventListener('pointerdown', takeOver);
+    return () => { reset.current = null; observer?.disconnect(); element.removeEventListener('wheel', takeOver); element.removeEventListener('pointerdown', takeOver);
       element.removeEventListener('keydown', takeOver); element.removeEventListener('scroll', save); };
   }, [active, initial, key, ref, store]);
+  return resetScroll;
 }

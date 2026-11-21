@@ -382,8 +382,14 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     const controller = controllerRef.current;
     if (!view || workspace.focus) { lastCameraTarget.current = ''; canvasCoordinator.current?.cancel(); return; }
     if (!mapReady || !controller || !canvasCoordinator.current) return;
-    const key = view.kind === 'building' ? `building:${view.building.id}` : view.kind === 'submarket' ? `submarket:${view.name}` : '';
-    if (!key || key === lastCameraTarget.current) return;
+    const key = view.kind === 'building' && hasBuildingLocation(view.building) ? `building:${view.building._dataType}:${view.building.id}` : view.kind === 'submarket' ? `submarket:${view.name}` : '';
+    if (!key) {
+      // A restored list can own an exact overview intent; only cancel a stale geographic selection.
+      if (lastCameraTarget.current) canvasCoordinator.current.cancel();
+      lastCameraTarget.current = ''; restoreCamera.current = null; return;
+    }
+    if (key === lastCameraTarget.current) return;
+    canvasCoordinator.current.cancel();
     lastCameraTarget.current = key;
     if (view.kind === 'building' && hasBuildingLocation(view.building)) {
       canvasCoordinator.current.focus({ center: [view.building.location_lng!, view.building.location_lat!], camera: restoreCamera.current });
