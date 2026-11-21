@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { installMapVisualContinuityV2 } from '../mapVisualContinuityV2';
 import { installMapInteractionHardening } from '../mapInteractionHardening';
 import { installFallbackMarkerHardening, installNativeMarkerRenderer } from '../mapNativeMarkerRenderer';
 
@@ -325,7 +326,7 @@ describe('native map visual hierarchy', () => {
       expect(detailLayer.markers.some((marker: any) => marker.options.name === 'a')).toBe(true);
       expect(getF().every((marker: any) => marker.options.rank > 2999)).toBe(true);
       const svg = decodeURIComponent(getF()[0].options.icon.image.split(',')[1]);
-      expect(svg).toContain('fill="#10b981"');
+      expect(svg).toContain('fill="#4f7968"');
       expect(svg).toContain('stroke-dasharray="3 2"');
       expect(svg).toContain('>F</text>');
       expect(getF()[0].options.icon.size).toEqual([34, 34]);
@@ -395,6 +396,71 @@ describe('native map visual hierarchy', () => {
       } finally {
         cleanup?.();
       }
+    }
+  });
+
+  it('keeps data badge text readable across metric, missing, LEED and light comparison states', async () => {
+    const luminance = (hex: string) => {
+      const rgb = hex.slice(1).match(/../g)!.map(value => {
+        const channel = parseInt(value, 16) / 255;
+        return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+      });
+      return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722;
+    };
+    const checkBadge = (image: string) => {
+      const svg = new DOMParser().parseFromString(decodeURIComponent(image.split(',')[1]), 'image/svg+xml');
+      const foreground = luminance(svg.querySelector('text')!.getAttribute('fill')!);
+      const background = luminance(svg.querySelectorAll('circle')[1]?.getAttribute('fill') ?? svg.querySelector('circle')!.getAttribute('fill')!);
+      expect((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05)).toBeGreaterThanOrEqual(4.5);
+    };
+    for (const version of ['v3', 'v2', 'fallback'] as const) {
+      const harness = createNativeHarness();
+      harness.setZoom(14.4);
+      const controller: any = {
+        AMap: harness.AMap, map: harness.map,
+        markers: [], dotMarkers: [], submarketMarkers: [],
+        renderMarkers: vi.fn(), clearMarkers: vi.fn(), updateVisibilityByZoom: vi.fn(),
+        renderFutureMarkers: vi.fn(), clearFutureMarkers: vi.fn(),
+        setWorkspaceSelectionRenderer: vi.fn(), refreshWorkspaceSelection: vi.fn(),
+      };
+      const cleanup = version === 'v3'
+        ? installMapInteractionHardening(controller, 'map-container')
+        : version === 'v2' ? installMapVisualContinuityV2(controller, document.getElementById('map-container')!)
+        : installNativeMarkerRenderer(controller, document.getElementById('map-container')!);
+      try {
+        const items = [building('a', 'CBD', 116.46, 39.91, 146, .15),
+          { ...building('missing', 'CBD', 116.47, 39.91, 0, 0), grade: '', metrics: [] },
+          { ...building('platinum', 'CBD', 116.48, 39.91, 310, .35), leed_certification: 'Platinum' },
+          { ...building('silver', 'CBD', 116.49, 39.91, 210, .25), leed_certification: 'Silver' }];
+        for (const mode of ['default', 'rent', 'vacancy', 'leed'] as const) {
+          const start = harness.labelMarkerInstances.length;
+          controller.renderMarkers(items, mode, new Map(), mode === 'default' ? [{ color: '#fef3c7' }] : undefined);
+          if (version === 'v3') controller.renderFutureMarkers([{ id: 'future', location_lng: 116.48, location_lat: 39.91 },
+            { id: 'future-gold', location_lng: 116.49, location_lat: 39.91, leed_certification: 'Gold' }], mode);
+          await flushFrames();
+          const icons = harness.labelMarkerInstances.slice(start).filter(marker => marker.options.icon);
+          expect(icons.length).toBeGreaterThanOrEqual(2);
+          icons.forEach(marker => checkBadge(marker.options.icon.image));
+          const selectionImage = controller.setWorkspaceSelectionRenderer.mock.lastCall[0];
+          const pinnedFuture = selectionImage({ _dataType: 'future' });
+          checkBadge(pinnedFuture);
+          expect(decodeURIComponent(pinnedFuture)).toContain(mode === 'default' ? '>F</text>' : mode === 'leed' ? '>N</text>' : '>–</text>');
+          expect(controller.refreshWorkspaceSelection).toHaveBeenCalled();
+          for (const { options } of harness.markerInstances) {
+            const element = options.content as HTMLElement;
+            if (!element?.classList.contains('map-submarket-bubble')) continue;
+            const foreground = luminance(element.style.getPropertyValue('--sm-foreground') || '#ffffff');
+            const background = luminance(element.style.getPropertyValue('--sm-accent') || '#245b78');
+            expect((Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05)).toBeGreaterThanOrEqual(4.5);
+          }
+          if (version === 'v3' && mode === 'leed') {
+            const stockGold = icons.find(marker => marker.options.name === 'a')!;
+            const futureGold = icons.find(marker => marker.options.name.startsWith('future:future-gold:'))!;
+            const fill = (image: string) => new DOMParser().parseFromString(decodeURIComponent(image.split(',')[1]), 'image/svg+xml').querySelector('text')!.getAttribute('fill');
+            expect(fill(futureGold.options.icon.image)).toBe(fill(stockGold.options.icon.image));
+          }
+        }
+      } finally { cleanup?.(); }
     }
   });
 

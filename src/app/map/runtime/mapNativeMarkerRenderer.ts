@@ -1,5 +1,8 @@
 'use client';
 
+import { futureSupplyImage } from './mapSelectionMarker';
+import { markerTextColor } from './mapMarkerContrast';
+
 import type { MapController } from '@/src/services/MapController';
 import { mapOptionalNumber, observedVacantArea } from '../model/vacancyMetrics';
 import { summarizeSubmarkets } from '../model/submarketOverview';
@@ -76,6 +79,8 @@ export type ControllerInternals = {
   renderFutureMarkers?: (...args: any[]) => void;
   clearFutureMarkers?: () => void;
   isWorkspaceActive?: () => boolean;
+  setWorkspaceSelectionRenderer?: (renderer: ((building: any) => string) | null) => void;
+  refreshWorkspaceSelection?: () => void;
   openBuildingInfoWindow?: (buildingId: string) => void;
   bounceMarker?: (buildingId: string) => void;
   stopBounceMarker?: (buildingId: string) => void;
@@ -301,7 +306,7 @@ function buildingVisual(
     textColor = '#ffffff';
   }
 
-  return { background, border, textColor, text, fontSize };
+  return { background, border, textColor: markerTextColor(background, textColor), text, fontSize };
 }
 
 function submarketAccent(
@@ -524,6 +529,8 @@ export function installNativeMarkerRenderer(
   let lastBuildings: any[] = [];
   let lastMode: RenderMode = 'default';
   let lastGroups: any[] | undefined;
+  controller.setWorkspaceSelectionRenderer?.(building => building._dataType === 'future'
+    ? futureSupplyImage(building, lastMode) : detailBubbleImage(buildingVisual(building, lastMode, latestMetric(building, metricCache), lastGroups)));
   let lastShowAreaPlaceholders = false;
   let lastOverviewBuildings: any[] | undefined;
   let futureSignature = '';
@@ -668,7 +675,10 @@ export function installNativeMarkerRenderer(
       element.dataset.renderMode = mode;
       element.title = `${item.name}，甲乙级${count}个${isReference ? '，*区域参考租金' : ''}`;
       element.setAttribute('aria-label', `查看${item.name}子市场介绍，甲乙级${count}个`);
-      if (!nameOnly) element.style.setProperty('--sm-accent', accent);
+      if (!nameOnly) {
+        element.style.setProperty('--sm-accent', accent);
+        element.style.setProperty('--sm-foreground', markerTextColor(accent));
+      }
       element.style.setProperty('--sm-size', `${size}px`);
       const metrics = nameOnly ? '' : `
         <span class="map-submarket-bubble__metrics">
@@ -911,7 +921,7 @@ export function installNativeMarkerRenderer(
         text: {
           content: buildingName,
           direction: 'right',
-          offset: [18, 0],
+          offset: [22, 0],
           style: {
             fontSize: 11,
             fontWeight: '600',
@@ -965,6 +975,7 @@ export function installNativeMarkerRenderer(
     lastBuildings = buildings;
     lastMode = mode;
     lastGroups = groups;
+    controller.refreshWorkspaceSelection?.();
     lastShowAreaPlaceholders = showAreaPlaceholders;
     lastOverviewBuildings = overviewBuildings;
     lastSignature = signature;
@@ -1118,6 +1129,7 @@ export function installNativeMarkerRenderer(
     map.off?.('movestart', onMoveStart);
     map.off?.('moveend', onMoveEnd);
 
+    controller.setWorkspaceSelectionRenderer?.(null);
     controller.renderMarkers = originalRender as ControllerInternals['renderMarkers'];
     controller.clearMarkers = originalClear as ControllerInternals['clearMarkers'];
     if (originalUpdate) controller.updateVisibilityByZoom = originalUpdate;
