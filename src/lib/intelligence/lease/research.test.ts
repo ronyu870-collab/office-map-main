@@ -92,6 +92,10 @@ describe('controlled lease research deterministic facts and real files', () => {
     expect(details.table.rows.filter(r => r.cells.area.kind === 'unknown')).toHaveLength(1);
     expect(details.table.rows.filter(r => r.cells.area.kind === 'number' && r.cells.area.value.numeric === 0)).toHaveLength(1);
     expect(resultSummary(resultViewSchema.parse(details)).join()).not.toContain('栋');
+    const namesOnly = buildLeaseResult(f, { ...plan, mode: 'details', fields: ['building'] });
+    expect(namesOnly.table.columns.map(c => c.key)).toEqual(['building']);
+    expect(namesOnly.table.rows).toHaveLength(5);
+    expect(namesOnly.table.rows.every(r => Object.keys(r.cells).join() === 'building')).toBe(true);
   });
   it('keeps live and historical face/effective rents distinct and rejects unauthorized/sensitive fields', () => {
     const f = fixture(); f.rows[0].financials = { faceRent: '250', effectiveRent: '200', leaseMonths: '36', freeMonths: '3' };

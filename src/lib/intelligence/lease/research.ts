@@ -118,7 +118,8 @@ export function buildLeaseResult(snapshot: LeaseSnapshot, raw: unknown): QueryRe
     }
   }
   const key = plan.sort === 'period' ? (plan.mode === 'details' ? 'period' : 'group') : plan.sort;
-  if (!fields.includes(key)) throw new Error('LEASE_SORT_FIELD_NOT_SELECTED');
+  // Sort before projection: baseline area/period remain authorized even when
+  // the user explicitly selects only descriptive detail columns.
   resultRows.sort((a, b) => {
     const ca = a.cells[key], cb = b.cells[key];
     if (ca.kind === 'unknown' || cb.kind === 'unknown') return ca.kind === cb.kind ? a.entityId.localeCompare(b.entityId) : ca.kind === 'unknown' ? 1 : -1;
