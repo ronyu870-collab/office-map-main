@@ -8,7 +8,9 @@ export const modelModeSchema = z.enum(['quick', 'professional', 'deep']);
 export type ModelMode = z.infer<typeof modelModeSchema>;
 const limits = { quick: { rounds: 3, tools: 4 }, professional: { rounds: 7, tools: 10 }, deep: { rounds: 9, tools: 12 } } as const;
 const boundedNumber = (name: string, fallback: number, min: number, max: number) => {
-  const value = process.env[name] === undefined ? fallback : Number(process.env[name]);
+  const configured = process.env[name];
+  if (configured !== undefined && !configured.trim()) throw new ModelProviderError('invalid_configuration');
+  const value = configured === undefined ? fallback : Number(configured);
   if (!Number.isFinite(value) || value < min || value > max) throw new ModelProviderError('invalid_configuration');
   return value;
 };
@@ -21,8 +23,14 @@ function openAIAllowed(actorId: string) {
     && (process.env.AI_OPENAI_ACTOR_IDS ?? '').split(',').map(s => s.trim()).includes(actorId);
 }
 export function modelAvailability(actorId: string) {
-  const openai = openAIAllowed(actorId) && !!process.env.OPENAI_API_KEY?.trim() && !!process.env.OPENAI_AGENT_MODEL?.trim()
-    && !!process.env.OPENAI_AGENT_INPUT_USD_PER_MILLION && !!process.env.OPENAI_AGENT_OUTPUT_USD_PER_MILLION;
+  let openai = false;
+  if (openAIAllowed(actorId) && process.env.OPENAI_API_KEY?.trim() && process.env.OPENAI_AGENT_MODEL?.trim()) {
+    try {
+      boundedNumber('OPENAI_AGENT_INPUT_USD_PER_MILLION', NaN, 0, 1000);
+      boundedNumber('OPENAI_AGENT_OUTPUT_USD_PER_MILLION', NaN, 0, 1000);
+      openai = true;
+    } catch { /* Invalid prices must not advertise a cost-governed model. */ }
+  }
   return { deepseek: deepseekAgentConfigured(), openai, modes: ['quick', 'professional', 'deep'] as const };
 }
 type Rates = { input: number; output: number; basis: string };

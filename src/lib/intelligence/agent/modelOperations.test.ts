@@ -142,6 +142,14 @@ describe('bounded routing, fallback and model cost governance', () => {
     const run = runtime({ deepseek }); await run.invoke(messages, signal());
     await expect(run.invoke(messages, signal())).rejects.toMatchObject({ code: 'budget_exceeded' }); expect(run.records[0].chargedTokens).toBeGreaterThan(10000);
   });
+  it.each(['', ' ', 'NaN', '-1', 'Infinity'])('rejects invalid configured prices %j before sending or falling back', async price => {
+    setup(); vi.stubEnv('AI_PROVIDER_QUICK', 'openai'); vi.stubEnv('OPENAI_AGENT_INPUT_USD_PER_MILLION', price);
+    const openai = vi.fn().mockResolvedValue(success('openai')), deepseek = vi.fn().mockResolvedValue(success('deepseek'));
+    const run = runtime({ openai, deepseek });
+    await expect(run.invoke(messages, signal())).rejects.toMatchObject({ code: 'invalid_configuration' });
+    expect(openai).not.toHaveBeenCalled(); expect(deepseek).not.toHaveBeenCalled();
+    expect(run.records[0].usageStatus).toBe('not_sent'); expect(modelAvailability(actorId).openai).toBe(false);
+  });
   it('routes server modes without forcing another user onto OpenAI and keeps the same authorized tool executor', async () => {
     setup(); expect(chooseModelMode('你好')).toBe('quick'); expect(chooseModelMode('生成CBD研究报告')).toBe('deep');
     vi.stubEnv('AI_PROVIDER_QUICK', 'openai'); const openai = vi.fn().mockResolvedValueOnce({ ...success('openai'), message: { role: 'assistant', content: null,
