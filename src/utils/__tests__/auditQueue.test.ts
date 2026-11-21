@@ -147,3 +147,17 @@ test('disk pressure drops ordinary events but never capacity-drops critical obse
  expect(stored).toHaveLength(1501);expect(stored.filter(e=>e.action_type==='DATA_DELETE')).toHaveLength(1);
  expect(queue.getAuditQueueHealth().pressureDrops).toBe(1);
 });
+
+
+test('reload recovers the same durable event IDs and does not relabel their account',async()=>{
+ queue.logAuditEvent({action_type:'VIEW_BUILDING',details:{reload:true}});await pause();const persisted=await rows() as {event_id:string}[];
+ queue.clearAuditSessionContext();vi.resetModules();queue=await import('../audit');queue.setAuditSessionContext({userId:user,authSessionId:sessionId});
+ vi.mocked(fetch).mockImplementationOnce(async(_url,init)=>{const events=JSON.parse(String(init?.body)).events;expect(events[0].event_id).toBe(persisted[0].event_id);expect(events[0].origin_user_id).toBe(user);return Response.json({accepted_event_ids:events.map((e:{event_id:string})=>e.event_id)});});
+ await queue.flushAuditLogs();expect(await rows()).toHaveLength(0);
+});
+
+test('bounds top-level strings and never retains unknown caller properties',async()=>{
+ const giant='x'.repeat(1000000);
+ queue.logAuditEvent({action_type:'VIEW_BUILDING',details:{},target_name:giant,page_url:giant,module:giant,unexpected:giant} as Parameters<typeof queue.logAuditEvent>[0]);await pause();
+ const stored=(await rows())[0] as Record<string,unknown>;expect(stored).not.toHaveProperty('unexpected');expect(JSON.stringify(stored).length).toBeLessThan(2000);
+});

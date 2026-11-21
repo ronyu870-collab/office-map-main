@@ -38,15 +38,15 @@ export function applyAuditFilters(query:AuditQuery,f:AuditFilters):AuditQuery {
  for(const [column,value] of [['target_name',f.object],['ip_address',f.ip],['client_device_id',f.device]])if(value.trim())query=query.ilike(column,`%${value.trim().replaceAll('\\','\\\\').replaceAll('%','\\%').replaceAll('_','\\_')}%`);
  if(f.targetTable==='buildings'&&/^[0-9a-f-]{36}$/i.test(f.targetId)){query=query.or(`and(target_table.eq.buildings,target_id.eq.${f.targetId}),details->>building_id.eq.${f.targetId}`);}
  else {if(f.targetTable)query=query.eq('target_table',f.targetTable);if(f.targetId)query=query.eq('target_id',f.targetId);}
- if(f.operationId)query=query.or(`details->>operation_id.eq.${f.operationId},details->>request_id.eq.${f.operationId},event_id.eq.${f.operationId}`);
+ if(f.operationId)query=query.or(`details->>operation_id.eq.${f.operationId},details->>request_id.eq.${f.operationId},details->>event_group.eq.${f.operationId},event_id.eq.${f.operationId}`);
  if(f.outcome==='observed')query=query.eq('request_source','frontend');
  else if(f.outcome) {query=query.neq('request_source','frontend');query=f.outcome==='success'?query.or('details->>outcome.eq.success,request_source.eq.database_trigger'):query.eq('details->>outcome',f.outcome);}
  if(f.from)query=query.gte('occurred_at',f.from);
  if(f.to)query=query.lte('occurred_at',f.to);
  if(f.tier){
   const entries=Object.entries(AUDIT_EVENT_REGISTRY);
-  const critical=entries.filter(([,d])=>d.tier==='A').map(([key])=>key);
-  const ordinary=entries.filter(([,d])=>d.tier!=='A').map(([key])=>key);
+  const critical=entries.filter(([,d])=>d.tier==='A').flatMap(([key])=>[key,key.toLowerCase()]);
+  const ordinary=entries.filter(([,d])=>d.tier!=='A').flatMap(([key])=>[key,key.toLowerCase()]);
   const words=['DELETE','PERMISSION','GRANT','REVOKE','IMPORT','PASSWORD','BACKUP','CONFIG','ROLE','EXPORT'];
   // Same conservative fallback as auditDefinition; explicit ordinary exports win.
   query=f.tier==='A'

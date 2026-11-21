@@ -6,6 +6,7 @@ export interface AuditDefinition { tier: AuditTier; label: string; delivery: Aud
 const critical = (label: string, delivery: AuditDelivery = 'server-durable'): AuditDefinition => ({ tier: 'A', label, delivery });
 const ordinary = (label: string): AuditDefinition => ({ tier: 'B', label, delivery: 'client-batch' });
 export const AUDIT_EVENT_REGISTRY: Readonly<Record<string, AuditDefinition>> = {
+  DB_INSERT: critical('新增业务数据', 'transaction'), DB_UPDATE: critical('修改业务数据', 'transaction'), DB_DELETE: critical('删除业务数据', 'transaction'),
   ADMIN_FIELD_CHANGE: critical('关键业务字段变更', 'transaction'),
   QUARTERLY_RECORD_INSERT: critical('新增季度记录', 'transaction'), QUARTERLY_RECORD_UPDATE: critical('修正季度记录', 'transaction'), QUARTERLY_RECORD_DELETE: critical('删除季度记录', 'transaction'),
   BUILDING_INSERT: critical('新增楼宇', 'transaction'), BUILDING_UPDATE: critical('修改楼宇', 'transaction'), BUILDING_DELETE: critical('删除楼宇', 'transaction'),

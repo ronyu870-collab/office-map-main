@@ -175,6 +175,10 @@ language plpgsql security definer set search_path='' as $$
 declare before_row jsonb; after_row jsonb; before_diff jsonb='{}';after_diff jsonb='{}';k text;
  action text;object_id text;object_name text;actor text;
 begin
+ -- Canonical rename already has an authoritative atomic source, including linked
+ -- supply identity. Avoid adding a second building event for that same write.
+ if tg_op='UPDATE' and tg_table_name='buildings' and exists(select 1 from pg_trigger where tgrelid=tg_relid and tgname='buildings_finish_identity_update' and tgenabled in ('O','A'))
+ and (to_jsonb(old)->'name' is distinct from to_jsonb(new)->'name' or to_jsonb(old)->'former_names' is distinct from to_jsonb(new)->'former_names') then return new;end if;
  before_row=case when tg_op='INSERT' then '{}'::jsonb else to_jsonb(old) end;
  after_row=case when tg_op='DELETE' then '{}'::jsonb else to_jsonb(new) end;
  foreach k in array tg_argv[0]::text[] loop
@@ -183,6 +187,10 @@ begin
      after_diff=after_diff||jsonb_build_object(k,after_row->k);
    end if;
  end loop;
+ if tg_op='UPDATE' and tg_table_name='future_supplies' and pg_trigger_depth()>1
+ and to_regprocedure('private.finish_building_identity_update()') is not null and coalesce(after_row->>'building_id','')<>'' then
+  before_diff=before_diff-'name';after_diff=after_diff-'name';
+ end if;
  if tg_op='UPDATE' and after_diff='{}'::jsonb then return new; end if;
  actor=coalesce((select auth.uid())::text,'unknown');
  object_id=coalesce(after_row->>'id',before_row->>'id',after_row->>'user_id',before_row->>'user_id',after_row->>'key',before_row->>'key',after_row->>'building_id',before_row->>'building_id');

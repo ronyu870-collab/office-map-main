@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdir,writeFile,readFile } from 'node:fs/promises';
@@ -24,7 +25,11 @@ try {
  const actorMigration=await readFile(new URL('../../migrations/20261102063824_audit_actor_identity.sql',import.meta.url),'utf8');
  await db.setup.query(actorMigration.slice(actorMigration.indexOf('create function private.snapshot_audit_actor()'),actorMigration.indexOf('-- Classify existing rows')));
  const backendPid=(await db.setup.query('select pg_backend_pid() as pid')).rows[0].pid;
- const cpuSeconds=()=>execFileSync('ps',['-p',String(backendPid),'-o','time='],{encoding:'utf8'}).trim().split(':').map(Number).reduce((seconds,part)=>seconds*60+part,0);
+ const tickRate=process.platform==='linux'?Number(execFileSync('getconf',['CLK_TCK'],{encoding:'utf8'})):null;
+ const cpuSeconds=()=>{
+  if(tickRate){const stat=readFileSync(`/proc/${backendPid}/stat`,'utf8');const fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');return(Number(fields[11])+Number(fields[12]))/tickRate;}
+  return execFileSync('ps',['-p',String(backendPid),'-o','time='],{encoding:'utf8'}).trim().split(':').map(Number).reduce((seconds,part)=>seconds*60+part,0);
+ };
  const measure=async(run,prepare=async()=>undefined)=>{
   const cpuBefore=cpuSeconds();
   const samples=[];for(let i=0;i<110;i++){await prepare(i);const start=performance.now();await run(i);if(i>=10)samples.push(performance.now()-start);}
@@ -157,6 +162,22 @@ try {
   assert.equal(events.filter(e=>e.action_type==='LEASE_TRANSACTION_UPDATE').length,2);
   assert.equal(events.filter(e=>e.action_type==='LEASE_TRANSACTION_DELETE').length,1);
   assert.equal(events[0].user_id,OWNER);assert.equal(events[0].actor_role,'editor');
+ });
+ await check('canonical rename reuses the actual existing atomic source without duplicate events',async()=>{
+  await db.setup.query("alter table public.buildings add column former_names jsonb default '[]'");
+  await db.setup.query('alter table public.future_supplies add column name text,add column former_names text[]');
+  await db.setup.query('create table public.lease_building_name_map(market_code text,alias_name text,building_id uuid,match_method text,verification_status text,unique(market_code,alias_name))');
+  const source=await readFile(new URL('../../migrations/20261027100738_protect_building_identity_renames.sql',import.meta.url),'utf8');
+  const start=source.indexOf('create or replace function private.finish_building_identity_update()');
+  await db.setup.query(source.slice(start,source.indexOf('create or replace function private.guard_future_supply_identity()',start)));
+  await db.setup.query('create trigger buildings_finish_identity_update after update of name,former_names on public.buildings for each row execute function private.finish_building_identity_update()');
+  const building=(await db.asUser(ADMIN,"insert into public.buildings(name) values('Original') returning id")).rows[0].id;
+  await db.setup.query("insert into public.future_supplies(building_id,name,former_names) values($1,'Original',array[]::text[])",[building]);
+  const before=(await db.setup.query('select max(id) as id from public.audit_logs')).rows[0].id;
+  await db.asUser(ADMIN,"update public.buildings set name='Renamed',former_names='[\"Original\"]' where id=$1",[building]);
+  const events=(await db.setup.query('select action_type,target_table from public.audit_logs where id>$1',[before])).rows;
+  assert.deepEqual(events.map(e=>e.action_type),['DB_UPDATE','DB_UPDATE']);
+  assert.deepEqual(new Set(events.map(e=>e.target_table)),new Set(['buildings','future_supplies']));
  });
  await check('dedicated quarterly adapter returns bounded metadata and enforces admin access',async()=>{
   const b='cccccccc-1111-4111-8111-111111111111';

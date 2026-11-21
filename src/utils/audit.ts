@@ -180,7 +180,7 @@ export function logAuditEvent(event: AuditInput): void {
   if (typeof window === 'undefined') return;
   try {
     if (sessionStorage.getItem('__impersonation_state')) return;
-    const actionType = event.action_type.trim().toUpperCase();
+    const actionType = event.action_type.slice(0,100).trim().toUpperCase();
     if (isAuthorityOwnedAuthAction(actionType)) return;
     if (!auditPolicyGate.shouldRecord(actionType, event.details || {})) return;
     const context = currentAuditContext;
@@ -192,7 +192,10 @@ export function logAuditEvent(event: AuditInput): void {
       pending.splice(expendable,1);
     }
     ensureInit();
-    pending.push({ ...event,details:snapshotAuditValue(event.details),old_values:event.old_values?snapshotAuditValue(event.old_values):undefined,new_values:event.new_values?snapshotAuditValue(event.new_values):undefined, action_type: actionType, event_id: createEventId(), occurred_at: event.occurred_at || new Date().toISOString(),
+    pending.push({ request_source:'frontend',module:event.module?.slice(0,100),page_url:event.page_url?.slice(0,500),
+      target_table:event.target_table?.slice(0,100),target_id:event.target_id?.slice(0,200),target_name:event.target_name?.slice(0,500),
+      error_message:event.error_message?.slice(0,1000),duration_ms:event.duration_ms,
+      details:snapshotAuditValue(event.details),old_values:event.old_values?snapshotAuditValue(event.old_values):undefined,new_values:event.new_values?snapshotAuditValue(event.new_values):undefined, action_type: actionType, event_id: createEventId(), occurred_at: event.occurred_at?.slice(0,40) || new Date().toISOString(),
       client_device_id: context.deviceId || undefined, origin_schema_version: AUDIT_ORIGIN_SCHEMA_VERSION,
       origin_user_id: context.userId, origin_auth_session_id: context.authSessionId });
     if (!saveTimer) saveTimer = setTimeout(() => { void savePending(); }, 20);
