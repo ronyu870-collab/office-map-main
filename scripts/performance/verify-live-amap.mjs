@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { user, session, stock, project, stacking } from './fixtures/workspace-data.mjs';
-import { installLiveAmapProbe } from './fixtures/live-amap-probe.mjs';
-import { summarizeLongTasks } from './fixtures/long-task-profile.mjs';
+import { installLiveAmapProbe, waitForLiveAmapTiles } from './fixtures/live-amap-probe.mjs';
+import { summarizeLongTasks, sanitizeCpuProfile, sanitizeMainThreadTrace } from './fixtures/long-task-profile.mjs';
 
 const profileCPU = process.env.PERF_PROFILE_CPU === '1';
+const profileDirectory = process.env.PERF_PROFILE_DIR;
+if (profileDirectory && !profileCPU) throw new Error('PERF_PROFILE_DIR requires PERF_PROFILE_CPU=1');
+if (profileDirectory) fs.mkdirSync(profileDirectory, { recursive: true, mode: 0o700 });
 
 // Real SDK + real provider tiles. Business/auth responses remain isolated fixtures.
 // Run only against a local production build with valid NEXT_PUBLIC_AMAP_* config.
@@ -30,6 +34,7 @@ const results = { cpuProfilingEnabled: profileCPU, timingScope: profileCPU ? 'di
     'Each route transition creates its own map; panel transitions must retain that route map.',
   ] };
 let phase = 'gpu-configuration';
+let activeNetwork = null;
 try {
   const system = await (await browser.newBrowserCDPSession()).send('SystemInfo.getInfo');
   results.gpu = { renderer: system.gpu.auxAttributes?.glRenderer, features: system.gpu.featureStatus };
@@ -37,6 +42,7 @@ try {
     phase = `${width}/${reduced ? 'reduced' : 'motion'}/startup`;
     const context = await browser.newContext({ viewport: { width, height }, reducedMotion: reduced ? 'reduce' : 'no-preference', serviceWorkers: 'block' });
     const network = { sdkOK: 0, tileOK: 0, providerHTTPFailures: 0, failedRequests: 0, abortedRequests: 0, blockedHosts: [] };
+    activeNetwork = network;
     const errors = [];
     await context.routeWebSocket(/.*/, socket => socket.close());
     await context.route('**/*', async route => {
@@ -128,6 +134,13 @@ try {
       await cdp.send('Tracing.end'); await complete;
       const profile = profileCPU ? (await cdp.send('Profiler.stop')).profile : null;
       if (profile) sample.longTaskDetails = summarizeLongTasks({ tasks: sample.longTasksMs, profile, trace, navigationStart: before.NavigationStart, origin: base.origin });
+      if (profile && profileDirectory && sample.longTasksMs.length) {
+        const stem = `${width}-${reduced ? 'reduced' : 'motion'}-${name}`;
+        fs.writeFileSync(path.join(profileDirectory, `${stem}.cpuprofile`), JSON.stringify(sanitizeCpuProfile(profile)), { mode: 0o600 });
+        fs.writeFileSync(path.join(profileDirectory, `${stem}.trace.json`), JSON.stringify({ traceEvents: sanitizeMainThreadTrace(trace), navigationStart: before.NavigationStart, tasks: sample.longTasksMs }), { mode: 0o600 });
+        sample.profileFile = `${stem}.cpuprofile`;
+        sample.traceFile = `${stem}.trace.json`;
+      }
       sample.longTasksMs = sample.longTasksMs.map(task => task.duration);
       const after = Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x => [x.name, x.value]));
       sample.cpuMs = Object.fromEntries(['LayoutDuration','RecalcStyleDuration','ScriptDuration','TaskDuration'].map(name=>[name,(after[name]-before[name])*1000]));
@@ -140,6 +153,9 @@ try {
     await page.goto(new URL(`/map?building=${project}`, base).href);
     await detail.waitFor(); await focus();
     await page.waitForFunction(() => window.__liveAmapProbe.events.some(e=>e.name==='complete'));
+    // SDK complete/target camera can precede the first response in a warm or
+    // small viewport. Require real transport success without an early race.
+    await waitForLiveAmapTiles(page, network);
     assert.ok(network.tileOK > 0 && network.sdkOK > 0, 'real provider SDK and tile responses required');
     const startup = await page.evaluate(() => window.__liveAmapProbe.stages);
     await page.getByRole('tab', { name: '成交与资料', exact: true }).click();
@@ -202,7 +218,7 @@ try {
   }
   results.status = 'passed';
 } catch (error) {
-  results.status = 'failed'; results.failure = { name: error.name, phase, code: error.code ?? null };
+  results.status = 'failed'; results.failure = { name: error.name, phase, code: error.code ?? null, network: activeNetwork };
   const page=browser.contexts().at(-1)?.pages().at(-1);
   if(page){
     results.failure.state=await page.evaluate(()=>({path:location.pathname})).catch(()=>null);

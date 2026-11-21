@@ -1,8 +1,36 @@
-import { afterEach, expect, it } from 'vitest';
-import { installLiveAmapProbe } from './fixtures/live-amap-probe.mjs';
+import { afterEach, expect, it, vi } from 'vitest';
+import { installLiveAmapProbe, waitForLiveAmapTiles } from './fixtures/live-amap-probe.mjs';
 
 afterEach(() => {
   for (const key of ['AMap', '__workspaceMap', '__liveAmapProbe', '__colliersNavigationProbe']) delete window[key];
+});
+
+it('waits for actual provider tiles after early SDK completion and rejects unrelated responses', async () => {
+  let accept;
+  let emit;
+  const page = { waitForResponse: vi.fn(predicate => new Promise(resolve => {
+    accept = predicate;
+    emit = response => { if (predicate(response)) resolve(response); };
+  })) };
+  let ready = false;
+  const response = (url, ok = true) => ({ url: () => url, ok: () => ok });
+  const waiting = waitForLiveAmapTiles(page, { tileOK: 0 }).then(() => { ready = true; });
+  await Promise.resolve();
+  expect(ready).toBe(false);
+  expect(accept(response('https://webapi.amap.com/maps'))).toBe(false);
+  expect(accept(response('https://example.com/tile/1'))).toBe(false);
+  expect(accept(response('https://webapi.amap.com/tile/1', false))).toBe(false);
+  emit(response('https://webapi.amap.com/tile/1'));
+  await waiting;
+  expect(ready).toBe(true);
+  expect(page.waitForResponse.mock.calls[0][1]).toEqual({ timeout: 15000 });
+});
+
+it('reuses already observed tiles and propagates a real transport timeout', async () => {
+  const page = { waitForResponse: vi.fn().mockRejectedValue(new Error('tile timeout')) };
+  await waitForLiveAmapTiles(page, { tileOK: 1 });
+  expect(page.waitForResponse).not.toHaveBeenCalled();
+  await expect(waitForLiveAmapTiles(page, { tileOK: 0 })).rejects.toThrow('tile timeout');
 });
 it('observes late SDK assignment while preserving real construction, method arguments, receiver and results', () => {
   installLiveAmapProbe();

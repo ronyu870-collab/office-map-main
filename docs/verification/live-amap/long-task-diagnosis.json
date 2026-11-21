@@ -696,7 +696,8 @@
           }
         ]
       }
-    ]
+    ],
+    "attributionStatus": "Legacy unsorted sample estimate. A negative-timeDelta ordering bug was corrected on 2026-11-22. Original full profile is unavailable, so these cpuMs values cannot be recalculated and must not be used for precise quantitative comparisons."
   },
   "repetition": {
     "application": "a6653b5",
