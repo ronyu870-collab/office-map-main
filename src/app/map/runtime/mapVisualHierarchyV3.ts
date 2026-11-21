@@ -127,7 +127,7 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     if (grade.includes('BP')) {
       background = PALETTE.gradeBP;
       text = 'BP';
-      fontSize = 9;
+      fontSize = 12;
     } else if (grade.includes('A') || grade.includes('P')) {
       background = PALETTE.gradeA;
     } else if (grade.includes('B')) {
@@ -141,14 +141,14 @@ function visualFor(building: any, mode: RenderMode, groups?: any[]) {
     const rent = Number(metric?.net_effective_rent);
     const hasValue = Number.isFinite(rent) && rent > 0;
     text = hasValue ? String(Math.round(rent)) : '–';
-    fontSize = text.length >= 3 ? 9.5 : 10.5;
+    fontSize = text.length > 4 ? 10.5 : 12;
     background = !hasValue ? PALETTE.neutral : rent >= 300 ? PALETTE.extreme : rent >= 200 ? PALETTE.high : rent >= 100 ? PALETTE.medium : PALETTE.low;
   } else if (mode === 'vacancy') {
     const vacancy = mapOptionalNumber(metric?.vacancy_rate);
     const hasValue = Number.isFinite(vacancy);
     const percent = hasValue ? (vacancy <= 1 ? vacancy * 100 : vacancy) : 0;
     text = hasValue ? `${Math.round(percent)}%` : '–';
-    fontSize = text.length >= 3 ? 9 : 10;
+    fontSize = text.length > 3 ? 10.5 : 12;
     background = !hasValue ? PALETTE.neutral : percent >= 30 ? PALETTE.extreme : percent >= 20 ? PALETTE.high : percent >= 10 ? PALETTE.medium : PALETTE.low;
   } else {
     const leed = String(building?.leed_certification ?? '').toUpperCase();
@@ -181,7 +181,7 @@ function dotImage(background: string, border: string): string {
 }
 
 function detailImage(visual: ReturnType<typeof visualFor>): string {
-  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="16" fill="#fff" fill-opacity=".97"/><circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="800" fill="${visual.textColor}">${escapeHtml(visual.text)}</text></svg>`);
+  return dataUri(`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="16" fill="#fff" fill-opacity=".97"/><circle cx="17" cy="17" r="13.7" fill="${visual.background}" stroke="${visual.border}" stroke-width="1.3"/><text x="17" y="17.4" text-anchor="middle" dominant-baseline="middle" font-family="Arial,PingFang SC,Microsoft YaHei,sans-serif" font-size="${visual.fontSize}" font-weight="600" fill="${visual.textColor}">${escapeHtml(visual.text)}</text></svg>`);
 }
 
 

@@ -18,32 +18,52 @@ export function useSurfacePresence(open: boolean, children: React.ReactNode) {
   }, [open]);
   return { present: open || present, children: open ? children : retained.current, exiting: !open && present };
 }
-export function useSurfaceMotion(ref: React.RefObject<HTMLElement | null>, open: boolean, compact: boolean, signature: string) {
+function continuationClip(start: { frame: Keyframe; box: DOMRect }, box: DOMRect) {
+  if (Math.abs(start.box.width - box.width) < .5 && Math.abs(start.box.height - box.height) < .5) return start.frame.clipPath;
+  const inset = String(start.frame.clipPath ?? '').match(/^inset\(([^)]+)\)/)?.[1].split(/\s+/).map(value => parseFloat(value)) ?? [0];
+  const [top, right = top, bottom = top, left = right] = inset;
+  const width = Math.max(0, start.box.width - left - right), height = Math.max(0, start.box.height - top - bottom);
+  // Insets belong to the old surface size. Reusing a fullscreen inset on a
+  // smaller sheet can crop the entire sheet away during a fast reversal.
+  return `inset(0 ${Math.max(0, box.width - width)}px ${Math.max(0, box.height - height)}px 0)`;
+}
+export function useSurfaceMotion(ref: React.RefObject<HTMLElement | null>, open: boolean, compact: boolean, signature: string, { disabled = false }: { disabled?: boolean } = {}) {
   const previous = React.useRef<{ box: DOMRect; open: boolean; signature: string } | null>(null);
-  const interrupted = React.useRef<Keyframe | null>(null);
+  const interrupted = React.useRef<{ frame: Keyframe; box: DOMRect } | null>(null);
   React.useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
     const before = previous.current;
     const box = element.getBoundingClientRect();
     previous.current = { box, open, signature };
+    if (disabled) { interrupted.current = null; return; }
     if (!before || before.open === open && before.signature === signature) return;
     const offset = compact ? 'translateY(20px)' : element.classList.contains('map-workspace-left') ? 'translateX(-20px)' : 'translateX(20px)';
     let animation: Animation | undefined;
-    const start = before.open !== open ? interrupted.current : null;
+    const start = interrupted.current;
     interrupted.current = null;
-    if (!open) animation = animateWorkspace(element, [{ opacity: 1, transform: 'translate(0,0)', ...start }, { opacity: 0, transform: offset }], WORKSPACE_MOTION.state, 'forwards');
-    else if (!before.open) animation = animateWorkspace(element, [{ opacity: .5, transform: offset, ...start }, { opacity: 1, transform: 'translate(0,0)' }]);
+    const startFrame = start ? { ...start.frame, clipPath: continuationClip(start, box), ...(Math.abs(before.box.left - box.left) > .5 || Math.abs(before.box.top - box.top) > .5
+      ? { transform: `translate(${start.box.left - box.left}px,${start.box.top - box.top}px)` } : {}) } : null;
+    if (!open) animation = animateWorkspace(element, [{ opacity: 1, transform: 'translate(0,0)', ...startFrame }, { opacity: 0, transform: offset, clipPath: 'inset(0)' }], WORKSPACE_MOTION.state, 'forwards');
+    else if (!before.open) animation = animateWorkspace(element, [{ opacity: .5, transform: offset, ...startFrame }, { opacity: 1, transform: 'translate(0,0)', clipPath: 'inset(0)' }]);
     else {
-      const shift = compact ? before.box.top - box.top : before.box.left - box.left;
-      animation = animateWorkspace(element, [{ transform: compact ? `translateY(${shift}px)` : `translateX(${shift}px)`, clipPath: `inset(0 0 ${Math.max(0, box.height - before.box.height)}px 0)` }, { transform: 'translate(0,0)', clipPath: 'inset(0)' }]);
+      const visible = start?.box ?? before.box;
+      const x = visible.left - box.left, y = visible.top - box.top;
+      const width = Math.max(0, box.width - visible.width), height = Math.max(0, box.height - visible.height);
+      // A content/mode change with identical geometry needs no whole-pane motion.
+      if (!start && Math.abs(x) < .5 && Math.abs(y) < .5 && Math.abs(box.width - visible.width) < .5 && Math.abs(box.height - visible.height) < .5) return;
+      animation = animateWorkspace(element, [{ opacity: 1, ...start?.frame, transform: `translate(${x}px,${y}px)`, clipPath: start ? continuationClip(start, box) : `inset(0 ${width}px ${height}px 0)` }, { opacity: 1, transform: 'translate(0,0)', clipPath: 'inset(0)' }]);
     }
     return () => {
       if (animation && (animation.playState === 'running' || animation.pending)) {
         const style = window.getComputedStyle(element);
-        interrupted.current = { opacity: style.opacity, transform: style.transform };
+        // Cleanup runs after the new layout has committed. Reconstruct the last
+        // visible bounds from this animation's layout, not the newly sized DOM.
+        const matrix = typeof DOMMatrixReadOnly === 'undefined' ? null : new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
+        const visible = matrix ? new DOMRect(box.left + matrix.m41, box.top + matrix.m42, box.width, box.height) : element.getBoundingClientRect();
+        interrupted.current = { frame: { opacity: style.opacity, transform: style.transform, clipPath: style.clipPath }, box: visible };
       }
       animation?.cancel();
     };
-  }, [compact, open, ref, signature]);
+  }, [compact, open, ref, signature, disabled]);
 }

@@ -10,12 +10,21 @@ export function MapDisclosure({ label, children, className = '', active = true }
   const content = React.useRef<HTMLDivElement>(null);
   const [open, setOpen] = React.useState(false);
   const presence = useSurfacePresence(open, children);
+  const interrupted = React.useRef<Keyframe | null>(null);
   React.useLayoutEffect(() => {
-    const animation = animateWorkspace(content.current, open ? [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'translateY(0)' }] : [{ opacity: 1 }, { opacity: 0 }]);
-    return () => animation?.cancel();
+    const element = content.current;
+    const start = interrupted.current; interrupted.current = null;
+    const animation = animateWorkspace(element, open ? [{ opacity: 0, transform: 'translateY(-4px)', ...start }, { opacity: 1, transform: 'translateY(0)' }] : [{ opacity: 1, transform: 'translateY(0)', ...start }, { opacity: 0, transform: 'translateY(-4px)' }], open ? 180 : 120, open ? 'none' : 'forwards');
+    return () => {
+      if (element && animation && (animation.playState === 'running' || animation.pending)) {
+        const style = getComputedStyle(element);
+        interrupted.current = { opacity: style.opacity, transform: style.transform };
+      }
+      animation?.cancel();
+    };
   }, [open]);
   const id = React.useId();
-  React.useEffect(() => { if (!active) root.current?.removeAttribute('open'); }, [active]);
+  React.useEffect(() => { if (!active) { root.current?.removeAttribute('open'); setOpen(false); } }, [active]);
   React.useLayoutEffect(() => {
     if (!open) return;
     const place = () => {

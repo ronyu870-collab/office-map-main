@@ -178,6 +178,17 @@ type LegendItem = {
 };
 
 function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareGroups: CompareGroup[]; active: boolean }) {
+  const [aggregate, setAggregate] = React.useState(false);
+  React.useEffect(() => {
+    if (!active) return;
+    const container = document.getElementById('map-container');
+    if (!container) return;
+    const update = () => setAggregate(container.dataset.markerTier === 'submarket');
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(container, { attributes: true, attributeFilter: ['data-marker-tier'] });
+    return () => observer.disconnect();
+  }, [active]);
   const metricConfig: Record<RenderMode, { title: string; items: LegendItem[] }> = {
     default: {
       title: '项目类型',
@@ -185,25 +196,28 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
         { label: '甲级写字楼', className: 'bg-[#245b78]' },
         { label: '乙级写字楼', className: 'bg-[#4f7968]' },
         { label: '产业园', className: 'bg-[#9b6948]' },
-        { label: '未来供应', className: 'border border-dashed border-white bg-[#4f7968]' },
+        { label: '未来供应', className: 'border-2 border-dashed border-white bg-[#4f7968]' },
+        { label: '其他 / 未提供', className: 'bg-[#8794a4]' },
       ],
     },
     rent: {
       title: '净有效租金（元/㎡/月）',
       items: [
         { label: '<100', className: 'bg-[#4f7968]' },
-        { label: '100–199', className: 'bg-[#967a43]' },
-        { label: '200–299', className: 'bg-[#a56142]' },
+        { label: '100–<200', className: 'bg-[#967a43]' },
+        { label: '200–<300', className: 'bg-[#a56142]' },
         { label: '≥300', className: 'bg-[#97515a]' },
+        { label: '未提供', className: 'bg-[#8794a4]' },
       ],
     },
     vacancy: {
       title: '空置率',
       items: [
         { label: '<10%', className: 'bg-[#4f7968]' },
-        { label: '10–19%', className: 'bg-[#967a43]' },
-        { label: '20–29%', className: 'bg-[#a56142]' },
+        { label: '10–<20%', className: 'bg-[#967a43]' },
+        { label: '20–<30%', className: 'bg-[#a56142]' },
         { label: '≥30%', className: 'bg-[#97515a]' },
+        { label: '未提供', className: 'bg-[#8794a4]' },
       ],
     },
     leed: {
@@ -217,7 +231,15 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
     },
   };
 
-  const config: { title: string; items: LegendItem[] } = mode === 'default' && compareGroups.length > 0
+  const config: { title: string; items: LegendItem[] } = aggregate && mode === 'leed' ? {
+    title: '子市场 LEED 认证率', items: [
+      { label: '0%', className: 'bg-[#8794a4]' }, { label: '>0–<20%', className: 'bg-[#88a493]' },
+      { label: '20–<40%', className: 'bg-[#6f927f]' }, { label: '40–<60%', className: 'bg-[#537f6c]' },
+      { label: '≥60%', className: 'bg-[#3f715f]' },
+    ],
+  } : aggregate && mode === 'default' ? {
+    title: '子市场', items: [{ label: '租金 · 空置率 · 甲乙级数量', className: 'bg-[#245b78]' }],
+  } : mode === 'default' && compareGroups.length > 0
     ? {
         title: '项目对比组',
         items: compareGroups.map(group => ({
@@ -233,7 +255,7 @@ function MapLegend({ mode, compareGroups, active }: { mode: RenderMode; compareG
       <div className="flex items-center gap-3">
         {config.items.map(item => (
           <div key={item.label} className="flex items-center gap-1.5 text-[14px] text-slate-500">
-            <span className={`h-2.5 w-2.5 rounded-full ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
+            <span className={`map-legend-swatch rounded-full ${item.className ?? ''}`} style={item.style} aria-hidden="true" />
             {item.label}
           </div>
         ))}
