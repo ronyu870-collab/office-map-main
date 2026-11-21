@@ -1,3 +1,4 @@
+import { RELIABLE_ROUTES,unawaitedServerAuditCalls,reliableSourceGaps } from './audit-coverage-policy.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 
@@ -13,13 +14,19 @@ const READ_ONLY_RPCS = new Set([
   'admin_get_auth_audit_logs',
   'get_quarterly_submission_summary',
 ]);
-const SERVER_AUDIT_CALL = /\b(?:audit|logAudit|logAction|writeAudit)[A-Za-z0-9_$]*\s*\(/gi;
+// Explicit managed lifecycle is allowed only through the runtime-guarded B-class helper.
+const MANAGED_AUDIT_CALL = /\bscheduleAuditBestEffort\s*\(/;
+const TRANSACTION_AUDIT_RPCS = new Set(['submit_quarterly_batch_v2', 'lease_expiry_review_save', 'admin_rename_building']);
+
 const SERVER_MUTATION_AUDIT_EXEMPTIONS = new Map([
   [
     'src/app/api/audit-events/route.ts',
     'This route is the audit ingestion sink itself; recursively auditing its own audit write would create an audit loop.',
   ],
 ]);
+// A route is not covered merely because its source contains the word audit.
+// These contracts complement the actual HTTP/PG tests; they do not prove control flow.
+
 const errors = [];
 
 function walk(directory) {
@@ -43,18 +50,6 @@ function rpcNames(text) {
   return names;
 }
 
-function unawaitedServerAuditCalls(text) {
-  const violations = [];
-  SERVER_AUDIT_CALL.lastIndex = 0;
-  for (const match of text.matchAll(SERVER_AUDIT_CALL)) {
-    const index = match.index ?? 0;
-    const prefix = text.slice(Math.max(0, index - 80), index);
-    if (/(?:async\s+)?function\s+$/.test(prefix)) continue;
-    if (/\bawait\s+$/.test(prefix)) continue;
-    violations.push(match[0].replace(/\s*\($/, ''));
-  }
-  return violations;
-}
 
 function mutationSignals(text) {
   const hasPostgrestMutation = /\.from\s*\([^)]*\)[\s\S]{0,1800}?\.(?:insert|update|delete|upsert)\s*\(/.test(text);
@@ -86,7 +81,7 @@ for (const path of serverRoutes) {
   const text = source(path);
   const violations = unawaitedServerAuditCalls(text);
   if (violations.length > 0) {
-    errors.push(`${path}: server audit write is unawaited (${[...new Set(violations)].join(', ')}); await best-effort audit persistence before returning the response.`);
+    errors.push(`${path}: server audit write is unawaited (${[...new Set(violations)].join(', ')}); critical/reliable writes must be awaited; ordinary events must use scheduleAuditBestEffort (Next after), never a detached promise.`);
   }
 
   const signals = mutationSignals(text);
@@ -99,10 +94,17 @@ for (const path of serverRoutes) {
     continue;
   }
 
-  const hasAuditSignal = /audit_logs|logAudit|logAction|AuditService|writeAudit/i.test(text);
+  const hasTransactionAudit = rpcNames(text).some(name => TRANSACTION_AUDIT_RPCS.has(name));
+  const required=RELIABLE_ROUTES.get(path);
+  const hasAuditSignal = Boolean(required && reliableSourceGaps(path,text).length===0) || hasTransactionAudit;
   if (!hasAuditSignal) {
-    errors.push(`${path}: server mutation route has no explicit audit signal. Add awaited audit persistence or add a narrowly reviewed route exemption in scripts/check-audit-coverage.mjs.`);
+    errors.push(`${path}: server mutation route has no explicit audit signal. Add a reliable transaction/server source or guarded managed B-class delivery, or a narrowly reviewed exemption in scripts/check-audit-coverage.mjs.`);
   }
+}
+
+for(const [path,markers] of RELIABLE_ROUTES){
+ if(!serverRoutes.includes(path))errors.push(`${path}: stale reliable audit contract`);
+ else if(!markers.every(marker=>source(path).includes(marker)))errors.push(`${path}: critical audit source missing or changed; update the reliable contract and behavioral regression together`);
 }
 
 for (const [path, rationale] of SERVER_MUTATION_AUDIT_EXEMPTIONS) {
@@ -122,4 +124,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`Audit coverage contract passed: shared browser fallback is wired; ${reviewedServerMutationRoutes} server mutation route(s) reviewed across the full API baseline; ${exemptServerMutationRoutes} explicit exemption(s); server audit writes are awaited.`);
+console.log(`Audit coverage contract passed: shared browser fallback is wired; ${reviewedServerMutationRoutes} server mutation route(s) reviewed across the full API baseline; ${exemptServerMutationRoutes} explicit exemption(s); critical routes match explicit reliable-source contracts; managed ordinary delivery is runtime guarded; known transaction sources are supported.`);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
 
 import {
   IntelligenceAIError,
@@ -34,7 +35,7 @@ async function auditAIParse(
   requirementLength: number,
 ) {
   try {
-    const { error } = await client.from('audit_logs').insert({
+    scheduleAuditBestEffort(client, {
       user_id: callerId,
       action_type: 'AI_REQUIREMENT_PARSE',
       module: 'intelligence',
@@ -47,10 +48,7 @@ async function auditAIParse(
         requirement_length: requirementLength,
         capability_statuses: result.capabilities.map(item => ({ key: item.key, status: item.status })),
       },
-    });
-    if (error) {
-      console.error('[audit][intelligence] AI_REQUIREMENT_PARSE write failed', error.code, error.message);
-    }
+    }, 'intelligence/AI_REQUIREMENT_PARSE');
   } catch (error) {
     console.error(
       '[audit][intelligence] AI_REQUIREMENT_PARSE write threw',

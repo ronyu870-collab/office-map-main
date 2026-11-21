@@ -1,4 +1,5 @@
 'use client';
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 import * as React from 'react';
 import { Button } from '@/src/components/ui';
 import { logAction } from '@/src/utils/audit';
@@ -69,6 +70,8 @@ export function QuarterlyReportPanel({ period, history }: { period: PeriodContro
       const bytes = await reportBytes(report);
       if (generation.current !== request) return; // Quarter changed or component unmounted while preparing the file.
       const filename = `季度市场数据_${year}Q${quarter}.xlsx`;
+      await authorizeCriticalExport('EXPORT_DATA', 'quarterly_submissions', report.raw.length);
+      if (generation.current !== request) return;
       saveAs(new Blob([new Uint8Array(bytes)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename);
       logAction(undefined, 'EXPORT_DATA', {
         export_type: 'quarterly_submissions', record_count: report.raw.length, latest_building_count: report.latest.length,

@@ -52,11 +52,12 @@ try {
                 : [...stored].filter(key => key?.startsWith(prefix)).map(name => ({ name, type: 'file' }));
               return route.fulfill({ json: { status: 'success', data, truncated: false } });
             }
-            if (action === 'get-signature') {
+            if (action === 'prepare-upload') {
               signatures++;
               if (role !== 'admin') violations.push('viewer requested a write signature');
-              return route.fulfill({ json: { status: 'success', host: new URL('/fixture-upload', base).href, accessid: 'synthetic-access', policy: 'synthetic-policy', signature: 'synthetic-signature' } });
+              return route.fulfill({json:{status:'success',host:new URL('/fixture-upload',base).href,accessid:'synthetic-access',files:req.postDataJSON().files.map(file=>({file_name:file.file_name,operation_id:file.file_name,policy:'synthetic-policy',signature:'synthetic-signature'}))}});
             }
+            if(action==='confirm-upload'){audits.push({action_type:'OSS_UPLOAD',details:{fileName:req.postDataJSON().operation_id},origin_user_id:user.id,origin_auth_session_id:user.id});return route.fulfill({json:{status:'success'}});}
             violations.push(`unexpected OSS action: ${action}`);
           }
           if (url.pathname === '/api/audit-events') {

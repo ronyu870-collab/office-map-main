@@ -1,0 +1,10 @@
+{
+  "environment": "Node jsdom + fake-indexeddb (CPU/storage operations only; not browser or production business latency)",
+  "samples": 120,
+  "syncP95Ms": 0.01125000000001819,
+  "syncMaxMs": 0.6382079999999632,
+  "capacityReads": 120,
+  "puts": 120,
+  "transactions": 242,
+  "sessionReads": 0
+}

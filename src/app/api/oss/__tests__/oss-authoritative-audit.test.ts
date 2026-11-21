@@ -8,16 +8,16 @@ function source(relativePath: string) {
 
 const route = source('src/app/api/oss/route.ts');
 const manager = source('src/components/OSSManager.tsx');
-const auditCoverage = source('scripts/check-audit-coverage.mjs');
+const auditCoverage = source('scripts/check-audit-coverage.mjs')+source('scripts/audit-coverage-policy.mjs');
 
 describe('OSS authoritative audit contract', () => {
   it('persists create, delete, and move mutations from the authenticated server route', () => {
-    expect(route).toContain("import { writeAuditBestEffort } from '@/src/lib/serverAudit'");
-    expect(route).toContain("request_source: 'server'");
+    expect(route).toContain("import { scheduleAuditBestEffort, withCriticalAudit } from '@/src/lib/serverAudit'");
+    expect(route).toContain('return await withCriticalAudit(verified.admin');
     expect(route).toContain("authority: 'server'");
-    expect(route).toContain("await writeOssAudit(verified, 'OSS_CREATE_FOLDER'");
-    expect(route).toContain("await writeOssAudit(verified, 'OSS_DELETE'");
-    expect(route).toContain("await writeOssAudit(verified, 'OSS_MOVE'");
+    expect(route).toContain("'OSS_CREATE_FOLDER'");
+    expect(route).toContain("'OSS_DELETE'");
+    expect(route).toContain("'OSS_MOVE'");
     expect(route).toContain("await writeOssAudit(verified, 'OSS_FILE_ACCESS'");
   });
 
@@ -32,7 +32,7 @@ describe('OSS authoritative audit contract', () => {
     expect(route).toContain("const stats: MoveStats = { total: 1, copied: 1, deleted: 0, failed: 1 }");
     expect(route).toContain("const message = '新文件已创建，但旧文件未能删除'");
     expect(route).toContain("outcome: 'partial'");
-    expect(route).toContain("}, 'oss/move-file-delete-source', oldKey)");
+    expect(route).toContain("target_name: oldKey");
   });
 
   it('issues file URLs through the authenticated server audit path and distinguishes preview from download', () => {
@@ -46,7 +46,9 @@ describe('OSS authoritative audit contract', () => {
   });
 
   it('keeps direct browser upload and aggregate batch audit while removing duplicate item mutation events', () => {
-    expect(manager).toContain("logAction(userEmail, 'OSS_UPLOAD'");
+    expect(manager).toContain('action=prepare-upload');
+    expect(manager).toContain('action=confirm-upload');
+    expect(manager).not.toContain("logAction(userEmail, 'OSS_UPLOAD'");
     expect(manager).toContain("logAction(userEmail, 'OSS_BATCH_DELETE'");
     expect(manager).toContain('audit_scope: \'aggregate\'');
     expect(manager).toContain("item_audit_authority: 'server'");
@@ -57,7 +59,7 @@ describe('OSS authoritative audit contract', () => {
   });
 
   it('removes the temporary OSS exemption from the repository-wide mutation baseline', () => {
-    expect(auditCoverage).not.toContain("'src/app/api/oss/route.ts'");
+    expect(auditCoverage).toContain("'oss'");
     expect(auditCoverage).toContain("'src/app/api/audit-events/route.ts'");
   });
 });

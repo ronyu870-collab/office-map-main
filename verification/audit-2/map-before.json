@@ -1,0 +1,111 @@
+{
+  "status": "pass",
+  "browser": "158.0.8127.36",
+  "environment": "isolated AMap SDK and data adapter, not live tiles or GPU",
+  "observations": [
+    {
+      "label": "sdk-delayed",
+      "stage": {
+        "authorized": 596.3000000119209,
+        "controller_ready": 618.3000000119209,
+        "sdk_start": 618.8000000119209,
+        "sdk_ready": 1083.300000011921,
+        "tiles_complete": 1125.0999999642372,
+        "visual_ready": 1152.300000011921,
+        "stock_read_start": 618.5,
+        "stock_data_ready": 643.1999999880791,
+        "stock_render_start": 1168.800000011921,
+        "stock_render_returned": 1169.3999999761581
+      },
+      "fixtureOverlayMs": 1202
+    },
+    {
+      "label": "data-delayed",
+      "stage": {
+        "authorized": 441.10000002384186,
+        "controller_ready": 465.60000002384186,
+        "sdk_start": 466,
+        "sdk_ready": 498,
+        "tiles_complete": 539.8999999761581,
+        "visual_ready": 572.3000000119209,
+        "stock_read_start": 465.80000001192093,
+        "stock_data_ready": 924.3000000119209,
+        "stock_render_start": 940.3999999761581,
+        "stock_render_returned": 941.1000000238419
+      },
+      "fixtureOverlayMs": 973.3999999761581
+    }
+  ],
+  "lifecycle": [
+    {
+      "label": "reentry-desktop",
+      "width": 1280,
+      "visits": [
+        1076,
+        294,
+        176,
+        172,
+        257,
+        278,
+        161,
+        169,
+        197,
+        172,
+        177,
+        238,
+        271,
+        200,
+        245,
+        249,
+        247,
+        271,
+        242,
+        186
+      ],
+      "requests": {
+        "stock": 1,
+        "future": 1,
+        "sdk": 1,
+        "role": 1
+      },
+      "created": 20,
+      "destroyed": 20,
+      "active": 0
+    },
+    {
+      "label": "reentry-narrow",
+      "width": 390,
+      "visits": [
+        1043,
+        289,
+        220,
+        149,
+        154,
+        156,
+        276,
+        252,
+        240,
+        168,
+        157,
+        170,
+        252,
+        153,
+        181,
+        170,
+        301,
+        246,
+        159,
+        259
+      ],
+      "requests": {
+        "stock": 1,
+        "future": 1,
+        "sdk": 1,
+        "role": 1
+      },
+      "created": 20,
+      "destroyed": 20,
+      "active": 0
+    }
+  ]
+}

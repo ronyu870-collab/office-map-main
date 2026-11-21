@@ -1,3 +1,4 @@
+vi.mock('@/src/utils/criticalExport', () => ({ authorizeCriticalExport: vi.fn().mockResolvedValue(undefined) }));
 import * as React from 'react';
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

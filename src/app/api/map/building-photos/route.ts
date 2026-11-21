@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { scheduleAuditBestEffort } from '@/src/lib/serverAudit';
 import { parseUserRole } from '@/src/types/auth';
 import { BUILDING_PHOTO_BUCKET, BUILDING_PHOTO_TABLE, buildingPhotoDownloadUrl, isBuildingPhotoPath, publicPhotoUrl } from '@/src/lib/building-photos/model';
 import { loadInlineBuildingPhoto, PHOTO_PREVIEW_TRANSFORM } from './inlinePreview';
@@ -83,7 +83,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       if (useInline) {
         const preview = await loadInlineBuildingPhoto(url, secret, photo.storage_path, photo.sha256, metadata, request.signal);
         if (preview) {
-          await writeAuditBestEffort(admin, audit, 'map/building-photos');
+          scheduleAuditBestEffort(admin, audit, 'map/building-photos');
           return new NextResponse(preview.bytes, { headers: {
             'Content-Type': 'image/webp', 'Cache-Control': privateCache, 'X-Content-Type-Options': 'nosniff',
             'X-Building-Photo-Metadata': preview.metadataHeader, Vary: 'Accept',
@@ -111,7 +111,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
     if (!assetUrl) return json({ error: '图片链接无效，请联系管理员核对' }, 502);
 
-    await writeAuditBestEffort(admin, audit, 'map/building-photos');
+    scheduleAuditBestEffort(admin, audit, 'map/building-photos');
     return json({ url: assetUrl, is_preview: isPreview, ...metadata });
   } catch (error) {
     console.error('[map/building-photos] GET failed', error);

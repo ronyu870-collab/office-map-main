@@ -1,4 +1,5 @@
 'use client'
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 import { useCallback } from 'react'
 import { supabase } from '@/src/services/supabaseClient'
 import { logAction } from '@/src/utils/audit'
@@ -56,6 +57,7 @@ export function useExcelExport(
     const now = new Date()
     const ts = now.toISOString().slice(0, 10).replace(/-/g, '')
     const filename = `${filenamePrefix}_${ts}.xlsx`
+    try { await authorizeCriticalExport('EXPORT_DATA', config.table, filtered.length); } catch { showToast('导出授权未完成，请重试', false); return }
     XLSX.writeFile(wb, filename)
     showToast(`已导出 ${filtered.length} 条数据`)
 

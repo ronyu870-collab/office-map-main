@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import OSS from 'ali-oss';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { writeAuditBestEffort } from '@/src/lib/serverAudit';
+import { scheduleAuditBestEffort, withCriticalAudit } from '@/src/lib/serverAudit';
 import { resolveEffectiveRequestIdentity } from '@/src/lib/server/impersonationAuth';
 import { createIsolatedRequestTiming } from '@/src/lib/server/isolatedRequestTiming';
 
@@ -115,13 +116,13 @@ async function requireManager(request: Request) {
 
 async function writeOssAudit(
   verified: VerifiedUser,
-  actionType: 'OSS_CREATE_FOLDER' | 'OSS_DELETE' | 'OSS_MOVE' | 'OSS_FILE_ACCESS',
+  actionType: 'OSS_FILE_ACCESS',
   details: Record<string, unknown> & { outcome: OssAuditOutcome },
   context: string,
   targetName?: string,
 ) {
-  await writeAuditBestEffort(verified.admin, {
-    user_id: verified.user.email || verified.user.id,
+  scheduleAuditBestEffort(verified.admin, {
+    user_id: verified.user.id,
     action_type: actionType,
     details: {
       ...details,
@@ -255,33 +256,7 @@ export async function GET(request: Request) {
 
   try {
     if (action === 'get-signature') {
-      const auth = await requireManager(request);
-      if (auth.response) return auth.response;
-
-      const client = getOSSClient();
-      const accessKeyId = process.env.NEW_OSS_AK?.trim();
-      const accessKeySecret = process.env.NEW_OSS_SK?.trim();
-      if (!accessKeyId || !accessKeySecret) throw new Error('OSS 服务配置不完整');
-
-      const expiration = new Date(Date.now() + 60 * 60 * 1000);
-      const policy = {
-        expiration: expiration.toISOString(),
-        conditions: [
-          ['content-length-range', 0, 104857600],
-          ['starts-with', '$key', ''],
-        ],
-      };
-      const encodedPolicy = Buffer.from(JSON.stringify(policy)).toString('base64');
-      const signature = crypto.createHmac('sha1', accessKeySecret).update(encodedPolicy).digest('base64');
-
-      return NextResponse.json({
-        status: 'success',
-        accessid: accessKeyId,
-        host: `https://${client.options.bucket}.${client.options.region}.aliyuncs.com`,
-        policy: encodedPolicy,
-        signature,
-        expire: Math.floor(expiration.getTime() / 1000),
-      });
+      return NextResponse.json({status:'error',message:'上传入口已更新，请刷新页面后重试。'},{status:410});
     }
 
     if (action === 'get-list') {
@@ -372,6 +347,11 @@ export async function POST(request: Request) {
       const url = client.signatureUrl(fileKey, urlOptions);
       timing.finish('sign', signStarted);
 
+      const details = {file_name:fileKey,display_name:displayName,folder,access_method:accessMethod,source,outcome:'success'};
+      if (accessMethod === 'download') {
+        return await withCriticalAudit(verified.admin,{user_id:verified.user.id,action_type:'OSS_FILE_DOWNLOAD',module:'oss',target_table:'oss_objects',target_id:fileKey,details},'oss/download',async()=>
+          timing.response(()=>NextResponse.json({status:'success',url})),true);
+      }
       const auditStarted = timing.start();
       await writeOssAudit(verified, 'OSS_FILE_ACCESS', {
         file_name: fileKey,
@@ -400,15 +380,51 @@ export async function POST(request: Request) {
     const client = getOSSClient();
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
 
+    if (action === 'prepare-upload') {
+      const parsed=z.object({files:z.array(z.object({file_name:z.string().min(1).max(1024),size:z.number().int().min(1).max(104857600)})).min(1).max(100)}).safeParse(body);
+      if(!parsed.success)return NextResponse.json({status:'error',message:'上传范围无效'},{status:400});
+      if(new Set(parsed.data.files.map(file=>file.file_name)).size!==parsed.data.files.length||parsed.data.files.some(file=>file.file_name.endsWith('/')))return NextResponse.json({status:'error',message:'上传文件重复或路径无效'},{status:400});
+      const receipts=parsed.data.files.map(file=>({id:crypto.randomUUID(),actor_id:verified.user.id,action_type:'OSS_UPLOAD',target_table:'oss_objects',target_id:file.file_name,module:'oss',details:{expected_bytes:file.size,evidence:'upload_authorized'}}));
+      const {error}=await verified.admin.from('audit_operation_receipts').insert(receipts);
+      if(error)return NextResponse.json({status:'error',message:'上传凭据暂时无法保存，请稍后重试'},{status:503});
+      const expiration=new Date(Date.now()+10*60*1000);
+      const files=parsed.data.files.map((file,index)=>{
+        const policy=Buffer.from(JSON.stringify({expiration:expiration.toISOString(),conditions:[['content-length-range',1,file.size],['eq','$key',file.file_name]]})).toString('base64');
+        const signature=crypto.createHmac('sha1',process.env.NEW_OSS_SK!.trim()).update(policy).digest('base64');
+        return {file_name:file.file_name,operation_id:receipts[index].id,policy,signature};
+      });
+      return NextResponse.json({status:'success',host:`https://${client.options.bucket}.${client.options.region}.aliyuncs.com`,accessid:process.env.NEW_OSS_AK!.trim(),files},{headers:{'Cache-Control':'private, no-store'}});
+    }
+    if (action === 'confirm-upload') {
+      const parsed=z.object({operation_id:z.uuid()}).safeParse(body);
+      if(!parsed.success)return NextResponse.json({status:'error',message:'上传凭据无效'},{status:400});
+      const {data:receipt,error}=await verified.admin.from('audit_operation_receipts').select('id,actor_id,action_type,target_id,details,state,created_at').eq('id',parsed.data.operation_id).eq('actor_id',verified.user.id).eq('action_type','OSS_UPLOAD').maybeSingle();
+      if(error||!receipt)return NextResponse.json({status:'error',message:'上传凭据不存在'},{status:404});
+      if(receipt.state==='success')return NextResponse.json({status:'success'});
+      if(receipt.state!=='pending')return NextResponse.json({status:'error',message:'上传凭据已关闭'},{status:409});
+      const head=await client.head(receipt.target_id);
+      const headers=head.res.headers;
+      const size=Number(headers['content-length']);const modified=Date.parse(String(headers['last-modified']));
+      if(size!==receipt.details.expected_bytes||!Number.isFinite(modified)||modified<Date.parse(receipt.created_at)-2000)return NextResponse.json({status:'error',message:'对象版本尚未确认，请刷新目录后核查'},{status:409});
+      const completed=await verified.admin.rpc('audit_complete_operation',{p_id:receipt.id,p_state:'success',p_details:{verified_bytes:size,etag:String(headers.etag||'').slice(0,200),last_modified:new Date(modified).toISOString(),evidence:'server_object_verified'}});
+      // The object is already confirmed. An audit outage leaves a durable pending
+      // receipt; never repeat an upload to retry this independent confirmation.
+      return NextResponse.json({status:'success',audit_pending:Boolean(completed.error||completed.data!==true)});
+    }
+    const mutationAction = action === 'create-folder' ? 'OSS_CREATE_FOLDER' : action === 'delete' ? 'OSS_DELETE' : action === 'move' ? 'OSS_MOVE' : null;
+    if (!mutationAction) return NextResponse.json({status:'error',message:'Invalid action'},{status:400});
+    const target = action === 'delete' ? searchParams.get('file') : action === 'move' ? body.oldKey : body.folder;
+    return await withCriticalAudit(verified.admin, {user_id:verified.user.id,action_type:mutationAction,module:'oss',target_table:'oss_objects',
+      target_id:typeof target==='string'?target.slice(0,500):undefined,details:{request_mode:requestMode}}, 'oss/'+action, async recordResult => {
     if (action === 'create-folder') {
       const rawFolder = typeof body.folder === 'string' ? body.folder.trim() : '';
       if (!rawFolder) return NextResponse.json({ status: 'error', message: '缺少文件夹名称' }, { status: 400 });
       const folder = rawFolder.endsWith('/') ? rawFolder : `${rawFolder}/`;
       await client.put(folder, Buffer.from(''));
-      await writeOssAudit(verified, 'OSS_CREATE_FOLDER', {
+      recordResult({ ...{
         folderName: folder,
         outcome: 'success',
-      }, 'oss/create-folder', folder);
+      }, target_name: folder });
       return NextResponse.json({ status: 'success' });
     }
 
@@ -417,14 +433,14 @@ export async function POST(request: Request) {
       if (!fileKey) return NextResponse.json({ status: 'error', message: 'Missing file key' }, { status: 400 });
       if (fileKey.endsWith('/')) {
         const result = await deleteFolderRecursive(client, fileKey);
-        await writeOssAudit(verified, 'OSS_DELETE', {
+        recordResult({ ...{
           fileName: fileKey,
           type: 'folder',
           request_mode: requestMode,
           outcome: result.success ? 'success' : 'partial',
           stats: result.stats,
           message: result.message,
-        }, 'oss/delete-folder', fileKey);
+        }, target_name: fileKey });
         return NextResponse.json(
           { status: result.success ? 'success' : 'error', message: result.message, stats: result.stats },
           { status: result.success ? 200 : 500 },
@@ -432,12 +448,12 @@ export async function POST(request: Request) {
       }
 
       await client.delete(fileKey);
-      await writeOssAudit(verified, 'OSS_DELETE', {
+      recordResult({ ...{
         fileName: fileKey,
         type: 'file',
         request_mode: requestMode,
         outcome: 'success',
-      }, 'oss/delete-file', fileKey);
+      }, target_name: fileKey });
       return NextResponse.json({ status: 'success', message: '文件已删除' });
     }
 
@@ -454,7 +470,7 @@ export async function POST(request: Request) {
 
       if (oldIsFolder) {
         const result = await renameFolderRecursive(client, oldKey, newKey);
-        await writeOssAudit(verified, 'OSS_MOVE', {
+        recordResult({ ...{
           fileName: oldKey,
           targetPath: newKey,
           type: 'folder',
@@ -462,7 +478,7 @@ export async function POST(request: Request) {
           stage: result.stage,
           stats: result.stats,
           message: result.message,
-        }, 'oss/move-folder', oldKey);
+        }, target_name: oldKey });
         return NextResponse.json(
           { status: result.success ? 'success' : 'error', message: result.message, stats: result.stats },
           { status: result.success ? 200 : 500 },
@@ -473,7 +489,7 @@ export async function POST(request: Request) {
         await client.copy(newKey, oldKey);
       } catch (error) {
         const stats: MoveStats = { total: 1, copied: 0, deleted: 0, failed: 1 };
-        await writeOssAudit(verified, 'OSS_MOVE', {
+        recordResult({ ...{
           fileName: oldKey,
           targetPath: newKey,
           type: 'file',
@@ -481,7 +497,7 @@ export async function POST(request: Request) {
           stage: 'copy',
           stats,
           error_message: errorMessage(error),
-        }, 'oss/move-file-copy', oldKey);
+        }, target_name: oldKey });
         return NextResponse.json({ status: 'error', message: '文件复制失败，原文件已保留', stats }, { status: 500 });
       }
 
@@ -490,7 +506,7 @@ export async function POST(request: Request) {
       } catch (error) {
         const stats: MoveStats = { total: 1, copied: 1, deleted: 0, failed: 1 };
         const message = '新文件已创建，但旧文件未能删除';
-        await writeOssAudit(verified, 'OSS_MOVE', {
+        recordResult({ ...{
           fileName: oldKey,
           targetPath: newKey,
           type: 'file',
@@ -499,23 +515,24 @@ export async function POST(request: Request) {
           stats,
           message,
           error_message: errorMessage(error),
-        }, 'oss/move-file-delete-source', oldKey);
+        }, target_name: oldKey });
         return NextResponse.json({ status: 'error', message, stats }, { status: 500 });
       }
 
       const stats: MoveStats = { total: 1, copied: 1, deleted: 1, failed: 0 };
-      await writeOssAudit(verified, 'OSS_MOVE', {
+      recordResult({ ...{
         fileName: oldKey,
         targetPath: newKey,
         type: 'file',
         outcome: 'success',
         stage: 'complete',
         stats,
-      }, 'oss/move-file', oldKey);
+      }, target_name: oldKey });
       return NextResponse.json({ status: 'success', message: '文件已重命名', stats });
     }
 
     return NextResponse.json({ status: 'error', message: 'Invalid action' }, { status: 400 });
+    });
   } catch (error) {
     return NextResponse.json({ status: 'error', message: errorMessage(error) }, { status: 500 });
   }

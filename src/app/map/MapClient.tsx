@@ -1,4 +1,5 @@
 'use client';
+import { authorizeCriticalExport } from '@/src/utils/criticalExport';
 
 import { MapReadingContext, mapReturnToken, readMapReturn, saveMapReturn, rememberMapEntry, compactView, restoreWorkspace, type Camera, type MapReturnSnapshot } from './workspace/continuity';
 import { workspaceReducer, initialWorkspaceState } from './workspace/workspaceState';
@@ -813,6 +814,7 @@ export default function MapWorkbenchPage({ initialIntelligenceHandoff, buildingF
     try {
       const { downloadAmapData } = await import('@/src/utils/exportMapData');
       const AMap = (window as any).AMap;
+      await authorizeCriticalExport('EXPORT_MAP_DATA', 'map_geometry', 0, 'json');
       await downloadAmapData(controllerRef.current.getMapInstance(), AMap);
       logAction(appSession?.user?.email || '未知用户', 'EXPORT_MAP_DATA', {});
       alert('✅ 数据导出成功！请将下载的 beijing_map_data.json 文件放到 public/data/ 目录下');

@@ -1,0 +1,32 @@
+{
+  "environment": "Actual Next 16 production route + Node after lifecycle; synthetic remote Supabase fetch delayed 400ms, no remote connections",
+  "rows": [
+    {
+      "variant": "before",
+      "samples": 10,
+      "responseP95Ms": 427.8850830000001,
+      "auditInjectedDelayMs": 400,
+      "completedAttempts": 12,
+      "businessSuccess": 12,
+      "auditFailure": false
+    },
+    {
+      "variant": "after",
+      "samples": 10,
+      "responseP95Ms": 5.120375000000422,
+      "auditInjectedDelayMs": 400,
+      "completedAttempts": 12,
+      "businessSuccess": 12,
+      "auditFailure": false
+    },
+    {
+      "variant": "after-failure",
+      "samples": 10,
+      "responseP95Ms": 5.189542000000074,
+      "auditInjectedDelayMs": 400,
+      "completedAttempts": 12,
+      "businessSuccess": 12,
+      "auditFailure": true
+    }
+  ]
+}

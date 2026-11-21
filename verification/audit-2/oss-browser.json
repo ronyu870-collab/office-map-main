@@ -1,0 +1,60 @@
+{
+  "baseline": false,
+  "browser": "158.0.8127.36",
+  "observations": [
+    {
+      "width": 1280,
+      "routePath": "/oss",
+      "role": "admin",
+      "batch": {
+        "peak": 2,
+        "durationMs": 449,
+        "keys": [
+          "reports/Alpha.pdf",
+          "reports/Fail.pdf",
+          "reports/Omega.pdf"
+        ],
+        "reads": [
+          "",
+          "reports/",
+          "reports/"
+        ],
+        "signatures": 1
+      },
+      "retriedKey": "reports/Fail.pdf",
+      "auditEventsAfterRetry": 3,
+      "searchFocus": true,
+      "stayedInNewFolder": true
+    },
+    {
+      "width": 390,
+      "routePath": "/admin?section=oss",
+      "role": "admin",
+      "batch": {
+        "peak": 2,
+        "durationMs": 459,
+        "keys": [
+          "reports/Alpha.pdf",
+          "reports/Fail.pdf",
+          "reports/Omega.pdf"
+        ],
+        "reads": [
+          "",
+          "reports/",
+          "reports/"
+        ],
+        "signatures": 1
+      },
+      "retriedKey": "reports/Fail.pdf",
+      "auditEventsAfterRetry": 3,
+      "searchFocus": true,
+      "stayedInNewFolder": null
+    },
+    {
+      "width": 390,
+      "routePath": "/oss",
+      "role": "viewer",
+      "signatures": 0
+    }
+  ]
+}

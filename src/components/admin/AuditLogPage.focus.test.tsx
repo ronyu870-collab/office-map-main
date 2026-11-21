@@ -38,7 +38,7 @@ vi.mock('@/src/services/supabaseClient', () => ({ supabase: { from(table: string
         : { data: head ? null : rows, count: rows.length, error: null }).then(resolve);
     },
   };
-  for (const method of ['eq', 'in', 'neq', 'gte', 'order', 'range', 'or']) query[method] = () => query;
+  for (const method of ['eq', 'in', 'neq', 'gte', 'order', 'range', 'or', 'limit']) query[method] = () => query;
   return query;
 } } }));
 
@@ -62,7 +62,7 @@ test('coalesces rapid audit search edits and does not issue table reads during C
   fireEvent.change(input, { target: { value: 'Alpha 东' } });
   fireEvent.compositionEnd(input, { data: '东' });
   await waitFor(() => expect(fixture.objectQueries.slice(baselineRows)).toEqual(['Alpha 东']));
-  expect(fixture.countQueries.slice(baselineCount)).toEqual(Array(6).fill('Alpha 东'));
+  expect(fixture.countQueries.slice(baselineCount)).toEqual([]);
   expect(await screen.findByText('Alpha 东楼')).toBeInTheDocument();
   expect(screen.queryByText('Alpha 西楼')).not.toBeInTheDocument();
   expect(input).toHaveFocus();

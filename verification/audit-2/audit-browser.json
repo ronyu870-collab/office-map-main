@@ -1,0 +1,28 @@
+{
+  "status": "pass",
+  "browser": "158.0.8127.36",
+  "environment": "local production build with isolated REST responses",
+  "observations": [
+    {
+      "width": 1280,
+      "role": "admin",
+      "rapidRowRequests": 1,
+      "rapidExactCountRequests": 0,
+      "lateResponse": "discarded",
+      "focus": "preserved"
+    },
+    {
+      "width": 390,
+      "role": "admin",
+      "rapidRowRequests": 1,
+      "rapidExactCountRequests": 0,
+      "lateResponse": "discarded",
+      "focus": "preserved"
+    },
+    {
+      "width": 1280,
+      "role": "viewer",
+      "protectedRequests": 0
+    }
+  ]
+}
