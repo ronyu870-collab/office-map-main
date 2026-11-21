@@ -1,3 +1,5 @@
+import { verifyAi5Leases } from './ai5-lease-scenarios.mjs';
+import { installLeaseResearchFixture } from '../../supabase/tests/ai-lease-research/fixture.mjs';
 import { verifyAi5Reports } from './ai5-pdf-scenarios.mjs';
 import { verifyAi5Charts } from './ai5-chart-scenarios.mjs';
 import { verifyAi5Exports } from './ai5-export-scenarios.mjs';
@@ -49,8 +51,8 @@ const revision = queryPerformanceRevision(process.env, githubEvent);
 console.log('AI_QUERY_AUTH_SUITE ' + JSON.stringify({ suite, ...revision }));
 const settings=JSON.parse(await readFile(process.env.AI_QUERY_AUTH_STATUS,'utf8'));
 const apiUrl=new URL(settings.API_URL),dbUrl=new URL(settings.DB_URL);
-assert.equal(apiUrl.hostname,'127.0.0.1');assert.equal(apiUrl.port,'55991');
-assert.equal(dbUrl.hostname,'127.0.0.1');assert.equal(dbUrl.port,'55992');
+assert.equal(apiUrl.hostname,'127.0.0.1');assert.equal(apiUrl.port,process.env.AI_QUERY_AUTH_API_PORT??'55991');
+assert.equal(dbUrl.hostname,'127.0.0.1');assert.equal(dbUrl.port,process.env.AI_QUERY_AUTH_DB_PORT??'55992');
 const root=process.cwd(),output=path.join(root,'verification/ai-query-auth'),app='http://127.0.0.1:3289';
 const previewFile=process.env.AI_QUERY_AUTH_PREVIEW_FILE;
 if(previewFile)assert.match(previewFile,/^\/(?:private\/)?tmp\/colliers-query-preview-[a-z0-9-]+\.json$/);
@@ -126,6 +128,7 @@ try{
   if (!(await db.query("select to_regclass('private.ai_query_history_threads') r")).rows[0].r) {
     await db.query(await load('20261115173338_ai_query_own_history.sql'));
   }
+  await installLeaseResearchFixture(db);
   companyFixture = await setupCompanyAdmin(db, load);
   await db.query('update private.ai_query_control set enabled=false');
   await db.query("notify pgrst,'reload schema'");
@@ -595,6 +598,7 @@ try{
   await verifyAi5Exports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Charts({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   await verifyAi5Reports({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
+  await verifyAi5Leases({db,service,keys:{keyId,encryptionKey,digestKey},output,check,person,artifact,recover,events,decrypt,exportCaps,buildingIds:BUILDINGS});
   if (process.env.AI_QUERY_PERFORMANCE === '1') {
     if (suite === 'regression') {
       performanceBaseline = await startQueryPerformanceBaseline({root,env,log,until});

@@ -229,6 +229,7 @@ jobs:
           node supabase/tests/ai-query-authority/run.mjs
           node supabase/tests/ai-query-authority/p1-periods.mjs
           node supabase/tests/ai-query-authority/ai5-quarterly.mjs
+          node supabase/tests/ai-lease-research/run.mjs
         env:
           LEASE_TEST_PG_PORT: ${{ job.services.postgres.ports[5432] }}
 

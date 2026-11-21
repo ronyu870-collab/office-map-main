@@ -11,7 +11,7 @@ import { SourceOverview } from './HomeQueryResult';
 import styles from './HomeQueryResearchPanel.module.css';
 
 const tableNames: Record<string, string> = {
-  buildings: '楼宇目录', building_brochure_data: '楼书参数', building_metrics: '季度指标',
+  lease_research_snapshot: '获权成交研究快照', buildings: '楼宇目录', building_brochure_data: '楼书参数', building_metrics: '季度指标',
 };
 
 /** Reads only the already-authorized result. This companion never opens another
@@ -35,7 +35,7 @@ export function HomeQueryResearchPanel({ result, onClose, onViewSources }: { res
     <section className={styles.section} aria-label="当前分析范围"><h4>当前分析范围</h4><p>{resultScopeText(result)}</p></section>
     <section className={styles.section} aria-label="来源概览"><h4>来源概览</h4>
       {information.tables.length ? <ul className={styles.sources}>{information.tables.map(item => <li key={item.table}><Database size={16} aria-hidden="true" /><span>{tableNames[item.table] ?? '其他获权来源'}</span><span>{item.count} 条</span></li>)}</ul> : <p>本次结果没有可展示的来源记录。</p>}
-      <p className={styles.note}>候选来源含未参与计算的记录；具体数值的计算依据可在回答中逐项查看。</p>
+      <p className={styles.note}>{result.parameters.dataDomain === 'lease-research/1' ? '来源为获权整体快照；原始成交记录及客户身份不在来源包中。' : '候选来源含未参与计算的记录；具体数值的计算依据可在回答中逐项查看。'}</p>
       {onViewSources && <Button variant="ghost" size="sm" className={styles.sourceAction} onClick={onViewSources}>查看来源明细<ArrowUpRight size={16} aria-hidden="true" /></Button>}
     </section>
     <section className={styles.section} aria-label="统计口径"><h4>数据与统计口径</h4><SourceOverview result={result} research={information.research} /></section>

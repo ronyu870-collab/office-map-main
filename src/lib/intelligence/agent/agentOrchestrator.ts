@@ -21,6 +21,7 @@ export type AgentDependencies<T> = {
   history?: Array<{ user: string; assistant: string }>;
   /** Server-validated prior plan only. Never accepts a browser-claimed result. */
   contextPlan?: QueryPlan;
+  leaseResults?: readonly Record<string, unknown>[];
   reportResults?: readonly Record<string, unknown>[];
   reportHistoryLimited?: boolean;
   contextChart?: import('./agentConversation').AgentHistory['contextChart'];
@@ -50,6 +51,7 @@ export function agentInstructions(): string {
     '用户要求Excel/CSV时必须先查询正式完整结果，再调用export_table真实生成；不得只介绍导出菜单。list_buildings支持scope及组合fields，export_table指定resultIds、现有列key、sort、filters、topN、format=xlsx|csv_zip及singleSheet。',
     '目录导出不要求季度；租金和面积等季度字段需要明确期间，最新有效期间可用兼容工具解析。全部结果指服务端完整结果，不是当前页；选择字段只保留所选业务列，来源仍保留。多季度逐次查询后传多个resultIds合并，列结构须一致；不相加百分比或重算均值。',
     '刚才的结果仅继承已验证历史计划，重新执行查询后导出；不要引用旧resultId。用户指定单工作表时必须singleSheet=true。服务器生成、浏览器发起下载、实际保存是不同状态；不可声称已保存到本机。',
+    '租赁成交必须使用query_lease_transactions独立工具，不能借用季度楼宇租金工具；需要明确日期区间，最近一年/两年按今天北京时间计算日期。source区分live/history/combined，未知历史有效租金不能称净有效租金。仅允许独立获权聚合或脱敏明细，模型不得读取原始明细。公司/经纪人/提交人/备注不开放，不能通过分页、图表或来源绕过。成交量按记录而非净吸纳量，两表合并仅使用人工核验且版本有效的身份去重，其他重叠须披露。',
     '不支持成交客户明细、生产数据写入、实时外网检索和对客发布。PDF报告必须调用generate_pdf_report真实生成，模型不得自写数字或报告分析；先依法查询多个完整结果后一次组合。报告请求未指定起止、说最近四季度时，使用query_report_market由服务器取最近4个已结束的北京时间日历季度，并明确此口径；缺期保留未知，不补造未来数据。明确起止或含本季度按用户原话查询。',
     '净有效租金不可替代报价/成交租金；空置率变化按百分点，面积要注明单位与有效分母；缺失、未核验、零值必须区分。',
     '回答首先给结论，再列期间、范围、样本、来源及限制。工具异常时报告真实的失败状态，不能推断已未查询的数据。',
@@ -65,6 +67,11 @@ export function agentInstructions(): string {
 function classifyToolError(error: unknown): string {
   if (error instanceof Error) {
     if (error.message === 'QUERY_PERIOD_REQUIRED' || error.message === 'QUARTER_REQUIRED') return 'period_required';
+    if (error.message === 'LEASE_TOOL_REQUIRED') return 'lease_tool_required';
+    if (error.message === 'LEASE_SNAPSHOT_LIMIT') return 'lease_scope_too_large';
+    if (error.message === 'LEASE_PDF_UNSUPPORTED') return 'unsupported';
+    if (error.message === 'LEASE_READ_UNAVAILABLE') return 'source_unavailable';
+    if (error.message === 'AGENT_EXPORT_INCOMPATIBLE_DOMAIN') return 'incompatible_columns';
     if (error.message === 'AGENT_EXPORT_INCOMPATIBLE_COLUMNS') return 'incompatible_columns';
     if (error.message === 'AGENT_EXPORT_TOP_REQUIRES_SORT') return 'top_requires_sort';
     if (error.message === 'AGENT_EXPORT_DENIED') return 'export_not_authorized';
@@ -82,6 +89,8 @@ function classifyToolError(error: unknown): string {
   return 'tool_unavailable';
 }
 const errorHint: Record<string, string> = {
+  lease_tool_required: '成交请求必须调用query_lease_transactions独立工具，不得交给季度租金兼容引擎。请明确日期范围与当前/历史来源。',
+  lease_scope_too_large: '获权成交数据池超过20000条，未返回部分结果；须由授权维护者收窄正式研究范围后重试，不得声称已导出全部。',
   invalid_report_spec: '报告用途、结果或文件规模不受支持；仅允许内部研究，不包含对客发布。请缩小范围或修正正式结果，不能补造数据。',
   invalid_chart_spec: '图表规格与正式列、单位或合法范围不符；保留原值，修正字段、同单位系列或坐标范围后重试。',
   incompatible_columns: '多个结果的列结构或单位不同，不能直接合并。请查询相同字段后再导出，或分别导出。',
@@ -102,6 +111,7 @@ const errorHint: Record<string, string> = {
 
 export async function runAgentLoop<T>(input: AgentDependencies<T>): Promise<AgentLoopResult<T>> {
   const messages: ModelMessage[] = [{ role: 'system', content: agentInstructions() }];
+  if (input.leaseResults?.length) messages.push({ role: 'system', content: '本轮服务器已重新授权并导入的成交正式结果（可用于Excel/CSV及图表；不读取原始明细）：' + JSON.stringify(input.leaseResults) });
   if (input.contextPlan) messages.push({ role: 'system',
     content: '服务器已验证的上一轮查询条件（仅供指代继承，不代表本轮授权或已查结果；每次重新执行）：'
       + JSON.stringify(input.contextPlan).slice(0, 2500) });

@@ -30,6 +30,7 @@ export function queryCapabilityManifest(authority: DataAuthority) {
       grants.has(grant) && (operation !== 'rank' && operation !== 'filter' || fields.length > 0))
       .map(([operation]) => operation),
     internalExport: grants.has('export:internal'),
+    leaseResearch: 'requires_separate_explicit_research_grant; query_lease_transactions_checks_current_authority',
     coverage: 'not_verified_for_this_request' as const,
     coverageExplanation: '权限表示允许访问，不保证每栋楼、每个字段或每一季度存在正式有效数据；具体覆盖须执行获权查询后确定。',
   };

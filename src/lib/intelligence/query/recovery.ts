@@ -1,3 +1,6 @@
+import { isLeaseResult } from '../lease/protocol';
+import { recheckLeaseResult } from '../lease/research';
+import { resultViewSchema } from './presentation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { authorizePlan } from './admission';
@@ -39,7 +42,7 @@ export async function readOwnResult(client: SupabaseClient, identity: VerifiedQu
 /** The database has checked owner, current session, chain continuity and bounds.
  * Still validate the envelope before decryption and obtain current source ACLs. */
 export async function recoverOwnResult(client: SupabaseClient, identity: VerifiedQueryIdentity, keys: AuditKeys,
-  requestId: string, read: Read, signal: AbortSignal, options: { reauthorizedHistory?: boolean } = {}) {
+  requestId: string, read: Read, signal: AbortSignal, options: { reauthorizedHistory?: boolean; exporting?: boolean } = {}) {
   if(read.state!=='succeeded' || read.events.length!==read.head_sequence
     || read.events.some((event,index)=>event.request_id!==requestId || event.sequence!==index+1)
     || read.events.filter(event=>event.kind==='received').length!==1
@@ -47,6 +50,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     || read.events[0].kind!=='received')throw new Error('QUERY_RECOVERY_UNAVAILABLE');
   const context={requestId,actorId:identity.actorId,effectiveUserId:identity.effectiveUserId};
   const receipt=JSON.parse(decryptAuditContent(read.events[0].cipher,{...context,eventId:read.events[0].event_id},new Map([[keys.keyId,keys.encryptionKey]])));
+  let leaseProtocol = false;
   let planInput = receipt?.content?.plan;
   if (planInput?.resolution === 'server_semantic/1' || planInput?.resolution === 'server_agent/1') {
     // History calls this only after owner-checked archive access in the current
@@ -55,9 +59,24 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     const resolvedToolEvents = read.events.filter(event => event.kind === 'tool_finished').map(event =>
       JSON.parse(decryptAuditContent(event.cipher, { ...context, eventId: event.event_id }, new Map([[keys.keyId, keys.encryptionKey]]))).content);
     const resolved = (planInput?.resolution === 'server_agent/1' ? resolvedToolEvents.reverse() : resolvedToolEvents)
-      .find(value => value?.resolution?.protocol === 'research-conversation/1' && value?.plan);
+      .find(value => (value?.resolution?.protocol === 'research-conversation/1' && value?.plan) || value?.resolution?.protocol === 'lease-research/1');
     if (!resolved) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    leaseProtocol = resolved.resolution.protocol === 'lease-research/1';
     planInput = resolved.plan;
+  }
+  if (leaseProtocol) {
+    const authority = await loadDataAuthority(client, identity, signal);
+    if (authority.permissionRevision !== read.permission_revision) throw new Error('QUERY_DENIED');
+    const archive = decodeGeneratedArchive(read.events.filter(event => event.kind === 'response_generated'), context, new Map([[keys.keyId, keys]]));
+    const result = resultViewSchema.parse(archive.result);
+    if (!isLeaseResult(result)) throw new Error('QUERY_RECOVERY_UNAVAILABLE');
+    const recheck = async () => {
+      const current = await loadDataAuthority(client, identity, signal);
+      if (current.permissionRevision !== authority.permissionRevision) throw new Error('QUERY_DENIED');
+      await recheckLeaseResult(client, identity, signal, result, options.exporting);
+    };
+    await recheck();
+    return { result: archive.result, resultId: result.resultId, redactionTypes: archive.redactionTypes, recheck };
   }
   const plan=parseQueryPlan(planInput);
   const authority=await loadDataAuthority(client,identity,signal);
@@ -84,6 +103,7 @@ export async function recoverOwnResult(client: SupabaseClient, identity: Verifie
     if(error)throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if ((plan.operation === 'group_aggregate' || plan.operation === 'group_trend' || plan.operation === 'cross_aggregate' || plan.operation === 'cross_trend') && data?.source_policy !== 'catalog-dimensions/1') throw new Error('QUERY_RECOVERY_UNAVAILABLE');
     if(data?.allowed!==true || data.permission_revision!==current.permissionRevision)throw new Error('QUERY_DENIED');
+    if (params?.leaseBindings) await recheckLeaseResult(client, identity, signal, { parameters: params }, options.exporting);
   };
   await recheck();
   // Return the exact decoded archive, not the narrowed schema projection above.

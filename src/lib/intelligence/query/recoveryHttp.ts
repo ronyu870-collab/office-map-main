@@ -56,7 +56,7 @@ export async function handleResultRecovery(request:Request,dependencies:ReturnTy
     const record=await readOwnResult(client,verified,input.requestId,input.action!=='status'?'archive':'status',signal);
     if(record.permission_revision!==authority.permissionRevision)throw new Error('QUERY_DENIED');
     const restored=input.action!=='status'&&record.state==='succeeded'
-      ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover'}):null;
+      ?await recoverOwnResult(client,verified,keys,input.requestId,record,signal,{reauthorizedHistory:mode!=='recover',exporting:mode==='artifact'&&(input.action==='export'||input.action==='copy')}):null;
     const artifact=mode==='artifact'&&restored?await buildResultArtifact(restored.result,input as ArtifactInput):null;
     if(mode==='artifact'&&!artifact)throw new Error('QUERY_RESULT_NOT_READY');
     const buildingContext=mode==='buildings'&&restored?await readBuildingContext(client,restored.result,input as z.infer<typeof buildingContextInputSchema>,signal):null;
