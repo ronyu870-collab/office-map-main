@@ -83,7 +83,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       if(cursor && !/^\d{1,20}$/.test(cursor))return reply({error:'分页标识无效'},400);
       let query=client.from('stacking_plan_export_events').select('id,building_id,actor_id,export_format,recorded_at').eq('building_id',id).order('id',{ascending:false}).limit(51);
       if(cursor)query=query.lt('id',cursor);
-      const {data,error}=await query;if(error)return databaseUnavailable(error);
+      const {data,error}=await query.abortSignal(AbortSignal.any([request.signal,AbortSignal.timeout(10000)]));if(error)return databaseUnavailable(error);
       await guard();
       return reply({records:(data ?? []).slice(0,50),has_next:(data ?? []).length>50});
     }

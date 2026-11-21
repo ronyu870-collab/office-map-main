@@ -77,7 +77,7 @@ describe('Stacking Plan identity and read/write boundary', () => {
     if (table === 'audit_operation_receipts') return exportsTable;
     if (table === 'stacking_plan_export_events') {
       const history:Record<string,unknown>={};
-      for(const method of ['select','eq','order','limit','lt'])history[method]=(..._args:unknown[])=>history;
+      for(const method of ['select','eq','order','limit','lt','abortSignal'])history[method]=(..._args:unknown[])=>history;
       history.then=(resolve:(value:unknown)=>unknown)=>resolve({data:Array.from({length:51},(_,i)=>({id:100-i,building_id:ID,actor_id:'tester',export_format:'xlsx',recorded_at:'2026-11-21T00:00:00Z'})),error:null});return history;
     }
     throw new Error('Unexpected table ' + table);
