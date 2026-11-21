@@ -14,8 +14,15 @@ export function resultBuildingRows(result: QueryResultView): QueryBuildingRow[] 
     return [{ id: row.entityId, name: name.value, cells: row.cells }];
   });
   if(result.parameters.dataDomain==='business-research/1' && result.parameters.businessTool==='query_stacking_plan') {
-    return [...new Map(result.sources.filter(s=>s.table==='buildings' && s.field==='building' && s.recordId===s.entityId && z.uuid().safeParse(s.entityId).success && typeof s.rawValue==='string')
-      .map(s=>[s.entityId,{id:s.entityId,name:s.rawValue as string,cells:{}}])).values()];
+    const bound = new Map(result.sources.filter(s => s.table === 'buildings' && s.field === 'building'
+      && s.recordId === s.entityId && z.uuid().safeParse(s.entityId).success && typeof s.rawValue === 'string').map(s => [s.id, s]));
+    const buildings = result.table.rows.flatMap(row => {
+      const cell = row.cells.building;
+      if (cell?.kind !== 'text') return [];
+      const source = cell.sourceIds.map(id => bound.get(id)).find(s => s?.rawValue === cell.value);
+      return source ? [{ id: source.entityId, name: cell.value, cells: {} }] : [];
+    });
+    return [...new Map(buildings.map(building => [building.id, building])).values()];
   }
   if (rows.length) return [...new Map(rows.map(row => [row.id, row])).values()];
   const scope = z.object({ scope: z.object({ buildingIds: z.array(z.uuid()).max(20) }) }).safeParse(result.parameters.executedPlan);

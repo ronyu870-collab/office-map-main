@@ -438,6 +438,9 @@ export async function handleAgentSubmission(request: Request, dependencies: Depe
       execution.answer = '本轮未生成图片文件。' + (preparedChart ? '同源图表仍可查看。' : '')
         + '请核对导出资格、字段与图表规格后重试。';
     }
+    if(!preparedMap && !preparedChart && !preparedExport && !preparedReport && execution.toolNames.includes('prepare_map_selection')) {
+      execution.answer='本轮未准备地图操作。当前结果缺少可操作的楼宇身份，或选择范围未通过校验；未打开地图或生成点位。';
+    }
     if(preparedMap && !preparedChart && !preparedExport && !preparedReport) {
       execution.result=preparedMap;
       execution.answer='已准备获权楼宇的地图操作，可通过本条回答打开地图；尚未打开地图或改变当前地图选择。';

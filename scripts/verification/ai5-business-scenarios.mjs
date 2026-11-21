@@ -68,6 +68,7 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    await next('submarket');const args={submarkets:['CBD']};const r=await submit('query_submarket_profile',args);assert.equal(r.status,200);assert.equal(r.body.result.table.rows[0].cells.headline.value,'合成区域定位');
    await db.query("update public.map_submarket_profiles set is_published=false where submarket='CBD'");const draft=await submit('query_submarket_profile',args);assert.equal(draft.status,200);assert.equal(draft.body.result.table.rows.length,0);
    await db.query("update public.map_submarket_profiles set is_published=true where submarket='CBD'");
+   const noMap=await submit('query_submarket_profile',args,{followup:'prepare_map_selection'});assert.equal(noMap.status,200);assert.match(noMap.body.message,/未准备地图操作/);assert.equal(noMap.body.result.parameters.agentMap,undefined);
   });
   await check('AI5业务 / 未来供应目录、明确季度提交、最新所属季度分离，不带提交人',async()=>{
    for(const [source,expected] of [['catalog',null],['submitted_quarter',48000],['latest_submitted',49000]]){

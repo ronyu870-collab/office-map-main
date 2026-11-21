@@ -50,6 +50,11 @@ describe('controlled business research',()=>{
   s.records[0].data=[evidence('buildings',{building:'合成A座'}),evidence('stacking_plan_spaces',{unit:'1001',status:'vacant',verification:'source_unverified',unitArea:'600'}),evidence('stacking_plan_sources',{sourceDate:null,dateKind:'unknown',review:'pending_source_date'})];
   const stack=buildBusinessResult(s,businessPlanSchema.parse({tool:'query_stacking_plan',buildingIds:[id]}));expect(stack.table.rows[0].cells.sourceDate.kind).toBe('unknown');
   expect(stack.table.rows[0].cells.verification).toMatchObject({value:'来源未核验'});expect(JSON.stringify(businessModelObservation(stack))).not.toContain('1001');
+  expect(resultBuildingRows(resultViewSchema.parse(stack))).toMatchObject([{id,name:'合成A座'}]);
+  const selected=prepareExportResult([stack],{resultIds:[stack.resultId],format:'xlsx',fields:['unit','unitArea']});
+  expect(resultBuildingRows(resultViewSchema.parse(selected))).toHaveLength(0);
+  const empty={...stack,table:{...stack.table,rows:[]}};
+  expect(resultBuildingRows(resultViewSchema.parse(empty))).toHaveLength(0);
  });
  it('maps selected source-bound buildings without arbitrary IDs, coordinate inputs or 20-row clipping',async()=>{
   const s=snap();s.records=Array.from({length:25},(_,i)=>{const key='aaaaaaaa-aaaa-4aaa-8aaa-'+String(i+1).padStart(12,'0');return {id:key,name:'合成楼'+i,buildingId:key,data:[evidence('buildings',{name:'合成楼'+i},key)]};});
