@@ -72,7 +72,7 @@ export async function verifyAi5Business({db,app,service,keys,output,check,person
    assert.equal((await buildings(dossier,{buildingId:buildingIds[1]})).status,403);assert.equal((await buildings(dossier,{},other)).status,403);
   });
   await check('AI5业务 / 子市场仅已发布且通过完整编辑校验的资料，草稿不交付',async()=>{
-   await next('submarket');const args={submarkets:['CBD']};const r=await submit('query_submarket_profile',args);assert.equal(r.status,200);assert.equal(r.body.result.table.rows[0].cells.headline.value,'合成区域定位');
+   await next('submarket');const args={submarkets:['CBD']};const r=await submit('query_submarket_profile',args);assert.equal(r.status,200);assert.equal(r.body.result.table.rows[0].cells.headline.value,'合成区域定位');assert.ok(r.body.result.sources.every(s=>s.businessAsOf===null));
    await db.query("update public.map_submarket_profiles set is_published=false where submarket='CBD'");const draft=await submit('query_submarket_profile',args);assert.equal(draft.status,200);assert.equal(draft.body.result.table.rows.length,0);
    await db.query("update public.map_submarket_profiles set is_published=true where submarket='CBD'");
    const noMap=await submit('query_submarket_profile',args,{followup:'prepare_map_selection'});assert.equal(noMap.status,200);assert.match(noMap.body.message,/未准备地图操作/);assert.equal(noMap.body.result.parameters.agentMap,undefined);

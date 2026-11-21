@@ -79,7 +79,7 @@ begin
  elsif module='submarket' then
  select coalesce(jsonb_agg(jsonb_build_object('id',p.submarket,'name',p.submarket,'buildingId',null,'editorial',jsonb_build_object('headline',p.headline,'overview',p.overview,'industries',p.industries,'transport',p.transport,'demographics',p.demographics,'policies',p.policies,'insights',p.insights),'data',jsonb_build_array(
   private.ai_business_evidence('map_submarket_profiles',p.submarket,jsonb_build_object('name',p.submarket,'headline',p.headline,'overview',p.overview,
-  'industries',p.industries,'transport',p.transport,'published',p.is_published::text),to_jsonb(p)-array['updated_by','published_by'],p.updated_at::text,p.published_at::text))) order by p.submarket),'[]')
+  'industries',p.industries,'transport',p.transport,'published',p.is_published::text),to_jsonb(p)-array['updated_by','published_by'],p.updated_at::text))) order by p.submarket),'[]')
  into rows from public.map_submarket_profiles p where p.submarket=any(markets);
  elsif module='supply' then
  select coalesce(jsonb_agg(body order by id),'[]') into rows from (
@@ -110,9 +110,9 @@ begin
   private.ai_business_evidence('stacking_plan_spaces',s.id::text,jsonb_build_object('unit',s.unit_code,'status',s.occupancy_status,'unitArea',s.area_sqm::text,'verification',s.verification_status),
    jsonb_build_array(s.id,s.unit_code,s.occupancy_status,s.area_sqm,s.verification_status,s.source_id,s.revision,s.updated_at),s.updated_at::text),
   private.ai_business_evidence('stacking_plan_sources',ss.id,jsonb_build_object('sourceDate',ss.source_as_of::text,'dateKind',ss.as_of_kind,'review',ss.review_state),
-   jsonb_build_array(ss.id,ss.building_id,ss.source_as_of,ss.as_of_kind,ss.review_state),null,ss.source_as_of::text),
+   jsonb_build_array(ss.id,ss.building_id,ss.source_as_of,ss.as_of_kind,ss.review_state),null,case when ss.review_state='verified' and ss.as_of_kind<>'unknown' then ss.source_as_of::text end),
   private.ai_business_evidence('stacking_plan_sources',fs.id,jsonb_build_object('floorSourceDate',fs.source_as_of::text,'floorDateKind',fs.as_of_kind,'floorReview',fs.review_state),
-   jsonb_build_array(fs.id,fs.building_id,fs.source_as_of,fs.as_of_kind,fs.review_state),null,fs.source_as_of::text))) body
+   jsonb_build_array(fs.id,fs.building_id,fs.source_as_of,fs.as_of_kind,fs.review_state),null,case when fs.review_state='verified' and fs.as_of_kind<>'unknown' then fs.source_as_of::text end))) body
  from public.buildings b join public.stacking_plan_towers t on t.building_id=b.id
  join public.stacking_plan_floors fl on fl.tower_id=t.id join public.stacking_plan_spaces s on s.floor_id=fl.id
  join public.stacking_plan_sources ss on ss.id=s.source_id and ss.building_id=b.id

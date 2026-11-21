@@ -41,6 +41,11 @@ try{
  await check('Stacking Plan uses actual tower/floor/unit identities without tenant, notes or original paths',async()=>{
   const r=await snap({tool:'query_stacking_plan',buildingIds:[BUILDINGS[0]]});assert.equal(r.records.length,1);assert.equal(r.records[0].data[1].values.towerCode,'A');assert.equal(r.records[0].data[3].values.status,'vacant');assert.equal(r.records[0].data[4].values.sourceDate,null);
   for(const secret of ['合成租户','tenant_name','notes','lease_steps','evidence_storage_path'])assert.equal(JSON.stringify(r).includes(secret),false);
+  await db.setup.query("update public.stacking_plan_sources set source_as_of='2026-01-01' where id='synthetic-business-source'");
+  const pending=await snap({tool:'query_stacking_plan',buildingIds:[BUILDINGS[0]]});assert.equal(pending.records[0].data[4].values.sourceDate,'2026-01-01');assert.equal(pending.records[0].data[4].asOf,null);
+  await db.setup.query("update public.stacking_plan_sources set as_of_kind='source_data_as_of',review_state='verified' where id='synthetic-business-source'");assert.equal((await snap({tool:'query_stacking_plan',buildingIds:[BUILDINGS[0]]})).records[0].data[4].asOf,'2026-01-01');
+  await db.setup.query("update public.stacking_plan_sources set source_as_of=null,as_of_kind='unknown',review_state='pending_source_date' where id='synthetic-business-source'");
+  const brief=await snap({tool:'query_submarket_profile',submarkets:['CBD']});assert.equal(brief.records[0].data[0].asOf,null);
  });
  await check('viewer/editor, cross-user, expired/revoked research and stale sessions fail closed',async()=>{
   for(const role of ['viewer','editor']){await db.setup.query('update public.user_roles set role=$1 where user_id=$2',[role,OWNER]);assert.equal((await snap({tool:'query_stacking_plan',buildingIds:[BUILDINGS[0]]})).allowed,false);}
